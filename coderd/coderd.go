@@ -608,13 +608,6 @@ func New(options *Options) *API {
 		chatProviderAPIKeys.Anthropic = value
 	}
 
-	chatModelCatalogConfig := chatd.ModelCatalogConfig{
-		OpenAIModelsURL:    options.DeploymentValues.AI.BridgeConfig.OpenAI.ModelsURL.Value(),
-		AnthropicModelsURL: options.DeploymentValues.AI.BridgeConfig.Anthropic.ModelsURL.Value(),
-		Allowlist:          options.DeploymentValues.AI.BridgeConfig.ModelsAllowlist.Value(),
-		Denylist:           options.DeploymentValues.AI.BridgeConfig.ModelsDenylist.Value(),
-	}
-
 	chatProviderAPIKeysResolver := func(ctx context.Context) (chatd.ProviderAPIKeys, error) {
 		providers, err := options.Database.GetEnabledChatProviders(ctx)
 		if err != nil {
@@ -668,20 +661,8 @@ func New(options *Options) *API {
 		chatStreamManager:   chatd.NewStreamManager(options.Logger.Named("chat-streams")),
 		chatProcessor:       options.ChatProcessor,
 		chatProviderAPIKeys: chatProviderAPIKeys,
-		chatModelCatalog: chatd.NewModelCatalog(
-			options.Logger.Named("chats"),
-			options.HTTPClient,
-			chatProviderAPIKeys,
-			chatModelCatalogConfig,
-		),
+		chatModelCatalog:    chatd.NewModelCatalog(chatProviderAPIKeys),
 	}
-	api.chatLocalService = chatd.NewLocalService(chatd.LocalServiceOptions{
-		Logger:       options.Logger.Named("chat-local"),
-		Database:     options.Database,
-		AccessURL:    options.AccessURL,
-		HTTPClient:   options.HTTPClient,
-		DeploymentID: depID,
-	})
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
 		options.Logger.Named("workspaceapps"),
@@ -811,20 +792,29 @@ func New(options *Options) *API {
 		panic("failed to setup server tailnet: " + err.Error())
 	}
 	api.agentProvider = stn
+	var chatLocalConfig *chatd.LocalConfig
+	if chatLocalWorkspaceEnabled(api) {
+		chatLocalConfig = &chatd.LocalConfig{
+			AccessURL:    options.AccessURL,
+			HTTPClient:   options.HTTPClient,
+			DeploymentID: depID,
+		}
+	}
+
 	if options.ChatProcessor == nil {
-		options.ChatProcessor = chatd.NewProcessor(
-			options.Logger.Named("chats"),
-			options.Database,
-			chatd.WithProviderAPIKeys(chatProviderAPIKeys),
-			chatd.WithProviderAPIKeysResolver(chatProviderAPIKeysResolver),
-			chatd.WithTitleGenerationConfig(chatd.TitleGenerationConfig{
+		options.ChatProcessor = chatd.New(chatd.Config{
+			Logger:                 options.Logger.Named("chats"),
+			Database:               options.Database,
+			ResolveProviderAPIKeys: chatProviderAPIKeysResolver,
+			TitleGeneration: chatd.TitleGenerationConfig{
 				Prompt: options.DeploymentValues.AI.Chat.TitleGenerationPrompt.Value(),
-			}),
-			chatd.WithAgentConnector(api.agentProvider),
-			chatd.WithWorkspaceCreator(api.newChatWorkspaceCreator()),
-			chatd.WithStreamManager(api.chatStreamManager),
-			chatd.WithPubsub(options.Pubsub),
-		)
+			},
+			AgentConn:       api.agentProvider.AgentConn,
+			CreateWorkspace: api.newChatWorkspaceCreator(),
+			StreamManager:   api.chatStreamManager,
+			Pubsub:          options.Pubsub,
+			Local:           chatLocalConfig,
+		})
 	}
 	api.chatProcessor = options.ChatProcessor
 	if options.DeploymentValues.Prometheus.Enable {
@@ -2013,8 +2003,6 @@ type API struct {
 	chatProviderAPIKeys chatd.ProviderAPIKeys
 	// chatModelCatalog lists available provider models for chats.
 	chatModelCatalog *chatd.ModelCatalog
-	// chatLocalService manages local workspace chat bootstrap and agent runtimes.
-	chatLocalService *chatd.LocalService
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2043,14 +2031,10 @@ func (api *API) Close() error {
 	case <-timer.C:
 		api.Logger.Warn(api.ctx, "websocket shutdown timed out after 10 seconds")
 	}
-	if api.chatLocalService != nil {
-		if err := api.chatLocalService.Close(); err != nil {
-			api.Logger.Warn(api.ctx, "close local chat agents", slog.Error(err))
-		}
-	}
-
 	api.dbRolluper.Close()
-	api.chatProcessor.Close()
+	if err := api.chatProcessor.Close(); err != nil {
+		api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
+	}
 	api.metricsCache.Close()
 	if api.updateChecker != nil {
 		api.updateChecker.Close()

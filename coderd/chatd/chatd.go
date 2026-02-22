@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -30,6 +32,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -38,29 +41,16 @@ import (
 )
 
 const (
-	// DefaultPollInterval is the default time between polling for pending chats.
-	DefaultPollInterval = time.Second
-	// DefaultStaleThreshold is the default time after which a running chat is
-	// considered stale and should be recovered.
-	DefaultStaleThreshold = 5 * time.Minute
-
-	toolCreateWorkspace   = "create_workspace"
-	toolReadFile          = "read_file"
-	toolWriteFile         = "write_file"
-	toolEditFiles         = "edit_files"
-	toolExecute           = "execute"
-	toolSubagent          = "subagent"
-	toolSubagentAwait     = "subagent_await"
-	toolSubagentMessage   = "subagent_message"
-	toolSubagentTerminate = "subagent_terminate"
-	toolSubagentReport    = "subagent_report"
-	toolChatSummarized    = "chat_summarized"
+	// DefaultPendingChatAcquireInterval is the default time between attempts to
+	// acquire pending chats.
+	DefaultPendingChatAcquireInterval = time.Second
+	// DefaultInFlightChatStaleAfter is the default age after which a running
+	// chat is considered stale and should be recovered.
+	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
 	defaultExecuteTimeout        = 60 * time.Second
 	homeInstructionLookupTimeout = 5 * time.Second
 	maxChatSteps                 = 1200
-
-	defaultChatModel = "claude-opus-4-6"
 
 	defaultContextCompressionThresholdPercent = int32(70)
 	minContextCompressionThresholdPercent     = int32(0)
@@ -103,34 +93,33 @@ type Processor struct {
 	workerID uuid.UUID
 	logger   slog.Logger
 
-	agentConnector   AgentConnector
-	workspaceCreator WorkspaceCreator
-	modelResolver    ModelResolver
-	streamManager    *StreamManager
-	pubsub           pubsub.Pubsub
-	subagentService  *SubagentService
-	providerKeys     ProviderAPIKeys
-	providerKeysFn   ProviderAPIKeysResolver
-	titleGeneration  TitleGenerationConfig
-	titleModelLookup func(ProviderAPIKeys) (fantasy.LanguageModel, error)
+	agentConnFn              AgentConnFunc
+	createWorkspaceFn        CreateWorkspaceFunc
+	testing                  *TestingConfig
+	streamManager            *StreamManager
+	pubsub                   pubsub.Pubsub
+	localMode                *localMode
+	subagentService          *SubagentService
+	resolveProviderAPIKeysFn ProviderAPIKeysResolver
+	titleGeneration          TitleGenerationConfig
+	titleModelLookup         func(ProviderAPIKeys) (fantasy.LanguageModel, error)
 
 	activeMu      sync.Mutex
 	activeCancels map[uuid.UUID]context.CancelCauseFunc
 
 	// Configuration
-	pollInterval   time.Duration
-	staleThreshold time.Duration
+	pendingChatAcquireInterval time.Duration
+	inFlightChatStaleAfter     time.Duration
 }
 
-// AgentConnector provides access to workspace agent connections.
-type AgentConnector interface {
-	AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
-}
+// AgentConnFunc provides access to workspace agent connections.
+type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
 
-// WorkspaceCreator creates workspaces for chats when none are selected.
-type WorkspaceCreator interface {
-	CreateWorkspace(ctx context.Context, req CreateWorkspaceToolRequest) (CreateWorkspaceToolResult, error)
-}
+// CreateWorkspaceFunc creates workspaces for chats when none are selected.
+type CreateWorkspaceFunc func(
+	ctx context.Context,
+	req CreateWorkspaceToolRequest,
+) (CreateWorkspaceToolResult, error)
 
 // CreateWorkspaceToolRequest is the request payload for the create_workspace tool.
 type CreateWorkspaceToolRequest struct {
@@ -168,11 +157,13 @@ type ToolResultBlock struct {
 	IsError    bool   `json:"is_error,omitempty"`
 }
 
-// ModelResolver resolves a model for a chat.
-type ModelResolver func(chat database.Chat) (fantasy.LanguageModel, error)
-
 // ProviderAPIKeysResolver resolves provider API keys for chat model calls.
 type ProviderAPIKeysResolver func(context.Context) (ProviderAPIKeys, error)
+
+// TestingConfig contains hooks intended only for tests.
+type TestingConfig struct {
+	ResolveChatModel func(chat database.Chat) (fantasy.LanguageModel, error)
+}
 
 // TitleGenerationConfig controls AI-generated chat title behavior.
 type TitleGenerationConfig struct {
@@ -290,104 +281,84 @@ func (m *StreamManager) stateLocked(chatID uuid.UUID) *chatStreamState {
 	return state
 }
 
-type Option func(*Processor)
-
-// WithPollInterval sets the interval between polling for pending chats.
-func WithPollInterval(interval time.Duration) Option {
-	return func(p *Processor) {
-		p.pollInterval = interval
-	}
+// Config configures a chat processor.
+type Config struct {
+	Logger                     slog.Logger
+	Database                   database.Store
+	PendingChatAcquireInterval time.Duration
+	InFlightChatStaleAfter     time.Duration
+	AgentConn                  AgentConnFunc
+	CreateWorkspace            CreateWorkspaceFunc
+	StreamManager              *StreamManager
+	Pubsub                     pubsub.Pubsub
+	ResolveProviderAPIKeys     ProviderAPIKeysResolver
+	TitleGeneration            TitleGenerationConfig
+	Local                      *LocalConfig
+	Testing                    *TestingConfig
 }
 
-// WithStaleThreshold sets the time after which a running chat is considered stale.
-func WithStaleThreshold(threshold time.Duration) Option {
-	return func(p *Processor) {
-		p.staleThreshold = threshold
-	}
+// LocalConfig enables local workspace mode integration in chatd.
+type LocalConfig struct {
+	AccessURL    *url.URL
+	HTTPClient   *http.Client
+	DeploymentID string
 }
 
-// WithAgentConnector sets the workspace agent connector used for tools.
-func WithAgentConnector(connector AgentConnector) Option {
-	return func(p *Processor) {
-		p.agentConnector = connector
-	}
-}
-
-// WithWorkspaceCreator sets the workspace creator used for create_workspace.
-func WithWorkspaceCreator(creator WorkspaceCreator) Option {
-	return func(p *Processor) {
-		p.workspaceCreator = creator
-	}
-}
-
-// WithModelResolver sets a model resolver override for the processor.
-func WithModelResolver(resolver ModelResolver) Option {
-	return func(p *Processor) {
-		p.modelResolver = resolver
-	}
-}
-
-// WithStreamManager sets the stream manager used to broadcast chat events.
-func WithStreamManager(manager *StreamManager) Option {
-	return func(p *Processor) {
-		p.streamManager = manager
-	}
-}
-
-// WithPubsub sets the pubsub used to broadcast chat lifecycle events.
-func WithPubsub(ps pubsub.Pubsub) Option {
-	return func(p *Processor) {
-		p.pubsub = ps
-	}
-}
-
-// WithProviderAPIKeys sets fallback provider API keys used for model calls.
-func WithProviderAPIKeys(keys ProviderAPIKeys) Option {
-	return func(p *Processor) {
-		p.providerKeys = keys
-	}
-}
-
-// WithProviderAPIKeysResolver sets a dynamic provider key resolver.
-func WithProviderAPIKeysResolver(resolver ProviderAPIKeysResolver) Option {
-	return func(p *Processor) {
-		p.providerKeysFn = resolver
-	}
-}
-
-// WithTitleGenerationConfig sets chat title generation defaults.
-func WithTitleGenerationConfig(config TitleGenerationConfig) Option {
-	return func(p *Processor) {
-		p.titleGeneration = config.withDefaults()
-	}
-}
-
-// NewProcessor creates a new chat processor. The processor polls for pending
+// New creates a new chat processor. The processor polls for pending
 // chats and processes them. It is the caller's responsibility to call Close
 // on the returned instance.
-func NewProcessor(logger slog.Logger, db database.Store, opts ...Option) *Processor {
+func New(cfg Config) *Processor {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	pendingChatAcquireInterval := cfg.PendingChatAcquireInterval
+	if pendingChatAcquireInterval == 0 {
+		pendingChatAcquireInterval = DefaultPendingChatAcquireInterval
+	}
+
+	inFlightChatStaleAfter := cfg.InFlightChatStaleAfter
+	if inFlightChatStaleAfter == 0 {
+		inFlightChatStaleAfter = DefaultInFlightChatStaleAfter
+	}
+
+	resolveProviderAPIKeys := cfg.ResolveProviderAPIKeys
+	if resolveProviderAPIKeys == nil {
+		resolveProviderAPIKeys = func(context.Context) (ProviderAPIKeys, error) {
+			return ProviderAPIKeys{}, nil
+		}
+	}
+
+	var localMode *localMode
+	if cfg.Local != nil {
+		localMode = newLocalMode(localModeOptions{
+			logger:       cfg.Logger.Named("chat-local"),
+			database:     cfg.Database,
+			accessURL:    cfg.Local.AccessURL,
+			httpClient:   cfg.Local.HTTPClient,
+			deploymentID: strings.TrimSpace(cfg.Local.DeploymentID),
+		})
+	}
+
 	p := &Processor{
-		cancel:         cancel,
-		closed:         make(chan struct{}),
-		db:             db,
-		workerID:       uuid.New(),
-		logger:         logger.Named("chat-processor"),
-		activeCancels:  make(map[uuid.UUID]context.CancelCauseFunc),
-		pollInterval:   DefaultPollInterval,
-		staleThreshold: DefaultStaleThreshold,
-		titleGeneration: TitleGenerationConfig{
-			Prompt: defaultTitleGenerationPrompt,
-		}.withDefaults(),
-		titleModelLookup: anyAvailableModel,
+		cancel:                     cancel,
+		closed:                     make(chan struct{}),
+		db:                         cfg.Database,
+		workerID:                   uuid.New(),
+		logger:                     cfg.Logger.Named("chat-processor"),
+		agentConnFn:                cfg.AgentConn,
+		createWorkspaceFn:          cfg.CreateWorkspace,
+		testing:                    cfg.Testing,
+		streamManager:              cfg.StreamManager,
+		pubsub:                     cfg.Pubsub,
+		localMode:                  localMode,
+		resolveProviderAPIKeysFn:   resolveProviderAPIKeys,
+		titleGeneration:            cfg.TitleGeneration.withDefaults(),
+		titleModelLookup:           anyAvailableModel,
+		activeCancels:              make(map[uuid.UUID]context.CancelCauseFunc),
+		pendingChatAcquireInterval: pendingChatAcquireInterval,
+		inFlightChatStaleAfter:     inFlightChatStaleAfter,
 	}
 
-	for _, opt := range opts {
-		opt(p)
-	}
-
-	p.subagentService = newSubagentService(p.db, p)
+	p.subagentService = newSubagentService(p.db, p.InterruptChat)
 	p.subagentService.setStreamManager(p.streamManager)
 
 	//nolint:gocritic // The chat processor is a system-level service.
@@ -403,7 +374,7 @@ func (p *Processor) start(ctx context.Context) {
 	// First, recover any stale chats from crashed workers.
 	p.recoverStaleChats(ctx)
 
-	ticker := time.NewTicker(p.pollInterval)
+	ticker := time.NewTicker(p.pendingChatAcquireInterval)
 	defer ticker.Stop()
 
 	for {
@@ -462,6 +433,30 @@ func (p *Processor) InterruptChat(chatID uuid.UUID) bool {
 		p.streamManager.StopStream(chatID)
 	}
 	return true
+}
+
+func (p *Processor) EnsureLocalWorkspaceBinding(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	sessionToken string,
+) (LocalWorkspaceBinding, error) {
+	if p == nil || p.localMode == nil {
+		return LocalWorkspaceBinding{}, xerrors.New("local chat mode is not configured")
+	}
+	return p.localMode.EnsureWorkspaceBinding(ctx, ownerID, sessionToken)
+}
+
+func (p *Processor) EnsureLocalAgentRuntimeForChat(
+	ctx context.Context,
+	chat database.Chat,
+) error {
+	if workspaceModeFromChat(chat) != codersdk.ChatWorkspaceModeLocal {
+		return nil
+	}
+	if p == nil || p.localMode == nil {
+		return xerrors.New("local chat mode is not configured")
+	}
+	return p.localMode.MaybeLaunchAgentForChat(ctx, chat)
 }
 
 func (p *Processor) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
@@ -581,7 +576,7 @@ func panicFailureReason(recovered any) string {
 }
 
 func (p *Processor) publishMessage(chatID uuid.UUID, message database.ChatMessage) {
-	sdkMessage := SDKChatMessage(message)
+	sdkMessage := db2sdk.ChatMessage(message)
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:    codersdk.ChatStreamEventTypeMessage,
 		Message: &sdkMessage,
@@ -726,7 +721,7 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 					} else {
 						status = database.ChatStatusPending
 
-						sdkMsg := SDKChatMessage(msg)
+						sdkMsg := db2sdk.ChatMessage(msg)
 						p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
 							Type:    codersdk.ChatStreamEventTypeMessage,
 							Message: &sdkMsg,
@@ -803,6 +798,9 @@ func (p *Processor) runChat(
 	chat, err = p.recoverMissingWorkspace(ctx, chat, logger)
 	if err != nil {
 		return err
+	}
+	if err := p.EnsureLocalAgentRuntimeForChat(ctx, chat); err != nil {
+		return xerrors.Errorf("ensure local chat runtime: %w", err)
 	}
 
 	prompt, err := chatMessagesToPrompt(messages)
@@ -932,22 +930,40 @@ func (p *Processor) resolveChatContextCompressionConfig(
 		),
 	}
 
-	chatConfig := chatModelConfig{}
-	if len(chat.ModelConfig) > 0 {
-		if err := json.Unmarshal(chat.ModelConfig, &chatConfig); err != nil {
-			return config, nil
-		}
+	chatConfig, err := parseChatModelConfig(chat.ModelConfig)
+	if err != nil {
+		return config, nil
 	}
 
 	if chatConfig.ContextLimit > 0 {
 		config.ContextLimit = chatConfig.ContextLimit
 	}
 	modelName := strings.TrimSpace(chatConfig.Model)
+	providerHint := strings.TrimSpace(chatConfig.Provider)
 	if modelName == "" {
-		modelName = defaultChatModel
+		keys, resolveKeysErr := p.resolveProviderAPIKeys(ctx)
+		if resolveKeysErr != nil {
+			return config, nil
+		}
+
+		fallbackConfig, fallbackErr := p.resolveFallbackChatModelConfig(
+			ctx,
+			keys,
+			providerHint,
+		)
+		if fallbackErr != nil {
+			return config, nil
+		}
+
+		if config.ContextLimit <= 0 {
+			config.ContextLimit = fallbackConfig.ContextLimit
+		}
+		config.ThresholdPercent = normalizeContextCompressionThreshold(
+			fallbackConfig.CompressionThreshold,
+		)
+		return config, nil
 	}
 
-	providerHint := strings.TrimSpace(chatConfig.Provider)
 	provider, modelID, err := resolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
 		return config, nil
@@ -1052,7 +1068,7 @@ func (p *Processor) persistChatContextSummary(
 	assistantContent, err := marshalContentBlocks([]fantasy.Content{
 		fantasy.ToolCallContent{
 			ToolCallID: toolCallID,
-			ToolName:   toolChatSummarized,
+			ToolName:   "chat_summarized",
 			Input:      string(args),
 		},
 	})
@@ -1076,7 +1092,7 @@ func (p *Processor) persistChatContextSummary(
 
 	toolResult, err := marshalToolResults([]ToolResultBlock{{
 		ToolCallID: toolCallID,
-		ToolName:   toolChatSummarized,
+		ToolName:   "chat_summarized",
 		Result: map[string]any{
 			"summary":              summaryReport,
 			"summary_truncated":    summaryReportTruncated,
@@ -1193,8 +1209,8 @@ func messageContextTokens(message database.ChatMessage) (int64, bool) {
 }
 
 func (p *Processor) resolveChatModel(ctx context.Context, chat database.Chat) (fantasy.LanguageModel, error) {
-	if p.modelResolver != nil {
-		model, err := p.modelResolver(chat)
+	if p.testing != nil && p.testing.ResolveChatModel != nil {
+		model, err := p.testing.ResolveChatModel(chat)
 		if err != nil {
 			return nil, xerrors.Errorf("resolve model: %w", err)
 		}
@@ -1205,11 +1221,84 @@ func (p *Processor) resolveChatModel(ctx context.Context, chat database.Chat) (f
 	if err != nil {
 		return nil, xerrors.Errorf("resolve provider API keys: %w", err)
 	}
-	model, err := modelFromChat(chat, keys)
+	model, err := p.modelFromChat(ctx, chat, keys)
 	if err != nil {
 		return nil, xerrors.Errorf("resolve model: %w", err)
 	}
 	return model, nil
+}
+
+func (p *Processor) modelFromChat(
+	ctx context.Context,
+	chat database.Chat,
+	providerKeys ProviderAPIKeys,
+) (fantasy.LanguageModel, error) {
+	config, err := parseChatModelConfig(chat.ModelConfig)
+	if err != nil {
+		return nil, xerrors.Errorf("parse model config: %w", err)
+	}
+
+	if strings.TrimSpace(config.Model) == "" {
+		fallbackConfig, fallbackErr := p.resolveFallbackChatModelConfig(
+			ctx,
+			providerKeys,
+			config.Provider,
+		)
+		if fallbackErr != nil {
+			return nil, fallbackErr
+		}
+		config.Provider = fallbackConfig.Provider
+		config.Model = fallbackConfig.Model
+	}
+
+	return modelFromConfig(config, providerKeys)
+}
+
+func (p *Processor) resolveFallbackChatModelConfig(
+	ctx context.Context,
+	providerKeys ProviderAPIKeys,
+	providerHint string,
+) (database.ChatModelConfig, error) {
+	modelConfigs, err := p.db.GetEnabledChatModelConfigs(ctx)
+	if err != nil {
+		return database.ChatModelConfig{}, xerrors.Errorf(
+			"load enabled chat model configs: %w",
+			err,
+		)
+	}
+
+	normalizedProviderHint := normalizeProvider(providerHint)
+	if strings.TrimSpace(providerHint) != "" && normalizedProviderHint == "" {
+		return database.ChatModelConfig{}, xerrors.Errorf(
+			"unknown provider %q in chat model config",
+			providerHint,
+		)
+	}
+
+	for _, modelConfig := range modelConfigs {
+		provider := normalizeProvider(modelConfig.Provider)
+		if provider == "" {
+			continue
+		}
+		if normalizedProviderHint != "" && provider != normalizedProviderHint {
+			continue
+		}
+		if providerKeys.apiKey(provider) == "" {
+			continue
+		}
+		return modelConfig, nil
+	}
+
+	if normalizedProviderHint != "" {
+		return database.ChatModelConfig{}, xerrors.Errorf(
+			"chat model is not configured and no enabled models with API keys are available for provider %q",
+			normalizedProviderHint,
+		)
+	}
+
+	return database.ChatModelConfig{}, xerrors.New(
+		"chat model is not configured and no enabled models with API keys are available",
+	)
 }
 
 func (p *Processor) runChatWithAgent(
@@ -1249,7 +1338,7 @@ func (p *Processor) runChatWithAgent(
 		chatSnapshot := currentChat
 		chatStateMu.Unlock()
 
-		if p.agentConnector == nil {
+		if p.agentConnFn == nil {
 			return nil, xerrors.New("workspace agent connector is not configured")
 		}
 
@@ -1258,7 +1347,7 @@ func (p *Processor) runChatWithAgent(
 			return nil, err
 		}
 
-		agentConn, agentRelease, err := p.agentConnector.AgentConn(ctx, agentID)
+		agentConn, agentRelease, err := p.agentConnFn(ctx, agentID)
 		if err != nil {
 			return nil, xerrors.Errorf("connect to workspace agent: %w", err)
 		}
@@ -1644,7 +1733,19 @@ func (p *Processor) runChatWithAgent(
 			return nil
 		},
 		OnToolResult: func(result fantasy.ToolResultContent) error {
-			toolResult := toolResultBlockFromAgentToolResult(result)
+			toolResult := toolResultBlockFromContent(result)
+			if strings.TrimSpace(result.ClientMetadata) != "" {
+				var block ToolResultBlock
+				if err := json.Unmarshal([]byte(result.ClientMetadata), &block); err == nil {
+					if block.ToolCallID == "" {
+						block.ToolCallID = result.ToolCallID
+					}
+					if block.ToolName == "" {
+						block.ToolName = result.ToolName
+					}
+					toolResult = block
+				}
+			}
 			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleTool), toolResultToPart(toolResult))
 
 			stepStateMu.Lock()
@@ -1698,33 +1799,35 @@ func (p *Processor) runChatWithAgent(
 	return result, nil
 }
 
-func stripAgentPromptSentinel(messages []fantasy.Message, sentinel string) []fantasy.Message {
-	filtered := make([]fantasy.Message, 0, len(messages))
-	removed := false
-	for _, message := range messages {
-		if !removed && isAgentPromptSentinelMessage(message, sentinel) {
-			removed = true
-			continue
-		}
-		filtered = append(filtered, message)
-	}
-	return filtered
-}
-
 func prepareAgentStepResult(
 	messages []fantasy.Message,
 	sentinel string,
 	reportOnly bool,
 	anthropicCaching bool,
 ) fantasy.PrepareStepResult {
+	filtered := make([]fantasy.Message, 0, len(messages))
+	removed := false
+	for _, message := range messages {
+		if !removed &&
+			message.Role == fantasy.MessageRoleUser &&
+			len(message.Content) == 1 {
+			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](message.Content[0])
+			if ok && textPart.Text == sentinel {
+				removed = true
+				continue
+			}
+		}
+		filtered = append(filtered, message)
+	}
+
 	result := fantasy.PrepareStepResult{
-		Messages: stripAgentPromptSentinel(messages, sentinel),
+		Messages: filtered,
 	}
 	if anthropicCaching {
 		result.Messages = addAnthropicPromptCaching(result.Messages)
 	}
 	if reportOnly {
-		result.ActiveTools = []string{toolSubagentReport}
+		result.ActiveTools = []string{"subagent_report"}
 	}
 	return result
 }
@@ -1762,20 +1865,6 @@ func addAnthropicPromptCaching(messages []fantasy.Message) []fantasy.Message {
 	}
 
 	return messages
-}
-
-func isAgentPromptSentinelMessage(message fantasy.Message, sentinel string) bool {
-	if message.Role != fantasy.MessageRoleUser {
-		return false
-	}
-	if len(message.Content) != 1 {
-		return false
-	}
-	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](message.Content[0])
-	if !ok {
-		return false
-	}
-	return textPart.Text == sentinel
 }
 
 func stepAssistantContent(content []fantasy.Content, toolResults []ToolResultBlock) []fantasy.Content {
@@ -2124,10 +2213,10 @@ func (p *Processor) appendHomeInstructionToPrompt(
 }
 
 func (p *Processor) resolveProviderAPIKeys(ctx context.Context) (ProviderAPIKeys, error) {
-	if p.providerKeysFn == nil {
-		return p.providerKeys, nil
+	if p.resolveProviderAPIKeysFn == nil {
+		return ProviderAPIKeys{}, nil
 	}
-	return p.providerKeysFn(ctx)
+	return p.resolveProviderAPIKeysFn(ctx)
 }
 
 func userMessageText(raw pqtype.NullRawMessage) (string, error) {
@@ -2282,8 +2371,8 @@ func (p *Processor) persistChatWorkspace(
 }
 
 func (p *Processor) recoverStaleChats(ctx context.Context) {
-	staleThreshold := time.Now().Add(-p.staleThreshold)
-	staleChats, err := p.db.GetStaleChats(ctx, staleThreshold)
+	staleAfter := time.Now().Add(-p.inFlightChatStaleAfter)
+	staleChats, err := p.db.GetStaleChats(ctx, staleAfter)
 	if err != nil {
 		p.logger.Error(ctx, "failed to get stale chats", slog.Error(err))
 		return
@@ -2315,6 +2404,9 @@ func (p *Processor) Close() error {
 	p.cancel()
 	<-p.closed
 	p.inflight.Wait()
+	if p.localMode != nil {
+		return p.localMode.Close()
+	}
 	return nil
 }
 
@@ -2465,7 +2557,14 @@ func injectMissingToolUses(prompt []fantasy.Message, toolNameByCallID map[string
 			continue
 		}
 
-		toolResults := extractToolResultsFromMessageParts(msg.Content)
+		toolResults := make([]fantasy.ToolResultPart, 0, len(msg.Content))
+		for _, part := range msg.Content {
+			toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
+			if !ok {
+				continue
+			}
+			toolResults = append(toolResults, toolResult)
+		}
 		if len(toolResults) == 0 {
 			result = append(result, msg)
 			continue
@@ -2523,18 +2622,6 @@ func injectMissingToolUses(prompt []fantasy.Message, toolNameByCallID map[string
 	return result
 }
 
-func extractToolResultsFromMessageParts(parts []fantasy.MessagePart) []fantasy.ToolResultPart {
-	results := make([]fantasy.ToolResultPart, 0, len(parts))
-	for _, part := range parts {
-		toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part)
-		if !ok {
-			continue
-		}
-		results = append(results, toolResult)
-	}
-	return results
-}
-
 func toolMessageFromToolResultParts(results []fantasy.ToolResultPart) fantasy.Message {
 	parts := make([]fantasy.MessagePart, 0, len(results))
 	for _, result := range results {
@@ -2564,7 +2651,7 @@ func syntheticToolUseMessage(
 
 		toolName := strings.TrimSpace(toolNameByCallID[toolCallID])
 		if toolName == "" && strings.HasPrefix(toolCallID, subagentReportToolCallIDPrefix) {
-			toolName = toolSubagentReport
+			toolName = "subagent_report"
 		}
 		if toolName == "" {
 			continue
@@ -2847,53 +2934,6 @@ func marshalToolResults(results []ToolResultBlock) (pqtype.NullRawMessage, error
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }
 
-func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	switch role {
-	case string(fantasy.MessageRoleSystem):
-		content, err := parseSystemContent(raw)
-		if err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(content) == "" {
-			return nil, nil
-		}
-		return []codersdk.ChatMessagePart{{
-			Type: codersdk.ChatMessagePartTypeText,
-			Text: content,
-		}}, nil
-	case string(fantasy.MessageRoleUser), string(fantasy.MessageRoleAssistant):
-		content, err := parseContentBlocks(role, raw)
-		if err != nil {
-			return nil, err
-		}
-		parts := make([]codersdk.ChatMessagePart, 0, len(content))
-		for _, block := range content {
-			part := contentBlockToPart(block)
-			if part.Type == "" {
-				continue
-			}
-			parts = append(parts, part)
-		}
-		return parts, nil
-	case string(fantasy.MessageRoleTool):
-		results, err := parseToolResults(raw)
-		if err != nil {
-			return nil, err
-		}
-		parts := make([]codersdk.ChatMessagePart, 0, len(results))
-		for _, result := range results {
-			part := toolResultToPart(result)
-			if part.Type == "" {
-				continue
-			}
-			parts = append(parts, part)
-		}
-		return parts, nil
-	default:
-		return nil, nil
-	}
-}
-
 func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 	switch value := block.(type) {
 	case fantasy.TextContent:
@@ -3127,12 +3167,21 @@ type chatModelConfig struct {
 	ContextLimit  int64                      `json:"context_limit,omitempty"`
 }
 
-func workspaceModeFromChat(chat database.Chat) codersdk.ChatWorkspaceMode {
+func parseChatModelConfig(raw json.RawMessage) (chatModelConfig, error) {
 	config := chatModelConfig{}
-	if len(chat.ModelConfig) > 0 {
-		if err := json.Unmarshal(chat.ModelConfig, &config); err != nil {
-			return codersdk.ChatWorkspaceModeWorkspace
-		}
+	if len(raw) == 0 {
+		return config, nil
+	}
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return chatModelConfig{}, err
+	}
+	return config, nil
+}
+
+func workspaceModeFromChat(chat database.Chat) codersdk.ChatWorkspaceMode {
+	config, err := parseChatModelConfig(chat.ModelConfig)
+	if err != nil {
+		return codersdk.ChatWorkspaceModeWorkspace
 	}
 
 	switch codersdk.ChatWorkspaceMode(
@@ -3143,19 +3192,6 @@ func workspaceModeFromChat(chat database.Chat) codersdk.ChatWorkspaceMode {
 	default:
 		return codersdk.ChatWorkspaceModeWorkspace
 	}
-}
-
-func modelFromChat(chat database.Chat, providerKeys ProviderAPIKeys) (fantasy.LanguageModel, error) {
-	config := chatModelConfig{}
-	if len(chat.ModelConfig) > 0 {
-		if err := json.Unmarshal(chat.ModelConfig, &config); err != nil {
-			return nil, xerrors.Errorf("parse model config: %w", err)
-		}
-	}
-	if strings.TrimSpace(config.Model) == "" {
-		config.Model = defaultChatModel
-	}
-	return modelFromConfig(config, providerKeys)
 }
 
 func modelFromName(modelName string, providerKeys ProviderAPIKeys) (fantasy.LanguageModel, error) {
@@ -3334,7 +3370,7 @@ func (p *Processor) agentTools(
 ) []fantasy.AgentTool {
 	return []fantasy.AgentTool{
 		fantasy.NewAgentTool(
-			toolCreateWorkspace,
+			"create_workspace",
 			"Create a workspace when no workspace is selected, or when you need "+
 				"a different template. Accepts a natural-language prompt and/or a "+
 				"workspace request object.",
@@ -3374,10 +3410,10 @@ func (p *Processor) agentTools(
 			},
 		),
 		fantasy.NewAgentTool(
-			toolReadFile,
+			"read_file",
 			"Read a file from the workspace.",
 			func(ctx context.Context, args readFileArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := toolResultBlockBaseFromAgentToolCall(call)
+				base := ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
 				conn, err := getWorkspaceConn(ctx)
 				if err != nil {
 					return toolResultBlockToAgentResponse(toolError(base, err)), nil
@@ -3386,10 +3422,10 @@ func (p *Processor) agentTools(
 			},
 		),
 		fantasy.NewAgentTool(
-			toolWriteFile,
+			"write_file",
 			"Write a file to the workspace.",
 			func(ctx context.Context, args writeFileArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := toolResultBlockBaseFromAgentToolCall(call)
+				base := ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
 				conn, err := getWorkspaceConn(ctx)
 				if err != nil {
 					return toolResultBlockToAgentResponse(toolError(base, err)), nil
@@ -3398,11 +3434,11 @@ func (p *Processor) agentTools(
 			},
 		),
 		fantasy.NewAgentTool(
-			toolEditFiles,
+			"edit_files",
 			"Perform search-and-replace edits on one or more files in the workspace."+
 				" Each file can have multiple edits applied atomically.",
 			func(ctx context.Context, args editFilesArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := toolResultBlockBaseFromAgentToolCall(call)
+				base := ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
 				conn, err := getWorkspaceConn(ctx)
 				if err != nil {
 					return toolResultBlockToAgentResponse(toolError(base, err)), nil
@@ -3411,10 +3447,10 @@ func (p *Processor) agentTools(
 			},
 		),
 		fantasy.NewAgentTool(
-			toolExecute,
+			"execute",
 			"Execute a shell command in the workspace.",
 			func(ctx context.Context, args executeArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := toolResultBlockBaseFromAgentToolCall(call)
+				base := ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
 				conn, err := getWorkspaceConn(ctx)
 				if err != nil {
 					return toolResultBlockToAgentResponse(toolError(base, err)), nil
@@ -3423,10 +3459,10 @@ func (p *Processor) agentTools(
 			},
 		),
 		fantasy.NewAgentTool(
-			toolSubagent,
+			"subagent",
 			"Create a delegated child subagent chat. If background=false, this call waits for the child report.",
 			func(ctx context.Context, args subagentArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := toolResultBlockBaseFromAgentToolCall(call)
+				base := ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
 				if p.subagentService == nil {
 					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent service is not configured"))), nil
 				}
@@ -3490,10 +3526,10 @@ func (p *Processor) agentTools(
 			},
 		),
 		fantasy.NewAgentTool(
-			toolSubagentAwait,
+			"subagent_await",
 			"Wait for a delegated descendant subagent chat to report completion.",
 			func(ctx context.Context, args subagentAwaitArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := toolResultBlockBaseFromAgentToolCall(call)
+				base := ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
 				if p.subagentService == nil {
 					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent service is not configured"))), nil
 				}
@@ -3546,10 +3582,10 @@ func (p *Processor) agentTools(
 			},
 		),
 		fantasy.NewAgentTool(
-			toolSubagentMessage,
+			"subagent_message",
 			"Send a follow-up user message to a delegated descendant subagent chat and optionally wait for a new report.",
 			func(ctx context.Context, args subagentMessageArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := toolResultBlockBaseFromAgentToolCall(call)
+				base := ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
 				if p.subagentService == nil {
 					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent service is not configured"))), nil
 				}
@@ -3626,10 +3662,10 @@ func (p *Processor) agentTools(
 			},
 		),
 		fantasy.NewAgentTool(
-			toolSubagentTerminate,
+			"subagent_terminate",
 			"Terminate a delegated descendant subagent subtree.",
 			func(ctx context.Context, args subagentTerminateArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := toolResultBlockBaseFromAgentToolCall(call)
+				base := ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
 				if p.subagentService == nil {
 					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent service is not configured"))), nil
 				}
@@ -3659,10 +3695,10 @@ func (p *Processor) agentTools(
 			},
 		),
 		fantasy.NewAgentTool(
-			toolSubagentReport,
+			"subagent_report",
 			"Mark the current delegated subagent chat as reported when all descendants are complete.",
 			func(ctx context.Context, args subagentReportArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := toolResultBlockBaseFromAgentToolCall(call)
+				base := ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
 				if p.subagentService == nil {
 					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent service is not configured"))), nil
 				}
@@ -3746,7 +3782,7 @@ func (p *Processor) executeCreateWorkspaceTool(
 		ToolName:   toolCall.ToolName,
 	}
 
-	if p.workspaceCreator == nil {
+	if p.createWorkspaceFn == nil {
 		return toolError(base, xerrors.New("workspace creator is not configured")), CreateWorkspaceToolResult{}
 	}
 
@@ -3761,8 +3797,13 @@ func (p *Processor) executeCreateWorkspaceTool(
 		Prompt: strings.TrimSpace(args.Prompt),
 		Spec:   json.RawMessage(toolCall.Input),
 	}
-	logEmitter := newCreateWorkspaceBuildLogEmitter(p, chat.ID, toolCall.ToolCallID, toolCall.ToolName)
-	if logEmitter != nil {
+	if p != nil && toolCall.ToolCallID != "" {
+		logEmitter := &createWorkspaceBuildLogEmitter{
+			processor:  p,
+			chatID:     chat.ID,
+			toolCallID: toolCall.ToolCallID,
+			toolName:   toolCall.ToolName,
+		}
 		toolReq.BuildLogHandler = logEmitter.Emit
 	}
 	if len(args.Workspace) > 0 && string(args.Workspace) != "null" {
@@ -3771,7 +3812,7 @@ func (p *Processor) executeCreateWorkspaceTool(
 		toolReq.Spec = args.Request
 	}
 
-	wsResult, err := p.workspaceCreator.CreateWorkspace(ctx, toolReq)
+	wsResult, err := p.createWorkspaceFn(ctx, toolReq)
 	if err != nil {
 		return toolError(base, err), CreateWorkspaceToolResult{}
 	}
@@ -3819,24 +3860,6 @@ type createWorkspaceBuildLogEmitter struct {
 	truncated  bool
 }
 
-func newCreateWorkspaceBuildLogEmitter(
-	processor *Processor,
-	chatID uuid.UUID,
-	toolCallID string,
-	toolName string,
-) *createWorkspaceBuildLogEmitter {
-	if processor == nil || toolCallID == "" {
-		return nil
-	}
-
-	return &createWorkspaceBuildLogEmitter{
-		processor:  processor,
-		chatID:     chatID,
-		toolCallID: toolCallID,
-		toolName:   toolName,
-	}
-}
-
 func (e *createWorkspaceBuildLogEmitter) Emit(entry CreateWorkspaceBuildLog) {
 	if e == nil || e.truncated {
 		return
@@ -3849,7 +3872,15 @@ func (e *createWorkspaceBuildLogEmitter) Emit(entry CreateWorkspaceBuildLog) {
 		return
 	}
 
-	prefix := createWorkspaceBuildLogPrefix(entry)
+	parts := []string{"build"}
+	if stage := strings.TrimSpace(entry.Stage); stage != "" {
+		parts = append(parts, stage)
+	}
+	if level := strings.TrimSpace(entry.Level); level != "" {
+		parts = append(parts, level)
+	}
+	prefix := "[" + strings.Join(parts, "/") + "] "
+
 	for _, rawLine := range lines {
 		line := strings.TrimSpace(rawLine)
 		if line == "" {
@@ -3860,17 +3891,6 @@ func (e *createWorkspaceBuildLogEmitter) Emit(entry CreateWorkspaceBuildLog) {
 			return
 		}
 	}
-}
-
-func createWorkspaceBuildLogPrefix(entry CreateWorkspaceBuildLog) string {
-	parts := []string{"build"}
-	if stage := strings.TrimSpace(entry.Stage); stage != "" {
-		parts = append(parts, stage)
-	}
-	if level := strings.TrimSpace(entry.Level); level != "" {
-		parts = append(parts, level)
-	}
-	return "[" + strings.Join(parts, "/") + "] "
 }
 
 func (e *createWorkspaceBuildLogEmitter) emitLine(line string) {
@@ -3919,7 +3939,10 @@ func executeReadFileTool(
 	toolCallID string,
 	args readFileArgs,
 ) ToolResultBlock {
-	result := toolResultBlockBase(toolCallID, toolReadFile)
+	result := ToolResultBlock{
+		ToolCallID: toolCallID,
+		ToolName:   "read_file",
+	}
 	if args.Path == "" {
 		return toolError(result, xerrors.New("path is required"))
 	}
@@ -3957,7 +3980,10 @@ func executeWriteFileTool(
 	toolCallID string,
 	args writeFileArgs,
 ) ToolResultBlock {
-	result := toolResultBlockBase(toolCallID, toolWriteFile)
+	result := ToolResultBlock{
+		ToolCallID: toolCallID,
+		ToolName:   "write_file",
+	}
 	if args.Path == "" {
 		return toolError(result, xerrors.New("path is required"))
 	}
@@ -3975,7 +4001,10 @@ func executeEditFilesTool(
 	toolCallID string,
 	args editFilesArgs,
 ) ToolResultBlock {
-	result := toolResultBlockBase(toolCallID, toolEditFiles)
+	result := ToolResultBlock{
+		ToolCallID: toolCallID,
+		ToolName:   "edit_files",
+	}
 	if len(args.Files) == 0 {
 		return toolError(result, xerrors.New("files is required"))
 	}
@@ -3993,7 +4022,10 @@ func executeExecuteTool(
 	toolCallID string,
 	args executeArgs,
 ) ToolResultBlock {
-	result := toolResultBlockBase(toolCallID, toolExecute)
+	result := ToolResultBlock{
+		ToolCallID: toolCallID,
+		ToolName:   "execute",
+	}
 	if args.Command == "" {
 		return toolError(result, xerrors.New("command is required"))
 	}
@@ -4016,13 +4048,6 @@ func executeExecuteTool(
 	}
 	result.Result = resultPayload
 	return result
-}
-
-func toolResultBlockBase(toolCallID string, toolName string) ToolResultBlock {
-	return ToolResultBlock{
-		ToolCallID: toolCallID,
-		ToolName:   toolName,
-	}
 }
 
 func runCommand(ctx context.Context, conn workspacesdk.AgentConn, command string) (string, int, error) {
@@ -4081,10 +4106,6 @@ func toolError(result ToolResultBlock, err error) ToolResultBlock {
 	return result
 }
 
-func toolResultBlockBaseFromAgentToolCall(call fantasy.ToolCall) ToolResultBlock {
-	return toolResultBlockBase(call.ID, call.Name)
-}
-
 func toolResultBlockToAgentResponse(result ToolResultBlock) fantasy.ToolResponse {
 	content := ""
 	if result.IsError {
@@ -4113,60 +4134,4 @@ func toolResultBlockToAgentResponse(result ToolResultBlock) fantasy.ToolResponse
 		Metadata: metadata,
 		IsError:  result.IsError,
 	}
-}
-
-func toolResultBlockFromAgentToolResult(content fantasy.ToolResultContent) ToolResultBlock {
-	if strings.TrimSpace(content.ClientMetadata) != "" {
-		var block ToolResultBlock
-		if err := json.Unmarshal([]byte(content.ClientMetadata), &block); err == nil {
-			if block.ToolCallID == "" {
-				block.ToolCallID = content.ToolCallID
-			}
-			if block.ToolName == "" {
-				block.ToolName = content.ToolName
-			}
-			return block
-		}
-	}
-
-	return toolResultBlockFromContent(content)
-}
-
-func SDKChatMessage(m database.ChatMessage) codersdk.ChatMessage {
-	msg := codersdk.ChatMessage{
-		ID:                  m.ID,
-		ChatID:              m.ChatID,
-		CreatedAt:           m.CreatedAt,
-		Role:                m.Role,
-		Hidden:              m.Hidden,
-		InputTokens:         nullInt64Ptr(m.InputTokens),
-		OutputTokens:        nullInt64Ptr(m.OutputTokens),
-		TotalTokens:         nullInt64Ptr(m.TotalTokens),
-		ReasoningTokens:     nullInt64Ptr(m.ReasoningTokens),
-		CacheCreationTokens: nullInt64Ptr(m.CacheCreationTokens),
-		CacheReadTokens:     nullInt64Ptr(m.CacheReadTokens),
-		ContextLimit:        nullInt64Ptr(m.ContextLimit),
-	}
-	if m.Content.Valid {
-		msg.Content = m.Content.RawMessage
-		parts, err := chatMessageParts(m.Role, m.Content)
-		if err == nil {
-			msg.Parts = parts
-		}
-	}
-	if m.ToolCallID.Valid {
-		msg.ToolCallID = &m.ToolCallID.String
-	}
-	if m.Thinking.Valid {
-		msg.Thinking = &m.Thinking.String
-	}
-	return msg
-}
-
-func nullInt64Ptr(v sql.NullInt64) *int64 {
-	if !v.Valid {
-		return nil
-	}
-	value := v.Int64
-	return &value
 }

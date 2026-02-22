@@ -1,12 +1,8 @@
 package chatd
 
 import (
-	"context"
-	"encoding/json"
-	"net/http"
 	"sort"
 	"strings"
-	"time"
 
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyazure "charm.land/fantasy/providers/azure"
@@ -18,14 +14,7 @@ import (
 	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
-)
-
-const (
-	defaultOpenAIModelsURL    = "https://api.openai.com/v1/models"
-	defaultAnthropicModelsURL = "https://api.anthropic.com/v1/models"
-	anthropicAPIVersion       = "2023-06-01"
 )
 
 var supportedProviderNames = []string{
@@ -58,11 +47,6 @@ var providerDisplayNameByName = map[string]string{
 // SupportedProviders returns all chat providers supported by Fantasy.
 func SupportedProviders() []string {
 	return append([]string(nil), supportedProviderNames...)
-}
-
-// EnvPresetProviders returns providers that can be represented as env presets.
-func EnvPresetProviders() []string {
-	return append([]string(nil), envPresetProviderNames...)
 }
 
 // IsEnvPresetProvider reports whether provider supports env presets.
@@ -181,90 +165,14 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 	return merged
 }
 
-// ModelCatalogConfig controls model catalog lookups and filtering.
-type ModelCatalogConfig struct {
-	OpenAIModelsURL    string
-	AnthropicModelsURL string
-	Allowlist          string
-	Denylist           string
-}
-
-func (c ModelCatalogConfig) withDefaults() ModelCatalogConfig {
-	cfg := ModelCatalogConfig{
-		OpenAIModelsURL:    strings.TrimSpace(c.OpenAIModelsURL),
-		AnthropicModelsURL: strings.TrimSpace(c.AnthropicModelsURL),
-		Allowlist:          strings.TrimSpace(c.Allowlist),
-		Denylist:           strings.TrimSpace(c.Denylist),
-	}
-	if cfg.OpenAIModelsURL == "" {
-		cfg.OpenAIModelsURL = defaultOpenAIModelsURL
-	}
-	if cfg.AnthropicModelsURL == "" {
-		cfg.AnthropicModelsURL = defaultAnthropicModelsURL
-	}
-	return cfg
-}
-
 type ModelCatalog struct {
-	logger slog.Logger
-	client *http.Client
-	keys   ProviderAPIKeys
-	config ModelCatalogConfig
+	keys ProviderAPIKeys
 }
 
-func NewModelCatalog(logger slog.Logger, client *http.Client, keys ProviderAPIKeys, config ModelCatalogConfig) *ModelCatalog {
-	if client == nil {
-		client = &http.Client{Timeout: 15 * time.Second}
-	}
-
+func NewModelCatalog(keys ProviderAPIKeys) *ModelCatalog {
 	return &ModelCatalog{
-		logger: logger.Named("chat-model-catalog"),
-		client: client,
-		keys:   keys,
-		config: config.withDefaults(),
+		keys: keys,
 	}
-}
-
-func (c *ModelCatalog) ListModels(ctx context.Context) codersdk.ChatModelsResponse {
-	filter := parseModelFilter(c.config.Allowlist, c.config.Denylist)
-
-	providers := []string{fantasyopenai.Name, fantasyanthropic.Name}
-	response := codersdk.ChatModelsResponse{
-		Providers: make([]codersdk.ChatModelProvider, 0, len(providers)),
-	}
-
-	for _, provider := range providers {
-		result := codersdk.ChatModelProvider{
-			Provider: provider,
-			Models:   []codersdk.ChatModel{},
-		}
-
-		apiKey := c.keys.apiKey(provider)
-		if apiKey == "" {
-			result.Available = false
-			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
-			response.Providers = append(response.Providers, result)
-			continue
-		}
-
-		models, err := c.fetchProviderModels(ctx, provider, apiKey)
-		if err != nil {
-			c.logger.Warn(ctx, "failed to list provider chat models",
-				slog.F("provider", provider),
-				slog.Error(err),
-			)
-			result.Available = false
-			result.UnavailableReason = codersdk.ChatModelProviderUnavailableFetchFailed
-			response.Providers = append(response.Providers, result)
-			continue
-		}
-
-		result.Available = true
-		result.Models = applyModelFilter(provider, models, filter)
-		response.Providers = append(response.Providers, result)
-	}
-
-	return response
 }
 
 // ListConfiguredModels returns a model catalog from enabled DB-backed model
@@ -368,121 +276,6 @@ func (c *ModelCatalog) ListConfiguredProviderAvailability(
 	return response
 }
 
-func (c *ModelCatalog) fetchProviderModels(ctx context.Context, provider, apiKey string) ([]codersdk.ChatModel, error) {
-	switch normalizeProvider(provider) {
-	case fantasyopenai.Name:
-		return c.fetchOpenAIModels(ctx, apiKey)
-	case fantasyanthropic.Name:
-		return c.fetchAnthropicModels(ctx, apiKey)
-	default:
-		return nil, xerrors.Errorf("unsupported provider %q", provider)
-	}
-}
-
-func (c *ModelCatalog) fetchOpenAIModels(ctx context.Context, apiKey string) ([]codersdk.ChatModel, error) {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		c.config.OpenAIModelsURL,
-		nil,
-	)
-	if err != nil {
-		return nil, xerrors.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, xerrors.Errorf("request openai models: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, xerrors.Errorf("openai model API returned status %d", resp.StatusCode)
-	}
-
-	var payload struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return nil, xerrors.Errorf("decode openai response: %w", err)
-	}
-
-	models := make([]codersdk.ChatModel, 0, len(payload.Data))
-	seen := make(map[string]struct{}, len(payload.Data))
-	for _, item := range payload.Data {
-		modelID := strings.TrimSpace(item.ID)
-		if modelID == "" || !isChatModelForProvider(fantasyopenai.Name, modelID) {
-			continue
-		}
-		key := strings.ToLower(modelID)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		models = append(models, newChatModel(fantasyopenai.Name, modelID, ""))
-	}
-
-	sortChatModels(models)
-	return models, nil
-}
-
-func (c *ModelCatalog) fetchAnthropicModels(ctx context.Context, apiKey string) ([]codersdk.ChatModel, error) {
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		c.config.AnthropicModelsURL,
-		nil,
-	)
-	if err != nil {
-		return nil, xerrors.Errorf("create request: %w", err)
-	}
-	req.Header.Set("x-api-key", apiKey)
-	req.Header.Set("anthropic-version", anthropicAPIVersion)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, xerrors.Errorf("request anthropic models: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, xerrors.Errorf("anthropic model API returned status %d", resp.StatusCode)
-	}
-
-	var payload struct {
-		Data []struct {
-			ID          string `json:"id"`
-			DisplayName string `json:"display_name"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return nil, xerrors.Errorf("decode anthropic response: %w", err)
-	}
-
-	models := make([]codersdk.ChatModel, 0, len(payload.Data))
-	seen := make(map[string]struct{}, len(payload.Data))
-	for _, item := range payload.Data {
-		modelID := strings.TrimSpace(item.ID)
-		if modelID == "" || !isChatModelForProvider(fantasyanthropic.Name, modelID) {
-			continue
-		}
-		key := strings.ToLower(modelID)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		models = append(models, newChatModel(fantasyanthropic.Name, modelID, item.DisplayName))
-	}
-
-	sortChatModels(models)
-	return models, nil
-}
-
 func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {
 	name := strings.TrimSpace(displayName)
 	if name == "" {
@@ -557,10 +350,6 @@ func NormalizeProvider(provider string) string {
 
 func normalizeProvider(provider string) string {
 	return NormalizeProvider(provider)
-}
-
-func resolveModel(modelName string) (string, string, error) {
-	return resolveModelWithProviderHint(modelName, "")
 }
 
 func resolveModelWithProviderHint(modelName, providerHint string) (string, string, error) {
@@ -654,94 +443,4 @@ func isOpenAIReasoningModel(modelID string) bool {
 		return true
 	}
 	return modelID[index] == '-' || modelID[index] == '.'
-}
-
-type modelFilter struct {
-	allow modelFilterSet
-	deny  modelFilterSet
-}
-
-type modelFilterSet struct {
-	any        map[string]struct{}
-	byProvider map[string]map[string]struct{}
-	enabled    bool
-}
-
-func parseModelFilter(allowRaw, denyRaw string) modelFilter {
-	return modelFilter{
-		allow: parseModelFilterSet(allowRaw),
-		deny:  parseModelFilterSet(denyRaw),
-	}
-}
-
-func parseModelFilterSet(raw string) modelFilterSet {
-	set := modelFilterSet{
-		any:        map[string]struct{}{},
-		byProvider: map[string]map[string]struct{}{},
-	}
-
-	for _, token := range strings.Split(raw, ",") {
-		token = strings.TrimSpace(token)
-		if token == "" {
-			continue
-		}
-
-		if provider, modelID, ok := parseCanonicalModelRef(token); ok {
-			if set.byProvider[provider] == nil {
-				set.byProvider[provider] = map[string]struct{}{}
-			}
-			set.byProvider[provider][strings.ToLower(modelID)] = struct{}{}
-			set.enabled = true
-			continue
-		}
-
-		set.any[strings.ToLower(token)] = struct{}{}
-		set.enabled = true
-	}
-
-	return set
-}
-
-func (s modelFilterSet) contains(provider, modelRef string) bool {
-	if !s.enabled {
-		return false
-	}
-
-	normalizedModel := strings.ToLower(strings.TrimSpace(modelRef))
-	if normalizedModel == "" {
-		return false
-	}
-	if _, ok := s.any[normalizedModel]; ok {
-		return true
-	}
-
-	provider = normalizeProvider(provider)
-	providerModels := s.byProvider[provider]
-	if providerModels == nil {
-		return false
-	}
-	_, ok := providerModels[normalizedModel]
-	return ok
-}
-
-func (s modelFilterSet) matchesModel(provider string, model codersdk.ChatModel) bool {
-	return s.contains(provider, model.Model) || s.contains(provider, model.ID)
-}
-
-func applyModelFilter(provider string, models []codersdk.ChatModel, filter modelFilter) []codersdk.ChatModel {
-	if len(models) == 0 {
-		return models
-	}
-
-	filtered := make([]codersdk.ChatModel, 0, len(models))
-	for _, model := range models {
-		if filter.allow.enabled && !filter.allow.matchesModel(provider, model) {
-			continue
-		}
-		if filter.deny.matchesModel(provider, model) {
-			continue
-		}
-		filtered = append(filtered, model)
-	}
-	return filtered
 }

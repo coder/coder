@@ -228,11 +228,9 @@ func TestWorkspaceCreator_StreamWorkspaceBuildLogs_InitialAndNotification(t *tes
 	ps := psmock.NewMockPubsub(ctrl)
 
 	creator := &workspaceCreator{
-		adapter: WorkspaceCreatorAdapterFuncs{
-			DatabaseStore: db,
-			PubsubStore:   ps,
-			LoggerStore:   testutil.Logger(t),
-		},
+		db:     db,
+		pubsub: ps,
+		logger: testutil.Logger(t),
 	}
 
 	jobID := uuid.New()
@@ -317,27 +315,25 @@ func newTestWorkspaceCreator(
 	t.Helper()
 
 	return &workspaceCreator{
-		adapter: WorkspaceCreatorAdapterFuncs{
-			PrepareWorkspaceCreateFunc: func(ctx context.Context, _ database.Chat) (context.Context, *http.Request, string, error) {
-				return ctx, httptest.NewRequest(http.MethodPost, "/api/v2/workspaces", nil), "https://coder.example", nil
-			},
-			AuthorizedTemplatesFunc: func(context.Context, *http.Request) ([]database.Template, error) {
-				return templates, nil
-			},
-			CreateWorkspaceFunc: func(
-				ctx context.Context,
-				r *http.Request,
-				ownerID uuid.UUID,
-				req codersdk.CreateWorkspaceRequest,
-			) (codersdk.Workspace, error) {
-				if createWorkspace == nil {
-					return codersdk.Workspace{}, xerrors.New("unexpected create workspace call")
-				}
-				return createWorkspace(ctx, r, ownerID, req)
-			},
-			DatabaseStore: db,
-			PubsubStore:   ps,
-			LoggerStore:   testutil.Logger(t),
+		prepareWorkspaceCreateFn: func(ctx context.Context, _ database.Chat) (context.Context, *http.Request, string, error) {
+			return ctx, httptest.NewRequest(http.MethodPost, "/api/v2/workspaces", nil), "https://coder.example", nil
 		},
+		authorizedTemplatesFn: func(context.Context, *http.Request) ([]database.Template, error) {
+			return templates, nil
+		},
+		createWorkspaceFn: func(
+			ctx context.Context,
+			r *http.Request,
+			ownerID uuid.UUID,
+			req codersdk.CreateWorkspaceRequest,
+		) (codersdk.Workspace, error) {
+			if createWorkspace == nil {
+				return codersdk.Workspace{}, xerrors.New("unexpected create workspace call")
+			}
+			return createWorkspace(ctx, r, ownerID, req)
+		},
+		db:     db,
+		pubsub: ps,
+		logger: testutil.Logger(t),
 	}
 }

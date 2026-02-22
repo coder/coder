@@ -30,27 +30,7 @@ const (
 	subagentReportOnlyMarkerRole = "__subagent_report_only_marker"
 )
 
-type subagentServiceStore interface {
-	GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error)
-	GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error)
-	GetLatestPendingSubagentRequestIDByChatID(ctx context.Context, chatID uuid.UUID) (uuid.NullUUID, error)
-	GetSubagentRequestDurationByChatIDAndRequestID(
-		ctx context.Context,
-		arg database.GetSubagentRequestDurationByChatIDAndRequestIDParams,
-	) (int64, error)
-	GetSubagentResponseMessageByChatIDAndRequestID(
-		ctx context.Context,
-		arg database.GetSubagentResponseMessageByChatIDAndRequestIDParams,
-	) (database.ChatMessage, error)
-	InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error)
-	InsertChatMessage(ctx context.Context, arg database.InsertChatMessageParams) (database.ChatMessage, error)
-	ListChildChatsByParentID(ctx context.Context, parentChatID uuid.UUID) ([]database.Chat, error)
-	UpdateChatStatus(ctx context.Context, arg database.UpdateChatStatusParams) (database.Chat, error)
-}
-
-type subagentServiceInterrupter interface {
-	InterruptChat(chatID uuid.UUID) bool
-}
+type interruptChatFn func(chatID uuid.UUID) bool
 
 type SubagentAwaitResult struct {
 	RequestID  uuid.UUID
@@ -66,22 +46,22 @@ type subagentRequestKey struct {
 // SubagentService handles delegated subagent request/response correlation and
 // in-memory waiting for subagent responses.
 type SubagentService struct {
-	db subagentServiceStore
+	db database.Store
 
-	interrupter subagentServiceInterrupter
-	streamer    *StreamManager
+	interruptChat interruptChatFn
+	streamer      *StreamManager
 
 	waitersMu sync.Mutex
 	waiters   map[subagentRequestKey][]chan SubagentAwaitResult
 	results   map[subagentRequestKey]SubagentAwaitResult
 }
 
-func newSubagentService(db subagentServiceStore, interrupter subagentServiceInterrupter) *SubagentService {
+func newSubagentService(db database.Store, interruptChat interruptChatFn) *SubagentService {
 	return &SubagentService{
-		db:          db,
-		interrupter: interrupter,
-		waiters:     make(map[subagentRequestKey][]chan SubagentAwaitResult),
-		results:     make(map[subagentRequestKey]SubagentAwaitResult),
+		db:            db,
+		interruptChat: interruptChat,
+		waiters:       make(map[subagentRequestKey][]chan SubagentAwaitResult),
+		results:       make(map[subagentRequestKey]SubagentAwaitResult),
 	}
 }
 
@@ -579,8 +559,8 @@ func (s *SubagentService) TerminateSubagentSubtree(
 			s.streamer.StopStream(chat.ID)
 		}
 
-		if s.interrupter != nil {
-			s.interrupter.InterruptChat(chat.ID)
+		if s.interruptChat != nil {
+			s.interruptChat(chat.ID)
 		}
 
 		if chat.Status == database.ChatStatusPending {

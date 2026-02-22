@@ -179,19 +179,16 @@ func (f *fakeModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamRes
 	return streamFromParts(parts), nil
 }
 
-type testAgentConnector struct {
-	client *workspacesdk.Client
-	logger slog.Logger
-}
-
-func (c testAgentConnector) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-	conn, err := c.client.DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{Logger: c.logger})
-	if err != nil {
-		return nil, nil, err
+func testAgentConnFunc(client *workspacesdk.Client, logger slog.Logger) chatd.AgentConnFunc {
+	return func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		conn, err := client.DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{Logger: logger})
+		if err != nil {
+			return nil, nil, err
+		}
+		return conn, func() {
+			_ = conn.Close()
+		}, nil
 	}
-	return conn, func() {
-		_ = conn.Close()
-	}, nil
 }
 
 func parseAssistantContent(raw pqtype.NullRawMessage) ([]fantasy.Content, error) {
@@ -727,14 +724,7 @@ func (m *fixedTextModel) CallCount() int {
 	return m.calls
 }
 
-type workspaceCreatorFunc func(context.Context, chatd.CreateWorkspaceToolRequest) (chatd.CreateWorkspaceToolResult, error)
-
-func (f workspaceCreatorFunc) CreateWorkspace(
-	ctx context.Context,
-	req chatd.CreateWorkspaceToolRequest,
-) (chatd.CreateWorkspaceToolResult, error) {
-	return f(ctx, req)
-}
+type workspaceCreatorFunc = chatd.CreateWorkspaceFunc
 
 func insertChatWithUserMessage(
 	t *testing.T,
@@ -906,15 +896,17 @@ func TestRunChatLoop(t *testing.T) {
 
 	logger := testutil.Logger(t).Named("chatd")
 	model := &fakeModel{}
-	processor := chatd.NewProcessor(
-		logger,
-		db,
-		chatd.WithAgentConnector(testAgentConnector{client: workspacesdk.New(client), logger: logger}),
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:    logger,
+		Database:  db,
+		AgentConn: testAgentConnFunc(workspacesdk.New(client), logger),
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, err = db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
@@ -1056,16 +1048,18 @@ func TestRunChatLoop_ExecuteTimeoutContinues(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
 	manager := chatd.NewStreamManager(logger)
 	model := &executeTimeoutToolModel{}
-	processor := chatd.NewProcessor(
-		logger.Named("processor"),
-		db,
-		chatd.WithAgentConnector(testAgentConnector{client: workspacesdk.New(client), logger: logger}),
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithStreamManager(manager),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:    logger.Named("processor"),
+		Database:  db,
+		AgentConn: testAgentConnFunc(workspacesdk.New(client), logger),
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		StreamManager:              manager,
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, events, cancel := manager.Subscribe(chat.ID)
@@ -1168,15 +1162,17 @@ func TestRunChatLoop_ReadWriteToolErrorsContinue(t *testing.T) {
 				final:    "done after tool error",
 			}
 
-			processor := chatd.NewProcessor(
-				logger.Named("processor"),
-				db,
-				chatd.WithStreamManager(manager),
-				chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-					return model, nil
-				}),
-				chatd.WithPollInterval(50*time.Millisecond),
-			)
+			processor := chatd.New(chatd.Config{
+				Logger:        logger.Named("processor"),
+				Database:      db,
+				StreamManager: manager,
+				Testing: &chatd.TestingConfig{
+					ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+						return model, nil
+					},
+				},
+				PendingChatAcquireInterval: 50 * time.Millisecond,
+			})
 			defer processor.Close()
 
 			_, events, cancel := manager.Subscribe(chat.ID)
@@ -1276,15 +1272,17 @@ func TestRunChatLoop_StreamErrorWithToolInputDeltaErrors(t *testing.T) {
 		}, nil
 	})
 
-	processor := chatd.NewProcessor(
-		logger.Named("processor"),
-		db,
-		chatd.WithWorkspaceCreator(creator),
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:          logger.Named("processor"),
+		Database:        db,
+		CreateWorkspace: creator,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
@@ -1329,14 +1327,16 @@ func TestRunChatLoop_UnsupportedStreamingDoesNotFallbackToGenerate(t *testing.T)
 	chat := insertChatWithUserMessage(t, db, dbCtx, user.UserID, "unsupported stream", "hello")
 	model := &unsupportedStreamModel{}
 
-	processor := chatd.NewProcessor(
-		logger.Named("processor"),
-		db,
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:   logger.Named("processor"),
+		Database: db,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
@@ -1374,15 +1374,17 @@ func TestRunChatLoop_StreamErrorWithoutToolCallsErrors(t *testing.T) {
 	manager := chatd.NewStreamManager(logger)
 	model := &streamErrorNoToolModel{}
 
-	processor := chatd.NewProcessor(
-		logger.Named("processor"),
-		db,
-		chatd.WithStreamManager(manager),
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:        logger.Named("processor"),
+		Database:      db,
+		StreamManager: manager,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, events, cancel := manager.Subscribe(chat.ID)
@@ -1447,15 +1449,17 @@ func TestRunChatLoop_InterruptPersistsPartialStep(t *testing.T) {
 		started: make(chan struct{}),
 	}
 
-	processor := chatd.NewProcessor(
-		logger.Named("processor"),
-		db,
-		chatd.WithStreamManager(manager),
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:        logger.Named("processor"),
+		Database:      db,
+		StreamManager: manager,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
@@ -1563,14 +1567,16 @@ func TestCreateWorkspaceTool_NilCreator(t *testing.T) {
 	model := &createWorkspaceToolModel{
 		args: json.RawMessage(`{"prompt":"python api"}`),
 	}
-	processor := chatd.NewProcessor(
-		testutil.Logger(t).Named("chatd"),
-		db,
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:   testutil.Logger(t).Named("chatd"),
+		Database: db,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, err = db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
@@ -1659,16 +1665,18 @@ func TestCreateWorkspaceTool_StreamSnapshotIncludesBuildLogDeltas(t *testing.T) 
 		args: json.RawMessage(`{"prompt":"workspace for tests"}`),
 	}
 	manager := chatd.NewStreamManager(testutil.Logger(t))
-	processor := chatd.NewProcessor(
-		testutil.Logger(t).Named("chatd"),
-		db,
-		chatd.WithWorkspaceCreator(creator),
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithStreamManager(manager),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:          testutil.Logger(t).Named("chatd"),
+		Database:        db,
+		CreateWorkspace: creator,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		StreamManager:              manager,
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, err = db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
@@ -1762,14 +1770,16 @@ func TestRunChatLoop_MissingWorkspaceRecovery(t *testing.T) {
 	model := &createWorkspaceToolModel{
 		args: json.RawMessage(`{"prompt":"go backend"}`),
 	}
-	processor := chatd.NewProcessor(
-		testutil.Logger(t).Named("chatd"),
-		db,
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:   testutil.Logger(t).Named("chatd"),
+		Database: db,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, err = db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
@@ -1844,15 +1854,17 @@ func TestCreateWorkspaceTool_PersistsWorkspaceIDs(t *testing.T) {
 	model := &createWorkspaceToolModel{
 		args: json.RawMessage(`{"prompt":"go backend"}`),
 	}
-	processor := chatd.NewProcessor(
-		testutil.Logger(t).Named("chatd"),
-		db,
-		chatd.WithWorkspaceCreator(creator),
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:          testutil.Logger(t).Named("chatd"),
+		Database:        db,
+		CreateWorkspace: creator,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, err = db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
@@ -1942,17 +1954,19 @@ func TestRunChatLoop_CreateWorkspaceThenExecute_NoHang(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
 	manager := chatd.NewStreamManager(logger)
 	model := &createWorkspaceExecuteModel{}
-	processor := chatd.NewProcessor(
-		logger.Named("processor"),
-		db,
-		chatd.WithWorkspaceCreator(creator),
-		chatd.WithAgentConnector(testAgentConnector{client: workspacesdk.New(client), logger: logger}),
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithStreamManager(manager),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:          logger.Named("processor"),
+		Database:        db,
+		CreateWorkspace: creator,
+		AgentConn:       testAgentConnFunc(workspacesdk.New(client), logger),
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		StreamManager:              manager,
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, events, cancel := manager.Subscribe(chat.ID)
@@ -2073,14 +2087,16 @@ func TestProcessorCloseWaitsForInFlightChatProcessing(t *testing.T) {
 		release: make(chan struct{}),
 	}
 
-	processor := chatd.NewProcessor(
-		testutil.Logger(t).Named("chatd"),
-		db,
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(25*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:   testutil.Logger(t).Named("chatd"),
+		Database: db,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 25 * time.Millisecond,
+	})
 
 	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
 		ID:        chat.ID,
@@ -2129,15 +2145,17 @@ func TestRunChatLoop_PublishesStreamErrorOnProcessingFailure(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
 	manager := chatd.NewStreamManager(logger)
 
-	processor := chatd.NewProcessor(
-		logger.Named("processor"),
-		db,
-		chatd.WithStreamManager(manager),
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return nil, xerrors.New("model resolver failed")
-		}),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:        logger.Named("processor"),
+		Database:      db,
+		StreamManager: manager,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return nil, xerrors.New("model resolver failed")
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, events, cancel := manager.Subscribe(chat.ID)
@@ -2185,15 +2203,17 @@ func TestRunChatLoop_PublishesStreamErrorOnPanic(t *testing.T) {
 	manager := chatd.NewStreamManager(logger)
 	model := &panicStreamModel{panicValue: "stream panic for test"}
 
-	processor := chatd.NewProcessor(
-		logger.Named("processor"),
-		db,
-		chatd.WithStreamManager(manager),
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:        logger.Named("processor"),
+		Database:      db,
+		StreamManager: manager,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, events, cancel := manager.Subscribe(chat.ID)
@@ -2249,14 +2269,16 @@ func TestRunChatLoop_DelegatedChildWithoutReportRequeuesForReportPass(t *testing
 	)
 
 	model := &fixedTextModel{text: "child completed without explicit report"}
-	processor := chatd.NewProcessor(
-		testutil.Logger(t).Named("chatd"),
-		db,
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(10*time.Second),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:   testutil.Logger(t).Named("chatd"),
+		Database: db,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 10 * time.Second,
+	})
 	defer processor.Close()
 
 	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
@@ -2326,14 +2348,16 @@ func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t
 		started: make(chan struct{}),
 		release: make(chan struct{}),
 	}
-	processor := chatd.NewProcessor(
-		testutil.Logger(t).Named("chatd"),
-		db,
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(500*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:   testutil.Logger(t).Named("chatd"),
+		Database: db,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 500 * time.Millisecond,
+	})
 	closed := false
 	defer func() {
 		if !closed {
@@ -2431,14 +2455,16 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 
 	const fallbackSummary = "summarized completion from report-only pass"
 	model := &fixedTextModel{text: fallbackSummary}
-	processor := chatd.NewProcessor(
-		testutil.Logger(t).Named("chatd"),
-		db,
-		chatd.WithModelResolver(func(_ database.Chat) (fantasy.LanguageModel, error) {
-			return model, nil
-		}),
-		chatd.WithPollInterval(50*time.Millisecond),
-	)
+	processor := chatd.New(chatd.Config{
+		Logger:   testutil.Logger(t).Named("chatd"),
+		Database: db,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
 	defer processor.Close()
 
 	_, err = db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{

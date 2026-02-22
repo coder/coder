@@ -31,7 +31,7 @@ func TestProcessor_SubagentToolIncludesCreatedTitle(t *testing.T) {
 	chatStateMu := &sync.Mutex{}
 	tools := processor.agentTools(nil, &chatState, chatStateMu, nil)
 
-	tool := testFindAgentTool(t, tools, toolSubagent)
+	tool := testFindAgentTool(t, tools, "subagent")
 	input, err := json.Marshal(subagentArgs{
 		Prompt:     "Run delegated child work",
 		Title:      "Delegated child",
@@ -41,7 +41,7 @@ func TestProcessor_SubagentToolIncludesCreatedTitle(t *testing.T) {
 
 	response, err := tool.Run(context.Background(), fantasy.ToolCall{
 		ID:    "tool-call-subagent",
-		Name:  toolSubagent,
+		Name:  "subagent",
 		Input: string(input),
 	})
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestProcessor_SubagentAwaitToolIncludesTargetTitle(t *testing.T) {
 	chatStateMu := &sync.Mutex{}
 	tools := processor.agentTools(nil, &chatState, chatStateMu, nil)
 
-	tool := testFindAgentTool(t, tools, toolSubagentAwait)
+	tool := testFindAgentTool(t, tools, "subagent_await")
 	input, err := json.Marshal(subagentAwaitArgs{
 		ChatID:    childID.String(),
 		RequestID: requestID.String(),
@@ -83,7 +83,7 @@ func TestProcessor_SubagentAwaitToolIncludesTargetTitle(t *testing.T) {
 
 	response, err := tool.Run(context.Background(), fantasy.ToolCall{
 		ID:    "tool-call-subagent-await",
-		Name:  toolSubagentAwait,
+		Name:  "subagent_await",
 		Input: string(input),
 	})
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestProcessor_SubagentMessageToolIncludesTargetTitle(t *testing.T) {
 	chatStateMu := &sync.Mutex{}
 	tools := processor.agentTools(nil, &chatState, chatStateMu, nil)
 
-	tool := testFindAgentTool(t, tools, toolSubagentMessage)
+	tool := testFindAgentTool(t, tools, "subagent_message")
 	input, err := json.Marshal(subagentMessageArgs{
 		ChatID:  childID.String(),
 		Message: "follow-up request",
@@ -123,7 +123,7 @@ func TestProcessor_SubagentMessageToolIncludesTargetTitle(t *testing.T) {
 
 	response, err := tool.Run(context.Background(), fantasy.ToolCall{
 		ID:    "tool-call-subagent-message",
-		Name:  toolSubagentMessage,
+		Name:  "subagent_message",
 		Input: string(input),
 	})
 	require.NoError(t, err)
@@ -281,12 +281,23 @@ func TestSubagentService_TerminateSubagentSubtreeInterruptsEntireSubtree(t *test
 		testSubagentChat(childID, rootID),
 		testSubagentChat(grandchildID, childID),
 	)
-	interrupter := &recordingSubagentInterrupter{}
-	service := newSubagentService(store, interrupter)
+	var (
+		interruptMu      sync.Mutex
+		interruptedChats []uuid.UUID
+	)
+	service := newSubagentService(store, func(chatID uuid.UUID) bool {
+		interruptMu.Lock()
+		defer interruptMu.Unlock()
+		interruptedChats = append(interruptedChats, chatID)
+		return true
+	})
 
 	err := service.TerminateSubagentSubtree(context.Background(), rootID, childID)
 	require.NoError(t, err)
-	require.ElementsMatch(t, []uuid.UUID{childID, grandchildID}, interrupter.interruptedChats())
+	interruptMu.Lock()
+	recorded := append([]uuid.UUID(nil), interruptedChats...)
+	interruptMu.Unlock()
+	require.ElementsMatch(t, []uuid.UUID{childID, grandchildID}, recorded)
 }
 
 func TestSubagentService_TerminateSubagentSubtreeStopsSubtreeStreams(t *testing.T) {
@@ -435,26 +446,6 @@ func TestSubagentService_MarkSubagentReportedDoesNotInsertParentMessages(t *test
 	// chat. The parent receives the report via subagent_await.
 	messages := store.chatMessagesByChatID(parentID)
 	require.Empty(t, messages)
-}
-
-type recordingSubagentInterrupter struct {
-	mu      sync.Mutex
-	chatIDs []uuid.UUID
-}
-
-func (i *recordingSubagentInterrupter) InterruptChat(chatID uuid.UUID) bool {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	i.chatIDs = append(i.chatIDs, chatID)
-	return true
-}
-
-func (i *recordingSubagentInterrupter) interruptedChats() []uuid.UUID {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	return append([]uuid.UUID(nil), i.chatIDs...)
 }
 
 func TestSubagentService_MarkSubagentReportedDoesNotWakeParent(t *testing.T) {
@@ -705,6 +696,8 @@ func TestSubagentService_SynthesizeFallbackSubagentReportDefault(t *testing.T) {
 }
 
 type subagentServiceTestStore struct {
+	database.Store
+
 	mu            sync.Mutex
 	chats         map[uuid.UUID]database.Chat
 	messages      []database.ChatMessage
