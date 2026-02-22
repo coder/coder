@@ -391,6 +391,8 @@ export type ChatModelConfig = Readonly<
 		display_name?: string;
 		enabled?: boolean;
 		is_default?: boolean;
+		context_limit: number;
+		compression_threshold: number;
 		created_at?: string;
 		updated_at?: string;
 	} & Record<string, unknown>
@@ -402,6 +404,8 @@ export type CreateChatModelConfigRequest = {
 	display_name?: string;
 	enabled?: boolean;
 	is_default?: boolean;
+	context_limit?: number;
+	compression_threshold?: number;
 } & Record<string, unknown>;
 
 export type UpdateChatModelConfigRequest =
