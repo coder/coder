@@ -1,5 +1,3 @@
-import { useTheme } from "@emotion/react";
-import useMediaQuery from "@mui/material/useMediaQuery";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
 import { NumberedPageButton, PlaceholderPageButton } from "./PageButtons";
@@ -24,8 +22,6 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 	hasPreviousPage,
 	hasNextPage,
 }) => {
-	const theme = useTheme();
-	const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 	const totalPages = Math.ceil(totalRecords / pageSize);
 
 	if (totalPages < 2) {
@@ -52,19 +48,20 @@ export const PaginationWidgetBase: FC<PaginationWidgetBaseProps> = ({
 				<ChevronLeftIcon />
 			</PaginationNavButton>
 
-			{isMobile ? (
+			<div className="contents md:hidden">
 				<NumberedPageButton
 					highlighted
 					pageNumber={currentPage}
 					totalPages={totalPages}
 				/>
-			) : (
+			</div>
+			<div className="hidden md:contents">
 				<PaginationRow
 					currentPage={currentPage}
 					totalPages={totalPages}
 					onChange={onPageChange}
 				/>
-			)}
+			</div>
 
 			<PaginationNavButton
 				disabled={isNextDisabled}

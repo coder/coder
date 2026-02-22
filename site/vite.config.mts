@@ -179,7 +179,6 @@ export default defineConfig({
 			"@mui/material/ToggleButton",
 			"@mui/material/ToggleButtonGroup",
 			"@mui/material/styles",
-			"@mui/material/useMediaQuery",
 			"@mui/system/createTheme",
 			"@mui/system/useTheme",
 			"@mui/x-tree-view",
