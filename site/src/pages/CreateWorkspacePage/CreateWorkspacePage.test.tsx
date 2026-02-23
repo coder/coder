@@ -276,6 +276,11 @@ describe("CreateWorkspacePage", () => {
 			path: "/templates/:organization/:template/workspace",
 		});
 
+		const confirmButton = await screen.findByRole("button", {
+			name: /confirm and create/i,
+		});
+		await userEvent.click(confirmButton);
+
 		await waitFor(() => {
 			expect(createWorkspaceSpy).toBeCalledWith(
 				"me",
@@ -328,6 +333,11 @@ describe("CreateWorkspacePage", () => {
 			route: `/templates/default/${MockTemplate.name}/workspace?param.${param}=${paramValue}&mode=auto&version=test-template-version`,
 			path: "/templates/:organization/:template/workspace",
 		});
+
+		const confirmButton = await screen.findByRole("button", {
+			name: /confirm and create/i,
+		});
+		await userEvent.click(confirmButton);
 
 		await waitFor(() => {
 			expect(createWorkspaceSpy).toBeCalledWith(
