@@ -818,8 +818,10 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 				return xerrors.Errorf("lock chat: %w", err)
 			}
 
-			// If the chat is busy (running or pending), queue the message.
-			if lockedChat.Status == database.ChatStatusRunning || lockedChat.Status == database.ChatStatusPending {
+			isChatActive := api.chatProcessor != nil && api.chatProcessor.IsChatActive(chatID)
+
+			// If the chat is still being processed, queue the message.
+			if shouldQueueUserMessage(lockedChat.Status, isChatActive) {
 				// Check queue size limit.
 				existingQueuedMessages, err := tx.GetChatQueuedMessages(ctx, chatID)
 				if err != nil {
@@ -3087,6 +3089,21 @@ func convertChatQueuedMessages(msgs []database.ChatQueuedMessage) []codersdk.Cha
 		result = append(result, convertChatQueuedMessage(m))
 	}
 	return result
+}
+
+func shouldQueueUserMessage(status database.ChatStatus, isChatActive bool) bool {
+	switch status {
+	case database.ChatStatusRunning, database.ChatStatusPending:
+		return true
+	case database.ChatStatusWaiting:
+		// During interrupt the API may briefly set the chat to waiting
+		// before the worker finishes persisting an interrupted partial step.
+		// Keep new user messages queued while that worker is still active so
+		// assistant output remains ordered before follow-up prompts.
+		return isChatActive
+	default:
+		return false
+	}
 }
 
 func convertChatMessage(m database.ChatMessage) codersdk.ChatMessage {

@@ -181,6 +181,60 @@ func TestConvertChatMessagesSkipsWorkspaceMetadata(t *testing.T) {
 	require.Equal(t, int64(1), converted[0].ID)
 }
 
+func TestShouldQueueUserMessage(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		status       database.ChatStatus
+		isChatActive bool
+		expected     bool
+	}{
+		{
+			name:         "RunningAlwaysQueues",
+			status:       database.ChatStatusRunning,
+			isChatActive: false,
+			expected:     true,
+		},
+		{
+			name:         "PendingAlwaysQueues",
+			status:       database.ChatStatusPending,
+			isChatActive: false,
+			expected:     true,
+		},
+		{
+			name:         "WaitingQueuesWhileWorkerActive",
+			status:       database.ChatStatusWaiting,
+			isChatActive: true,
+			expected:     true,
+		},
+		{
+			name:         "WaitingDoesNotQueueWhenIdle",
+			status:       database.ChatStatusWaiting,
+			isChatActive: false,
+			expected:     false,
+		},
+		{
+			name:         "CompletedDoesNotQueue",
+			status:       database.ChatStatusCompleted,
+			isChatActive: true,
+			expected:     false,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(
+				t,
+				tc.expected,
+				shouldQueueUserMessage(tc.status, tc.isChatActive),
+			)
+		})
+	}
+}
+
 func TestConvertChatIncludesHierarchyMetadata(t *testing.T) {
 	t.Parallel()
 

@@ -3,6 +3,12 @@ import { renderComponent } from "testHelpers/renderHelpers";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ChatModelsResponse } from "api/api";
+import {
+	chatDiffContentsKey,
+	chatDiffStatusKey,
+	chatKey,
+	chatsKey,
+} from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -510,6 +516,234 @@ describe(AgentDetail.name, () => {
 		expect(screen.getByText("Thinking...")).toBeInTheDocument();
 		expect(setQueryData).not.toHaveBeenCalled();
 		expect(invalidateQueries).not.toHaveBeenCalled();
+	});
+
+	it("refreshes active chat data on terminal parent status updates", async () => {
+		const socket = createMockSocket();
+		mockWatchChat.mockReturnValue(socket);
+
+		const setQueryData = vi.fn();
+		const invalidateQueries = vi.fn().mockResolvedValue(undefined);
+		mockUseQueryClient.mockReturnValue({
+			setQueryData,
+			invalidateQueries,
+		});
+
+		const workspace = {
+			...MockWorkspace,
+			id: "workspace-1",
+		};
+		const chatData: TypesGen.ChatWithMessages = {
+			chat: {
+				id: "chat-1",
+				owner_id: "owner-id",
+				workspace_id: workspace.id,
+				workspace_agent_id: MockWorkspaceAgent.id,
+				title: "Parent agent",
+				status: "running",
+				model_config: {
+					model: "gpt-4o",
+					provider: "openai",
+				},
+				created_at: "2026-02-18T00:00:00.000Z",
+				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+			messages: [],
+			queued_messages: [],
+		};
+
+		mockUseOutletContext.mockReturnValue({
+			chatErrorReasons: {},
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+			topBarTitleRef: { current: null },
+			topBarActionsRef: { current: null },
+			rightPanelRef: { current: null },
+			setRightPanelOpen: vi.fn(),
+			requestArchiveAgent: vi.fn(),
+		});
+		installQueryMocks({
+			chatData,
+			workspaceData: workspace,
+			diffUrl: undefined,
+		});
+
+		renderComponent(<AgentDetail />);
+
+		socket.emitMessage({
+			parseError: null,
+			parsedMessage: {
+				type: "data",
+				data: {
+					type: "status",
+					chat_id: "chat-1",
+					status: {
+						status: "completed",
+					},
+				},
+			},
+		});
+
+		await waitFor(() => {
+			expect(invalidateQueries).toHaveBeenCalledWith({
+				queryKey: chatDiffStatusKey("chat-1"),
+			});
+			expect(invalidateQueries).toHaveBeenCalledWith({
+				queryKey: chatDiffContentsKey("chat-1"),
+			});
+			expect(invalidateQueries).toHaveBeenCalledWith({
+				queryKey: chatsKey,
+			});
+			expect(invalidateQueries).toHaveBeenCalledWith({
+				queryKey: chatKey("chat-1"),
+			});
+		});
+	});
+
+	it("preserves streamed messages when chat query updates metadata only", async () => {
+		const socket = createMockSocket();
+		mockWatchChat.mockReturnValue(socket);
+
+		const setQueryData = vi.fn();
+		const invalidateQueries = vi.fn().mockResolvedValue(undefined);
+		mockUseQueryClient.mockReturnValue({
+			setQueryData,
+			invalidateQueries,
+		});
+
+		const workspace = {
+			...MockWorkspace,
+			id: "workspace-1",
+		};
+		const chatData: TypesGen.ChatWithMessages = {
+			chat: {
+				id: "chat-1",
+				owner_id: "owner-id",
+				workspace_id: workspace.id,
+				workspace_agent_id: MockWorkspaceAgent.id,
+				title: "Queued test",
+				status: "running",
+				model_config: {
+					model: "gpt-4o",
+					provider: "openai",
+				},
+				created_at: "2026-02-18T00:00:00.000Z",
+				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+			messages: [],
+			queued_messages: [],
+		};
+
+		mockUseOutletContext.mockReturnValue({
+			chatErrorReasons: {},
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+			topBarTitleRef: { current: null },
+			topBarActionsRef: { current: null },
+			rightPanelRef: { current: null },
+			setRightPanelOpen: vi.fn(),
+			requestArchiveAgent: vi.fn(),
+		});
+
+		mockUseQuery.mockImplementation(
+			(query: { queryKey?: readonly unknown[] } | undefined) => {
+				const queryKey = query?.queryKey ?? [];
+				if (queryKey[0] === "chat" && queryKey[2] === "diff-status") {
+					return makeQueryResult({
+						data: {
+							chat_id: chatData.chat.id,
+							url: undefined,
+							changes_requested: false,
+							additions: 0,
+							deletions: 0,
+							changed_files: 0,
+						},
+					});
+				}
+				if (queryKey[0] === "chat" && queryKey.length === 2) {
+					return makeQueryResult({
+						// Return a fresh object each render to mimic
+						// metadata-only cache updates (status/title) that
+						// don't include new messages.
+						data: {
+							...chatData,
+							chat: {
+								...chatData.chat,
+							},
+						},
+					});
+				}
+				if (queryKey[0] === "workspace") {
+					return makeQueryResult({ data: workspace });
+				}
+				if (queryKey[0] === "chat-models") {
+					return makeQueryResult({
+						data: {
+							providers: [
+								{
+									provider: "openai",
+									available: true,
+									models: [
+										{
+											id: "openai:gpt-4o",
+											provider: "openai",
+											model: "gpt-4o",
+											display_name: "GPT-4o",
+										},
+									],
+								},
+							],
+						},
+					});
+				}
+				return makeQueryResult();
+			},
+		);
+
+		renderComponent(<AgentDetail />);
+
+		socket.emitMessage({
+			parseError: null,
+			parsedMessage: {
+				type: "data",
+				data: {
+					type: "message",
+					chat_id: "chat-1",
+					message: {
+						id: 42,
+						chat_id: "chat-1",
+						created_at: "2026-02-18T00:00:01.000Z",
+						role: "assistant",
+						content: {
+							text: "first queued response",
+						},
+						hidden: false,
+					},
+				},
+			},
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText("first queued response")).toBeInTheDocument();
+		});
+
+		socket.emitMessage({
+			parseError: null,
+			parsedMessage: {
+				type: "data",
+				data: {
+					type: "status",
+					chat_id: "chat-1",
+					status: {
+						status: "waiting",
+					},
+				},
+			},
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText("first queued response")).toBeInTheDocument();
+		});
 	});
 
 	it("renders streamed subagent title before args JSON is complete", async () => {

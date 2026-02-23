@@ -1,6 +1,7 @@
 import { API, type ChatDiffStatusResponse, watchChat } from "api/api";
 import {
 	chat,
+	chatKey,
 	chatDiffContentsKey,
 	chatDiffStatus,
 	chatDiffStatusKey,
@@ -1456,16 +1457,28 @@ export const AgentDetail: FC = () => {
 	useEffect(() => {
 		if (!chatQuery.data) {
 			setMessagesById(new Map());
-			setChatStatus(null);
-			setQueuedMessages([]);
 			return;
 		}
 		setMessagesById(
 			new Map(chatQuery.data.messages.map((message) => [message.id, message])),
 		);
+	}, [chatQuery.data?.messages]);
+
+	useEffect(() => {
+		if (!chatQuery.data) {
+			setChatStatus(null);
+			return;
+		}
 		setChatStatus(chatQuery.data.chat.status);
+	}, [chatQuery.data?.chat.status]);
+
+	useEffect(() => {
+		if (!chatQuery.data) {
+			setQueuedMessages([]);
+			return;
+		}
 		setQueuedMessages(chatQuery.data.queued_messages ?? []);
-	}, [chatQuery.data]);
+	}, [chatQuery.data?.queued_messages]);
 
 	useEffect(() => {
 		if (!chatQuery.data) {
@@ -1734,7 +1747,12 @@ export const AgentDetail: FC = () => {
 						nextStatus === "paused" ||
 						nextStatus === "waiting";
 					if (shouldRefreshQueries) {
-						void queryClient.invalidateQueries({ queryKey: chatsKey });
+						void Promise.all([
+							queryClient.invalidateQueries({ queryKey: chatsKey }),
+							queryClient.invalidateQueries({
+								queryKey: chatKey(agentId),
+							}),
+						]);
 					}
 					return;
 				}
@@ -1752,7 +1770,12 @@ export const AgentDetail: FC = () => {
 						status: "error",
 						updated_at: new Date().toISOString(),
 					}));
-					void queryClient.invalidateQueries({ queryKey: chatsKey });
+					void Promise.all([
+						queryClient.invalidateQueries({ queryKey: chatsKey }),
+						queryClient.invalidateQueries({
+							queryKey: chatKey(agentId),
+						}),
+					]);
 					return;
 				}
 				default:
@@ -1762,7 +1785,12 @@ export const AgentDetail: FC = () => {
 
 		const handleError = () => {
 			setStreamError((current) => current ?? "Chat stream disconnected.");
-			void queryClient.invalidateQueries({ queryKey: chatsKey });
+			void Promise.all([
+				queryClient.invalidateQueries({ queryKey: chatsKey }),
+				queryClient.invalidateQueries({
+					queryKey: chatKey(agentId),
+				}),
+			]);
 		};
 
 		socket.addEventListener("message", handleMessage);
