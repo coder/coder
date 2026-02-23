@@ -26,6 +26,7 @@ import { cn } from "utils/cn";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import {
 	ModelConfigFields,
+	modelConfigAnthropicEffortOptions,
 	modelConfigReasoningEffortOptions,
 	modelConfigTextVerbosityOptions,
 } from "./ModelConfigFields";
@@ -48,6 +49,7 @@ export type ModelConfigFormState = {
 	openaiReasoningSummary: string;
 	openaiUser: string;
 
+	anthropicEffort: string;
 	anthropicThinkingBudgetTokens: string;
 	anthropicSendReasoning: string;
 	anthropicDisableParallelToolUse: string;
@@ -96,6 +98,7 @@ const emptyModelConfigFormState: ModelConfigFormState = {
 	openaiReasoningSummary: "",
 	openaiUser: "",
 
+	anthropicEffort: "",
 	anthropicThinkingBudgetTokens: "",
 	anthropicSendReasoning: "",
 	anthropicDisableParallelToolUse: "",
@@ -175,6 +178,7 @@ const modelConfigSchemaByProvider: Record<
 			max_output_tokens: 32000,
 			provider_options: {
 				anthropic: {
+					effort: "medium",
 					thinking: { budget_tokens: 4000 },
 					send_reasoning: true,
 					disable_parallel_tool_use: false,
@@ -187,6 +191,7 @@ const modelConfigSchemaByProvider: Record<
 			max_output_tokens: 32000,
 			provider_options: {
 				anthropic: {
+					effort: "medium",
 					thinking: { budget_tokens: 4000 },
 					send_reasoning: true,
 					disable_parallel_tool_use: false,
@@ -371,6 +376,7 @@ const extractModelConfigFormState = (
 		openaiReasoningSummary: str(openai.reasoning_summary),
 		openaiUser: str(openai.user),
 
+		anthropicEffort: str(anthropic.effort),
 		anthropicThinkingBudgetTokens: str(anthropicThinking.budget_tokens),
 		anthropicSendReasoning: str(anthropic.send_reasoning),
 		anthropicDisableParallelToolUse: str(
@@ -535,13 +541,8 @@ const buildModelConfigFromForm = (
 			const serviceTier = form.openaiServiceTier.trim();
 			const reasoningSummary = form.openaiReasoningSummary.trim();
 			const user = form.openaiUser.trim();
-			const openaiOptions: TypesGen.ChatModelOpenAIProviderOptions = {
-				...(reasoningEffort
-					? {
-							reasoning_effort:
-								reasoningEffort as TypesGen.ChatModelReasoningEffort,
-						}
-					: {}),
+			const openaiOptions: Record<string, unknown> = {
+				...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 				...(parallelToolCalls !== undefined
 					? { parallel_tool_calls: parallelToolCalls }
 					: {}),
@@ -569,23 +570,29 @@ const buildModelConfigFromForm = (
 				"Send reasoning",
 				form.anthropicSendReasoning,
 			);
+			const effort = parseOptionalSelect(
+				"anthropicEffort",
+				"Output effort",
+				form.anthropicEffort,
+				modelConfigAnthropicEffortOptions,
+			);
 			const disableParallelToolUse = parseOptionalBoolean(
 				"anthropicDisableParallelToolUse",
 				"Disable parallel tool use",
 				form.anthropicDisableParallelToolUse,
 			);
-			const anthropicOptions: TypesGen.ChatModelAnthropicProviderOptions =
-				{
-					...(budgetTokens !== undefined
-						? { thinking: { budget_tokens: budgetTokens } }
-						: {}),
-					...(sendReasoning !== undefined
-						? { send_reasoning: sendReasoning }
-						: {}),
-					...(disableParallelToolUse !== undefined
-						? { disable_parallel_tool_use: disableParallelToolUse }
-						: {}),
-				};
+			const anthropicOptions: Record<string, unknown> = {
+				...(effort ? { effort } : {}),
+				...(budgetTokens !== undefined
+					? { thinking: { budget_tokens: budgetTokens } }
+					: {}),
+				...(sendReasoning !== undefined
+					? { send_reasoning: sendReasoning }
+					: {}),
+				...(disableParallelToolUse !== undefined
+					? { disable_parallel_tool_use: disableParallelToolUse }
+					: {}),
+			};
 			if (
 				hasObjectKeys(anthropicOptions as Record<string, unknown>)
 			) {
@@ -610,19 +617,16 @@ const buildModelConfigFromForm = (
 				"Safety settings JSON",
 				form.googleSafetySettingsJSON,
 			);
-			let typedSafetySettings:
-				| readonly TypesGen.ChatModelGoogleSafetySetting[]
-				| undefined;
+			let typedSafetySettings: unknown[] | undefined;
 			if (safetySettings !== undefined) {
 				if (Array.isArray(safetySettings)) {
-					typedSafetySettings =
-						safetySettings as readonly TypesGen.ChatModelGoogleSafetySetting[];
+					typedSafetySettings = safetySettings;
 				} else {
 					fieldErrors.googleSafetySettingsJSON =
 						"Safety settings JSON must be an array.";
 				}
 			}
-			const googleOptions: TypesGen.ChatModelGoogleProviderOptions = {
+			const googleOptions: Record<string, unknown> = {
 				...(thinkingBudget !== undefined ||
 				includeThoughts !== undefined
 					? {
@@ -656,13 +660,8 @@ const buildModelConfigFromForm = (
 				modelConfigReasoningEffortOptions,
 			);
 			const user = form.openAICompatUser.trim();
-			const opts: TypesGen.ChatModelOpenAICompatProviderOptions = {
-				...(reasoningEffort
-					? {
-							reasoning_effort:
-								reasoningEffort as TypesGen.ChatModelReasoningEffort,
-						}
-					: {}),
+			const opts: Record<string, unknown> = {
+				...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 				...(user ? { user } : {}),
 			};
 			if (hasObjectKeys(opts as Record<string, unknown>)) {
@@ -703,15 +702,11 @@ const buildModelConfigFromForm = (
 				form.openrouterIncludeUsage,
 			);
 			const user = form.openrouterUser.trim();
-			const reasoning: TypesGen.ChatModelReasoningOptions = {
+			const reasoning: Record<string, unknown> = {
 				...(reasoningEnabled !== undefined
 					? { enabled: reasoningEnabled }
 					: {}),
-				...(reasoningEffort
-					? {
-							effort: reasoningEffort as TypesGen.ChatModelReasoningEffort,
-						}
-					: {}),
+				...(reasoningEffort ? { effort: reasoningEffort } : {}),
 				...(reasoningMaxTokens !== undefined
 					? { max_tokens: reasoningMaxTokens }
 					: {}),
@@ -719,7 +714,7 @@ const buildModelConfigFromForm = (
 					? { exclude: reasoningExclude }
 					: {}),
 			};
-			const opts: TypesGen.ChatModelOpenRouterProviderOptions = {
+			const opts: Record<string, unknown> = {
 				...(hasObjectKeys(reasoning as Record<string, unknown>)
 					? { reasoning }
 					: {}),
@@ -764,15 +759,11 @@ const buildModelConfigFromForm = (
 				form.vercelParallelToolCalls,
 			);
 			const user = form.vercelUser.trim();
-			const reasoning: TypesGen.ChatModelReasoningOptions = {
+			const reasoning: Record<string, unknown> = {
 				...(reasoningEnabled !== undefined
 					? { enabled: reasoningEnabled }
 					: {}),
-				...(reasoningEffort
-					? {
-							effort: reasoningEffort as TypesGen.ChatModelReasoningEffort,
-						}
-					: {}),
+				...(reasoningEffort ? { effort: reasoningEffort } : {}),
 				...(reasoningMaxTokens !== undefined
 					? { max_tokens: reasoningMaxTokens }
 					: {}),
@@ -780,7 +771,7 @@ const buildModelConfigFromForm = (
 					? { exclude: reasoningExclude }
 					: {}),
 			};
-			const opts: TypesGen.ChatModelVercelProviderOptions = {
+			const opts: Record<string, unknown> = {
 				...(hasObjectKeys(reasoning as Record<string, unknown>)
 					? { reasoning }
 					: {}),

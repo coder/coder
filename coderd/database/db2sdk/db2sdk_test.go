@@ -210,7 +210,7 @@ func TestTemplateVersionParameter_BadDescription(t *testing.T) {
 	req.NotEmpty(sdk.DescriptionPlaintext, "broke the markdown parser with %v", desc)
 }
 
-func TestChatMessage_ReasoningPartIncludesOpenAISummaryTitle(t *testing.T) {
+func TestChatMessage_ReasoningPartWithoutPersistedTitleIsEmpty(t *testing.T) {
 	t.Parallel()
 
 	assistantContent, err := json.Marshal([]fantasy.Content{
@@ -240,23 +240,34 @@ func TestChatMessage_ReasoningPartIncludesOpenAISummaryTitle(t *testing.T) {
 	require.Len(t, message.Parts, 1)
 	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Parts[0].Type)
 	require.Equal(t, "Plan migration", message.Parts[0].Text)
-	require.Equal(t, "Plan migration", message.Parts[0].Title)
+	require.Empty(t, message.Parts[0].Title)
 }
 
-func TestChatMessage_ReasoningPartTruncatesOpenAISummaryTitle(t *testing.T) {
+func TestChatMessage_ReasoningPartPrefersPersistedTitle(t *testing.T) {
 	t.Parallel()
 
-	assistantContent, err := json.Marshal([]fantasy.Content{
-		fantasy.ReasoningContent{
-			Text: "Investigated workspace build failures and prepared step-by-step remediation plan for migrations",
-			ProviderMetadata: fantasy.ProviderMetadata{
-				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
-					ItemID:  "reasoning-1",
-					Summary: []string{"Investigated workspace build failures and prepared step-by-step remediation plan for migrations"},
+	reasoningContent, err := json.Marshal(fantasy.ReasoningContent{
+		Text: "Verify schema updates, then apply changes in order.",
+		ProviderMetadata: fantasy.ProviderMetadata{
+			fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+				ItemID: "reasoning-1",
+				Summary: []string{
+					"**Metadata-derived title**\n\nLonger explanation.",
 				},
 			},
 		},
 	})
+	require.NoError(t, err)
+
+	var envelope map[string]any
+	require.NoError(t, json.Unmarshal(reasoningContent, &envelope))
+	dataValue, ok := envelope["data"].(map[string]any)
+	require.True(t, ok)
+	dataValue["title"] = "Persisted stream title"
+
+	encodedReasoning, err := json.Marshal(envelope)
+	require.NoError(t, err)
+	assistantContent, err := json.Marshal([]json.RawMessage{encodedReasoning})
 	require.NoError(t, err)
 
 	message := db2sdk.ChatMessage(database.ChatMessage{
@@ -272,9 +283,5 @@ func TestChatMessage_ReasoningPartTruncatesOpenAISummaryTitle(t *testing.T) {
 
 	require.Len(t, message.Parts, 1)
 	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Parts[0].Type)
-	require.Equal(
-		t,
-		"Investigated workspace build failures and prepared step-by-step remediation…",
-		message.Parts[0].Title,
-	)
+	require.Equal(t, "Persisted stream title", message.Parts[0].Title)
 }

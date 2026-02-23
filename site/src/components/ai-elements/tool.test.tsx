@@ -26,6 +26,69 @@ const renderTool = (props: ToolProps) => {
 };
 
 describe(Tool.name, () => {
+	it("renders execute auth-required action and opens auth URL", async () => {
+		const user = userEvent.setup();
+		const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+		renderTool({
+			name: "execute",
+			args: { command: "git fetch origin" },
+			result: {
+				auth_required: true,
+				provider_display_name: "GitHub",
+				authenticate_url: "https://coder.example.com/external-auth/github",
+				output:
+					"fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+			},
+		});
+
+		const button = screen.getByRole("button", {
+			name: "Authenticate with GitHub",
+		});
+		expect(button).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: "Open authentication link" }),
+		).toHaveAttribute(
+			"href",
+			"https://coder.example.com/external-auth/github",
+		);
+
+		await user.click(button);
+		expect(openSpy).toHaveBeenCalledWith(
+			"https://coder.example.com/external-auth/github",
+			"_blank",
+			"width=900,height=600",
+		);
+		openSpy.mockRestore();
+	});
+
+	it("renders wait_for_external_auth running state", () => {
+		renderTool({
+			name: "wait_for_external_auth",
+			status: "running",
+			result: {
+				provider_display_name: "GitHub",
+				authenticated: false,
+			},
+		});
+
+		expect(
+			screen.getByText("Waiting for GitHub authentication..."),
+		).toBeInTheDocument();
+	});
+
+	it("renders wait_for_external_auth completed state", () => {
+		renderTool({
+			name: "wait_for_external_auth",
+			status: "completed",
+			result: {
+				provider_display_name: "GitHub",
+				authenticated: true,
+			},
+		});
+
+		expect(screen.getByText("Authenticated with GitHub")).toBeInTheDocument();
+	});
+
 	it.each(["subagent", "subagent_await", "subagent_message"] as const)(
 		"renders a Sub-agent link card for %s",
 		(toolName) => {

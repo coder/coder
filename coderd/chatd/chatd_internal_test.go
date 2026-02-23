@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
@@ -92,6 +93,68 @@ func TestContentToMessageParts_PreservesReasoningProviderMetadata(t *testing.T) 
 	require.NotNil(t, gotMetadata)
 	require.Equal(t, "reasoning-item-1", gotMetadata.ItemID)
 	require.Equal(t, []string{"Plan migration"}, gotMetadata.Summary)
+}
+
+func TestExtractGitAuthRequiredMarker(t *testing.T) {
+	t.Parallel()
+
+	output := "" +
+		"fatal: could not read Username for 'https://github.com': terminal prompts disabled\n" +
+		"CODER_GITAUTH_REQUIRED:{\"provider_id\":\"github\",\"provider_type\":\"github\",\"provider_display_name\":\"GitHub\",\"authenticate_url\":\"https://coder.example.com/external-auth/github\",\"host\":\"https://github.com\"}\n" +
+		"fatal: Authentication failed\n"
+
+	marker, cleaned := extractGitAuthRequiredMarker(output)
+	require.NotNil(t, marker)
+	require.Equal(t, "github", marker.ProviderID)
+	require.Equal(t, "https://coder.example.com/external-auth/github", marker.AuthenticateURL)
+	require.NotContains(t, cleaned, gitAuthRequiredMarkerPrefix)
+	require.Contains(t, cleaned, "fatal: Authentication failed")
+}
+
+func TestWaitForExternalAuth(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Authenticated", func(t *testing.T) {
+		t.Parallel()
+
+		db := chatdTestDB(t)
+		user := dbgen.User(t, db, database.User{})
+		dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+			ProviderID:       "github",
+			UserID:           user.ID,
+			OAuthAccessToken: "token",
+			OAuthExpiry:      time.Now().Add(time.Minute),
+		})
+
+		p := &Processor{db: db}
+		authenticated, timedOut, err := p.waitForExternalAuth(
+			context.Background(),
+			user.ID,
+			"github",
+			100*time.Millisecond,
+		)
+		require.NoError(t, err)
+		require.True(t, authenticated)
+		require.False(t, timedOut)
+	})
+
+	t.Run("TimedOut", func(t *testing.T) {
+		t.Parallel()
+
+		db := chatdTestDB(t)
+		user := dbgen.User(t, db, database.User{})
+		p := &Processor{db: db}
+
+		authenticated, timedOut, err := p.waitForExternalAuth(
+			context.Background(),
+			user.ID,
+			"missing-provider",
+			50*time.Millisecond,
+		)
+		require.NoError(t, err)
+		require.False(t, authenticated)
+		require.True(t, timedOut)
+	})
 }
 
 func TestContentToMessageParts_PreservesProviderMetadataForOtherParts(t *testing.T) {
@@ -223,6 +286,128 @@ func TestContentBlockToPart_ReasoningTitleTruncatesSummary(t *testing.T) {
 	)
 }
 
+func TestContentBlockToPart_ReasoningTitleUsesSummaryHeading(t *testing.T) {
+	t.Parallel()
+
+	metadata := &fantasyopenai.ResponsesReasoningMetadata{
+		ItemID: "reasoning-item-1",
+		Summary: []string{
+			"**Implement migration safely**\n\nVerify schema updates, then apply changes in order.",
+		},
+	}
+
+	part := contentBlockToPart(fantasy.ReasoningContent{
+		Text: "Verify schema updates, then apply changes in order.",
+		ProviderMetadata: fantasy.ProviderMetadata{
+			fantasyopenai.Name: metadata,
+		},
+	})
+
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, part.Type)
+	require.Equal(t, "Implement migration safely", part.Title)
+}
+
+func TestReasoningMarkdownTitleFromFirstLine(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CompleteHeading", func(t *testing.T) {
+		t.Parallel()
+		title := reasoningMarkdownTitleFromFirstLine(
+			"**Implement migration safely**\n\nVerify schema updates.",
+		)
+		require.Equal(t, "Implement migration safely", title)
+	})
+
+	t.Run("IncompleteHeading", func(t *testing.T) {
+		t.Parallel()
+		title := reasoningMarkdownTitleFromFirstLine("**Implement migration")
+		require.Empty(t, title)
+	})
+
+	t.Run("NonHeadingReasoning", func(t *testing.T) {
+		t.Parallel()
+		title := reasoningMarkdownTitleFromFirstLine("Implement migration")
+		require.Empty(t, title)
+	})
+
+	t.Run("HeadingWithSameLineSuffix", func(t *testing.T) {
+		t.Parallel()
+		title := reasoningMarkdownTitleFromFirstLine("**Implement migration** details")
+		require.Empty(t, title)
+	})
+}
+
+func TestMarshalContentBlocks_ReasoningPersistsTitle(t *testing.T) {
+	t.Parallel()
+
+	blocks := []fantasy.Content{
+		fantasy.ReasoningContent{
+			Text: "**Implement migration safely**\n\nVerify schema updates, then apply changes in order.",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+					ItemID: "reasoning-item-1",
+					Summary: []string{
+						"Fallback metadata title",
+					},
+				},
+			},
+		},
+	}
+
+	raw, err := marshalContentBlocks(blocks)
+	require.NoError(t, err)
+	require.True(t, raw.Valid)
+
+	var encoded []json.RawMessage
+	require.NoError(t, json.Unmarshal(raw.RawMessage, &encoded))
+	require.Len(t, encoded, 1)
+
+	var persisted struct {
+		Type string `json:"type"`
+		Data struct {
+			Title string `json:"title"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(encoded[0], &persisted))
+	require.Equal(t, string(fantasy.ContentTypeReasoning), persisted.Type)
+	require.Equal(t, "Implement migration safely", persisted.Data.Title)
+}
+
+func TestMarshalContentBlocks_ReasoningSkipsTitleWithoutMarkdownHeading(t *testing.T) {
+	t.Parallel()
+
+	blocks := []fantasy.Content{
+		fantasy.ReasoningContent{
+			Text: "Plan migration\n\nVerify schema updates, then apply changes in order.",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+					ItemID: "reasoning-item-1",
+					Summary: []string{
+						"**Metadata title should not be used**",
+					},
+				},
+			},
+		},
+	}
+
+	raw, err := marshalContentBlocks(blocks)
+	require.NoError(t, err)
+	require.True(t, raw.Valid)
+
+	var encoded []json.RawMessage
+	require.NoError(t, json.Unmarshal(raw.RawMessage, &encoded))
+	require.Len(t, encoded, 1)
+
+	var persisted struct {
+		Type string         `json:"type"`
+		Data map[string]any `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(encoded[0], &persisted))
+	require.Equal(t, string(fantasy.ContentTypeReasoning), persisted.Type)
+	_, hasTitle := persisted.Data["title"]
+	require.False(t, hasTitle)
+}
+
 func TestChatMessagesToPrompt_RepairsLegacyOrphanToolResult(t *testing.T) {
 	t.Parallel()
 
@@ -341,8 +526,7 @@ func TestParseChatModelConfig_ParsesCallConfig(t *testing.T) {
 		"provider_options":{
 			"openai":{
 				"parallel_tool_calls":true,
-				"reasoning_effort":"medium",
-				"reasoning_summary":"concise"
+				"reasoning_effort":"medium"
 			}
 		}
 	}`)
@@ -372,11 +556,217 @@ func TestParseChatModelConfig_ParsesCallConfig(t *testing.T) {
 	require.NotNil(t, config.ProviderOptions.OpenAI.ReasoningEffort)
 	require.Equal(
 		t,
-		codersdk.ChatModelReasoningEffortMedium,
+		"medium",
 		*config.ProviderOptions.OpenAI.ReasoningEffort,
 	)
-	require.NotNil(t, config.ProviderOptions.OpenAI.ReasoningSummary)
-	require.Equal(t, "concise", *config.ProviderOptions.OpenAI.ReasoningSummary)
+}
+
+func TestParseChatModelConfig_DoesNotInterpretWrappedProviderOptions(t *testing.T) {
+	t.Parallel()
+
+	raw := json.RawMessage(`{
+		"provider":"anthropic",
+		"model":"claude-opus-4-6",
+		"provider_options":{
+			"anthropic":{
+				"type":"anthropic.options",
+				"data":{
+					"send_reasoning":true,
+					"effort":"high"
+				}
+			}
+		}
+	}`)
+
+	config, err := parseChatModelConfig(raw)
+	require.NoError(t, err)
+	require.Equal(t, "anthropic", config.Provider)
+	require.Equal(t, "claude-opus-4-6", config.Model)
+	require.NotNil(t, config.ProviderOptions)
+	require.NotNil(t, config.ProviderOptions.Anthropic)
+	require.Nil(t, config.ProviderOptions.Anthropic.SendReasoning)
+	require.Nil(t, config.ProviderOptions.Anthropic.Effort)
+}
+
+func TestApplyFallbackChatModelConfig_MergesMissingCallConfigValues(t *testing.T) {
+	t.Parallel()
+
+	maxOutputTokens := int64(4096)
+	temperature := 0.2
+
+	config := chatModelConfig{
+		ChatModelCallConfig: codersdk.ChatModelCallConfig{
+			Temperature: &temperature,
+		},
+	}
+	fallbackConfig := database.ChatModelConfig{
+		Provider: "anthropic",
+		Model:    "claude-opus-4-6",
+		ModelConfig: json.RawMessage(`{
+			"max_output_tokens": 4096,
+			"provider_options": {
+				"anthropic": {
+					"send_reasoning": true,
+					"effort": "high"
+				}
+			}
+		}`),
+	}
+
+	merged := applyFallbackChatModelConfig(config, fallbackConfig)
+	require.Equal(t, "anthropic", merged.Provider)
+	require.Equal(t, "claude-opus-4-6", merged.Model)
+	require.NotNil(t, merged.MaxOutputTokens)
+	require.Equal(t, maxOutputTokens, *merged.MaxOutputTokens)
+	require.NotNil(t, merged.Temperature)
+	require.Equal(t, temperature, *merged.Temperature)
+	require.NotNil(t, merged.ProviderOptions)
+	require.NotNil(t, merged.ProviderOptions.Anthropic)
+	require.NotNil(t, merged.ProviderOptions.Anthropic.SendReasoning)
+	require.True(t, *merged.ProviderOptions.Anthropic.SendReasoning)
+	require.NotNil(t, merged.ProviderOptions.Anthropic.Effort)
+	require.Equal(t, "high", *merged.ProviderOptions.Anthropic.Effort)
+}
+
+func TestApplyFallbackChatModelConfig_PreservesExistingProviderOptions(t *testing.T) {
+	t.Parallel()
+
+	sendReasoning := false
+	config := chatModelConfig{
+		ChatModelCallConfig: codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+					SendReasoning: &sendReasoning,
+				},
+			},
+		},
+	}
+	fallbackConfig := database.ChatModelConfig{
+		Provider: "anthropic",
+		Model:    "claude-opus-4-6",
+		ModelConfig: json.RawMessage(`{
+			"provider_options": {
+				"anthropic": {
+					"send_reasoning": true,
+					"effort": "high"
+				}
+			}
+		}`),
+	}
+
+	merged := applyFallbackChatModelConfig(config, fallbackConfig)
+	require.NotNil(t, merged.ProviderOptions)
+	require.NotNil(t, merged.ProviderOptions.Anthropic)
+	require.NotNil(t, merged.ProviderOptions.Anthropic.SendReasoning)
+	require.False(t, *merged.ProviderOptions.Anthropic.SendReasoning)
+	require.NotNil(t, merged.ProviderOptions.Anthropic.Effort)
+	require.Equal(t, "high", *merged.ProviderOptions.Anthropic.Effort)
+}
+
+func TestApplyFallbackChatModelConfig_MergesOpenAIProviderOptionsIntoEmptyOptions(t *testing.T) {
+	t.Parallel()
+
+	reasoningEffort := "high"
+	config := chatModelConfig{
+		ChatModelCallConfig: codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{},
+		},
+	}
+	fallbackConfig := database.ChatModelConfig{
+		Provider: "openai",
+		Model:    "gpt-5.2",
+		ModelConfig: json.RawMessage(`{
+			"provider_options": {
+				"openai": {
+					"reasoning_effort": "high"
+				}
+			}
+		}`),
+	}
+
+	merged := applyFallbackChatModelConfig(config, fallbackConfig)
+	require.NotNil(t, merged.ProviderOptions)
+	require.NotNil(t, merged.ProviderOptions.OpenAI)
+	require.NotNil(t, merged.ProviderOptions.OpenAI.ReasoningEffort)
+	require.Equal(
+		t,
+		reasoningEffort,
+		*merged.ProviderOptions.OpenAI.ReasoningEffort,
+	)
+}
+
+func TestApplyFallbackChatModelConfig_MergesOpenAIMissingFields(t *testing.T) {
+	t.Parallel()
+
+	user := "alice"
+	reasoningEffort := "high"
+	config := chatModelConfig{
+		ChatModelCallConfig: codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+					User: &user,
+				},
+			},
+		},
+	}
+	fallbackConfig := database.ChatModelConfig{
+		Provider: "openai",
+		Model:    "gpt-5.2",
+		ModelConfig: json.RawMessage(`{
+			"provider_options": {
+				"openai": {
+					"reasoning_effort": "high"
+				}
+			}
+		}`),
+	}
+
+	merged := applyFallbackChatModelConfig(config, fallbackConfig)
+	require.NotNil(t, merged.ProviderOptions)
+	require.NotNil(t, merged.ProviderOptions.OpenAI)
+	require.NotNil(t, merged.ProviderOptions.OpenAI.User)
+	require.Equal(t, user, *merged.ProviderOptions.OpenAI.User)
+	require.NotNil(t, merged.ProviderOptions.OpenAI.ReasoningEffort)
+	require.Equal(
+		t,
+		reasoningEffort,
+		*merged.ProviderOptions.OpenAI.ReasoningEffort,
+	)
+}
+
+func TestStreamCallOptionsFromChatModelConfig_UsesMergedFallbackOpenAIOptions(t *testing.T) {
+	t.Parallel()
+
+	config := chatModelConfig{
+		ChatModelCallConfig: codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{},
+		},
+	}
+	fallbackConfig := database.ChatModelConfig{
+		Provider: "openai",
+		Model:    "gpt-5.2",
+		ModelConfig: json.RawMessage(`{
+			"provider_options": {
+				"openai": {
+					"reasoning_effort": "high"
+				}
+			}
+		}`),
+	}
+
+	merged := applyFallbackChatModelConfig(config, fallbackConfig)
+	streamCall := streamCallOptionsFromChatModelConfig(
+		&titleTestModel{provider: fantasyopenai.Name, model: "gpt-5.2"},
+		merged,
+	)
+
+	require.NotNil(t, streamCall.ProviderOptions)
+	openAIOptionsAny := streamCall.ProviderOptions[fantasyopenai.Name]
+	require.NotNil(t, openAIOptionsAny)
+	openAIOptions, ok := openAIOptionsAny.(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok)
+	require.NotNil(t, openAIOptions.ReasoningEffort)
+	require.Equal(t, fantasyopenai.ReasoningEffortHigh, *openAIOptions.ReasoningEffort)
 }
 
 func TestStreamCallOptionsFromChatModelConfig_OpenAIResponses(t *testing.T) {
@@ -389,11 +779,14 @@ func TestStreamCallOptionsFromChatModelConfig_OpenAIResponses(t *testing.T) {
 	presencePenalty := 0.11
 	frequencyPenalty := 0.23
 	parallelToolCalls := true
-	reasoningEffort := codersdk.ChatModelReasoningEffortMedium
-	reasoningSummary := "brief"
+	reasoningEffort := "medium"
 	serviceTier := "priority"
 	textVerbosity := "high"
 	user := " user-123 "
+	includes := []string{
+		string(fantasyopenai.IncludeMessageOutputTextLogprobs),
+		string(fantasyopenai.IncludeReasoningEncryptedContent),
+	}
 
 	streamCall := streamCallOptionsFromChatModelConfig(
 		&titleTestModel{provider: fantasyopenai.Name, model: "gpt-5.2"},
@@ -407,13 +800,12 @@ func TestStreamCallOptionsFromChatModelConfig_OpenAIResponses(t *testing.T) {
 				FrequencyPenalty: &frequencyPenalty,
 				ProviderOptions: &codersdk.ChatModelProviderOptions{
 					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-						Include:           []string{"reasoning.encrypted_content"},
 						ParallelToolCalls: &parallelToolCalls,
 						ReasoningEffort:   &reasoningEffort,
-						ReasoningSummary:  &reasoningSummary,
 						ServiceTier:       &serviceTier,
 						TextVerbosity:     &textVerbosity,
 						User:              &user,
+						Include:           includes,
 					},
 				},
 			},
@@ -437,23 +829,20 @@ func TestStreamCallOptionsFromChatModelConfig_OpenAIResponses(t *testing.T) {
 	require.True(t, ok)
 	openAIOptions, ok := openAIOptionsAny.(*fantasyopenai.ResponsesProviderOptions)
 	require.True(t, ok)
-	require.Equal(
-		t,
-		[]fantasyopenai.IncludeType{"reasoning.encrypted_content"},
-		openAIOptions.Include,
-	)
 	require.NotNil(t, openAIOptions.ParallelToolCalls)
 	require.True(t, *openAIOptions.ParallelToolCalls)
 	require.NotNil(t, openAIOptions.ReasoningEffort)
 	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *openAIOptions.ReasoningEffort)
-	require.NotNil(t, openAIOptions.ReasoningSummary)
-	require.Equal(t, "brief", *openAIOptions.ReasoningSummary)
 	require.NotNil(t, openAIOptions.ServiceTier)
 	require.Equal(t, fantasyopenai.ServiceTierPriority, *openAIOptions.ServiceTier)
 	require.NotNil(t, openAIOptions.TextVerbosity)
 	require.Equal(t, fantasyopenai.TextVerbosityHigh, *openAIOptions.TextVerbosity)
 	require.NotNil(t, openAIOptions.User)
 	require.Equal(t, "user-123", *openAIOptions.User)
+	require.ElementsMatch(t, []fantasyopenai.IncludeType{
+		fantasyopenai.IncludeMessageOutputTextLogprobs,
+		fantasyopenai.IncludeReasoningEncryptedContent,
+	}, openAIOptions.Include)
 }
 
 func TestStreamCallOptionsFromChatModelConfig_DefaultsAndLegacyOpenAI(t *testing.T) {
@@ -479,6 +868,29 @@ func TestStreamCallOptionsFromChatModelConfig_DefaultsAndLegacyOpenAI(t *testing
 	require.True(t, ok)
 	_, ok = openAIOptionsAny.(*fantasyopenai.ProviderOptions)
 	require.True(t, ok)
+}
+
+func TestStreamCallOptionsFromChatModelConfig_OpenAIResponses_ForceEncryptedReasoningInclude(t *testing.T) {
+	t.Parallel()
+
+	streamCall := streamCallOptionsFromChatModelConfig(
+		&titleTestModel{provider: fantasyopenai.Name, model: "gpt-5.2"},
+		chatModelConfig{
+			ChatModelCallConfig: codersdk.ChatModelCallConfig{
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{},
+				},
+			},
+		},
+	)
+
+	openAIOptionsAny, ok := streamCall.ProviderOptions[fantasyopenai.Name]
+	require.True(t, ok)
+	openAIOptions, ok := openAIOptionsAny.(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok)
+	require.Equal(t, []fantasyopenai.IncludeType{
+		fantasyopenai.IncludeReasoningEncryptedContent,
+	}, openAIOptions.Include)
 }
 
 func TestAnyAvailableModel(t *testing.T) {

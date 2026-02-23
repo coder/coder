@@ -49,6 +49,7 @@ const (
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
 	defaultExecuteTimeout        = 60 * time.Second
+	defaultExternalAuthWait      = 5 * time.Minute
 	homeInstructionLookupTimeout = 5 * time.Second
 	maxChatSteps                 = 1200
 
@@ -75,6 +76,13 @@ const (
 
 	defaultNoWorkspaceInstruction = "No workspace is selected yet. Call the create_workspace tool first before using read_file, write_file, or execute. If create_workspace fails, ask the user to clarify the template or workspace request."
 	reportOnlyInstruction         = "Report-only follow-up pass. Call subagent_report exactly once with a concise summary and nothing else."
+
+	chatAgentEnvVar                 = "CODER_CHAT_AGENT"
+	gitAuthRequiredMarkerPrefix     = "CODER_GITAUTH_REQUIRED:"
+	authRequiredResultReason        = "authentication_required"
+	externalAuthWaitPollInterval    = time.Second
+	externalAuthWaitTimedOutStatus  = "timed_out"
+	externalAuthWaitCompletedStatus = "completed"
 )
 
 var (
@@ -922,12 +930,20 @@ func (p *Processor) runChat(
 		defer p.streamManager.StopStream(chat.ID)
 	}
 
-	model, err := p.resolveChatModel(ctx, chat)
+	model, modelConfig, err := p.resolveChatModel(ctx, chat)
 	if err != nil {
 		return err
 	}
 
-	result, err := p.runChatWithAgent(ctx, chat, model, prompt, reportOnly, subagentRequestID)
+	result, err := p.runChatWithAgent(
+		ctx,
+		chat,
+		model,
+		modelConfig,
+		prompt,
+		reportOnly,
+		subagentRequestID,
+	)
 	if err != nil {
 		return err
 	}
@@ -1311,36 +1327,45 @@ func messageContextTokens(message database.ChatMessage) (int64, bool) {
 	return 0, false
 }
 
-func (p *Processor) resolveChatModel(ctx context.Context, chat database.Chat) (fantasy.LanguageModel, error) {
+func (p *Processor) resolveChatModel(
+	ctx context.Context,
+	chat database.Chat,
+) (fantasy.LanguageModel, chatModelConfig, error) {
+	config, parseErr := parseChatModelConfig(chat.ModelConfig)
+	if parseErr != nil {
+		return nil, chatModelConfig{}, xerrors.Errorf(
+			"parse model config: %w",
+			parseErr,
+		)
+	}
+
 	if p.testing != nil && p.testing.ResolveChatModel != nil {
 		model, err := p.testing.ResolveChatModel(chat)
 		if err != nil {
-			return nil, xerrors.Errorf("resolve model: %w", err)
+			return nil, chatModelConfig{}, xerrors.Errorf("resolve model: %w", err)
 		}
-		return model, nil
+		return model, config, nil
 	}
 
 	keys, err := p.resolveProviderAPIKeys(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("resolve provider API keys: %w", err)
+		return nil, chatModelConfig{}, xerrors.Errorf(
+			"resolve provider API keys: %w",
+			err,
+		)
 	}
-	model, err := p.modelFromChat(ctx, chat, keys)
+	model, config, err := p.modelFromChat(ctx, config, keys)
 	if err != nil {
-		return nil, xerrors.Errorf("resolve model: %w", err)
+		return nil, chatModelConfig{}, xerrors.Errorf("resolve model: %w", err)
 	}
-	return model, nil
+	return model, config, nil
 }
 
 func (p *Processor) modelFromChat(
 	ctx context.Context,
-	chat database.Chat,
+	config chatModelConfig,
 	providerKeys ProviderAPIKeys,
-) (fantasy.LanguageModel, error) {
-	config, err := parseChatModelConfig(chat.ModelConfig)
-	if err != nil {
-		return nil, xerrors.Errorf("parse model config: %w", err)
-	}
-
+) (fantasy.LanguageModel, chatModelConfig, error) {
 	if strings.TrimSpace(config.Model) == "" {
 		fallbackConfig, fallbackErr := p.resolveFallbackChatModelConfig(
 			ctx,
@@ -1348,13 +1373,382 @@ func (p *Processor) modelFromChat(
 			config.Provider,
 		)
 		if fallbackErr != nil {
-			return nil, fallbackErr
+			return nil, chatModelConfig{}, fallbackErr
 		}
-		config.Provider = fallbackConfig.Provider
-		config.Model = fallbackConfig.Model
+		config = applyFallbackChatModelConfig(config, fallbackConfig)
 	}
 
-	return modelFromConfig(config, providerKeys)
+	model, err := modelFromConfig(config, providerKeys)
+	if err != nil {
+		return nil, chatModelConfig{}, err
+	}
+	return model, config, nil
+}
+
+func applyFallbackChatModelConfig(
+	config chatModelConfig,
+	fallbackConfig database.ChatModelConfig,
+) chatModelConfig {
+	config.Provider = fallbackConfig.Provider
+	config.Model = fallbackConfig.Model
+
+	defaults, err := parseChatModelConfig(fallbackConfig.ModelConfig)
+	if err != nil {
+		return config
+	}
+
+	mergeMissingChatModelCallConfig(
+		&config.ChatModelCallConfig,
+		defaults.ChatModelCallConfig,
+	)
+	return config
+}
+
+func mergeMissingChatModelCallConfig(
+	dst *codersdk.ChatModelCallConfig,
+	defaults codersdk.ChatModelCallConfig,
+) {
+	if dst.MaxOutputTokens == nil {
+		dst.MaxOutputTokens = defaults.MaxOutputTokens
+	}
+	if dst.Temperature == nil {
+		dst.Temperature = defaults.Temperature
+	}
+	if dst.TopP == nil {
+		dst.TopP = defaults.TopP
+	}
+	if dst.TopK == nil {
+		dst.TopK = defaults.TopK
+	}
+	if dst.PresencePenalty == nil {
+		dst.PresencePenalty = defaults.PresencePenalty
+	}
+	if dst.FrequencyPenalty == nil {
+		dst.FrequencyPenalty = defaults.FrequencyPenalty
+	}
+	mergeMissingChatModelProviderOptions(&dst.ProviderOptions, defaults.ProviderOptions)
+}
+
+func mergeMissingChatModelProviderOptions(
+	dst **codersdk.ChatModelProviderOptions,
+	defaults *codersdk.ChatModelProviderOptions,
+) {
+	if defaults == nil {
+		return
+	}
+	if *dst == nil {
+		copied := *defaults
+		*dst = &copied
+		return
+	}
+
+	mergeMissingOpenAIProviderOptions(&(*dst).OpenAI, defaults.OpenAI)
+	mergeMissingAnthropicProviderOptions(&(*dst).Anthropic, defaults.Anthropic)
+	mergeMissingGoogleProviderOptions(&(*dst).Google, defaults.Google)
+	mergeMissingOpenAICompatProviderOptions(&(*dst).OpenAICompat, defaults.OpenAICompat)
+	mergeMissingOpenRouterProviderOptions(&(*dst).OpenRouter, defaults.OpenRouter)
+	mergeMissingVercelProviderOptions(&(*dst).Vercel, defaults.Vercel)
+}
+
+func mergeMissingOpenAIProviderOptions(
+	dst **codersdk.ChatModelOpenAIProviderOptions,
+	defaults *codersdk.ChatModelOpenAIProviderOptions,
+) {
+	if defaults == nil {
+		return
+	}
+	if *dst == nil {
+		copied := *defaults
+		*dst = &copied
+		return
+	}
+
+	current := *dst
+	if current.Include == nil {
+		current.Include = defaults.Include
+	}
+	if current.Instructions == nil {
+		current.Instructions = defaults.Instructions
+	}
+	if current.LogitBias == nil {
+		current.LogitBias = defaults.LogitBias
+	}
+	if current.LogProbs == nil {
+		current.LogProbs = defaults.LogProbs
+	}
+	if current.TopLogProbs == nil {
+		current.TopLogProbs = defaults.TopLogProbs
+	}
+	if current.MaxToolCalls == nil {
+		current.MaxToolCalls = defaults.MaxToolCalls
+	}
+	if current.ParallelToolCalls == nil {
+		current.ParallelToolCalls = defaults.ParallelToolCalls
+	}
+	if current.User == nil {
+		current.User = defaults.User
+	}
+	if current.ReasoningEffort == nil {
+		current.ReasoningEffort = defaults.ReasoningEffort
+	}
+	if current.ReasoningSummary == nil {
+		current.ReasoningSummary = defaults.ReasoningSummary
+	}
+	if current.MaxCompletionTokens == nil {
+		current.MaxCompletionTokens = defaults.MaxCompletionTokens
+	}
+	if current.TextVerbosity == nil {
+		current.TextVerbosity = defaults.TextVerbosity
+	}
+	if current.Prediction == nil {
+		current.Prediction = defaults.Prediction
+	}
+	if current.Store == nil {
+		current.Store = defaults.Store
+	}
+	if current.Metadata == nil {
+		current.Metadata = defaults.Metadata
+	}
+	if current.PromptCacheKey == nil {
+		current.PromptCacheKey = defaults.PromptCacheKey
+	}
+	if current.SafetyIdentifier == nil {
+		current.SafetyIdentifier = defaults.SafetyIdentifier
+	}
+	if current.ServiceTier == nil {
+		current.ServiceTier = defaults.ServiceTier
+	}
+	if current.StructuredOutputs == nil {
+		current.StructuredOutputs = defaults.StructuredOutputs
+	}
+	if current.StrictJSONSchema == nil {
+		current.StrictJSONSchema = defaults.StrictJSONSchema
+	}
+}
+
+func mergeMissingAnthropicProviderOptions(
+	dst **codersdk.ChatModelAnthropicProviderOptions,
+	defaults *codersdk.ChatModelAnthropicProviderOptions,
+) {
+	if defaults == nil {
+		return
+	}
+	if *dst == nil {
+		copied := *defaults
+		*dst = &copied
+		return
+	}
+
+	current := *dst
+	if current.SendReasoning == nil {
+		current.SendReasoning = defaults.SendReasoning
+	}
+	if current.Thinking == nil {
+		current.Thinking = defaults.Thinking
+	} else if defaults.Thinking != nil && current.Thinking.BudgetTokens == nil {
+		current.Thinking.BudgetTokens = defaults.Thinking.BudgetTokens
+	}
+	if current.Effort == nil {
+		current.Effort = defaults.Effort
+	}
+	if current.DisableParallelToolUse == nil {
+		current.DisableParallelToolUse = defaults.DisableParallelToolUse
+	}
+}
+
+func mergeMissingGoogleProviderOptions(
+	dst **codersdk.ChatModelGoogleProviderOptions,
+	defaults *codersdk.ChatModelGoogleProviderOptions,
+) {
+	if defaults == nil {
+		return
+	}
+	if *dst == nil {
+		copied := *defaults
+		*dst = &copied
+		return
+	}
+
+	current := *dst
+	if current.ThinkingConfig == nil {
+		current.ThinkingConfig = defaults.ThinkingConfig
+	} else if defaults.ThinkingConfig != nil {
+		if current.ThinkingConfig.ThinkingBudget == nil {
+			current.ThinkingConfig.ThinkingBudget = defaults.ThinkingConfig.ThinkingBudget
+		}
+		if current.ThinkingConfig.IncludeThoughts == nil {
+			current.ThinkingConfig.IncludeThoughts = defaults.ThinkingConfig.IncludeThoughts
+		}
+	}
+	if strings.TrimSpace(current.CachedContent) == "" {
+		current.CachedContent = defaults.CachedContent
+	}
+	if current.SafetySettings == nil {
+		current.SafetySettings = defaults.SafetySettings
+	}
+	if strings.TrimSpace(current.Threshold) == "" {
+		current.Threshold = defaults.Threshold
+	}
+}
+
+func mergeMissingOpenAICompatProviderOptions(
+	dst **codersdk.ChatModelOpenAICompatProviderOptions,
+	defaults *codersdk.ChatModelOpenAICompatProviderOptions,
+) {
+	if defaults == nil {
+		return
+	}
+	if *dst == nil {
+		copied := *defaults
+		*dst = &copied
+		return
+	}
+
+	current := *dst
+	if current.User == nil {
+		current.User = defaults.User
+	}
+	if current.ReasoningEffort == nil {
+		current.ReasoningEffort = defaults.ReasoningEffort
+	}
+}
+
+func mergeMissingOpenRouterProviderOptions(
+	dst **codersdk.ChatModelOpenRouterProviderOptions,
+	defaults *codersdk.ChatModelOpenRouterProviderOptions,
+) {
+	if defaults == nil {
+		return
+	}
+	if *dst == nil {
+		copied := *defaults
+		*dst = &copied
+		return
+	}
+
+	current := *dst
+	if current.Reasoning == nil {
+		current.Reasoning = defaults.Reasoning
+	} else if defaults.Reasoning != nil {
+		if current.Reasoning.Enabled == nil {
+			current.Reasoning.Enabled = defaults.Reasoning.Enabled
+		}
+		if current.Reasoning.Exclude == nil {
+			current.Reasoning.Exclude = defaults.Reasoning.Exclude
+		}
+		if current.Reasoning.MaxTokens == nil {
+			current.Reasoning.MaxTokens = defaults.Reasoning.MaxTokens
+		}
+		if current.Reasoning.Effort == nil {
+			current.Reasoning.Effort = defaults.Reasoning.Effort
+		}
+	}
+	if current.ExtraBody == nil {
+		current.ExtraBody = defaults.ExtraBody
+	}
+	if current.IncludeUsage == nil {
+		current.IncludeUsage = defaults.IncludeUsage
+	}
+	if current.LogitBias == nil {
+		current.LogitBias = defaults.LogitBias
+	}
+	if current.LogProbs == nil {
+		current.LogProbs = defaults.LogProbs
+	}
+	if current.ParallelToolCalls == nil {
+		current.ParallelToolCalls = defaults.ParallelToolCalls
+	}
+	if current.User == nil {
+		current.User = defaults.User
+	}
+	if current.Provider == nil {
+		current.Provider = defaults.Provider
+	} else if defaults.Provider != nil {
+		if current.Provider.Order == nil {
+			current.Provider.Order = defaults.Provider.Order
+		}
+		if current.Provider.AllowFallbacks == nil {
+			current.Provider.AllowFallbacks = defaults.Provider.AllowFallbacks
+		}
+		if current.Provider.RequireParameters == nil {
+			current.Provider.RequireParameters = defaults.Provider.RequireParameters
+		}
+		if current.Provider.DataCollection == nil {
+			current.Provider.DataCollection = defaults.Provider.DataCollection
+		}
+		if current.Provider.Only == nil {
+			current.Provider.Only = defaults.Provider.Only
+		}
+		if current.Provider.Ignore == nil {
+			current.Provider.Ignore = defaults.Provider.Ignore
+		}
+		if current.Provider.Quantizations == nil {
+			current.Provider.Quantizations = defaults.Provider.Quantizations
+		}
+		if current.Provider.Sort == nil {
+			current.Provider.Sort = defaults.Provider.Sort
+		}
+	}
+}
+
+func mergeMissingVercelProviderOptions(
+	dst **codersdk.ChatModelVercelProviderOptions,
+	defaults *codersdk.ChatModelVercelProviderOptions,
+) {
+	if defaults == nil {
+		return
+	}
+	if *dst == nil {
+		copied := *defaults
+		*dst = &copied
+		return
+	}
+
+	current := *dst
+	if current.Reasoning == nil {
+		current.Reasoning = defaults.Reasoning
+	} else if defaults.Reasoning != nil {
+		if current.Reasoning.Enabled == nil {
+			current.Reasoning.Enabled = defaults.Reasoning.Enabled
+		}
+		if current.Reasoning.MaxTokens == nil {
+			current.Reasoning.MaxTokens = defaults.Reasoning.MaxTokens
+		}
+		if current.Reasoning.Effort == nil {
+			current.Reasoning.Effort = defaults.Reasoning.Effort
+		}
+		if current.Reasoning.Exclude == nil {
+			current.Reasoning.Exclude = defaults.Reasoning.Exclude
+		}
+	}
+	if current.ProviderOptions == nil {
+		current.ProviderOptions = defaults.ProviderOptions
+	} else if defaults.ProviderOptions != nil {
+		if current.ProviderOptions.Order == nil {
+			current.ProviderOptions.Order = defaults.ProviderOptions.Order
+		}
+		if current.ProviderOptions.Models == nil {
+			current.ProviderOptions.Models = defaults.ProviderOptions.Models
+		}
+	}
+	if current.User == nil {
+		current.User = defaults.User
+	}
+	if current.LogitBias == nil {
+		current.LogitBias = defaults.LogitBias
+	}
+	if current.LogProbs == nil {
+		current.LogProbs = defaults.LogProbs
+	}
+	if current.TopLogProbs == nil {
+		current.TopLogProbs = defaults.TopLogProbs
+	}
+	if current.ParallelToolCalls == nil {
+		current.ParallelToolCalls = defaults.ParallelToolCalls
+	}
+	if current.ExtraBody == nil {
+		current.ExtraBody = defaults.ExtraBody
+	}
 }
 
 func (p *Processor) resolveFallbackChatModelConfig(
@@ -1408,6 +1802,7 @@ func (p *Processor) runChatWithAgent(
 	ctx context.Context,
 	chat database.Chat,
 	model fantasy.LanguageModel,
+	modelConfig chatModelConfig,
 	prompt []fantasy.Message,
 	reportOnly bool,
 	subagentRequestID uuid.UUID,
@@ -1475,10 +1870,6 @@ func (p *Processor) runChatWithAgent(
 		prompt,
 		getWorkspaceConn,
 	)
-	modelConfig, err := parseChatModelConfig(chat.ModelConfig)
-	if err != nil {
-		return nil, xerrors.Errorf("parse chat model config: %w", err)
-	}
 
 	// Resolve the model config's context_limit so we can use it as a
 	// fallback when the LLM provider doesn't include context_limit in
@@ -1563,6 +1954,7 @@ func (p *Processor) runChatWithAgent(
 		stepStateMu           sync.Mutex
 		streamToolNames       map[string]string
 		streamReasoningTitles map[string]string
+		streamReasoningText   map[string]string
 		stepToolResults       []ToolResultBlock
 		stepAssistantDraft    []fantasy.Content
 		stepToolCallIndexByID map[string]int
@@ -1571,24 +1963,34 @@ func (p *Processor) runChatWithAgent(
 		stepStateMu.Lock()
 		streamToolNames = make(map[string]string)
 		streamReasoningTitles = make(map[string]string)
+		streamReasoningText = make(map[string]string)
 		stepToolResults = nil
 		stepAssistantDraft = nil
 		stepToolCallIndexByID = make(map[string]int)
 		stepStateMu.Unlock()
 	}
-	setReasoningTitle := func(id string, metadata fantasy.ProviderMetadata) {
-		if id == "" {
-			return
-		}
-
-		title := reasoningSummaryTitle(metadata)
-		if title == "" {
+	setReasoningTitleFromText := func(id string, text string) {
+		if id == "" || strings.TrimSpace(text) == "" {
 			return
 		}
 
 		stepStateMu.Lock()
+		defer stepStateMu.Unlock()
+
+		if streamReasoningTitles[id] != "" {
+			return
+		}
+
+		streamReasoningText[id] += text
+		if !strings.ContainsAny(streamReasoningText[id], "\r\n") {
+			return
+		}
+		title := reasoningMarkdownTitleFromFirstLine(streamReasoningText[id])
+		if title == "" {
+			return
+		}
+
 		streamReasoningTitles[id] = title
-		stepStateMu.Unlock()
 	}
 	appendDraftText := func(text string) {
 		if text == "" {
@@ -1811,6 +2213,7 @@ func (p *Processor) runChatWithAgent(
 	}
 	streamCall.OnReasoningDelta = func(id string, text string) error {
 		appendDraftReasoning(text)
+		setReasoningTitleFromText(id, text)
 		stepStateMu.Lock()
 		title := streamReasoningTitles[id]
 		stepStateMu.Unlock()
@@ -1822,12 +2225,21 @@ func (p *Processor) runChatWithAgent(
 		return nil
 	}
 	streamCall.OnReasoningStart = func(id string, reasoning fantasy.ReasoningContent) error {
-		setReasoningTitle(id, reasoning.ProviderMetadata)
+		_ = id
+		_ = reasoning
 		return nil
 	}
 	streamCall.OnReasoningEnd = func(id string, reasoning fantasy.ReasoningContent) error {
-		setReasoningTitle(id, reasoning.ProviderMetadata)
+		_ = reasoning
 		stepStateMu.Lock()
+		if streamReasoningTitles[id] == "" {
+			// At the end of reasoning we have the full text, so we can
+			// safely evaluate first-line title format even if no newline
+			// ever arrived in deltas.
+			streamReasoningTitles[id] = reasoningMarkdownTitleFromFirstLine(
+				streamReasoningText[id],
+			)
+		}
 		title := streamReasoningTitles[id]
 		stepStateMu.Unlock()
 		if title != "" {
@@ -3088,11 +3500,73 @@ func marshalContentBlocks(blocks []fantasy.Content) (pqtype.NullRawMessage, erro
 	if len(blocks) == 0 {
 		return pqtype.NullRawMessage{}, nil
 	}
-	data, err := json.Marshal(blocks)
+
+	encodedBlocks := make([]json.RawMessage, 0, len(blocks))
+	for i, block := range blocks {
+		encoded, err := marshalContentBlock(block)
+		if err != nil {
+			return pqtype.NullRawMessage{}, xerrors.Errorf(
+				"encode content block %d: %w",
+				i,
+				err,
+			)
+		}
+		encodedBlocks = append(encodedBlocks, encoded)
+	}
+
+	data, err := json.Marshal(encodedBlocks)
 	if err != nil {
 		return pqtype.NullRawMessage{}, xerrors.Errorf("encode content blocks: %w", err)
 	}
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
+}
+
+func marshalContentBlock(block fantasy.Content) (json.RawMessage, error) {
+	encoded, err := json.Marshal(block)
+	if err != nil {
+		return nil, err
+	}
+
+	title, ok := reasoningTitleFromContent(block)
+	if !ok || title == "" {
+		return encoded, nil
+	}
+
+	var envelope struct {
+		Type string         `json:"type"`
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(encoded, &envelope); err != nil {
+		return nil, err
+	}
+
+	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeReasoning)) {
+		return encoded, nil
+	}
+	if envelope.Data == nil {
+		envelope.Data = map[string]any{}
+	}
+	envelope.Data["title"] = title
+
+	encodedWithTitle, err := json.Marshal(envelope)
+	if err != nil {
+		return nil, err
+	}
+	return encodedWithTitle, nil
+}
+
+func reasoningTitleFromContent(block fantasy.Content) (string, bool) {
+	switch value := block.(type) {
+	case fantasy.ReasoningContent:
+		return reasoningMarkdownTitleFromFirstLine(value.Text), true
+	case *fantasy.ReasoningContent:
+		if value == nil {
+			return "", false
+		}
+		return reasoningMarkdownTitleFromFirstLine(value.Text), true
+	default:
+		return "", false
+	}
 }
 
 func marshalToolResults(results []ToolResultBlock) (pqtype.NullRawMessage, error) {
@@ -3210,6 +3684,7 @@ func compactReasoningSummaryTitle(summary string) string {
 	}
 
 	summary = strings.Trim(summary, "\"'`")
+	summary = reasoningSummaryHeadline(summary)
 	words := strings.Fields(summary)
 	if len(words) == 0 {
 		return ""
@@ -3226,6 +3701,77 @@ func compactReasoningSummaryTitle(summary string) string {
 		title += "…"
 	}
 	return truncateRunes(title, maxRunes)
+}
+
+func reasoningMarkdownTitleFromFirstLine(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+
+	firstLine := text
+	if idx := strings.IndexAny(firstLine, "\r\n"); idx >= 0 {
+		firstLine = firstLine[:idx]
+	}
+	firstLine = strings.TrimSpace(firstLine)
+	if firstLine == "" || !strings.HasPrefix(firstLine, "**") {
+		return ""
+	}
+
+	rest := firstLine[2:]
+	end := strings.Index(rest, "**")
+	if end < 0 {
+		return ""
+	}
+
+	title := strings.TrimSpace(rest[:end])
+	if title == "" {
+		return ""
+	}
+
+	// Require the first line to be exactly "**title**" (ignoring
+	// surrounding whitespace) so providers without this format don't
+	// accidentally emit a title.
+	if strings.TrimSpace(rest[end+2:]) != "" {
+		return ""
+	}
+
+	return compactReasoningSummaryTitle(title)
+}
+
+func reasoningSummaryHeadline(summary string) string {
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		return ""
+	}
+
+	// OpenAI summary_text may be markdown like:
+	// "**Title**\n\nLonger explanation ...".
+	// Keep only the heading segment for UI titles.
+	if idx := strings.Index(summary, "\n\n"); idx >= 0 {
+		summary = summary[:idx]
+	}
+
+	if idx := strings.IndexAny(summary, "\r\n"); idx >= 0 {
+		summary = summary[:idx]
+	}
+
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(summary, "**") {
+		rest := summary[2:]
+		if end := strings.Index(rest, "**"); end >= 0 {
+			bold := strings.TrimSpace(rest[:end])
+			if bold != "" {
+				summary = bold
+			}
+		}
+	}
+
+	return strings.TrimSpace(strings.Trim(summary, "\"'`"))
 }
 
 func toolResultBlockFromContent(content fantasy.ToolResultContent) ToolResultBlock {
@@ -3441,65 +3987,29 @@ func providerOptionsFromChatModelConfig(
 		)
 	}
 	if options.Anthropic != nil {
-		anthropicOptions := &fantasyanthropic.ProviderOptions{
-			SendReasoning:          options.Anthropic.SendReasoning,
-			DisableParallelToolUse: options.Anthropic.DisableParallelToolUse,
-		}
-		if options.Anthropic.Thinking != nil {
-			anthropicOptions.Thinking = &fantasyanthropic.ThinkingProviderOption{
-				BudgetTokens: options.Anthropic.Thinking.BudgetTokens,
-			}
-		}
-		result[fantasyanthropic.Name] = anthropicOptions
+		result[fantasyanthropic.Name] = anthropicProviderOptionsFromChatConfig(
+			options.Anthropic,
+		)
 	}
 	if options.Google != nil {
-		googleOptions := &fantasygoogle.ProviderOptions{
-			CachedContent: strings.TrimSpace(options.Google.CachedContent),
-		}
-		if options.Google.ThinkingConfig != nil {
-			googleOptions.ThinkingConfig = &fantasygoogle.ThinkingConfig{
-				ThinkingBudget:  options.Google.ThinkingConfig.ThinkingBudget,
-				IncludeThoughts: options.Google.ThinkingConfig.IncludeThoughts,
-			}
-		}
-		if len(options.Google.SafetySettings) > 0 {
-			googleOptions.SafetySettings = make(
-				[]fantasygoogle.SafetySetting,
-				0,
-				len(options.Google.SafetySettings),
-			)
-			for _, setting := range options.Google.SafetySettings {
-				googleOptions.SafetySettings = append(
-					googleOptions.SafetySettings,
-					fantasygoogle.SafetySetting{
-						Category:  strings.TrimSpace(setting.Category),
-						Threshold: strings.TrimSpace(setting.Threshold),
-					},
-				)
-			}
-		}
-		result[fantasygoogle.Name] = googleOptions
+		result[fantasygoogle.Name] = googleProviderOptionsFromChatConfig(
+			options.Google,
+		)
 	}
 	if options.OpenAICompat != nil {
-		result[fantasyopenaicompat.Name] = &fantasyopenaicompat.ProviderOptions{
-			User:            normalizedStringPointer(options.OpenAICompat.User),
-			ReasoningEffort: openAIReasoningEffortFromChat(options.OpenAICompat.ReasoningEffort),
-		}
+		result[fantasyopenaicompat.Name] = openAICompatProviderOptionsFromChatConfig(
+			options.OpenAICompat,
+		)
 	}
 	if options.OpenRouter != nil {
-		result[fantasyopenrouter.Name] = &fantasyopenrouter.ProviderOptions{
-			Reasoning:         openRouterReasoningOptionsFromChat(options.OpenRouter.Reasoning),
-			ParallelToolCalls: options.OpenRouter.ParallelToolCalls,
-			IncludeUsage:      options.OpenRouter.IncludeUsage,
-			User:              normalizedStringPointer(options.OpenRouter.User),
-		}
+		result[fantasyopenrouter.Name] = openRouterProviderOptionsFromChatConfig(
+			options.OpenRouter,
+		)
 	}
 	if options.Vercel != nil {
-		result[fantasyvercel.Name] = &fantasyvercel.ProviderOptions{
-			Reasoning:         vercelReasoningOptionsFromChat(options.Vercel.Reasoning),
-			ParallelToolCalls: options.Vercel.ParallelToolCalls,
-			User:              normalizedStringPointer(options.Vercel.User),
-		}
+		result[fantasyvercel.Name] = vercelProviderOptionsFromChatConfig(
+			options.Vercel,
+		)
 	}
 
 	if len(result) == 0 {
@@ -3512,42 +4022,205 @@ func openAIProviderOptionsFromChatConfig(
 	model fantasy.LanguageModel,
 	options *codersdk.ChatModelOpenAIProviderOptions,
 ) fantasy.ProviderOptionsData {
+	reasoningEffort := openAIReasoningEffortFromChat(options.ReasoningEffort)
 	if useOpenAIResponsesOptions(model) {
+		include := ensureOpenAIResponseIncludes(openAIIncludeFromChat(options.Include))
 		providerOptions := &fantasyopenai.ResponsesProviderOptions{
+			Include:           include,
+			Instructions:      normalizedStringPointer(options.Instructions),
+			Logprobs:          openAIResponsesLogProbsFromChat(options),
+			MaxToolCalls:      options.MaxToolCalls,
+			Metadata:          options.Metadata,
 			ParallelToolCalls: options.ParallelToolCalls,
-			ReasoningEffort:   openAIReasoningEffortFromChat(options.ReasoningEffort),
+			PromptCacheKey:    normalizedStringPointer(options.PromptCacheKey),
+			ReasoningEffort:   reasoningEffort,
 			ReasoningSummary:  normalizedStringPointer(options.ReasoningSummary),
+			SafetyIdentifier:  normalizedStringPointer(options.SafetyIdentifier),
 			ServiceTier:       openAIServiceTierFromChat(options.ServiceTier),
+			StrictJSONSchema:  options.StrictJSONSchema,
 			TextVerbosity:     openAITextVerbosityFromChat(options.TextVerbosity),
 			User:              normalizedStringPointer(options.User),
-		}
-		if len(options.Include) > 0 {
-			providerOptions.Include = make(
-				[]fantasyopenai.IncludeType,
-				0,
-				len(options.Include),
-			)
-			for _, include := range options.Include {
-				trimmed := strings.TrimSpace(include)
-				if trimmed == "" {
-					continue
-				}
-				providerOptions.Include = append(
-					providerOptions.Include,
-					fantasyopenai.IncludeType(trimmed),
-				)
-			}
 		}
 		return providerOptions
 	}
 
 	return &fantasyopenai.ProviderOptions{
+		LogitBias:           options.LogitBias,
+		LogProbs:            options.LogProbs,
+		TopLogProbs:         options.TopLogProbs,
+		ParallelToolCalls:   options.ParallelToolCalls,
+		User:                normalizedStringPointer(options.User),
+		ReasoningEffort:     reasoningEffort,
+		MaxCompletionTokens: options.MaxCompletionTokens,
+		TextVerbosity:       normalizedStringPointer(options.TextVerbosity),
+		Prediction:          options.Prediction,
+		Store:               options.Store,
+		Metadata:            options.Metadata,
+		PromptCacheKey:      normalizedStringPointer(options.PromptCacheKey),
+		SafetyIdentifier:    normalizedStringPointer(options.SafetyIdentifier),
+		ServiceTier:         normalizedStringPointer(options.ServiceTier),
+		StructuredOutputs:   options.StructuredOutputs,
+	}
+}
+
+func anthropicProviderOptionsFromChatConfig(
+	options *codersdk.ChatModelAnthropicProviderOptions,
+) *fantasyanthropic.ProviderOptions {
+	result := &fantasyanthropic.ProviderOptions{
+		SendReasoning:          options.SendReasoning,
+		Effort:                 anthropicEffortFromChat(options.Effort),
+		DisableParallelToolUse: options.DisableParallelToolUse,
+	}
+	if options.Thinking != nil && options.Thinking.BudgetTokens != nil {
+		result.Thinking = &fantasyanthropic.ThinkingProviderOption{
+			BudgetTokens: *options.Thinking.BudgetTokens,
+		}
+	}
+	return result
+}
+
+func googleProviderOptionsFromChatConfig(
+	options *codersdk.ChatModelGoogleProviderOptions,
+) *fantasygoogle.ProviderOptions {
+	result := &fantasygoogle.ProviderOptions{
+		CachedContent: strings.TrimSpace(options.CachedContent),
+		Threshold:     strings.TrimSpace(options.Threshold),
+	}
+	if options.ThinkingConfig != nil {
+		result.ThinkingConfig = &fantasygoogle.ThinkingConfig{
+			ThinkingBudget:  options.ThinkingConfig.ThinkingBudget,
+			IncludeThoughts: options.ThinkingConfig.IncludeThoughts,
+		}
+	}
+	if options.SafetySettings != nil {
+		result.SafetySettings = make(
+			[]fantasygoogle.SafetySetting,
+			0,
+			len(options.SafetySettings),
+		)
+		for _, setting := range options.SafetySettings {
+			result.SafetySettings = append(result.SafetySettings, fantasygoogle.SafetySetting{
+				Category:  strings.TrimSpace(setting.Category),
+				Threshold: strings.TrimSpace(setting.Threshold),
+			})
+		}
+	}
+	return result
+}
+
+func openAICompatProviderOptionsFromChatConfig(
+	options *codersdk.ChatModelOpenAICompatProviderOptions,
+) *fantasyopenaicompat.ProviderOptions {
+	return &fantasyopenaicompat.ProviderOptions{
+		User:            normalizedStringPointer(options.User),
+		ReasoningEffort: openAIReasoningEffortFromChat(options.ReasoningEffort),
+	}
+}
+
+func openRouterProviderOptionsFromChatConfig(
+	options *codersdk.ChatModelOpenRouterProviderOptions,
+) *fantasyopenrouter.ProviderOptions {
+	result := &fantasyopenrouter.ProviderOptions{
+		ExtraBody:         options.ExtraBody,
+		IncludeUsage:      options.IncludeUsage,
+		LogitBias:         options.LogitBias,
+		LogProbs:          options.LogProbs,
 		ParallelToolCalls: options.ParallelToolCalls,
-		ReasoningEffort:   openAIReasoningEffortFromChat(options.ReasoningEffort),
-		TextVerbosity:     normalizedStringPointer(options.TextVerbosity),
-		ServiceTier:       normalizedStringPointer(options.ServiceTier),
 		User:              normalizedStringPointer(options.User),
 	}
+	if options.Reasoning != nil {
+		result.Reasoning = &fantasyopenrouter.ReasoningOptions{
+			Enabled:   options.Reasoning.Enabled,
+			Exclude:   options.Reasoning.Exclude,
+			MaxTokens: options.Reasoning.MaxTokens,
+			Effort:    openRouterReasoningEffortFromChat(options.Reasoning.Effort),
+		}
+	}
+	if options.Provider != nil {
+		result.Provider = &fantasyopenrouter.Provider{
+			Order:             options.Provider.Order,
+			AllowFallbacks:    options.Provider.AllowFallbacks,
+			RequireParameters: options.Provider.RequireParameters,
+			DataCollection:    normalizedStringPointer(options.Provider.DataCollection),
+			Only:              options.Provider.Only,
+			Ignore:            options.Provider.Ignore,
+			Quantizations:     options.Provider.Quantizations,
+			Sort:              normalizedStringPointer(options.Provider.Sort),
+		}
+	}
+	return result
+}
+
+func vercelProviderOptionsFromChatConfig(
+	options *codersdk.ChatModelVercelProviderOptions,
+) *fantasyvercel.ProviderOptions {
+	result := &fantasyvercel.ProviderOptions{
+		User:              normalizedStringPointer(options.User),
+		LogitBias:         options.LogitBias,
+		LogProbs:          options.LogProbs,
+		TopLogProbs:       options.TopLogProbs,
+		ParallelToolCalls: options.ParallelToolCalls,
+		ExtraBody:         options.ExtraBody,
+	}
+	if options.Reasoning != nil {
+		result.Reasoning = &fantasyvercel.ReasoningOptions{
+			Enabled:   options.Reasoning.Enabled,
+			MaxTokens: options.Reasoning.MaxTokens,
+			Effort:    vercelReasoningEffortFromChat(options.Reasoning.Effort),
+			Exclude:   options.Reasoning.Exclude,
+		}
+	}
+	if options.ProviderOptions != nil {
+		result.ProviderOptions = &fantasyvercel.GatewayProviderOptions{
+			Order:  options.ProviderOptions.Order,
+			Models: options.ProviderOptions.Models,
+		}
+	}
+	return result
+}
+
+func openAIResponsesLogProbsFromChat(
+	options *codersdk.ChatModelOpenAIProviderOptions,
+) any {
+	if options.TopLogProbs != nil {
+		return *options.TopLogProbs
+	}
+	if options.LogProbs != nil {
+		return *options.LogProbs
+	}
+	return nil
+}
+
+func openAIIncludeFromChat(values []string) []fantasyopenai.IncludeType {
+	if values == nil {
+		return nil
+	}
+
+	result := make([]fantasyopenai.IncludeType, 0, len(values))
+	for _, value := range values {
+		switch strings.TrimSpace(value) {
+		case string(fantasyopenai.IncludeReasoningEncryptedContent):
+			result = append(result, fantasyopenai.IncludeReasoningEncryptedContent)
+		case string(fantasyopenai.IncludeFileSearchCallResults):
+			result = append(result, fantasyopenai.IncludeFileSearchCallResults)
+		case string(fantasyopenai.IncludeMessageOutputTextLogprobs):
+			result = append(result, fantasyopenai.IncludeMessageOutputTextLogprobs)
+		}
+	}
+	return result
+}
+
+func ensureOpenAIResponseIncludes(
+	values []fantasyopenai.IncludeType,
+) []fantasyopenai.IncludeType {
+	const required = fantasyopenai.IncludeReasoningEncryptedContent
+
+	for _, value := range values {
+		if value == required {
+			return values
+		}
+	}
+	return append(values, required)
 }
 
 func useOpenAIResponsesOptions(model fantasy.LanguageModel) bool {
@@ -3573,31 +4246,96 @@ func normalizedStringPointer(value *string) *string {
 	return &trimmed
 }
 
-func openAIReasoningEffortFromChat(
-	effort *codersdk.ChatModelReasoningEffort,
-) *fantasyopenai.ReasoningEffort {
-	if effort == nil {
+func openAIReasoningEffortFromChat(value *string) *fantasyopenai.ReasoningEffort {
+	normalized := normalizedStringPointer(value)
+	if normalized == nil {
 		return nil
 	}
-	switch *effort {
-	case codersdk.ChatModelReasoningEffortMinimal:
-		value := fantasyopenai.ReasoningEffortMinimal
-		return &value
-	case codersdk.ChatModelReasoningEffortLow:
-		value := fantasyopenai.ReasoningEffortLow
-		return &value
-	case codersdk.ChatModelReasoningEffortMedium:
-		value := fantasyopenai.ReasoningEffortMedium
-		return &value
-	case codersdk.ChatModelReasoningEffortHigh:
-		value := fantasyopenai.ReasoningEffortHigh
-		return &value
-	case codersdk.ChatModelReasoningEffortXHigh:
-		value := fantasyopenai.ReasoningEffort("xhigh")
-		return &value
-	case codersdk.ChatModelReasoningEffortNone:
-		value := fantasyopenai.ReasoningEffort("none")
-		return &value
+	switch strings.ToLower(*normalized) {
+	case string(fantasyopenai.ReasoningEffortMinimal):
+		effort := fantasyopenai.ReasoningEffortMinimal
+		return &effort
+	case string(fantasyopenai.ReasoningEffortLow):
+		effort := fantasyopenai.ReasoningEffortLow
+		return &effort
+	case string(fantasyopenai.ReasoningEffortMedium):
+		effort := fantasyopenai.ReasoningEffortMedium
+		return &effort
+	case string(fantasyopenai.ReasoningEffortHigh):
+		effort := fantasyopenai.ReasoningEffortHigh
+		return &effort
+	default:
+		return nil
+	}
+}
+
+func anthropicEffortFromChat(value *string) *fantasyanthropic.Effort {
+	normalized := normalizedStringPointer(value)
+	if normalized == nil {
+		return nil
+	}
+	switch strings.ToLower(*normalized) {
+	case string(fantasyanthropic.EffortLow):
+		effort := fantasyanthropic.EffortLow
+		return &effort
+	case string(fantasyanthropic.EffortMedium):
+		effort := fantasyanthropic.EffortMedium
+		return &effort
+	case string(fantasyanthropic.EffortHigh):
+		effort := fantasyanthropic.EffortHigh
+		return &effort
+	case string(fantasyanthropic.EffortMax):
+		effort := fantasyanthropic.EffortMax
+		return &effort
+	default:
+		return nil
+	}
+}
+
+func openRouterReasoningEffortFromChat(value *string) *fantasyopenrouter.ReasoningEffort {
+	normalized := normalizedStringPointer(value)
+	if normalized == nil {
+		return nil
+	}
+	switch strings.ToLower(*normalized) {
+	case string(fantasyopenrouter.ReasoningEffortLow):
+		effort := fantasyopenrouter.ReasoningEffortLow
+		return &effort
+	case string(fantasyopenrouter.ReasoningEffortMedium):
+		effort := fantasyopenrouter.ReasoningEffortMedium
+		return &effort
+	case string(fantasyopenrouter.ReasoningEffortHigh):
+		effort := fantasyopenrouter.ReasoningEffortHigh
+		return &effort
+	default:
+		return nil
+	}
+}
+
+func vercelReasoningEffortFromChat(value *string) *fantasyvercel.ReasoningEffort {
+	normalized := normalizedStringPointer(value)
+	if normalized == nil {
+		return nil
+	}
+	switch strings.ToLower(*normalized) {
+	case string(fantasyvercel.ReasoningEffortNone):
+		effort := fantasyvercel.ReasoningEffortNone
+		return &effort
+	case string(fantasyvercel.ReasoningEffortMinimal):
+		effort := fantasyvercel.ReasoningEffortMinimal
+		return &effort
+	case string(fantasyvercel.ReasoningEffortLow):
+		effort := fantasyvercel.ReasoningEffortLow
+		return &effort
+	case string(fantasyvercel.ReasoningEffortMedium):
+		effort := fantasyvercel.ReasoningEffortMedium
+		return &effort
+	case string(fantasyvercel.ReasoningEffortHigh):
+		effort := fantasyvercel.ReasoningEffortHigh
+		return &effort
+	case string(fantasyvercel.ReasoningEffortXHigh):
+		effort := fantasyvercel.ReasoningEffortXHigh
+		return &effort
 	default:
 		return nil
 	}
@@ -3638,85 +4376,6 @@ func openAITextVerbosityFromChat(value *string) *fantasyopenai.TextVerbosity {
 	case string(fantasyopenai.TextVerbosityHigh):
 		verbosity := fantasyopenai.TextVerbosityHigh
 		return &verbosity
-	default:
-		return nil
-	}
-}
-
-func openRouterReasoningOptionsFromChat(
-	options *codersdk.ChatModelReasoningOptions,
-) *fantasyopenrouter.ReasoningOptions {
-	if options == nil {
-		return nil
-	}
-	return &fantasyopenrouter.ReasoningOptions{
-		Enabled:   options.Enabled,
-		Exclude:   options.Exclude,
-		MaxTokens: options.MaxTokens,
-		Effort:    openRouterReasoningEffortFromChat(options.Effort),
-	}
-}
-
-func openRouterReasoningEffortFromChat(
-	effort *codersdk.ChatModelReasoningEffort,
-) *fantasyopenrouter.ReasoningEffort {
-	if effort == nil {
-		return nil
-	}
-	switch *effort {
-	case codersdk.ChatModelReasoningEffortLow:
-		value := fantasyopenrouter.ReasoningEffortLow
-		return &value
-	case codersdk.ChatModelReasoningEffortMedium:
-		value := fantasyopenrouter.ReasoningEffortMedium
-		return &value
-	case codersdk.ChatModelReasoningEffortHigh:
-		value := fantasyopenrouter.ReasoningEffortHigh
-		return &value
-	default:
-		return nil
-	}
-}
-
-func vercelReasoningOptionsFromChat(
-	options *codersdk.ChatModelReasoningOptions,
-) *fantasyvercel.ReasoningOptions {
-	if options == nil {
-		return nil
-	}
-	return &fantasyvercel.ReasoningOptions{
-		Enabled:   options.Enabled,
-		Exclude:   options.Exclude,
-		MaxTokens: options.MaxTokens,
-		Effort:    vercelReasoningEffortFromChat(options.Effort),
-	}
-}
-
-func vercelReasoningEffortFromChat(
-	effort *codersdk.ChatModelReasoningEffort,
-) *fantasyvercel.ReasoningEffort {
-	if effort == nil {
-		return nil
-	}
-	switch *effort {
-	case codersdk.ChatModelReasoningEffortNone:
-		value := fantasyvercel.ReasoningEffortNone
-		return &value
-	case codersdk.ChatModelReasoningEffortMinimal:
-		value := fantasyvercel.ReasoningEffortMinimal
-		return &value
-	case codersdk.ChatModelReasoningEffortLow:
-		value := fantasyvercel.ReasoningEffortLow
-		return &value
-	case codersdk.ChatModelReasoningEffortMedium:
-		value := fantasyvercel.ReasoningEffortMedium
-		return &value
-	case codersdk.ChatModelReasoningEffortHigh:
-		value := fantasyvercel.ReasoningEffortHigh
-		return &value
-	case codersdk.ChatModelReasoningEffortXHigh:
-		value := fantasyvercel.ReasoningEffortXHigh
-		return &value
 	default:
 		return nil
 	}
@@ -3909,6 +4568,19 @@ type executeArgs struct {
 	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
 }
 
+type waitForExternalAuthArgs struct {
+	ProviderID     string `json:"provider_id"`
+	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
+}
+
+type gitAuthRequiredMarker struct {
+	ProviderID          string `json:"provider_id"`
+	ProviderType        string `json:"provider_type,omitempty"`
+	ProviderDisplayName string `json:"provider_display_name,omitempty"`
+	AuthenticateURL     string `json:"authenticate_url"`
+	Host                string `json:"host,omitempty"`
+}
+
 type createWorkspaceArgs struct {
 	Prompt    string          `json:"prompt,omitempty"`
 	Workspace json.RawMessage `json:"workspace,omitempty"`
@@ -4037,6 +4709,53 @@ func (p *Processor) agentTools(
 					return toolResultBlockToAgentResponse(toolError(base, err)), nil
 				}
 				return toolResultBlockToAgentResponse(executeExecuteTool(ctx, conn, call.ID, args)), nil
+			},
+		),
+		fantasy.NewAgentTool(
+			"wait_for_external_auth",
+			"Wait for external authentication to complete after execute reports auth_required=true. "+
+				"Use this before retrying git commands, and do not rerun commands automatically.",
+			func(ctx context.Context, args waitForExternalAuthArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
+				providerID := strings.TrimSpace(args.ProviderID)
+				if providerID == "" {
+					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("provider_id is required"))), nil
+				}
+
+				timeout := defaultExternalAuthWait
+				if args.TimeoutSeconds != nil {
+					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
+				}
+
+				chatStateMu.Lock()
+				chatSnapshot := *chatState
+				chatStateMu.Unlock()
+
+				authenticated, timedOut, err := p.waitForExternalAuth(
+					ctx,
+					chatSnapshot.OwnerID,
+					providerID,
+					timeout,
+				)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				status := externalAuthWaitCompletedStatus
+				if timedOut {
+					status = externalAuthWaitTimedOutStatus
+				}
+
+				return toolResultBlockToAgentResponse(ToolResultBlock{
+					ToolCallID: call.ID,
+					ToolName:   call.Name,
+					Result: map[string]any{
+						"provider_id":   providerID,
+						"authenticated": authenticated,
+						"timed_out":     timedOut,
+						"status":        status,
+					},
+				}), nil
 			},
 		),
 		fantasy.NewAgentTool(
@@ -4352,6 +5071,50 @@ func parseSubagentToolRequestID(raw string) (uuid.UUID, error) {
 	return requestID, nil
 }
 
+func (p *Processor) waitForExternalAuth(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	providerID string,
+	timeout time.Duration,
+) (authenticated bool, timedOut bool, err error) {
+	if timeout <= 0 {
+		timeout = defaultExternalAuthWait
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(externalAuthWaitPollInterval)
+	defer ticker.Stop()
+
+	for {
+		link, linkErr := p.db.GetExternalAuthLink(
+			dbauthz.AsSystemRestricted(waitCtx),
+			database.GetExternalAuthLinkParams{
+				ProviderID: providerID,
+				UserID:     ownerID,
+			},
+		)
+		if linkErr == nil {
+			unexpired := link.OAuthExpiry.IsZero() || link.OAuthExpiry.After(time.Now())
+			if strings.TrimSpace(link.OAuthAccessToken) != "" && unexpired {
+				return true, false, nil
+			}
+		} else if !errors.Is(linkErr, sql.ErrNoRows) {
+			return false, false, xerrors.Errorf("get external auth link: %w", linkErr)
+		}
+
+		select {
+		case <-waitCtx.Done():
+			if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
+				return false, true, nil
+			}
+			return false, false, waitCtx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
 func (p *Processor) executeCreateWorkspaceTool(
 	ctx context.Context,
 	chat database.Chat,
@@ -4619,9 +5382,29 @@ func executeExecuteTool(
 	defer cancel()
 
 	output, exitCode, err := runCommand(cmdCtx, conn, args.Command)
+	authRequired, cleanedOutput := extractGitAuthRequiredMarker(output)
 	resultPayload := map[string]any{
-		"output":    output,
+		"output":    cleanedOutput,
 		"exit_code": exitCode,
+	}
+	if authRequired != nil {
+		resultPayload["auth_required"] = true
+		resultPayload["authenticate_url"] = authRequired.AuthenticateURL
+		resultPayload["reason"] = authRequiredResultReason
+		if strings.TrimSpace(authRequired.ProviderID) != "" {
+			resultPayload["provider_id"] = authRequired.ProviderID
+		}
+		if strings.TrimSpace(authRequired.ProviderType) != "" {
+			resultPayload["provider_type"] = authRequired.ProviderType
+		}
+		if strings.TrimSpace(authRequired.ProviderDisplayName) != "" {
+			resultPayload["provider_display_name"] = authRequired.ProviderDisplayName
+		}
+		if err != nil {
+			resultPayload["error"] = err.Error()
+		}
+		result.Result = resultPayload
+		return result
 	}
 	if err != nil {
 		resultPayload["error"] = err.Error()
@@ -4643,6 +5426,9 @@ func runCommand(ctx context.Context, conn workspacesdk.AgentConn, command string
 		return "", 0, err
 	}
 	defer session.Close()
+	if err := session.Setenv(chatAgentEnvVar, "true"); err != nil {
+		return "", 0, xerrors.Errorf("set %s: %w", chatAgentEnvVar, err)
+	}
 
 	resultCh := make(chan struct {
 		output   string
@@ -4679,6 +5465,39 @@ func runCommand(ctx context.Context, conn workspacesdk.AgentConn, command string
 	case result := <-resultCh:
 		return result.output, result.exitCode, result.err
 	}
+}
+
+func extractGitAuthRequiredMarker(output string) (*gitAuthRequiredMarker, string) {
+	if output == "" {
+		return nil, output
+	}
+
+	var marker *gitAuthRequiredMarker
+	lines := strings.Split(output, "\n")
+	filteredLines := make([]string, 0, len(lines))
+	for _, line := range lines {
+		idx := strings.Index(line, gitAuthRequiredMarkerPrefix)
+		if idx == -1 {
+			filteredLines = append(filteredLines, line)
+			continue
+		}
+
+		rawPayload := strings.TrimSpace(line[idx+len(gitAuthRequiredMarkerPrefix):])
+		candidate := gitAuthRequiredMarker{}
+		if rawPayload == "" || json.Unmarshal([]byte(rawPayload), &candidate) != nil || strings.TrimSpace(candidate.AuthenticateURL) == "" {
+			filteredLines = append(filteredLines, line)
+			continue
+		}
+		if marker == nil {
+			marker = &candidate
+		}
+
+		prefix := strings.TrimSpace(line[:idx])
+		if prefix != "" {
+			filteredLines = append(filteredLines, prefix)
+		}
+	}
+	return marker, strings.Join(filteredLines, "\n")
 }
 
 func toolError(result ToolResultBlock, err error) ToolResultBlock {

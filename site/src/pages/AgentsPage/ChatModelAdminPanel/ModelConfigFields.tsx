@@ -20,6 +20,13 @@ export const modelConfigReasoningEffortOptions = [
 	"none",
 ] as const;
 
+export const modelConfigAnthropicEffortOptions = [
+	"low",
+	"medium",
+	"high",
+	"max",
+] as const;
+
 export const modelConfigTextVerbosityOptions = [
 	"low",
 	"medium",
@@ -236,6 +243,12 @@ const AnthropicFields: FC<FieldRenderContext & { sectionTitle: string }> = (
 			{props.sectionTitle}
 		</p>
 		<div className="grid gap-3 md:grid-cols-2">
+			<SelectField
+				{...props}
+				fieldKey="anthropicEffort"
+				label="Output effort"
+				options={modelConfigAnthropicEffortOptions}
+			/>
 			<InputField
 				{...props}
 				fieldKey="anthropicThinkingBudgetTokens"

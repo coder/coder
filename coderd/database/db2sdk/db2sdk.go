@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/sqlc-dev/pqtype"
@@ -1097,11 +1096,23 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 		if err != nil {
 			return nil, err
 		}
+
+		var rawBlocks []json.RawMessage
+		if role == string(fantasy.MessageRoleAssistant) {
+			_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
+		}
+
 		parts := make([]codersdk.ChatMessagePart, 0, len(content))
-		for _, block := range content {
+		for i, block := range content {
 			part := contentBlockToPart(block)
 			if part.Type == "" {
 				continue
+			}
+			if part.Type == codersdk.ChatMessagePartTypeReasoning {
+				part.Title = ""
+				if i < len(rawBlocks) {
+					part.Title = reasoningStoredTitle(rawBlocks[i])
+				}
 			}
 			parts = append(parts, part)
 		}
@@ -1179,6 +1190,22 @@ func parseToolResults(raw pqtype.NullRawMessage) ([]chatToolResultBlock, error) 
 	return results, nil
 }
 
+func reasoningStoredTitle(raw json.RawMessage) string {
+	var envelope struct {
+		Type string `json:"type"`
+		Data struct {
+			Title string `json:"title"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return ""
+	}
+	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeReasoning)) {
+		return ""
+	}
+	return strings.TrimSpace(envelope.Data.Title)
+}
+
 func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 	switch value := block.(type) {
 	case fantasy.TextContent:
@@ -1193,15 +1220,13 @@ func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 		}
 	case fantasy.ReasoningContent:
 		return codersdk.ChatMessagePart{
-			Type:  codersdk.ChatMessagePartTypeReasoning,
-			Text:  value.Text,
-			Title: reasoningSummaryTitle(value.ProviderMetadata),
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
 		}
 	case *fantasy.ReasoningContent:
 		return codersdk.ChatMessagePart{
-			Type:  codersdk.ChatMessagePartTypeReasoning,
-			Text:  value.Text,
-			Title: reasoningSummaryTitle(value.ProviderMetadata),
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
 		}
 	case fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
@@ -1250,68 +1275,6 @@ func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 	default:
 		return codersdk.ChatMessagePart{}
 	}
-}
-
-func reasoningSummaryTitle(metadata fantasy.ProviderMetadata) string {
-	if len(metadata) == 0 {
-		return ""
-	}
-
-	reasoningMetadata := fantasyopenai.GetReasoningMetadata(
-		fantasy.ProviderOptions(metadata),
-	)
-	if reasoningMetadata == nil {
-		return ""
-	}
-
-	for _, summary := range reasoningMetadata.Summary {
-		if title := compactReasoningSummaryTitle(summary); title != "" {
-			return title
-		}
-	}
-
-	return ""
-}
-
-func compactReasoningSummaryTitle(summary string) string {
-	const maxWords = 8
-	const maxRunes = 80
-
-	summary = strings.TrimSpace(summary)
-	if summary == "" {
-		return ""
-	}
-
-	summary = strings.Trim(summary, "\"'`")
-	words := strings.Fields(summary)
-	if len(words) == 0 {
-		return ""
-	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-
-	title := strings.Join(words, " ")
-	if truncated {
-		title += "…"
-	}
-	return truncateRunes(title, maxRunes)
-}
-
-func truncateRunes(value string, max int) string {
-	if max <= 0 {
-		return ""
-	}
-
-	runes := []rune(value)
-	if len(runes) <= max {
-		return value
-	}
-
-	return string(runes[:max])
 }
 
 func toolResultBlockFromContent(content fantasy.ToolResultContent) chatToolResultBlock {

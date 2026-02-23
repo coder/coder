@@ -21,7 +21,6 @@ import {
 	type ModelSelectorOption,
 	Response,
 	Shimmer,
-	Thinking,
 	Tool,
 } from "components/ai-elements";
 import { Button } from "components/Button/Button";
@@ -35,6 +34,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	ArchiveIcon,
+	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisIcon,
 	ExternalLinkIcon,
@@ -1184,33 +1184,58 @@ const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
 
 const ReasoningDisclosure: FC<{
 	id: string;
-	title: string;
+	title?: string;
 	text: string;
-}> = ({ id, title, text }) => {
+	isStreaming?: boolean;
+}> = ({ id, title, text, isStreaming = false }) => {
 	const [isOpen, setIsOpen] = useState(false);
+	const hasText = text.trim().length > 0;
+	const label = title ?? "Thinking";
+	const showStreamingPlaceholder = isStreaming && !hasText;
 
 	return (
-		<Thinking>
-			<button
-				type="button"
+		<div className="w-full">
+			<div
+				role="button"
+				tabIndex={0}
 				aria-expanded={isOpen}
 				aria-controls={id}
-				className="flex w-full items-center gap-1 text-left text-content-secondary transition-colors hover:text-content-primary"
+				className={`flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary ${hasText ? "cursor-pointer" : ""}`}
 				onClick={() => {
-					setIsOpen((prev) => !prev);
+					if (hasText) {
+						setIsOpen((prev) => !prev);
+					}
+				}}
+				onKeyDown={(e) => {
+					if (!hasText) {
+						return;
+					}
+					if (e.key === "Enter" || e.key === " ") {
+						setIsOpen((prev) => !prev);
+					}
 				}}
 			>
-				<ChevronRightIcon
-					className={`h-3.5 w-3.5 shrink-0 transition-transform ${isOpen ? "rotate-90" : "rotate-0"}`}
-				/>
-				<span className="text-xs font-medium">{title}</span>
-			</button>
-			{isOpen ? (
-				<div id={id} className="mt-2 whitespace-pre-wrap text-xs">
-					{text}
+				<span className="text-sm">
+					{showStreamingPlaceholder ? (
+						<Shimmer as="span">Thinking...</Shimmer>
+					) : (
+						label
+					)}
+				</span>
+				{hasText ? (
+					<ChevronDownIcon
+						className={`h-3 w-3 shrink-0 text-content-secondary transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`}
+					/>
+				) : null}
+			</div>
+			{isOpen && hasText ? (
+				<div id={id} className="mt-1.5">
+					<Response className="text-[11px] text-content-secondary">
+						{text}
+					</Response>
 				</div>
 			) : null}
-		</Thinking>
+		</div>
 	);
 };
 
@@ -1254,17 +1279,13 @@ const ChatMessageItem = memo<{
 						</Response>
 					);
 				case "thinking":
-					return block.title ? (
+					return (
 						<ReasoningDisclosure
 							key={`thinking-${message.id}-${index}`}
 							id={`thinking-${message.id}-${index}`}
 							title={block.title}
 							text={block.text}
 						/>
-					) : (
-						<Thinking key={`thinking-${message.id}-${index}`}>
-							{block.text}
-						</Thinking>
 					);
 				case "tool": {
 					const tool = toolByID.get(block.id);
@@ -1342,7 +1363,15 @@ const StreamingOutput = memo<{
 	streamTools: MergedTool[];
 	subagentTitles?: Map<string, string>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
-}>(({ streamState, streamTools, subagentTitles, subagentStatusOverrides }) => {
+	showInitialPlaceholder?: boolean;
+}>(
+	({
+		streamState,
+		streamTools,
+		subagentTitles,
+		subagentStatusOverrides,
+		showInitialPlaceholder = false,
+	}) => {
 	const conversationItemProps = { role: "assistant" as const };
 	const renderedToolIDs = new Set<string>();
 	const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
@@ -1354,15 +1383,14 @@ const StreamingOutput = memo<{
 						<Response key={`stream-response-${index}`}>{block.text}</Response>
 					);
 				case "thinking":
-					return block.title ? (
+					return (
 						<ReasoningDisclosure
 							key={`stream-thinking-${index}`}
 							id={`stream-thinking-${index}`}
 							title={block.title}
 							text={block.text}
+							isStreaming
 						/>
-					) : (
-						<Thinking key={`stream-thinking-${index}`}>{block.text}</Thinking>
 					);
 				case "tool": {
 					const tool = toolByID.get(block.id);
@@ -1408,7 +1436,10 @@ const StreamingOutput = memo<{
 				<MessageContent className="whitespace-normal">
 					<div className="space-y-3">
 						{orderedBlocks}
-						{orderedBlocks.length === 0 && streamTools.length === 0 ? (
+						{(showInitialPlaceholder ||
+							(streamState &&
+								orderedBlocks.length === 0 &&
+								streamTools.length === 0)) ? (
 							<Shimmer as="span" className="text-sm">
 								Thinking...
 							</Shimmer>
@@ -1430,7 +1461,8 @@ const StreamingOutput = memo<{
 			</Message>
 		</ConversationItem>
 	);
-});
+	},
+);
 StreamingOutput.displayName = "StreamingOutput";
 
 const StickyUserMessage: FC<{
@@ -1515,8 +1547,8 @@ export const AgentDetail: FC = () => {
 		enabled: Boolean(agentId),
 	});
 	const chatsQuery = useQuery(chats());
-	const workspaceId = chatQuery.data?.chat.workspace_id;
-	const workspaceAgentId = chatQuery.data?.chat.workspace_agent_id;
+	const workspaceId = chatQuery.data?.chat?.workspace_id;
+	const workspaceAgentId = chatQuery.data?.chat?.workspace_agent_id;
 	const workspaceQuery = useQuery({
 		queryKey: ["workspace", "agent-detail", workspaceId ?? ""],
 		queryFn: () => API.getWorkspace(workspaceId ?? ""),
@@ -1630,12 +1662,12 @@ export const AgentDetail: FC = () => {
 	}, [chatQuery.data?.messages]);
 
 	useEffect(() => {
-		if (!chatQuery.data) {
+		if (!chatQuery.data?.chat) {
 			setChatStatus(null);
 			return;
 		}
 		setChatStatus(chatQuery.data.chat.status);
-	}, [chatQuery.data?.chat.status]);
+	}, [chatQuery.data?.chat?.status]);
 
 	useEffect(() => {
 		if (!chatQuery.data) {
@@ -1646,7 +1678,7 @@ export const AgentDetail: FC = () => {
 	}, [chatQuery.data?.queued_messages]);
 
 	useEffect(() => {
-		if (!chatQuery.data) {
+		if (!chatQuery.data?.chat) {
 			return;
 		}
 		setSelectedModel((current) => {
@@ -2135,6 +2167,10 @@ export const AgentDetail: FC = () => {
 		() => messages.filter((message) => !message.hidden),
 		[messages],
 	);
+	const latestVisibleMessage =
+		visibleMessages.length > 0
+			? visibleMessages[visibleMessages.length - 1]
+			: undefined;
 
 	// Windowed rendering: only mount the most recent N messages
 	// and progressively reveal older ones as the user scrolls up.
@@ -2258,16 +2294,17 @@ export const AgentDetail: FC = () => {
 	const persistedErrorReason = agentId ? chatErrorReasons[agentId] : undefined;
 	const detailErrorMessage =
 		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
+	const isAwaitingFirstStreamChunk =
+		!streamState &&
+		(chatStatus === "running" || chatStatus === "pending") &&
+		latestVisibleMessage?.role === "user";
 	const hasStreamOutput =
-		chatStatus === "running" ||
-		chatStatus === "pending" ||
-		(!!streamState &&
-			(streamState.blocks.length > 0 || streamTools.length > 0));
+		Boolean(streamState) || isAwaitingFirstStreamChunk;
 
 	const topBarTitleRef = outletContext?.topBarTitleRef;
 	const topBarActionsRef = outletContext?.topBarActionsRef;
 	const rightPanelRef = outletContext?.rightPanelRef;
-	const chatTitle = chatQuery.data?.chat.title;
+	const chatTitle = chatQuery.data?.chat?.title;
 	const parentChatID = getParentChatID(chatQuery.data?.chat);
 	const parentChat = parentChatID
 		? chatsQuery.data?.find((chat) => chat.id === parentChatID)
@@ -2510,6 +2547,7 @@ export const AgentDetail: FC = () => {
 											streamTools={streamTools}
 											subagentTitles={subagentTitles}
 											subagentStatusOverrides={subagentStatusOverrides}
+											showInitialPlaceholder={isAwaitingFirstStreamChunk}
 										/>
 									</div>
 								)}

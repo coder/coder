@@ -1478,7 +1478,7 @@ func TestChatModelConfigs(t *testing.T) {
 		maxOutputTokens := int64(4096)
 		temperature := 0.25
 		parallelToolCalls := true
-		reasoningEffort := codersdk.ChatModelReasoningEffortMedium
+		reasoningEffort := "medium"
 
 		config, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:     "openai",
@@ -1506,13 +1506,13 @@ func TestChatModelConfigs(t *testing.T) {
 		require.Equal(t, reasoningEffort, *config.ModelConfig.ProviderOptions.OpenAI.ReasoningEffort)
 
 		topP := 0.8
-		reasoningSummary := "detailed"
+		textVerbosity := "high"
 		updated, err := client.UpdateChatModelConfig(ctx, config.ID, codersdk.UpdateChatModelConfigRequest{
 			ModelConfig: &codersdk.ChatModelCallConfig{
 				TopP: &topP,
 				ProviderOptions: &codersdk.ChatModelProviderOptions{
 					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-						ReasoningSummary: &reasoningSummary,
+						TextVerbosity: &textVerbosity,
 					},
 				},
 			},
@@ -1524,7 +1524,7 @@ func TestChatModelConfigs(t *testing.T) {
 		require.Equal(t, topP, *updated.ModelConfig.TopP)
 		require.NotNil(t, updated.ModelConfig.ProviderOptions)
 		require.NotNil(t, updated.ModelConfig.ProviderOptions.OpenAI)
-		require.Equal(t, reasoningSummary, *updated.ModelConfig.ProviderOptions.OpenAI.ReasoningSummary)
+		require.Equal(t, textVerbosity, *updated.ModelConfig.ProviderOptions.OpenAI.TextVerbosity)
 
 		cleared, err := client.UpdateChatModelConfig(ctx, config.ID, codersdk.UpdateChatModelConfigRequest{
 			ModelConfig: &codersdk.ChatModelCallConfig{},

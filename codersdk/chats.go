@@ -254,89 +254,6 @@ type ChatModelConfig struct {
 	UpdatedAt            time.Time            `json:"updated_at" format:"date-time"`
 }
 
-// ChatModelReasoningEffort controls provider reasoning effort.
-type ChatModelReasoningEffort string
-
-const (
-	ChatModelReasoningEffortMinimal ChatModelReasoningEffort = "minimal"
-	ChatModelReasoningEffortLow     ChatModelReasoningEffort = "low"
-	ChatModelReasoningEffortMedium  ChatModelReasoningEffort = "medium"
-	ChatModelReasoningEffortHigh    ChatModelReasoningEffort = "high"
-	ChatModelReasoningEffortXHigh   ChatModelReasoningEffort = "xhigh"
-	ChatModelReasoningEffortNone    ChatModelReasoningEffort = "none"
-)
-
-// ChatModelReasoningOptions configures provider reasoning/thinking behavior.
-type ChatModelReasoningOptions struct {
-	Enabled   *bool                     `json:"enabled,omitempty"`
-	Exclude   *bool                     `json:"exclude,omitempty"`
-	MaxTokens *int64                    `json:"max_tokens,omitempty"`
-	Effort    *ChatModelReasoningEffort `json:"effort,omitempty"`
-}
-
-// ChatModelAnthropicThinkingOptions configures Anthropic thinking mode.
-type ChatModelAnthropicThinkingOptions struct {
-	BudgetTokens int64 `json:"budget_tokens,omitempty"`
-}
-
-// ChatModelAnthropicProviderOptions configures Anthropic-specific options.
-type ChatModelAnthropicProviderOptions struct {
-	SendReasoning          *bool                              `json:"send_reasoning,omitempty"`
-	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty"`
-	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty"`
-}
-
-// ChatModelGoogleThinkingConfig configures Google thinking mode.
-type ChatModelGoogleThinkingConfig struct {
-	ThinkingBudget  *int64 `json:"thinking_budget,omitempty"`
-	IncludeThoughts *bool  `json:"include_thoughts,omitempty"`
-}
-
-// ChatModelGoogleSafetySetting configures Google safety filters.
-type ChatModelGoogleSafetySetting struct {
-	Category  string `json:"category,omitempty"`
-	Threshold string `json:"threshold,omitempty"`
-}
-
-// ChatModelGoogleProviderOptions configures Google-specific options.
-type ChatModelGoogleProviderOptions struct {
-	ThinkingConfig *ChatModelGoogleThinkingConfig `json:"thinking_config,omitempty"`
-	CachedContent  string                         `json:"cached_content,omitempty"`
-	SafetySettings []ChatModelGoogleSafetySetting `json:"safety_settings,omitempty"`
-}
-
-// ChatModelOpenAIProviderOptions configures OpenAI (and Azure) options.
-type ChatModelOpenAIProviderOptions struct {
-	Include           []string                  `json:"include,omitempty"`
-	ParallelToolCalls *bool                     `json:"parallel_tool_calls,omitempty"`
-	ReasoningEffort   *ChatModelReasoningEffort `json:"reasoning_effort,omitempty"`
-	ReasoningSummary  *string                   `json:"reasoning_summary,omitempty"`
-	ServiceTier       *string                   `json:"service_tier,omitempty"`
-	TextVerbosity     *string                   `json:"text_verbosity,omitempty"`
-	User              *string                   `json:"user,omitempty"`
-}
-
-// ChatModelOpenAICompatProviderOptions configures OpenAI-compatible options.
-type ChatModelOpenAICompatProviderOptions struct {
-	ReasoningEffort *ChatModelReasoningEffort `json:"reasoning_effort,omitempty"`
-	User            *string                   `json:"user,omitempty"`
-}
-
-// ChatModelOpenRouterProviderOptions configures OpenRouter-specific options.
-type ChatModelOpenRouterProviderOptions struct {
-	Reasoning         *ChatModelReasoningOptions `json:"reasoning,omitempty"`
-	ParallelToolCalls *bool                      `json:"parallel_tool_calls,omitempty"`
-	IncludeUsage      *bool                      `json:"include_usage,omitempty"`
-	User              *string                    `json:"user,omitempty"`
-}
-
-// ChatModelVercelProviderOptions configures Vercel AI Gateway options.
-type ChatModelVercelProviderOptions struct {
-	Reasoning         *ChatModelReasoningOptions `json:"reasoning,omitempty"`
-	ParallelToolCalls *bool                      `json:"parallel_tool_calls,omitempty"`
-	User              *string                    `json:"user,omitempty"`
-}
-
 // ChatModelProviderOptions contains typed provider-specific options.
 //
 // Note: Azure models use the `openai` options shape.
@@ -348,6 +265,127 @@ type ChatModelProviderOptions struct {
 	OpenAICompat *ChatModelOpenAICompatProviderOptions `json:"openaicompat,omitempty"`
 	OpenRouter   *ChatModelOpenRouterProviderOptions   `json:"openrouter,omitempty"`
 	Vercel       *ChatModelVercelProviderOptions       `json:"vercel,omitempty"`
+}
+
+// ChatModelOpenAIProviderOptions configures OpenAI provider behavior.
+type ChatModelOpenAIProviderOptions struct {
+	Include             []string         `json:"include,omitempty"`
+	Instructions        *string          `json:"instructions,omitempty"`
+	LogitBias           map[string]int64 `json:"logit_bias,omitempty"`
+	LogProbs            *bool            `json:"log_probs,omitempty"`
+	TopLogProbs         *int64           `json:"top_log_probs,omitempty"`
+	MaxToolCalls        *int64           `json:"max_tool_calls,omitempty"`
+	ParallelToolCalls   *bool            `json:"parallel_tool_calls,omitempty"`
+	User                *string          `json:"user,omitempty"`
+	ReasoningEffort     *string          `json:"reasoning_effort,omitempty"`
+	ReasoningSummary    *string          `json:"reasoning_summary,omitempty"`
+	MaxCompletionTokens *int64           `json:"max_completion_tokens,omitempty"`
+	TextVerbosity       *string          `json:"text_verbosity,omitempty"`
+	Prediction          map[string]any   `json:"prediction,omitempty"`
+	Store               *bool            `json:"store,omitempty"`
+	Metadata            map[string]any   `json:"metadata,omitempty"`
+	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty"`
+	SafetyIdentifier    *string          `json:"safety_identifier,omitempty"`
+	ServiceTier         *string          `json:"service_tier,omitempty"`
+	StructuredOutputs   *bool            `json:"structured_outputs,omitempty"`
+	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty"`
+}
+
+// ChatModelAnthropicThinkingOptions configures Anthropic thinking budget.
+type ChatModelAnthropicThinkingOptions struct {
+	BudgetTokens *int64 `json:"budget_tokens,omitempty"`
+}
+
+// ChatModelAnthropicProviderOptions configures Anthropic provider behavior.
+type ChatModelAnthropicProviderOptions struct {
+	SendReasoning          *bool                              `json:"send_reasoning,omitempty"`
+	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty"`
+	Effort                 *string                            `json:"effort,omitempty"`
+	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty"`
+}
+
+// ChatModelGoogleThinkingConfig configures Google thinking behavior.
+type ChatModelGoogleThinkingConfig struct {
+	ThinkingBudget  *int64 `json:"thinking_budget,omitempty"`
+	IncludeThoughts *bool  `json:"include_thoughts,omitempty"`
+}
+
+// ChatModelGoogleSafetySetting configures Google safety filtering.
+type ChatModelGoogleSafetySetting struct {
+	Category  string `json:"category,omitempty"`
+	Threshold string `json:"threshold,omitempty"`
+}
+
+// ChatModelGoogleProviderOptions configures Google provider behavior.
+type ChatModelGoogleProviderOptions struct {
+	ThinkingConfig *ChatModelGoogleThinkingConfig `json:"thinking_config,omitempty"`
+	CachedContent  string                         `json:"cached_content,omitempty"`
+	SafetySettings []ChatModelGoogleSafetySetting `json:"safety_settings,omitempty"`
+	Threshold      string                         `json:"threshold,omitempty"`
+}
+
+// ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
+type ChatModelOpenAICompatProviderOptions struct {
+	User            *string `json:"user,omitempty"`
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
+}
+
+// ChatModelOpenRouterReasoningOptions configures OpenRouter reasoning behavior.
+type ChatModelOpenRouterReasoningOptions struct {
+	Enabled   *bool   `json:"enabled,omitempty"`
+	Exclude   *bool   `json:"exclude,omitempty"`
+	MaxTokens *int64  `json:"max_tokens,omitempty"`
+	Effort    *string `json:"effort,omitempty"`
+}
+
+// ChatModelOpenRouterProvider configures OpenRouter routing preferences.
+type ChatModelOpenRouterProvider struct {
+	Order             []string `json:"order,omitempty"`
+	AllowFallbacks    *bool    `json:"allow_fallbacks,omitempty"`
+	RequireParameters *bool    `json:"require_parameters,omitempty"`
+	DataCollection    *string  `json:"data_collection,omitempty"`
+	Only              []string `json:"only,omitempty"`
+	Ignore            []string `json:"ignore,omitempty"`
+	Quantizations     []string `json:"quantizations,omitempty"`
+	Sort              *string  `json:"sort,omitempty"`
+}
+
+// ChatModelOpenRouterProviderOptions configures OpenRouter provider behavior.
+type ChatModelOpenRouterProviderOptions struct {
+	Reasoning         *ChatModelOpenRouterReasoningOptions `json:"reasoning,omitempty"`
+	ExtraBody         map[string]any                       `json:"extra_body,omitempty"`
+	IncludeUsage      *bool                                `json:"include_usage,omitempty"`
+	LogitBias         map[string]int64                     `json:"logit_bias,omitempty"`
+	LogProbs          *bool                                `json:"log_probs,omitempty"`
+	ParallelToolCalls *bool                                `json:"parallel_tool_calls,omitempty"`
+	User              *string                              `json:"user,omitempty"`
+	Provider          *ChatModelOpenRouterProvider         `json:"provider,omitempty"`
+}
+
+// ChatModelVercelReasoningOptions configures Vercel reasoning behavior.
+type ChatModelVercelReasoningOptions struct {
+	Enabled   *bool   `json:"enabled,omitempty"`
+	MaxTokens *int64  `json:"max_tokens,omitempty"`
+	Effort    *string `json:"effort,omitempty"`
+	Exclude   *bool   `json:"exclude,omitempty"`
+}
+
+// ChatModelVercelGatewayProviderOptions configures Vercel routing behavior.
+type ChatModelVercelGatewayProviderOptions struct {
+	Order  []string `json:"order,omitempty"`
+	Models []string `json:"models,omitempty"`
+}
+
+// ChatModelVercelProviderOptions configures Vercel provider behavior.
+type ChatModelVercelProviderOptions struct {
+	Reasoning         *ChatModelVercelReasoningOptions       `json:"reasoning,omitempty"`
+	ProviderOptions   *ChatModelVercelGatewayProviderOptions `json:"providerOptions,omitempty"`
+	User              *string                                `json:"user,omitempty"`
+	LogitBias         map[string]int64                       `json:"logit_bias,omitempty"`
+	LogProbs          *bool                                  `json:"logprobs,omitempty"`
+	TopLogProbs       *int64                                 `json:"top_logprobs,omitempty"`
+	ParallelToolCalls *bool                                  `json:"parallel_tool_calls,omitempty"`
+	ExtraBody         map[string]any                         `json:"extra_body,omitempty"`
 }
 
 // ChatModelCallConfig configures per-call model behavior defaults.
