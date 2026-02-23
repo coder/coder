@@ -955,6 +955,8 @@ func TestTasksTelemetry(t *testing.T) {
 			resumeReason:      ptr.Ref("manual"),
 			pausedDurationMS:  ptr.Ref(20 * time.Minute.Milliseconds()),
 			resumeToStatusMS:  ptr.Ref((5 * time.Minute).Milliseconds()),
+			// Build 1 ("started work") -> Build 2 (stop) (5h10m) + Build 3 ("resumed work") -> now (25m)
+			activeDurationMS: ptr.Ref((5*time.Hour + 10*time.Minute + 25*time.Minute).Milliseconds()),
 		},
 		{
 			name:          "all fields populated - full lifecycle",
@@ -966,6 +968,7 @@ func TestTasksTelemetry(t *testing.T) {
 			extraBuilds: []buildSpec{
 				{2, -35 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 				{3, -5 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, []statusSpec{
+					{database.WorkspaceAppStatusStateWorking, "Resumed work", -3 * time.Minute},
 					{database.WorkspaceAppStatusStateIdle, "Finished work", -2 * time.Minute},
 				}},
 			},
@@ -976,9 +979,9 @@ func TestTasksTelemetry(t *testing.T) {
 			resumeReason:      ptr.Ref("manual"),
 			idleDurationMS:    ptr.Ref(10 * time.Minute.Milliseconds()),
 			pausedDurationMS:  ptr.Ref(30 * time.Minute.Milliseconds()),
-			resumeToStatusMS:  ptr.Ref((3 * time.Minute).Milliseconds()),
-			// Active duration: (-390 to -45) + (-45 to -2) = 345 + 43 = 388 min.
-			activeDurationMS: ptr.Ref(388 * time.Minute.Milliseconds()),
+			resumeToStatusMS:  ptr.Ref((2 * time.Minute).Milliseconds()),
+			// Active duration: (-390 to -35) + (-3 to -2) = 355 + 1 = 356 min.
+			activeDurationMS: ptr.Ref(356 * time.Minute.Milliseconds()),
 		},
 		{
 			name:          "non-task_resume builds are tracked as other",

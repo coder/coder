@@ -374,6 +374,9 @@ type sqlcQuerier interface {
 	//   workspace are considered task-related.
 	// - Idle duration approximation: If the agent reports "working", does
 	//   work, then reports "done", we miss that working time.
+	// - lws and active_dur join across all historical app IDs for the task,
+	//   because each resume cycle provisions a new app ID. This ensures
+	//   pre-pause statuses contribute to idle duration and active duration.
 	GetTelemetryTaskEvents(ctx context.Context, arg GetTelemetryTaskEventsParams) ([]GetTelemetryTaskEventsRow, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
 	// timeframe. The result can be filtered on template_ids, meaning only user data

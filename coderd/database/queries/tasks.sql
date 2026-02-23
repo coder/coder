@@ -115,7 +115,14 @@ WHERE
 --   workspace are considered task-related.
 -- - Idle duration approximation: If the agent reports "working", does
 --   work, then reports "done", we miss that working time.
-WITH task_event_data AS (
+-- - lws and active_dur join across all historical app IDs for the task,
+--   because each resume cycle provisions a new app ID. This ensures
+--   pre-pause statuses contribute to idle duration and active duration.
+WITH task_app_ids AS (
+    SELECT task_id, workspace_app_id
+    FROM task_workspace_apps
+),
+task_event_data AS (
     SELECT
         t.id AS task_id,
         t.workspace_id,
@@ -162,11 +169,12 @@ WITH task_event_data AS (
     LEFT JOIN LATERAL (
         SELECT was.created_at
         FROM workspace_app_statuses was
-        WHERE was.app_id = twa.workspace_app_id
+        JOIN task_app_ids tai ON tai.workspace_app_id = was.app_id
+        WHERE tai.task_id = t.id
             AND was.state = 'working'
         ORDER BY was.created_at DESC
         LIMIT 1
-    ) lws ON twa.workspace_app_id IS NOT NULL
+    ) lws ON TRUE
     LEFT JOIN LATERAL (
         SELECT was.created_at
         FROM workspace_app_statuses was
@@ -178,10 +186,11 @@ WITH task_event_data AS (
         AND start_build.created_at IS NOT NULL
         AND (stop_build.created_at IS NULL
             OR start_build.created_at > stop_build.created_at)
-    -- Active duration: cumulative time spent in "working" state.
-    -- Uses LEAD() to convert point-in-time statuses into intervals, then sums
-    -- intervals where state='working'. For the last status, falls back to
-    -- stop_build time (if paused) or @now (if still running).
+    -- Active duration: cumulative time spent in "working" state across all
+    -- historical app IDs for this task. Uses LEAD() to convert point-in-time
+    -- statuses into intervals, then sums intervals where state='working'. For
+    -- the last status, falls back to stop_build time (if paused) or @now (if
+    -- still running).
     LEFT JOIN LATERAL (
         SELECT COALESCE(
             SUM(EXTRACT(EPOCH FROM (interval_end - interval_start)) * 1000)::bigint,
@@ -189,17 +198,39 @@ WITH task_event_data AS (
         )::bigint AS total_working_ms
         FROM (
             SELECT
-                was.created_at AS interval_start,
+                wat.created_at AS interval_start,
                 COALESCE(
-                    LEAD(was.created_at) OVER (ORDER BY was.created_at ASC),
-                    COALESCE(stop_build.created_at, @now::timestamptz)
+                    LEAD(wat.created_at) OVER (ORDER BY wat.created_at ASC),
+					CASE WHEN stop_build.created_at IS NOT NULL
+						  AND (start_build.created_at IS NULL OR stop_build.created_at > start_build.created_at)
+					THEN stop_build.created_at
+					ELSE @now::timestamptz
+					END
                 ) AS interval_end,
-                was.state
-            FROM workspace_app_statuses was
-            WHERE was.app_id = twa.workspace_app_id
+                wat.state
+            --FROM workspace_app_statuses was
+            --JOIN task_app_ids tai ON tai.workspace_app_id = was.app_id
+            --WHERE tai.task_id = t.id
+			FROM (
+				-- Real statuses from all historical task apps
+				SELECT was.created_at AS created_at, was.state::text AS state
+				FROM workspace_app_statuses was
+				JOIN task_app_ids tai ON tai.workspace_app_id = was.app_id
+				WHERE tai.task_id = t.id
+				UNION ALL
+				-- Insert synthetic boundaries at stop/start build transitions
+				-- to terminate working intervals at pause time and prevent
+				-- LEAD() from including pause gaps.
+				SELECT wb.created_at AS created_at, '_boundary' AS state
+				FROM workspace_builds wb
+				WHERE wb.workspace_id = t.workspace_id
+				 -- TODO: do we only need the 'stop' builds?  Task App IDs for which we're interested will only ever be related to 'start' builds.
+				 -- start -> start breaks all kinds of shit anyhow
+				AND wb.build_number > 1
+			) wat
         ) intervals
         WHERE intervals.state = 'working'
-    ) active_dur ON twa.workspace_app_id IS NOT NULL
+    ) active_dur ON TRUE
     WHERE t.deleted_at IS NULL
         AND t.workspace_id IS NOT NULL
         AND EXISTS (
