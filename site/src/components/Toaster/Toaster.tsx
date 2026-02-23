@@ -2,7 +2,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import {
 	CheckIcon,
 	InfoIcon,
-	Loader2Icon,
 	OctagonXIcon,
 	TriangleAlertIcon,
 	XIcon,
