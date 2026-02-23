@@ -292,6 +292,62 @@ export const TaskPaused: Story = {
 		);
 		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The message input should be visible in the paused state.
+		const input = await canvas.findByTestId("task-send-input");
+		expect(input).toBeInTheDocument();
+		// The send button should be disabled when the input is empty.
+		const sendButton = canvas.getByTestId("task-send-button");
+		expect(sendButton).toBeDisabled();
+	},
+};
+
+export const TaskPausedSendAutoResume: Story = {
+	decorators: [withGlobalSnackbar],
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		// sendTaskInput returns 409 because the task is paused.
+		spyOn(API, "sendTaskInput").mockRejectedValue({
+			...mockApiError({ message: "Task is paused" }),
+			response: {
+				...mockApiError({ message: "Task is paused" }).response,
+				status: 409,
+			},
+		});
+		spyOn(API, "resumeTask").mockResolvedValue({
+			workspace_build: MockStartingWorkspace.latest_build,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = await canvas.findByTestId("task-send-input");
+		await userEvent.type(input, "Please fix the login bug");
+		const sendButton = canvas.getByTestId("task-send-button");
+		expect(sendButton).toBeEnabled();
+		await userEvent.click(sendButton);
+		// Verify the send was attempted and resume was called after 409.
+		await waitFor(() => {
+			expect(API.sendTaskInput).toHaveBeenCalledWith(
+				MockTask.owner_name,
+				MockTask.id,
+				"Please fix the login bug",
+			);
+		});
+		await waitFor(() => {
+			expect(API.resumeTask).toHaveBeenCalledWith(
+				MockTask.owner_name,
+				MockTask.id,
+			);
+		});
+	},
 };
 
 export const TaskPausedNoSnapshot: Story = {

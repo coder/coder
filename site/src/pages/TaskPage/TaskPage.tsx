@@ -21,6 +21,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
 	ArrowLeftIcon,
+	ArrowUpIcon,
 	PauseIcon,
 	RotateCcwIcon,
 	TriangleAlertIcon,
@@ -45,6 +46,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
+import TextareaAutosize from "react-textarea-autosize";
 import type { FixedSizeList } from "react-window";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -441,6 +443,7 @@ type TaskPausedProps = {
 
 const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 	const queryClient = useQueryClient();
+	const [message, setMessage] = useState("");
 
 	// Use mutation config directly to customize error handling:
 	// API errors are shown in a dialog, other errors show a toast.
@@ -453,6 +456,34 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 		},
 	});
 
+	// Mutation that sends a message, auto-resuming if the task is paused.
+	// On 409 (task paused), it resumes the task, polls until active, then
+	// retries the send.
+	const sendWithResumeMutation = useMutation({
+		mutationFn: async (input: string) => {
+			try {
+				await API.sendTaskInput(task.owner_name, task.id, input);
+			} catch (error) {
+				if (!isApiError(error) || error.response.status !== 409) {
+					throw error;
+				}
+				// Task is paused, resume it and wait for active status.
+				await API.resumeTask(task.owner_name, task.id);
+				await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+				await pollUntilTaskActive(task.owner_name, task.id);
+				// Retry the send now that the task is active.
+				await API.sendTaskInput(task.owner_name, task.id, input);
+			}
+		},
+		onSuccess: async () => {
+			setMessage("");
+			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+		},
+		onError: (error: unknown) => {
+			displayError(getErrorMessage(error, "Failed to send message"));
+		},
+	});
+
 	const { data: logsData } = useQuery({
 		...taskLogs(task.owner_name, task.id),
 		retry: false,
@@ -461,6 +492,7 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 	// After requesting a task resume, it may take a while to become ready.
 	const isWaitingForStart =
 		resumeMutation.isPending || resumeMutation.isSuccess;
+	const isResuming = sendWithResumeMutation.isPending || isWaitingForStart;
 
 	// Determine if this was a timeout (autostop) or manual pause.
 	const isTimeout = workspace.latest_build.reason === "autostop";
@@ -469,33 +501,84 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 		? resumeMutation.error
 		: undefined;
 
+	const handleSendMessage = () => {
+		const trimmed = message.trim();
+		if (trimmed === "" || isResuming) {
+			return;
+		}
+		sendWithResumeMutation.mutate(trimmed);
+	};
+
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+			e.preventDefault();
+			handleSendMessage();
+		}
+	};
+
 	return (
 		<>
 			<TaskStateMessage
 				title="Task paused"
 				description={
 					isTimeout
-						? "Your task timed out. Resume it to continue."
-						: "Resume the task to continue."
+						? "Your task timed out. Send a message or resume to continue."
+						: "Send a message or resume to continue."
 				}
 				icon={<PauseIcon className="size-4" />}
 				detail={
-					workspace.outdated && (
-						<div
-							data-testid="workspace-outdated-tooltip"
-							className="flex items-center gap-1.5 mt-1 text-content-secondary text-sm"
-						>
-							<WorkspaceOutdatedTooltip workspace={workspace}>
-								A newer template version is available
-							</WorkspaceOutdatedTooltip>
+					<>
+						{workspace.outdated && (
+							<div
+								data-testid="workspace-outdated-tooltip"
+								className="flex items-center gap-1.5 mt-1 text-content-secondary text-sm"
+							>
+								<WorkspaceOutdatedTooltip workspace={workspace}>
+									A newer template version is available
+								</WorkspaceOutdatedTooltip>
+							</div>
+						)}
+						<div className="mt-4 w-full max-w-lg">
+							<div className="border border-solid border-border rounded-2xl bg-surface-secondary p-2">
+								<TextareaAutosize
+									value={message}
+									onChange={(e) => setMessage(e.target.value)}
+									onKeyDown={handleKeyDown}
+									placeholder="Send a message to resume..."
+									disabled={isResuming}
+									minRows={2}
+									maxRows={6}
+									data-testid="task-send-input"
+									className={cn(
+										"border-0 px-3 py-2 resize-none w-full bg-transparent rounded-lg",
+										"outline-none text-sm text-content-primary",
+										"placeholder:text-content-secondary",
+										isResuming && "opacity-60 cursor-not-allowed",
+									)}
+								/>
+								<div className="flex items-center justify-end pt-1">
+									<Button
+										size="icon"
+										onClick={handleSendMessage}
+										disabled={message.trim().length === 0 || isResuming}
+										data-testid="task-send-button"
+										className="rounded-full"
+									>
+										<Spinner loading={sendWithResumeMutation.isPending}>
+											<ArrowUpIcon />
+										</Spinner>
+										<span className="sr-only">Send message</span>
+									</Button>
+								</div>
+							</div>
 						</div>
-					)
+					</>
 				}
 				actions={
 					<div className="flex flex-row gap-4">
 						<Button
 							size="sm"
-							disabled={isWaitingForStart}
+							disabled={isResuming}
 							onClick={() => resumeMutation.mutate()}
 						>
 							<Spinner loading={isWaitingForStart} />
@@ -515,7 +598,7 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 						<Button
 							size="sm"
 							variant="subtle"
-							disabled={isWaitingForStart}
+							disabled={isResuming}
 							onClick={() => resumeMutation.mutate()}
 						>
 							<Spinner loading={isWaitingForStart} />
@@ -683,4 +766,35 @@ function selectAgent(workspace: Workspace) {
 		.filter((a) => !!a);
 
 	return agents.at(0);
+}
+
+const POLL_INTERVAL_MS = 5_000;
+const MAX_POLL_ATTEMPTS = 120;
+
+/**
+ * Polls the task status until it becomes "active" or a terminal failure
+ * is detected. Rejects if the task enters an unrecoverable state or if
+ * polling exceeds the maximum number of attempts.
+ */
+async function pollUntilTaskActive(
+	owner: string,
+	taskId: string,
+): Promise<void> {
+	for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
+		await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+		const task = await API.getTask(owner, taskId);
+		if (task.status === "active") {
+			return;
+		}
+		// If the workspace build failed or was canceled, stop polling.
+		if (
+			task.workspace_status === "failed" ||
+			task.workspace_status === "canceled"
+		) {
+			throw new Error(
+				"Workspace build failed. Check the build logs for details.",
+			);
+		}
+	}
+	throw new Error("Timed out waiting for task to become active.");
 }
