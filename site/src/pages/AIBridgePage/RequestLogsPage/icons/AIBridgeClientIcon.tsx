@@ -11,6 +11,9 @@ export const AIBridgeClientIcon = ({
 	client: AIBridgeInterception["client"];
 } & React.ComponentProps<"svg">) => {
 	const iconClassName = "flex-shrink-0";
+	// This should be kept in sync with the client names in
+	// the AI Bridge bridge.go file.
+	// https://github.com/coder/aibridge/blob/main/bridge.go#L31-L32
 	switch (client) {
 		case "Claude Code":
 			return (
