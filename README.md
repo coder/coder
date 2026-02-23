@@ -122,6 +122,12 @@ We are always working on new integrations. Please feel free to open an issue and
 - [**Provision Coder with Terraform**](https://github.com/ElliotG/coder-oss-tf): Provision Coder on Google GKE, Azure AKS, AWS EKS, DigitalOcean DOKS, IBMCloud K8s, OVHCloud K8s, and Scaleway K8s Kapsule with Terraform
 - [**Coder Template GitHub Action**](https://github.com/marketplace/actions/update-coder-template): A GitHub Action that updates Coder templates
 
+## Fun Fact
+
+> Why do programmers prefer dark mode?
+>
+> Because light attracts bugs.
+
 ## Contributing
 
 We are always happy to see new contributors to Coder. If you are new to the Coder codebase, we have
