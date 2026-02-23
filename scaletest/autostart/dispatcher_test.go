@@ -10,12 +10,13 @@ import (
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/autostart"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestWorkspaceDispatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
 	// Create test workspace names.
@@ -98,7 +99,7 @@ func TestWorkspaceDispatcher(t *testing.T) {
 func TestWorkspaceDispatcher_UnknownWorkspace(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
 	// Create dispatcher with known workspaces.
@@ -161,13 +162,13 @@ func TestWorkspaceDispatcher_ContextCancellation(t *testing.T) {
 	dispatcher.Start(ctx, source)
 
 	// Fill up the channel buffer.
-	for i := 0; i < 20; i++ {
+	for i := int32(0); i < 20; i++ {
 		source <- codersdk.WorkspaceBuildUpdate{
 			WorkspaceID:   uuid.New(),
 			WorkspaceName: "workspace-1",
 			Transition:    "start",
 			JobStatus:     "pending",
-			BuildNumber:   int32(i),
+			BuildNumber:   i,
 		}
 	}
 
