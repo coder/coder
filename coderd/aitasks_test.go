@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -3191,28 +3190,6 @@ func TestResumeTask(t *testing.T) {
 	})
 }
 
-// activityBumpSpy wraps a database.Store and counts calls to
-// ActivityBumpWorkspace so tests can verify whether a bump occurred.
-type activityBumpSpy struct {
-	database.Store
-	bumps *atomic.Int64
-}
-
-func newActivityBumpSpy(db database.Store) *activityBumpSpy {
-	return &activityBumpSpy{Store: db, bumps: &atomic.Int64{}}
-}
-
-func (s *activityBumpSpy) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
-	s.bumps.Add(1)
-	return s.Store.ActivityBumpWorkspace(ctx, arg)
-}
-
-func (s *activityBumpSpy) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
-	return s.Store.InTx(func(tx database.Store) error {
-		return fn(&activityBumpSpy{Store: tx, bumps: s.bumps})
-	}, opts)
-}
-
 func TestTaskLogsActivityBump(t *testing.T) {
 	t.Parallel()
 
@@ -3345,6 +3322,17 @@ func TestTaskLogsActivityBump(t *testing.T) {
 	t.Run("NonActiveTasksDoNotBump", func(t *testing.T) {
 		t.Parallel()
 
+		ownerClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+
+		ownerUser, err := ownerClient.User(testutil.Context(t, testutil.WaitMedium), owner.UserID.String())
+		require.NoError(t, err)
+		ownerSubject := coderdtest.AuthzUserSubject(ownerUser)
+
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		createTask := createTaskInState(db, ownerSubject, owner.OrganizationID, member.ID)
+
 		for _, status := range []database.TaskStatus{
 			database.TaskStatusPaused,
 			database.TaskStatusPending,
@@ -3354,25 +3342,8 @@ func TestTaskLogsActivityBump(t *testing.T) {
 				t.Parallel()
 
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				rawDB, ps := dbtestutil.NewDB(t)
-				spy := newActivityBumpSpy(rawDB)
-
-				client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
-					Database: spy,
-					Pubsub:   ps,
-				})
-				owner := coderdtest.CreateFirstUser(t, client)
-
-				ownerUser, err := client.User(ctx, owner.UserID.String())
-				require.NoError(t, err)
-				ownerSubject := coderdtest.AuthzUserSubject(ownerUser)
-
-				memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
-				createTask := createTaskInState(rawDB, ownerSubject, owner.OrganizationID, member.ID)
 				task := createTask(ctx, t, status)
 
-				// For non-active states the handler returns a snapshot.
 				// Upsert a snapshot so the handler succeeds.
 				envelope := coderd.TaskLogSnapshotEnvelope{
 					Format: "agentapi",
@@ -3385,23 +3356,26 @@ func TestTaskLogsActivityBump(t *testing.T) {
 				snapshotJSON, err := json.Marshal(envelope)
 				require.NoError(t, err)
 
-				err = rawDB.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+				err = db.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
 					TaskID:               task.ID,
 					LogSnapshot:          json.RawMessage(snapshotJSON),
 					LogSnapshotCreatedAt: dbtime.Now(),
 				})
 				require.NoError(t, err)
 
-				// Reset the counter after setup (setup itself may call
-				// ActivityBumpWorkspace for unrelated reasons).
-				spy.bumps.Store(0)
+				// Record the deadline before fetching logs.
+				buildBefore, err := db.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), task.WorkspaceID.UUID)
+				require.NoError(t, err)
 
 				resp, err := memberClient.TaskLogs(ctx, "me", task.ID)
 				require.NoError(t, err)
 				require.True(t, resp.Snapshot, "expected snapshot response for %s task", status)
 
-				assert.Equal(t, int64(0), spy.bumps.Load(),
-					"ActivityBumpWorkspace should not be called for %s task", status)
+				// Verify the deadline was not changed.
+				buildAfter, err := db.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), task.WorkspaceID.UUID)
+				require.NoError(t, err)
+				assert.Equal(t, buildBefore.Deadline, buildAfter.Deadline,
+					"deadline should not change for %s task", status)
 			})
 		}
 	})
