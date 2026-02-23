@@ -3216,104 +3216,60 @@ func TestTaskLogsActivityBump(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		agentAuthToken := uuid.NewString()
-
-		// Stand up a full API server with provisioner so we can create
-		// a real workspace, start an agent, and fetch live logs.
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		owner := coderdtest.CreateFirstUser(t, client)
 
-		// Create an AI-capable template whose task app points to the
-		// fake AgentAPI server.
-		taskAppID := uuid.New()
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionGraph: []*proto.Response{
-				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
-					HasAiTasks: true,
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(),
-							Name: "example",
-							Auth: &proto.Agent_Token{Token: agentAuthToken},
-							Apps: []*proto.App{{
-								Id:          taskAppID.String(),
-								Slug:        "task-app",
-								DisplayName: "Task App",
-								Url:         srv.URL,
-							}},
-						}},
-					}},
-					AiTasks: []*proto.AITask{{AppId: taskAppID.String()}},
-				}}},
-			},
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-
-		task, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
-			TemplateVersionID: template.ActiveVersionID,
-			Input:             "bump me",
-		})
-		require.NoError(t, err)
-		require.True(t, task.WorkspaceID.Valid)
-
-		ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
-		require.NoError(t, err)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-
-		// Re-fetch the task to get the resolved agent and app IDs.
-		task, err = client.TaskByID(ctx, task.ID)
-		require.NoError(t, err)
-		require.True(t, task.WorkspaceAgentID.Valid)
-		require.True(t, task.WorkspaceAppID.Valid)
+		// Create workspace + task via dbfake with app URL pointing
+		// to the fake AgentAPI server.
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        owner.UserID,
+		}).WithTask(database.TaskTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        owner.UserID,
+		}, &proto.App{
+			Slug: "task-app",
+			Url:  srv.URL,
+		}).Do()
 
 		// Insert an app status so the task is in the active state.
+		apps, err := db.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), wsResp.Agents[0].ID)
+		require.NoError(t, err)
 		_, err = db.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 			ID:          uuid.New(),
-			WorkspaceID: task.WorkspaceID.UUID,
+			WorkspaceID: wsResp.Workspace.ID,
 			CreatedAt:   dbtime.Now(),
-			AgentID:     task.WorkspaceAgentID.UUID,
-			AppID:       task.WorkspaceAppID.UUID,
+			AgentID:     wsResp.Agents[0].ID,
+			AppID:       apps[0].ID,
 			State:       database.WorkspaceAppStatusStateWorking,
 			Message:     "working",
 		})
 		require.NoError(t, err)
 
 		// Start a fake agent so the workspace agent is connected.
-		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentAuthToken))
-		_ = agenttest.New(t, client.URL, agentAuthToken, func(o *agent.Options) {
-			o.Client = agentClient
-		})
-		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WaitFor(coderdtest.AgentsReady)
+		_ = agenttest.New(t, client.URL, wsResp.AgentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, wsResp.Workspace.ID).WaitFor(coderdtest.AgentsReady)
 
 		// Set the build deadline close to now so the activity bump
 		// SQL guard (last 5% of TTL) is satisfied.
-		build, err := db.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), ws.ID)
-		require.NoError(t, err)
-
 		now := dbtime.Now()
 		tightDeadline := now.Add(time.Minute)
 		err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          build.ID,
+			ID:          wsResp.Build.ID,
 			Deadline:    tightDeadline,
-			MaxDeadline: build.MaxDeadline,
+			MaxDeadline: wsResp.Build.MaxDeadline,
 			UpdatedAt:   now,
 		})
 		require.NoError(t, err)
 
 		// Fetch task logs — this should trigger an activity bump.
-		resp, err := client.TaskLogs(ctx, "me", task.ID)
+		logsResp, err := client.TaskLogs(ctx, "me", wsResp.Task.ID)
 		require.NoError(t, err)
-		require.NotEmpty(t, resp.Logs, "expected live logs from fake AgentAPI")
+		require.NotEmpty(t, logsResp.Logs, "expected live logs from fake AgentAPI")
 
 		// Verify the deadline was extended beyond what we set.
-		updatedBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), ws.ID)
+		updatedBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), wsResp.Workspace.ID)
 		require.NoError(t, err)
 		assert.True(t, updatedBuild.Deadline.After(tightDeadline),
 			"expected deadline %v to be bumped past %v", updatedBuild.Deadline, tightDeadline)
