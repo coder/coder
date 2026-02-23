@@ -143,6 +143,7 @@ export function getExternalImageStylesFromUrl(
 export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/apple-black.svg", "monochrome"],
 	["/icon/auggie.svg", "monochrome"],
+	["/icon/anthropic.svg", "whiteWithColor"],
 	["/icon/auto-dev-server.svg", "monochrome"],
 	["/icon/aws.png", "whiteWithColor&brightness=1.5"],
 	["/icon/aws.svg", "whiteWithColor&brightness=1.5"],
