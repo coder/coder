@@ -1342,6 +1342,74 @@ func TestChatModelConfigs(t *testing.T) {
 		require.True(t, config.Enabled)
 	})
 
+	t.Run("CreateDuplicateProviderModelAllowed", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		first, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4.1",
+			DisplayName:  "GPT 4.1 A",
+			ContextLimit: int64Ptr(200000),
+		})
+		require.NoError(t, err)
+
+		second, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4.1",
+			DisplayName:  "GPT 4.1 B",
+			ContextLimit: int64Ptr(200000),
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, first.ID, second.ID)
+
+		latestDisplayName := "GPT 4.1 Latest"
+		second, err = client.UpdateChatModelConfig(ctx, second.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: latestDisplayName,
+		})
+		require.NoError(t, err)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		duplicateCount := 0
+		for _, config := range configs {
+			if config.Provider == "openai" && config.Model == "gpt-4.1" {
+				duplicateCount++
+			}
+		}
+		require.Equal(t, 2, duplicateCount)
+
+		catalog, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+
+		var openaiProvider *codersdk.ChatModelProvider
+		for index := range catalog.Providers {
+			if catalog.Providers[index].Provider == "openai" {
+				openaiProvider = &catalog.Providers[index]
+				break
+			}
+		}
+		require.NotNil(t, openaiProvider)
+
+		modelCount := 0
+		for _, model := range openaiProvider.Models {
+			if model.Model == "gpt-4.1" {
+				modelCount++
+				require.Equal(t, latestDisplayName, model.DisplayName)
+			}
+		}
+		require.Equal(t, 1, modelCount)
+	})
+
 	t.Run("CreateNonAdminForbidden", func(t *testing.T) {
 		t.Parallel()
 
@@ -1392,6 +1460,77 @@ func TestChatModelConfigs(t *testing.T) {
 		require.Equal(t, "gpt-4.1-mini", updated.Model)
 		require.Equal(t, "GPT 4.1 Mini", updated.DisplayName)
 		require.False(t, updated.Enabled)
+	})
+
+	t.Run("CreateAndUpdateModelConfigTyped", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "openai-key",
+		})
+		require.NoError(t, err)
+
+		maxOutputTokens := int64(4096)
+		temperature := 0.25
+		parallelToolCalls := true
+		reasoningEffort := codersdk.ChatModelReasoningEffortMedium
+
+		config, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4.1",
+			DisplayName:  "GPT 4.1",
+			ContextLimit: int64Ptr(200000),
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				MaxOutputTokens: &maxOutputTokens,
+				Temperature:     &temperature,
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+						ParallelToolCalls: &parallelToolCalls,
+						ReasoningEffort:   &reasoningEffort,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, config.ModelConfig)
+		require.Equal(t, maxOutputTokens, *config.ModelConfig.MaxOutputTokens)
+		require.Equal(t, temperature, *config.ModelConfig.Temperature)
+		require.NotNil(t, config.ModelConfig.ProviderOptions)
+		require.NotNil(t, config.ModelConfig.ProviderOptions.OpenAI)
+		require.Equal(t, parallelToolCalls, *config.ModelConfig.ProviderOptions.OpenAI.ParallelToolCalls)
+		require.Equal(t, reasoningEffort, *config.ModelConfig.ProviderOptions.OpenAI.ReasoningEffort)
+
+		topP := 0.8
+		reasoningSummary := "detailed"
+		updated, err := client.UpdateChatModelConfig(ctx, config.ID, codersdk.UpdateChatModelConfigRequest{
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				TopP: &topP,
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+						ReasoningSummary: &reasoningSummary,
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.ModelConfig)
+		require.Nil(t, updated.ModelConfig.MaxOutputTokens)
+		require.Nil(t, updated.ModelConfig.Temperature)
+		require.Equal(t, topP, *updated.ModelConfig.TopP)
+		require.NotNil(t, updated.ModelConfig.ProviderOptions)
+		require.NotNil(t, updated.ModelConfig.ProviderOptions.OpenAI)
+		require.Equal(t, reasoningSummary, *updated.ModelConfig.ProviderOptions.OpenAI.ReasoningSummary)
+
+		cleared, err := client.UpdateChatModelConfig(ctx, config.ID, codersdk.UpdateChatModelConfigRequest{
+			ModelConfig: &codersdk.ChatModelCallConfig{},
+		})
+		require.NoError(t, err)
+		require.Nil(t, cleared.ModelConfig)
 	})
 
 	t.Run("UpdateNonAdminForbidden", func(t *testing.T) {

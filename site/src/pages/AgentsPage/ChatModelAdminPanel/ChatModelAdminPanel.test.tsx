@@ -452,4 +452,196 @@ describe(ChatModelAdminPanel.name, () => {
 		expect(anthropicOption).toHaveTextContent("(not configured)");
 		expect(anthropicOption).toHaveAttribute("aria-disabled", "true");
 	});
+
+	it("shows provider-specific model config schema in add model form", async () => {
+		installChatHandlers({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					api_key_set: true,
+				}),
+				createProviderConfig({
+					id: "provider-anthropic",
+					provider: "anthropic",
+					display_name: "Anthropic",
+					source: "database",
+					api_key_set: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: {
+				providers: [],
+			},
+		});
+
+		renderPanel("models");
+
+		await userEvent.click(await screen.findByRole("button", { name: "Add model" }));
+
+		const schemaBlock = await screen.findByTestId("chat-model-config-schema");
+		expect(schemaBlock).toHaveTextContent('"provider": "openai"');
+		expect(schemaBlock).toHaveTextContent('"openai": {');
+		expect(schemaBlock).toHaveTextContent('"reasoning_effort": "high"');
+
+		await userEvent.click(
+			screen.getByRole("combobox", { name: "Provider" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /Anthropic/i }),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("chat-model-config-schema")).toHaveTextContent(
+				'"provider": "anthropic"',
+			);
+		});
+		expect(screen.getByTestId("chat-model-config-schema")).toHaveTextContent(
+			'"anthropic": {',
+		);
+		expect(screen.getByTestId("chat-model-config-schema")).toHaveTextContent(
+			'"thinking": {',
+		);
+	});
+
+	it("does not submit model_config by default in add model form", async () => {
+		const state: ChatAdminState = {
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					api_key_set: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: {
+				providers: [],
+			},
+		};
+		const log: RequestLog = {
+			createProviderBodies: [],
+			updateProviderBodies: [],
+			createModelBodies: [],
+		};
+		installChatHandlers(state, log);
+
+		renderPanel("models");
+
+		await userEvent.click(await screen.findByRole("button", { name: "Add model" }));
+		await userEvent.type(screen.getByLabelText("Model ID"), "gpt-5-pro");
+		await userEvent.type(screen.getByLabelText("Context limit"), "200000");
+
+		expect(
+			await screen.findByLabelText("Max output tokens (optional)"),
+		).toHaveValue("");
+
+		await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+		await waitFor(() => {
+			expect(log.createModelBodies).toHaveLength(1);
+		});
+		expect(log.createModelBodies[0]).toMatchObject({
+			provider: "openai",
+			model: "gpt-5-pro",
+		});
+		expect(log.createModelBodies[0]).not.toHaveProperty("model_config");
+	});
+
+	it("submits model_config when explicitly provided in add model form", async () => {
+		const state: ChatAdminState = {
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					api_key_set: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: {
+				providers: [],
+			},
+		};
+		const log: RequestLog = {
+			createProviderBodies: [],
+			updateProviderBodies: [],
+			createModelBodies: [],
+		};
+		installChatHandlers(state, log);
+
+		renderPanel("models");
+
+		await userEvent.click(await screen.findByRole("button", { name: "Add model" }));
+		await userEvent.type(screen.getByLabelText("Model ID"), "gpt-5-pro-custom");
+		await userEvent.type(screen.getByLabelText("Context limit"), "200000");
+
+		await userEvent.type(
+			await screen.findByLabelText("Max output tokens (optional)"),
+			"32000",
+		);
+		await userEvent.click(
+			screen.getByRole("combobox", { name: "Reasoning effort (optional)" }),
+		);
+		await userEvent.click(await screen.findByRole("option", { name: "high" }));
+
+		await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+		await waitFor(() => {
+			expect(log.createModelBodies).toHaveLength(1);
+		});
+		expect(log.createModelBodies[0]).toMatchObject({
+			provider: "openai",
+			model: "gpt-5-pro-custom",
+			model_config: {
+				max_output_tokens: 32000,
+				provider_options: {
+					openai: {
+						reasoning_effort: "high",
+					},
+				},
+			},
+		});
+	});
+
+	it("validates model_config rich fields before adding a model", async () => {
+		const state: ChatAdminState = {
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					api_key_set: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: {
+				providers: [],
+			},
+		};
+		const log: RequestLog = {
+			createProviderBodies: [],
+			updateProviderBodies: [],
+			createModelBodies: [],
+		};
+		installChatHandlers(state, log);
+
+		renderPanel("models");
+
+		await userEvent.click(await screen.findByRole("button", { name: "Add model" }));
+		await userEvent.type(screen.getByLabelText("Model ID"), "gpt-5-pro");
+		await userEvent.type(screen.getByLabelText("Context limit"), "200000");
+		await userEvent.type(
+			await screen.findByLabelText("Max output tokens (optional)"),
+			"not-a-number",
+		);
+		expect(
+			screen.getByText("Max output tokens must be a valid number."),
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+		expect(log.createModelBodies).toHaveLength(0);
+	});
 });

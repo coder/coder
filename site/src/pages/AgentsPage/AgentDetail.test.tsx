@@ -839,4 +839,240 @@ describe(AgentDetail.name, () => {
 			).toBeInTheDocument();
 		});
 	});
+
+	it("renders titled reasoning collapsed and expands on click", async () => {
+		const workspace = {
+			...MockWorkspace,
+			id: "workspace-1",
+		};
+		const chatData: TypesGen.ChatWithMessages = {
+			chat: {
+				id: "chat-1",
+				owner_id: "owner-id",
+				workspace_id: workspace.id,
+				workspace_agent_id: MockWorkspaceAgent.id,
+				title: "Reasoning title",
+				status: "completed",
+				model_config: {
+					model: "gpt-4o",
+					provider: "openai",
+				},
+				created_at: "2026-02-18T00:00:00.000Z",
+				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+			messages: [
+				{
+					id: 1,
+					chat_id: "chat-1",
+					created_at: "2026-02-18T00:00:01.000Z",
+					role: "assistant",
+					hidden: false,
+					parts: [
+						{
+							type: "reasoning",
+							title: "Plan migration",
+							text: "Reasoning body",
+						},
+					],
+				},
+			],
+			queued_messages: [],
+		};
+
+		mockUseOutletContext.mockReturnValue({
+			chatErrorReasons: {},
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+			topBarTitleRef: { current: null },
+			topBarActionsRef: { current: null },
+			rightPanelRef: { current: null },
+			setRightPanelOpen: vi.fn(),
+			requestArchiveAgent: vi.fn(),
+		});
+		installQueryMocks({
+			chatData,
+			workspaceData: workspace,
+			diffUrl: undefined,
+		});
+
+		renderComponent(<AgentDetail />);
+
+		const user = userEvent.setup();
+		const reasoningToggle = screen.getByRole("button", {
+			name: "Plan migration",
+		});
+		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
+		expect(screen.queryByText("Reasoning body")).toBeNull();
+
+		await user.click(reasoningToggle);
+
+		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
+		expect(screen.getByText("Reasoning body")).toBeInTheDocument();
+	});
+
+	it("renders streamed titled reasoning collapsed and expands on click", async () => {
+		const socket = createMockSocket();
+		mockWatchChat.mockReturnValue(socket);
+
+		const workspace = {
+			...MockWorkspace,
+			id: "workspace-1",
+		};
+		const chatData: TypesGen.ChatWithMessages = {
+			chat: {
+				id: "chat-1",
+				owner_id: "owner-id",
+				workspace_id: workspace.id,
+				workspace_agent_id: MockWorkspaceAgent.id,
+				title: "Streaming reasoning title",
+				status: "running",
+				model_config: {
+					model: "gpt-4o",
+					provider: "openai",
+				},
+				created_at: "2026-02-18T00:00:00.000Z",
+				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+			messages: [],
+			queued_messages: [],
+		};
+
+		mockUseOutletContext.mockReturnValue({
+			chatErrorReasons: {},
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+			topBarTitleRef: { current: null },
+			topBarActionsRef: { current: null },
+			rightPanelRef: { current: null },
+			setRightPanelOpen: vi.fn(),
+			requestArchiveAgent: vi.fn(),
+		});
+		installQueryMocks({
+			chatData,
+			workspaceData: workspace,
+			diffUrl: undefined,
+		});
+
+		renderComponent(<AgentDetail />);
+
+		socket.emitMessage({
+			parseError: null,
+			parsedMessage: {
+				type: "data",
+				data: {
+					type: "message_part",
+					message_part: {
+						part: {
+							type: "reasoning",
+							title: "Plan migration",
+							text: "Streaming reasoning body",
+						},
+					},
+				},
+			},
+		});
+
+		const user = userEvent.setup();
+		const reasoningToggle = await screen.findByRole("button", {
+			name: "Plan migration",
+		});
+		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
+		expect(screen.queryByText("Streaming reasoning body")).toBeNull();
+
+		await user.click(reasoningToggle);
+
+		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
+		expect(screen.getByText("Streaming reasoning body")).toBeInTheDocument();
+	});
+
+	it("updates streamed reasoning title from a title-only part", async () => {
+		const socket = createMockSocket();
+		mockWatchChat.mockReturnValue(socket);
+
+		const workspace = {
+			...MockWorkspace,
+			id: "workspace-1",
+		};
+		const chatData: TypesGen.ChatWithMessages = {
+			chat: {
+				id: "chat-1",
+				owner_id: "owner-id",
+				workspace_id: workspace.id,
+				workspace_agent_id: MockWorkspaceAgent.id,
+				title: "Streaming reasoning title update",
+				status: "running",
+				model_config: {
+					model: "gpt-4o",
+					provider: "openai",
+				},
+				created_at: "2026-02-18T00:00:00.000Z",
+				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+			messages: [],
+			queued_messages: [],
+		};
+
+		mockUseOutletContext.mockReturnValue({
+			chatErrorReasons: {},
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+			topBarTitleRef: { current: null },
+			topBarActionsRef: { current: null },
+			rightPanelRef: { current: null },
+			setRightPanelOpen: vi.fn(),
+			requestArchiveAgent: vi.fn(),
+		});
+		installQueryMocks({
+			chatData,
+			workspaceData: workspace,
+			diffUrl: undefined,
+		});
+
+		renderComponent(<AgentDetail />);
+
+		socket.emitMessage({
+			parseError: null,
+			parsedMessage: {
+				type: "data",
+				data: {
+					type: "message_part",
+					message_part: {
+						part: {
+							type: "reasoning",
+							text: "Streaming reasoning body",
+						},
+					},
+				},
+			},
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText("Streaming reasoning body")).toBeInTheDocument();
+		});
+
+		socket.emitMessage({
+			parseError: null,
+			parsedMessage: {
+				type: "data",
+				data: {
+					type: "message_part",
+					message_part: {
+						part: {
+							type: "reasoning",
+							title: "Plan migration",
+						},
+					},
+				},
+			},
+		});
+
+		const user = userEvent.setup();
+		const reasoningToggle = await screen.findByRole("button", {
+			name: "Plan migration",
+		});
+		expect(screen.queryByText("Streaming reasoning body")).toBeNull();
+
+		await user.click(reasoningToggle);
+		expect(screen.getByText("Streaming reasoning body")).toBeInTheDocument();
+	});
 });

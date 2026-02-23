@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/sqlc-dev/pqtype"
@@ -1206,13 +1207,15 @@ func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 		}
 	case fantasy.ReasoningContent:
 		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeReasoning,
-			Text: value.Text,
+			Type:  codersdk.ChatMessagePartTypeReasoning,
+			Text:  value.Text,
+			Title: reasoningSummaryTitle(value.ProviderMetadata),
 		}
 	case *fantasy.ReasoningContent:
 		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeReasoning,
-			Text: value.Text,
+			Type:  codersdk.ChatMessagePartTypeReasoning,
+			Text:  value.Text,
+			Title: reasoningSummaryTitle(value.ProviderMetadata),
 		}
 	case fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
@@ -1261,6 +1264,68 @@ func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 	default:
 		return codersdk.ChatMessagePart{}
 	}
+}
+
+func reasoningSummaryTitle(metadata fantasy.ProviderMetadata) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+
+	reasoningMetadata := fantasyopenai.GetReasoningMetadata(
+		fantasy.ProviderOptions(metadata),
+	)
+	if reasoningMetadata == nil {
+		return ""
+	}
+
+	for _, summary := range reasoningMetadata.Summary {
+		if title := compactReasoningSummaryTitle(summary); title != "" {
+			return title
+		}
+	}
+
+	return ""
+}
+
+func compactReasoningSummaryTitle(summary string) string {
+	const maxWords = 8
+	const maxRunes = 80
+
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		return ""
+	}
+
+	summary = strings.Trim(summary, "\"'`")
+	words := strings.Fields(summary)
+	if len(words) == 0 {
+		return ""
+	}
+
+	truncated := false
+	if len(words) > maxWords {
+		words = words[:maxWords]
+		truncated = true
+	}
+
+	title := strings.Join(words, " ")
+	if truncated {
+		title += "…"
+	}
+	return truncateRunes(title, maxRunes)
+}
+
+func truncateRunes(value string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+
+	runes := []rune(value)
+	if len(runes) <= max {
+		return value
+	}
+
+	return string(runes[:max])
 }
 
 func toolResultBlockFromContent(content fantasy.ToolResultContent) chatToolResultBlock {

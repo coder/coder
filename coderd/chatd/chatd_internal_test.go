@@ -7,6 +7,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -62,6 +64,163 @@ func TestChatMessagesToPrompt_SanitizesToolCallIDs(t *testing.T) {
 	toolResultParts := messageToolResultParts(prompt[1])
 	require.Len(t, toolResultParts, 1)
 	require.Equal(t, sanitizedToolCallID, toolResultParts[0].ToolCallID)
+}
+
+func TestContentToMessageParts_PreservesReasoningProviderMetadata(t *testing.T) {
+	t.Parallel()
+
+	metadata := &fantasyopenai.ResponsesReasoningMetadata{
+		ItemID:  "reasoning-item-1",
+		Summary: []string{"Plan migration"},
+	}
+
+	parts := contentToMessageParts([]fantasy.Content{
+		fantasy.ReasoningContent{
+			Text: "Plan migration",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: metadata,
+			},
+		},
+	})
+	require.Len(t, parts, 1)
+
+	reasoningPart, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](parts[0])
+	require.True(t, ok)
+	require.Equal(t, "Plan migration", reasoningPart.Text)
+
+	gotMetadata := fantasyopenai.GetReasoningMetadata(reasoningPart.ProviderOptions)
+	require.NotNil(t, gotMetadata)
+	require.Equal(t, "reasoning-item-1", gotMetadata.ItemID)
+	require.Equal(t, []string{"Plan migration"}, gotMetadata.Summary)
+}
+
+func TestContentToMessageParts_PreservesProviderMetadataForOtherParts(t *testing.T) {
+	t.Parallel()
+
+	textMetadata := &fantasyopenai.ResponsesReasoningMetadata{
+		ItemID:  "text-metadata",
+		Summary: []string{"text"},
+	}
+	toolCallMetadata := &fantasyopenai.ResponsesReasoningMetadata{
+		ItemID:  "tool-call-metadata",
+		Summary: []string{"tool-call"},
+	}
+	fileMetadata := &fantasyopenai.ResponsesReasoningMetadata{
+		ItemID:  "file-metadata",
+		Summary: []string{"file"},
+	}
+	toolResultMetadata := &fantasyopenai.ResponsesReasoningMetadata{
+		ItemID:  "tool-result-metadata",
+		Summary: []string{"tool-result"},
+	}
+
+	parts := contentToMessageParts([]fantasy.Content{
+		fantasy.TextContent{
+			Text: "hello",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: textMetadata,
+			},
+		},
+		fantasy.ToolCallContent{
+			ToolCallID: "call-1",
+			ToolName:   "execute",
+			Input:      `{"command":"pwd"}`,
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: toolCallMetadata,
+			},
+		},
+		fantasy.FileContent{
+			MediaType: "text/plain",
+			Data:      []byte("file"),
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: fileMetadata,
+			},
+		},
+		fantasy.ToolResultContent{
+			ToolCallID: "call-1",
+			ToolName:   "execute",
+			Result: fantasy.ToolResultOutputContentText{
+				Text: `{"output":"ok"}`,
+			},
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: toolResultMetadata,
+			},
+		},
+	})
+	require.Len(t, parts, 4)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](parts[0])
+	require.True(t, ok)
+	textPartMetadata := fantasyopenai.GetReasoningMetadata(textPart.ProviderOptions)
+	require.NotNil(t, textPartMetadata)
+	require.Equal(t, "text-metadata", textPartMetadata.ItemID)
+
+	toolCallPart, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](parts[1])
+	require.True(t, ok)
+	toolCallPartMetadata := fantasyopenai.GetReasoningMetadata(
+		toolCallPart.ProviderOptions,
+	)
+	require.NotNil(t, toolCallPartMetadata)
+	require.Equal(t, "tool-call-metadata", toolCallPartMetadata.ItemID)
+
+	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](parts[2])
+	require.True(t, ok)
+	filePartMetadata := fantasyopenai.GetReasoningMetadata(filePart.ProviderOptions)
+	require.NotNil(t, filePartMetadata)
+	require.Equal(t, "file-metadata", filePartMetadata.ItemID)
+
+	toolResultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](parts[3])
+	require.True(t, ok)
+	toolResultPartMetadata := fantasyopenai.GetReasoningMetadata(
+		toolResultPart.ProviderOptions,
+	)
+	require.NotNil(t, toolResultPartMetadata)
+	require.Equal(t, "tool-result-metadata", toolResultPartMetadata.ItemID)
+}
+
+func TestContentBlockToPart_ReasoningIncludesSummaryTitle(t *testing.T) {
+	t.Parallel()
+
+	metadata := &fantasyopenai.ResponsesReasoningMetadata{
+		ItemID:  "reasoning-item-1",
+		Summary: []string{"", "Plan migration"},
+	}
+
+	part := contentBlockToPart(fantasy.ReasoningContent{
+		Text: "Plan migration",
+		ProviderMetadata: fantasy.ProviderMetadata{
+			fantasyopenai.Name: metadata,
+		},
+	})
+
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, part.Type)
+	require.Equal(t, "Plan migration", part.Text)
+	require.Equal(t, "Plan migration", part.Title)
+}
+
+func TestContentBlockToPart_ReasoningTitleTruncatesSummary(t *testing.T) {
+	t.Parallel()
+
+	metadata := &fantasyopenai.ResponsesReasoningMetadata{
+		ItemID: "reasoning-item-1",
+		Summary: []string{
+			"Investigated workspace build failures and prepared step-by-step remediation plan for migrations",
+		},
+	}
+
+	part := contentBlockToPart(fantasy.ReasoningContent{
+		Text: "Investigated workspace build failures and prepared step-by-step remediation plan for migrations",
+		ProviderMetadata: fantasy.ProviderMetadata{
+			fantasyopenai.Name: metadata,
+		},
+	})
+
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, part.Type)
+	require.Equal(
+		t,
+		"Investigated workspace build failures and prepared step-by-step remediation…",
+		part.Title,
+	)
 }
 
 func TestChatMessagesToPrompt_RepairsLegacyOrphanToolResult(t *testing.T) {
@@ -163,6 +322,163 @@ func TestPrepareAgentStepResult_AnthropicCaching(t *testing.T) {
 	require.False(t, hasAnthropicEphemeralCacheControl(result.Messages[2]))
 	require.True(t, hasAnthropicEphemeralCacheControl(result.Messages[3]))
 	require.True(t, hasAnthropicEphemeralCacheControl(result.Messages[4]))
+}
+
+func TestParseChatModelConfig_ParsesCallConfig(t *testing.T) {
+	t.Parallel()
+
+	raw := json.RawMessage(`{
+		"provider":"openai",
+		"model":"gpt-5.2",
+		"workspace_mode":"workspace",
+		"context_limit":131072,
+		"max_output_tokens":2048,
+		"temperature":0.4,
+		"top_p":0.9,
+		"top_k":40,
+		"presence_penalty":0.1,
+		"frequency_penalty":0.2,
+		"provider_options":{
+			"openai":{
+				"parallel_tool_calls":true,
+				"reasoning_effort":"medium",
+				"reasoning_summary":"concise"
+			}
+		}
+	}`)
+
+	config, err := parseChatModelConfig(raw)
+	require.NoError(t, err)
+	require.Equal(t, "openai", config.Provider)
+	require.Equal(t, "gpt-5.2", config.Model)
+	require.Equal(t, int64(131072), config.ContextLimit)
+	require.Equal(t, codersdk.ChatWorkspaceModeWorkspace, config.WorkspaceMode)
+	require.NotNil(t, config.MaxOutputTokens)
+	require.Equal(t, int64(2048), *config.MaxOutputTokens)
+	require.NotNil(t, config.Temperature)
+	require.Equal(t, 0.4, *config.Temperature)
+	require.NotNil(t, config.TopP)
+	require.Equal(t, 0.9, *config.TopP)
+	require.NotNil(t, config.TopK)
+	require.Equal(t, int64(40), *config.TopK)
+	require.NotNil(t, config.PresencePenalty)
+	require.Equal(t, 0.1, *config.PresencePenalty)
+	require.NotNil(t, config.FrequencyPenalty)
+	require.Equal(t, 0.2, *config.FrequencyPenalty)
+	require.NotNil(t, config.ProviderOptions)
+	require.NotNil(t, config.ProviderOptions.OpenAI)
+	require.NotNil(t, config.ProviderOptions.OpenAI.ParallelToolCalls)
+	require.True(t, *config.ProviderOptions.OpenAI.ParallelToolCalls)
+	require.NotNil(t, config.ProviderOptions.OpenAI.ReasoningEffort)
+	require.Equal(
+		t,
+		codersdk.ChatModelReasoningEffortMedium,
+		*config.ProviderOptions.OpenAI.ReasoningEffort,
+	)
+	require.NotNil(t, config.ProviderOptions.OpenAI.ReasoningSummary)
+	require.Equal(t, "concise", *config.ProviderOptions.OpenAI.ReasoningSummary)
+}
+
+func TestStreamCallOptionsFromChatModelConfig_OpenAIResponses(t *testing.T) {
+	t.Parallel()
+
+	maxOutputTokens := int64(4096)
+	temperature := 0.3
+	topP := 0.92
+	topK := int64(42)
+	presencePenalty := 0.11
+	frequencyPenalty := 0.23
+	parallelToolCalls := true
+	reasoningEffort := codersdk.ChatModelReasoningEffortMedium
+	reasoningSummary := "brief"
+	serviceTier := "priority"
+	textVerbosity := "high"
+	user := " user-123 "
+
+	streamCall := streamCallOptionsFromChatModelConfig(
+		&titleTestModel{provider: fantasyopenai.Name, model: "gpt-5.2"},
+		chatModelConfig{
+			ChatModelCallConfig: codersdk.ChatModelCallConfig{
+				MaxOutputTokens:  &maxOutputTokens,
+				Temperature:      &temperature,
+				TopP:             &topP,
+				TopK:             &topK,
+				PresencePenalty:  &presencePenalty,
+				FrequencyPenalty: &frequencyPenalty,
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+						Include:           []string{"reasoning.encrypted_content"},
+						ParallelToolCalls: &parallelToolCalls,
+						ReasoningEffort:   &reasoningEffort,
+						ReasoningSummary:  &reasoningSummary,
+						ServiceTier:       &serviceTier,
+						TextVerbosity:     &textVerbosity,
+						User:              &user,
+					},
+				},
+			},
+		},
+	)
+
+	require.NotNil(t, streamCall.MaxOutputTokens)
+	require.Equal(t, int64(4096), *streamCall.MaxOutputTokens)
+	require.NotNil(t, streamCall.Temperature)
+	require.Equal(t, 0.3, *streamCall.Temperature)
+	require.NotNil(t, streamCall.TopP)
+	require.Equal(t, 0.92, *streamCall.TopP)
+	require.NotNil(t, streamCall.TopK)
+	require.Equal(t, int64(42), *streamCall.TopK)
+	require.NotNil(t, streamCall.PresencePenalty)
+	require.Equal(t, 0.11, *streamCall.PresencePenalty)
+	require.NotNil(t, streamCall.FrequencyPenalty)
+	require.Equal(t, 0.23, *streamCall.FrequencyPenalty)
+
+	openAIOptionsAny, ok := streamCall.ProviderOptions[fantasyopenai.Name]
+	require.True(t, ok)
+	openAIOptions, ok := openAIOptionsAny.(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok)
+	require.Equal(
+		t,
+		[]fantasyopenai.IncludeType{"reasoning.encrypted_content"},
+		openAIOptions.Include,
+	)
+	require.NotNil(t, openAIOptions.ParallelToolCalls)
+	require.True(t, *openAIOptions.ParallelToolCalls)
+	require.NotNil(t, openAIOptions.ReasoningEffort)
+	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *openAIOptions.ReasoningEffort)
+	require.NotNil(t, openAIOptions.ReasoningSummary)
+	require.Equal(t, "brief", *openAIOptions.ReasoningSummary)
+	require.NotNil(t, openAIOptions.ServiceTier)
+	require.Equal(t, fantasyopenai.ServiceTierPriority, *openAIOptions.ServiceTier)
+	require.NotNil(t, openAIOptions.TextVerbosity)
+	require.Equal(t, fantasyopenai.TextVerbosityHigh, *openAIOptions.TextVerbosity)
+	require.NotNil(t, openAIOptions.User)
+	require.Equal(t, "user-123", *openAIOptions.User)
+}
+
+func TestStreamCallOptionsFromChatModelConfig_DefaultsAndLegacyOpenAI(t *testing.T) {
+	t.Parallel()
+
+	parallelToolCalls := true
+	streamCall := streamCallOptionsFromChatModelConfig(
+		&titleTestModel{provider: fantasyopenai.Name, model: "gpt-legacy-non-responses"},
+		chatModelConfig{
+			ChatModelCallConfig: codersdk.ChatModelCallConfig{
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+						ParallelToolCalls: &parallelToolCalls,
+					},
+				},
+			},
+		},
+	)
+
+	require.NotNil(t, streamCall.MaxOutputTokens)
+	require.Equal(t, int64(32000), *streamCall.MaxOutputTokens)
+	openAIOptionsAny, ok := streamCall.ProviderOptions[fantasyopenai.Name]
+	require.True(t, ok)
+	_, ok = openAIOptionsAny.(*fantasyopenai.ProviderOptions)
+	require.True(t, ok)
 }
 
 func TestAnyAvailableModel(t *testing.T) {
@@ -372,13 +688,21 @@ func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
 
 type titleTestModel struct {
 	generateFn func(context.Context, fantasy.Call) (*fantasy.Response, error)
+	provider   string
+	model      string
 }
 
-func (*titleTestModel) Provider() string {
+func (m *titleTestModel) Provider() string {
+	if m.provider != "" {
+		return m.provider
+	}
 	return "fake"
 }
 
-func (*titleTestModel) Model() string {
+func (m *titleTestModel) Model() string {
+	if m.model != "" {
+		return m.model
+	}
 	return "fake"
 }
 

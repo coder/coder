@@ -393,6 +393,7 @@ export type ChatModelConfig = Readonly<
 		is_default?: boolean;
 		context_limit: number;
 		compression_threshold: number;
+		model_config?: TypesGen.ChatModelCallConfig;
 		created_at?: string;
 		updated_at?: string;
 	} & Record<string, unknown>
@@ -406,6 +407,7 @@ export type CreateChatModelConfigRequest = {
 	is_default?: boolean;
 	context_limit?: number;
 	compression_threshold?: number;
+	model_config?: TypesGen.ChatModelCallConfig;
 } & Record<string, unknown>;
 
 export type UpdateChatModelConfigRequest =

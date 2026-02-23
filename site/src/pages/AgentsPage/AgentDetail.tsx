@@ -93,6 +93,9 @@ const asNonEmptyString = (value: unknown): string | undefined => {
 	return next.length > 0 ? next : undefined;
 };
 
+const asOptionalTitle = (value: unknown): string | undefined =>
+	asNonEmptyString(value);
+
 type ChatMessageWithUsage = TypesGen.ChatMessage & {
 	readonly input_tokens?: unknown;
 	readonly output_tokens?: unknown;
@@ -694,6 +697,7 @@ type RenderBlock =
 	| {
 			type: "thinking";
 			text: string;
+			title?: string;
 	  }
 	| {
 			type: "tool";
@@ -718,10 +722,38 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	blocks: [],
 });
 
+const mergeThinkingTitles = (
+	currentTitle: string | undefined,
+	nextTitle: string | undefined,
+): { shouldMerge: boolean; title: string | undefined } => {
+	if (!currentTitle && !nextTitle) {
+		return { shouldMerge: true, title: undefined };
+	}
+	if (!currentTitle) {
+		return { shouldMerge: true, title: nextTitle };
+	}
+	if (!nextTitle) {
+		return { shouldMerge: true, title: currentTitle };
+	}
+	if (currentTitle === nextTitle) {
+		return { shouldMerge: true, title: currentTitle };
+	}
+	// Streaming title metadata can arrive incrementally; treat prefix
+	// growth as the same reasoning block and keep the longer title.
+	if (nextTitle.startsWith(currentTitle)) {
+		return { shouldMerge: true, title: nextTitle };
+	}
+	if (currentTitle.startsWith(nextTitle)) {
+		return { shouldMerge: true, title: currentTitle };
+	}
+	return { shouldMerge: false, title: nextTitle };
+};
+
 const appendParsedTextBlock = (
 	blocks: RenderBlock[],
 	type: "response" | "thinking",
 	text: string,
+	title?: string,
 ): RenderBlock[] => {
 	if (!text.trim()) {
 		return blocks;
@@ -729,13 +761,42 @@ const appendParsedTextBlock = (
 	const nextBlocks = [...blocks];
 	const last = nextBlocks[nextBlocks.length - 1];
 	if (last && last.type === type) {
-		nextBlocks[nextBlocks.length - 1] = {
-			type,
-			text: appendText(last.text, text),
-		};
-		return nextBlocks;
+		const shouldMerge =
+			type === "response" ||
+			(type === "thinking" &&
+				last.type === "thinking" &&
+				mergeThinkingTitles(last.title, title).shouldMerge);
+		if (shouldMerge) {
+			const mergedThinkingTitle =
+				type === "thinking" && last.type === "thinking"
+					? mergeThinkingTitles(last.title, title).title
+					: undefined;
+			nextBlocks[nextBlocks.length - 1] =
+				type === "thinking"
+					? {
+							type,
+							text: appendText(last.text, text),
+							title: mergedThinkingTitle,
+						}
+					: {
+							type,
+							text: appendText(last.text, text),
+						};
+			return nextBlocks;
+		}
 	}
-	nextBlocks.push({ type, text });
+	nextBlocks.push(
+		type === "thinking"
+			? {
+					type,
+					text,
+					title,
+				}
+			: {
+					type,
+					text,
+				},
+	);
 	return nextBlocks;
 };
 
@@ -821,11 +882,13 @@ const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				case "thinking":
 					{
 						const text = asString(typedBlock.text);
+						const title = asOptionalTitle(typedBlock.title);
 						parsed.reasoning = appendText(parsed.reasoning, text);
 						parsed.blocks = appendParsedTextBlock(
 							parsed.blocks,
 							"thinking",
 							text,
+							title,
 						);
 					}
 					break;
@@ -986,6 +1049,7 @@ const appendStreamTextBlock = (
 	blocks: RenderBlock[],
 	type: "response" | "thinking",
 	text: string,
+	title?: string,
 ): RenderBlock[] => {
 	if (!text) {
 		return blocks;
@@ -993,13 +1057,68 @@ const appendStreamTextBlock = (
 	const nextBlocks = [...blocks];
 	const last = nextBlocks[nextBlocks.length - 1];
 	if (last && last.type === type) {
+		const shouldMerge =
+			type === "response" ||
+			(type === "thinking" &&
+				last.type === "thinking" &&
+				mergeThinkingTitles(last.title, title).shouldMerge);
+		if (shouldMerge) {
+			const mergedThinkingTitle =
+				type === "thinking" && last.type === "thinking"
+					? mergeThinkingTitles(last.title, title).title
+					: undefined;
+			nextBlocks[nextBlocks.length - 1] =
+				type === "thinking"
+					? {
+							type,
+							text: `${last.text}${text}`,
+							title: mergedThinkingTitle,
+						}
+					: {
+							type,
+							text: `${last.text}${text}`,
+						};
+			return nextBlocks;
+		}
+	}
+	nextBlocks.push(
+		type === "thinking"
+			? {
+					type,
+					text,
+					title,
+				}
+			: {
+					type,
+					text,
+				},
+	);
+	return nextBlocks;
+};
+
+const applyStreamThinkingTitle = (
+	blocks: RenderBlock[],
+	title?: string,
+): RenderBlock[] => {
+	if (!title) {
+		return blocks;
+	}
+	const nextBlocks = [...blocks];
+	const last = nextBlocks[nextBlocks.length - 1];
+	if (last && last.type === "thinking") {
+		const merged = mergeThinkingTitles(last.title, title);
 		nextBlocks[nextBlocks.length - 1] = {
-			type,
-			text: `${last.text}${text}`,
+			type: "thinking",
+			text: last.text,
+			title: merged.title,
 		};
 		return nextBlocks;
 	}
-	nextBlocks.push({ type, text });
+	nextBlocks.push({
+		type: "thinking",
+		text: "",
+		title,
+	});
 	return nextBlocks;
 };
 
@@ -1063,6 +1182,38 @@ const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
 	);
 };
 
+const ReasoningDisclosure: FC<{
+	id: string;
+	title: string;
+	text: string;
+}> = ({ id, title, text }) => {
+	const [isOpen, setIsOpen] = useState(false);
+
+	return (
+		<Thinking>
+			<button
+				type="button"
+				aria-expanded={isOpen}
+				aria-controls={id}
+				className="flex w-full items-center gap-1 text-left text-content-secondary transition-colors hover:text-content-primary"
+				onClick={() => {
+					setIsOpen((prev) => !prev);
+				}}
+			>
+				<ChevronRightIcon
+					className={`h-3.5 w-3.5 shrink-0 transition-transform ${isOpen ? "rotate-90" : "rotate-0"}`}
+				/>
+				<span className="text-xs font-medium">{title}</span>
+			</button>
+			{isOpen ? (
+				<div id={id} className="mt-2 whitespace-pre-wrap text-xs">
+					{text}
+				</div>
+			) : null}
+		</Thinking>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // Memoized sub-components
 // ---------------------------------------------------------------------------
@@ -1103,7 +1254,14 @@ const ChatMessageItem = memo<{
 						</Response>
 					);
 				case "thinking":
-					return (
+					return block.title ? (
+						<ReasoningDisclosure
+							key={`thinking-${message.id}-${index}`}
+							id={`thinking-${message.id}-${index}`}
+							title={block.title}
+							text={block.text}
+						/>
+					) : (
 						<Thinking key={`thinking-${message.id}-${index}`}>
 							{block.text}
 						</Thinking>
@@ -1196,7 +1354,14 @@ const StreamingOutput = memo<{
 						<Response key={`stream-response-${index}`}>{block.text}</Response>
 					);
 				case "thinking":
-					return (
+					return block.title ? (
+						<ReasoningDisclosure
+							key={`stream-thinking-${index}`}
+							id={`stream-thinking-${index}`}
+							title={block.title}
+							text={block.text}
+						/>
+					) : (
 						<Thinking key={`stream-thinking-${index}`}>{block.text}</Thinking>
 					);
 				case "tool": {
@@ -1578,20 +1743,25 @@ export const AgentDetail: FC = () => {
 						case "reasoning":
 						case "thinking": {
 							const text = asString(part.text);
-							if (!text) {
+							const title = asOptionalTitle(part.title);
+							if (!text && !title) {
 								return;
 							}
 							startTransition(() => {
 								setStreamState((prev) => {
 									const nextState: StreamState =
 										prev ?? createEmptyStreamState();
+									const nextBlocks = text
+										? appendStreamTextBlock(
+												nextState.blocks,
+												"thinking",
+												text,
+												title,
+											)
+										: applyStreamThinkingTitle(nextState.blocks, title);
 									return {
 										...nextState,
-										blocks: appendStreamTextBlock(
-											nextState.blocks,
-											"thinking",
-											text,
-										),
+										blocks: nextBlocks,
 									};
 								});
 							});

@@ -478,7 +478,7 @@ func (p *Processor) EnsureLocalAgentRuntimeForChat(
 // ListModels returns the currently available chat model catalog.
 func (p *Processor) ListModels(ctx context.Context) (codersdk.ChatModelsResponse, error) {
 	if p == nil {
-		return codersdk.ChatModelsResponse{}, errors.New("chat processor is not configured")
+		return codersdk.ChatModelsResponse{}, xerrors.New("chat processor is not configured")
 	}
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
@@ -525,7 +525,7 @@ func (p *Processor) EffectiveProviderKeys(
 	configuredProviders []ConfiguredProvider,
 ) (ProviderAPIKeys, error) {
 	if p == nil {
-		return ProviderAPIKeys{}, errors.New("chat processor is not configured")
+		return ProviderAPIKeys{}, xerrors.New("chat processor is not configured")
 	}
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	keys, err := p.resolveProviderAPIKeys(ctx)
@@ -1475,6 +1475,10 @@ func (p *Processor) runChatWithAgent(
 		prompt,
 		getWorkspaceConn,
 	)
+	modelConfig, err := parseChatModelConfig(chat.ModelConfig)
+	if err != nil {
+		return nil, xerrors.Errorf("parse chat model config: %w", err)
+	}
 
 	// Resolve the model config's context_limit so we can use it as a
 	// fallback when the LLM provider doesn't include context_limit in
@@ -1558,6 +1562,7 @@ func (p *Processor) runChatWithAgent(
 	var (
 		stepStateMu           sync.Mutex
 		streamToolNames       map[string]string
+		streamReasoningTitles map[string]string
 		stepToolResults       []ToolResultBlock
 		stepAssistantDraft    []fantasy.Content
 		stepToolCallIndexByID map[string]int
@@ -1565,9 +1570,24 @@ func (p *Processor) runChatWithAgent(
 	resetStepState := func() {
 		stepStateMu.Lock()
 		streamToolNames = make(map[string]string)
+		streamReasoningTitles = make(map[string]string)
 		stepToolResults = nil
 		stepAssistantDraft = nil
 		stepToolCallIndexByID = make(map[string]int)
+		stepStateMu.Unlock()
+	}
+	setReasoningTitle := func(id string, metadata fantasy.ProviderMetadata) {
+		if id == "" {
+			return
+		}
+
+		title := reasoningSummaryTitle(metadata)
+		if title == "" {
+			return
+		}
+
+		stepStateMu.Lock()
+		streamReasoningTitles[id] = title
 		stepStateMu.Unlock()
 	}
 	appendDraftText := func(text string) {
@@ -1763,132 +1783,153 @@ func (p *Processor) runChatWithAgent(
 	)
 	sentinelPrompt := "__chatd_agent_prompt_sentinel_" + uuid.NewString()
 	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(model)
-	maxOutputTokens := int64(32_000)
-
-	result, err := agent.Stream(ctx, fantasy.AgentStreamCall{
-		Prompt:          sentinelPrompt,
-		Messages:        prompt,
-		MaxOutputTokens: &maxOutputTokens,
-		PrepareStep: func(
-			stepCtx context.Context,
-			options fantasy.PrepareStepFunctionOptions,
-		) (context.Context, fantasy.PrepareStepResult, error) {
-			return stepCtx, prepareAgentStepResult(
-				options.Messages,
-				sentinelPrompt,
-				reportOnly,
-				applyAnthropicCaching,
-			), nil
-		},
-		OnStepStart: func(_ int) error {
-			resetStepState()
-			return nil
-		},
-		OnTextDelta: func(_ string, text string) error {
-			appendDraftText(text)
+	streamCall := streamCallOptionsFromChatModelConfig(model, modelConfig)
+	streamCall.Prompt = sentinelPrompt
+	streamCall.Messages = prompt
+	streamCall.PrepareStep = func(
+		stepCtx context.Context,
+		options fantasy.PrepareStepFunctionOptions,
+	) (context.Context, fantasy.PrepareStepResult, error) {
+		return stepCtx, prepareAgentStepResult(
+			options.Messages,
+			sentinelPrompt,
+			reportOnly,
+			applyAnthropicCaching,
+		), nil
+	}
+	streamCall.OnStepStart = func(_ int) error {
+		resetStepState()
+		return nil
+	}
+	streamCall.OnTextDelta = func(_ string, text string) error {
+		appendDraftText(text)
+		p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: text,
+		})
+		return nil
+	}
+	streamCall.OnReasoningDelta = func(id string, text string) error {
+		appendDraftReasoning(text)
+		stepStateMu.Lock()
+		title := streamReasoningTitles[id]
+		stepStateMu.Unlock()
+		p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
+			Type:  codersdk.ChatMessagePartTypeReasoning,
+			Text:  text,
+			Title: title,
+		})
+		return nil
+	}
+	streamCall.OnReasoningStart = func(id string, reasoning fantasy.ReasoningContent) error {
+		setReasoningTitle(id, reasoning.ProviderMetadata)
+		return nil
+	}
+	streamCall.OnReasoningEnd = func(id string, reasoning fantasy.ReasoningContent) error {
+		setReasoningTitle(id, reasoning.ProviderMetadata)
+		stepStateMu.Lock()
+		title := streamReasoningTitles[id]
+		stepStateMu.Unlock()
+		if title != "" {
+			// Publish a title-only reasoning part so clients can update the
+			// reasoning header when metadata arrives at the end of streaming.
 			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeText,
-				Text: text,
+				Type:  codersdk.ChatMessagePartTypeReasoning,
+				Title: title,
 			})
-			return nil
-		},
-		OnReasoningDelta: func(_ string, text string) error {
-			appendDraftReasoning(text)
-			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeReasoning,
-				Text: text,
-			})
-			return nil
-		},
-		OnToolInputStart: func(id, toolName string) error {
-			upsertDraftToolCall(id, toolName, "", false)
-			return nil
-		},
-		OnToolInputDelta: func(id, delta string) error {
-			stepStateMu.Lock()
-			toolName := streamToolNames[id]
-			stepStateMu.Unlock()
-			upsertDraftToolCall(id, toolName, delta, true)
-			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: id,
-				ToolName:   toolName,
-				ArgsDelta:  delta,
-			})
-			return nil
-		},
-		OnToolCall: func(toolCall fantasy.ToolCallContent) error {
-			upsertDraftToolCall(toolCall.ToolCallID, toolCall.ToolName, toolCall.Input, false)
-			p.publishMessagePart(
-				chat.ID,
-				string(fantasy.MessageRoleAssistant),
-				contentBlockToPart(toolCall),
-			)
-			return nil
-		},
-		OnSource: func(source fantasy.SourceContent) error {
-			appendDraftSource(source)
-			p.publishMessagePart(
-				chat.ID,
-				string(fantasy.MessageRoleAssistant),
-				contentBlockToPart(source),
-			)
-			return nil
-		},
-		OnToolResult: func(result fantasy.ToolResultContent) error {
-			toolResult := toolResultBlockFromContent(result)
-			if strings.TrimSpace(result.ClientMetadata) != "" {
-				var block ToolResultBlock
-				if err := json.Unmarshal([]byte(result.ClientMetadata), &block); err == nil {
-					if block.ToolCallID == "" {
-						block.ToolCallID = result.ToolCallID
-					}
-					if block.ToolName == "" {
-						block.ToolName = result.ToolName
-					}
-					toolResult = block
+		}
+		return nil
+	}
+	streamCall.OnToolInputStart = func(id, toolName string) error {
+		upsertDraftToolCall(id, toolName, "", false)
+		return nil
+	}
+	streamCall.OnToolInputDelta = func(id, delta string) error {
+		stepStateMu.Lock()
+		toolName := streamToolNames[id]
+		stepStateMu.Unlock()
+		upsertDraftToolCall(id, toolName, delta, true)
+		p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: id,
+			ToolName:   toolName,
+			ArgsDelta:  delta,
+		})
+		return nil
+	}
+	streamCall.OnToolCall = func(toolCall fantasy.ToolCallContent) error {
+		upsertDraftToolCall(toolCall.ToolCallID, toolCall.ToolName, toolCall.Input, false)
+		p.publishMessagePart(
+			chat.ID,
+			string(fantasy.MessageRoleAssistant),
+			contentBlockToPart(toolCall),
+		)
+		return nil
+	}
+	streamCall.OnSource = func(source fantasy.SourceContent) error {
+		appendDraftSource(source)
+		p.publishMessagePart(
+			chat.ID,
+			string(fantasy.MessageRoleAssistant),
+			contentBlockToPart(source),
+		)
+		return nil
+	}
+	streamCall.OnToolResult = func(result fantasy.ToolResultContent) error {
+		toolResult := toolResultBlockFromContent(result)
+		if strings.TrimSpace(result.ClientMetadata) != "" {
+			var block ToolResultBlock
+			if err := json.Unmarshal([]byte(result.ClientMetadata), &block); err == nil {
+				if block.ToolCallID == "" {
+					block.ToolCallID = result.ToolCallID
 				}
-			}
-			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleTool), toolResultToPart(toolResult))
-
-			stepStateMu.Lock()
-			if toolResult.ToolCallID != "" && strings.TrimSpace(toolResult.ToolName) != "" {
-				streamToolNames[toolResult.ToolCallID] = toolResult.ToolName
-			}
-			stepToolResults = append(stepToolResults, toolResult)
-			stepStateMu.Unlock()
-
-			return nil
-		},
-		OnStepFinish: func(stepResult fantasy.StepResult) error {
-			stepStateMu.Lock()
-			toolResults := append([]ToolResultBlock(nil), stepToolResults...)
-			stepStateMu.Unlock()
-
-			contextLimit := extractContextLimit(stepResult.ProviderMetadata)
-			if !contextLimit.Valid && modelConfigContextLimit > 0 {
-				contextLimit = sql.NullInt64{
-					Int64: modelConfigContextLimit,
-					Valid: true,
+				if block.ToolName == "" {
+					block.ToolName = result.ToolName
 				}
+				toolResult = block
 			}
+		}
+		p.publishMessagePart(chat.ID, string(fantasy.MessageRoleTool), toolResultToPart(toolResult))
 
-			if err := persistAssistant(
-				ctx,
-				stepAssistantContent(stepResult.Content, toolResults),
-				stepResult.Usage,
-				contextLimit,
-			); err != nil {
+		stepStateMu.Lock()
+		if toolResult.ToolCallID != "" && strings.TrimSpace(toolResult.ToolName) != "" {
+			streamToolNames[toolResult.ToolCallID] = toolResult.ToolName
+		}
+		stepToolResults = append(stepToolResults, toolResult)
+		stepStateMu.Unlock()
+
+		return nil
+	}
+	streamCall.OnStepFinish = func(stepResult fantasy.StepResult) error {
+		stepStateMu.Lock()
+		toolResults := append([]ToolResultBlock(nil), stepToolResults...)
+		stepStateMu.Unlock()
+
+		contextLimit := extractContextLimit(stepResult.ProviderMetadata)
+		if !contextLimit.Valid && modelConfigContextLimit > 0 {
+			contextLimit = sql.NullInt64{
+				Int64: modelConfigContextLimit,
+				Valid: true,
+			}
+		}
+
+		if err := persistAssistant(
+			ctx,
+			stepAssistantContent(stepResult.Content, toolResults),
+			stepResult.Usage,
+			contextLimit,
+		); err != nil {
+			return err
+		}
+		for _, toolResult := range toolResults {
+			if err := persistToolResult(ctx, toolResult); err != nil {
 				return err
 			}
-			for _, toolResult := range toolResults {
-				if err := persistToolResult(ctx, toolResult); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-	})
+		}
+		return nil
+	}
+
+	result, err := agent.Stream(ctx, streamCall)
 	if err != nil {
 		if errors.Is(err, context.Canceled) && errors.Is(context.Cause(ctx), ErrChatInterrupted) {
 			if persistErr := persistInterruptedStep(); persistErr != nil {
@@ -2908,19 +2949,32 @@ func contentToMessageParts(content []fantasy.Content) []fantasy.MessagePart {
 	for _, block := range content {
 		switch value := block.(type) {
 		case fantasy.TextContent:
-			parts = append(parts, fantasy.TextPart{Text: value.Text})
+			parts = append(parts, fantasy.TextPart{
+				Text:            value.Text,
+				ProviderOptions: fantasy.ProviderOptions(value.ProviderMetadata),
+			})
 		case *fantasy.TextContent:
-			parts = append(parts, fantasy.TextPart{Text: value.Text})
+			parts = append(parts, fantasy.TextPart{
+				Text:            value.Text,
+				ProviderOptions: fantasy.ProviderOptions(value.ProviderMetadata),
+			})
 		case fantasy.ReasoningContent:
-			parts = append(parts, fantasy.ReasoningPart{Text: value.Text})
+			parts = append(parts, fantasy.ReasoningPart{
+				Text:            value.Text,
+				ProviderOptions: fantasy.ProviderOptions(value.ProviderMetadata),
+			})
 		case *fantasy.ReasoningContent:
-			parts = append(parts, fantasy.ReasoningPart{Text: value.Text})
+			parts = append(parts, fantasy.ReasoningPart{
+				Text:            value.Text,
+				ProviderOptions: fantasy.ProviderOptions(value.ProviderMetadata),
+			})
 		case fantasy.ToolCallContent:
 			parts = append(parts, fantasy.ToolCallPart{
 				ToolCallID:       sanitizeToolCallID(value.ToolCallID),
 				ToolName:         value.ToolName,
 				Input:            value.Input,
 				ProviderExecuted: value.ProviderExecuted,
+				ProviderOptions:  fantasy.ProviderOptions(value.ProviderMetadata),
 			})
 		case *fantasy.ToolCallContent:
 			parts = append(parts, fantasy.ToolCallPart{
@@ -2928,16 +2982,31 @@ func contentToMessageParts(content []fantasy.Content) []fantasy.MessagePart {
 				ToolName:         value.ToolName,
 				Input:            value.Input,
 				ProviderExecuted: value.ProviderExecuted,
+				ProviderOptions:  fantasy.ProviderOptions(value.ProviderMetadata),
 			})
 		case fantasy.FileContent:
 			parts = append(parts, fantasy.FilePart{
-				Data:      value.Data,
-				MediaType: value.MediaType,
+				Data:            value.Data,
+				MediaType:       value.MediaType,
+				ProviderOptions: fantasy.ProviderOptions(value.ProviderMetadata),
 			})
 		case *fantasy.FileContent:
 			parts = append(parts, fantasy.FilePart{
-				Data:      value.Data,
-				MediaType: value.MediaType,
+				Data:            value.Data,
+				MediaType:       value.MediaType,
+				ProviderOptions: fantasy.ProviderOptions(value.ProviderMetadata),
+			})
+		case fantasy.ToolResultContent:
+			parts = append(parts, fantasy.ToolResultPart{
+				ToolCallID:      sanitizeToolCallID(value.ToolCallID),
+				Output:          value.Result,
+				ProviderOptions: fantasy.ProviderOptions(value.ProviderMetadata),
+			})
+		case *fantasy.ToolResultContent:
+			parts = append(parts, fantasy.ToolResultPart{
+				ToolCallID:      sanitizeToolCallID(value.ToolCallID),
+				Output:          value.Result,
+				ProviderOptions: fantasy.ProviderOptions(value.ProviderMetadata),
 			})
 		}
 	}
@@ -3051,13 +3120,15 @@ func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 		}
 	case fantasy.ReasoningContent:
 		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeReasoning,
-			Text: value.Text,
+			Type:  codersdk.ChatMessagePartTypeReasoning,
+			Text:  value.Text,
+			Title: reasoningSummaryTitle(value.ProviderMetadata),
 		}
 	case *fantasy.ReasoningContent:
 		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeReasoning,
-			Text: value.Text,
+			Type:  codersdk.ChatMessagePartTypeReasoning,
+			Text:  value.Text,
+			Title: reasoningSummaryTitle(value.ProviderMetadata),
 		}
 	case fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
@@ -3106,6 +3177,55 @@ func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 	default:
 		return codersdk.ChatMessagePart{}
 	}
+}
+
+func reasoningSummaryTitle(metadata fantasy.ProviderMetadata) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+
+	reasoningMetadata := fantasyopenai.GetReasoningMetadata(
+		fantasy.ProviderOptions(metadata),
+	)
+	if reasoningMetadata == nil {
+		return ""
+	}
+
+	for _, summary := range reasoningMetadata.Summary {
+		if title := compactReasoningSummaryTitle(summary); title != "" {
+			return title
+		}
+	}
+
+	return ""
+}
+
+func compactReasoningSummaryTitle(summary string) string {
+	const maxWords = 8
+	const maxRunes = 80
+
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		return ""
+	}
+
+	summary = strings.Trim(summary, "\"'`")
+	words := strings.Fields(summary)
+	if len(words) == 0 {
+		return ""
+	}
+
+	truncated := false
+	if len(words) > maxWords {
+		words = words[:maxWords]
+		truncated = true
+	}
+
+	title := strings.Join(words, " ")
+	if truncated {
+		title += "…"
+	}
+	return truncateRunes(title, maxRunes)
 }
 
 func toolResultBlockFromContent(content fantasy.ToolResultContent) ToolResultBlock {
@@ -3264,6 +3384,7 @@ func intValue(value any) (int, bool) {
 }
 
 type chatModelConfig struct {
+	codersdk.ChatModelCallConfig
 	Provider      string                     `json:"provider,omitempty"`
 	Model         string                     `json:"model"`
 	WorkspaceMode codersdk.ChatWorkspaceMode `json:"workspace_mode,omitempty"`
@@ -3279,6 +3400,326 @@ func parseChatModelConfig(raw json.RawMessage) (chatModelConfig, error) {
 		return chatModelConfig{}, err
 	}
 	return config, nil
+}
+
+func streamCallOptionsFromChatModelConfig(
+	model fantasy.LanguageModel,
+	config chatModelConfig,
+) fantasy.AgentStreamCall {
+	streamCall := fantasy.AgentStreamCall{
+		MaxOutputTokens:  config.MaxOutputTokens,
+		Temperature:      config.Temperature,
+		TopP:             config.TopP,
+		TopK:             config.TopK,
+		PresencePenalty:  config.PresencePenalty,
+		FrequencyPenalty: config.FrequencyPenalty,
+		ProviderOptions:  providerOptionsFromChatModelConfig(model, config.ProviderOptions),
+	}
+
+	if streamCall.MaxOutputTokens == nil {
+		maxOutputTokens := int64(32_000)
+		streamCall.MaxOutputTokens = &maxOutputTokens
+	}
+
+	return streamCall
+}
+
+func providerOptionsFromChatModelConfig(
+	model fantasy.LanguageModel,
+	options *codersdk.ChatModelProviderOptions,
+) fantasy.ProviderOptions {
+	if options == nil {
+		return nil
+	}
+
+	result := fantasy.ProviderOptions{}
+
+	if options.OpenAI != nil {
+		result[fantasyopenai.Name] = openAIProviderOptionsFromChatConfig(
+			model,
+			options.OpenAI,
+		)
+	}
+	if options.Anthropic != nil {
+		anthropicOptions := &fantasyanthropic.ProviderOptions{
+			SendReasoning:          options.Anthropic.SendReasoning,
+			DisableParallelToolUse: options.Anthropic.DisableParallelToolUse,
+		}
+		if options.Anthropic.Thinking != nil {
+			anthropicOptions.Thinking = &fantasyanthropic.ThinkingProviderOption{
+				BudgetTokens: options.Anthropic.Thinking.BudgetTokens,
+			}
+		}
+		result[fantasyanthropic.Name] = anthropicOptions
+	}
+	if options.Google != nil {
+		googleOptions := &fantasygoogle.ProviderOptions{
+			CachedContent: strings.TrimSpace(options.Google.CachedContent),
+		}
+		if options.Google.ThinkingConfig != nil {
+			googleOptions.ThinkingConfig = &fantasygoogle.ThinkingConfig{
+				ThinkingBudget:  options.Google.ThinkingConfig.ThinkingBudget,
+				IncludeThoughts: options.Google.ThinkingConfig.IncludeThoughts,
+			}
+		}
+		if len(options.Google.SafetySettings) > 0 {
+			googleOptions.SafetySettings = make(
+				[]fantasygoogle.SafetySetting,
+				0,
+				len(options.Google.SafetySettings),
+			)
+			for _, setting := range options.Google.SafetySettings {
+				googleOptions.SafetySettings = append(
+					googleOptions.SafetySettings,
+					fantasygoogle.SafetySetting{
+						Category:  strings.TrimSpace(setting.Category),
+						Threshold: strings.TrimSpace(setting.Threshold),
+					},
+				)
+			}
+		}
+		result[fantasygoogle.Name] = googleOptions
+	}
+	if options.OpenAICompat != nil {
+		result[fantasyopenaicompat.Name] = &fantasyopenaicompat.ProviderOptions{
+			User:            normalizedStringPointer(options.OpenAICompat.User),
+			ReasoningEffort: openAIReasoningEffortFromChat(options.OpenAICompat.ReasoningEffort),
+		}
+	}
+	if options.OpenRouter != nil {
+		result[fantasyopenrouter.Name] = &fantasyopenrouter.ProviderOptions{
+			Reasoning:         openRouterReasoningOptionsFromChat(options.OpenRouter.Reasoning),
+			ParallelToolCalls: options.OpenRouter.ParallelToolCalls,
+			IncludeUsage:      options.OpenRouter.IncludeUsage,
+			User:              normalizedStringPointer(options.OpenRouter.User),
+		}
+	}
+	if options.Vercel != nil {
+		result[fantasyvercel.Name] = &fantasyvercel.ProviderOptions{
+			Reasoning:         vercelReasoningOptionsFromChat(options.Vercel.Reasoning),
+			ParallelToolCalls: options.Vercel.ParallelToolCalls,
+			User:              normalizedStringPointer(options.Vercel.User),
+		}
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+func openAIProviderOptionsFromChatConfig(
+	model fantasy.LanguageModel,
+	options *codersdk.ChatModelOpenAIProviderOptions,
+) fantasy.ProviderOptionsData {
+	if useOpenAIResponsesOptions(model) {
+		providerOptions := &fantasyopenai.ResponsesProviderOptions{
+			ParallelToolCalls: options.ParallelToolCalls,
+			ReasoningEffort:   openAIReasoningEffortFromChat(options.ReasoningEffort),
+			ReasoningSummary:  normalizedStringPointer(options.ReasoningSummary),
+			ServiceTier:       openAIServiceTierFromChat(options.ServiceTier),
+			TextVerbosity:     openAITextVerbosityFromChat(options.TextVerbosity),
+			User:              normalizedStringPointer(options.User),
+		}
+		if len(options.Include) > 0 {
+			providerOptions.Include = make(
+				[]fantasyopenai.IncludeType,
+				0,
+				len(options.Include),
+			)
+			for _, include := range options.Include {
+				trimmed := strings.TrimSpace(include)
+				if trimmed == "" {
+					continue
+				}
+				providerOptions.Include = append(
+					providerOptions.Include,
+					fantasyopenai.IncludeType(trimmed),
+				)
+			}
+		}
+		return providerOptions
+	}
+
+	return &fantasyopenai.ProviderOptions{
+		ParallelToolCalls: options.ParallelToolCalls,
+		ReasoningEffort:   openAIReasoningEffortFromChat(options.ReasoningEffort),
+		TextVerbosity:     normalizedStringPointer(options.TextVerbosity),
+		ServiceTier:       normalizedStringPointer(options.ServiceTier),
+		User:              normalizedStringPointer(options.User),
+	}
+}
+
+func useOpenAIResponsesOptions(model fantasy.LanguageModel) bool {
+	if model == nil {
+		return false
+	}
+	switch model.Provider() {
+	case fantasyopenai.Name, fantasyazure.Name:
+		return fantasyopenai.IsResponsesModel(model.Model())
+	default:
+		return false
+	}
+}
+
+func normalizedStringPointer(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func openAIReasoningEffortFromChat(
+	effort *codersdk.ChatModelReasoningEffort,
+) *fantasyopenai.ReasoningEffort {
+	if effort == nil {
+		return nil
+	}
+	switch *effort {
+	case codersdk.ChatModelReasoningEffortMinimal:
+		value := fantasyopenai.ReasoningEffortMinimal
+		return &value
+	case codersdk.ChatModelReasoningEffortLow:
+		value := fantasyopenai.ReasoningEffortLow
+		return &value
+	case codersdk.ChatModelReasoningEffortMedium:
+		value := fantasyopenai.ReasoningEffortMedium
+		return &value
+	case codersdk.ChatModelReasoningEffortHigh:
+		value := fantasyopenai.ReasoningEffortHigh
+		return &value
+	case codersdk.ChatModelReasoningEffortXHigh:
+		value := fantasyopenai.ReasoningEffort("xhigh")
+		return &value
+	case codersdk.ChatModelReasoningEffortNone:
+		value := fantasyopenai.ReasoningEffort("none")
+		return &value
+	default:
+		return nil
+	}
+}
+
+func openAIServiceTierFromChat(value *string) *fantasyopenai.ServiceTier {
+	normalized := normalizedStringPointer(value)
+	if normalized == nil {
+		return nil
+	}
+	switch strings.ToLower(*normalized) {
+	case string(fantasyopenai.ServiceTierAuto):
+		serviceTier := fantasyopenai.ServiceTierAuto
+		return &serviceTier
+	case string(fantasyopenai.ServiceTierFlex):
+		serviceTier := fantasyopenai.ServiceTierFlex
+		return &serviceTier
+	case string(fantasyopenai.ServiceTierPriority):
+		serviceTier := fantasyopenai.ServiceTierPriority
+		return &serviceTier
+	default:
+		return nil
+	}
+}
+
+func openAITextVerbosityFromChat(value *string) *fantasyopenai.TextVerbosity {
+	normalized := normalizedStringPointer(value)
+	if normalized == nil {
+		return nil
+	}
+	switch strings.ToLower(*normalized) {
+	case string(fantasyopenai.TextVerbosityLow):
+		verbosity := fantasyopenai.TextVerbosityLow
+		return &verbosity
+	case string(fantasyopenai.TextVerbosityMedium):
+		verbosity := fantasyopenai.TextVerbosityMedium
+		return &verbosity
+	case string(fantasyopenai.TextVerbosityHigh):
+		verbosity := fantasyopenai.TextVerbosityHigh
+		return &verbosity
+	default:
+		return nil
+	}
+}
+
+func openRouterReasoningOptionsFromChat(
+	options *codersdk.ChatModelReasoningOptions,
+) *fantasyopenrouter.ReasoningOptions {
+	if options == nil {
+		return nil
+	}
+	return &fantasyopenrouter.ReasoningOptions{
+		Enabled:   options.Enabled,
+		Exclude:   options.Exclude,
+		MaxTokens: options.MaxTokens,
+		Effort:    openRouterReasoningEffortFromChat(options.Effort),
+	}
+}
+
+func openRouterReasoningEffortFromChat(
+	effort *codersdk.ChatModelReasoningEffort,
+) *fantasyopenrouter.ReasoningEffort {
+	if effort == nil {
+		return nil
+	}
+	switch *effort {
+	case codersdk.ChatModelReasoningEffortLow:
+		value := fantasyopenrouter.ReasoningEffortLow
+		return &value
+	case codersdk.ChatModelReasoningEffortMedium:
+		value := fantasyopenrouter.ReasoningEffortMedium
+		return &value
+	case codersdk.ChatModelReasoningEffortHigh:
+		value := fantasyopenrouter.ReasoningEffortHigh
+		return &value
+	default:
+		return nil
+	}
+}
+
+func vercelReasoningOptionsFromChat(
+	options *codersdk.ChatModelReasoningOptions,
+) *fantasyvercel.ReasoningOptions {
+	if options == nil {
+		return nil
+	}
+	return &fantasyvercel.ReasoningOptions{
+		Enabled:   options.Enabled,
+		Exclude:   options.Exclude,
+		MaxTokens: options.MaxTokens,
+		Effort:    vercelReasoningEffortFromChat(options.Effort),
+	}
+}
+
+func vercelReasoningEffortFromChat(
+	effort *codersdk.ChatModelReasoningEffort,
+) *fantasyvercel.ReasoningEffort {
+	if effort == nil {
+		return nil
+	}
+	switch *effort {
+	case codersdk.ChatModelReasoningEffortNone:
+		value := fantasyvercel.ReasoningEffortNone
+		return &value
+	case codersdk.ChatModelReasoningEffortMinimal:
+		value := fantasyvercel.ReasoningEffortMinimal
+		return &value
+	case codersdk.ChatModelReasoningEffortLow:
+		value := fantasyvercel.ReasoningEffortLow
+		return &value
+	case codersdk.ChatModelReasoningEffortMedium:
+		value := fantasyvercel.ReasoningEffortMedium
+		return &value
+	case codersdk.ChatModelReasoningEffortHigh:
+		value := fantasyvercel.ReasoningEffortHigh
+		return &value
+	case codersdk.ChatModelReasoningEffortXHigh:
+		value := fantasyvercel.ReasoningEffortXHigh
+		return &value
+	default:
+		return nil
+	}
 }
 
 func workspaceModeFromChat(chat database.Chat) codersdk.ChatWorkspaceMode {

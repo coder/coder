@@ -1210,6 +1210,7 @@ CREATE TABLE chat_model_configs (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     context_limit bigint NOT NULL,
     compression_threshold integer NOT NULL,
+    model_config jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT chat_model_configs_compression_threshold_check CHECK (((compression_threshold >= 0) AND (compression_threshold <= 100))),
     CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
 );
@@ -3117,9 +3118,6 @@ ALTER TABLE ONLY chat_messages
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY chat_model_configs
-    ADD CONSTRAINT chat_model_configs_provider_model_key UNIQUE (provider, model);
-
 ALTER TABLE ONLY chat_providers
     ADD CONSTRAINT chat_providers_pkey PRIMARY KEY (id);
 
@@ -3472,6 +3470,8 @@ CREATE INDEX idx_chat_messages_subagent_request ON chat_messages USING btree (ch
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
 CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (provider);
+
+CREATE INDEX idx_chat_model_configs_provider_model ON chat_model_configs USING btree (provider, model);
 
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 

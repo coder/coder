@@ -60,7 +60,7 @@ import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
 import { AgentsSidebar } from "./AgentsSidebar";
-import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel";
+import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
