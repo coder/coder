@@ -297,7 +297,6 @@ func holdConnection(ctx context.Context, logs io.Writer, conn workspacesdk.Agent
 		_, _ = fmt.Fprintln(logs, "\nStarting connection loops...")
 	}
 	for i, connSpec := range specs {
-		i, connSpec := i, connSpec
 		if connSpec.Interval <= 0 {
 			continue
 		}

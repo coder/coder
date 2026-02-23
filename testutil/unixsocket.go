@@ -1,7 +1,10 @@
 package testutil
 
 import (
+	"crypto/rand"
+	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -16,19 +19,31 @@ import (
 // During tests on darwin we hit the max path length limit for unix sockets
 // pretty easily in the default location, so this function uses /tmp instead to
 // get shorter paths.
+//
+// On Linux, we also hit this limit on GitHub Actions runners where TMPDIR is
+// set to a long path like /home/runner/work/_temp/go-tmp/.
 func TempDirUnixSocket(t *testing.T) string {
 	t.Helper()
-	if runtime.GOOS == "darwin" {
-		testName := strings.ReplaceAll(t.Name(), "/", "_")
-		dir, err := os.MkdirTemp("/tmp", testName)
-		require.NoError(t, err, "create temp dir for gpg test")
-
-		t.Cleanup(func() {
-			err := os.RemoveAll(dir)
-			assert.NoError(t, err, "remove temp dir", dir)
-		})
-		return dir
+	// Windows doesn't have the same unix socket path length limits,
+	// and callers of this function are generally gated to !windows.
+	if runtime.GOOS == "windows" {
+		return t.TempDir()
 	}
 
-	return t.TempDir()
+	testName := strings.ReplaceAll(t.Name(), "/", "_")
+	dir, err := os.MkdirTemp("/tmp", testName)
+	require.NoError(t, err, "create temp dir for unix socket test")
+
+	t.Cleanup(func() {
+		err := os.RemoveAll(dir)
+		assert.NoError(t, err, "remove temp dir", dir)
+	})
+	return dir
+}
+
+func AgentSocketPath(t *testing.T) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf(`\\.\pipe\com.coder.agentsocket_test.%s.%s`, t.Name(), rand.Text())
+	}
+	return filepath.Join(TempDirUnixSocket(t), "test.sock")
 }

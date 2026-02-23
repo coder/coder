@@ -1058,6 +1058,17 @@ Controls if the 'Secure' property is set on browser session cookies.
 
 Controls the 'SameSite' property is set on browser session cookies.
 
+### --host-prefix-cookie
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_HOST_PREFIX_COOKIE</code>   |
+| YAML        | <code>networking.hostPrefixCookie</code> |
+| Default     | <code>false</code>                       |
+
+Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain.
+
 ### --terms-of-service-url
 
 |             |                                          |
@@ -1156,7 +1167,7 @@ Remove the permission for the 'owner' role to have workspace execution on all wo
 | Environment | <code>$CODER_DISABLE_WORKSPACE_SHARING</code> |
 | YAML        | <code>disableWorkspaceSharing</code>          |
 
-Disable workspace sharing (requires the "workspace-sharing" experiment to be enabled). Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
+Disable workspace sharing. Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
 
 ### --session-duration
 

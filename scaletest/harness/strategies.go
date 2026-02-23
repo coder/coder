@@ -89,8 +89,6 @@ func (p ParallelExecutionStrategy) Run(ctx context.Context, fns []TestFn) ([]err
 	defer close(sem)
 
 	for i, fn := range fns {
-		i, fn := i, fn
-
 		wg.Add(1)
 		go func() {
 			defer func() {
