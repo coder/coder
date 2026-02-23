@@ -2,6 +2,7 @@ import type { ChatModelsResponse } from "api/api";
 import { watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
+	chatKey,
 	chatModels,
 	chats,
 	chatsKey,
@@ -256,6 +257,10 @@ export const AgentsPage: FC = () => {
 					(prev: TypesGen.Chat[] | undefined) =>
 						prev?.filter((c) => c.id !== updatedChat.id),
 				);
+				queryClient.removeQueries({
+					queryKey: chatKey(updatedChat.id),
+					exact: true,
+				});
 				return;
 			}
 
@@ -280,6 +285,23 @@ export const AgentsPage: FC = () => {
 						return [updatedChat, ...prev];
 					}
 					return prev;
+				},
+			);
+			queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
+				chatKey(updatedChat.id),
+				(previousChat) => {
+					if (!previousChat) {
+						return previousChat;
+					}
+					return {
+						...previousChat,
+						chat: {
+							...previousChat.chat,
+							status: updatedChat.status,
+							title: updatedChat.title,
+							updated_at: updatedChat.updated_at,
+						},
+					};
 				},
 			);
 		});

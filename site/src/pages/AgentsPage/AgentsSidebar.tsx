@@ -425,7 +425,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									size="icon"
 									variant="subtle"
 									className={cn(
-										"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
+										"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary group-hover:opacity-100",
 										isArchivingThisChat && "opacity-100",
 									)}
 									aria-label={`Open actions for ${chat.title}`}

@@ -439,6 +439,18 @@ func (p *Processor) InterruptChat(chatID uuid.UUID) bool {
 	return true
 }
 
+// IsChatActive reports whether the processor currently has an in-flight
+// worker for the chat.
+func (p *Processor) IsChatActive(chatID uuid.UUID) bool {
+	if p == nil {
+		return false
+	}
+	p.activeMu.Lock()
+	_, ok := p.activeCancels[chatID]
+	p.activeMu.Unlock()
+	return ok
+}
+
 func (p *Processor) EnsureLocalWorkspaceBinding(
 	ctx context.Context,
 	ownerID uuid.UUID,
