@@ -1,4 +1,4 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { deploymentConfig } from "api/queries/deployment";
 import { groupsByUserId } from "api/queries/groups";
 import { roles } from "api/queries/roles";
@@ -15,7 +15,6 @@ import type { User } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useFilter } from "components/Filter/Filter";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
@@ -23,6 +22,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
@@ -133,10 +133,13 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 				onUpdateUserRoles={async (userId, roles) => {
 					try {
 						await updateRolesMutation.mutateAsync({ userId, roles });
-						displaySuccess("Successfully updated the user roles.");
+						toast.success("Successfully updated the user roles.");
 					} catch (e) {
-						displayError(
+						toast.error(
 							getErrorMessage(e, "Error on updating the user roles."),
+							{
+								description: getErrorDetail(e),
+							},
 						);
 					}
 				}}
@@ -169,9 +172,11 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 					try {
 						await deleteUserMutation.mutateAsync(userToDelete.id);
 						setUserToDelete(undefined);
-						displaySuccess("Successfully deleted the user.");
+						toast.success("Successfully deleted the user.");
 					} catch (e) {
-						displayError(getErrorMessage(e, "Error deleting user."));
+						toast.error(getErrorMessage(e, "Error deleting user."), {
+							description: getErrorDetail(e),
+						});
 					}
 				}}
 			/>
@@ -191,9 +196,11 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 					try {
 						await suspendUserMutation.mutateAsync(userToSuspend.id);
 						setUserToSuspend(undefined);
-						displaySuccess("Successfully suspended the user.");
+						toast.success("Successfully suspended the user.");
 					} catch (e) {
-						displayError(getErrorMessage(e, "Error suspending user."));
+						toast.error(getErrorMessage(e, "Error suspending user."), {
+							description: getErrorDetail(e),
+						});
 					}
 				}}
 				description={
@@ -219,9 +226,11 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 					try {
 						await activateUserMutation.mutateAsync(userToActivate.id);
 						setUserToActivate(undefined);
-						displaySuccess("Successfully activated the user.");
+						toast.success("Successfully activated the user.");
 					} catch (e) {
-						displayError(getErrorMessage(e, "Error activating user."));
+						toast.error(getErrorMessage(e, "Error activating user."), {
+							description: getErrorDetail(e),
+						});
 					}
 				}}
 				description={
@@ -252,9 +261,9 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 							old_password: "",
 						});
 						setConfirmResetPassword(undefined);
-						displaySuccess("Successfully updated the user password.");
+						toast.success("Successfully updated the user password.");
 					} catch (e) {
-						displayError(
+						toast.error(
 							getErrorMessage(e, "Error on resetting the user password."),
 						);
 					}

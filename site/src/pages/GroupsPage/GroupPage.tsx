@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import {
 	addMember,
 	deleteGroup,
@@ -24,7 +24,6 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -57,6 +56,7 @@ import { isEveryoneGroup } from "modules/groups";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 
 const GroupPage: FC = () => {
@@ -149,7 +149,9 @@ const GroupPage: FC = () => {
 								reset();
 								await groupQuery.refetch();
 							} catch (error) {
-								displayError(getErrorMessage(error, "Failed to add member."));
+								toast.error(getErrorMessage(error, "Failed to add member."), {
+									description: getErrorDetail(error),
+								});
 							}
 						}}
 					/>
@@ -196,10 +198,13 @@ const GroupPage: FC = () => {
 												userId: member.id,
 											});
 											await groupQuery.refetch();
-											displaySuccess("Member removed successfully.");
+											toast.success("Member removed successfully.");
 										} catch (error) {
-											displayError(
+											toast.error(
 												getErrorMessage(error, "Failed to remove member."),
+												{
+													description: getErrorDetail(error),
+												},
 											);
 										}
 									}}
@@ -219,10 +224,12 @@ const GroupPage: FC = () => {
 					onConfirm={async () => {
 						try {
 							await deleteGroupMutation.mutateAsync(groupId);
-							displaySuccess("Group deleted successfully.");
+							toast.success("Group deleted successfully.");
 							navigate("..");
 						} catch (error) {
-							displayError(getErrorMessage(error, "Failed to delete group."));
+							toast.error(getErrorMessage(error, "Failed to delete group."), {
+								description: getErrorDetail(error),
+							});
 						}
 					}}
 					onCancel={() => {

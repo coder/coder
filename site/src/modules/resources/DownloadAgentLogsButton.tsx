@@ -1,11 +1,11 @@
 import { agentLogs } from "api/queries/workspaces";
 import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { saveAs } from "file-saver";
 import { DownloadIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQueryClient } from "react-query";
+import { toast } from "sonner";
 
 type DownloadAgentLogsButtonProps = {
 	agent: Pick<WorkspaceAgent, "id" | "name" | "status" | "lifecycle_state">;
@@ -48,7 +48,7 @@ export const DownloadAgentLogsButton: FC<DownloadAgentLogsButtonProps> = ({
 					download(file, `${agent.name}-logs.txt`);
 				} catch (e) {
 					console.error(e);
-					displayError("Failed to download logs");
+					toast.error("Failed to download logs");
 				} finally {
 					setIsDownloading(false);
 				}

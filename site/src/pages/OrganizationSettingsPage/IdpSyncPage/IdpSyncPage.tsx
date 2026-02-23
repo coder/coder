@@ -1,4 +1,4 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import {
 	groupIdpSyncSettings,
@@ -10,7 +10,6 @@ import {
 import { organizationRoles } from "api/queries/roles";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -19,6 +18,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
+import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import IdpSyncPageView from "./IdpSyncPageView";
@@ -152,26 +152,32 @@ const IdpSyncPage: FC = () => {
 							onSubmitGroupSyncSettings={async (data) => {
 								try {
 									await patchGroupSyncSettingsMutation.mutateAsync(data);
-									displaySuccess("IdP Group sync settings updated.");
+									toast.success("IdP Group sync settings updated.");
 								} catch (error) {
-									displayError(
+									toast.error(
 										getErrorMessage(
 											error,
 											"Failed to update IdP group sync settings",
 										),
+										{
+											description: getErrorDetail(error),
+										},
 									);
 								}
 							}}
 							onSubmitRoleSyncSettings={async (data) => {
 								try {
 									await patchRoleSyncSettingsMutation.mutateAsync(data);
-									displaySuccess("IdP Role sync settings updated.");
+									toast.success("IdP Role sync settings updated.");
 								} catch (error) {
-									displayError(
+									toast.error(
 										getErrorMessage(
 											error,
 											"Failed to update IdP role sync settings",
 										),
+										{
+											description: getErrorDetail(error),
+										},
 									);
 								}
 							}}

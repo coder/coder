@@ -2,9 +2,9 @@ import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type { Task } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
 import { QueryClient, useMutation } from "react-query";
+import { toast } from "sonner";
 
 type TaskDeleteDialogProps = {
 	open: boolean;
@@ -35,13 +35,12 @@ export const TaskDeleteDialog: FC<TaskDeleteDialogProps> = ({
 			onConfirm={async () => {
 				try {
 					await deleteTaskMutation.mutateAsync();
-					displaySuccess("Task deleted successfully");
+					toast.success("Task deleted successfully");
 					onSuccess?.();
 				} catch (error) {
-					displayError(
-						getErrorMessage(error, "Failed to delete task"),
-						getErrorDetail(error),
-					);
+					toast.error(getErrorMessage(error, "Failed to delete task"), {
+						description: getErrorDetail(error),
+					});
 				} finally {
 					props.onClose();
 				}

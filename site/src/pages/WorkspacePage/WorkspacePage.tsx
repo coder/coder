@@ -8,13 +8,13 @@ import {
 } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
+import { toast } from "sonner";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
 const WorkspacePage: FC = () => {
@@ -86,9 +86,9 @@ const WorkspacePage: FC = () => {
 		const socket = watchWorkspace(workspaceId);
 		socket.addEventListener("message", (event) => {
 			if (event.parseError) {
-				displayError(
-					"Unable to process latest data from the server. Please try refreshing the page.",
-				);
+				toast.error("Unable to process latest data from the server.", {
+					description: "Please try refreshing the page",
+				});
 				return;
 			}
 
@@ -97,9 +97,9 @@ const WorkspacePage: FC = () => {
 			}
 		});
 		socket.addEventListener("error", () => {
-			displayError(
-				"Unable to get workspace changes. Connection has been closed.",
-			);
+			toast.error("Unable to get workspace changes.", {
+				description: "Connection has been closed.",
+			});
 		});
 
 		return () => socket.close();

@@ -11,7 +11,7 @@
  */
 
 import { renderHook, screen } from "@testing-library/react";
-import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import { Toaster } from "components/Toaster/Toaster";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { act } from "react";
 import themes, { DEFAULT_THEME } from "theme";
@@ -123,10 +123,9 @@ function renderUseClipboard(inputs?: UseClipboardInput) {
 		{
 			initialProps: inputs,
 			wrapper: ({ children }) => (
-				// Need ThemeProvider because GlobalSnackbar uses theme
 				<ThemeOverride theme={themes[DEFAULT_THEME]}>
 					{children}
-					<GlobalSnackbar />
+					<Toaster />
 				</ThemeOverride>
 			),
 		},
@@ -240,7 +239,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		 * snackbar still kicks up act warnings, even after wrapping copyToClipboard
 		 * in act. copyToClipboard should be the main source of the state
 		 * transitions, but it looks like extra state changes are still getting
-		 * flushed through the GlobalSnackbar component afterwards
+		 * flushed through the Toaster component afterwards
 		 */
 		setSimulateFailure(true);
 		await act(() => result.current.copyToClipboard(textToCopy));

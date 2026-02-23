@@ -1,10 +1,10 @@
 import { authMethods, createUser } from "api/queries/users";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
@@ -36,7 +36,7 @@ const CreateUserPage: FC = () => {
 						password: user.password,
 						user_status: null,
 					});
-					displaySuccess("Successfully created user.");
+					toast.success("Successfully created user.");
 					navigate("..", { relative: "path" });
 				}}
 				onCancel={() => {

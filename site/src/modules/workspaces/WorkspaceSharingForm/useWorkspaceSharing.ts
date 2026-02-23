@@ -10,9 +10,9 @@ import type {
 	WorkspaceRole,
 	WorkspaceUser,
 } from "api/typesGenerated";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 
 /**
  * Encapsulates all data fetching and mutations for workspace sharing.
@@ -44,7 +44,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 			role,
 		});
 		setHasRemovedMember(false);
-		displaySuccess("User added to workspace successfully!");
+		toast.success("User added to workspace successfully!");
 		reset();
 	};
 
@@ -54,7 +54,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 			userId: user.id,
 			role,
 		});
-		displaySuccess("User role updated successfully!");
+		toast.success("User role updated successfully!");
 	};
 
 	const removeUser = async (user: WorkspaceUser) => {
@@ -64,7 +64,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 			role: "",
 		});
 		setHasRemovedMember(true);
-		displaySuccess("User removed successfully!");
+		toast.success("User removed successfully!");
 	};
 
 	const addGroup = async (
@@ -78,7 +78,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 			role,
 		});
 		setHasRemovedMember(false);
-		displaySuccess("Group added to workspace successfully!");
+		toast.success("Group added to workspace successfully!");
 		reset();
 	};
 
@@ -88,7 +88,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 			groupId: group.id,
 			role,
 		});
-		displaySuccess("Group role updated successfully!");
+		toast.success("Group role updated successfully!");
 	};
 
 	const removeGroup = async (group: Group) => {
@@ -98,7 +98,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 			role: "",
 		});
 		setHasRemovedMember(true);
-		displaySuccess("Group removed successfully!");
+		toast.success("Group removed successfully!");
 	};
 
 	const mutationError =

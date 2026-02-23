@@ -1,11 +1,11 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { appearanceConfigKey, updateAppearance } from "api/queries/appearance";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 
@@ -27,10 +27,13 @@ const AppearanceSettingsPage: FC = () => {
 		try {
 			await updateAppearanceMutation.mutateAsync(newAppearance);
 			await queryClient.invalidateQueries({ queryKey: appearanceConfigKey });
-			displaySuccess("Successfully updated appearance settings!");
+			toast.success("Successfully updated appearance settings!");
 		} catch (error) {
-			displayError(
+			toast.error(
 				getErrorMessage(error, "Failed to update appearance settings."),
+				{
+					description: getErrorDetail(error),
+				},
 			);
 		}
 	};

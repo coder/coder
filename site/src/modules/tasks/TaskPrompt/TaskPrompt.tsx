@@ -11,7 +11,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Kbd, KbdGroup } from "components/Kbd/Kbd";
 import { Link } from "components/Link/Link";
 import {
@@ -35,6 +34,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize, {
 	type TextareaAutosizeProps,
 } from "react-textarea-autosize";
+import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { getOSKey } from "utils/platform";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
@@ -64,7 +64,7 @@ export const TaskPrompt: FC<TaskPromptProps> = ({
 		<CreateTaskForm
 			templates={templates}
 			onSuccess={() => {
-				displaySuccess("Task created successfully");
+				toast.success("Task created successfully");
 			}}
 		/>
 	);
@@ -216,7 +216,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		} catch (error) {
 			const message = getErrorMessage(error, "Error creating task");
 			const detail = getErrorDetail(error) ?? "Please try again";
-			displayError(message, detail);
+			toast.error(message, { description: detail });
 		}
 	};
 

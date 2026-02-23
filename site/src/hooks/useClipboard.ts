@@ -1,5 +1,5 @@
-import { displayError } from "components/GlobalSnackbar/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useEffectEvent } from "./hookPolyfills";
 
 const CLIPBOARD_TIMEOUT_MS = 1_000;
@@ -37,7 +37,10 @@ export type UseClipboardResult = Readonly<{
 }>;
 
 export const useClipboard = (input?: UseClipboardInput): UseClipboardResult => {
-	const { onError = displayError, clearErrorOnSuccess = true } = input ?? {};
+	const {
+		onError = (msg: string) => toast.error(msg),
+		clearErrorOnSuccess = true,
+	} = input ?? {};
 
 	const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
 	const [error, setError] = useState<Error>();

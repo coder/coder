@@ -1,7 +1,7 @@
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { useState } from "react";
+import { toast } from "sonner";
 
 type DeleteTemplateState =
 	| { status: "idle" }
@@ -31,7 +31,7 @@ export const useDeletionDialogState = (
 			onDelete();
 		} catch (e) {
 			setState({ status: "confirming" });
-			displayError(getErrorMessage(e, "Failed to delete template"));
+			toast.error(getErrorMessage(e, "Failed to delete template"));
 		}
 	};
 

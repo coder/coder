@@ -8,7 +8,6 @@ import {
 	updateProfile as updateProfileOptions,
 } from "api/queries/users";
 import type { UpdateUserProfileRequest, User } from "api/typesGenerated";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type Permissions, permissionChecks } from "modules/permissions";
 import {
@@ -19,6 +18,7 @@ import {
 	useContext,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 
 export type AuthContextValue = {
 	isLoading: boolean;
@@ -64,7 +64,7 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 		...updateProfileOptions("me"),
 		onSuccess: (user) => {
 			queryClient.setQueryData(meOptions.queryKey, user);
-			displaySuccess("Updated settings.");
+			toast.success("Updated settings.");
 		},
 	});
 

@@ -19,7 +19,6 @@ import {
 	TopbarDivider,
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import {
 	Tooltip,
@@ -51,6 +50,7 @@ import {
 	Link as RouterLink,
 	unstable_usePrompt as usePrompt,
 } from "react-router";
+import { toast } from "sonner";
 import { cn } from "utils/cn";
 import {
 	createFile,
@@ -145,10 +145,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 			await onPreview(fileTree);
 			setSelectedTab("logs");
 		} catch (error) {
-			displayError(
-				getErrorMessage(error, "Error on previewing the template"),
-				getErrorDetail(error),
-			);
+			toast.error(getErrorMessage(error, "Error on previewing the template"), {
+				description: getErrorDetail(error),
+			});
 		}
 	}, [fileTree, onPreview]);
 
@@ -188,7 +187,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 			templateVersion.job.status === "succeeded"
 		) {
 			setDirty(false);
-			displaySuccess(
+			toast.success(
 				`Template version "${previousVersion.current.name}" built successfully.`,
 			);
 		}

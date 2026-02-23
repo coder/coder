@@ -1,9 +1,9 @@
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
@@ -53,7 +53,7 @@ const TemplatePermissionsPage: FC = () => {
 							userId: user.id,
 							role,
 						});
-						displaySuccess("User role updated successfully!");
+						toast.success("User role updated successfully!");
 					}}
 					updatingUserId={
 						updateUserMutation.isPending
@@ -66,7 +66,7 @@ const TemplatePermissionsPage: FC = () => {
 							userId: user.id,
 							role: "",
 						});
-						displaySuccess("User removed successfully!");
+						toast.success("User removed successfully!");
 					}}
 					onAddGroup={async (group, role, reset) => {
 						await addGroupMutation.mutateAsync({
@@ -83,7 +83,7 @@ const TemplatePermissionsPage: FC = () => {
 							groupId: group.id,
 							role,
 						});
-						displaySuccess("Group role updated successfully!");
+						toast.success("Group role updated successfully!");
 					}}
 					updatingGroupId={
 						updateGroupMutation.isPending
@@ -96,7 +96,7 @@ const TemplatePermissionsPage: FC = () => {
 							templateId: template.id,
 							role: "",
 						});
-						displaySuccess("Group removed successfully!");
+						toast.success("Group removed successfully!");
 					}}
 				/>
 			)}

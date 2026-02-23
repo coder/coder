@@ -1,10 +1,10 @@
 import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useState } from "react";
 import { useMutation, useQuery } from "react-query";
+import { toast } from "sonner";
 import { getTemplatePageTitle } from "../utils";
 import { VersionsTable } from "./VersionsTable";
 
@@ -27,10 +27,12 @@ const TemplateVersionsPage = () => {
 		onSuccess: async () => {
 			setLatestActiveVersion(selectedVersionIdToPromote as string);
 			setSelectedVersionIdToPromote(undefined);
-			displaySuccess("Version promoted successfully");
+			toast.success("Version promoted successfully");
 		},
 		onError: (error) => {
-			displayError(getErrorMessage(error, "Failed to promote version"));
+			toast.error(getErrorMessage(error, "Failed to promote version"), {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 
@@ -45,10 +47,12 @@ const TemplateVersionsPage = () => {
 			// TODO: Improve this to not reload the page.
 			location.reload();
 			setSelectedVersionIdToArchive(undefined);
-			displaySuccess("Version archived successfully");
+			toast.success("Version archived successfully");
 		},
 		onError: (error) => {
-			displayError(getErrorMessage(error, "Failed to archive version"));
+			toast.error(getErrorMessage(error, "Failed to archive version"), {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 

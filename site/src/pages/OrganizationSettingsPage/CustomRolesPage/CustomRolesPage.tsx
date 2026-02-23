@@ -1,9 +1,8 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { deleteOrganizationRole, organizationRoles } from "api/queries/roles";
 import type { Role } from "api/typesGenerated";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -16,6 +15,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { CustomRolesPageView } from "./CustomRolesPageView";
 
@@ -43,11 +43,14 @@ const CustomRolesPage: FC = () => {
 
 	useEffect(() => {
 		if (organizationRolesQuery.error) {
-			displayError(
+			toast.error(
 				getErrorMessage(
 					organizationRolesQuery.error,
 					"Error loading custom roles.",
 				),
+				{
+					description: getErrorDetail(organizationRolesQuery.error),
+				},
 			);
 		}
 	}, [organizationRolesQuery.error]);
@@ -105,10 +108,13 @@ const CustomRolesPage: FC = () => {
 							}
 							setRoleToDelete(undefined);
 							await organizationRolesQuery.refetch();
-							displaySuccess("Custom role deleted successfully!");
+							toast.success("Custom role deleted successfully!");
 						} catch (error) {
-							displayError(
+							toast.error(
 								getErrorMessage(error, "Failed to delete custom role"),
+								{
+									description: getErrorDetail(error),
+								},
 							);
 						}
 					}}

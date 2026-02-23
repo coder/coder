@@ -1,4 +1,4 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import {
 	deleteOrganization,
 	patchWorkspaceSharingSettings,
@@ -6,12 +6,12 @@ import {
 	workspaceSharingSettings,
 } from "api/queries/organizations";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
@@ -63,17 +63,20 @@ const OrganizationSettingsPage: FC = () => {
 			await patchSharingSettingsMutation.mutateAsync({
 				sharing_disabled: !enabled,
 			});
-			displaySuccess(
+			toast.success(
 				enabled ? "Workspace sharing enabled." : "Workspace sharing disabled.",
 			);
 		} catch (error) {
-			displayError(
+			toast.error(
 				getErrorMessage(
 					error,
 					enabled
 						? "Failed to enable workspace sharing"
 						: "Failed to disable workspace sharing",
 				),
+				{
+					description: getErrorDetail(error),
+				},
 			);
 		}
 	};
@@ -91,16 +94,19 @@ const OrganizationSettingsPage: FC = () => {
 							req: values,
 						});
 					navigate(`/organizations/${updatedOrganization.name}/settings`);
-					displaySuccess("Organization settings updated.");
+					toast.success("Organization settings updated.");
 				}}
 				onDeleteOrganization={async () => {
 					try {
 						await deleteOrganizationMutation.mutateAsync(organization.id);
-						displaySuccess("Organization deleted");
+						toast.success("Organization deleted");
 						navigate("/organizations");
 					} catch (error) {
-						displayError(
+						toast.error(
 							getErrorMessage(error, "Failed to delete organization"),
+							{
+								description: getErrorDetail(error),
+							},
 						);
 					}
 				}}

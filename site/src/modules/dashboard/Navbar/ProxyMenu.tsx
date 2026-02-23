@@ -12,12 +12,12 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAuthenticated } from "hooks";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
+import { toast } from "sonner";
 import { sortProxiesByLatency } from "./proxyUtils";
 
 interface ProxyMenuProps {
@@ -133,7 +133,9 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									onClick={(e) => {
 										e.preventDefault();
 										if (!proxy.healthy) {
-											displayError("Please select a healthy workspace proxy.");
+											toast.error("Failed to select proxy", {
+												description: "Please select a healthy workspace proxy.",
+											});
 											closeMenu();
 											return;
 										}
