@@ -45,6 +45,7 @@ message RecordInterceptionRequest {
   string api_key_id = 7;
   string client = 8;
   string user_agent = 9;
+  optional string correlating_tool_call_id = 10;
 }
 
 message RecordInterceptionResponse {}
@@ -52,7 +53,6 @@ message RecordInterceptionResponse {}
 message RecordInterceptionEndedRequest {
   string id = 1; // UUID.
   google.protobuf.Timestamp ended_at = 2;
-  optional string correlating_tool_call_id = 3;
 }
 
 message RecordInterceptionEndedResponse {}

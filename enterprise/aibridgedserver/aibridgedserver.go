@@ -140,6 +140,12 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		metadata[MetadataUserAgentKey] = in.UserAgent
 	}
 
+	// Look up the parent interception using the correlating tool call ID.
+	var parentID uuid.NullUUID
+	if toolCallID := in.GetCorrelatingToolCallId(); toolCallID != "" {
+		parentID = s.findParentInterceptionID(ctx, intcID, toolCallID)
+	}
+
 	if s.structuredLogging {
 		s.logger.Info(ctx, InterceptionLogMarker,
 			slog.F("record_type", "interception_start"),
@@ -151,6 +157,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 			slog.F("client", in.Client),
 			slog.F("started_at", in.StartedAt.AsTime()),
 			slog.F("metadata", metadata),
+			slog.F("correlating_tool_call_id", in.GetCorrelatingToolCallId()),
 		)
 	}
 
@@ -160,14 +167,15 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	}
 
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
-		ID:          intcID,
-		APIKeyID:    sql.NullString{String: in.ApiKeyId, Valid: true},
-		Client:      sql.NullString{String: in.Client, Valid: in.Client != ""},
-		InitiatorID: initID,
-		Provider:    in.Provider,
-		Model:       in.Model,
-		Metadata:    out,
-		StartedAt:   in.StartedAt.AsTime(),
+		ID:                         intcID,
+		APIKeyID:                   sql.NullString{String: in.ApiKeyId, Valid: true},
+		Client:                     sql.NullString{String: in.Client, Valid: in.Client != ""},
+		InitiatorID:                initID,
+		Provider:                   in.Provider,
+		Model:                      in.Model,
+		Metadata:                   out,
+		StartedAt:                  in.StartedAt.AsTime(),
+		ThreadParentInterceptionID: parentID,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
@@ -190,20 +198,12 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 			slog.F("record_type", "interception_end"),
 			slog.F("interception_id", intcID.String()),
 			slog.F("ended_at", in.EndedAt.AsTime()),
-			slog.F("correlating_tool_call_id", in.GetCorrelatingToolCallId()),
 		)
 	}
 
-	// Look up the parent interception using the correlating tool call ID.
-	var parentID uuid.NullUUID
-	if toolCallID := in.GetCorrelatingToolCallId(); toolCallID != "" {
-		parentID = s.findParentInterceptionID(ctx, intcID, toolCallID)
-	}
-
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
-		ID:                   intcID,
-		EndedAt:              in.EndedAt.AsTime(),
-		ParentInterceptionID: parentID,
+		ID:      intcID,
+		EndedAt: in.EndedAt.AsTime(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
