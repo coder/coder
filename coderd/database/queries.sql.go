@@ -1270,10 +1270,16 @@ func (q *sqlQuerier) GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNamePar
 
 const getAPIKeysByLoginType = `-- name: GetAPIKeysByLoginType :many
 SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE login_type = $1
+AND ($2::bool OR expires_at > now())
 `
 
-func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error) {
-	rows, err := q.db.QueryContext(ctx, getAPIKeysByLoginType, loginType)
+type GetAPIKeysByLoginTypeParams struct {
+	LoginType      LoginType `db:"login_type" json:"login_type"`
+	IncludeExpired bool      `db:"include_expired" json:"include_expired"`
+}
+
+func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, arg GetAPIKeysByLoginTypeParams) ([]APIKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAPIKeysByLoginType, arg.LoginType, arg.IncludeExpired)
 	if err != nil {
 		return nil, err
 	}
@@ -1311,15 +1317,17 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 
 const getAPIKeysByUserID = `-- name: GetAPIKeysByUserID :many
 SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE login_type = $1 AND user_id = $2
+AND ($3::bool OR expires_at > now())
 `
 
 type GetAPIKeysByUserIDParams struct {
-	LoginType LoginType `db:"login_type" json:"login_type"`
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	LoginType      LoginType `db:"login_type" json:"login_type"`
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	IncludeExpired bool      `db:"include_expired" json:"include_expired"`
 }
 
 func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error) {
-	rows, err := q.db.QueryContext(ctx, getAPIKeysByUserID, arg.LoginType, arg.UserID)
+	rows, err := q.db.QueryContext(ctx, getAPIKeysByUserID, arg.LoginType, arg.UserID, arg.IncludeExpired)
 	if err != nil {
 		return nil, err
 	}
