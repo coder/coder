@@ -2263,6 +2263,13 @@ func (q *querier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID)
 	return fetch(q.log, q.auth, q.db.GetAIBridgeInterceptionByID)(ctx, id)
 }
 
+func (q *querier) GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error) {
+	// This is used internally by aibridgedserver to look up parent
+	// interceptions for lineage tracking. Authorization is handled at
+	// the caller level (system context).
+	return q.db.GetAIBridgeInterceptionByToolCallID(ctx, toolCallID)
+}
+
 func (q *querier) GetAIBridgeInterceptions(ctx context.Context) ([]database.AIBridgeInterception, error) {
 	fetch := func(ctx context.Context, _ any) ([]database.AIBridgeInterception, error) {
 		return q.db.GetAIBridgeInterceptions(ctx)
