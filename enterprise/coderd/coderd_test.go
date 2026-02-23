@@ -636,7 +636,7 @@ func TestManagedAgentLimit(t *testing.T) {
 			// expiry warnings.
 			GraceAt:   time.Now().Add(time.Hour * 24 * 60),
 			ExpiresAt: time.Now().Add(time.Hour * 24 * 90),
-		}).ManagedAgentLimit(1, 1),
+		}).ManagedAgentLimit(1),
 	})
 
 	// Get entitlements to check that the license is a-ok.
@@ -647,11 +647,7 @@ func TestManagedAgentLimit(t *testing.T) {
 	require.True(t, agentLimit.Enabled)
 	require.NotNil(t, agentLimit.Limit)
 	require.EqualValues(t, 1, *agentLimit.Limit)
-	require.NotNil(t, agentLimit.SoftLimit)
-	require.EqualValues(t, 1, *agentLimit.SoftLimit)
 	require.Empty(t, sdkEntitlements.Errors)
-	// There should be a warning since we're really close to our agent limit.
-	require.Equal(t, sdkEntitlements.Warnings[0], "You are approaching the managed agent limit in your license. Please refer to the Deployment Licenses page for more information.")
 
 	// Create a fake provision response that claims there are agents in the
 	// template and every built workspace.
@@ -723,27 +719,32 @@ func TestManagedAgentLimit(t *testing.T) {
 	require.NoError(t, err, "fetching AI workspace must succeed")
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
 
-	// Create a second AI workspace, which should fail.
-	_, err = cli.CreateTask(ctx, owner.UserID.String(), codersdk.CreateTaskRequest{
+	// Create a second AI task, which should succeed even though the limit is
+	// breached. Managed agent limits are advisory only and should never block
+	// workspace creation.
+	task2, err := cli.CreateTask(ctx, owner.UserID.String(), codersdk.CreateTaskRequest{
 		Name:                    "workspace-2",
 		TemplateVersionID:       aiTemplate.ActiveVersionID,
 		TemplateVersionPresetID: uuid.Nil,
 		Input:                   "hi",
 		DisplayName:             "bad task 2",
 	})
-	require.ErrorContains(t, err, "You have breached the managed agent limit in your license")
+	require.NoError(t, err, "creating task beyond managed agent limit must succeed")
+	workspace2, err := cli.Workspace(ctx, task2.WorkspaceID.UUID)
+	require.NoError(t, err, "fetching AI workspace must succeed")
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace2.LatestBuild.ID)
 
 	// Create a third non-AI workspace, which should succeed.
 	workspace = coderdtest.CreateWorkspace(t, cli, noAiTemplate.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, cli, workspace.LatestBuild.ID)
 }
 
-func TestCheckBuildUsage_SkipsAIForNonStartTransitions(t *testing.T) {
+func TestCheckBuildUsage_NeverBlocksOnManagedAgentLimit(t *testing.T) {
 	t.Parallel()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Prepare entitlements with a managed agent limit to enforce.
+	// Prepare entitlements with a managed agent limit.
 	entSet := entitlements.New()
 	entSet.Modify(func(e *codersdk.Entitlements) {
 		e.HasLicense = true
@@ -779,30 +780,109 @@ func TestCheckBuildUsage_SkipsAIForNonStartTransitions(t *testing.T) {
 		TemplateVersionID: tv.ID,
 	}
 
-	// Mock DB: expect exactly one count call for the "start" transition.
+	// Mock DB: no calls expected since managed agent limits are
+	// advisory only and no longer query the database at build time.
 	mDB := dbmock.NewMockStore(ctrl)
-	mDB.EXPECT().
-		GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
-		Times(1).
-		Return(int64(1), nil) // equal to limit -> should breach
 
 	ctx := context.Background()
 
-	// Start transition: should be not permitted due to limit breach.
+	// Start transition: should be permitted even though the limit is
+	// breached. Managed agent limits are advisory only.
 	startResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStart)
 	require.NoError(t, err)
-	require.False(t, startResp.Permitted)
-	require.Contains(t, startResp.Message, "breached the managed agent limit")
+	require.True(t, startResp.Permitted)
 
-	// Stop transition: should be permitted and must not trigger additional DB calls.
+	// Stop transition: should also be permitted.
 	stopResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStop)
 	require.NoError(t, err)
 	require.True(t, stopResp.Permitted)
 
-	// Delete transition: should be permitted and must not trigger additional DB calls.
+	// Delete transition: should also be permitted.
 	deleteResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionDelete)
 	require.NoError(t, err)
 	require.True(t, deleteResp.Permitted)
+}
+
+func TestCheckBuildUsage_BlocksWithoutManagedAgentEntitlement(t *testing.T) {
+	t.Parallel()
+
+	tv := &database.TemplateVersion{
+		HasAITask:        sql.NullBool{Valid: true, Bool: true},
+		HasExternalAgent: sql.NullBool{Valid: true, Bool: false},
+	}
+	task := &database.Task{
+		TemplateVersionID: tv.ID,
+	}
+
+	// Both "feature absent" and "feature explicitly disabled" should
+	// block AI task builds on licensed deployments.
+	tests := []struct {
+		name      string
+		setupEnts func(e *codersdk.Entitlements)
+	}{
+		{
+			name: "FeatureAbsent",
+			setupEnts: func(e *codersdk.Entitlements) {
+				e.HasLicense = true
+			},
+		},
+		{
+			name: "FeatureDisabled",
+			setupEnts: func(e *codersdk.Entitlements) {
+				e.HasLicense = true
+				e.Features[codersdk.FeatureManagedAgentLimit] = codersdk.Feature{
+					Enabled: false,
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			entSet := entitlements.New()
+			entSet.Modify(tc.setupEnts)
+
+			agpl := &agplcoderd.API{
+				Options: &agplcoderd.Options{
+					Entitlements: entSet,
+				},
+			}
+			eapi := &coderd.API{
+				AGPL:    agpl,
+				Options: &coderd.Options{Options: agpl.Options},
+			}
+
+			mDB := dbmock.NewMockStore(ctrl)
+			ctx := context.Background()
+
+			// Start transition with a task: should be blocked because the
+			// license doesn't include the managed agent entitlement.
+			resp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStart)
+			require.NoError(t, err)
+			require.False(t, resp.Permitted)
+			require.Contains(t, resp.Message, "not entitled to managed agents")
+
+			// Stop and delete transitions should still be permitted so
+			// that existing workspaces can be stopped/cleaned up.
+			stopResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionStop)
+			require.NoError(t, err)
+			require.True(t, stopResp.Permitted)
+
+			deleteResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, task, database.WorkspaceTransitionDelete)
+			require.NoError(t, err)
+			require.True(t, deleteResp.Permitted)
+
+			// Start transition without a task: should be permitted (not
+			// an AI task build, so the entitlement check doesn't apply).
+			noTaskResp, err := eapi.CheckBuildUsage(ctx, mDB, tv, nil, database.WorkspaceTransitionStart)
+			require.NoError(t, err)
+			require.True(t, noTaskResp.Permitted)
+		})
+	}
 }
 
 // testDBAuthzRole returns a context with a subject that has a role
