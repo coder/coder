@@ -1,0 +1,304 @@
+# This workflow creates a Coder Task to fix a flaky test. It is triggered by
+# the flake-investigator bot (via repository_dispatch) after it triages a CI
+# failure and creates a flake issue in coder/internal, or manually via
+# workflow_dispatch.
+#
+# The flake issue contains the investigation and root cause analysis. The Task
+# reads the issue, implements a fix, verifies it, and opens a PR.
+#
+# Triggers:
+#   - repository_dispatch (type: flake-fix): Automated trigger from flake-investigator
+#   - workflow_dispatch: Manual trigger with flake issue details
+
+name: Flake Fix
+
+on:
+  repository_dispatch:
+    types: [flake-fix]
+  workflow_dispatch:
+    inputs:
+      issue_url:
+        description: "Flake issue URL (in coder/internal)"
+        required: true
+        type: string
+      template_preset:
+        description: "Template preset to use"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  flake-fix:
+    name: Fix Flaky Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CODER_URL: ${{ secrets.FLAKE_BOT_CODER_URL }}
+      CODER_SESSION_TOKEN: ${{ secrets.FLAKE_BOT_CODER_SESSION_TOKEN }}
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: write
+
+    steps:
+      - name: Check if secrets are available
+        id: check-secrets
+        env:
+          CODER_URL: ${{ secrets.FLAKE_BOT_CODER_URL }}
+          CODER_TOKEN: ${{ secrets.FLAKE_BOT_CODER_SESSION_TOKEN }}
+        run: |
+          if [[ -z "${CODER_URL}" || -z "${CODER_TOKEN}" ]]; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+            echo "Secrets not available - skipping flake fix."
+            {
+              echo "⚠️ Workflow skipped: Secrets not available"
+              echo ""
+              echo "This workflow requires FLAKE_BOT_CODER_URL and FLAKE_BOT_CODER_SESSION_TOKEN."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "skip=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Setup Coder CLI
+        if: steps.check-secrets.outputs.skip != 'true'
+        uses: coder/setup-action@4a607a8113d4e676e2d7c34caa20a814bc88bfda # v1
+        with:
+          access_url: ${{ secrets.FLAKE_BOT_CODER_URL }}
+          coder_session_token: ${{ secrets.FLAKE_BOT_CODER_SESSION_TOKEN }}
+
+      - name: Determine Inputs
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: determine-inputs
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_ISSUE_URL: ${{ github.event.client_payload.issue_url }}
+          INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
+          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || '' }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "repository_dispatch" ]]; then
+            ISSUE_URL="${DISPATCH_ISSUE_URL}"
+            TEMPLATE_PRESET=""
+          elif [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            ISSUE_URL="${INPUTS_ISSUE_URL}"
+            TEMPLATE_PRESET="${INPUTS_TEMPLATE_PRESET}"
+          else
+            echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
+            exit 1
+          fi
+
+          if [[ -z "${ISSUE_URL}" ]]; then
+            echo "::error::Issue URL is required"
+            exit 1
+          fi
+
+          echo "issue_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+          echo "template_preset=${TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
+
+          echo "Fixing flake from issue: ${ISSUE_URL}"
+
+      - name: Build Task Prompt
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: build-prompt
+        env:
+          ISSUE_URL: ${{ steps.determine-inputs.outputs.issue_url }}
+        run: |
+          TASK_PROMPT=$(cat <<'EOF'
+          Fix the flaky test described in ISSUE_URL_PLACEHOLDER
+
+          Use the gh CLI to read the issue which contains the investigation and root cause analysis.
+
+          Fix requirements:
+          - Fix the root cause identified in the issue.
+          - Never suppress or skip the test.
+
+          When complete:
+          1. Verify by running the test multiple times.
+          2. Commit with format: `fix(test): resolve flaky TestName`
+          3. Push and create a PR using gh CLI linking to the flake issue.
+          EOF
+          )
+
+          TASK_PROMPT="${TASK_PROMPT//ISSUE_URL_PLACEHOLDER/${ISSUE_URL}}"
+
+          {
+            echo "task_prompt<<EOFOUTPUT"
+            echo "${TASK_PROMPT}"
+            echo "EOFOUTPUT"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout create-task-action
+        if: steps.check-secrets.outputs.skip != 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          path: ./.github/actions/create-task-action
+          persist-credentials: false
+          ref: main
+          repository: coder/create-task-action
+
+      - name: Create Coder Task for Flake Fix
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: create_task
+        uses: ./.github/actions/create-task-action
+        with:
+          coder-url: ${{ secrets.FLAKE_BOT_CODER_URL }}
+          coder-token: ${{ secrets.FLAKE_BOT_CODER_SESSION_TOKEN }}
+          coder-organization: "default"
+          coder-template-name: coder-workflow-bot
+          coder-template-preset: ${{ steps.determine-inputs.outputs.template_preset }}
+          coder-task-name-prefix: flake-fix
+          coder-task-prompt: ${{ steps.build-prompt.outputs.task_prompt }}
+          coder-username: flake-bot
+          github-token: ${{ github.token }}
+          github-issue-url: ${{ steps.determine-inputs.outputs.issue_url }}
+          comment-on-issue: false
+
+      - name: Write Task Info
+        if: steps.check-secrets.outputs.skip != 'true'
+        env:
+          TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_URL: ${{ steps.create_task.outputs.task-url }}
+          ISSUE_URL: ${{ steps.determine-inputs.outputs.issue_url }}
+        run: |
+          {
+            echo "## Flake Fix Task"
+            echo ""
+            echo "**Issue:** ${ISSUE_URL}"
+            echo "**Task created:** ${TASK_CREATED}"
+            echo "**Task name:** ${TASK_NAME}"
+            echo "**Task URL:** ${TASK_URL}"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Wait for Task Completion
+        if: steps.check-secrets.outputs.skip != 'true'
+        id: wait_task
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "Waiting for task to complete..."
+          echo "Task name: ${TASK_NAME}"
+
+          if [[ -z "${TASK_NAME}" ]]; then
+            echo "::error::TASK_NAME is empty"
+            exit 1
+          fi
+
+          MAX_WAIT=1200  # 20 minutes
+          WAITED=0
+          POLL_INTERVAL=5
+          LAST_STATUS=""
+
+          is_workspace_message() {
+            local msg="$1"
+            [[ -z "$msg" ]] && return 0
+            [[ "$msg" =~ ^Workspace ]] && return 0
+            [[ "$msg" =~ ^Agent ]] && return 0
+            return 1
+          }
+
+          while [[ $WAITED -lt $MAX_WAIT ]]; do
+            RAW_OUTPUT=$(coder task status "${TASK_NAME}" -o json 2>&1) || true
+            STATUS_JSON=$(echo "$RAW_OUTPUT" | grep -v "^version mismatch\|^download v" || true)
+
+            if [[ $WAITED -eq 0 ]]; then
+              echo "Raw status output: ${RAW_OUTPUT:0:500}"
+            fi
+
+            if [[ -z "$STATUS_JSON" ]] || ! echo "$STATUS_JSON" | jq -e . >/dev/null 2>&1; then
+              if [[ "$LAST_STATUS" != "waiting" ]]; then
+                echo "[${WAITED}s] Waiting for task status..."
+                LAST_STATUS="waiting"
+              fi
+              sleep $POLL_INTERVAL
+              WAITED=$((WAITED + POLL_INTERVAL))
+              continue
+            fi
+
+            TASK_STATE=$(echo "$STATUS_JSON" | jq -r '.current_state.state // "unknown"')
+            TASK_MESSAGE=$(echo "$STATUS_JSON" | jq -r '.current_state.message // ""')
+            WORKSPACE_STATUS=$(echo "$STATUS_JSON" | jq -r '.workspace_status // "unknown"')
+
+            CURRENT_STATUS="${TASK_STATE}|${WORKSPACE_STATUS}|${TASK_MESSAGE}"
+
+            if [[ "$CURRENT_STATUS" != "$LAST_STATUS" ]]; then
+              if [[ "$TASK_STATE" == "idle" ]] && is_workspace_message "$TASK_MESSAGE"; then
+                echo "[${WAITED}s] Workspace ready, waiting for Agent..."
+              else
+                echo "[${WAITED}s] State: ${TASK_STATE} | Workspace: ${WORKSPACE_STATUS} | ${TASK_MESSAGE}"
+              fi
+              LAST_STATUS="$CURRENT_STATUS"
+            fi
+
+            if [[ "$WORKSPACE_STATUS" == "failed" || "$WORKSPACE_STATUS" == "canceled" ]]; then
+              echo "::error::Workspace failed: ${WORKSPACE_STATUS}"
+              exit 1
+            fi
+
+            if [[ "$TASK_STATE" == "idle" ]]; then
+              if ! is_workspace_message "$TASK_MESSAGE"; then
+                echo ""
+                echo "Task completed: ${TASK_MESSAGE}"
+                RESULT_URI=$(echo "$STATUS_JSON" | jq -r '.current_state.uri // ""')
+                echo "result_uri=${RESULT_URI}" >> "${GITHUB_OUTPUT}"
+                echo "task_message=${TASK_MESSAGE}" >> "${GITHUB_OUTPUT}"
+                break
+              fi
+            fi
+
+            sleep $POLL_INTERVAL
+            WAITED=$((WAITED + POLL_INTERVAL))
+          done
+
+          if [[ $WAITED -ge $MAX_WAIT ]]; then
+            echo "::error::Task monitoring timed out after ${MAX_WAIT}s"
+            exit 1
+          fi
+
+      - name: Fetch Task Logs
+        if: always() && steps.check-secrets.outputs.skip != 'true'
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          echo "::group::Task Conversation Log"
+          if [[ -n "${TASK_NAME}" ]]; then
+            coder task logs "${TASK_NAME}" 2>&1 || echo "Failed to fetch logs"
+          else
+            echo "No task name, skipping log fetch"
+          fi
+          echo "::endgroup::"
+
+      - name: Cleanup Task
+        if: always() && steps.check-secrets.outputs.skip != 'true'
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+        run: |
+          if [[ -n "${TASK_NAME}" ]]; then
+            echo "Deleting task: ${TASK_NAME}"
+            coder task delete "${TASK_NAME}" -y 2>&1 || echo "Task deletion failed or already deleted"
+          else
+            echo "No task name, skipping cleanup"
+          fi
+
+      - name: Write Final Summary
+        if: always() && steps.check-secrets.outputs.skip != 'true'
+        env:
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_MESSAGE: ${{ steps.wait_task.outputs.task_message }}
+          RESULT_URI: ${{ steps.wait_task.outputs.result_uri }}
+          ISSUE_URL: ${{ steps.determine-inputs.outputs.issue_url }}
+        run: |
+          {
+            echo ""
+            echo "---"
+            echo "### Result"
+            echo ""
+            echo "**Issue:** ${ISSUE_URL}"
+            echo "**Status:** ${TASK_MESSAGE:-Task completed}"
+            if [[ -n "${RESULT_URI}" ]]; then
+              echo "**Details:** ${RESULT_URI}"
+            fi
+            echo ""
+            echo "Task \`${TASK_NAME}\` has been cleaned up."
+          } >> "${GITHUB_STEP_SUMMARY}"
