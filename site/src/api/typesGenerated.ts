@@ -734,6 +734,38 @@ export interface ChatModel {
 
 // From codersdk/chats.go
 /**
+ * ChatModelAnthropicProviderOptions configures Anthropic-specific options.
+ */
+export interface ChatModelAnthropicProviderOptions {
+    readonly send_reasoning?: boolean;
+    readonly thinking?: ChatModelAnthropicThinkingOptions;
+    readonly disable_parallel_tool_use?: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelAnthropicThinkingOptions configures Anthropic thinking mode.
+ */
+export interface ChatModelAnthropicThinkingOptions {
+    readonly budget_tokens?: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelCallConfig configures per-call model behavior defaults.
+ */
+export interface ChatModelCallConfig {
+    readonly max_output_tokens?: number;
+    readonly temperature?: number;
+    readonly top_p?: number;
+    readonly top_k?: number;
+    readonly presence_penalty?: number;
+    readonly frequency_penalty?: number;
+    readonly provider_options?: ChatModelProviderOptions;
+}
+
+// From codersdk/chats.go
+/**
  * ChatModelConfig is an admin-managed model configuration.
  */
 export interface ChatModelConfig {
@@ -744,8 +776,71 @@ export interface ChatModelConfig {
     readonly enabled: boolean;
     readonly context_limit: number;
     readonly compression_threshold: number;
+    readonly model_config?: ChatModelCallConfig;
     readonly created_at: string;
     readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelGoogleProviderOptions configures Google-specific options.
+ */
+export interface ChatModelGoogleProviderOptions {
+    readonly thinking_config?: ChatModelGoogleThinkingConfig;
+    readonly cached_content?: string;
+    readonly safety_settings?: readonly ChatModelGoogleSafetySetting[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelGoogleSafetySetting configures Google safety filters.
+ */
+export interface ChatModelGoogleSafetySetting {
+    readonly category?: string;
+    readonly threshold?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelGoogleThinkingConfig configures Google thinking mode.
+ */
+export interface ChatModelGoogleThinkingConfig {
+    readonly thinking_budget?: number;
+    readonly include_thoughts?: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelOpenAICompatProviderOptions configures OpenAI-compatible options.
+ */
+export interface ChatModelOpenAICompatProviderOptions {
+    readonly reasoning_effort?: ChatModelReasoningEffort;
+    readonly user?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelOpenAIProviderOptions configures OpenAI (and Azure) options.
+ */
+export interface ChatModelOpenAIProviderOptions {
+    readonly include?: readonly string[];
+    readonly parallel_tool_calls?: boolean;
+    readonly reasoning_effort?: ChatModelReasoningEffort;
+    readonly reasoning_summary?: string;
+    readonly service_tier?: string;
+    readonly text_verbosity?: string;
+    readonly user?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelOpenRouterProviderOptions configures OpenRouter-specific options.
+ */
+export interface ChatModelOpenRouterProviderOptions {
+    readonly reasoning?: ChatModelReasoningOptions;
+    readonly parallel_tool_calls?: boolean;
+    readonly include_usage?: boolean;
+    readonly user?: string;
 }
 
 // From codersdk/chats.go
@@ -760,9 +855,51 @@ export interface ChatModelProvider {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatModelProviderOptions contains typed provider-specific options.
+ *
+ * Note: Azure models use the `openai` options shape.
+ * Note: Bedrock models use the `anthropic` options shape.
+ */
+export interface ChatModelProviderOptions {
+    readonly openai?: ChatModelOpenAIProviderOptions;
+    readonly anthropic?: ChatModelAnthropicProviderOptions;
+    readonly google?: ChatModelGoogleProviderOptions;
+    readonly openaicompat?: ChatModelOpenAICompatProviderOptions;
+    readonly openrouter?: ChatModelOpenRouterProviderOptions;
+    readonly vercel?: ChatModelVercelProviderOptions;
+}
+
+// From codersdk/chats.go
 export type ChatModelProviderUnavailableReason = "fetch_failed" | "missing_api_key";
 
 export const ChatModelProviderUnavailableReasons: ChatModelProviderUnavailableReason[] = ["fetch_failed", "missing_api_key"];
+
+// From codersdk/chats.go
+export type ChatModelReasoningEffort = "high" | "low" | "medium" | "minimal" | "none" | "xhigh";
+
+export const ChatModelReasoningEfforts: ChatModelReasoningEffort[] = ["high", "low", "medium", "minimal", "none", "xhigh"];
+
+// From codersdk/chats.go
+/**
+ * ChatModelReasoningOptions configures provider reasoning/thinking behavior.
+ */
+export interface ChatModelReasoningOptions {
+    readonly enabled?: boolean;
+    readonly exclude?: boolean;
+    readonly max_tokens?: number;
+    readonly effort?: ChatModelReasoningEffort;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelVercelProviderOptions configures Vercel AI Gateway options.
+ */
+export interface ChatModelVercelProviderOptions {
+    readonly reasoning?: ChatModelReasoningOptions;
+    readonly parallel_tool_calls?: boolean;
+    readonly user?: string;
+}
 
 // From codersdk/chats.go
 /**
@@ -1032,6 +1169,7 @@ export interface CreateChatModelConfigRequest {
     readonly enabled?: boolean;
     readonly context_limit?: number;
     readonly compression_threshold?: number;
+    readonly model_config?: ChatModelCallConfig;
 }
 
 // From codersdk/chats.go
@@ -4923,6 +5061,7 @@ export interface UpdateChatModelConfigRequest {
     readonly enabled?: boolean;
     readonly context_limit?: number;
     readonly compression_threshold?: number;
+    readonly model_config?: ChatModelCallConfig;
 }
 
 // From codersdk/chats.go

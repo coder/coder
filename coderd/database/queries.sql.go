@@ -2097,7 +2097,7 @@ func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID
 
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
-    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold
+    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold, model_config
 FROM
     chat_model_configs
 WHERE
@@ -2117,18 +2117,24 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.UpdatedAt,
 		&i.ContextLimit,
 		&i.CompressionThreshold,
+		&i.ModelConfig,
 	)
 	return i, err
 }
 
 const getChatModelConfigByProviderAndModel = `-- name: GetChatModelConfigByProviderAndModel :one
 SELECT
-    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold
+    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold, model_config
 FROM
     chat_model_configs
 WHERE
     provider = $1::text
     AND model = $2::text
+ORDER BY
+    updated_at DESC,
+    created_at DESC,
+    id DESC
+LIMIT 1
 `
 
 type GetChatModelConfigByProviderAndModelParams struct {
@@ -2149,18 +2155,21 @@ func (q *sqlQuerier) GetChatModelConfigByProviderAndModel(ctx context.Context, a
 		&i.UpdatedAt,
 		&i.ContextLimit,
 		&i.CompressionThreshold,
+		&i.ModelConfig,
 	)
 	return i, err
 }
 
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
-    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold
+    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold, model_config
 FROM
     chat_model_configs
 ORDER BY
     provider ASC,
-    model ASC
+    model ASC,
+    updated_at DESC,
+    id DESC
 `
 
 func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
@@ -2182,6 +2191,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 			&i.UpdatedAt,
 			&i.ContextLimit,
 			&i.CompressionThreshold,
+			&i.ModelConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -2198,7 +2208,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 
 const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
 SELECT
-    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.enabled, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold
+    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.enabled, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.model_config
 FROM
     chat_model_configs cmc
 JOIN
@@ -2208,7 +2218,9 @@ WHERE
     AND cp.enabled = TRUE
 ORDER BY
     cmc.provider ASC,
-    cmc.model ASC
+    cmc.model ASC,
+    cmc.updated_at DESC,
+    cmc.id DESC
 `
 
 func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
@@ -2230,6 +2242,7 @@ func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatMode
 			&i.UpdatedAt,
 			&i.ContextLimit,
 			&i.CompressionThreshold,
+			&i.ModelConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -2251,26 +2264,29 @@ INSERT INTO chat_model_configs (
     display_name,
     enabled,
     context_limit,
-    compression_threshold
+    compression_threshold,
+    model_config
 ) VALUES (
     $1::text,
     $2::text,
     $3::text,
     $4::boolean,
     $5::bigint,
-    $6::integer
+    $6::integer,
+    $7::jsonb
 )
 RETURNING
-    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold
+    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold, model_config
 `
 
 type InsertChatModelConfigParams struct {
-	Provider             string `db:"provider" json:"provider"`
-	Model                string `db:"model" json:"model"`
-	DisplayName          string `db:"display_name" json:"display_name"`
-	Enabled              bool   `db:"enabled" json:"enabled"`
-	ContextLimit         int64  `db:"context_limit" json:"context_limit"`
-	CompressionThreshold int32  `db:"compression_threshold" json:"compression_threshold"`
+	Provider             string          `db:"provider" json:"provider"`
+	Model                string          `db:"model" json:"model"`
+	DisplayName          string          `db:"display_name" json:"display_name"`
+	Enabled              bool            `db:"enabled" json:"enabled"`
+	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
+	ModelConfig          json.RawMessage `db:"model_config" json:"model_config"`
 }
 
 func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error) {
@@ -2281,6 +2297,7 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		arg.Enabled,
 		arg.ContextLimit,
 		arg.CompressionThreshold,
+		arg.ModelConfig,
 	)
 	var i ChatModelConfig
 	err := row.Scan(
@@ -2293,6 +2310,7 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		&i.UpdatedAt,
 		&i.ContextLimit,
 		&i.CompressionThreshold,
+		&i.ModelConfig,
 	)
 	return i, err
 }
@@ -2307,21 +2325,23 @@ SET
     enabled = $4::boolean,
     context_limit = $5::bigint,
     compression_threshold = $6::integer,
+    model_config = $7::jsonb,
     updated_at = NOW()
 WHERE
-    id = $7::uuid
+    id = $8::uuid
 RETURNING
-    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold
+    id, provider, model, display_name, enabled, created_at, updated_at, context_limit, compression_threshold, model_config
 `
 
 type UpdateChatModelConfigParams struct {
-	Provider             string    `db:"provider" json:"provider"`
-	Model                string    `db:"model" json:"model"`
-	DisplayName          string    `db:"display_name" json:"display_name"`
-	Enabled              bool      `db:"enabled" json:"enabled"`
-	ContextLimit         int64     `db:"context_limit" json:"context_limit"`
-	CompressionThreshold int32     `db:"compression_threshold" json:"compression_threshold"`
-	ID                   uuid.UUID `db:"id" json:"id"`
+	Provider             string          `db:"provider" json:"provider"`
+	Model                string          `db:"model" json:"model"`
+	DisplayName          string          `db:"display_name" json:"display_name"`
+	Enabled              bool            `db:"enabled" json:"enabled"`
+	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
+	ModelConfig          json.RawMessage `db:"model_config" json:"model_config"`
+	ID                   uuid.UUID       `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error) {
@@ -2332,6 +2352,7 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		arg.Enabled,
 		arg.ContextLimit,
 		arg.CompressionThreshold,
+		arg.ModelConfig,
 		arg.ID,
 	)
 	var i ChatModelConfig
@@ -2345,6 +2366,7 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		&i.UpdatedAt,
 		&i.ContextLimit,
 		&i.CompressionThreshold,
+		&i.ModelConfig,
 	)
 	return i, err
 }

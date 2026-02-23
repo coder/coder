@@ -2896,6 +2896,9 @@ func (api *API) applyChatModelCompressionConfig(
 			return nil, xerrors.Errorf("load model compression config: %w", err)
 		}
 		if err == nil {
+			if defaults := decodeChatModelCallConfigJSONMap(modelConfig.ModelConfig); defaults != nil {
+				mergeMissingModelConfigValues(config, defaults)
+			}
 			config[chatContextLimitModelConfigKey] = modelConfig.ContextLimit
 			if _, ok := chatCompressionThresholdFromModelConfig(config); !ok {
 				config[chatContextCompressionThresholdModelConfigKey] = modelConfig.CompressionThreshold
@@ -2912,6 +2915,38 @@ func (api *API) applyChatModelCompressionConfig(
 		return nil, xerrors.Errorf("encode model config: %w", err)
 	}
 	return encoded, nil
+}
+
+func decodeChatModelCallConfigJSONMap(raw json.RawMessage) map[string]any {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	decoded := make(map[string]any)
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil
+	}
+	if len(decoded) == 0 {
+		return nil
+	}
+	return decoded
+}
+
+func mergeMissingModelConfigValues(dst map[string]any, defaults map[string]any) {
+	for key, defaultValue := range defaults {
+		currentValue, exists := dst[key]
+		if !exists {
+			dst[key] = defaultValue
+			continue
+		}
+
+		currentMap, currentIsMap := currentValue.(map[string]any)
+		defaultMap, defaultIsMap := defaultValue.(map[string]any)
+		if !currentIsMap || !defaultIsMap {
+			continue
+		}
+		mergeMissingModelConfigValues(currentMap, defaultMap)
+	}
 }
 
 func defaultChatSystemPrompt(api *API) string {
@@ -3527,6 +3562,15 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	modelConfigRaw, modelConfigErr := marshalChatModelCallConfig(req.ModelConfig)
+	if modelConfigErr != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid model config.",
+			Detail:  modelConfigErr.Error(),
+		})
+		return
+	}
+
 	inserted, err := api.Database.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
 		Provider:             provider,
 		Model:                model,
@@ -3534,6 +3578,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		Enabled:              enabled,
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
+		ModelConfig:          modelConfigRaw,
 	})
 	if err != nil {
 		switch {
@@ -3641,6 +3686,19 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	modelConfigRaw := existing.ModelConfig
+	if req.ModelConfig != nil {
+		encodedModelConfig, modelConfigErr := marshalChatModelCallConfig(req.ModelConfig)
+		if modelConfigErr != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model config.",
+				Detail:  modelConfigErr.Error(),
+			})
+			return
+		}
+		modelConfigRaw = encodedModelConfig
+	}
+
 	updated, err := api.Database.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
 		Provider:             provider,
 		Model:                model,
@@ -3648,6 +3706,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		Enabled:              enabled,
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
+		ModelConfig:          modelConfigRaw,
 		ID:                   existing.ID,
 	})
 	if err != nil {
@@ -3767,9 +3826,68 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelC
 		Enabled:              config.Enabled,
 		ContextLimit:         config.ContextLimit,
 		CompressionThreshold: config.CompressionThreshold,
+		ModelConfig:          unmarshalChatModelCallConfig(config.ModelConfig),
 		CreatedAt:            config.CreatedAt,
 		UpdatedAt:            config.UpdatedAt,
 	}
+}
+
+func marshalChatModelCallConfig(
+	modelConfig *codersdk.ChatModelCallConfig,
+) (json.RawMessage, error) {
+	if modelConfig == nil {
+		return json.RawMessage("{}"), nil
+	}
+
+	encoded, err := json.Marshal(modelConfig)
+	if err != nil {
+		return nil, xerrors.Errorf("encode model config: %w", err)
+	}
+	return encoded, nil
+}
+
+func unmarshalChatModelCallConfig(
+	raw json.RawMessage,
+) *codersdk.ChatModelCallConfig {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	decoded := &codersdk.ChatModelCallConfig{}
+	if err := json.Unmarshal(raw, decoded); err != nil {
+		return nil
+	}
+	if isZeroChatModelCallConfig(decoded) {
+		return nil
+	}
+	return decoded
+}
+
+func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
+	if config == nil {
+		return true
+	}
+
+	return config.MaxOutputTokens == nil &&
+		config.Temperature == nil &&
+		config.TopP == nil &&
+		config.TopK == nil &&
+		config.PresencePenalty == nil &&
+		config.FrequencyPenalty == nil &&
+		isZeroChatModelProviderOptions(config.ProviderOptions)
+}
+
+func isZeroChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) bool {
+	if options == nil {
+		return true
+	}
+
+	return options.OpenAI == nil &&
+		options.Anthropic == nil &&
+		options.Google == nil &&
+		options.OpenAICompat == nil &&
+		options.OpenRouter == nil &&
+		options.Vercel == nil
 }
 
 func normalizeChatProvider(provider string) string {

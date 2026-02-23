@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -205,4 +208,73 @@ func TestTemplateVersionParameter_BadDescription(t *testing.T) {
 	// if we feed it garbage data.
 	req.NoError(err)
 	req.NotEmpty(sdk.DescriptionPlaintext, "broke the markdown parser with %v", desc)
+}
+
+func TestChatMessage_ReasoningPartIncludesOpenAISummaryTitle(t *testing.T) {
+	t.Parallel()
+
+	assistantContent, err := json.Marshal([]fantasy.Content{
+		fantasy.ReasoningContent{
+			Text: "Plan migration",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+					ItemID:  "reasoning-1",
+					Summary: []string{"Plan migration"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	message := db2sdk.ChatMessage(database.ChatMessage{
+		ID:        1,
+		ChatID:    uuid.New(),
+		CreatedAt: time.Now(),
+		Role:      string(fantasy.MessageRoleAssistant),
+		Content: pqtype.NullRawMessage{
+			RawMessage: assistantContent,
+			Valid:      true,
+		},
+	})
+
+	require.Len(t, message.Parts, 1)
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Parts[0].Type)
+	require.Equal(t, "Plan migration", message.Parts[0].Text)
+	require.Equal(t, "Plan migration", message.Parts[0].Title)
+}
+
+func TestChatMessage_ReasoningPartTruncatesOpenAISummaryTitle(t *testing.T) {
+	t.Parallel()
+
+	assistantContent, err := json.Marshal([]fantasy.Content{
+		fantasy.ReasoningContent{
+			Text: "Investigated workspace build failures and prepared step-by-step remediation plan for migrations",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+					ItemID:  "reasoning-1",
+					Summary: []string{"Investigated workspace build failures and prepared step-by-step remediation plan for migrations"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	message := db2sdk.ChatMessage(database.ChatMessage{
+		ID:        1,
+		ChatID:    uuid.New(),
+		CreatedAt: time.Now(),
+		Role:      string(fantasy.MessageRoleAssistant),
+		Content: pqtype.NullRawMessage{
+			RawMessage: assistantContent,
+			Valid:      true,
+		},
+	})
+
+	require.Len(t, message.Parts, 1)
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Parts[0].Type)
+	require.Equal(
+		t,
+		"Investigated workspace build failures and prepared step-by-step remediation…",
+		message.Parts[0].Title,
+	)
 }

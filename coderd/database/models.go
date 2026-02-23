@@ -3856,15 +3856,16 @@ type ChatMessage struct {
 }
 
 type ChatModelConfig struct {
-	ID                   uuid.UUID `db:"id" json:"id"`
-	Provider             string    `db:"provider" json:"provider"`
-	Model                string    `db:"model" json:"model"`
-	DisplayName          string    `db:"display_name" json:"display_name"`
-	Enabled              bool      `db:"enabled" json:"enabled"`
-	CreatedAt            time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time `db:"updated_at" json:"updated_at"`
-	ContextLimit         int64     `db:"context_limit" json:"context_limit"`
-	CompressionThreshold int32     `db:"compression_threshold" json:"compression_threshold"`
+	ID                   uuid.UUID       `db:"id" json:"id"`
+	Provider             string          `db:"provider" json:"provider"`
+	Model                string          `db:"model" json:"model"`
+	DisplayName          string          `db:"display_name" json:"display_name"`
+	Enabled              bool            `db:"enabled" json:"enabled"`
+	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time       `db:"updated_at" json:"updated_at"`
+	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
+	ModelConfig          json.RawMessage `db:"model_config" json:"model_config"`
 }
 
 type ChatProvider struct {

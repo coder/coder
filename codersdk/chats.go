@@ -242,35 +242,145 @@ type UpdateChatProviderConfigRequest struct {
 
 // ChatModelConfig is an admin-managed model configuration.
 type ChatModelConfig struct {
-	ID                   uuid.UUID `json:"id" format:"uuid"`
-	Provider             string    `json:"provider"`
-	Model                string    `json:"model"`
-	DisplayName          string    `json:"display_name"`
-	Enabled              bool      `json:"enabled"`
-	ContextLimit         int64     `json:"context_limit"`
-	CompressionThreshold int32     `json:"compression_threshold"`
-	CreatedAt            time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time `json:"updated_at" format:"date-time"`
+	ID                   uuid.UUID            `json:"id" format:"uuid"`
+	Provider             string               `json:"provider"`
+	Model                string               `json:"model"`
+	DisplayName          string               `json:"display_name"`
+	Enabled              bool                 `json:"enabled"`
+	ContextLimit         int64                `json:"context_limit"`
+	CompressionThreshold int32                `json:"compression_threshold"`
+	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
+	CreatedAt            time.Time            `json:"created_at" format:"date-time"`
+	UpdatedAt            time.Time            `json:"updated_at" format:"date-time"`
+}
+
+// ChatModelReasoningEffort controls provider reasoning effort.
+type ChatModelReasoningEffort string
+
+const (
+	ChatModelReasoningEffortMinimal ChatModelReasoningEffort = "minimal"
+	ChatModelReasoningEffortLow     ChatModelReasoningEffort = "low"
+	ChatModelReasoningEffortMedium  ChatModelReasoningEffort = "medium"
+	ChatModelReasoningEffortHigh    ChatModelReasoningEffort = "high"
+	ChatModelReasoningEffortXHigh   ChatModelReasoningEffort = "xhigh"
+	ChatModelReasoningEffortNone    ChatModelReasoningEffort = "none"
+)
+
+// ChatModelReasoningOptions configures provider reasoning/thinking behavior.
+type ChatModelReasoningOptions struct {
+	Enabled   *bool                     `json:"enabled,omitempty"`
+	Exclude   *bool                     `json:"exclude,omitempty"`
+	MaxTokens *int64                    `json:"max_tokens,omitempty"`
+	Effort    *ChatModelReasoningEffort `json:"effort,omitempty"`
+}
+
+// ChatModelAnthropicThinkingOptions configures Anthropic thinking mode.
+type ChatModelAnthropicThinkingOptions struct {
+	BudgetTokens int64 `json:"budget_tokens,omitempty"`
+}
+
+// ChatModelAnthropicProviderOptions configures Anthropic-specific options.
+type ChatModelAnthropicProviderOptions struct {
+	SendReasoning          *bool                              `json:"send_reasoning,omitempty"`
+	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty"`
+	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty"`
+}
+
+// ChatModelGoogleThinkingConfig configures Google thinking mode.
+type ChatModelGoogleThinkingConfig struct {
+	ThinkingBudget  *int64 `json:"thinking_budget,omitempty"`
+	IncludeThoughts *bool  `json:"include_thoughts,omitempty"`
+}
+
+// ChatModelGoogleSafetySetting configures Google safety filters.
+type ChatModelGoogleSafetySetting struct {
+	Category  string `json:"category,omitempty"`
+	Threshold string `json:"threshold,omitempty"`
+}
+
+// ChatModelGoogleProviderOptions configures Google-specific options.
+type ChatModelGoogleProviderOptions struct {
+	ThinkingConfig *ChatModelGoogleThinkingConfig `json:"thinking_config,omitempty"`
+	CachedContent  string                         `json:"cached_content,omitempty"`
+	SafetySettings []ChatModelGoogleSafetySetting `json:"safety_settings,omitempty"`
+}
+
+// ChatModelOpenAIProviderOptions configures OpenAI (and Azure) options.
+type ChatModelOpenAIProviderOptions struct {
+	Include           []string                  `json:"include,omitempty"`
+	ParallelToolCalls *bool                     `json:"parallel_tool_calls,omitempty"`
+	ReasoningEffort   *ChatModelReasoningEffort `json:"reasoning_effort,omitempty"`
+	ReasoningSummary  *string                   `json:"reasoning_summary,omitempty"`
+	ServiceTier       *string                   `json:"service_tier,omitempty"`
+	TextVerbosity     *string                   `json:"text_verbosity,omitempty"`
+	User              *string                   `json:"user,omitempty"`
+}
+
+// ChatModelOpenAICompatProviderOptions configures OpenAI-compatible options.
+type ChatModelOpenAICompatProviderOptions struct {
+	ReasoningEffort *ChatModelReasoningEffort `json:"reasoning_effort,omitempty"`
+	User            *string                   `json:"user,omitempty"`
+}
+
+// ChatModelOpenRouterProviderOptions configures OpenRouter-specific options.
+type ChatModelOpenRouterProviderOptions struct {
+	Reasoning         *ChatModelReasoningOptions `json:"reasoning,omitempty"`
+	ParallelToolCalls *bool                      `json:"parallel_tool_calls,omitempty"`
+	IncludeUsage      *bool                      `json:"include_usage,omitempty"`
+	User              *string                    `json:"user,omitempty"`
+}
+
+// ChatModelVercelProviderOptions configures Vercel AI Gateway options.
+type ChatModelVercelProviderOptions struct {
+	Reasoning         *ChatModelReasoningOptions `json:"reasoning,omitempty"`
+	ParallelToolCalls *bool                      `json:"parallel_tool_calls,omitempty"`
+	User              *string                    `json:"user,omitempty"`
+}
+
+// ChatModelProviderOptions contains typed provider-specific options.
+//
+// Note: Azure models use the `openai` options shape.
+// Note: Bedrock models use the `anthropic` options shape.
+type ChatModelProviderOptions struct {
+	OpenAI       *ChatModelOpenAIProviderOptions       `json:"openai,omitempty"`
+	Anthropic    *ChatModelAnthropicProviderOptions    `json:"anthropic,omitempty"`
+	Google       *ChatModelGoogleProviderOptions       `json:"google,omitempty"`
+	OpenAICompat *ChatModelOpenAICompatProviderOptions `json:"openaicompat,omitempty"`
+	OpenRouter   *ChatModelOpenRouterProviderOptions   `json:"openrouter,omitempty"`
+	Vercel       *ChatModelVercelProviderOptions       `json:"vercel,omitempty"`
+}
+
+// ChatModelCallConfig configures per-call model behavior defaults.
+type ChatModelCallConfig struct {
+	MaxOutputTokens  *int64                    `json:"max_output_tokens,omitempty"`
+	Temperature      *float64                  `json:"temperature,omitempty"`
+	TopP             *float64                  `json:"top_p,omitempty"`
+	TopK             *int64                    `json:"top_k,omitempty"`
+	PresencePenalty  *float64                  `json:"presence_penalty,omitempty"`
+	FrequencyPenalty *float64                  `json:"frequency_penalty,omitempty"`
+	ProviderOptions  *ChatModelProviderOptions `json:"provider_options,omitempty"`
 }
 
 // CreateChatModelConfigRequest creates a chat model config.
 type CreateChatModelConfigRequest struct {
-	Provider             string `json:"provider"`
-	Model                string `json:"model"`
-	DisplayName          string `json:"display_name,omitempty"`
-	Enabled              *bool  `json:"enabled,omitempty"`
-	ContextLimit         *int64 `json:"context_limit,omitempty"`
-	CompressionThreshold *int32 `json:"compression_threshold,omitempty"`
+	Provider             string               `json:"provider"`
+	Model                string               `json:"model"`
+	DisplayName          string               `json:"display_name,omitempty"`
+	Enabled              *bool                `json:"enabled,omitempty"`
+	ContextLimit         *int64               `json:"context_limit,omitempty"`
+	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
+	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 
 // UpdateChatModelConfigRequest updates a chat model config.
 type UpdateChatModelConfigRequest struct {
-	Provider             string `json:"provider,omitempty"`
-	Model                string `json:"model,omitempty"`
-	DisplayName          string `json:"display_name,omitempty"`
-	Enabled              *bool  `json:"enabled,omitempty"`
-	ContextLimit         *int64 `json:"context_limit,omitempty"`
-	CompressionThreshold *int32 `json:"compression_threshold,omitempty"`
+	Provider             string               `json:"provider,omitempty"`
+	Model                string               `json:"model,omitempty"`
+	DisplayName          string               `json:"display_name,omitempty"`
+	Enabled              *bool                `json:"enabled,omitempty"`
+	ContextLimit         *int64               `json:"context_limit,omitempty"`
+	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
+	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 
 // ChatGitChange represents a git file change detected during a chat session.
@@ -416,7 +526,7 @@ func (c *Client) CreateChatProvider(ctx context.Context, req CreateChatProviderC
 
 // UpdateChatProvider updates an admin-managed chat provider config.
 func (c *Client) UpdateChatProvider(ctx context.Context, providerID uuid.UUID, req UpdateChatProviderConfigRequest) (ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/chats/providers/%s", providerID), req)
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/chats/providers/%s", providerID), req)
 	if err != nil {
 		return ChatProviderConfig{}, err
 	}
@@ -474,7 +584,7 @@ func (c *Client) CreateChatModelConfig(ctx context.Context, req CreateChatModelC
 
 // UpdateChatModelConfig updates an admin-managed chat model config.
 func (c *Client) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.UUID, req UpdateChatModelConfigRequest) (ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/chats/model-configs/%s", modelConfigID), req)
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/chats/model-configs/%s", modelConfigID), req)
 	if err != nil {
 		return ChatModelConfig{}, err
 	}
