@@ -124,9 +124,7 @@ We are always working on new integrations. Please feel free to open an issue and
 
 ## Fun Fact
 
-Why do programmers prefer dark mode?
-
-Because light attracts bugs.
+There are only 10 types of people in the world: those who understand binary, those who don't, and those who weren't expecting a base-3 joke.
 
 ## Contributing
 
