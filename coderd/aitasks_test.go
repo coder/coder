@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -3187,5 +3188,221 @@ func TestResumeTask(t *testing.T) {
 		require.Equal(t, task.Name, sent[0].Labels["task"])
 		require.Equal(t, task.ID.String(), sent[0].Labels["task_id"])
 		require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
+	})
+}
+
+// activityBumpSpy wraps a database.Store and counts calls to
+// ActivityBumpWorkspace so tests can verify whether a bump occurred.
+type activityBumpSpy struct {
+	database.Store
+	bumps *atomic.Int64
+}
+
+func newActivityBumpSpy(db database.Store) *activityBumpSpy {
+	return &activityBumpSpy{Store: db, bumps: &atomic.Int64{}}
+}
+
+func (s *activityBumpSpy) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
+	s.bumps.Add(1)
+	return s.Store.ActivityBumpWorkspace(ctx, arg)
+}
+
+func (s *activityBumpSpy) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&activityBumpSpy{Store: tx, bumps: s.bumps})
+	}, opts)
+}
+
+func TestTaskLogsActivityBump(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ActiveTaskBumpsDeadline", func(t *testing.T) {
+		t.Parallel()
+
+		// Minimal fake AgentAPI returning a single message.
+		messageResp := agentapisdk.GetMessagesResponse{
+			Messages: []agentapisdk.Message{
+				{Id: 0, Content: "hello", Role: agentapisdk.RoleAgent, Time: time.Now()},
+			},
+		}
+		messageBytes, err := json.Marshal(messageResp)
+		require.NoError(t, err)
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && r.URL.Path == "/messages" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(messageBytes)
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer srv.Close()
+
+		agentAuthToken := uuid.NewString()
+
+		// Stand up a full API server with provisioner so we can create
+		// a real workspace, start an agent, and fetch live logs.
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		// Create an AI-capable template whose task app points to the
+		// fake AgentAPI server.
+		taskAppID := uuid.New()
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionGraph: []*proto.Response{
+				{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
+					HasAiTasks: true,
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id:   uuid.NewString(),
+							Name: "example",
+							Auth: &proto.Agent_Token{Token: agentAuthToken},
+							Apps: []*proto.App{{
+								Id:          taskAppID.String(),
+								Slug:        "task-app",
+								DisplayName: "Task App",
+								Url:         srv.URL,
+							}},
+						}},
+					}},
+					AiTasks: []*proto.AITask{{AppId: taskAppID.String()}},
+				}}},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		task, err := client.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "bump me",
+		})
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceID.Valid)
+
+		ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		// Re-fetch the task to get the resolved agent and app IDs.
+		task, err = client.TaskByID(ctx, task.ID)
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceAgentID.Valid)
+		require.True(t, task.WorkspaceAppID.Valid)
+
+		// Insert an app status so the task is in the active state.
+		_, err = db.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
+			ID:          uuid.New(),
+			WorkspaceID: task.WorkspaceID.UUID,
+			CreatedAt:   dbtime.Now(),
+			AgentID:     task.WorkspaceAgentID.UUID,
+			AppID:       task.WorkspaceAppID.UUID,
+			State:       database.WorkspaceAppStatusStateWorking,
+			Message:     "working",
+		})
+		require.NoError(t, err)
+
+		// Start a fake agent so the workspace agent is connected.
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentAuthToken))
+		_ = agenttest.New(t, client.URL, agentAuthToken, func(o *agent.Options) {
+			o.Client = agentClient
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WaitFor(coderdtest.AgentsReady)
+
+		// Set the build deadline close to now so the activity bump
+		// SQL guard (last 5% of TTL) is satisfied.
+		build, err := db.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), ws.ID)
+		require.NoError(t, err)
+
+		now := dbtime.Now()
+		tightDeadline := now.Add(time.Minute)
+		err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
+			ID:          build.ID,
+			Deadline:    tightDeadline,
+			MaxDeadline: build.MaxDeadline,
+			UpdatedAt:   now,
+		})
+		require.NoError(t, err)
+
+		// Fetch task logs — this should trigger an activity bump.
+		resp, err := client.TaskLogs(ctx, "me", task.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, resp.Logs, "expected live logs from fake AgentAPI")
+
+		// Verify the deadline was extended beyond what we set.
+		updatedBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), ws.ID)
+		require.NoError(t, err)
+		assert.True(t, updatedBuild.Deadline.After(tightDeadline),
+			"expected deadline %v to be bumped past %v", updatedBuild.Deadline, tightDeadline)
+	})
+
+	t.Run("NonActiveTasksDoNotBump", func(t *testing.T) {
+		t.Parallel()
+
+		for _, status := range []database.TaskStatus{
+			database.TaskStatusPaused,
+			database.TaskStatusPending,
+			database.TaskStatusInitializing,
+		} {
+			t.Run(string(status), func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				rawDB, ps := dbtestutil.NewDB(t)
+				spy := newActivityBumpSpy(rawDB)
+
+				client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+					Database: spy,
+					Pubsub:   ps,
+				})
+				owner := coderdtest.CreateFirstUser(t, client)
+
+				ownerUser, err := client.User(ctx, owner.UserID.String())
+				require.NoError(t, err)
+				ownerSubject := coderdtest.AuthzUserSubject(ownerUser)
+
+				memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+				createTask := createTaskInState(rawDB, ownerSubject, owner.OrganizationID, member.ID)
+				task := createTask(ctx, t, status)
+
+				// For non-active states the handler returns a snapshot.
+				// Upsert a snapshot so the handler succeeds.
+				envelope := coderd.TaskLogSnapshotEnvelope{
+					Format: "agentapi",
+					Data: agentapisdk.GetMessagesResponse{
+						Messages: []agentapisdk.Message{
+							{Id: 0, Content: "snapshot", Role: agentapisdk.RoleAgent, Time: time.Now()},
+						},
+					},
+				}
+				snapshotJSON, err := json.Marshal(envelope)
+				require.NoError(t, err)
+
+				err = rawDB.UpsertTaskSnapshot(dbauthz.As(ctx, ownerSubject), database.UpsertTaskSnapshotParams{
+					TaskID:               task.ID,
+					LogSnapshot:          json.RawMessage(snapshotJSON),
+					LogSnapshotCreatedAt: dbtime.Now(),
+				})
+				require.NoError(t, err)
+
+				// Reset the counter after setup (setup itself may call
+				// ActivityBumpWorkspace for unrelated reasons).
+				spy.bumps.Store(0)
+
+				resp, err := memberClient.TaskLogs(ctx, "me", task.ID)
+				require.NoError(t, err)
+				require.True(t, resp.Snapshot, "expected snapshot response for %s task", status)
+
+				assert.Equal(t, int64(0), spy.bumps.Load(),
+					"ActivityBumpWorkspace should not be called for %s task", status)
+			})
+		}
 	})
 }

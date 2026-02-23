@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -832,6 +833,10 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			httperror.WriteResponseError(ctx, rw, err)
 			return
+		}
+
+		if task.WorkspaceID.Valid {
+			workspacestats.ActivityBumpWorkspace(ctx, api.Logger, api.Database, task.WorkspaceID.UUID, time.Time{})
 		}
 
 		httpapi.Write(ctx, rw, http.StatusOK, out)
