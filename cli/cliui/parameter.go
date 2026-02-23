@@ -30,7 +30,11 @@ func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.Te
 		_, _ = fmt.Fprint(inv.Stdout, "\033[1A")
 
 		var defaults []string
-		err = json.Unmarshal([]byte(templateVersionParameter.DefaultValue), &defaults)
+		defaultSource := defaultValue
+		if defaultSource == "" {
+			defaultSource = templateVersionParameter.DefaultValue
+		}
+		err = json.Unmarshal([]byte(defaultSource), &defaults)
 		if err != nil {
 			return "", err
 		}
