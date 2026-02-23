@@ -1,4 +1,4 @@
-package chatd
+package chatd_test
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -36,82 +37,74 @@ func (*templateSelectionModel) Model() string {
 	return "fake"
 }
 
-func (m *templateSelectionModel) Generate(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+func (m *templateSelectionModel) Generate(
+	_ context.Context,
+	call fantasy.Call,
+) (*fantasy.Response, error) {
 	captured := call
 	m.generateCall = &captured
 	return &fantasy.Response{Content: m.generateBlocks}, nil
 }
 
-func (*templateSelectionModel) Stream(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+func (*templateSelectionModel) Stream(
+	context.Context,
+	fantasy.Call,
+) (fantasy.StreamResponse, error) {
 	return nil, xerrors.New("not implemented")
 }
 
-func (*templateSelectionModel) GenerateObject(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+func (*templateSelectionModel) GenerateObject(
+	context.Context,
+	fantasy.ObjectCall,
+) (*fantasy.ObjectResponse, error) {
 	return nil, xerrors.New("not implemented")
 }
 
-func (*templateSelectionModel) StreamObject(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
+func (*templateSelectionModel) StreamObject(
+	context.Context,
+	fantasy.ObjectCall,
+) (fantasy.ObjectStreamResponse, error) {
 	return nil, xerrors.New("not implemented")
 }
 
-func TestSelectTemplateWithModel_SetsToolChoiceNone(t *testing.T) {
-	t.Parallel()
-
-	candidateID := uuid.New()
-	candidates := []database.Template{
-		{
-			ID:          candidateID,
-			Name:        "starter",
-			DisplayName: "Starter",
-			Description: "Starter template",
-		},
-	}
-
-	model := &templateSelectionModel{
-		generateBlocks: []fantasy.Content{
-			fantasy.TextContent{
-				Text: fmt.Sprintf(`{"template_id":"%s","reason":"best match"}`, candidateID),
-			},
-		},
-	}
-
-	selection, err := selectTemplateWithModel(context.Background(), model, "create a workspace", candidates)
-	require.NoError(t, err)
-	require.Equal(t, candidateID, selection.ID)
-	require.NotNil(t, model.generateCall)
-	require.NotNil(t, model.generateCall.ToolChoice)
-	require.Equal(t, fantasy.ToolChoiceNone, *model.generateCall.ToolChoice)
-}
-
-func TestWorkspaceCreator_CreateWorkspace_MultiplePromptMatchesWithoutModel(t *testing.T) {
+func TestNewWorkspaceCreator_CreateWorkspace_MultiplePromptMatchesWithoutModel(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 
-	creator := newTestWorkspaceCreator(
-		t,
+	creator := chatd.NewWorkspaceCreator(
+		func(ctx context.Context, _ database.Chat) (context.Context, *http.Request, string, error) {
+			return ctx, httptest.NewRequest(http.MethodPost, "/api/v2/workspaces", nil), "https://coder.example", nil
+		},
+		func(context.Context, *http.Request) ([]database.Template, error) {
+			return []database.Template{
+				{ID: uuid.New(), Name: "python-starter", DisplayName: "Python Starter"},
+				{ID: uuid.New(), Name: "python-web", DisplayName: "Python Web"},
+			}, nil
+		},
+		func(context.Context, *http.Request, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			return codersdk.Workspace{}, xerrors.New("unexpected create workspace call")
+		},
 		db,
 		nil,
-		[]database.Template{
-			{ID: uuid.New(), Name: "python-starter", DisplayName: "Python Starter"},
-			{ID: uuid.New(), Name: "python-web", DisplayName: "Python Web"},
-		},
-		nil,
+		testutil.Logger(t),
 	)
 
-	result, err := creator.CreateWorkspace(context.Background(), CreateWorkspaceToolRequest{
-		Chat: database.Chat{
-			OwnerID: uuid.New(),
-		},
+	result, err := creator(context.Background(), chatd.CreateWorkspaceToolRequest{
+		Chat:   database.Chat{OwnerID: uuid.New()},
 		Prompt: "create a python workspace for web development",
 	})
 	require.NoError(t, err)
 	require.False(t, result.Created)
-	require.Equal(t, "multiple templates matched and no model is available to disambiguate", result.Reason)
+	require.Equal(
+		t,
+		"multiple templates matched and no model is available to disambiguate",
+		result.Reason,
+	)
 }
 
-func TestWorkspaceCreator_CreateWorkspace_UsesModelToDisambiguatePromptMatches(t *testing.T) {
+func TestNewWorkspaceCreator_CreateWorkspace_UsesModelToDisambiguatePromptMatches(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -122,24 +115,26 @@ func TestWorkspaceCreator_CreateWorkspace_UsesModelToDisambiguatePromptMatches(t
 	workspaceID := uuid.New()
 	workspaceAgentID := uuid.New()
 	jobID := uuid.New()
+	ownerID := uuid.New()
 
 	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return(
-		[]database.WorkspaceAgent{
-			{ID: workspaceAgentID},
-		},
+		[]database.WorkspaceAgent{{ID: workspaceAgentID}},
 		nil,
 	)
 
 	var capturedCreateReq codersdk.CreateWorkspaceRequest
-	creator := newTestWorkspaceCreator(
-		t,
-		db,
-		nil,
-		[]database.Template{
-			{ID: templateStarterID, Name: "python-starter", DisplayName: "Python Starter"},
-			{ID: templateWebID, Name: "python-web", DisplayName: "Python Web"},
+	creator := chatd.NewWorkspaceCreator(
+		func(ctx context.Context, _ database.Chat) (context.Context, *http.Request, string, error) {
+			return ctx, httptest.NewRequest(http.MethodPost, "/api/v2/workspaces", nil), "https://coder.example", nil
 		},
-		func(_ context.Context, _ *http.Request, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		func(context.Context, *http.Request) ([]database.Template, error) {
+			return []database.Template{
+				{ID: templateStarterID, Name: "python-starter", DisplayName: "Python Starter"},
+				{ID: templateWebID, Name: "python-web", DisplayName: "Python Web"},
+			}, nil
+		},
+		func(_ context.Context, _ *http.Request, gotOwnerID uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			require.Equal(t, ownerID, gotOwnerID)
 			capturedCreateReq = req
 			return codersdk.Workspace{
 				ID:        workspaceID,
@@ -150,6 +145,9 @@ func TestWorkspaceCreator_CreateWorkspace_UsesModelToDisambiguatePromptMatches(t
 				},
 			}, nil
 		},
+		db,
+		nil,
+		testutil.Logger(t),
 	)
 
 	model := &templateSelectionModel{
@@ -160,10 +158,8 @@ func TestWorkspaceCreator_CreateWorkspace_UsesModelToDisambiguatePromptMatches(t
 		},
 	}
 
-	result, err := creator.CreateWorkspace(context.Background(), CreateWorkspaceToolRequest{
-		Chat: database.Chat{
-			OwnerID: uuid.New(),
-		},
+	result, err := creator(context.Background(), chatd.CreateWorkspaceToolRequest{
+		Chat:   database.Chat{OwnerID: ownerID},
 		Model:  model,
 		Prompt: "create a python web workspace",
 	})
@@ -182,7 +178,7 @@ func TestWorkspaceCreator_CreateWorkspace_UsesModelToDisambiguatePromptMatches(t
 	require.Equal(t, fantasy.ToolChoiceNone, *model.generateCall.ToolChoice)
 }
 
-func TestWorkspaceCreator_CreateWorkspace_RejectsMismatchedTemplateAndVersion(t *testing.T) {
+func TestNewWorkspaceCreator_CreateWorkspace_RejectsMismatchedTemplateAndVersion(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -204,9 +200,22 @@ func TestWorkspaceCreator_CreateWorkspace_RejectsMismatchedTemplateAndVersion(t 
 		Name: "python-starter",
 	}, nil)
 
-	creator := newTestWorkspaceCreator(t, db, nil, nil, nil)
+	creator := chatd.NewWorkspaceCreator(
+		func(ctx context.Context, _ database.Chat) (context.Context, *http.Request, string, error) {
+			return ctx, httptest.NewRequest(http.MethodPost, "/api/v2/workspaces", nil), "https://coder.example", nil
+		},
+		func(context.Context, *http.Request) ([]database.Template, error) {
+			return nil, nil
+		},
+		func(context.Context, *http.Request, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			return codersdk.Workspace{}, xerrors.New("unexpected create workspace call")
+		},
+		db,
+		nil,
+		testutil.Logger(t),
+	)
 
-	result, err := creator.CreateWorkspace(context.Background(), CreateWorkspaceToolRequest{
+	result, err := creator(context.Background(), chatd.CreateWorkspaceToolRequest{
 		Chat: database.Chat{
 			OwnerID: uuid.New(),
 		},
@@ -220,20 +229,18 @@ func TestWorkspaceCreator_CreateWorkspace_RejectsMismatchedTemplateAndVersion(t 
 	require.Equal(t, "template_id does not match template_version_id", result.Reason)
 }
 
-func TestWorkspaceCreator_StreamWorkspaceBuildLogs_InitialAndNotification(t *testing.T) {
+func TestNewWorkspaceCreator_CreateWorkspace_StreamsBuildLogs(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	ps := psmock.NewMockPubsub(ctrl)
 
-	creator := &workspaceCreator{
-		db:     db,
-		pubsub: ps,
-		logger: testutil.Logger(t),
-	}
-
+	templateID := uuid.New()
+	workspaceID := uuid.New()
+	workspaceAgentID := uuid.New()
 	jobID := uuid.New()
+
 	running := database.ProvisionerJob{
 		ID:        jobID,
 		JobStatus: database.ProvisionerJobStatusRunning,
@@ -252,6 +259,17 @@ func TestWorkspaceCreator_StreamWorkspaceBuildLogs_InitialAndNotification(t *tes
 		Stage:  "apply",
 		Output: "apply complete",
 	}
+
+	db.EXPECT().GetTemplateByID(gomock.Any(), templateID).Return(database.Template{
+		ID:          templateID,
+		Name:        "python-web",
+		DisplayName: "Python Web",
+	}, nil)
+
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return(
+		[]database.WorkspaceAgent{{ID: workspaceAgentID}},
+		nil,
+	)
 
 	msg, err := json.Marshal(provisionersdk.ProvisionerJobLogsNotifyMessage{
 		EndOfLogs: true,
@@ -284,12 +302,45 @@ func TestWorkspaceCreator_StreamWorkspaceBuildLogs_InitialAndNotification(t *tes
 		}).Return([]database.ProvisionerJobLog{notificationLog}, nil),
 	)
 
-	var emitted []CreateWorkspaceBuildLog
-	creator.streamWorkspaceBuildLogs(context.Background(), jobID, func(log CreateWorkspaceBuildLog) {
-		emitted = append(emitted, log)
-	})
+	creator := chatd.NewWorkspaceCreator(
+		func(ctx context.Context, _ database.Chat) (context.Context, *http.Request, string, error) {
+			return ctx, httptest.NewRequest(http.MethodPost, "/api/v2/workspaces", nil), "https://coder.example", nil
+		},
+		func(context.Context, *http.Request) ([]database.Template, error) {
+			return []database.Template{{ID: templateID, Name: "python-web", DisplayName: "Python Web"}}, nil
+		},
+		func(context.Context, *http.Request, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+			return codersdk.Workspace{
+				ID:        workspaceID,
+				OwnerName: "alice",
+				Name:      "python-web-alice",
+				LatestBuild: codersdk.WorkspaceBuild{
+					Job: codersdk.ProvisionerJob{ID: jobID},
+				},
+			}, nil
+		},
+		db,
+		ps,
+		testutil.Logger(t),
+	)
 
-	require.Equal(t, []CreateWorkspaceBuildLog{
+	var emitted []chatd.CreateWorkspaceBuildLog
+	result, err := creator(context.Background(), chatd.CreateWorkspaceToolRequest{
+		Chat: database.Chat{
+			OwnerID: uuid.New(),
+		},
+		Prompt: "create a python web workspace",
+		Spec:   json.RawMessage(fmt.Sprintf(`{"name":"proj","template_id":"%s"}`, templateID)),
+		BuildLogHandler: func(log chatd.CreateWorkspaceBuildLog) {
+			emitted = append(emitted, log)
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, result.Created)
+	require.Equal(t, workspaceID, result.WorkspaceID)
+	require.Equal(t, workspaceAgentID, result.WorkspaceAgentID)
+
+	require.Equal(t, []chatd.CreateWorkspaceBuildLog{
 		{
 			Source: string(initialLog.Source),
 			Level:  string(initialLog.Level),
@@ -303,37 +354,4 @@ func TestWorkspaceCreator_StreamWorkspaceBuildLogs_InitialAndNotification(t *tes
 			Output: notificationLog.Output,
 		},
 	}, emitted)
-}
-
-func newTestWorkspaceCreator(
-	t *testing.T,
-	db database.Store,
-	ps pubsub.Pubsub,
-	templates []database.Template,
-	createWorkspace func(context.Context, *http.Request, uuid.UUID, codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error),
-) *workspaceCreator {
-	t.Helper()
-
-	return &workspaceCreator{
-		prepareWorkspaceCreateFn: func(ctx context.Context, _ database.Chat) (context.Context, *http.Request, string, error) {
-			return ctx, httptest.NewRequest(http.MethodPost, "/api/v2/workspaces", nil), "https://coder.example", nil
-		},
-		authorizedTemplatesFn: func(context.Context, *http.Request) ([]database.Template, error) {
-			return templates, nil
-		},
-		createWorkspaceFn: func(
-			ctx context.Context,
-			r *http.Request,
-			ownerID uuid.UUID,
-			req codersdk.CreateWorkspaceRequest,
-		) (codersdk.Workspace, error) {
-			if createWorkspace == nil {
-				return codersdk.Workspace{}, xerrors.New("unexpected create workspace call")
-			}
-			return createWorkspace(ctx, r, ownerID, req)
-		},
-		db:     db,
-		pubsub: ps,
-		logger: testutil.Logger(t),
-	}
 }
