@@ -176,11 +176,15 @@ networking:
   # (default: <unset>, type: string-array)
   proxyTrustedOrigins: []
   # Controls if the 'Secure' property is set on browser session cookies.
-  # (default: <unset>, type: bool)
+  # (default: false, type: bool)
   secureAuthCookie: false
   # Controls the 'SameSite' property is set on browser session cookies.
   # (default: lax, type: enum[lax\|none])
   sameSiteAuthCookie: lax
+  # Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee
+  # they are only set by the right domain.
+  # (default: false, type: bool)
+  hostPrefixCookie: false
   # Whether Coder only allows connections to workspaces via the browser.
   # (default: <unset>, type: bool)
   browserOnly: false
@@ -417,6 +421,11 @@ oidc:
   # an insecure OIDC configuration. It is not recommended to use this flag.
   # (default: <unset>, type: bool)
   dangerousSkipIssuerChecks: false
+  # Optional override of the default redirect url which uses the deployment's access
+  # url. Useful in situations where a deployment has more than 1 domain. Using this
+  # setting can also break OIDC, so use with caution.
+  # (default: <unset>, type: url)
+  oidc-redirect-url:
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 #  information before sending data to our servers. Please only disable telemetry
 #  when required by your organization's security policy.

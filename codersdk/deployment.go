@@ -818,6 +818,11 @@ type OIDCConfig struct {
 	IconURL                   serpent.URL                            `json:"icon_url" typescript:",notnull"`
 	SignupsDisabledText       serpent.String                         `json:"signups_disabled_text" typescript:",notnull"`
 	SkipIssuerChecks          serpent.Bool                           `json:"skip_issuer_checks" typescript:",notnull"`
+
+	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	// situations where the OIDC callback domain is different from the ACCESS_URL
+	// domain.
+	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -848,14 +853,87 @@ type TraceConfig struct {
 	DataDog         serpent.Bool   `json:"data_dog" typescript:",notnull"`
 }
 
+const cookieHostPrefix = "__Host-"
+
 type HTTPCookieConfig struct {
-	Secure   serpent.Bool `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
-	SameSite string       `json:"same_site,omitempty" typescript:",notnull"`
+	Secure           serpent.Bool `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	SameSite         string       `json:"same_site,omitempty" typescript:",notnull"`
+	EnableHostPrefix bool         `json:"host_prefix,omitempty" typescript:",notnull"`
+}
+
+// cookiesToPrefix is the set of cookies that should be prefixed with the host prefix if EnableHostPrefix is true.
+// This is a constant, do not ever mutate it.
+var cookiesToPrefix = map[string]struct{}{
+	SessionTokenCookie: {},
+}
+
+// Middleware handles some cookie mutation the requests.
+//
+// For performance of this, see 'BenchmarkHTTPCookieConfigMiddleware'
+// This code is executed on every request, so efficiency is important.
+// If making changes, please consider the performance implications and run benchmarks.
+func (cfg *HTTPCookieConfig) Middleware(next http.Handler) http.Handler {
+	prefixed := make(map[string]struct{})
+	for name := range cookiesToPrefix {
+		prefixed[cookieHostPrefix+name] = struct{}{}
+	}
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if !cfg.EnableHostPrefix {
+			// If a deployment has this config on, then turned it off. Then some old __Host-
+			// cookies could exist on the browsers of the clients. These cookies have no
+			// impact, so we are going to ignore them if they exist (niche scenario)
+			next.ServeHTTP(rw, r)
+			return
+		}
+
+		// When 'EnableHostPrefix', some cookies are set with a `__Host-` prefix. This
+		// middleware will strip any prefixes, so the backend is unaware of this security
+		// feature.
+		//
+		// This code also handles any unprefixed cookies that are now invalid.
+		cookies := r.Cookies()
+		for i, c := range cookies {
+			// If any cookies that should be prefixed are found without the prefix, remove
+			// them from the client and the request. This is usually from a migration where
+			// the prefix was just turned on. In any case, these cookies MUST be dropped
+			if _, ok := cookiesToPrefix[c.Name]; ok {
+				// Remove the cookie from the client to prevent any future requests from sending it.
+				http.SetCookie(rw, &http.Cookie{
+					MaxAge: -1, // Delete
+					Name:   c.Name,
+					Path:   "/",
+				})
+				// And remove it from the request so the rest of the code doesn't see it.
+				cookies[i] = nil
+			}
+
+			// Only strip prefix's from the cookies we care about. Let other `__Host-` cookies be
+			if _, ok := prefixed[c.Name]; ok {
+				c.Name = strings.TrimPrefix(c.Name, cookieHostPrefix)
+			}
+		}
+
+		// r.Cookies() returns copies, so we need to rebuild the header.
+		r.Header.Del("Cookie")
+		for _, c := range cookies {
+			if c != nil {
+				r.AddCookie(c)
+			}
+		}
+
+		next.ServeHTTP(rw, r)
+	})
 }
 
 func (cfg *HTTPCookieConfig) Apply(c *http.Cookie) *http.Cookie {
 	c.Secure = cfg.Secure.Value()
 	c.SameSite = cfg.HTTPSameSite()
+	if cfg.EnableHostPrefix {
+		// Only prefix the cookies we want to be prefixed.
+		if _, ok := cookiesToPrefix[c.Name]; ok {
+			c.Name = cookieHostPrefix + c.Name
+		}
+	}
 	return c
 }
 
@@ -1375,7 +1453,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Value:       &c.HTTPAddress,
 		Group:       &deploymentGroupNetworkingHTTP,
 		YAML:        "httpAddress",
-		Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+		Annotations: serpent.Annotations{}.
+			Mark(annotationExternalProxies, "true"),
 	}
 	tlsBindAddress := serpent.Option{
 		Name:        "TLS Address",
@@ -2361,6 +2440,21 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Group: &deploymentGroupOIDC,
 			YAML:  "dangerousSkipIssuerChecks",
 		},
+		{
+			Name: "OIDC Redirect URL",
+			Description: "Optional override of the default redirect url which uses the deployment's access url. " +
+				"Useful in situations where a deployment has more than 1 domain. Using this setting can also break OIDC, so use with caution.",
+			Required:   false,
+			Flag:       "oidc-redirect-url",
+			Env:        "CODER_OIDC_REDIRECT_URL",
+			YAML:       "oidc-redirect-url",
+			Value:      &c.OIDC.RedirectURL,
+			Group:      &deploymentGroupOIDC,
+			UseInstead: nil,
+			// In most deployments, this setting can only complicate and break OIDC.
+			// So hide it, and only surface it to the small number of users that need it.
+			Hidden: true,
+		},
 		// Telemetry settings
 		telemetryEnable,
 		{
@@ -2796,6 +2890,9 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Controls if the 'Secure' property is set on browser session cookies.",
 			Flag:        "secure-auth-cookie",
 			Env:         "CODER_SECURE_AUTH_COOKIE",
+			DefaultFn: func() string {
+				return strconv.FormatBool(c.AccessURL.Scheme == "https")
+			},
 			Value:       &c.HTTPCookies.Secure,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "secureAuthCookie",
@@ -2811,6 +2908,19 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Default:     "lax",
 			Group:       &deploymentGroupNetworking,
 			YAML:        "sameSiteAuthCookie",
+			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "__Host Prefix Cookies",
+			Description: "Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain.",
+			Flag:        "host-prefix-cookie",
+			Env:         "CODER_HOST_PREFIX_COOKIE",
+			Value:       serpent.BoolOf(&c.HTTPCookies.EnableHostPrefix),
+			// Ideally this is true, however any frontend interactions with the coder api would be broken.
+			// So for compatibility reasons, this is set to false.
+			Default:     "false",
+			Group:       &deploymentGroupNetworking,
+			YAML:        "hostPrefixCookie",
 			Annotations: serpent.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		{

@@ -13,6 +13,10 @@ export function optionValue(
 				continue; // skip if not explicitly true
 			}
 			switch (k) {
+				case "secret":
+					// For secret fields, show "Set" if configured, otherwise show empty
+					// (which will be rendered as "Not set" by OptionValue component)
+					return option.value_source ? "Set" : "";
 				case "format_duration":
 					return humanDuration((option.value as number) / 1e6);
 				// Add additional cases here as needed.

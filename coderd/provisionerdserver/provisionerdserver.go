@@ -840,7 +840,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 	// Record the time the job spent waiting in the queue.
 	if s.metrics != nil && job.StartedAt.Valid && job.Provisioner.Valid() {
-		queueWaitSeconds := job.StartedAt.Time.Sub(job.CreatedAt).Seconds()
+		// These timestamps lose their monotonic clock component after a Postgres
+		// round-trip, so the subtraction is based purely on wall-clock time. Floor at
+		// 1ms as a defensive measure against clock adjustments producing a negative
+		// delta while acknowledging there's a non-zero queue time.
+		queueWaitSeconds := max(job.StartedAt.Time.Sub(job.CreatedAt).Seconds(), 0.001)
 		s.metrics.ObserveJobQueueWait(string(job.Provisioner), string(job.Type), jobTransition, jobBuildReason, queueWaitSeconds)
 	}
 

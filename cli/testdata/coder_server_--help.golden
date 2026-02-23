@@ -383,12 +383,16 @@ NETWORKING OPTIONS:
       --samesite-auth-cookie lax|none, $CODER_SAMESITE_AUTH_COOKIE (default: lax)
           Controls the 'SameSite' property is set on browser session cookies.
 
-      --secure-auth-cookie bool, $CODER_SECURE_AUTH_COOKIE
+      --secure-auth-cookie bool, $CODER_SECURE_AUTH_COOKIE (default: false)
           Controls if the 'Secure' property is set on browser session cookies.
 
       --wildcard-access-url string, $CODER_WILDCARD_ACCESS_URL
           Specifies the wildcard hostname to use for workspace applications in
           the form "*.example.com".
+
+      --host-prefix-cookie bool, $CODER_HOST_PREFIX_COOKIE (default: false)
+          Recommended to be enabled. Enables `__Host-` prefix for cookies to
+          guarantee they are only set by the right domain.
 
 NETWORKING / DERP OPTIONS: 
 Most Coder deployments never have to think about DERP because all connections

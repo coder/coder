@@ -1024,6 +1024,11 @@
 											"title": "NS Jail on Kubernetes",
 											"description": "Runtime and permission requirements for running NS Jail on Kubernetes",
 											"path": "./ai-coder/agent-boundaries/nsjail/k8s.md"
+										},
+										{
+											"title": "NS Jail on ECS",
+											"description": "Runtime and permission requirements for running NS Jail on ECS",
+											"path": "./ai-coder/agent-boundaries/nsjail/ecs.md"
 										}
 									]
 								},

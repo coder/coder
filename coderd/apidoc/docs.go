@@ -15571,6 +15571,9 @@ const docTemplate = `{
         "codersdk.HTTPCookieConfig": {
             "type": "object",
             "properties": {
+                "host_prefix": {
+                    "type": "boolean"
+                },
                 "same_site": {
                     "type": "string"
                 },
@@ -16780,6 +16783,14 @@ const docTemplate = `{
                 },
                 "organization_mapping": {
                     "type": "object"
+                },
+                "redirect_url": {
+                    "description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OIDC callback domain is different from the ACCESS_URL\ndomain.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/serpent.URL"
+                        }
+                    ]
                 },
                 "scopes": {
                     "type": "array",
@@ -22864,7 +22875,7 @@ const docTemplate = `{
                     ]
                 },
                 "default": {
-                    "description": "Default is parsed into Value if set.",
+                    "description": "Default is parsed into Value if set.\nMust be ` + "`" + `\"\"` + "`" + ` if ` + "`" + `DefaultFn` + "`" + ` != nil",
                     "type": "string"
                 },
                 "description": {
