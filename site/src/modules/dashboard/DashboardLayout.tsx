@@ -2,6 +2,7 @@ import Link from "@mui/material/Link";
 import Snackbar from "@mui/material/Snackbar";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
+import { Toaster } from "components/Toaster/Toaster";
 import { useAuthenticated } from "hooks";
 import { InfoIcon } from "lucide-react";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
@@ -22,6 +23,13 @@ export const DashboardLayout: FC = () => {
 		<>
 			{canViewDeployment && <LicenseBanner />}
 			<AnnouncementBanners />
+
+			<Toaster
+				// We want to account for the deployment banner offset.
+				offset={{
+					bottom: canViewDeployment ? 60 : 16,
+				}}
+			/>
 
 			<div className="flex flex-col min-h-screen justify-between">
 				<Navbar />
