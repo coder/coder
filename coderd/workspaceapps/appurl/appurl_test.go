@@ -194,6 +194,16 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			},
 		},
 		{
+			Name:      "Port(5)--Agent--Workspace--User",
+			Subdomain: "12412--agent--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "12412",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
 			Name:      "Port--Agent--Workspace--User",
 			Subdomain: "8080s--agent--workspace--user",
 			Expected: appurl.ApplicationURL{
