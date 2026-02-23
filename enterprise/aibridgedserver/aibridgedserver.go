@@ -60,6 +60,7 @@ type store interface {
 	InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) (database.AIBridgeUserPrompt, error)
 	InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) (database.AIBridgeToolUsage, error)
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, intcID database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error)
+	GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error)
 
 	// MCPConfigurator-related queries.
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
@@ -189,12 +190,20 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 			slog.F("record_type", "interception_end"),
 			slog.F("interception_id", intcID.String()),
 			slog.F("ended_at", in.EndedAt.AsTime()),
+			slog.F("correlating_tool_call_id", in.GetCorrelatingToolCallId()),
 		)
 	}
 
+	// Look up the parent interception using the correlating tool call ID.
+	var parentID uuid.NullUUID
+	if toolCallID := in.GetCorrelatingToolCallId(); toolCallID != "" {
+		parentID = s.findParentInterceptionID(ctx, intcID, toolCallID)
+	}
+
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
-		ID:      intcID,
-		EndedAt: in.EndedAt.AsTime(),
+		ID:                   intcID,
+		EndedAt:              in.EndedAt.AsTime(),
+		ParentInterceptionID: parentID,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
@@ -305,6 +314,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 			slog.F("record_type", "tool_usage"),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
+			slog.F("tool_call_id", in.GetToolCallId()),
 			slog.F("tool", in.GetTool()),
 			slog.F("input", in.GetInput()),
 			slog.F("server_url", in.GetServerUrl()),
@@ -324,6 +334,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		ID:                 uuid.New(),
 		InterceptionID:     intcID,
 		ProviderResponseID: in.GetMsgId(),
+		ProviderToolCallID: sql.NullString{String: in.GetToolCallId(), Valid: in.GetToolCallId() != ""},
 		ServerUrl:          sql.NullString{String: in.GetServerUrl(), Valid: in.ServerUrl != nil},
 		Tool:               in.GetTool(),
 		Input:              in.GetInput(),
@@ -337,6 +348,43 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	}
 
 	return &proto.RecordToolUsageResponse{}, nil
+}
+
+// findParentInterceptionID looks up the parent interception by finding
+// which interception recorded a tool usage with the given tool call ID.
+// If no match is found or there's ambiguity, it returns a null UUID.
+func (s *Server) findParentInterceptionID(ctx context.Context, selfID uuid.UUID, toolCallID string) uuid.NullUUID {
+	interceptionIDs, err := s.store.GetAIBridgeInterceptionByToolCallID(ctx, sql.NullString{String: toolCallID, Valid: true})
+	if err != nil {
+		s.logger.Warn(ctx, "failed to look up parent interception by tool call ID",
+			slog.F("tool_call_id", toolCallID),
+			slog.Error(err),
+		)
+		return uuid.NullUUID{}
+	}
+
+	// Filter out self-references.
+	var candidates []uuid.UUID
+	for _, id := range interceptionIDs {
+		if id != selfID {
+			candidates = append(candidates, id)
+		}
+	}
+
+	if len(candidates) == 0 {
+		return uuid.NullUUID{}
+	}
+
+	if len(candidates) > 1 {
+		// Ambiguous match — log a warning but use the first (most
+		// recent) candidate, since the query orders by created_at DESC.
+		s.logger.Warn(ctx, "ambiguous parent interception candidates",
+			slog.F("tool_call_id", toolCallID),
+			slog.F("candidates", candidates),
+		)
+	}
+
+	return uuid.NullUUID{UUID: candidates[0], Valid: true}
 }
 
 func (s *Server) GetMCPServerConfigs(_ context.Context, _ *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {
