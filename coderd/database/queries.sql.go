@@ -13300,9 +13300,8 @@ WITH task_app_ids AS (
 ),
 task_status_timeline AS (
 	-- All app statusese across every historical app for each task,
-	-- plus synthectic obundary rows at each stop/start build transition.
-	-- Boundaries prevent LEAD() from spanning pause gaps and let us
-	-- ignore post-resume statuses.
+	-- plus synthectic "boundary" rows at each stop/start build transition.
+	-- This allows us to correctly take gaps due to pause/resume into account.
 	SELECT tai.task_id, was.created_at, was.state::text AS state
 	FROM workspace_app_statuses was
 	JOIN task_app_ids tai ON tai.workspace_app_id = was.app_id
