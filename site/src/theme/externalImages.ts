@@ -164,6 +164,7 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/mux.svg", "monochrome"],
 	["/icon/nexus-repository.svg", "blackWithColor"],
 	["/icon/okta.svg", "monochrome"],
+	["/icon/openai-codex.svg", "monochrome"],
 	["/icon/openai.svg", "monochrome"],
 	["/icon/openwebui.svg", "monochrome"],
 	["/icon/perplexica.svg", "monochrome"],

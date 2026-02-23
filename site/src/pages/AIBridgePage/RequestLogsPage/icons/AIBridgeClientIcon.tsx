@@ -25,7 +25,7 @@ export const AIBridgeClientIcon = ({
 		case "Codex":
 			return (
 				<ExternalImage
-					src="/icon/openai.svg"
+					src="/icon/openai-codex.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);
