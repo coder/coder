@@ -738,7 +738,16 @@ func (*reasoningSummaryStreamModel) Generate(_ context.Context, _ fantasy.Call) 
 	return fallbackResponse(), nil
 }
 
-func (m *reasoningSummaryStreamModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+type reasoningPlainStreamModel struct {
+	fakeLanguageModelBase
+	title string
+}
+
+func (*reasoningPlainStreamModel) Generate(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+	return fallbackResponse(), nil
+}
+
+func (m *reasoningPlainStreamModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 	title := strings.TrimSpace(m.title)
 	if title == "" {
 		title = "Reasoning summary title"
@@ -764,7 +773,50 @@ func (m *reasoningSummaryStreamModel) Stream(_ context.Context, _ fantasy.Call) 
 		{
 			Type:  fantasy.StreamPartTypeReasoningDelta,
 			ID:    "reasoning-1",
-			Delta: title,
+			Delta: title + "\n\nreasoning body",
+		},
+		{
+			Type: fantasy.StreamPartTypeReasoningEnd,
+			ID:   "reasoning-1",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: endMetadata,
+			},
+		},
+		{
+			Type:  fantasy.StreamPartTypeFinish,
+			Usage: fantasy.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2},
+		},
+	}), nil
+}
+
+func (m *reasoningSummaryStreamModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+	title := strings.TrimSpace(m.title)
+	if title == "" {
+		title = "Reasoning summary title"
+	}
+	reasoningText := fmt.Sprintf("**%s**\n\nreasoning body", title)
+
+	startMetadata := &fantasyopenai.ResponsesReasoningMetadata{
+		ItemID:  "reasoning-1",
+		Summary: []string{},
+	}
+	endMetadata := &fantasyopenai.ResponsesReasoningMetadata{
+		ItemID:  "reasoning-1",
+		Summary: []string{title},
+	}
+
+	return streamFromParts([]fantasy.StreamPart{
+		{
+			Type: fantasy.StreamPartTypeReasoningStart,
+			ID:   "reasoning-1",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: startMetadata,
+			},
+		},
+		{
+			Type:  fantasy.StreamPartTypeReasoningDelta,
+			ID:    "reasoning-1",
+			Delta: reasoningText,
 		},
 		{
 			Type: fantasy.StreamPartTypeReasoningEnd,
@@ -1719,13 +1771,18 @@ func TestRunChatLoop_ReasoningStreamIncludesSummaryTitle(t *testing.T) {
 
 	require.NotEmpty(t, streamReasoningParts)
 	hasReasoningTitle := false
+	hasReasoningDeltaWithTitle := false
 	for _, part := range streamReasoningParts {
 		require.Equal(t, codersdk.ChatMessagePartTypeReasoning, part.Type)
 		if part.Title == "Plan migration" {
 			hasReasoningTitle = true
+			if strings.TrimSpace(part.Text) != "" {
+				hasReasoningDeltaWithTitle = true
+			}
 		}
 	}
 	require.True(t, hasReasoningTitle)
+	require.True(t, hasReasoningDeltaWithTitle)
 }
 
 func TestRunChatLoop_ReasoningStreamTruncatesSummaryTitle(t *testing.T) {
@@ -1807,13 +1864,102 @@ func TestRunChatLoop_ReasoningStreamTruncatesSummaryTitle(t *testing.T) {
 
 	require.NotEmpty(t, streamReasoningParts)
 	hasReasoningTitle := false
+	hasReasoningDeltaWithTitle := false
 	for _, part := range streamReasoningParts {
 		require.Equal(t, codersdk.ChatMessagePartTypeReasoning, part.Type)
 		if part.Title == "Investigated workspace build failures and prepared step-by-step remediation…" {
 			hasReasoningTitle = true
+			if strings.TrimSpace(part.Text) != "" {
+				hasReasoningDeltaWithTitle = true
+			}
 		}
 	}
 	require.True(t, hasReasoningTitle)
+	require.True(t, hasReasoningDeltaWithTitle)
+}
+
+func TestRunChatLoop_ReasoningStreamSkipsTitleWithoutMarkdownHeading(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+
+	chat := insertChatWithUserMessage(
+		t,
+		db,
+		dbCtx,
+		user.UserID,
+		"reasoning title stream",
+		"think about migration",
+	)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
+	manager := chatd.NewStreamManager(logger)
+	model := &reasoningPlainStreamModel{
+		title: "Plan migration",
+	}
+
+	processor := chatd.New(chatd.Config{
+		Logger:        logger.Named("processor"),
+		Database:      db,
+		StreamManager: manager,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 50 * time.Millisecond,
+	})
+	defer processor.Close()
+
+	_, events, cancel := manager.Subscribe(chat.ID)
+	defer cancel()
+
+	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        chat.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	require.NoError(t, err)
+
+	streamReasoningParts := make([]codersdk.ChatMessagePart, 0, 1)
+	require.Eventually(t, func() bool {
+		for {
+			select {
+			case event, ok := <-events:
+				if !ok {
+					return false
+				}
+				if event.Type != codersdk.ChatStreamEventTypeMessagePart ||
+					event.MessagePart == nil {
+					continue
+				}
+				if event.MessagePart.Role != string(fantasy.MessageRoleAssistant) {
+					continue
+				}
+				if event.MessagePart.Part.Type != codersdk.ChatMessagePartTypeReasoning {
+					continue
+				}
+				streamReasoningParts = append(streamReasoningParts, event.MessagePart.Part)
+			default:
+				storedChat, err := db.GetChatByID(dbCtx, chat.ID)
+				if err != nil {
+					return false
+				}
+				return len(streamReasoningParts) > 0 &&
+					(storedChat.Status == database.ChatStatusWaiting ||
+						storedChat.Status == database.ChatStatusCompleted)
+			}
+		}
+	}, testutil.WaitLong, 25*time.Millisecond)
+
+	require.NotEmpty(t, streamReasoningParts)
+	for _, part := range streamReasoningParts {
+		require.Equal(t, codersdk.ChatMessagePartTypeReasoning, part.Type)
+		require.Empty(t, part.Title)
+	}
 }
 
 func TestCreateWorkspaceTool_NilCreator(t *testing.T) {

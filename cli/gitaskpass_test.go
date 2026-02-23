@@ -1,9 +1,12 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -107,5 +110,59 @@ func TestGitAskpass(t *testing.T) {
 			Password: "password",
 		})
 		stdout.ExpectMatch("username")
+	})
+
+	t.Run("ChatAgentAuthRequired", func(t *testing.T) {
+		t.Parallel()
+
+		listenCalls := atomic.Int64{}
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Has("listen") {
+				listenCalls.Add(1)
+			}
+			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.ExternalAuthResponse{
+				URL:  "https://coder.example.com/external-auth/github",
+				Type: codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			})
+		}))
+		t.Cleanup(srv.Close)
+
+		inv, _ := clitest.New(
+			t,
+			"--agent-url",
+			srv.URL,
+			"--no-open",
+			"Username for 'https://github.com':",
+		)
+		inv.Environ.Set("GIT_PREFIX", "/")
+		inv.Environ.Set("CODER_AGENT_TOKEN", "fake-token")
+		inv.Environ.Set("CODER_CHAT_AGENT", "true")
+
+		var stderr bytes.Buffer
+		inv.Stderr = &stderr
+
+		err := inv.Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "exit code")
+		require.Zero(t, listenCalls.Load())
+
+		output := stderr.String()
+		require.Contains(t, output, "CODER_GITAUTH_REQUIRED:")
+		require.NotContains(t, output, "Open the following URL to authenticate")
+		require.NotContains(t, output, "Your browser has been opened")
+
+		_, markerRaw, found := strings.Cut(output, "CODER_GITAUTH_REQUIRED:")
+		require.True(t, found)
+		var marker struct {
+			ProviderID          string `json:"provider_id"`
+			ProviderType        string `json:"provider_type"`
+			ProviderDisplayName string `json:"provider_display_name"`
+			AuthenticateURL     string `json:"authenticate_url"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(markerRaw)), &marker))
+		require.Equal(t, "github", marker.ProviderID)
+		require.Equal(t, codersdk.EnhancedExternalAuthProviderGitHub.String(), marker.ProviderType)
+		require.Equal(t, "GitHub", marker.ProviderDisplayName)
+		require.Equal(t, "https://coder.example.com/external-auth/github", marker.AuthenticateURL)
 	})
 }

@@ -65,6 +65,23 @@ const asNumber = (value: unknown): number | undefined => {
 	return undefined;
 };
 
+const toProviderLabel = (
+	providerDisplayName: string,
+	providerID: string,
+	providerType: string,
+): string => {
+	if (providerDisplayName) {
+		return providerDisplayName;
+	}
+	if (providerID) {
+		return providerID;
+	}
+	if (providerType) {
+		return providerType;
+	}
+	return "Git provider";
+};
+
 /**
  * Formats a duration in milliseconds into a compact label using
  * the same style as {@link shortRelativeTime} in utils/time.
@@ -590,6 +607,111 @@ const ExecuteTool: React.FC<{
 					)}
 				</>
 			)}
+		</div>
+	);
+};
+
+const ExecuteAuthRequiredTool: React.FC<{
+	command: string;
+	output: string;
+	authenticateURL: string;
+	providerLabel: string;
+}> = ({ command, output, authenticateURL, providerLabel }) => {
+	const hasCommand = command.trim().length > 0;
+	const hasOutput = output.trim().length > 0;
+
+	return (
+		<div className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
+			<div className="flex flex-wrap items-center gap-2 px-3 py-2">
+				<CircleAlertIcon className="h-4 w-4 shrink-0 text-content-warning" />
+				<span className="text-sm text-content-primary">
+					Authenticate with {providerLabel} to continue this command.
+				</span>
+			</div>
+			<div className="flex flex-wrap items-center gap-2 px-3 pb-2">
+				<button
+					type="button"
+					onClick={() =>
+						window.open(authenticateURL, "_blank", "width=900,height=600")
+					}
+					className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-solid border-border-default bg-surface-secondary px-2 py-1 text-xs text-content-primary hover:bg-surface-tertiary"
+				>
+					<ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" />
+					Authenticate with {providerLabel}
+				</button>
+				<a
+					href={authenticateURL}
+					target="_blank"
+					rel="noreferrer"
+					className="inline-flex items-center gap-1 text-xs text-content-link no-underline hover:underline"
+				>
+					<ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" />
+					Open authentication link
+				</a>
+			</div>
+			{hasCommand && (
+				<div className="px-3 pb-1">
+					<code className="font-mono text-xs text-content-secondary">
+						$ {command}
+					</code>
+				</div>
+			)}
+			{hasOutput && (
+				<ScrollArea
+					className="rounded-b-md border-t border-solid border-border-default text-2xs"
+					viewportClassName="max-h-48"
+					scrollBarClassName="w-1.5"
+				>
+					<pre className="m-0 whitespace-pre-wrap break-all border-0 bg-transparent px-3 py-2 font-mono text-xs text-content-secondary">
+						{output}
+					</pre>
+				</ScrollArea>
+			)}
+		</div>
+	);
+};
+
+const WaitForExternalAuthTool: React.FC<{
+	providerLabel: string;
+	status: ToolStatus;
+	authenticated: boolean;
+	timedOut: boolean;
+	isError: boolean;
+	errorMessage?: string;
+}> = ({
+	providerLabel,
+	status,
+	authenticated,
+	timedOut,
+	isError,
+	errorMessage,
+}) => {
+	const isRunning = status === "running";
+	let label = `Waiting for ${providerLabel} authentication...`;
+	let icon: React.ReactNode = (
+		<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
+	);
+	if (isError) {
+		label = errorMessage || `Failed while waiting for ${providerLabel} authentication`;
+		icon = (
+			<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+		);
+	} else if (timedOut) {
+		label = `Timed out waiting for ${providerLabel} authentication`;
+		icon = (
+			<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-warning" />
+		);
+	} else if (authenticated && !isRunning) {
+		label = `Authenticated with ${providerLabel}`;
+		icon = <CheckIcon className="h-3.5 w-3.5 shrink-0 text-content-success" />;
+	}
+
+	return (
+		<div className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2">
+			<div className="flex items-center gap-2">
+				{icon}
+				<span className="text-sm text-content-primary">{label}</span>
+			</div>
 		</div>
 	);
 };
@@ -1441,14 +1563,55 @@ export const Tool = memo(
 				const command = parsed ? asString(parsed.command) : "";
 				const rec = asRecord(result);
 				const output = rec ? asString(rec.output).trim() : "";
+				const authRequired = rec ? Boolean(rec.auth_required) : false;
+				const authenticateURL = rec ? asString(rec.authenticate_url).trim() : "";
+				const providerLabel = toProviderLabel(
+					rec ? asString(rec.provider_display_name).trim() : "",
+					rec ? asString(rec.provider_id).trim() : "",
+					rec ? asString(rec.provider_type).trim() : "",
+				);
 
 				return (
 					<div ref={ref} className={cn("w-full py-0.5", className)} {...props}>
-						<ExecuteTool
-							command={command}
-							output={output}
+						{authRequired && authenticateURL ? (
+							<ExecuteAuthRequiredTool
+								command={command}
+								output={output}
+								authenticateURL={authenticateURL}
+								providerLabel={providerLabel}
+							/>
+						) : (
+							<ExecuteTool
+								command={command}
+								output={output}
+								status={status}
+								isError={isError}
+							/>
+						)}
+					</div>
+				);
+			}
+
+			if (name === "wait_for_external_auth") {
+				const rec = asRecord(result);
+				const providerLabel = toProviderLabel(
+					rec ? asString(rec.provider_display_name).trim() : "",
+					rec ? asString(rec.provider_id).trim() : "",
+					rec ? asString(rec.provider_type).trim() : "",
+				);
+				const authenticated = rec ? Boolean(rec.authenticated) : false;
+				const timedOut = rec ? Boolean(rec.timed_out) : false;
+				const errorMessage = rec ? asString(rec.error || rec.message) : "";
+
+				return (
+					<div ref={ref} className={cn("py-0.5", className)} {...props}>
+						<WaitForExternalAuthTool
+							providerLabel={providerLabel}
 							status={status}
+							authenticated={authenticated}
+							timedOut={timedOut}
 							isError={isError}
+							errorMessage={errorMessage || undefined}
 						/>
 					</div>
 				);

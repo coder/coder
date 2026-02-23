@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -18,6 +19,18 @@ import (
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
+
+const (
+	chatAgentEnvVar = "CODER_CHAT_AGENT"
+)
+
+type gitAuthRequiredMarker struct {
+	ProviderID          string `json:"provider_id"`
+	ProviderType        string `json:"provider_type,omitempty"`
+	ProviderDisplayName string `json:"provider_display_name,omitempty"`
+	AuthenticateURL     string `json:"authenticate_url"`
+	Host                string `json:"host,omitempty"`
+}
 
 // detectGitRef attempts to resolve the current git branch and remote
 // origin URL from the given working directory. These are sent to the
@@ -97,6 +110,12 @@ func gitAskpass(agentAuth *AgentAuth) *serpent.Command {
 				return xerrors.Errorf("get git token: %w", err)
 			}
 			if token.URL != "" {
+				// This is to help the agent authenticate with Git.
+				if inv.Environ.Get("CODER_CHAT_AGENT") == "true" {
+					_, _ = fmt.Fprintf(inv.Stderr, `You must use the "wait_for_external_auth" tool to authenticate with Git.\n\nThe URL is: %s\n`, token.URL)
+					return cliui.ErrCanceled
+				}
+
 				if err := openURL(inv, token.URL); err == nil {
 					cliui.Infof(inv.Stderr, "Your browser has been opened to authenticate with Git:\n%s", token.URL)
 				} else {
@@ -132,4 +151,43 @@ func gitAskpass(agentAuth *AgentAuth) *serpent.Command {
 	}
 	agentAuth.AttachOptions(cmd, false)
 	return cmd
+}
+
+func providerIDFromAuthenticateURL(rawURL string) string {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return ""
+	}
+	path := strings.Trim(parsed.Path, "/")
+	if path == "" {
+		return ""
+	}
+	parts := strings.Split(path, "/")
+	for i := 0; i < len(parts)-1; i++ {
+		if parts[i] == "external-auth" {
+			return strings.TrimSpace(parts[i+1])
+		}
+	}
+	return ""
+}
+
+func providerDisplayName(providerType string) string {
+	switch strings.TrimSpace(providerType) {
+	case codersdk.EnhancedExternalAuthProviderGitHub.String():
+		return "GitHub"
+	case codersdk.EnhancedExternalAuthProviderGitLab.String():
+		return "GitLab"
+	case codersdk.EnhancedExternalAuthProviderGitea.String():
+		return "Gitea"
+	case codersdk.EnhancedExternalAuthProviderAzureDevops.String():
+		return "Azure DevOps"
+	case codersdk.EnhancedExternalAuthProviderAzureDevopsEntra.String():
+		return "Azure DevOps Entra"
+	case codersdk.EnhancedExternalAuthProviderBitBucketCloud.String():
+		return "Bitbucket Cloud"
+	case codersdk.EnhancedExternalAuthProviderBitBucketServer.String():
+		return "Bitbucket Server"
+	default:
+		return ""
+	}
 }
