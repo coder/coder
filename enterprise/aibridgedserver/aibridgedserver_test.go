@@ -459,6 +459,65 @@ func TestRecordInterception(t *testing.T) {
 				},
 				expectedErr: "start interception",
 			},
+			{
+				name: "ok_with_parent_correlation",
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{3}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: strPtr("call_abc"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+					parentID := uuid.UUID{4}
+
+					// The lookup returns both the parent and self;
+					// findParentInterceptionID filters out self.
+					db.EXPECT().GetAIBridgeInterceptionByToolCallID(
+						gomock.Any(),
+						sql.NullString{String: "call_abc", Valid: true},
+					).Return([]uuid.UUID{parentID, selfID}, nil)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{UUID: parentID, Valid: true}, p.ThreadParentInterceptionID, "thread parent interception ID")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
+			},
+			{
+				name: "ok_no_parent_found",
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{5}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: strPtr("call_orphan"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+
+					db.EXPECT().GetAIBridgeInterceptionByToolCallID(
+						gomock.Any(),
+						sql.NullString{String: "call_orphan", Valid: true},
+					).Return([]uuid.UUID{}, nil)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadParentInterceptionID, "thread parent interception ID")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
+			},
 		},
 	)
 }
@@ -698,6 +757,7 @@ func TestRecordToolUsage(t *testing.T) {
 				request: &proto.RecordToolUsageRequest{
 					InterceptionId:  uuid.NewString(),
 					MsgId:           "msg_123",
+					ToolCallId:      "call_xyz",
 					ServerUrl:       strPtr("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
@@ -726,6 +786,7 @@ func TestRecordToolUsage(t *testing.T) {
 						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID") ||
 							!assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
 							!assert.Equal(t, req.GetMsgId(), p.ProviderResponseID, "provider response ID") ||
+							!assert.Equal(t, sql.NullString{String: "call_xyz", Valid: true}, p.ProviderToolCallID, "provider tool call ID") ||
 							!assert.Equal(t, req.GetTool(), p.Tool, "tool") ||
 							!assert.Equal(t, dbServerURL, p.ServerUrl, "server URL") ||
 							!assert.Equal(t, req.GetInput(), p.Input, "input") ||

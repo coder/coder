@@ -1,15 +1,14 @@
 -- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, model, metadata, started_at, client
+	id, api_key_id, initiator_id, provider, model, metadata, started_at, client, thread_parent_id
 ) VALUES (
-	@id, @api_key_id, @initiator_id, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client
+	@id, @api_key_id, @initiator_id, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('thread_parent_interception_id')::uuid
 )
 RETURNING *;
 
 -- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
-	SET ended_at = @ended_at::timestamptz,
-      parent_id = sqlc.narg('parent_interception_id')::uuid
+	SET ended_at = @ended_at::timestamptz
 WHERE
 	id = @id::uuid
 	AND ended_at IS NULL

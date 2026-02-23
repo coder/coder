@@ -39,14 +39,10 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 }
 
 func (t *recorderTranslation) RecordInterceptionEnded(ctx context.Context, req *aibridge.InterceptionRecordEnded) error {
-	protoReq := &proto.RecordInterceptionEndedRequest{
+	_, err := t.client.RecordInterceptionEnded(ctx, &proto.RecordInterceptionEndedRequest{
 		Id:      req.ID,
 		EndedAt: timestamppb.New(req.EndedAt),
-	}
-	if req.CorrelatingToolCallID != "" {
-		protoReq.CorrelatingToolCallId = ptr.Ref(req.CorrelatingToolCallID)
-	}
-	_, err := t.client.RecordInterceptionEnded(ctx, protoReq)
+	})
 	return err
 }
 
