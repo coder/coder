@@ -4,11 +4,12 @@ nsjail is Agent Boundaries' default jail type that uses Linux namespaces to
 provide process isolation. It creates unprivileged network namespaces to control
 and monitor network access for processes running under Boundary.
 
-**Running on Docker?** See [nsjail on Docker](./docker.md) for runtime
-and permission requirements.
+**Running on Docker, Kubernetes, or ECS?** See the relevant page for runtime
+and permission requirements:
 
-**Running on Kubernetes?** See [nsjail on Kubernetes](./k8s.md) for runtime
-and permission requirements.
+- [nsjail on Docker](./docker.md)
+- [nsjail on Kubernetes](./k8s.md)
+- [nsjail on ECS](./ecs.md)
 
 ## Overview
 

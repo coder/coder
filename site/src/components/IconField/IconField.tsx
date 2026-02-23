@@ -1,6 +1,7 @@
 import { css, Global, useTheme } from "@emotion/react";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
@@ -9,7 +10,6 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import { ChevronDownIcon } from "lucide-react";
 import { type FC, lazy, Suspense, useState } from "react";
 
 type IconFieldProps = TextFieldProps & {
@@ -84,7 +84,7 @@ export const IconField: FC<IconFieldProps> = ({
 			/>
 			<Popover open={open} onOpenChange={setOpen}>
 				<PopoverTrigger asChild>
-					<Button variant="outline" size="lg" className="flex-shrink-0">
+					<Button variant="outline" size="lg" className="group flex-shrink-0">
 						Emoji
 						<ChevronDownIcon />
 					</Button>

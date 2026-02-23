@@ -127,7 +127,8 @@ Example trace of an interception using Jaeger backend:
 
 ### Capturing Logs in Traces
 
-> **Note:** Enabling log capture may generate a large volume of trace events.
+> [!NOTE]
+> Enabling log capture may generate a large volume of trace events.
 
 To include log messages as trace events, enable trace log capture
 by setting `CODER_TRACE_LOGS` environment variable or using

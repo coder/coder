@@ -1,32 +1,13 @@
 import {
-	type CSSObject,
-	css,
-	type Interpolation,
-	type Theme,
-	useTheme,
-} from "@emotion/react";
-import Link from "@mui/material/Link";
-import { LicenseTelemetryRequiredErrorText } from "api/typesGenerated";
+	LicenseManagedAgentLimitExceededWarningText,
+	LicenseTelemetryRequiredErrorText,
+} from "api/typesGenerated";
 import { Expander } from "components/Expander/Expander";
+import { Link } from "components/Link/Link";
 import { Pill } from "components/Pill/Pill";
-import { type FC, useState } from "react";
-
-const Language = {
-	licenseIssue: "License Issue",
-	licenseIssues: (num: number): string => `${num} License Issues`,
-	upgrade: "Contact sales@coder.com.",
-	exception: "Contact sales@coder.com if you need an exception.",
-	exceeded: "It looks like you've exceeded some limits of your license.",
-	lessDetails: "Less",
-	moreDetails: "More",
-};
-
-const styles = {
-	leftContent: {
-		marginRight: 8,
-		marginLeft: 8,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
+import { useState } from "react";
+import { cn } from "utils/cn";
+import { docs } from "utils/docs";
 
 const formatMessage = (message: string) => {
 	// If the message ends with an alphanumeric character, add a period.
@@ -36,73 +17,92 @@ const formatMessage = (message: string) => {
 	return message;
 };
 
+const messageLinkProps = (
+	message: string,
+): Pick<React.ComponentProps<typeof Link>, "href" | "children" | "target"> => {
+	if (message === LicenseManagedAgentLimitExceededWarningText) {
+		return {
+			href: docs("/ai-coder/ai-governance"),
+			children: "View AI Governance",
+			target: "_blank",
+		};
+	}
+	if (message === LicenseTelemetryRequiredErrorText) {
+		return {
+			href: "mailto:sales@coder.com",
+			children: "Contact sales@coder.com if you need an exception.",
+		};
+	}
+	return {
+		href: "mailto:sales@coder.com",
+		children: "Contact sales@coder.com.",
+	};
+};
+
 interface LicenseBannerViewProps {
 	errors: readonly string[];
 	warnings: readonly string[];
 }
 
-export const LicenseBannerView: FC<LicenseBannerViewProps> = ({
+export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 	errors,
 	warnings,
 }) => {
-	const theme = useTheme();
 	const [showDetails, setShowDetails] = useState(false);
 	const isError = errors.length > 0;
 	const messages = [...errors, ...warnings];
 	const type = isError ? "error" : "warning";
 
-	const containerStyles = css`
-    ${theme.typography.body2 as CSSObject}
-
-    display: flex;
-    align-items: center;
-    padding: 12px;
-    background-color: ${theme.roles[type].background};
-  `;
-
-	const textColor = theme.roles[type].text;
-
 	if (messages.length === 1) {
+		const [message] = messages;
+
 		return (
-			<div css={containerStyles}>
-				<Pill type={type}>{Language.licenseIssue}</Pill>
-				<div css={styles.leftContent}>
-					<span>{formatMessage(messages[0])}</span>
+			<div
+				className={cn(
+					"flex items-center p-3 text-sm",
+					isError ? "bg-surface-red" : "bg-surface-orange",
+				)}
+			>
+				<Pill type={type}>License Issue</Pill>
+				<div className="mx-2">
+					<span>{formatMessage(message)}</span>
 					&nbsp;
 					<Link
-						color={textColor}
-						fontWeight="medium"
-						href="mailto:sales@coder.com"
-					>
-						{messages[0] === LicenseTelemetryRequiredErrorText
-							? Language.exception
-							: Language.upgrade}
-					</Link>
+						className={cn(
+							"font-medium",
+							isError ? "!text-content-destructive" : "!text-content-warning",
+						)}
+						{...messageLinkProps(message)}
+					/>
 				</div>
 			</div>
 		);
 	}
 
 	return (
-		<div css={containerStyles}>
-			<Pill type={type}>{Language.licenseIssues(messages.length)}</Pill>
-			<div css={styles.leftContent}>
-				<div>
-					{Language.exceeded}
-					&nbsp;
-					<Link
-						color={textColor}
-						fontWeight="medium"
-						href="mailto:sales@coder.com"
-					>
-						{Language.upgrade}
-					</Link>
-				</div>
+		<div
+			className={cn(
+				"flex items-center p-3 text-sm",
+				isError ? "bg-surface-red" : "bg-surface-orange",
+			)}
+		>
+			<Pill type={type}>{`${messages.length} License Issues`}</Pill>
+			<div className="mx-2">
+				<div>It looks like you've exceeded some limits of your license.</div>
 				<Expander expanded={showDetails} setExpanded={setShowDetails}>
-					<ul css={{ padding: 8, margin: 0 }}>
+					<ul className="p-2 m-0">
 						{messages.map((message) => (
-							<li css={{ margin: 4 }} key={message}>
-								{formatMessage(message)}
+							<li className="m-1" key={message}>
+								{formatMessage(message)}&nbsp;
+								<Link
+									className={cn(
+										"font-medium text-xs px-0",
+										isError
+											? "!text-content-destructive"
+											: "!text-content-warning",
+									)}
+									{...messageLinkProps(message)}
+								/>
 							</li>
 						))}
 					</ul>

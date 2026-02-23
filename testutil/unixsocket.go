@@ -1,7 +1,10 @@
 package testutil
 
 import (
+	"crypto/rand"
+	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -36,4 +39,11 @@ func TempDirUnixSocket(t *testing.T) string {
 		assert.NoError(t, err, "remove temp dir", dir)
 	})
 	return dir
+}
+
+func AgentSocketPath(t *testing.T) string {
+	if runtime.GOOS == "windows" {
+		return fmt.Sprintf(`\\.\pipe\com.coder.agentsocket_test.%s.%s`, t.Name(), rand.Text())
+	}
+	return filepath.Join(TempDirUnixSocket(t), "test.sock")
 }
