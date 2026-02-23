@@ -3,6 +3,11 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/resources"
 
+# These environment variables influence the coder provider.
+for v in $(env | grep -E '^CODER_' | cut -d= -f1); do
+	unset "$v"
+done
+
 generate() {
 	local name="$1"
 
