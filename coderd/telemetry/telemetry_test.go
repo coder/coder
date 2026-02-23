@@ -956,6 +956,13 @@ func TestTasksTelemetry(t *testing.T) {
 			pausedDurationMS:  ptr.Ref(20 * time.Minute.Milliseconds()),
 			resumeToStatusMS:  ptr.Ref((5 * time.Minute).Milliseconds()),
 			// Build 1 ("started work") -> Build 2 (stop) (5h10m) + Build 3 ("resumed work") -> now (25m)
+			// TODO(cian): We define IdleDurationMS as "the time from the last working status to pause".
+			//     We know that the task has reported working since T-6h and got auto-paused at T-50m.
+			//     We can reasonably assume that it has been 'idle' from when it was stopped (T-30m) to
+			//     its next report at T-25m. This is covered by ResumeToStatusMS.
+			//     But do we consider the time since its last report (T-6h) to its being auto-paused
+			//     as truly "idle"?
+			idleDurationMS:   ptr.Ref(310 * time.Minute.Milliseconds()),
 			activeDurationMS: ptr.Ref((5*time.Hour + 10*time.Minute + 25*time.Minute).Milliseconds()),
 		},
 		{

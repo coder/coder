@@ -13298,6 +13298,22 @@ WITH task_app_ids AS (
     SELECT task_id, workspace_app_id
     FROM task_workspace_apps
 ),
+task_status_timeline AS (
+	-- All app statusese across every historical app for each task,
+	-- plus synthectic obundary rows at each stop/start build transition.
+	-- Boundaries prevent LEAD() from spanning pause gaps and let us
+	-- ignore post-resume statuses.
+	SELECT tai.task_id, was.created_at, was.state::text AS state
+	FROM workspace_app_statuses was
+	JOIN task_app_ids tai ON tai.workspace_app_id = was.app_id
+	UNION ALL
+	SELECT t.id AS task_id, wb.created_at, '_boundary' AS state
+	FROM tasks t
+	JOIN workspace_builds wb ON wb.workspace_id = t.workspace_id
+	WHERE t.deleted_at IS NULL
+		AND t.workspace_id IS NOT NULL
+		AND wb.build_number > 1
+),
 task_event_data AS (
     SELECT
         t.id AS task_id,
@@ -13343,12 +13359,15 @@ task_event_data AS (
         LIMIT 1
     ) start_build ON TRUE
     LEFT JOIN LATERAL (
-        SELECT was.created_at
-        FROM workspace_app_statuses was
-        JOIN task_app_ids tai ON tai.workspace_app_id = was.app_id
-        WHERE tai.task_id = t.id
-            AND was.state = 'working'
-        ORDER BY was.created_at DESC
+        SELECT tst.created_at
+        FROM task_status_timeline tst
+		WHERE tst.task_id = t.id
+            AND tst.state = 'working'
+		-- Only consider status before the latest pause so that
+		-- post-resume statuses don't mask pre-pause idle time.
+		AND (stop_build.created_at IS NULL
+			OR tst.created_at < stop_build.created_at)
+        ORDER BY tst.created_at DESC
         LIMIT 1
     ) lws ON TRUE
     LEFT JOIN LATERAL (
@@ -13374,36 +13393,19 @@ task_event_data AS (
         )::bigint AS total_working_ms
         FROM (
             SELECT
-                wat.created_at AS interval_start,
+                tst.created_at AS interval_start,
                 COALESCE(
-                    LEAD(wat.created_at) OVER (ORDER BY wat.created_at ASC),
+                    LEAD(tst.created_at) OVER (ORDER BY tst.created_at ASC),
 					CASE WHEN stop_build.created_at IS NOT NULL
-						  AND (start_build.created_at IS NULL OR stop_build.created_at > start_build.created_at)
+						AND (start_build.created_at IS NULL
+							OR stop_build.created_at > start_build.created_at)
 					THEN stop_build.created_at
 					ELSE $1::timestamptz
 					END
                 ) AS interval_end,
-                wat.state
-            --FROM workspace_app_statuses was
-            --JOIN task_app_ids tai ON tai.workspace_app_id = was.app_id
-            --WHERE tai.task_id = t.id
-			FROM (
-				-- Real statuses from all historical task apps
-				SELECT was.created_at AS created_at, was.state::text AS state
-				FROM workspace_app_statuses was
-				JOIN task_app_ids tai ON tai.workspace_app_id = was.app_id
-				WHERE tai.task_id = t.id
-				UNION ALL
-				-- Insert synthetic boundaries at stop/start build transitions
-				-- to terminate working intervals at pause time and prevent
-				-- LEAD() from including pause gaps.
-				SELECT wb.created_at AS created_at, '_boundary' AS state
-				FROM workspace_builds wb
-				WHERE wb.workspace_id = t.workspace_id
-				 -- TODO: do we only need the 'stop' builds?  Task App IDs for which we're interested will only ever be related to 'start' builds.
-				 -- start -> start breaks all kinds of shit anyhow
-				AND wb.build_number > 1
-			) wat
+                tst.state
+			FROM task_status_timeline tst
+			WHERE tst.task_id = t.id
         ) intervals
         WHERE intervals.state = 'working'
     ) active_dur ON TRUE
