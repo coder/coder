@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"iter"
 	"net/http"
 	"net/http/httptest"
@@ -31,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
@@ -2565,4 +2567,605 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 				"subagent_report should not be injected into parent chat")
 		}
 	}
+}
+func TestProcessorListModels_UsesFallbackAPIKeysWhenProviderKeyBlank(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	createEnabledChatProvider(t, client, ctx, "openai", "", "")
+	createEnabledChatModelConfig(t, client, ctx, "openai", "gpt-5.2", "GPT 5.2", 200000, 70)
+
+	processor := chatd.New(chatd.Config{
+		Logger:   testutil.Logger(t),
+		Database: db,
+		ResolveProviderAPIKeys: func(context.Context) (chatd.ProviderAPIKeys, error) {
+			return chatd.ProviderAPIKeys{OpenAI: "deployment-openai"}, nil
+		},
+		PendingChatAcquireInterval: time.Hour,
+	})
+	defer processor.Close()
+
+	response, err := processor.ListModels(ctx)
+	require.NoError(t, err)
+	require.Len(t, response.Providers, 1)
+
+	provider := response.Providers[0]
+	require.Equal(t, "openai", provider.Provider)
+	require.True(t, provider.Available)
+	require.Empty(t, provider.UnavailableReason)
+	require.Equal(t, []codersdk.ChatModel{{
+		ID:          "openai:gpt-5.2",
+		Provider:    "openai",
+		Model:       "gpt-5.2",
+		DisplayName: "GPT 5.2",
+	}}, provider.Models)
+}
+
+func TestProcessorListModels_NoEnabledModelsReturnsProviderAvailability(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	createEnabledChatProvider(t, client, ctx, "openrouter", "openrouter-key", "")
+
+	processor := chatd.New(chatd.Config{
+		Logger:   testutil.Logger(t),
+		Database: db,
+		ResolveProviderAPIKeys: func(context.Context) (chatd.ProviderAPIKeys, error) {
+			return chatd.ProviderAPIKeys{OpenAI: "deployment-openai"}, nil
+		},
+		PendingChatAcquireInterval: time.Hour,
+	})
+	defer processor.Close()
+
+	response, err := processor.ListModels(ctx)
+	require.NoError(t, err)
+	require.Len(t, response.Providers, len(chatd.SupportedProviders()))
+
+	availability := make(map[string]codersdk.ChatModelProvider, len(response.Providers))
+	for _, provider := range response.Providers {
+		availability[provider.Provider] = provider
+	}
+
+	require.True(t, availability["openai"].Available)
+	require.True(t, availability["openrouter"].Available)
+	require.False(t, availability["anthropic"].Available)
+}
+
+func TestStreamManagerSnapshotBuffersOnlyMessageParts(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	manager := chatd.NewStreamManager(testutil.Logger(t))
+	manager.StartStream(chatID)
+	manager.Publish(chatID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeStatus,
+		Status: &codersdk.ChatStreamStatus{
+			Status: codersdk.ChatStatusRunning,
+		},
+	})
+	manager.Publish(chatID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: string(fantasy.MessageRoleAssistant),
+			Part: codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: "chunk",
+			},
+		},
+	})
+	manager.Publish(chatID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessage,
+		Message: &codersdk.ChatMessage{
+			ID: 1,
+		},
+	})
+
+	snapshot, _, cancel := manager.Subscribe(chatID)
+	defer cancel()
+
+	require.Len(t, snapshot, 1)
+	require.Equal(t, codersdk.ChatStreamEventTypeMessagePart, snapshot[0].Type)
+	require.NotNil(t, snapshot[0].MessagePart)
+	require.Equal(t, "chunk", snapshot[0].MessagePart.Part.Text)
+}
+
+func TestDB2SDKChatMessage_ToolResultPartMetadata(t *testing.T) {
+	t.Parallel()
+
+	raw, err := json.Marshal([]chatd.ToolResultBlock{{
+		ToolCallID: "call-3",
+		ToolName:   "execute",
+		Result: map[string]any{
+			"output":    "completed",
+			"exit_code": 17,
+		},
+	}})
+	require.NoError(t, err)
+
+	message := db2sdk.ChatMessage(database.ChatMessage{
+		ID:        42,
+		ChatID:    uuid.New(),
+		CreatedAt: time.Now(),
+		Role:      string(fantasy.MessageRoleTool),
+		Content: pqtype.NullRawMessage{
+			RawMessage: raw,
+			Valid:      true,
+		},
+		ToolCallID: sql.NullString{
+			String: "call-3",
+			Valid:  true,
+		},
+	})
+
+	require.Len(t, message.Parts, 1)
+	part := message.Parts[0]
+	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, part.Type)
+	require.Equal(t, "call-3", part.ToolCallID)
+	require.Equal(t, "execute", part.ToolName)
+	require.NotEmpty(t, part.Result)
+	require.NotNil(t, part.ResultMeta)
+	require.Equal(t, "completed", part.ResultMeta.Output)
+	require.NotNil(t, part.ResultMeta.ExitCode)
+	require.Equal(t, 17, *part.ResultMeta.ExitCode)
+}
+
+func TestDB2SDKChatMessage_IncludesUsageFields(t *testing.T) {
+	t.Parallel()
+
+	message := db2sdk.ChatMessage(database.ChatMessage{
+		ID:        99,
+		ChatID:    uuid.New(),
+		CreatedAt: time.Now(),
+		Role:      string(fantasy.MessageRoleAssistant),
+		InputTokens: sql.NullInt64{
+			Int64: 101,
+			Valid: true,
+		},
+		OutputTokens: sql.NullInt64{
+			Int64: 37,
+			Valid: true,
+		},
+		ReasoningTokens: sql.NullInt64{
+			Int64: 11,
+			Valid: true,
+		},
+		CacheCreationTokens: sql.NullInt64{
+			Int64: 5,
+			Valid: true,
+		},
+		CacheReadTokens: sql.NullInt64{
+			Int64: 2,
+			Valid: true,
+		},
+		TotalTokens: sql.NullInt64{
+			Int64: 138,
+			Valid: true,
+		},
+		ContextLimit: sql.NullInt64{
+			Int64: 200000,
+			Valid: true,
+		},
+	})
+
+	require.NotNil(t, message.InputTokens)
+	require.Equal(t, int64(101), *message.InputTokens)
+	require.NotNil(t, message.OutputTokens)
+	require.Equal(t, int64(37), *message.OutputTokens)
+	require.NotNil(t, message.ReasoningTokens)
+	require.Equal(t, int64(11), *message.ReasoningTokens)
+	require.NotNil(t, message.CacheCreationTokens)
+	require.Equal(t, int64(5), *message.CacheCreationTokens)
+	require.NotNil(t, message.CacheReadTokens)
+	require.Equal(t, int64(2), *message.CacheReadTokens)
+	require.NotNil(t, message.TotalTokens)
+	require.Equal(t, int64(138), *message.TotalTokens)
+	require.NotNil(t, message.ContextLimit)
+	require.Equal(t, int64(200000), *message.ContextLimit)
+}
+
+func TestDB2SDKChatMessage_ReadFileResultMetadata(t *testing.T) {
+	t.Parallel()
+
+	raw, err := json.Marshal([]chatd.ToolResultBlock{{
+		ToolCallID: "call-4",
+		ToolName:   "read_file",
+		Result: map[string]any{
+			"content":   "hello",
+			"mime_type": "text/plain",
+		},
+	}})
+	require.NoError(t, err)
+
+	message := db2sdk.ChatMessage(database.ChatMessage{
+		Role: string(fantasy.MessageRoleTool),
+		Content: pqtype.NullRawMessage{
+			RawMessage: raw,
+			Valid:      true,
+		},
+	})
+
+	require.Len(t, message.Parts, 1)
+	require.NotNil(t, message.Parts[0].ResultMeta)
+	require.Equal(t, "hello", message.Parts[0].ResultMeta.Content)
+	require.Equal(t, "text/plain", message.Parts[0].ResultMeta.MimeType)
+}
+
+func TestRunChatLoop_UsesFallbackEnabledModelWhenChatModelUnset(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	var streamCalls int
+	var streamCallsMu sync.Mutex
+
+	provider := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/chat/completions" {
+			http.Error(rw, "unexpected provider request", http.StatusBadRequest)
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(rw, "failed to read request", http.StatusBadRequest)
+			return
+		}
+
+		var payload map[string]any
+		_ = json.Unmarshal(body, &payload)
+		stream, _ := payload["stream"].(bool)
+		if !stream {
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{"id":"chatcmpl-title","object":"chat.completion","created":1730000000,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"done"},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":1,"total_tokens":4}}`))
+			return
+		}
+
+		streamCallsMu.Lock()
+		streamCalls++
+		streamCallsMu.Unlock()
+
+		rw.Header().Set("Content-Type", "text/event-stream")
+		rw.Header().Set("Cache-Control", "no-cache")
+		rw.Header().Set("Connection", "keep-alive")
+		flusher, ok := rw.(http.Flusher)
+		if !ok {
+			http.Error(rw, "streaming not supported", http.StatusInternalServerError)
+			return
+		}
+
+		_, _ = rw.Write([]byte(
+			`data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1730000000,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":"done"},"finish_reason":null}]}` + "\n\n",
+		))
+		flusher.Flush()
+		_, _ = rw.Write([]byte(
+			`data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1730000000,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":11,"completion_tokens":7,"total_tokens":18}}` + "\n\n",
+		))
+		flusher.Flush()
+		_, _ = rw.Write([]byte("data: [DONE]\n\n"))
+		flusher.Flush()
+	}))
+	defer provider.Close()
+
+	createEnabledChatProvider(t, client, ctx, "openai-compat", "test-api-key", provider.URL)
+	createEnabledChatModelConfig(t, client, ctx, "openai-compat", "gpt-4o-mini", "GPT 4o mini", 200000, 70)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Message:     "hello",
+		ModelConfig: json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	result := waitForChatWithStatus(t, ctx, client, chat.ID, codersdk.ChatStatusWaiting, codersdk.ChatStatusCompleted)
+	assistant, ok := firstChatMessageByRole(result.Messages, "assistant")
+	require.True(t, ok)
+	require.Equal(t, "done", strings.TrimSpace(chatMessageText(assistant)))
+
+	streamCallsMu.Lock()
+	gotStreamCalls := streamCalls
+	streamCallsMu.Unlock()
+	require.GreaterOrEqual(t, gotStreamCalls, 1)
+}
+
+func TestRunChatLoop_UnsetModelAndNoAvailableProviderKeyErrors(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	createEnabledChatProvider(t, client, ctx, "openai-compat", "", "")
+	createEnabledChatModelConfig(t, client, ctx, "openai-compat", "gpt-4o-mini", "GPT 4o mini", 200000, 70)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Message:     "hello",
+		ModelConfig: json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	result := waitForChatWithStatus(t, ctx, client, chat.ID, codersdk.ChatStatusError)
+	require.Equal(t, codersdk.ChatStatusError, result.Chat.Status)
+	_, hasAssistant := firstChatMessageByRole(result.Messages, "assistant")
+	require.False(t, hasAssistant)
+}
+
+func TestRunChatLoop_ContextCompressionUsesFallbackConfigAndTruncatesSummary(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+
+	const summaryTail = "tail-marker-for-full-summary"
+	summary := strings.Repeat("x", 5000) + summaryTail
+
+	var streamCalls int
+	var generateCalls int
+	var callsMu sync.Mutex
+
+	provider := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/chat/completions" {
+			http.Error(rw, "unexpected provider request", http.StatusBadRequest)
+			return
+		}
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(rw, "failed to read request", http.StatusBadRequest)
+			return
+		}
+
+		var payload map[string]any
+		_ = json.Unmarshal(body, &payload)
+		stream, _ := payload["stream"].(bool)
+
+		if stream {
+			callsMu.Lock()
+			streamCalls++
+			callsMu.Unlock()
+
+			rw.Header().Set("Content-Type", "text/event-stream")
+			rw.Header().Set("Cache-Control", "no-cache")
+			rw.Header().Set("Connection", "keep-alive")
+			flusher, ok := rw.(http.Flusher)
+			if !ok {
+				http.Error(rw, "streaming not supported", http.StatusInternalServerError)
+				return
+			}
+
+			_, _ = rw.Write([]byte(
+				`data: {"id":"chatcmpl-ctx-1","object":"chat.completion.chunk","created":1730000000,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":"assistant answer"},"finish_reason":null}]}` + "\n\n",
+			))
+			flusher.Flush()
+			_, _ = rw.Write([]byte(
+				`data: {"id":"chatcmpl-ctx-1","object":"chat.completion.chunk","created":1730000000,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":80,"completion_tokens":5,"total_tokens":85}}` + "\n\n",
+			))
+			flusher.Flush()
+			_, _ = rw.Write([]byte("data: [DONE]\n\n"))
+			flusher.Flush()
+			return
+		}
+
+		callsMu.Lock()
+		generateCalls++
+		callsMu.Unlock()
+
+		encodedSummary, err := json.Marshal(summary)
+		if err != nil {
+			http.Error(rw, "failed to encode summary", http.StatusInternalServerError)
+			return
+		}
+
+		rw.Header().Set("Content-Type", "application/json")
+		_, _ = rw.Write([]byte(fmt.Sprintf(
+			`{"id":"chatcmpl-summary-1","object":"chat.completion","created":1730000001,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":%s},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":9,"total_tokens":18}}`,
+			string(encodedSummary),
+		)))
+	}))
+	defer provider.Close()
+
+	createEnabledChatProvider(t, client, ctx, "openai-compat", "test-api-key", provider.URL)
+	createEnabledChatModelConfig(t, client, ctx, "openai-compat", "gpt-4o-mini", "GPT 4o mini", 100, 10)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Message:     "summarize context",
+		ModelConfig: json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	_ = waitForChatWithStatus(t, ctx, client, chat.ID, codersdk.ChatStatusWaiting, codersdk.ChatStatusCompleted)
+
+	messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
+	require.NoError(t, err)
+
+	var (
+		systemSummary  string
+		summaryPayload map[string]any
+	)
+	for _, message := range messages {
+		if message.Role == string(fantasy.MessageRoleSystem) && message.Hidden && message.Compressed {
+			require.NoError(t, json.Unmarshal(message.Content.RawMessage, &systemSummary))
+		}
+
+		if message.Role == string(fantasy.MessageRoleTool) && message.Compressed {
+			var blocks []chatd.ToolResultBlock
+			require.NoError(t, json.Unmarshal(message.Content.RawMessage, &blocks))
+			require.Len(t, blocks, 1)
+			require.Equal(t, "chat_summarized", blocks[0].ToolName)
+
+			resultMap, ok := blocks[0].Result.(map[string]any)
+			require.True(t, ok)
+			summaryPayload = resultMap
+		}
+	}
+
+	require.NotEmpty(t, systemSummary)
+	require.Contains(t, systemSummary, summaryTail)
+	require.NotNil(t, summaryPayload)
+
+	report, ok := summaryPayload["summary"].(string)
+	require.True(t, ok)
+	require.NotContains(t, report, summaryTail)
+	require.Contains(t, report, "[summary truncated for live stream]")
+
+	summaryTruncated, ok := summaryPayload["summary_truncated"].(bool)
+	require.True(t, ok)
+	require.True(t, summaryTruncated)
+
+	thresholdPercent, ok := summaryPayload["threshold_percent"].(float64)
+	require.True(t, ok)
+	require.Equal(t, 10.0, thresholdPercent)
+
+	contextLimitTokens, ok := summaryPayload["context_limit_tokens"].(float64)
+	require.True(t, ok)
+	require.Equal(t, 100.0, contextLimitTokens)
+
+	callsMu.Lock()
+	gotStreamCalls := streamCalls
+	gotGenerateCalls := generateCalls
+	callsMu.Unlock()
+	require.GreaterOrEqual(t, gotStreamCalls, 1)
+	require.GreaterOrEqual(t, gotGenerateCalls, 1)
+}
+
+func TestRunChatLoop_AzureModelWithoutBaseURLErrors(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	createEnabledChatProvider(t, client, ctx, "azure", "azure-key", "")
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Message:     "hello",
+		ModelConfig: json.RawMessage(`{"provider":"azure","model":"gpt-4o-mini"}`),
+	})
+	require.NoError(t, err)
+
+	result := waitForChatWithStatus(t, ctx, client, chat.ID, codersdk.ChatStatusError)
+	require.Equal(t, codersdk.ChatStatusError, result.Chat.Status)
+	_, hasAssistant := firstChatMessageByRole(result.Messages, "assistant")
+	require.False(t, hasAssistant)
+}
+
+func createEnabledChatProvider(
+	t *testing.T,
+	client *codersdk.Client,
+	ctx context.Context,
+	provider string,
+	apiKey string,
+	baseURL string,
+) codersdk.ChatProviderConfig {
+	t.Helper()
+
+	enabled := true
+	req := codersdk.CreateChatProviderConfigRequest{
+		Provider: provider,
+		Enabled:  &enabled,
+	}
+	if apiKey != "" {
+		req.APIKey = apiKey
+	}
+	if baseURL != "" {
+		req.BaseURL = baseURL
+	}
+
+	cfg, err := client.CreateChatProvider(ctx, req)
+	require.NoError(t, err)
+	return cfg
+}
+
+func createEnabledChatModelConfig(
+	t *testing.T,
+	client *codersdk.Client,
+	ctx context.Context,
+	provider string,
+	model string,
+	displayName string,
+	contextLimit int64,
+	compressionThreshold int32,
+) codersdk.ChatModelConfig {
+	t.Helper()
+
+	enabled := true
+	cfg, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:             provider,
+		Model:                model,
+		DisplayName:          displayName,
+		Enabled:              &enabled,
+		ContextLimit:         &contextLimit,
+		CompressionThreshold: &compressionThreshold,
+	})
+	require.NoError(t, err)
+	return cfg
+}
+
+func waitForChatWithStatus(
+	t *testing.T,
+	ctx context.Context,
+	client *codersdk.Client,
+	chatID uuid.UUID,
+	statuses ...codersdk.ChatStatus,
+) codersdk.ChatWithMessages {
+	t.Helper()
+
+	statusSet := make(map[codersdk.ChatStatus]struct{}, len(statuses))
+	for _, status := range statuses {
+		statusSet[status] = struct{}{}
+	}
+
+	var chat codersdk.ChatWithMessages
+	require.Eventually(t, func() bool {
+		loaded, err := client.GetChat(ctx, chatID)
+		if err != nil {
+			return false
+		}
+		chat = loaded
+		_, ok := statusSet[loaded.Chat.Status]
+		return ok
+	}, testutil.WaitLong, 100*time.Millisecond)
+
+	return chat
+}
+
+func firstChatMessageByRole(
+	messages []codersdk.ChatMessage,
+	role string,
+) (codersdk.ChatMessage, bool) {
+	for _, message := range messages {
+		if message.Role == role {
+			return message, true
+		}
+	}
+	return codersdk.ChatMessage{}, false
+}
+
+func chatMessageText(message codersdk.ChatMessage) string {
+	if len(message.Parts) == 0 {
+		var plain string
+		if err := json.Unmarshal(message.Content, &plain); err == nil {
+			return plain
+		}
+		return ""
+	}
+
+	var b strings.Builder
+	for _, part := range message.Parts {
+		if part.Type != codersdk.ChatMessagePartTypeText {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(part.Text)
+	}
+	return b.String()
 }
