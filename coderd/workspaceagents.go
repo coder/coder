@@ -2045,7 +2045,7 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 		// No point in trying to validate the same token over and over again.
 		if previousToken.OAuthAccessToken == externalAuthLink.OAuthAccessToken &&
 			previousToken.OAuthRefreshToken == externalAuthLink.OAuthRefreshToken &&
-			previousToken.OAuthExpiry == externalAuthLink.OAuthExpiry {
+			previousToken.OAuthExpiry.Equal(externalAuthLink.OAuthExpiry) {
 			continue
 		}
 
