@@ -69,6 +69,44 @@ func TestTokenCRUD(t *testing.T) {
 	require.Equal(t, database.AuditActionDelete, auditor.AuditLogs()[numLogs-1].Action)
 }
 
+func TestTokensFilterExpired(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	adminClient := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, adminClient)
+
+	// Create a token.
+	res, err := adminClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		Lifetime: time.Hour * 24 * 7,
+	})
+	require.NoError(t, err)
+	keyID := strings.Split(res.Key, "-")[0]
+
+	// List tokens without including expired - should see the token.
+	keys, err := adminClient.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+
+	// Expire the token.
+	err = adminClient.ExpireAPIKey(ctx, codersdk.Me, keyID)
+	require.NoError(t, err)
+
+	// List tokens without including expired - should NOT see expired token.
+	keys, err = adminClient.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+	require.NoError(t, err)
+	require.Empty(t, keys)
+
+	// List tokens WITH including expired - should see expired token.
+	keys, err = adminClient.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{
+		IncludeExpired: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	require.Equal(t, keyID, keys[0].ID)
+}
+
 func TestTokenScoped(t *testing.T) {
 	t.Parallel()
 

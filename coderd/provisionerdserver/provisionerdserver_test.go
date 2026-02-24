@@ -1321,7 +1321,9 @@ func TestFailJob(t *testing.T) {
 		<-publishedLogs
 		build, err := db.GetWorkspaceBuildByID(ctx, buildID)
 		require.NoError(t, err)
-		require.Equal(t, "some state", string(build.ProvisionerState))
+		provisionerStateRow, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, build.ID)
+		require.NoError(t, err)
+		require.Equal(t, "some state", string(provisionerStateRow.ProvisionerState))
 		require.Len(t, auditor.AuditLogs(), 1)
 
 		// Assert that the workspace_id field get populated
