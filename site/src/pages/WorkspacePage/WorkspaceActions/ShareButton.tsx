@@ -1,4 +1,5 @@
 import type { Workspace } from "api/typesGenerated";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
 import {
 	Popover,
@@ -32,6 +33,10 @@ export const ShareButton: FC<ShareButtonProps> = ({
 				</TopbarButton>
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-[580px] p-4">
+				<div className="flex items-center gap-2 mb-4">
+					<h3 className="text-lg font-semibold m-0">Workspace Sharing</h3>
+					<FeatureStageBadge contentType="beta" size="sm" />
+				</div>
 				<WorkspaceSharingForm
 					workspaceACL={sharing.workspaceACL}
 					canUpdatePermissions={canUpdatePermissions}
