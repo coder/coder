@@ -32,7 +32,7 @@ const AppearanceSettingsPage: FC = () => {
 
 		toast.promise(mutation, {
 			loading: "Updating appearance settings...",
-			success: "Appearance settings updated successfully!",
+			success: "Appearance settings updated successfully.",
 			error: (error) => ({
 				message: getErrorMessage(
 					error,

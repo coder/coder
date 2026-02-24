@@ -113,8 +113,8 @@ const CustomRolesPage: FC = () => {
 							}
 							toast.success(
 								roleToDelete
-									? `Custom role "${roleToDelete.name}" deleted successfully!`
-									: "Custom role deleted successfully!",
+									? `Custom role "${roleToDelete.name}" deleted successfully.`
+									: "Custom role deleted successfully.",
 							);
 						} catch (error) {
 							toast.error(

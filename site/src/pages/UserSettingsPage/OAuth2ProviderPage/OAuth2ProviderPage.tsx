@@ -43,7 +43,7 @@ const OAuth2ProviderPage: FC = () => {
 						try {
 							await revokeAppMutation.mutateAsync(appToRevoke.id);
 							toast.success(
-								`You have successfully revoked the OAuth2 application "${appToRevoke.name}"`,
+								`OAuth2 application "${appToRevoke.name}" revoked successfully.`,
 							);
 							setAppIdToRevoke(undefined);
 						} catch (error) {

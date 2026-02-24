@@ -133,7 +133,7 @@ const OrganizationMembersPage: FC = () => {
 						);
 						toast.promise(mutation, {
 							loading: `Removing member "${memberToDelete.username}" from organization "${organization.display_name}"...`,
-							success: `User "${memberToDelete.username}" removed from organization "${organization.display_name}" successfully!`,
+							success: `User "${memberToDelete.username}" removed from organization "${organization.display_name}" successfully.`,
 							error: (error) =>
 								getErrorMessage(
 									error,

@@ -92,7 +92,9 @@ describe("OrganizationMembersPage", () => {
 			it("shows a success message", async () => {
 				await renderPage();
 				await removeMember();
-				await screen.findByText("User removed from organization successfully!");
+				await screen.findByText(
+					/User "TestUser2" removed from organization "My Organization" successfully\./,
+				);
 			});
 		});
 	});
