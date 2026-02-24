@@ -569,6 +569,20 @@ resource "coder_agent" "dev" {
     else
       echo "Already logged into GitHub CLI."
     fi
+    # Configure Mux GitHub owner login for browser access (skip if
+    # already set). See: https://mux.coder.com/config/server-access
+    if [ ! -f ~/.mux/config.json ] || ! jq -e '.serverAuthGithubOwner' ~/.mux/config.json >/dev/null 2>&1; then
+      GH_USER=$(gh api user --jq .login 2>/dev/null || true)
+      if [ -n "$GH_USER" ]; then
+        mkdir -p ~/.mux
+        if [ -f ~/.mux/config.json ]; then
+          jq --arg owner "$GH_USER" '. + {serverAuthGithubOwner: $owner}' ~/.mux/config.json > /tmp/mux-config.json && mv /tmp/mux-config.json ~/.mux/config.json
+        else
+          jq -n --arg owner "$GH_USER" '{serverAuthGithubOwner: $owner}' > ~/.mux/config.json
+        fi
+        echo "Configured Mux GitHub owner login: $GH_USER"
+      fi
+    fi
 
     # Increase the shutdown timeout of the docker service for improved cleanup.
     # The 240 was picked as it's lower than the 300 seconds we set for the

@@ -504,7 +504,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
 			InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
 			JobID:             jobID,
-			ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
+			ProvisionerState:  []byte{},
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
 			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
 			Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
@@ -1373,6 +1373,8 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 		ResourceUri:         seed.ResourceUri,
 		CodeChallenge:       seed.CodeChallenge,
 		CodeChallengeMethod: seed.CodeChallengeMethod,
+		StateHash:           seed.StateHash,
+		RedirectUri:         seed.RedirectUri,
 	})
 	require.NoError(t, err, "insert oauth2 app code")
 	return code
