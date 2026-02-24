@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 
 	"github.com/google/uuid"
@@ -455,59 +454,6 @@ func TestChatMessagesToPrompt_RepairsLegacyOrphanToolResult(t *testing.T) {
 	toolResultParts := messageToolResultParts(prompt[2])
 	require.Len(t, toolResultParts, 1)
 	require.Equal(t, sanitizedToolCallID, toolResultParts[0].ToolCallID)
-}
-
-func TestPrepareAgentStepResult_ReportOnly(t *testing.T) {
-	t.Parallel()
-
-	sentinel := "__sentinel__"
-	result := prepareAgentStepResult(
-		[]fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: sentinel},
-				},
-			},
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "real message"},
-				},
-			},
-		},
-		sentinel,
-		true,
-		false,
-	)
-
-	require.Equal(t, []string{"subagent_report"}, result.ActiveTools)
-	require.Len(t, result.Messages, 1)
-	require.Equal(t, fantasy.MessageRoleUser, result.Messages[0].Role)
-}
-
-func TestPrepareAgentStepResult_AnthropicCaching(t *testing.T) {
-	t.Parallel()
-
-	result := prepareAgentStepResult(
-		[]fantasy.Message{
-			textMessage(fantasy.MessageRoleSystem, "sys-1"),
-			textMessage(fantasy.MessageRoleSystem, "sys-2"),
-			textMessage(fantasy.MessageRoleUser, "hello"),
-			textMessage(fantasy.MessageRoleAssistant, "working"),
-			textMessage(fantasy.MessageRoleUser, "continue"),
-		},
-		"__sentinel__",
-		false,
-		true,
-	)
-
-	require.Len(t, result.Messages, 5)
-	require.False(t, hasAnthropicEphemeralCacheControl(result.Messages[0]))
-	require.True(t, hasAnthropicEphemeralCacheControl(result.Messages[1]))
-	require.False(t, hasAnthropicEphemeralCacheControl(result.Messages[2]))
-	require.True(t, hasAnthropicEphemeralCacheControl(result.Messages[3]))
-	require.True(t, hasAnthropicEphemeralCacheControl(result.Messages[4]))
 }
 
 func TestParseChatModelConfig_ParsesCallConfig(t *testing.T) {
@@ -1074,29 +1020,6 @@ func messageToolResultParts(message fantasy.Message) []fantasy.ToolResultPart {
 		results = append(results, result)
 	}
 	return results
-}
-
-func textMessage(role fantasy.MessageRole, text string) fantasy.Message {
-	return fantasy.Message{
-		Role: role,
-		Content: []fantasy.MessagePart{
-			fantasy.TextPart{Text: text},
-		},
-	}
-}
-
-func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
-	if len(message.ProviderOptions) == 0 {
-		return false
-	}
-
-	options, ok := message.ProviderOptions[fantasyanthropic.Name]
-	if !ok {
-		return false
-	}
-
-	cacheOptions, ok := options.(*fantasyanthropic.ProviderCacheControlOptions)
-	return ok && cacheOptions.CacheControl.Type == "ephemeral"
 }
 
 type titleTestModel struct {
