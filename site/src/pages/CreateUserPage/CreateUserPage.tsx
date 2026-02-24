@@ -28,15 +28,22 @@ const CreateUserPage: FC = () => {
 				error={createUserMutation.error}
 				isLoading={createUserMutation.isPending}
 				onSubmit={async (user) => {
-					const mutation = createUserMutation.mutateAsync({
-						username: user.username,
-						name: user.name,
-						email: user.email,
-						organization_ids: [user.organization],
-						login_type: user.login_type,
-						password: user.password,
-						user_status: null,
-					});
+					const mutation = createUserMutation.mutateAsync(
+						{
+							username: user.username,
+							name: user.name,
+							email: user.email,
+							organization_ids: [user.organization],
+							login_type: user.login_type,
+							password: user.password,
+							user_status: null,
+						},
+						{
+							onSuccess: () => {
+								navigate("..", { relative: "path" });
+							},
+						},
+					);
 					toast.promise(mutation, {
 						loading: `Creating user "${user.username}"...`,
 						success: `User "${user.username}" created successfully.`,
@@ -48,7 +55,6 @@ const CreateUserPage: FC = () => {
 							description: getErrorDetail(e),
 						}),
 					});
-					navigate("..", { relative: "path" });
 				}}
 				onCancel={() => {
 					navigate("..", { relative: "path" });
