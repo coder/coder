@@ -85,10 +85,6 @@ const (
 	externalAuthWaitCompletedStatus = "completed"
 )
 
-var (
-	ErrChatInterrupted = xerrors.New("chat interrupted")
-)
-
 // Processor handles background processing of pending chats.
 type Processor struct {
 	cancel   context.CancelFunc
@@ -430,7 +426,7 @@ func (p *Processor) InterruptChat(chatID uuid.UUID) bool {
 	if !ok {
 		return false
 	}
-	cancel(ErrChatInterrupted)
+	cancel(chatloop.ErrInterrupted)
 	if p.streamManager != nil {
 		p.streamManager.StopStream(chatID)
 	}
@@ -869,7 +865,7 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 	}()
 
 	if err := p.runChat(chatCtx, chat, logger, reportOnly, activeSubagentRequestID); err != nil {
-		if errors.Is(err, ErrChatInterrupted) || errors.Is(context.Cause(chatCtx), ErrChatInterrupted) {
+		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
 			logger.Info(ctx, "chat interrupted")
 			status = database.ChatStatusWaiting
 			return
@@ -1528,77 +1524,73 @@ func (p *Processor) runChatWithAgent(
 		modelConfigContextLimit = compressionConfig.ContextLimit
 	}
 
-	persistAssistant := func(
-		persistCtx context.Context,
-		content []fantasy.Content,
-		usage fantasy.Usage,
-		contextLimit sql.NullInt64,
-	) error {
-		if len(content) == 0 {
-			return nil
+	persistStep := func(persistCtx context.Context, step chatloop.PersistedStep) error {
+		if len(step.AssistantContent) > 0 {
+			assistantContent, err := chatprompt.MarshalContent(step.AssistantContent)
+			if err != nil {
+				return err
+			}
+
+			hasUsage := step.Usage != (fantasy.Usage{})
+			assistantMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
+				ChatID:  chat.ID,
+				Role:    string(fantasy.MessageRoleAssistant),
+				Content: assistantContent,
+				ToolCallID: sql.NullString{
+					Valid: false,
+				},
+				Thinking: sql.NullString{
+					Valid: false,
+				},
+				Hidden:            false,
+				SubagentRequestID: subagentRequest,
+				InputTokens:       usageNullInt64(step.Usage.InputTokens, hasUsage),
+				OutputTokens:      usageNullInt64(step.Usage.OutputTokens, hasUsage),
+				TotalTokens:       usageNullInt64(step.Usage.TotalTokens, hasUsage),
+				ReasoningTokens:   usageNullInt64(step.Usage.ReasoningTokens, hasUsage),
+				CacheCreationTokens: usageNullInt64(
+					step.Usage.CacheCreationTokens,
+					hasUsage,
+				),
+				CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
+				ContextLimit:    step.ContextLimit,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert assistant message: %w", err)
+			}
+			p.publishMessage(chat.ID, assistantMessage)
 		}
 
-		assistantContent, err := chatprompt.MarshalContent(content)
-		if err != nil {
-			return err
-		}
+		for _, result := range step.ToolResults {
+			resultContent, err := chatprompt.MarshalResults([]chatprompt.ToolResultBlock{result})
+			if err != nil {
+				return err
+			}
 
-		hasUsage := usage != (fantasy.Usage{})
-		assistantMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-			ChatID:  chat.ID,
-			Role:    string(fantasy.MessageRoleAssistant),
-			Content: assistantContent,
-			ToolCallID: sql.NullString{
-				Valid: false,
-			},
-			Thinking: sql.NullString{
-				Valid: false,
-			},
-			Hidden:            false,
-			SubagentRequestID: subagentRequest,
-			InputTokens:       usageNullInt64(usage.InputTokens, hasUsage),
-			OutputTokens:      usageNullInt64(usage.OutputTokens, hasUsage),
-			TotalTokens:       usageNullInt64(usage.TotalTokens, hasUsage),
-			ReasoningTokens:   usageNullInt64(usage.ReasoningTokens, hasUsage),
-			CacheCreationTokens: usageNullInt64(
-				usage.CacheCreationTokens,
-				hasUsage,
-			),
-			CacheReadTokens: usageNullInt64(usage.CacheReadTokens, hasUsage),
-			ContextLimit:    contextLimit,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert assistant message: %w", err)
-		}
-		p.publishMessage(chat.ID, assistantMessage)
-		return nil
-	}
+			toolMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
+				ChatID:  chat.ID,
+				Role:    string(fantasy.MessageRoleTool),
+				Content: resultContent,
+				ToolCallID: sql.NullString{
+					String: result.ToolCallID,
+					Valid:  result.ToolCallID != "",
+				},
+				Hidden:            false,
+				SubagentRequestID: subagentRequest,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert tool result: %w", err)
+			}
 
-	persistToolResult := func(persistCtx context.Context, result chatprompt.ToolResultBlock) error {
-		resultContent, err := chatprompt.MarshalResults([]chatprompt.ToolResultBlock{result})
-		if err != nil {
-			return err
+			p.publishMessage(chat.ID, toolMessage)
 		}
-
-		toolMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-			ChatID:  chat.ID,
-			Role:    string(fantasy.MessageRoleTool),
-			Content: resultContent,
-			ToolCallID: sql.NullString{
-				String: result.ToolCallID,
-				Valid:  result.ToolCallID != "",
-			},
-			Hidden:            false,
-			SubagentRequestID: subagentRequest,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert tool result: %w", err)
-		}
-
-		p.publishMessage(chat.ID, toolMessage)
 		return nil
 	}
 	streamCall := streamCallOptionsFromChatModelConfig(model, modelConfig)
+	var activeTools []string
+	if reportOnly {
+		activeTools = append(activeTools, "subagent_report")
+	}
 
 	return chatloop.Run(ctx, chatloop.RunOptions{
 		Model:      model,
@@ -1607,11 +1599,10 @@ func (p *Processor) runChatWithAgent(
 		StreamCall: streamCall,
 		MaxSteps:   maxChatSteps,
 
-		ReportOnly:           reportOnly,
+		ActiveTools:          activeTools,
 		ContextLimitFallback: modelConfigContextLimit,
 
-		PersistAssistant:  persistAssistant,
-		PersistToolResult: persistToolResult,
+		PersistStep: persistStep,
 		PublishMessagePart: func(
 			role fantasy.MessageRole,
 			part codersdk.ChatMessagePart,
@@ -1619,7 +1610,6 @@ func (p *Processor) runChatWithAgent(
 			p.publishMessagePart(chat.ID, string(role), part)
 		},
 
-		InterruptedError: ErrChatInterrupted,
 		OnInterruptedPersistError: func(err error) {
 			p.logger.Warn(ctx, "failed to persist interrupted chat step", slog.Error(err))
 		},

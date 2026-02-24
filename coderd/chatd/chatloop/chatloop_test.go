@@ -2,7 +2,6 @@ package chatloop
 
 import (
 	"context"
-	"database/sql"
 	"iter"
 	"strings"
 	"testing"
@@ -15,7 +14,9 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 )
 
-func TestRun_ReportOnlyPrepareBehavior(t *testing.T) {
+const subagentReportToolName = "subagent_report"
+
+func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	t.Parallel()
 
 	var capturedCall fantasy.Call
@@ -32,9 +33,8 @@ func TestRun_ReportOnlyPrepareBehavior(t *testing.T) {
 		},
 	}
 
-	persistAssistantCalls := 0
-	persistToolResultCalls := 0
-	persistedContextLimit := sql.NullInt64{}
+	persistStepCalls := 0
+	var persistedStep PersistedStep
 
 	_, err := Run(context.Background(), RunOptions{
 		Model: model,
@@ -46,38 +46,29 @@ func TestRun_ReportOnlyPrepareBehavior(t *testing.T) {
 			textMessage(fantasy.MessageRoleUser, "continue"),
 		},
 		Tools: []fantasy.AgentTool{
-			newNoopTool(reportOnlyToolName),
+			newNoopTool(subagentReportToolName),
 			newNoopTool("read_file"),
 		},
 		MaxSteps:             3,
-		ReportOnly:           true,
+		ActiveTools:          []string{subagentReportToolName},
 		ContextLimitFallback: 4096,
-		PersistAssistant: func(
-			_ context.Context,
-			_ []fantasy.Content,
-			_ fantasy.Usage,
-			contextLimit sql.NullInt64,
-		) error {
-			persistAssistantCalls++
-			persistedContextLimit = contextLimit
-			return nil
-		},
-		PersistToolResult: func(_ context.Context, _ chatprompt.ToolResultBlock) error {
-			persistToolResultCalls++
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistStepCalls++
+			persistedStep = step
 			return nil
 		},
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, 1, persistAssistantCalls)
-	require.Equal(t, 0, persistToolResultCalls)
-	require.True(t, persistedContextLimit.Valid)
-	require.Equal(t, int64(4096), persistedContextLimit.Int64)
+	require.Equal(t, 1, persistStepCalls)
+	require.Empty(t, persistedStep.ToolResults)
+	require.True(t, persistedStep.ContextLimit.Valid)
+	require.Equal(t, int64(4096), persistedStep.ContextLimit.Int64)
 
 	require.NotEmpty(t, capturedCall.Prompt)
 	require.False(t, containsPromptSentinel(capturedCall.Prompt))
 	require.Len(t, capturedCall.Tools, 1)
-	require.Equal(t, reportOnlyToolName, capturedCall.Tools[0].GetName())
+	require.Equal(t, subagentReportToolName, capturedCall.Tools[0].GetName())
 
 	require.Len(t, capturedCall.Prompt, 5)
 	require.False(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[0]))
@@ -131,13 +122,12 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 		},
 	}
 
-	interruptedErr := xerrors.New("chat interrupted")
 	ctx, cancel := context.WithCancelCause(context.Background())
 	defer cancel(nil)
 
 	go func() {
 		<-started
-		cancel(interruptedErr)
+		cancel(ErrInterrupted)
 	}()
 
 	persistedAssistantCtxErr := xerrors.New("unset")
@@ -153,23 +143,17 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 			newNoopTool("read_file"),
 		},
 		MaxSteps: 3,
-		PersistAssistant: func(
-			persistCtx context.Context,
-			content []fantasy.Content,
-			_ fantasy.Usage,
-			_ sql.NullInt64,
-		) error {
+		PersistStep: func(persistCtx context.Context, step PersistedStep) error {
 			persistedAssistantCtxErr = persistCtx.Err()
-			persistedAssistantContent = append([]fantasy.Content(nil), content...)
+			persistedAssistantContent = append([]fantasy.Content(nil), step.AssistantContent...)
+			persistedToolResults = append(
+				persistedToolResults,
+				step.ToolResults...,
+			)
 			return nil
 		},
-		PersistToolResult: func(_ context.Context, result chatprompt.ToolResultBlock) error {
-			persistedToolResults = append(persistedToolResults, result)
-			return nil
-		},
-		InterruptedError: interruptedErr,
 	})
-	require.ErrorIs(t, err, interruptedErr)
+	require.ErrorIs(t, err, ErrInterrupted)
 	require.NoError(t, persistedAssistantCtxErr)
 
 	require.NotEmpty(t, persistedAssistantContent)

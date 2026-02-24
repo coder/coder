@@ -20,8 +20,16 @@ import (
 
 const (
 	interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
-	reportOnlyToolName                = "subagent_report"
 )
+
+var ErrInterrupted = xerrors.New("chat interrupted")
+
+type PersistedStep struct {
+	AssistantContent []fantasy.Content
+	ToolResults      []chatprompt.ToolResultBlock
+	Usage            fantasy.Usage
+	ContextLimit     sql.NullInt64
+}
 
 // RunOptions configures a single streaming chat loop run.
 type RunOptions struct {
@@ -31,22 +39,15 @@ type RunOptions struct {
 	StreamCall fantasy.AgentStreamCall
 	MaxSteps   int
 
-	ReportOnly           bool
+	ActiveTools          []string
 	ContextLimitFallback int64
 
-	PersistAssistant func(
-		persistCtx context.Context,
-		content []fantasy.Content,
-		usage fantasy.Usage,
-		contextLimit sql.NullInt64,
-	) error
-	PersistToolResult  func(context.Context, chatprompt.ToolResultBlock) error
+	PersistStep        func(context.Context, PersistedStep) error
 	PublishMessagePart func(
 		role fantasy.MessageRole,
 		part codersdk.ChatMessagePart,
 	)
 
-	InterruptedError          error
 	OnInterruptedPersistError func(error)
 }
 
@@ -55,11 +56,8 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 	if opts.Model == nil {
 		return nil, xerrors.New("chat model is required")
 	}
-	if opts.PersistAssistant == nil {
-		return nil, xerrors.New("persist assistant callback is required")
-	}
-	if opts.PersistToolResult == nil {
-		return nil, xerrors.New("persist tool result callback is required")
+	if opts.PersistStep == nil {
+		return nil, xerrors.New("persist step callback is required")
 	}
 	if opts.MaxSteps <= 0 {
 		opts.MaxSteps = 1
@@ -290,20 +288,10 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 		toolResults = append(toolResults, missingResults...)
 
 		persistCtx := context.WithoutCancel(ctx)
-		if err := opts.PersistAssistant(
-			persistCtx,
-			stepAssistantContent(draft, toolResults),
-			fantasy.Usage{},
-			sql.NullInt64{},
-		); err != nil {
-			return err
-		}
-		for _, toolResult := range toolResults {
-			if err := opts.PersistToolResult(persistCtx, toolResult); err != nil {
-				return err
-			}
-		}
-		return nil
+		return opts.PersistStep(persistCtx, PersistedStep{
+			AssistantContent: stepAssistantContent(draft, toolResults),
+			ToolResults:      toolResults,
+		})
 	}
 
 	resetStepState()
@@ -326,7 +314,7 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 		return stepCtx, prepareStepResult(
 			options.Messages,
 			sentinelPrompt,
-			opts.ReportOnly,
+			opts.ActiveTools,
 			applyAnthropicCaching,
 		), nil
 	}
@@ -448,33 +436,24 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 			}
 		}
 
-		if err := opts.PersistAssistant(
-			ctx,
-			stepAssistantContent(stepResult.Content, toolResults),
-			stepResult.Usage,
-			contextLimit,
-		); err != nil {
-			return err
-		}
-		for _, toolResult := range toolResults {
-			if err := opts.PersistToolResult(ctx, toolResult); err != nil {
-				return err
-			}
-		}
-		return nil
+		return opts.PersistStep(ctx, PersistedStep{
+			AssistantContent: stepAssistantContent(stepResult.Content, toolResults),
+			ToolResults:      toolResults,
+			Usage:            stepResult.Usage,
+			ContextLimit:     contextLimit,
+		})
 	}
 
 	result, err := agent.Stream(ctx, streamCall)
 	if err != nil {
-		if opts.InterruptedError != nil &&
-			errors.Is(err, context.Canceled) &&
-			errors.Is(context.Cause(ctx), opts.InterruptedError) {
+		if errors.Is(err, context.Canceled) &&
+			errors.Is(context.Cause(ctx), ErrInterrupted) {
 			if persistErr := persistInterruptedStep(); persistErr != nil {
 				if opts.OnInterruptedPersistError != nil {
 					opts.OnInterruptedPersistError(persistErr)
 				}
 			}
-			return nil, opts.InterruptedError
+			return nil, ErrInterrupted
 		}
 		return nil, xerrors.Errorf("stream response: %w", err)
 	}
@@ -485,7 +464,7 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 func prepareStepResult(
 	messages []fantasy.Message,
 	sentinel string,
-	reportOnly bool,
+	activeTools []string,
 	anthropicCaching bool,
 ) fantasy.PrepareStepResult {
 	filtered := make([]fantasy.Message, 0, len(messages))
@@ -509,8 +488,8 @@ func prepareStepResult(
 	if anthropicCaching {
 		result.Messages = addAnthropicPromptCaching(result.Messages)
 	}
-	if reportOnly {
-		result.ActiveTools = []string{reportOnlyToolName}
+	if len(activeTools) > 0 {
+		result.ActiveTools = append([]string(nil), activeTools...)
 	}
 	return result
 }
