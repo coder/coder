@@ -557,6 +557,337 @@ func normalizedEnumValue(value string, allowed ...string) *string {
 	return nil
 }
 
+// MergeMissingCallConfig fills unset call config values from defaults.
+func MergeMissingCallConfig(
+	dst *codersdk.ChatModelCallConfig,
+	defaults codersdk.ChatModelCallConfig,
+) {
+	if dst.MaxOutputTokens == nil {
+		dst.MaxOutputTokens = defaults.MaxOutputTokens
+	}
+	if dst.Temperature == nil {
+		dst.Temperature = defaults.Temperature
+	}
+	if dst.TopP == nil {
+		dst.TopP = defaults.TopP
+	}
+	if dst.TopK == nil {
+		dst.TopK = defaults.TopK
+	}
+	if dst.PresencePenalty == nil {
+		dst.PresencePenalty = defaults.PresencePenalty
+	}
+	if dst.FrequencyPenalty == nil {
+		dst.FrequencyPenalty = defaults.FrequencyPenalty
+	}
+	MergeMissingProviderOptions(&dst.ProviderOptions, defaults.ProviderOptions)
+}
+
+// MergeMissingProviderOptions fills unset provider option fields from defaults.
+func MergeMissingProviderOptions(
+	dst **codersdk.ChatModelProviderOptions,
+	defaults *codersdk.ChatModelProviderOptions,
+) {
+	if defaults == nil {
+		return
+	}
+	if *dst == nil {
+		copied := *defaults
+		*dst = &copied
+		return
+	}
+
+	current := *dst
+	for _, provider := range []string{
+		fantasyopenai.Name,
+		fantasyanthropic.Name,
+		fantasygoogle.Name,
+		fantasyopenaicompat.Name,
+		fantasyopenrouter.Name,
+		fantasyvercel.Name,
+	} {
+		switch provider {
+		case fantasyopenai.Name:
+			if defaults.OpenAI == nil {
+				continue
+			}
+			if current.OpenAI == nil {
+				copied := *defaults.OpenAI
+				current.OpenAI = &copied
+				continue
+			}
+			dstOpenAI := current.OpenAI
+			defaultOpenAI := defaults.OpenAI
+			if dstOpenAI.Include == nil {
+				dstOpenAI.Include = defaultOpenAI.Include
+			}
+			if dstOpenAI.Instructions == nil {
+				dstOpenAI.Instructions = defaultOpenAI.Instructions
+			}
+			if dstOpenAI.LogitBias == nil {
+				dstOpenAI.LogitBias = defaultOpenAI.LogitBias
+			}
+			if dstOpenAI.LogProbs == nil {
+				dstOpenAI.LogProbs = defaultOpenAI.LogProbs
+			}
+			if dstOpenAI.TopLogProbs == nil {
+				dstOpenAI.TopLogProbs = defaultOpenAI.TopLogProbs
+			}
+			if dstOpenAI.MaxToolCalls == nil {
+				dstOpenAI.MaxToolCalls = defaultOpenAI.MaxToolCalls
+			}
+			if dstOpenAI.ParallelToolCalls == nil {
+				dstOpenAI.ParallelToolCalls = defaultOpenAI.ParallelToolCalls
+			}
+			if dstOpenAI.User == nil {
+				dstOpenAI.User = defaultOpenAI.User
+			}
+			if dstOpenAI.ReasoningEffort == nil {
+				dstOpenAI.ReasoningEffort = defaultOpenAI.ReasoningEffort
+			}
+			if dstOpenAI.ReasoningSummary == nil {
+				dstOpenAI.ReasoningSummary = defaultOpenAI.ReasoningSummary
+			}
+			if dstOpenAI.MaxCompletionTokens == nil {
+				dstOpenAI.MaxCompletionTokens = defaultOpenAI.MaxCompletionTokens
+			}
+			if dstOpenAI.TextVerbosity == nil {
+				dstOpenAI.TextVerbosity = defaultOpenAI.TextVerbosity
+			}
+			if dstOpenAI.Prediction == nil {
+				dstOpenAI.Prediction = defaultOpenAI.Prediction
+			}
+			if dstOpenAI.Store == nil {
+				dstOpenAI.Store = defaultOpenAI.Store
+			}
+			if dstOpenAI.Metadata == nil {
+				dstOpenAI.Metadata = defaultOpenAI.Metadata
+			}
+			if dstOpenAI.PromptCacheKey == nil {
+				dstOpenAI.PromptCacheKey = defaultOpenAI.PromptCacheKey
+			}
+			if dstOpenAI.SafetyIdentifier == nil {
+				dstOpenAI.SafetyIdentifier = defaultOpenAI.SafetyIdentifier
+			}
+			if dstOpenAI.ServiceTier == nil {
+				dstOpenAI.ServiceTier = defaultOpenAI.ServiceTier
+			}
+			if dstOpenAI.StructuredOutputs == nil {
+				dstOpenAI.StructuredOutputs = defaultOpenAI.StructuredOutputs
+			}
+			if dstOpenAI.StrictJSONSchema == nil {
+				dstOpenAI.StrictJSONSchema = defaultOpenAI.StrictJSONSchema
+			}
+
+		case fantasyanthropic.Name:
+			if defaults.Anthropic == nil {
+				continue
+			}
+			if current.Anthropic == nil {
+				copied := *defaults.Anthropic
+				current.Anthropic = &copied
+				continue
+			}
+			dstAnthropic := current.Anthropic
+			defaultAnthropic := defaults.Anthropic
+			if dstAnthropic.SendReasoning == nil {
+				dstAnthropic.SendReasoning = defaultAnthropic.SendReasoning
+			}
+			if dstAnthropic.Thinking == nil {
+				dstAnthropic.Thinking = defaultAnthropic.Thinking
+			} else if defaultAnthropic.Thinking != nil &&
+				dstAnthropic.Thinking.BudgetTokens == nil {
+				dstAnthropic.Thinking.BudgetTokens = defaultAnthropic.Thinking.BudgetTokens
+			}
+			if dstAnthropic.Effort == nil {
+				dstAnthropic.Effort = defaultAnthropic.Effort
+			}
+			if dstAnthropic.DisableParallelToolUse == nil {
+				dstAnthropic.DisableParallelToolUse = defaultAnthropic.DisableParallelToolUse
+			}
+
+		case fantasygoogle.Name:
+			if defaults.Google == nil {
+				continue
+			}
+			if current.Google == nil {
+				copied := *defaults.Google
+				current.Google = &copied
+				continue
+			}
+			dstGoogle := current.Google
+			defaultGoogle := defaults.Google
+			if dstGoogle.ThinkingConfig == nil {
+				dstGoogle.ThinkingConfig = defaultGoogle.ThinkingConfig
+			} else if defaultGoogle.ThinkingConfig != nil {
+				if dstGoogle.ThinkingConfig.ThinkingBudget == nil {
+					dstGoogle.ThinkingConfig.ThinkingBudget = defaultGoogle.ThinkingConfig.ThinkingBudget
+				}
+				if dstGoogle.ThinkingConfig.IncludeThoughts == nil {
+					dstGoogle.ThinkingConfig.IncludeThoughts = defaultGoogle.ThinkingConfig.IncludeThoughts
+				}
+			}
+			if strings.TrimSpace(dstGoogle.CachedContent) == "" {
+				dstGoogle.CachedContent = defaultGoogle.CachedContent
+			}
+			if dstGoogle.SafetySettings == nil {
+				dstGoogle.SafetySettings = defaultGoogle.SafetySettings
+			}
+			if strings.TrimSpace(dstGoogle.Threshold) == "" {
+				dstGoogle.Threshold = defaultGoogle.Threshold
+			}
+
+		case fantasyopenaicompat.Name:
+			if defaults.OpenAICompat == nil {
+				continue
+			}
+			if current.OpenAICompat == nil {
+				copied := *defaults.OpenAICompat
+				current.OpenAICompat = &copied
+				continue
+			}
+			dstCompat := current.OpenAICompat
+			defaultCompat := defaults.OpenAICompat
+			if dstCompat.User == nil {
+				dstCompat.User = defaultCompat.User
+			}
+			if dstCompat.ReasoningEffort == nil {
+				dstCompat.ReasoningEffort = defaultCompat.ReasoningEffort
+			}
+
+		case fantasyopenrouter.Name:
+			if defaults.OpenRouter == nil {
+				continue
+			}
+			if current.OpenRouter == nil {
+				copied := *defaults.OpenRouter
+				current.OpenRouter = &copied
+				continue
+			}
+			dstRouter := current.OpenRouter
+			defaultRouter := defaults.OpenRouter
+			if dstRouter.Reasoning == nil {
+				dstRouter.Reasoning = defaultRouter.Reasoning
+			} else if defaultRouter.Reasoning != nil {
+				if dstRouter.Reasoning.Enabled == nil {
+					dstRouter.Reasoning.Enabled = defaultRouter.Reasoning.Enabled
+				}
+				if dstRouter.Reasoning.Exclude == nil {
+					dstRouter.Reasoning.Exclude = defaultRouter.Reasoning.Exclude
+				}
+				if dstRouter.Reasoning.MaxTokens == nil {
+					dstRouter.Reasoning.MaxTokens = defaultRouter.Reasoning.MaxTokens
+				}
+				if dstRouter.Reasoning.Effort == nil {
+					dstRouter.Reasoning.Effort = defaultRouter.Reasoning.Effort
+				}
+			}
+			if dstRouter.ExtraBody == nil {
+				dstRouter.ExtraBody = defaultRouter.ExtraBody
+			}
+			if dstRouter.IncludeUsage == nil {
+				dstRouter.IncludeUsage = defaultRouter.IncludeUsage
+			}
+			if dstRouter.LogitBias == nil {
+				dstRouter.LogitBias = defaultRouter.LogitBias
+			}
+			if dstRouter.LogProbs == nil {
+				dstRouter.LogProbs = defaultRouter.LogProbs
+			}
+			if dstRouter.ParallelToolCalls == nil {
+				dstRouter.ParallelToolCalls = defaultRouter.ParallelToolCalls
+			}
+			if dstRouter.User == nil {
+				dstRouter.User = defaultRouter.User
+			}
+			if dstRouter.Provider == nil {
+				dstRouter.Provider = defaultRouter.Provider
+			} else if defaultRouter.Provider != nil {
+				if dstRouter.Provider.Order == nil {
+					dstRouter.Provider.Order = defaultRouter.Provider.Order
+				}
+				if dstRouter.Provider.AllowFallbacks == nil {
+					dstRouter.Provider.AllowFallbacks = defaultRouter.Provider.AllowFallbacks
+				}
+				if dstRouter.Provider.RequireParameters == nil {
+					dstRouter.Provider.RequireParameters = defaultRouter.Provider.RequireParameters
+				}
+				if dstRouter.Provider.DataCollection == nil {
+					dstRouter.Provider.DataCollection = defaultRouter.Provider.DataCollection
+				}
+				if dstRouter.Provider.Only == nil {
+					dstRouter.Provider.Only = defaultRouter.Provider.Only
+				}
+				if dstRouter.Provider.Ignore == nil {
+					dstRouter.Provider.Ignore = defaultRouter.Provider.Ignore
+				}
+				if dstRouter.Provider.Quantizations == nil {
+					dstRouter.Provider.Quantizations = defaultRouter.Provider.Quantizations
+				}
+				if dstRouter.Provider.Sort == nil {
+					dstRouter.Provider.Sort = defaultRouter.Provider.Sort
+				}
+			}
+
+		case fantasyvercel.Name:
+			if defaults.Vercel == nil {
+				continue
+			}
+			if current.Vercel == nil {
+				copied := *defaults.Vercel
+				current.Vercel = &copied
+				continue
+			}
+			dstVercel := current.Vercel
+			defaultVercel := defaults.Vercel
+			if dstVercel.Reasoning == nil {
+				dstVercel.Reasoning = defaultVercel.Reasoning
+			} else if defaultVercel.Reasoning != nil {
+				if dstVercel.Reasoning.Enabled == nil {
+					dstVercel.Reasoning.Enabled = defaultVercel.Reasoning.Enabled
+				}
+				if dstVercel.Reasoning.MaxTokens == nil {
+					dstVercel.Reasoning.MaxTokens = defaultVercel.Reasoning.MaxTokens
+				}
+				if dstVercel.Reasoning.Effort == nil {
+					dstVercel.Reasoning.Effort = defaultVercel.Reasoning.Effort
+				}
+				if dstVercel.Reasoning.Exclude == nil {
+					dstVercel.Reasoning.Exclude = defaultVercel.Reasoning.Exclude
+				}
+			}
+			if dstVercel.ProviderOptions == nil {
+				dstVercel.ProviderOptions = defaultVercel.ProviderOptions
+			} else if defaultVercel.ProviderOptions != nil {
+				if dstVercel.ProviderOptions.Order == nil {
+					dstVercel.ProviderOptions.Order = defaultVercel.ProviderOptions.Order
+				}
+				if dstVercel.ProviderOptions.Models == nil {
+					dstVercel.ProviderOptions.Models = defaultVercel.ProviderOptions.Models
+				}
+			}
+			if dstVercel.User == nil {
+				dstVercel.User = defaultVercel.User
+			}
+			if dstVercel.LogitBias == nil {
+				dstVercel.LogitBias = defaultVercel.LogitBias
+			}
+			if dstVercel.LogProbs == nil {
+				dstVercel.LogProbs = defaultVercel.LogProbs
+			}
+			if dstVercel.TopLogProbs == nil {
+				dstVercel.TopLogProbs = defaultVercel.TopLogProbs
+			}
+			if dstVercel.ParallelToolCalls == nil {
+				dstVercel.ParallelToolCalls = defaultVercel.ParallelToolCalls
+			}
+			if dstVercel.ExtraBody == nil {
+				dstVercel.ExtraBody = defaultVercel.ExtraBody
+			}
+		}
+	}
+}
+
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
 // language model client using the provided provider credentials.
 func ModelFromConfig(
