@@ -36,7 +36,7 @@ export const Toaster = ({ ...props }: SonnerProps) => {
 					actionButton: cn(
 						"border border-solid bg-transparent text-xs rounded-md cursor-pointer",
 						"flex items-center gap-2 mt-1 py-1.5 px-2 col-start-2 justify-self-start",
-						"[&_svg]:size-icon-xs [&_span]:text-xs",
+						"[&_svg]:size-icon-xs [&_span]:text-xs text-content-primary",
 					),
 					closeButton:
 						"absolute top-4 right-3 bg-transparent border-none p-0 text-content-primary",
