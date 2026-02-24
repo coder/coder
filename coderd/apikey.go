@@ -307,6 +307,7 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {array} codersdk.APIKey
+// @Param include_expired query bool false "Include expired tokens in the list"
 // @Router /users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (

@@ -8238,6 +8238,12 @@ const docTemplate = `{
                         "name": "user",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include expired tokens in the list",
+                        "name": "include_expired",
+                        "in": "query"
                     }
                 ],
                 "responses": {
