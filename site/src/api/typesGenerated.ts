@@ -1939,7 +1939,6 @@ export type Experiment =
 	| "notifications"
 	| "oauth2"
 	| "web-push"
-	| "workspace-sharing"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
@@ -1949,7 +1948,6 @@ export const Experiments: Experiment[] = [
 	"notifications",
 	"oauth2",
 	"web-push",
-	"workspace-sharing",
 	"workspace-usage",
 ];
 
@@ -5560,6 +5558,7 @@ export interface TokenConfig {
 // From codersdk/apikey.go
 export interface TokensFilter {
 	readonly include_all: boolean;
+	readonly include_expired: boolean;
 }
 
 // From codersdk/deployment.go

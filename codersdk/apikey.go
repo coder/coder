@@ -94,7 +94,8 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (GenerateAPIKeyR
 }
 
 type TokensFilter struct {
-	IncludeAll bool `json:"include_all"`
+	IncludeAll     bool `json:"include_all"`
+	IncludeExpired bool `json:"include_expired"`
 }
 
 type APIKeyWithOwner struct {
@@ -112,6 +113,7 @@ func (f TokensFilter) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
 		q.Set("include_all", fmt.Sprintf("%t", f.IncludeAll))
+		q.Set("include_expired", fmt.Sprintf("%t", f.IncludeExpired))
 		r.URL.RawQuery = q.Encode()
 	}
 }
