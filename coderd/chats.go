@@ -23,6 +23,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/chatd"
+	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -3211,7 +3212,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	providersByName := make(map[string]database.ChatProvider, len(providers))
-	configuredProviders := make([]chatd.ConfiguredProvider, 0, len(providers))
+	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(providers))
 	for _, provider := range providers {
 		normalizedProvider := normalizeChatProvider(provider.Provider)
 		if normalizedProvider == "" {
@@ -3219,7 +3220,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		}
 		provider.Provider = normalizedProvider
 		providersByName[normalizedProvider] = provider
-		configuredProviders = append(configuredProviders, chatd.ConfiguredProvider{
+		configuredProviders = append(configuredProviders, chatprovider.ConfiguredProvider{
 			Provider: normalizedProvider,
 			APIKey:   provider.APIKey,
 			BaseURL:  provider.BaseUrl,
@@ -3241,7 +3242,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	supportedProviders := chatd.SupportedProviders()
+	supportedProviders := chatprovider.SupportedProviders()
 	resp := make([]codersdk.ChatProviderConfig, 0, len(supportedProviders))
 	for _, provider := range supportedProviders {
 		configured, ok := providersByName[provider]
@@ -3260,7 +3261,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		source := codersdk.ChatProviderConfigSourceSupported
 		hasAPIKey := effectiveKeys.APIKey(provider) != ""
 		enabled := false
-		if chatd.IsEnvPresetProvider(provider) && hasAPIKey {
+		if chatprovider.IsEnvPresetProvider(provider) && hasAPIKey {
 			source = codersdk.ChatProviderConfigSourceEnvPreset
 			enabled = true
 		}
@@ -3268,7 +3269,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		resp = append(resp, codersdk.ChatProviderConfig{
 			ID:          uuid.Nil,
 			Provider:    provider,
-			DisplayName: chatd.ProviderDisplayName(provider),
+			DisplayName: chatprovider.ProviderDisplayName(provider),
 			Enabled:     enabled,
 			HasAPIKey:   hasAPIKey,
 			BaseURL:     effectiveKeys.BaseURL(provider),
@@ -3795,7 +3796,7 @@ func convertChatProviderConfig(
 ) codersdk.ChatProviderConfig {
 	displayName := strings.TrimSpace(provider.DisplayName)
 	if displayName == "" {
-		displayName = chatd.ProviderDisplayName(provider.Provider)
+		displayName = chatprovider.ProviderDisplayName(provider.Provider)
 	}
 
 	return codersdk.ChatProviderConfig{
@@ -3885,7 +3886,7 @@ func isZeroChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) 
 }
 
 func normalizeChatProvider(provider string) string {
-	return chatd.NormalizeProvider(provider)
+	return chatprovider.NormalizeProvider(provider)
 }
 
 func normalizeChatProviderBaseURL(raw string) (string, error) {
@@ -3908,7 +3909,7 @@ func normalizeChatProviderBaseURL(raw string) (string, error) {
 }
 
 func chatProviderValidationDetail() string {
-	return "Provider must be one of: " + strings.Join(chatd.SupportedProviders(), ", ") + "."
+	return "Provider must be one of: " + strings.Join(chatprovider.SupportedProviders(), ", ") + "."
 }
 
 func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider database.ChatProvider) bool {

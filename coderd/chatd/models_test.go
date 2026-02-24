@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/chatd"
+	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -17,8 +18,8 @@ import (
 func TestMergeProviderAPIKeys(t *testing.T) {
 	t.Parallel()
 
-	merged := chatd.MergeProviderAPIKeys(
-		chatd.ProviderAPIKeys{
+	merged := chatprovider.MergeProviderAPIKeys(
+		chatprovider.ProviderAPIKeys{
 			OpenAI:    " deployment-openai ",
 			Anthropic: "deployment-anthropic",
 			ByProvider: map[string]string{
@@ -28,7 +29,7 @@ func TestMergeProviderAPIKeys(t *testing.T) {
 				"openai": " https://openai.example.com/v1 ",
 			},
 		},
-		[]chatd.ConfiguredProvider{
+		[]chatprovider.ConfiguredProvider{
 			{Provider: "openai", APIKey: "   ", BaseURL: "https://db-openai.example.com/v1"},
 			{Provider: "anthropic", APIKey: " provider-anthropic "},
 			{Provider: "openrouter", APIKey: "provider-openrouter"},
@@ -53,11 +54,11 @@ func TestSupportedProvidersNormalize(t *testing.T) {
 		"openai-compat",
 		"openrouter",
 		"vercel",
-	}, chatd.SupportedProviders())
+	}, chatprovider.SupportedProviders())
 
-	for _, provider := range chatd.SupportedProviders() {
-		require.Equal(t, provider, chatd.NormalizeProvider(provider))
-		require.Equal(t, provider, chatd.NormalizeProvider(strings.ToUpper(provider)))
+	for _, provider := range chatprovider.SupportedProviders() {
+		require.Equal(t, provider, chatprovider.NormalizeProvider(provider))
+		require.Equal(t, provider, chatprovider.NormalizeProvider(strings.ToUpper(provider)))
 	}
 }
 

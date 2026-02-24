@@ -194,9 +194,10 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 }
 
 type loopTestModel struct {
-	provider string
-	model    string
-	streamFn func(context.Context, fantasy.Call) (fantasy.StreamResponse, error)
+	provider   string
+	model      string
+	generateFn func(context.Context, fantasy.Call) (*fantasy.Response, error)
+	streamFn   func(context.Context, fantasy.Call) (fantasy.StreamResponse, error)
 }
 
 func (m *loopTestModel) Provider() string {
@@ -213,7 +214,10 @@ func (m *loopTestModel) Model() string {
 	return "fake"
 }
 
-func (*loopTestModel) Generate(context.Context, fantasy.Call) (*fantasy.Response, error) {
+func (m *loopTestModel) Generate(ctx context.Context, call fantasy.Call) (*fantasy.Response, error) {
+	if m.generateFn != nil {
+		return m.generateFn(ctx, call)
+	}
 	return &fantasy.Response{}, nil
 }
 

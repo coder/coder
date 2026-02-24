@@ -50,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/chatd"
+	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -592,7 +593,7 @@ func New(options *Options) *API {
 	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
 	buildUsageChecker.Store(&noopUsageChecker)
 
-	chatProviderAPIKeys := chatd.ProviderAPIKeys{
+	chatProviderAPIKeys := chatprovider.ProviderAPIKeys{
 		OpenAI:    options.DeploymentValues.AI.BridgeConfig.OpenAI.Key.Value(),
 		Anthropic: options.DeploymentValues.AI.BridgeConfig.Anthropic.Key.Value(),
 		BaseURLByProvider: map[string]string{
@@ -601,22 +602,31 @@ func New(options *Options) *API {
 		},
 	}
 
-	chatProviderAPIKeysResolver := func(ctx context.Context) (chatd.ProviderAPIKeys, error) {
+	chatProviderAPIKeysResolver := func(
+		ctx context.Context,
+	) (chatprovider.ProviderAPIKeys, error) {
 		providers, err := options.Database.GetEnabledChatProviders(ctx)
 		if err != nil {
-			return chatd.ProviderAPIKeys{}, err
+			return chatprovider.ProviderAPIKeys{}, err
 		}
 
-		configuredProviders := make([]chatd.ConfiguredProvider, 0, len(providers))
+		configuredProviders := make(
+			[]chatprovider.ConfiguredProvider,
+			0,
+			len(providers),
+		)
 		for _, provider := range providers {
-			configuredProviders = append(configuredProviders, chatd.ConfiguredProvider{
+			configuredProviders = append(configuredProviders, chatprovider.ConfiguredProvider{
 				Provider: provider.Provider,
 				APIKey:   provider.APIKey,
 				BaseURL:  provider.BaseUrl,
 			})
 		}
 
-		return chatd.MergeProviderAPIKeys(chatProviderAPIKeys, configuredProviders), nil
+		return chatprovider.MergeProviderAPIKeys(
+			chatProviderAPIKeys,
+			configuredProviders,
+		), nil
 	}
 
 	api := &API{

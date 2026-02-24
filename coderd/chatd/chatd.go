@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
@@ -55,16 +54,6 @@ const (
 	maxChatSteps                 = 1200
 
 	defaultContextCompressionThresholdPercent = int32(70)
-	minContextCompressionThresholdPercent     = int32(0)
-	maxContextCompressionThresholdPercent     = int32(100)
-	contextCompressionSummaryReportMaxRunes   = 4096
-	contextCompressionSummaryPrompt           = "Summarize the current chat so a " +
-		"new assistant can continue seamlessly. Include the user's goals, " +
-		"decisions made, concrete technical details (files, commands, APIs), " +
-		"errors encountered and fixes, and open questions. Be dense and factual. " +
-		"Omit pleasantries and next-step suggestions."
-	contextCompressionSystemSummaryPrefix = "Summary of earlier chat context:"
-	contextCompressionSummaryTruncatedTag = "[summary truncated for live stream]"
 
 	maxCreateWorkspaceBuildLogLines     = 120
 	maxCreateWorkspaceBuildLogChars     = 16 * 1024
@@ -104,7 +93,7 @@ type Processor struct {
 	subagentService          *SubagentService
 	resolveProviderAPIKeysFn ProviderAPIKeysResolver
 	titleGeneration          TitleGenerationConfig
-	titleModelLookup         func(ProviderAPIKeys) (fantasy.LanguageModel, error)
+	titleModelLookup         func(chatprovider.ProviderAPIKeys) (fantasy.LanguageModel, error)
 
 	activeMu      sync.Mutex
 	activeCancels map[uuid.UUID]context.CancelCauseFunc
@@ -152,7 +141,7 @@ type CreateWorkspaceToolResult struct {
 }
 
 // ProviderAPIKeysResolver resolves provider API keys for chat model calls.
-type ProviderAPIKeysResolver func(context.Context) (ProviderAPIKeys, error)
+type ProviderAPIKeysResolver func(context.Context) (chatprovider.ProviderAPIKeys, error)
 
 // TestingConfig contains hooks intended only for tests.
 type TestingConfig struct {
@@ -316,8 +305,8 @@ func New(cfg Config) *Processor {
 
 	resolveProviderAPIKeys := cfg.ResolveProviderAPIKeys
 	if resolveProviderAPIKeys == nil {
-		resolveProviderAPIKeys = func(context.Context) (ProviderAPIKeys, error) {
-			return ProviderAPIKeys{}, nil
+		resolveProviderAPIKeys = func(context.Context) (chatprovider.ProviderAPIKeys, error) {
+			return chatprovider.ProviderAPIKeys{}, nil
 		}
 	}
 	streamManager := cfg.StreamManager
@@ -485,17 +474,17 @@ func (p *Processor) ListModels(ctx context.Context) (codersdk.ChatModelsResponse
 		return codersdk.ChatModelsResponse{}, err
 	}
 
-	configuredProviders := make([]ConfiguredProvider, 0, len(enabledProviders))
+	configuredProviders := make([]chatprovider.ConfiguredProvider, 0, len(enabledProviders))
 	for _, provider := range enabledProviders {
-		configuredProviders = append(configuredProviders, ConfiguredProvider{
+		configuredProviders = append(configuredProviders, chatprovider.ConfiguredProvider{
 			Provider: provider.Provider,
 			APIKey:   provider.APIKey,
 			BaseURL:  provider.BaseUrl,
 		})
 	}
-	configuredModels := make([]configuredModel, 0, len(enabledModels))
+	configuredModels := make([]chatprovider.ConfiguredModel, 0, len(enabledModels))
 	for _, model := range enabledModels {
-		configuredModels = append(configuredModels, configuredModel{
+		configuredModels = append(configuredModels, chatprovider.ConfiguredModel{
 			Provider:    model.Provider,
 			Model:       model.Model,
 			DisplayName: model.DisplayName,
@@ -506,7 +495,7 @@ func (p *Processor) ListModels(ctx context.Context) (codersdk.ChatModelsResponse
 	if err != nil {
 		return codersdk.ChatModelsResponse{}, err
 	}
-	catalog := newModelCatalog(keys)
+	catalog := chatprovider.NewModelCatalog(keys)
 	if response, ok := catalog.ListConfiguredModels(configuredProviders, configuredModels); ok {
 		return response, nil
 	}
@@ -516,17 +505,17 @@ func (p *Processor) ListModels(ctx context.Context) (codersdk.ChatModelsResponse
 // EffectiveProviderKeys merges configured provider keys over resolver keys.
 func (p *Processor) EffectiveProviderKeys(
 	ctx context.Context,
-	configuredProviders []ConfiguredProvider,
-) (ProviderAPIKeys, error) {
+	configuredProviders []chatprovider.ConfiguredProvider,
+) (chatprovider.ProviderAPIKeys, error) {
 	if p == nil {
-		return ProviderAPIKeys{}, xerrors.New("chat processor is not configured")
+		return chatprovider.ProviderAPIKeys{}, xerrors.New("chat processor is not configured")
 	}
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	keys, err := p.resolveProviderAPIKeys(ctx)
 	if err != nil {
-		return ProviderAPIKeys{}, err
+		return chatprovider.ProviderAPIKeys{}, err
 	}
-	return MergeProviderAPIKeys(keys, configuredProviders), nil
+	return chatprovider.MergeProviderAPIKeys(keys, configuredProviders), nil
 }
 
 func (p *Processor) PublishStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
@@ -927,6 +916,7 @@ func (p *Processor) runChat(
 	result, err := p.runChatWithAgent(
 		ctx,
 		chat,
+		logger,
 		model,
 		modelConfig,
 		prompt,
@@ -936,17 +926,8 @@ func (p *Processor) runChat(
 	if err != nil {
 		return err
 	}
-	if result != nil && len(result.Steps) >= maxChatSteps {
-		lastStep := result.Steps[len(result.Steps)-1]
-		if lastStep.FinishReason == fantasy.FinishReasonToolCalls &&
-			len(lastStep.Content.ToolCalls()) > 0 {
-			return xerrors.Errorf("chat exceeded %d tool steps", maxChatSteps)
-		}
-	}
-	if !reportOnly {
-		if err := p.maybeCompressChatContext(ctx, chat, model, logger); err != nil {
-			logger.Warn(ctx, "failed to compact chat context", slog.Error(err))
-		}
+	if hasExceededChatToolSteps(result) {
+		return xerrors.Errorf("chat exceeded %d tool steps", maxChatSteps)
 	}
 	return nil
 }
@@ -956,86 +937,12 @@ type chatContextCompressionConfig struct {
 	ThresholdPercent int32
 }
 
-type chatContextUsageSnapshot struct {
-	ContextTokens int64
-	ContextLimit  int64
-}
-
-func (p *Processor) maybeCompressChatContext(
-	ctx context.Context,
-	chat database.Chat,
-	model fantasy.LanguageModel,
-	logger slog.Logger,
-) error {
-	config, err := p.resolveChatContextCompressionConfig(ctx, chat)
-	if err != nil {
-		return err
-	}
-	if config.ThresholdPercent >= maxContextCompressionThresholdPercent {
-		return nil
-	}
-
-	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
-	if err != nil {
-		return xerrors.Errorf("get prompt messages for compression: %w", err)
-	}
-
-	usage, hasUsage := latestAssistantContextUsage(messages)
-	if !hasUsage || usage.ContextTokens <= 0 {
-		return nil
-	}
-
-	contextLimit := config.ContextLimit
-	if contextLimit <= 0 && usage.ContextLimit > 0 {
-		contextLimit = usage.ContextLimit
-	}
-	if contextLimit <= 0 {
-		return nil
-	}
-
-	usagePercent := (float64(usage.ContextTokens) / float64(contextLimit)) * 100
-	if usagePercent < float64(config.ThresholdPercent) {
-		return nil
-	}
-
-	summary, err := p.generateChatContextSummary(ctx, model, messages)
-	if err != nil {
-		return xerrors.Errorf("generate context summary: %w", err)
-	}
-	if strings.TrimSpace(summary) == "" {
-		return nil
-	}
-
-	if err := p.persistChatContextSummary(
-		ctx,
-		chat.ID,
-		summary,
-		config.ThresholdPercent,
-		usage.ContextTokens,
-		contextLimit,
-		usagePercent,
-	); err != nil {
-		return xerrors.Errorf("persist context summary: %w", err)
-	}
-
-	logger.Info(ctx, "chat context summarized",
-		slog.F("chat_id", chat.ID),
-		slog.F("threshold_percent", config.ThresholdPercent),
-		slog.F("usage_percent", usagePercent),
-		slog.F("context_tokens", usage.ContextTokens),
-		slog.F("context_limit", contextLimit),
-	)
-	return nil
-}
-
 func (p *Processor) resolveChatContextCompressionConfig(
 	ctx context.Context,
 	chat database.Chat,
 ) (chatContextCompressionConfig, error) {
 	config := chatContextCompressionConfig{
-		ThresholdPercent: normalizeContextCompressionThreshold(
-			defaultContextCompressionThresholdPercent,
-		),
+		ThresholdPercent: defaultContextCompressionThresholdPercent,
 	}
 
 	chatConfig, err := parseChatModelConfig(chat.ModelConfig)
@@ -1066,13 +973,14 @@ func (p *Processor) resolveChatContextCompressionConfig(
 		if config.ContextLimit <= 0 {
 			config.ContextLimit = fallbackConfig.ContextLimit
 		}
-		config.ThresholdPercent = normalizeContextCompressionThreshold(
-			fallbackConfig.CompressionThreshold,
-		)
+		config.ThresholdPercent = fallbackConfig.CompressionThreshold
 		return config, nil
 	}
 
-	provider, modelID, err := resolveModelWithProviderHint(modelName, providerHint)
+	provider, modelID, err := chatprovider.ResolveModelWithProviderHint(
+		modelName,
+		providerHint,
+	)
 	if err != nil {
 		return config, nil
 	}
@@ -1094,61 +1002,21 @@ func (p *Processor) resolveChatContextCompressionConfig(
 	if config.ContextLimit <= 0 {
 		config.ContextLimit = modelConfig.ContextLimit
 	}
-	config.ThresholdPercent = normalizeContextCompressionThreshold(
-		modelConfig.CompressionThreshold,
-	)
+	config.ThresholdPercent = modelConfig.CompressionThreshold
 	return config, nil
-}
-
-func (p *Processor) generateChatContextSummary(
-	ctx context.Context,
-	model fantasy.LanguageModel,
-	messages []database.ChatMessage,
-) (string, error) {
-	prompt, err := chatprompt.ConvertMessages(
-		messages,
-		subagentReportToolCallIDPrefix,
-	)
-	if err != nil {
-		return "", xerrors.Errorf("build summary prompt: %w", err)
-	}
-
-	prompt = chatprompt.AppendUser(prompt, contextCompressionSummaryPrompt)
-	toolChoice := fantasy.ToolChoiceNone
-
-	summaryCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
-	defer cancel()
-
-	response, err := model.Generate(summaryCtx, fantasy.Call{
-		Prompt:     prompt,
-		ToolChoice: &toolChoice,
-	})
-	if err != nil {
-		return "", xerrors.Errorf("generate summary text: %w", err)
-	}
-
-	return strings.TrimSpace(contentBlocksToText(response.Content)), nil
 }
 
 func (p *Processor) persistChatContextSummary(
 	ctx context.Context,
 	chatID uuid.UUID,
-	summary string,
-	thresholdPercent int32,
-	contextTokens int64,
-	contextLimit int64,
-	usagePercent float64,
+	result chatloop.CompactionResult,
 ) error {
-	summary = strings.TrimSpace(summary)
-	if summary == "" {
+	if strings.TrimSpace(result.SystemSummary) == "" ||
+		strings.TrimSpace(result.SummaryReport) == "" {
 		return nil
 	}
-	summaryReport, summaryReportTruncated := compactSummaryReport(summary)
 
-	systemSummary := strings.TrimSpace(
-		contextCompressionSystemSummaryPrefix + "\n\n" + summary,
-	)
-	systemContent, err := json.Marshal(systemSummary)
+	systemContent, err := json.Marshal(result.SystemSummary)
 	if err != nil {
 		return xerrors.Errorf("encode system summary: %w", err)
 	}
@@ -1170,7 +1038,7 @@ func (p *Processor) persistChatContextSummary(
 	toolCallID := "chat_summarized_" + uuid.NewString()
 	args, err := json.Marshal(map[string]any{
 		"source":            "automatic",
-		"threshold_percent": thresholdPercent,
+		"threshold_percent": result.ThresholdPercent,
 	})
 	if err != nil {
 		return xerrors.Errorf("encode summary tool args: %w", err)
@@ -1205,13 +1073,12 @@ func (p *Processor) persistChatContextSummary(
 		ToolCallID: toolCallID,
 		ToolName:   "chat_summarized",
 		Result: map[string]any{
-			"summary":              summaryReport,
-			"summary_truncated":    summaryReportTruncated,
+			"summary":              result.SummaryReport,
 			"source":               "automatic",
-			"threshold_percent":    thresholdPercent,
-			"usage_percent":        usagePercent,
-			"context_tokens":       contextTokens,
-			"context_limit_tokens": contextLimit,
+			"threshold_percent":    result.ThresholdPercent,
+			"usage_percent":        result.UsagePercent,
+			"context_tokens":       result.ContextTokens,
+			"context_limit_tokens": result.ContextLimit,
 		},
 	}})
 	if err != nil {
@@ -1239,84 +1106,6 @@ func (p *Processor) persistChatContextSummary(
 	p.publishMessage(chatID, assistantMessage)
 	p.publishMessage(chatID, toolMessage)
 	return nil
-}
-
-func compactSummaryReport(summary string) (string, bool) {
-	summary = strings.TrimSpace(summary)
-	if summary == "" {
-		return "", false
-	}
-
-	if utf8.RuneCountInString(summary) <= contextCompressionSummaryReportMaxRunes {
-		return summary, false
-	}
-
-	truncated := strings.TrimSpace(
-		truncateRunes(summary, contextCompressionSummaryReportMaxRunes),
-	)
-	if truncated == "" {
-		return contextCompressionSummaryTruncatedTag, true
-	}
-	return truncated + "\n\n" + contextCompressionSummaryTruncatedTag, true
-}
-
-func normalizeContextCompressionThreshold(value int32) int32 {
-	if value < minContextCompressionThresholdPercent ||
-		value > maxContextCompressionThresholdPercent {
-		return defaultContextCompressionThresholdPercent
-	}
-	return value
-}
-
-func latestAssistantContextUsage(messages []database.ChatMessage) (chatContextUsageSnapshot, bool) {
-	for i := len(messages) - 1; i >= 0; i-- {
-		message := messages[i]
-		if message.Role != string(fantasy.MessageRoleAssistant) {
-			continue
-		}
-
-		contextTokens, hasTokens := messageContextTokens(message)
-		if !hasTokens {
-			continue
-		}
-
-		snapshot := chatContextUsageSnapshot{
-			ContextTokens: contextTokens,
-		}
-		if message.ContextLimit.Valid && message.ContextLimit.Int64 > 0 {
-			snapshot.ContextLimit = message.ContextLimit.Int64
-		}
-		return snapshot, true
-	}
-
-	return chatContextUsageSnapshot{}, false
-}
-
-func messageContextTokens(message database.ChatMessage) (int64, bool) {
-	total := int64(0)
-	hasContextTokens := false
-
-	if message.InputTokens.Valid {
-		total += message.InputTokens.Int64
-		hasContextTokens = true
-	}
-	if message.CacheReadTokens.Valid {
-		total += message.CacheReadTokens.Int64
-		hasContextTokens = true
-	}
-	if message.CacheCreationTokens.Valid {
-		total += message.CacheCreationTokens.Int64
-		hasContextTokens = true
-	}
-	if hasContextTokens {
-		return total, true
-	}
-
-	if message.TotalTokens.Valid {
-		return message.TotalTokens.Int64, true
-	}
-
-	return 0, false
 }
 
 func (p *Processor) resolveChatModel(
@@ -1356,7 +1145,7 @@ func (p *Processor) resolveChatModel(
 func (p *Processor) modelFromChat(
 	ctx context.Context,
 	config chatModelConfig,
-	providerKeys ProviderAPIKeys,
+	providerKeys chatprovider.ProviderAPIKeys,
 ) (fantasy.LanguageModel, chatModelConfig, error) {
 	if strings.TrimSpace(config.Model) == "" {
 		fallbackConfig, fallbackErr := p.resolveFallbackChatModelConfig(
@@ -1398,7 +1187,7 @@ func applyFallbackChatModelConfig(
 
 func (p *Processor) resolveFallbackChatModelConfig(
 	ctx context.Context,
-	providerKeys ProviderAPIKeys,
+	providerKeys chatprovider.ProviderAPIKeys,
 	providerHint string,
 ) (database.ChatModelConfig, error) {
 	modelConfigs, err := p.db.GetEnabledChatModelConfigs(ctx)
@@ -1409,7 +1198,7 @@ func (p *Processor) resolveFallbackChatModelConfig(
 		)
 	}
 
-	normalizedProviderHint := normalizeProvider(providerHint)
+	normalizedProviderHint := chatprovider.NormalizeProvider(providerHint)
 	if strings.TrimSpace(providerHint) != "" && normalizedProviderHint == "" {
 		return database.ChatModelConfig{}, xerrors.Errorf(
 			"unknown provider %q in chat model config",
@@ -1418,7 +1207,7 @@ func (p *Processor) resolveFallbackChatModelConfig(
 	}
 
 	for _, modelConfig := range modelConfigs {
-		provider := normalizeProvider(modelConfig.Provider)
+		provider := chatprovider.NormalizeProvider(modelConfig.Provider)
 		if provider == "" {
 			continue
 		}
@@ -1446,6 +1235,7 @@ func (p *Processor) resolveFallbackChatModelConfig(
 func (p *Processor) runChatWithAgent(
 	ctx context.Context,
 	chat database.Chat,
+	logger slog.Logger,
 	model fantasy.LanguageModel,
 	modelConfig chatModelConfig,
 	prompt []fantasy.Message,
@@ -1519,10 +1309,15 @@ func (p *Processor) runChatWithAgent(
 	// Resolve the model config's context_limit so we can use it as a
 	// fallback when the LLM provider doesn't include context_limit in
 	// its response metadata (which is the common case).
-	var modelConfigContextLimit int64
-	if compressionConfig, err := p.resolveChatContextCompressionConfig(ctx, chat); err == nil {
-		modelConfigContextLimit = compressionConfig.ContextLimit
+	compressionConfig := chatContextCompressionConfig{
+		ThresholdPercent: defaultContextCompressionThresholdPercent,
 	}
+	if resolvedCompressionConfig, err := p.resolveChatContextCompressionConfig(ctx, chat); err != nil {
+		logger.Warn(ctx, "failed to resolve chat compaction config", slog.Error(err))
+	} else {
+		compressionConfig = resolvedCompressionConfig
+	}
+	modelConfigContextLimit := compressionConfig.ContextLimit
 
 	persistStep := func(persistCtx context.Context, step chatloop.PersistedStep) error {
 		if len(step.AssistantContent) > 0 {
@@ -1591,6 +1386,32 @@ func (p *Processor) runChatWithAgent(
 	if reportOnly {
 		activeTools = append(activeTools, "subagent_report")
 	}
+	var compactionOptions *chatloop.CompactionOptions
+	if !reportOnly {
+		compactionOptions = &chatloop.CompactionOptions{
+			ThresholdPercent: compressionConfig.ThresholdPercent,
+			ContextLimit:     compressionConfig.ContextLimit,
+			Persist: func(
+				persistCtx context.Context,
+				result chatloop.CompactionResult,
+			) error {
+				if err := p.persistChatContextSummary(persistCtx, chat.ID, result); err != nil {
+					return xerrors.Errorf("persist context summary: %w", err)
+				}
+				logger.Info(persistCtx, "chat context summarized",
+					slog.F("chat_id", chat.ID),
+					slog.F("threshold_percent", result.ThresholdPercent),
+					slog.F("usage_percent", result.UsagePercent),
+					slog.F("context_tokens", result.ContextTokens),
+					slog.F("context_limit", result.ContextLimit),
+				)
+				return nil
+			},
+			OnError: func(err error) {
+				logger.Warn(ctx, "failed to compact chat context", slog.Error(err))
+			},
+		}
+	}
 
 	return chatloop.Run(ctx, chatloop.RunOptions{
 		Model:      model,
@@ -1609,11 +1430,21 @@ func (p *Processor) runChatWithAgent(
 		) {
 			p.publishMessagePart(chat.ID, string(role), part)
 		},
+		Compaction: compactionOptions,
 
 		OnInterruptedPersistError: func(err error) {
 			p.logger.Warn(ctx, "failed to persist interrupted chat step", slog.Error(err))
 		},
 	})
+}
+
+func hasExceededChatToolSteps(result *fantasy.AgentResult) bool {
+	if result == nil || len(result.Steps) < maxChatSteps {
+		return false
+	}
+	lastStep := result.Steps[len(result.Steps)-1]
+	return lastStep.FinishReason == fantasy.FinishReasonToolCalls &&
+		len(lastStep.Content.ToolCalls()) > 0
 }
 
 func usageNullInt64(value int64, valid bool) sql.NullInt64 {
@@ -1798,9 +1629,11 @@ func (p *Processor) appendHomeInstructionToPrompt(
 	return chatprompt.InsertSystem(prompt, instruction)
 }
 
-func (p *Processor) resolveProviderAPIKeys(ctx context.Context) (ProviderAPIKeys, error) {
+func (p *Processor) resolveProviderAPIKeys(
+	ctx context.Context,
+) (chatprovider.ProviderAPIKeys, error) {
 	if p.resolveProviderAPIKeysFn == nil {
-		return ProviderAPIKeys{}, nil
+		return chatprovider.ProviderAPIKeys{}, nil
 	}
 	return p.resolveProviderAPIKeysFn(ctx)
 }
@@ -2056,14 +1889,19 @@ func workspaceModeFromChat(chat database.Chat) codersdk.ChatWorkspaceMode {
 	}
 }
 
-func modelFromName(modelName string, providerKeys ProviderAPIKeys) (fantasy.LanguageModel, error) {
+func modelFromName(
+	modelName string,
+	providerKeys chatprovider.ProviderAPIKeys,
+) (fantasy.LanguageModel, error) {
 	return modelFromConfig(chatModelConfig{Model: modelName}, providerKeys)
 }
 
 // anyAvailableModel returns a language model from whichever provider
 // has an API key configured. This is used for lightweight tasks like
 // title generation where we don't need a specific model.
-func anyAvailableModel(keys ProviderAPIKeys) (fantasy.LanguageModel, error) {
+func anyAvailableModel(
+	keys chatprovider.ProviderAPIKeys,
+) (fantasy.LanguageModel, error) {
 	candidates := []chatModelConfig{
 		{Provider: fantasyopenai.Name, Model: "gpt-4o-mini"},
 		{Provider: fantasyanthropic.Name, Model: "claude-haiku-4-5"},
@@ -2102,7 +1940,10 @@ func anyAvailableModel(keys ProviderAPIKeys) (fantasy.LanguageModel, error) {
 	return nil, xerrors.New("no AI provider API keys are configured")
 }
 
-func modelFromConfig(config chatModelConfig, providerKeys ProviderAPIKeys) (fantasy.LanguageModel, error) {
+func modelFromConfig(
+	config chatModelConfig,
+	providerKeys chatprovider.ProviderAPIKeys,
+) (fantasy.LanguageModel, error) {
 	return chatprovider.ModelFromConfig(config.Provider, config.Model, providerKeys)
 }
 

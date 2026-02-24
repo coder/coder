@@ -47,6 +47,7 @@ type RunOptions struct {
 		role fantasy.MessageRole,
 		part codersdk.ChatMessagePart,
 	)
+	Compaction *CompactionOptions
 
 	OnInterruptedPersistError func(error)
 }
@@ -302,6 +303,9 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 		fantasy.WithStopConditions(fantasy.StepCountIs(opts.MaxSteps)),
 	)
 	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(opts.Model)
+	// Fantasy's AgentStreamCall currently requires a non-empty Prompt and always
+	// appends it as a user message. chatd already supplies the full history in
+	// Messages, so we pass and then strip a sentinel user message in PrepareStep.
 	sentinelPrompt := "__chatd_agent_prompt_sentinel_" + uuid.NewString()
 
 	streamCall := opts.StreamCall
@@ -456,6 +460,13 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 			return nil, ErrInterrupted
 		}
 		return nil, xerrors.Errorf("stream response: %w", err)
+	}
+	if opts.Compaction != nil {
+		if err := maybeCompact(ctx, opts, result); err != nil {
+			if opts.Compaction.OnError != nil {
+				opts.Compaction.OnError(err)
+			}
+		}
 	}
 
 	return result, nil

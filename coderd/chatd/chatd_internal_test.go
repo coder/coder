@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -846,7 +847,7 @@ func TestAnyAvailableModel(t *testing.T) {
 	t.Run("OpenAIOnly", func(t *testing.T) {
 		t.Parallel()
 
-		model, err := anyAvailableModel(ProviderAPIKeys{OpenAI: "openai-key"})
+		model, err := anyAvailableModel(chatprovider.ProviderAPIKeys{OpenAI: "openai-key"})
 		require.NoError(t, err)
 		require.Equal(t, "openai", model.Provider())
 		require.Equal(t, "gpt-4o-mini", model.Model())
@@ -855,7 +856,7 @@ func TestAnyAvailableModel(t *testing.T) {
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
 
-		model, err := anyAvailableModel(ProviderAPIKeys{})
+		model, err := anyAvailableModel(chatprovider.ProviderAPIKeys{})
 		require.Nil(t, model)
 		require.EqualError(t, err, "no AI provider API keys are configured")
 	})
@@ -878,11 +879,11 @@ func TestGenerateChatTitle(t *testing.T) {
 		}
 
 		p := &Processor{
-			resolveProviderAPIKeysFn: func(context.Context) (ProviderAPIKeys, error) {
-				return ProviderAPIKeys{OpenAI: "openai-key"}, nil
+			resolveProviderAPIKeysFn: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
+				return chatprovider.ProviderAPIKeys{OpenAI: "openai-key"}, nil
 			},
 			titleGeneration: TitleGenerationConfig{Prompt: "custom title prompt"},
-			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
+			titleModelLookup: func(chatprovider.ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return model, nil
 			},
 		}
@@ -906,10 +907,10 @@ func TestGenerateChatTitle(t *testing.T) {
 		}
 
 		p := &Processor{
-			resolveProviderAPIKeysFn: func(context.Context) (ProviderAPIKeys, error) {
-				return ProviderAPIKeys{OpenAI: "openai-key"}, nil
+			resolveProviderAPIKeysFn: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
+				return chatprovider.ProviderAPIKeys{OpenAI: "openai-key"}, nil
 			},
-			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
+			titleModelLookup: func(chatprovider.ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return model, nil
 			},
 		}
@@ -929,10 +930,10 @@ func TestGenerateChatTitle(t *testing.T) {
 		}
 
 		p := &Processor{
-			resolveProviderAPIKeysFn: func(context.Context) (ProviderAPIKeys, error) {
-				return ProviderAPIKeys{OpenAI: "openai-key"}, nil
+			resolveProviderAPIKeysFn: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
+				return chatprovider.ProviderAPIKeys{OpenAI: "openai-key"}, nil
 			},
-			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
+			titleModelLookup: func(chatprovider.ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return model, nil
 			},
 		}
@@ -958,10 +959,10 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 
 		p := &Processor{
 			db: db,
-			resolveProviderAPIKeysFn: func(context.Context) (ProviderAPIKeys, error) {
-				return ProviderAPIKeys{OpenAI: "openai-key"}, nil
+			resolveProviderAPIKeysFn: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
+				return chatprovider.ProviderAPIKeys{OpenAI: "openai-key"}, nil
 			},
-			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
+			titleModelLookup: func(chatprovider.ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return &titleTestModel{
 					generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 						return &fantasy.Response{
@@ -990,10 +991,10 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 
 		p := &Processor{
 			db: db,
-			resolveProviderAPIKeysFn: func(context.Context) (ProviderAPIKeys, error) {
-				return ProviderAPIKeys{OpenAI: "openai-key"}, nil
+			resolveProviderAPIKeysFn: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
+				return chatprovider.ProviderAPIKeys{OpenAI: "openai-key"}, nil
 			},
-			titleModelLookup: func(ProviderAPIKeys) (fantasy.LanguageModel, error) {
+			titleModelLookup: func(chatprovider.ProviderAPIKeys) (fantasy.LanguageModel, error) {
 				return &titleTestModel{
 					generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
 						return nil, xerrors.New("title model failed")

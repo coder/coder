@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -1063,8 +1064,8 @@ func TestRunChatLoop(t *testing.T) {
 		Logger:    logger,
 		Database:  db,
 		AgentConn: testAgentConnFunc(workspacesdk.New(client), logger),
-		ResolveProviderAPIKeys: func(context.Context) (chatd.ProviderAPIKeys, error) {
-			return chatd.ProviderAPIKeys{
+		ResolveProviderAPIKeys: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
+			return chatprovider.ProviderAPIKeys{
 				ByProvider: map[string]string{
 					"openai-compat": "test-api-key",
 				},
@@ -2956,8 +2957,8 @@ func TestProcessorListModels_UsesFallbackAPIKeysWhenProviderKeyBlank(t *testing.
 	processor := chatd.New(chatd.Config{
 		Logger:   testutil.Logger(t),
 		Database: db,
-		ResolveProviderAPIKeys: func(context.Context) (chatd.ProviderAPIKeys, error) {
-			return chatd.ProviderAPIKeys{OpenAI: "deployment-openai"}, nil
+		ResolveProviderAPIKeys: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
+			return chatprovider.ProviderAPIKeys{OpenAI: "deployment-openai"}, nil
 		},
 		PendingChatAcquireInterval: time.Hour,
 	})
@@ -2991,8 +2992,8 @@ func TestProcessorListModels_NoEnabledModelsReturnsProviderAvailability(t *testi
 	processor := chatd.New(chatd.Config{
 		Logger:   testutil.Logger(t),
 		Database: db,
-		ResolveProviderAPIKeys: func(context.Context) (chatd.ProviderAPIKeys, error) {
-			return chatd.ProviderAPIKeys{OpenAI: "deployment-openai"}, nil
+		ResolveProviderAPIKeys: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
+			return chatprovider.ProviderAPIKeys{OpenAI: "deployment-openai"}, nil
 		},
 		PendingChatAcquireInterval: time.Hour,
 	})
@@ -3000,7 +3001,7 @@ func TestProcessorListModels_NoEnabledModelsReturnsProviderAvailability(t *testi
 
 	response, err := processor.ListModels(ctx)
 	require.NoError(t, err)
-	require.Len(t, response.Providers, len(chatd.SupportedProviders()))
+	require.Len(t, response.Providers, len(chatprovider.SupportedProviders()))
 
 	availability := make(map[string]codersdk.ChatModelProvider, len(response.Providers))
 	for _, provider := range response.Providers {
@@ -3387,12 +3388,9 @@ func TestRunChatLoop_ContextCompressionUsesFallbackConfigAndTruncatesSummary(t *
 
 	report, ok := summaryPayload["summary"].(string)
 	require.True(t, ok)
-	require.NotContains(t, report, summaryTail)
-	require.Contains(t, report, "[summary truncated for live stream]")
-
-	summaryTruncated, ok := summaryPayload["summary_truncated"].(bool)
-	require.True(t, ok)
-	require.True(t, summaryTruncated)
+	require.Contains(t, report, summaryTail)
+	_, hasSummaryTruncated := summaryPayload["summary_truncated"]
+	require.False(t, hasSummaryTruncated)
 
 	thresholdPercent, ok := summaryPayload["threshold_percent"].(float64)
 	require.True(t, ok)
