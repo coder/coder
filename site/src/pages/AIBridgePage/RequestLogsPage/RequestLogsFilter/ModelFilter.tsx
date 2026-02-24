@@ -22,7 +22,7 @@ export const useModelFilterMenu = ({
 			});
 			const firstModel = modelsRes.at(0);
 
-			if (firstModel) {
+			if (firstModel && firstModel === value) {
 				return {
 					label: firstModel,
 					value: firstModel,
