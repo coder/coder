@@ -310,13 +310,13 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 // @Router /users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx           = r.Context()
-		user          = httpmw.UserParam(r)
-		keys          []database.APIKey
-		err           error
-		queryStr         = r.URL.Query().Get("include_all")
-		includeAll, _    = strconv.ParseBool(queryStr)
-		expiredStr       = r.URL.Query().Get("include_expired")
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		keys              []database.APIKey
+		err               error
+		queryStr          = r.URL.Query().Get("include_all")
+		includeAll, _     = strconv.ParseBool(queryStr)
+		expiredStr        = r.URL.Query().Get("include_expired")
 		includeExpired, _ = strconv.ParseBool(expiredStr)
 	)
 
