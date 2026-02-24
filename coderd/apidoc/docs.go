@@ -543,6 +543,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/chats/watch": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Watch chat list updates",
+                "operationId": "watch-chats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ServerSentEvent"
+                        }
+                    }
+                }
+            }
+        },
         "/chats/{chat}": {
             "get": {
                 "security": [
@@ -751,10 +776,85 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ChatMessage"
-                            }
+                            "$ref": "#/definitions/codersdk.CreateChatMessageResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/queue/{queuedMessage}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete a queued chat message",
+                "operationId": "delete-chat-queued-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Queued message ID",
+                        "name": "queuedMessage",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/queue/{queuedMessage}/promote": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Promote a queued message to send immediately",
+                "operationId": "promote-chat-queued-message",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Queued message ID",
+                        "name": "queuedMessage",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatMessageResponse"
                         }
                     }
                 }
@@ -12982,6 +13082,9 @@ const docTemplate = `{
         "codersdk.AIChatConfig": {
             "type": "object",
             "properties": {
+                "local_workspace": {
+                    "type": "boolean"
+                },
                 "system_prompt": {
                     "type": "string"
                 },
@@ -14107,6 +14210,9 @@ const docTemplate = `{
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "workspace_mode": {
+                    "$ref": "#/definitions/codersdk.ChatWorkspaceMode"
                 }
             }
         },
@@ -14401,6 +14507,28 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatQueuedMessage": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "content": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ChatStatus": {
             "type": "string",
             "enum": [
@@ -14469,8 +14597,25 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatMessage"
                     }
+                },
+                "queued_messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatQueuedMessage"
+                    }
                 }
             }
+        },
+        "codersdk.ChatWorkspaceMode": {
+            "type": "string",
+            "enum": [
+                "workspace",
+                "local"
+            ],
+            "x-enum-varnames": [
+                "ChatWorkspaceModeWorkspace",
+                "ChatWorkspaceModeLocal"
+            ]
         },
         "codersdk.ConnectionLatency": {
             "type": "object",
@@ -14658,6 +14803,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateChatMessageResponse": {
+            "type": "object",
+            "properties": {
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatMessage"
+                    }
+                },
+                "queued": {
+                    "type": "boolean"
+                },
+                "queued_message": {
+                    "$ref": "#/definitions/codersdk.ChatQueuedMessage"
+                }
+            }
+        },
         "codersdk.CreateChatRequest": {
             "type": "object",
             "properties": {
@@ -14690,6 +14852,9 @@ const docTemplate = `{
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "workspace_mode": {
+                    "$ref": "#/definitions/codersdk.ChatWorkspaceMode"
                 }
             }
         },
@@ -15672,6 +15837,9 @@ const docTemplate = `{
                 },
                 "external_auth": {
                     "$ref": "#/definitions/serpent.Struct-array_codersdk_ExternalAuthConfig"
+                },
+                "external_auth_github_default_provider_enable": {
+                    "type": "boolean"
                 },
                 "external_token_encryption_keys": {
                     "type": "array",
@@ -23817,19 +23985,19 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "forceQuery": {
-                    "description": "append a query ('?') even if RawQuery is empty",
+                    "description": "ForceQuery indicates whether the original URL contained a query ('?') character.\nWhen set, the String method will include a trailing '?', even when RawQuery is empty.",
                     "type": "boolean"
                 },
                 "fragment": {
-                    "description": "fragment for references, without '#'",
+                    "description": "fragment for references (without '#')",
                     "type": "string"
                 },
                 "host": {
-                    "description": "host or host:port (see Hostname and Port methods)",
+                    "description": "\"host\" or \"host:port\" (see Hostname and Port methods)",
                     "type": "string"
                 },
                 "omitHost": {
-                    "description": "do not emit empty host (authority)",
+                    "description": "OmitHost indicates the URL has an empty host (authority).\nWhen set, the String method will not include the host when it is empty.",
                     "type": "boolean"
                 },
                 "opaque": {
@@ -23841,15 +24009,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "rawFragment": {
-                    "description": "encoded fragment hint (see EscapedFragment method)",
+                    "description": "RawFragment is an optional field containing an encoded fragment hint.\nSee the EscapedFragment method for more details.\n\nIn general, code should call EscapedFragment instead of reading RawFragment.",
                     "type": "string"
                 },
                 "rawPath": {
-                    "description": "encoded path hint (see EscapedPath method)",
+                    "description": "RawPath is an optional field containing an encoded path hint.\nSee the EscapedPath method for more details.\n\nIn general, code should call EscapedPath instead of reading RawPath.",
                     "type": "string"
                 },
                 "rawQuery": {
-                    "description": "encoded query values, without '?'",
+                    "description": "RawQuery contains the encoded query values, without the initial '?'.\nUse URL.Query to decode the query.",
                     "type": "string"
                 },
                 "scheme": {

@@ -352,14 +352,6 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	return r0
 }
 
-func (m queryMetricsStore) DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteBoundaryUsageStatsByReplicaID(ctx, replicaID)
-	m.queryLatencies.WithLabelValues("DeleteBoundaryUsageStatsByReplicaID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteBoundaryUsageStatsByReplicaID").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteChatByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatByID(ctx, id)
@@ -964,14 +956,6 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	r0, r1 := m.s.GetAuthorizationUserRoles(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetAuthorizationUserRoles").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationUserRoles").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (database.GetBoundaryUsageSummaryRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetBoundaryUsageSummary(ctx, maxStalenessMs)
-	m.queryLatencies.WithLabelValues("GetBoundaryUsageSummary").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetBoundaryUsageSummary").Inc()
 	return r0, r1
 }
 

@@ -1258,6 +1258,17 @@ The upgrade message to display to users when a client/server mismatch is detecte
 
 Support links to display in the top right drop down menu.
 
+### --external-auth-github-default-provider-enable
+
+|             |                                                                  |
+|-------------|------------------------------------------------------------------|
+| Type        | <code>bool</code>                                                |
+| Environment | <code>$CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE</code> |
+| YAML        | <code>externalAuthGithubDefaultProviderEnable</code>             |
+| Default     | <code>true</code>                                                |
+
+Enable the default GitHub external auth provider managed by Coder.
+
 ### --proxy-health-interval
 
 |             |                                                  |
@@ -1781,6 +1792,17 @@ Default system prompt inserted into new chats.
 | Default     | <code>Generate a concise title (max 8 words) for the user's first message. Return plain text only, with no surrounding quotes.</code> |
 
 Prompt used to generate chat titles from the first user message.
+
+### --agent-local-workspace
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>bool</code>                           |
+| Environment | <code>$CODER_AGENT_LOCAL_WORKSPACE</code>   |
+| YAML        | <code>aibridge.agent_local_workspace</code> |
+| Default     | <code>false</code>                          |
+
+Enable admin-only local workspace mode for agent chats.
 
 ### --aibridge-enabled
 

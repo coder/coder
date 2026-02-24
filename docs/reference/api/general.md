@@ -208,6 +208,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "structured_logging": true
       },
       "chat": {
+        "local_workspace": true,
         "system_prompt": "string",
         "title_generation_prompt": "string"
       }
@@ -312,6 +313,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         }
       ]
     },
+    "external_auth_github_default_provider_enable": true,
     "external_token_encryption_keys": [
       "string"
     ],

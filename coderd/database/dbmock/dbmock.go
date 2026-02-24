@@ -540,20 +540,6 @@ func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(ctx, us
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), ctx, userID)
 }
 
-// DeleteBoundaryUsageStatsByReplicaID mocks base method.
-func (m *MockStore) DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteBoundaryUsageStatsByReplicaID", ctx, replicaID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteBoundaryUsageStatsByReplicaID indicates an expected call of DeleteBoundaryUsageStatsByReplicaID.
-func (mr *MockStoreMockRecorder) DeleteBoundaryUsageStatsByReplicaID(ctx, replicaID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBoundaryUsageStatsByReplicaID", reflect.TypeOf((*MockStore)(nil).DeleteBoundaryUsageStatsByReplicaID), ctx, replicaID)
-}
-
 // DeleteChatByID mocks base method.
 func (m *MockStore) DeleteChatByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -1760,21 +1746,6 @@ func (m *MockStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Contex
 func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), ctx, ownerID, prepared)
-}
-
-// GetBoundaryUsageSummary mocks base method.
-func (m *MockStore) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (database.GetBoundaryUsageSummaryRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetBoundaryUsageSummary", ctx, maxStalenessMs)
-	ret0, _ := ret[0].(database.GetBoundaryUsageSummaryRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetBoundaryUsageSummary indicates an expected call of GetBoundaryUsageSummary.
-func (mr *MockStoreMockRecorder) GetBoundaryUsageSummary(ctx, maxStalenessMs any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBoundaryUsageSummary", reflect.TypeOf((*MockStore)(nil).GetBoundaryUsageSummary), ctx, maxStalenessMs)
 }
 
 // GetChatByID mocks base method.

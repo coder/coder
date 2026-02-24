@@ -1757,13 +1757,6 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
-func (q *querier) DeleteBoundaryUsageStatsByReplicaID(ctx context.Context, replicaID uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceBoundaryUsage); err != nil {
-		return err
-	}
-	return q.db.DeleteBoundaryUsageStatsByReplicaID(ctx, replicaID)
-}
-
 func (q *querier) DeleteChatByID(ctx context.Context, id uuid.UUID) error {
 	chat, err := q.db.GetChatByID(ctx, id)
 	if err != nil {
@@ -2378,13 +2371,6 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 		return database.GetAuthorizationUserRolesRow{}, err
 	}
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
-}
-
-func (q *querier) GetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (database.GetBoundaryUsageSummaryRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceBoundaryUsage); err != nil {
-		return database.GetBoundaryUsageSummaryRow{}, err
-	}
-	return q.db.GetBoundaryUsageSummary(ctx, maxStalenessMs)
 }
 
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {

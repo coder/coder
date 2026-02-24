@@ -175,6 +175,9 @@ AI BRIDGE OPTIONS:
           Emit structured logs for AI Bridge interception records. Use this for
           exporting these records to external SIEM or observability systems.
 
+      --agent-local-workspace bool, $CODER_AGENT_LOCAL_WORKSPACE (default: false)
+          Enable admin-only local workspace mode for agent chats.
+
       --chat-anthropic-models-url string, $CODER_CHAT_ANTHROPIC_MODELS_URL
           Override URL used to list Anthropic models for the chat model catalog.
 
