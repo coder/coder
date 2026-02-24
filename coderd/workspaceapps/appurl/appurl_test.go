@@ -609,6 +609,14 @@ func TestURLGenerationVsParsing(t *testing.T) {
 			Name:           "5DigitAppSlug_AgentOmittedInParsing",
 			AppSlugOrPort:  "30000",
 			AgentName:      "agent",
+			ExpectedParsed: "agent",
+		},
+		{
+			// 6 digits is not a valid port, so it is treated as an app slug.
+			// App slugs do not require the agent name, so it is dropped
+			Name:           "6DigitAppSlug_AgentOmittedInParsing",
+			AppSlugOrPort:  "300000",
+			AgentName:      "agent",
 			ExpectedParsed: "",
 		},
 	}
