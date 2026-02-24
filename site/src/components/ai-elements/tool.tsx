@@ -22,15 +22,16 @@ import {
 	WrenchIcon,
 } from "lucide-react";
 import type React from "react";
-import { forwardRef, memo, useMemo, useRef, useState } from "react";
+import type { ComponentPropsWithRef } from "react";
+import { memo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { cn } from "utils/cn";
 import { Response } from "./response";
+import { asNumber, asRecord, asString } from "./runtimeTypeUtils";
 
 type ToolStatus = "completed" | "error" | "running";
 
-interface ToolProps
-	extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
+interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	name: string;
 	status?: ToolStatus;
 	args?: unknown;
@@ -41,29 +42,6 @@ interface ToolProps
 	/** Maps sub-agent chat IDs to real-time status updates from stream events. */
 	subagentStatusOverrides?: Map<string, string>;
 }
-
-const asRecord = (value: unknown): Record<string, unknown> | null => {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		return null;
-	}
-	return value as Record<string, unknown>;
-};
-
-const asString = (value: unknown): string =>
-	typeof value === "string" ? value : "";
-
-const asNumber = (value: unknown): number | undefined => {
-	if (typeof value === "number" && Number.isFinite(value)) {
-		return value;
-	}
-	if (typeof value === "string") {
-		const parsed = Number(value);
-		if (Number.isFinite(parsed)) {
-			return parsed;
-		}
-	}
-	return undefined;
-};
 
 const toProviderLabel = (
 	providerDisplayName: string,
@@ -692,7 +670,9 @@ const WaitForExternalAuthTool: React.FC<{
 		<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
 	);
 	if (isError) {
-		label = errorMessage || `Failed while waiting for ${providerLabel} authentication`;
+		label =
+			errorMessage ||
+			`Failed while waiting for ${providerLabel} authentication`;
 		icon = (
 			<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
 		);
@@ -1514,265 +1494,227 @@ const ChatSummarizedTool: React.FC<{
 };
 
 export const Tool = memo(
-	forwardRef<HTMLDivElement, ToolProps>(
-		(
-			{
-				className,
-				name,
-				status = "completed",
-				args,
-				result,
-				isError = false,
-				subagentTitles,
-				subagentStatusOverrides,
-				...props
-			},
-			ref,
-		) => {
-			const parsedArgs = useMemo(() => parseArgs(args), [args]);
-			const resultOutput = useMemo(() => formatResultOutput(result), [result]);
-			const fileContent = useMemo(
-				() => getFileContentForViewer(name, args, result),
-				[name, args, result],
-			);
-			const writeFileDiff = useMemo(
-				() => getWriteFileDiff(name, args),
-				[name, args],
-			);
-			const { editFiles, editDiffs } = useMemo(() => {
-				if (name !== "edit_files") return { editFiles: [], editDiffs: [] };
-				const files = parseEditFilesArgs(args);
-				const diffs = files.map((f) => buildEditDiff(f.path, f.edits));
-				return { editFiles: files, editDiffs: diffs };
-			}, [name, args]);
-			const fileContentOptions = useMemo(
-				() =>
-					fileContent
-						? {
-								...FILE_VIEWER_OPTIONS,
-								disableFileHeader: fileContent.disableHeader,
-								disableLineNumbers: fileContent.disableLineNumbers,
-							}
-						: FILE_VIEWER_OPTIONS,
-				[fileContent],
-			);
-
-			// Render execute tools with the specialized terminal-style block.
-			if (name === "execute") {
-				const parsed = parsedArgs;
-				const command = parsed ? asString(parsed.command) : "";
-				const rec = asRecord(result);
-				const output = rec ? asString(rec.output).trim() : "";
-				const authRequired = rec ? Boolean(rec.auth_required) : false;
-				const authenticateURL = rec ? asString(rec.authenticate_url).trim() : "";
-				const providerLabel = toProviderLabel(
-					rec ? asString(rec.provider_display_name).trim() : "",
-					rec ? asString(rec.provider_id).trim() : "",
-					rec ? asString(rec.provider_type).trim() : "",
-				);
-
-				return (
-					<div ref={ref} className={cn("w-full py-0.5", className)} {...props}>
-						{authRequired && authenticateURL ? (
-							<ExecuteAuthRequiredTool
-								command={command}
-								output={output}
-								authenticateURL={authenticateURL}
-								providerLabel={providerLabel}
-							/>
-						) : (
-							<ExecuteTool
-								command={command}
-								output={output}
-								status={status}
-								isError={isError}
-							/>
-						)}
-					</div>
-				);
-			}
-
-			if (name === "wait_for_external_auth") {
-				const rec = asRecord(result);
-				const providerLabel = toProviderLabel(
-					rec ? asString(rec.provider_display_name).trim() : "",
-					rec ? asString(rec.provider_id).trim() : "",
-					rec ? asString(rec.provider_type).trim() : "",
-				);
-				const authenticated = rec ? Boolean(rec.authenticated) : false;
-				const timedOut = rec ? Boolean(rec.timed_out) : false;
-				const errorMessage = rec ? asString(rec.error || rec.message) : "";
-
-				return (
-					<div ref={ref} className={cn("py-0.5", className)} {...props}>
-						<WaitForExternalAuthTool
-							providerLabel={providerLabel}
-							status={status}
-							authenticated={authenticated}
-							timedOut={timedOut}
-							isError={isError}
-							errorMessage={errorMessage || undefined}
-						/>
-					</div>
-				);
-			}
-
-			// Render read_file with a collapsed-by-default viewer.
-			if (name === "read_file") {
-				const parsed = parsedArgs;
-				const path = parsed ? asString(parsed.path).trim() : "";
-				const rec = asRecord(result);
-				const content = rec ? asString(rec.content).trim() : "";
-
-				return (
-					<div ref={ref} className={cn("py-0.5", className)} {...props}>
-						<ReadFileTool
-							path={path || "file"}
-							content={content}
-							status={status}
-							isError={isError}
-							errorMessage={
-								rec ? asString(rec.error || rec.message) : undefined
-							}
-						/>
-					</div>
-				);
-			}
-
-			// Render write_file with a collapsed-by-default diff viewer.
-			if (name === "write_file") {
-				const parsed = parsedArgs;
-				const path = parsed ? asString(parsed.path).trim() : "";
-				const rec = asRecord(result);
-
-				return (
-					<div ref={ref} className={cn("py-0.5", className)} {...props}>
-						<WriteFileTool
-							path={path || "file"}
-							diff={writeFileDiff}
-							status={status}
-							isError={isError}
-							errorMessage={
-								rec ? asString(rec.error || rec.message) : undefined
-							}
-						/>
-					</div>
-				);
-			}
-
-			// Render edit_files with a collapsed-by-default diff viewer.
-			if (name === "edit_files") {
-				const rec = asRecord(result);
-
-				return (
-					<div ref={ref} className={cn("py-0.5", className)} {...props}>
-						<EditFilesTool
-							files={editFiles}
-							diffs={editDiffs}
-							status={status}
-							isError={isError}
-							errorMessage={
-								rec ? asString(rec.error || rec.message) : undefined
-							}
-						/>
-					</div>
-				);
-			}
-
-			// Render create_workspace with a collapsed-by-default viewer.
-			// During workspace creation, build logs stream as result_delta
-			// strings. Once the tool finishes, the result becomes a JSON
-			// object with workspace metadata.
-			if (name === "create_workspace") {
-				const rec = asRecord(result);
-				const buildLogs = typeof result === "string" ? result.trim() : "";
-				const wsName = rec ? asString(rec.workspace_name) : "";
-				const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
-
-				return (
-					<div ref={ref} className={cn("py-0.5", className)} {...props}>
-						<CreateWorkspaceTool
-							workspaceName={wsName}
-							resultJson={resultJson}
-							buildLogs={buildLogs}
-							status={status}
-							isError={isError}
-							errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
-						/>
-					</div>
-				);
-			}
-
-			// Render delegated sub-agent tools as a sub-agent link card.
-			if (
-				name === "subagent" ||
-				name === "subagent_await" ||
-				name === "subagent_message" ||
-				name === "subagent_terminate"
-			) {
-				const parsed = parsedArgs;
-				const rec = asRecord(result);
-				// subagent_await and subagent_message have chat_id in
-				// args, so check both result and args.
-				const chatId =
-					(rec ? asString(rec.chat_id) : "") ||
-					(parsed ? asString(parsed.chat_id) : "");
-				const resultSubagentStatus = rec
-					? asString(rec.status || rec.subagent_status)
-					: "";
-				const streamSubagentStatus =
-					(chatId && subagentStatusOverrides?.get(chatId)) || "";
-				const subagentStatus = streamSubagentStatus || resultSubagentStatus;
-				const durationMs = rec ? asNumber(rec.duration_ms) : undefined;
-				const report = rec ? asString(rec.report) : "";
-				const prompt = parsed ? asString(parsed.prompt) : "";
-				const subagentMessage = parsed ? asString(parsed.message) : "";
-				const title =
-					(rec ? asString(rec.title) : "") ||
-					(parsed ? asString(parsed.title) : "") ||
-					(chatId && subagentTitles?.get(chatId)) ||
-					"Sub-agent";
-				const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
-				const subagentToolStatus = mapSubagentStatusToToolStatus(
-					subagentStatus,
-					status,
-				);
-				const subagentIsError =
-					subagentToolStatus === "error" ||
-					((status === "error" || isError) && !subagentCompleted);
-
-				if (chatId) {
-					return (
-						<div ref={ref} className={cn("py-0.5", className)} {...props}>
-							<SubagentTool
-								toolName={name}
-								title={title}
-								chatId={chatId}
-								subagentStatus={subagentStatus}
-								prompt={prompt || undefined}
-								message={subagentMessage || undefined}
-								durationMs={durationMs}
-								report={report || undefined}
-								toolStatus={subagentToolStatus}
-								isError={subagentIsError}
-							/>
-						</div>
-					);
+	({
+		className,
+		name,
+		status = "completed",
+		args,
+		result,
+		isError = false,
+		subagentTitles,
+		subagentStatusOverrides,
+		ref,
+		...props
+	}: ToolProps) => {
+		const parsedArgs = parseArgs(args);
+		const resultOutput = formatResultOutput(result);
+		const fileContent = getFileContentForViewer(name, args, result);
+		const writeFileDiff = getWriteFileDiff(name, args);
+		const editFiles = name === "edit_files" ? parseEditFilesArgs(args) : [];
+		const editDiffs =
+			name === "edit_files"
+				? editFiles.map((file) => buildEditDiff(file.path, file.edits))
+				: [];
+		const fileContentOptions = fileContent
+			? {
+					...FILE_VIEWER_OPTIONS,
+					disableFileHeader: fileContent.disableHeader,
+					disableLineNumbers: fileContent.disableLineNumbers,
 				}
+			: FILE_VIEWER_OPTIONS;
 
-				// No chat_id yet — the sub-agent is still being spawned.
-				// Show a pending row with the title (and expandable
-				// prompt) instead of falling through to the generic
-				// "wrench" rendering.
+		// Render execute tools with the specialized terminal-style block.
+		if (name === "execute") {
+			const parsed = parsedArgs;
+			const command = parsed ? asString(parsed.command) : "";
+			const rec = asRecord(result);
+			const output = rec ? asString(rec.output).trim() : "";
+			const authRequired = rec ? Boolean(rec.auth_required) : false;
+			const authenticateURL = rec ? asString(rec.authenticate_url).trim() : "";
+			const providerLabel = toProviderLabel(
+				rec ? asString(rec.provider_display_name).trim() : "",
+				rec ? asString(rec.provider_id).trim() : "",
+				rec ? asString(rec.provider_type).trim() : "",
+			);
+
+			return (
+				<div ref={ref} className={cn("w-full py-0.5", className)} {...props}>
+					{authRequired && authenticateURL ? (
+						<ExecuteAuthRequiredTool
+							command={command}
+							output={output}
+							authenticateURL={authenticateURL}
+							providerLabel={providerLabel}
+						/>
+					) : (
+						<ExecuteTool
+							command={command}
+							output={output}
+							status={status}
+							isError={isError}
+						/>
+					)}
+				</div>
+			);
+		}
+
+		if (name === "wait_for_external_auth") {
+			const rec = asRecord(result);
+			const providerLabel = toProviderLabel(
+				rec ? asString(rec.provider_display_name).trim() : "",
+				rec ? asString(rec.provider_id).trim() : "",
+				rec ? asString(rec.provider_type).trim() : "",
+			);
+			const authenticated = rec ? Boolean(rec.authenticated) : false;
+			const timedOut = rec ? Boolean(rec.timed_out) : false;
+			const errorMessage = rec ? asString(rec.error || rec.message) : "";
+
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<WaitForExternalAuthTool
+						providerLabel={providerLabel}
+						status={status}
+						authenticated={authenticated}
+						timedOut={timedOut}
+						isError={isError}
+						errorMessage={errorMessage || undefined}
+					/>
+				</div>
+			);
+		}
+
+		// Render read_file with a collapsed-by-default viewer.
+		if (name === "read_file") {
+			const parsed = parsedArgs;
+			const path = parsed ? asString(parsed.path).trim() : "";
+			const rec = asRecord(result);
+			const content = rec ? asString(rec.content).trim() : "";
+
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<ReadFileTool
+						path={path || "file"}
+						content={content}
+						status={status}
+						isError={isError}
+						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+					/>
+				</div>
+			);
+		}
+
+		// Render write_file with a collapsed-by-default diff viewer.
+		if (name === "write_file") {
+			const parsed = parsedArgs;
+			const path = parsed ? asString(parsed.path).trim() : "";
+			const rec = asRecord(result);
+
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<WriteFileTool
+						path={path || "file"}
+						diff={writeFileDiff}
+						status={status}
+						isError={isError}
+						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+					/>
+				</div>
+			);
+		}
+
+		// Render edit_files with a collapsed-by-default diff viewer.
+		if (name === "edit_files") {
+			const rec = asRecord(result);
+
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<EditFilesTool
+						files={editFiles}
+						diffs={editDiffs}
+						status={status}
+						isError={isError}
+						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+					/>
+				</div>
+			);
+		}
+
+		// Render create_workspace with a collapsed-by-default viewer.
+		// During workspace creation, build logs stream as result_delta
+		// strings. Once the tool finishes, the result becomes a JSON
+		// object with workspace metadata.
+		if (name === "create_workspace") {
+			const rec = asRecord(result);
+			const buildLogs = typeof result === "string" ? result.trim() : "";
+			const wsName = rec ? asString(rec.workspace_name) : "";
+			const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
+
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<CreateWorkspaceTool
+						workspaceName={wsName}
+						resultJson={resultJson}
+						buildLogs={buildLogs}
+						status={status}
+						isError={isError}
+						errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
+					/>
+				</div>
+			);
+		}
+
+		// Render delegated sub-agent tools as a sub-agent link card.
+		if (
+			name === "subagent" ||
+			name === "subagent_await" ||
+			name === "subagent_message" ||
+			name === "subagent_terminate"
+		) {
+			const parsed = parsedArgs;
+			const rec = asRecord(result);
+			// subagent_await and subagent_message have chat_id in
+			// args, so check both result and args.
+			const chatId =
+				(rec ? asString(rec.chat_id) : "") ||
+				(parsed ? asString(parsed.chat_id) : "");
+			const resultSubagentStatus = rec
+				? asString(rec.status || rec.subagent_status)
+				: "";
+			const streamSubagentStatus =
+				(chatId && subagentStatusOverrides?.get(chatId)) || "";
+			const subagentStatus = streamSubagentStatus || resultSubagentStatus;
+			const durationMs = rec
+				? asNumber(rec.duration_ms, { parseString: true })
+				: undefined;
+			const report = rec ? asString(rec.report) : "";
+			const prompt = parsed ? asString(parsed.prompt) : "";
+			const subagentMessage = parsed ? asString(parsed.message) : "";
+			const title =
+				(rec ? asString(rec.title) : "") ||
+				(parsed ? asString(parsed.title) : "") ||
+				(chatId && subagentTitles?.get(chatId)) ||
+				"Sub-agent";
+			const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
+			const subagentToolStatus = mapSubagentStatusToToolStatus(
+				subagentStatus,
+				status,
+			);
+			const subagentIsError =
+				subagentToolStatus === "error" ||
+				((status === "error" || isError) && !subagentCompleted);
+
+			if (chatId) {
 				return (
 					<div ref={ref} className={cn("py-0.5", className)} {...props}>
 						<SubagentTool
 							toolName={name}
 							title={title}
-							chatId=""
+							chatId={chatId}
 							subagentStatus={subagentStatus}
 							prompt={prompt || undefined}
 							message={subagentMessage || undefined}
+							durationMs={durationMs}
+							report={report || undefined}
 							toolStatus={subagentToolStatus}
 							isError={subagentIsError}
 						/>
@@ -1780,64 +1722,94 @@ export const Tool = memo(
 				);
 			}
 
-			// Render subagent_report as a collapsible markdown report.
-			if (name === "subagent_report") {
-				const parsed = parsedArgs;
-				const rec = asRecord(result);
-				const report =
-					(parsed ? asString(parsed.report) : "") ||
-					(rec ? asString(rec.report) : "");
-				const title = (rec ? asString(rec.title) : "") || "Sub-agent report";
+			// No chat_id yet — the sub-agent is still being spawned.
+			// Show a pending row with the title (and expandable
+			// prompt) instead of falling through to the generic
+			// "wrench" rendering.
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<SubagentTool
+						toolName={name}
+						title={title}
+						chatId=""
+						subagentStatus={subagentStatus}
+						prompt={prompt || undefined}
+						message={subagentMessage || undefined}
+						toolStatus={subagentToolStatus}
+						isError={subagentIsError}
+					/>
+				</div>
+			);
+		}
 
-				return (
-					<div ref={ref} className={cn("py-0.5", className)} {...props}>
-						<AgentReportTool
-							title={title}
-							report={report}
-							toolStatus={status}
-							isError={isError}
-						/>
-					</div>
-				);
-			}
-
-			if (name === "chat_summarized") {
-				const rec = asRecord(result);
-				const summary =
-					(rec ? asString(rec.summary) : "") ||
-					(typeof result === "string" ? result : "");
-				return (
-					<div ref={ref} className={cn("py-0.5", className)} {...props}>
-						<ChatSummarizedTool
-							summary={summary}
-							status={status}
-							isError={isError}
-							errorMessage={
-								rec ? asString(rec.error || rec.message) : undefined
-							}
-						/>
-					</div>
-				);
-			}
+		// Render subagent_report as a collapsible markdown report.
+		if (name === "subagent_report") {
+			const parsed = parsedArgs;
+			const rec = asRecord(result);
+			const report =
+				(parsed ? asString(parsed.report) : "") ||
+				(rec ? asString(rec.report) : "");
+			const title = (rec ? asString(rec.title) : "") || "Sub-agent report";
 
 			return (
 				<div ref={ref} className={cn("py-0.5", className)} {...props}>
-					<div className="flex items-center gap-2">
-						<ToolIcon name={name} isError={status === "error" || isError} />
-						<ToolLabel name={name} args={args} result={result} />
-					</div>
-					{writeFileDiff ? (
-						<ScrollArea
-							className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
-							viewportClassName="max-h-64"
-							scrollBarClassName="w-1.5"
-						>
-							<FileDiff
-								fileDiff={writeFileDiff}
-								options={DIFF_VIEWER_OPTIONS}
-							/>
-						</ScrollArea>
-					) : fileContent ? (
+					<AgentReportTool
+						title={title}
+						report={report}
+						toolStatus={status}
+						isError={isError}
+					/>
+				</div>
+			);
+		}
+
+		if (name === "chat_summarized") {
+			const rec = asRecord(result);
+			const summary =
+				(rec ? asString(rec.summary) : "") ||
+				(typeof result === "string" ? result : "");
+			return (
+				<div ref={ref} className={cn("py-0.5", className)} {...props}>
+					<ChatSummarizedTool
+						summary={summary}
+						status={status}
+						isError={isError}
+						errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+					/>
+				</div>
+			);
+		}
+
+		return (
+			<div ref={ref} className={cn("py-0.5", className)} {...props}>
+				<div className="flex items-center gap-2">
+					<ToolIcon name={name} isError={status === "error" || isError} />
+					<ToolLabel name={name} args={args} result={result} />
+				</div>
+				{writeFileDiff ? (
+					<ScrollArea
+						className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+						viewportClassName="max-h-64"
+						scrollBarClassName="w-1.5"
+					>
+						<FileDiff fileDiff={writeFileDiff} options={DIFF_VIEWER_OPTIONS} />
+					</ScrollArea>
+				) : fileContent ? (
+					<ScrollArea
+						className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
+						viewportClassName="max-h-64"
+						scrollBarClassName="w-1.5"
+					>
+						<FileViewer
+							file={{
+								name: fileContent.path,
+								contents: fileContent.content,
+							}}
+							options={fileContentOptions}
+						/>
+					</ScrollArea>
+				) : (
+					resultOutput && (
 						<ScrollArea
 							className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
 							viewportClassName="max-h-64"
@@ -1845,34 +1817,18 @@ export const Tool = memo(
 						>
 							<FileViewer
 								file={{
-									name: fileContent.path,
-									contents: fileContent.content,
+									name: "output.json",
+									contents: resultOutput,
 								}}
-								options={fileContentOptions}
+								options={FILE_VIEWER_OPTIONS_NO_HEADER}
+								style={DIFFS_FONT_STYLE}
 							/>
 						</ScrollArea>
-					) : (
-						resultOutput && (
-							<ScrollArea
-								className="mt-1.5 ml-6 rounded-md border border-solid border-border-default text-2xs"
-								viewportClassName="max-h-64"
-								scrollBarClassName="w-1.5"
-							>
-								<FileViewer
-									file={{
-										name: "output.json",
-										contents: resultOutput,
-									}}
-									options={FILE_VIEWER_OPTIONS_NO_HEADER}
-									style={DIFFS_FONT_STYLE}
-								/>
-							</ScrollArea>
-						)
-					)}
-				</div>
-			);
-		},
-	),
+					)
+				)}
+			</div>
+		);
+	},
 );
 
 Tool.displayName = "Tool";

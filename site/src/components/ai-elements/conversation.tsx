@@ -1,30 +1,32 @@
-import { forwardRef } from "react";
+import type { ComponentPropsWithRef } from "react";
 import { cn } from "utils/cn";
 
-type ConversationProps = React.HTMLAttributes<HTMLDivElement>;
+type ConversationProps = ComponentPropsWithRef<"div">;
 
-export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
-	({ className, ...props }, ref) => {
-		return (
-			<div
-				ref={ref}
-				className={cn("flex flex-col gap-5", className)}
-				{...props}
-			/>
-		);
-	},
-);
+export const Conversation = ({
+	className,
+	ref,
+	...props
+}: ConversationProps) => {
+	return (
+		<div
+			ref={ref}
+			className={cn("flex flex-col gap-5", className)}
+			{...props}
+		/>
+	);
+};
 
-Conversation.displayName = "Conversation";
-
-type ConversationItemProps = React.HTMLAttributes<HTMLDivElement> & {
+type ConversationItemProps = Omit<ComponentPropsWithRef<"div">, "role"> & {
 	role: "user" | "assistant";
 };
 
-export const ConversationItem = forwardRef<
-	HTMLDivElement,
-	ConversationItemProps
->(({ className, role, ...props }, ref) => {
+export const ConversationItem = ({
+	className,
+	role,
+	ref,
+	...props
+}: ConversationItemProps) => {
 	return (
 		<div
 			ref={ref}
@@ -37,6 +39,4 @@ export const ConversationItem = forwardRef<
 			{...props}
 		/>
 	);
-});
-
-ConversationItem.displayName = "ConversationItem";
+};

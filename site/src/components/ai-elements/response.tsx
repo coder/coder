@@ -1,18 +1,24 @@
+import { useTheme } from "@emotion/react";
 import {
 	File as FileViewer,
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
-import { forwardRef } from "react";
-import { Components, Streamdown } from "streamdown";
+import type { ComponentPropsWithRef, ReactNode } from "react";
+import { useMemo } from "react";
+import { type Components, Streamdown } from "streamdown";
 import { cn } from "utils/cn";
 
-interface ResponseProps
-	extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
+interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
 }
 
 const fileViewerCSS =
 	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }";
+
+const fileViewerTheme = {
+	light: "github-light",
+	dark: "github-dark-high-contrast",
+} as const;
 
 type HastNode = {
 	type?: string;
@@ -26,9 +32,11 @@ type HastNode = {
 
 type MarkdownComponentProps = {
 	href?: string;
-	children?: React.ReactNode;
+	children?: ReactNode;
 	node?: HastNode;
 };
+
+type FileViewerThemeType = "light" | "dark";
 
 /**
  * Recursively extracts text from a HAST node tree. This is plain
@@ -43,84 +51,103 @@ const getHastText = (node: HastNode | null | undefined): string => {
 	return "";
 };
 
-const components: Components = {
-	a: ({ href, children }: MarkdownComponentProps) => (
-		<a
-			href={href}
-			target="_blank"
-			rel="noopener noreferrer"
-			className="text-content-link hover:underline hover:decoration-content-link"
-			style={{ textDecoration: "none" }}
-		>
-			{children}
-		</a>
-	),
-	// Inline code only — fenced blocks are handled by the pre override.
-	code: ({ children }: MarkdownComponentProps) => (
-		<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-[#FFB757]">
-			{children}
-		</code>
-	),
-	// Fenced code blocks: extract language and content from the HAST
-	// node directly (plain data), then render with FileViewer.
-	pre: ({ node }: MarkdownComponentProps) => {
-		const codeChild = node?.children?.[0];
-		if (codeChild?.tagName === "code") {
-			const className = codeChild.properties?.className;
-			const classes =
-				typeof className === "string"
-					? className.split(/\s+/).filter(Boolean)
-					: Array.isArray(className)
-						? className.filter(
-								(classToken): classToken is string =>
-									typeof classToken === "string",
-							)
-						: [];
-			const langClass = classes.find((c: string) => c.startsWith("language-"));
-			const lang = langClass ? langClass.replace("language-", "") : "text";
-			const content = getHastText(codeChild).trimEnd();
-			if (content) {
-				return (
-					<div className="my-4 overflow-hidden rounded-xl border border-solid border-border-default text-2xs">
-						<FileViewer
-							file={{
-								name: `block.${lang}`,
-								lang: lang as SupportedLanguages,
-								contents: content,
-							}}
-							options={{
-								overflow: "scroll",
-								themeType: "dark",
-								disableFileHeader: true,
-								theme: "github-dark-high-contrast",
-								unsafeCSS: fileViewerCSS,
-							}}
-						/>
-					</div>
-				);
-			}
-		}
-		return <pre>{node?.children?.map?.(() => null)}</pre>;
-	},
+const getClassNames = (className: string[] | string | undefined): string[] => {
+	if (typeof className === "string") {
+		return className.split(/\s+/).filter(Boolean);
+	}
+	if (!Array.isArray(className)) {
+		return [];
+	}
+	return className.filter(
+		(classToken): classToken is string => typeof classToken === "string",
+	);
 };
 
-export const Response = forwardRef<HTMLDivElement, ResponseProps>(
-	({ className, children, ...props }, ref) => {
-		return (
-			<div
-				ref={ref}
-				className={cn(
-					"text-[13px] leading-relaxed text-content-primary",
-					className,
-				)}
-				{...props}
+const createComponents = (
+	fileViewerThemeType: FileViewerThemeType,
+	viewerTheme: (typeof fileViewerTheme)[FileViewerThemeType],
+): Components => {
+	return {
+		a: ({ href, children }: MarkdownComponentProps) => (
+			<a
+				href={href}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="text-content-link no-underline hover:underline hover:decoration-content-link"
 			>
-				<Streamdown controls={false} components={components}>
-					{children}
-				</Streamdown>
-			</div>
-		);
-	},
-);
+				{children}
+			</a>
+		),
+		// Inline code only — fenced blocks are handled by the pre override.
+		code: ({ children }: MarkdownComponentProps) => (
+			<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-content-primary">
+				{children}
+			</code>
+		),
+		// Fenced code blocks: extract language and content from the HAST
+		// node directly (plain data), then render with FileViewer.
+		pre: ({ node }: MarkdownComponentProps) => {
+			const codeChild = node?.children?.[0];
+			if (codeChild?.tagName === "code") {
+				const classes = getClassNames(codeChild.properties?.className);
+				const langClass = classes.find((c: string) =>
+					c.startsWith("language-"),
+				);
+				const lang = langClass ? langClass.replace("language-", "") : "text";
+				const content = getHastText(codeChild).trimEnd();
+				if (content) {
+					return (
+						<div className="my-4 overflow-hidden rounded-xl border border-solid border-border-default text-2xs">
+							<FileViewer
+								file={{
+									name: `block.${lang}`,
+									lang: lang as SupportedLanguages,
+									contents: content,
+								}}
+								options={{
+									overflow: "scroll",
+									themeType: fileViewerThemeType,
+									disableFileHeader: true,
+									theme: viewerTheme,
+									unsafeCSS: fileViewerCSS,
+								}}
+							/>
+						</div>
+					);
+				}
+			}
+			return <pre>{node?.children?.map?.(() => null)}</pre>;
+		},
+	};
+};
 
-Response.displayName = "Response";
+export const Response = ({
+	className,
+	children,
+	ref,
+	...props
+}: ResponseProps) => {
+	const theme = useTheme();
+	const fileViewerThemeType: FileViewerThemeType =
+		theme.palette.mode === "dark" ? "dark" : "light";
+	const viewerTheme = fileViewerTheme[fileViewerThemeType];
+	const components = useMemo(
+		() => createComponents(fileViewerThemeType, viewerTheme),
+		[fileViewerThemeType, viewerTheme],
+	);
+
+	return (
+		<div
+			ref={ref}
+			className={cn(
+				"text-[13px] leading-relaxed text-content-primary",
+				className,
+			)}
+			{...props}
+		>
+			<Streamdown controls={false} components={components}>
+				{children}
+			</Streamdown>
+		</div>
+	);
+};

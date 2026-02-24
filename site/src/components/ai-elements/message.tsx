@@ -1,75 +1,67 @@
-import { forwardRef } from "react";
+import type { ComponentPropsWithRef } from "react";
 import { cn } from "utils/cn";
 
-type MessageProps = React.HTMLAttributes<HTMLDivElement>;
+type MessageProps = ComponentPropsWithRef<"div">;
 
-export const Message = forwardRef<HTMLDivElement, MessageProps>(
-	({ className, ...props }, ref) => {
-		return (
-			<div
-				ref={ref}
-				className={cn("max-w-full min-w-0", className)}
-				{...props}
-			/>
-		);
-	},
-);
+export const Message = ({ className, ref, ...props }: MessageProps) => {
+	return (
+		<div ref={ref} className={cn("max-w-full min-w-0", className)} {...props} />
+	);
+};
 
-Message.displayName = "Message";
+type MessageAvatarProps = ComponentPropsWithRef<"div">;
 
-type MessageAvatarProps = React.HTMLAttributes<HTMLDivElement>;
+export const MessageAvatar = ({
+	className,
+	ref,
+	...props
+}: MessageAvatarProps) => {
+	return (
+		<div
+			ref={ref}
+			className={cn(
+				"mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-default/70 shadow-sm",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
 
-export const MessageAvatar = forwardRef<HTMLDivElement, MessageAvatarProps>(
-	({ className, ...props }, ref) => {
-		return (
-			<div
-				ref={ref}
-				className={cn(
-					"mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-default/70 shadow-sm",
-					className,
-				)}
-				{...props}
-			/>
-		);
-	},
-);
+type MessageHeaderProps = ComponentPropsWithRef<"div">;
 
-MessageAvatar.displayName = "MessageAvatar";
+export const MessageHeader = ({
+	className,
+	ref,
+	...props
+}: MessageHeaderProps) => {
+	return (
+		<div
+			ref={ref}
+			className={cn(
+				"mb-1 text-xs font-medium text-content-secondary",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
 
-type MessageHeaderProps = React.HTMLAttributes<HTMLDivElement>;
+type MessageContentProps = ComponentPropsWithRef<"div">;
 
-export const MessageHeader = forwardRef<HTMLDivElement, MessageHeaderProps>(
-	({ className, ...props }, ref) => {
-		return (
-			<div
-				ref={ref}
-				className={cn(
-					"mb-1 text-xs font-medium text-content-secondary",
-					className,
-				)}
-				{...props}
-			/>
-		);
-	},
-);
-
-MessageHeader.displayName = "MessageHeader";
-
-type MessageContentProps = React.HTMLAttributes<HTMLDivElement>;
-
-export const MessageContent = forwardRef<HTMLDivElement, MessageContentProps>(
-	({ className, ...props }, ref) => {
-		return (
-			<div
-				ref={ref}
-				className={cn(
-					"whitespace-pre-wrap break-words text-sm leading-relaxed text-content-primary",
-					className,
-				)}
-				{...props}
-			/>
-		);
-	},
-);
-
-MessageContent.displayName = "MessageContent";
+export const MessageContent = ({
+	className,
+	ref,
+	...props
+}: MessageContentProps) => {
+	return (
+		<div
+			ref={ref}
+			className={cn(
+				"whitespace-pre-wrap break-words text-sm leading-relaxed text-content-primary",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};

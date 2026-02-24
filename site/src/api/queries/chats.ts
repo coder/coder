@@ -118,22 +118,21 @@ export const chatModelsKey = ["chat-models"] as const;
 
 export const chatModels = () => ({
 	queryKey: chatModelsKey,
-	queryFn: (): Promise<ChatModelsResponse | null> => API.getChatModels(),
+	queryFn: (): Promise<ChatModelsResponse> => API.getChatModels(),
 });
 
 export const chatProviderConfigsKey = ["chat-provider-configs"] as const;
 
 export const chatProviderConfigs = () => ({
 	queryKey: chatProviderConfigsKey,
-	queryFn: (): Promise<ChatProviderConfig[] | null> =>
-		API.getChatProviderConfigs(),
+	queryFn: (): Promise<ChatProviderConfig[]> => API.getChatProviderConfigs(),
 });
 
 export const chatModelConfigsKey = ["chat-model-configs"] as const;
 
 export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
-	queryFn: (): Promise<ChatModelConfig[] | null> => API.getChatModelConfigs(),
+	queryFn: (): Promise<ChatModelConfig[]> => API.getChatModelConfigs(),
 });
 
 const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {

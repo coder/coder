@@ -146,12 +146,11 @@ export const watchChat = (
 	});
 };
 
-export const watchChats =
-	(): OneWayWebSocket<TypesGen.ServerSentEvent> => {
-		return new OneWayWebSocket({
-			apiRoute: "/api/v2/chats/watch",
-		});
-	};
+export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+	return new OneWayWebSocket({
+		apiRoute: "/api/v2/chats/watch",
+	});
+};
 
 export const watchAgentContainers = (
 	agentId: string,
@@ -471,17 +470,6 @@ export type DeploymentConfig = Readonly<{
 
 const chatProviderConfigsPath = "/api/v2/chats/providers";
 const chatModelConfigsPath = "/api/v2/chats/model-configs";
-
-const isOptionalEndpointUnavailable = (error: unknown): boolean => {
-	if (!isAxiosError(error)) {
-		return false;
-	}
-
-	const status = error.response?.status;
-	return (
-		status === undefined || status === 404 || status === 405 || status === 501
-	);
-};
 
 type Claims = {
 	license_expires: number;
@@ -3037,9 +3025,7 @@ class ApiMethods {
 		chatId: string,
 		queuedMessageId: number,
 	): Promise<void> => {
-		await this.axios.delete(
-			`/api/v2/chats/${chatId}/queue/${queuedMessageId}`,
-		);
+		await this.axios.delete(`/api/v2/chats/${chatId}/queue/${queuedMessageId}`);
 	};
 
 	promoteChatQueuedMessage = async (
@@ -3079,36 +3065,18 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getChatModels = async (): Promise<ChatModelsResponse | null> => {
-		try {
-			const response = await this.axios.get<ChatModelsResponse>(
-				"/api/v2/chats/models",
-			);
-			return response.data;
-		} catch (error) {
-			// This endpoint is optional and may not exist on older deployments.
-			if (isOptionalEndpointUnavailable(error)) {
-				return null;
-			}
-
-			throw error;
-		}
+	getChatModels = async (): Promise<ChatModelsResponse> => {
+		const response = await this.axios.get<ChatModelsResponse>(
+			"/api/v2/chats/models",
+		);
+		return response.data;
 	};
 
-	getChatProviderConfigs = async (): Promise<ChatProviderConfig[] | null> => {
-		try {
-			const response = await this.axios.get<ChatProviderConfig[]>(
-				chatProviderConfigsPath,
-			);
-			return response.data;
-		} catch (error) {
-			// This endpoint is optional and may not exist on older deployments.
-			if (isOptionalEndpointUnavailable(error)) {
-				return null;
-			}
-
-			throw error;
-		}
+	getChatProviderConfigs = async (): Promise<ChatProviderConfig[]> => {
+		const response = await this.axios.get<ChatProviderConfig[]>(
+			chatProviderConfigsPath,
+		);
+		return response.data;
 	};
 
 	createChatProviderConfig = async (
@@ -3140,19 +3108,10 @@ class ApiMethods {
 		);
 	};
 
-	getChatModelConfigs = async (): Promise<ChatModelConfig[] | null> => {
-		try {
-			const response =
-				await this.axios.get<ChatModelConfig[]>(chatModelConfigsPath);
-			return response.data;
-		} catch (error) {
-			// This endpoint is optional and may not exist on older deployments.
-			if (isOptionalEndpointUnavailable(error)) {
-				return null;
-			}
-
-			throw error;
-		}
+	getChatModelConfigs = async (): Promise<ChatModelConfig[]> => {
+		const response =
+			await this.axios.get<ChatModelConfig[]>(chatModelConfigsPath);
+		return response.data;
 	};
 
 	createChatModelConfig = async (
