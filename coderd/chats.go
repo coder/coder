@@ -454,7 +454,7 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	systemPrompt := defaultChatSystemPrompt(api)
+	systemPrompt := defaultChatSystemPrompt()
 	if override := strings.TrimSpace(req.SystemPrompt); override != "" {
 		if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 			httpapi.Forbidden(rw)
@@ -2676,11 +2676,8 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	return 0, nil
 }
 
-func chatLocalWorkspaceEnabled(api *API) bool {
-	if api == nil || api.DeploymentValues == nil {
-		return false
-	}
-	return api.DeploymentValues.AI.Chat.LocalWorkspace.Value()
+func chatLocalWorkspaceEnabled(_ *API) bool {
+	return false
 }
 
 func normalizeRequestedChatWorkspaceMode(
@@ -2949,12 +2946,7 @@ func mergeMissingModelConfigValues(dst map[string]any, defaults map[string]any) 
 	}
 }
 
-func defaultChatSystemPrompt(api *API) string {
-	if api != nil && api.DeploymentValues != nil {
-		if prompt := strings.TrimSpace(api.DeploymentValues.AI.Chat.SystemPrompt.Value()); prompt != "" {
-			return prompt
-		}
-	}
+func defaultChatSystemPrompt() string {
 	return chatd.DefaultSystemPrompt
 }
 

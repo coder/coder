@@ -9,7 +9,6 @@ import {
 	createChat,
 	deleteChat,
 } from "api/queries/chats";
-import { deploymentConfig } from "api/queries/deployment";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -115,10 +114,6 @@ export const AgentsPage: FC = () => {
 
 	const chatsQuery = useQuery(chats());
 	const chatModelsQuery = useQuery(chatModels());
-	const deploymentConfigQuery = useQuery({
-		...deploymentConfig(),
-		enabled: isAgentsAdmin,
-	});
 	const createMutation = useMutation(createChat(queryClient));
 	const archiveMutation = useMutation(deleteChat(queryClient));
 	const [archivingChatId, setArchivingChatId] = useState<string | null>(null);
@@ -203,9 +198,7 @@ export const AgentsPage: FC = () => {
 		setRightPanelOpen: setIsRightPanelOpen,
 		requestArchiveAgent,
 	};
-	const canUseLocalWorkspaceMode =
-		isAgentsAdmin &&
-		Boolean(deploymentConfigQuery.data?.config.ai?.chat?.local_workspace);
+	const canUseLocalWorkspaceMode = false;
 
 	const handleCreateChat = async (options: CreateChatOptions) => {
 		const { message, workspaceId, workspaceMode, model, systemPrompt } =

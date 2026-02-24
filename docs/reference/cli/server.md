@@ -1702,28 +1702,6 @@ How often to reconcile workspace prebuilds state.
 
 Hide AI tasks from the dashboard.
 
-### --chat-title-generation-prompt
-
-|             |                                                                                                                                       |
-|-------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| Type        | <code>string</code>                                                                                                                   |
-| Environment | <code>$CODER_CHAT_TITLE_GENERATION_PROMPT</code>                                                                                      |
-| YAML        | <code>aibridge.chat_title_generation_prompt</code>                                                                                    |
-| Default     | <code>Generate a concise title (max 8 words) for the user's first message. Return plain text only, with no surrounding quotes.</code> |
-
-Prompt used to generate chat titles from the first user message.
-
-### --agent-local-workspace
-
-|             |                                             |
-|-------------|---------------------------------------------|
-| Type        | <code>bool</code>                           |
-| Environment | <code>$CODER_AGENT_LOCAL_WORKSPACE</code>   |
-| YAML        | <code>aibridge.agent_local_workspace</code> |
-| Default     | <code>false</code>                          |
-
-Enable admin-only local workspace mode for agent chats.
-
 ### --aibridge-enabled
 
 |             |                                      |

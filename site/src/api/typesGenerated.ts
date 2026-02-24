@@ -13,7 +13,6 @@ export interface ACLAvailable {
 // From codersdk/deployment.go
 export interface AIBridgeAnthropicConfig {
 	readonly base_url: string;
-	readonly models_url: string;
 	readonly key: string;
 }
 
@@ -76,7 +75,6 @@ export interface AIBridgeListInterceptionsResponse {
 // From codersdk/deployment.go
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
-	readonly models_url: string;
 	readonly key: string;
 }
 
@@ -130,17 +128,9 @@ export interface AIBridgeUserPrompt {
 }
 
 // From codersdk/deployment.go
-export interface AIChatConfig {
-	readonly system_prompt: string;
-	readonly title_generation_prompt: string;
-	readonly local_workspace: boolean;
-}
-
-// From codersdk/deployment.go
 export interface AIConfig {
 	readonly bridge?: AIBridgeConfig;
 	readonly aibridge_proxy?: AIBridgeProxyConfig;
-	readonly chat?: AIChatConfig;
 }
 
 // From codersdk/allowlist.go

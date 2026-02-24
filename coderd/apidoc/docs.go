@@ -12780,9 +12780,6 @@ const docTemplate = `{
                 },
                 "key": {
                     "type": "string"
-                },
-                "models_url": {
-                    "type": "string"
                 }
             }
         },
@@ -12936,9 +12933,6 @@ const docTemplate = `{
                 },
                 "key": {
                     "type": "string"
-                },
-                "models_url": {
-                    "type": "string"
                 }
             }
         },
@@ -13067,20 +13061,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIChatConfig": {
-            "type": "object",
-            "properties": {
-                "local_workspace": {
-                    "type": "boolean"
-                },
-                "system_prompt": {
-                    "type": "string"
-                },
-                "title_generation_prompt": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.AIConfig": {
             "type": "object",
             "properties": {
@@ -13089,9 +13069,6 @@ const docTemplate = `{
                 },
                 "bridge": {
                     "$ref": "#/definitions/codersdk.AIBridgeConfig"
-                },
-                "chat": {
-                    "$ref": "#/definitions/codersdk.AIChatConfig"
                 }
             }
         },

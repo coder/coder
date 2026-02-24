@@ -752,13 +752,6 @@ workspace_prebuilds:
   # (default: 3, type: int)
   failure_hard_limit: 3
 aibridge:
-  # Prompt used to generate chat titles from the first user message.
-  # (default: Generate a concise title (max 8 words) for the user's first message.
-  # Return plain text only, with no surrounding quotes., type: string)
-  chat_title_generation_prompt: Generate a concise title (max 8 words) for the user's first message. Return plain text only, with no surrounding quotes.
-  # Enable admin-only local workspace mode for agent chats.
-  # (default: false, type: bool)
-  agent_local_workspace: false
   # Whether to start an in-memory aibridged instance.
   # (default: false, type: bool)
   enabled: false

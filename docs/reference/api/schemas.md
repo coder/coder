@@ -340,18 +340,16 @@
 ```json
 {
   "base_url": "string",
-  "key": "string",
-  "models_url": "string"
+  "key": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-|--------------|--------|----------|--------------|-------------|
-| `base_url`   | string | false    |              |             |
-| `key`        | string | false    |              |             |
-| `models_url` | string | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
 
 ## codersdk.AIBridgeBedrockConfig
 
@@ -383,8 +381,7 @@
 {
   "anthropic": {
     "base_url": "string",
-    "key": "string",
-    "models_url": "string"
+    "key": "string"
   },
   "bedrock": {
     "access_key": "string",
@@ -404,8 +401,7 @@
   "max_concurrency": 0,
   "openai": {
     "base_url": "string",
-    "key": "string",
-    "models_url": "string"
+    "key": "string"
   },
   "rate_limit": 0,
   "retention": 0,
@@ -605,18 +601,16 @@
 ```json
 {
   "base_url": "string",
-  "key": "string",
-  "models_url": "string"
+  "key": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-|--------------|--------|----------|--------------|-------------|
-| `base_url`   | string | false    |              |             |
-| `key`        | string | false    |              |             |
-| `models_url` | string | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `base_url` | string | false    |              |             |
+| `key`      | string | false    |              |             |
 
 ## codersdk.AIBridgeProxyConfig
 
@@ -740,24 +734,6 @@
 | `prompt`               | string | false    |              |             |
 | `provider_response_id` | string | false    |              |             |
 
-## codersdk.AIChatConfig
-
-```json
-{
-  "local_workspace": true,
-  "system_prompt": "string",
-  "title_generation_prompt": "string"
-}
-```
-
-### Properties
-
-| Name                      | Type    | Required | Restrictions | Description |
-|---------------------------|---------|----------|--------------|-------------|
-| `local_workspace`         | boolean | false    |              |             |
-| `system_prompt`           | string  | false    |              |             |
-| `title_generation_prompt` | string  | false    |              |             |
-
 ## codersdk.AIConfig
 
 ```json
@@ -776,8 +752,7 @@
   "bridge": {
     "anthropic": {
       "base_url": "string",
-      "key": "string",
-      "models_url": "string"
+      "key": "string"
     },
     "bedrock": {
       "access_key": "string",
@@ -797,18 +772,12 @@
     "max_concurrency": 0,
     "openai": {
       "base_url": "string",
-      "key": "string",
-      "models_url": "string"
+      "key": "string"
     },
     "rate_limit": 0,
     "retention": 0,
     "send_actor_headers": true,
     "structured_logging": true
-  },
-  "chat": {
-    "local_workspace": true,
-    "system_prompt": "string",
-    "title_generation_prompt": "string"
   }
 }
 ```
@@ -819,7 +788,6 @@
 |------------------|--------------------------------------------------------------|----------|--------------|-------------|
 | `aibridge_proxy` | [codersdk.AIBridgeProxyConfig](#codersdkaibridgeproxyconfig) | false    |              |             |
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
-| `chat`           | [codersdk.AIChatConfig](#codersdkaichatconfig)               | false    |              |             |
 
 ## codersdk.APIAllowListTarget
 
@@ -3449,8 +3417,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "bridge": {
         "anthropic": {
           "base_url": "string",
-          "key": "string",
-          "models_url": "string"
+          "key": "string"
         },
         "bedrock": {
           "access_key": "string",
@@ -3470,18 +3437,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "max_concurrency": 0,
         "openai": {
           "base_url": "string",
-          "key": "string",
-          "models_url": "string"
+          "key": "string"
         },
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
         "structured_logging": true
-      },
-      "chat": {
-        "local_workspace": true,
-        "system_prompt": "string",
-        "title_generation_prompt": "string"
       }
     },
     "allow_workspace_renames": true,
@@ -4025,8 +3986,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "bridge": {
       "anthropic": {
         "base_url": "string",
-        "key": "string",
-        "models_url": "string"
+        "key": "string"
       },
       "bedrock": {
         "access_key": "string",
@@ -4046,18 +4006,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "max_concurrency": 0,
       "openai": {
         "base_url": "string",
-        "key": "string",
-        "models_url": "string"
+        "key": "string"
       },
       "rate_limit": 0,
       "retention": 0,
       "send_actor_headers": true,
       "structured_logging": true
-    },
-    "chat": {
-      "local_workspace": true,
-      "system_prompt": "string",
-      "title_generation_prompt": "string"
     }
   },
   "allow_workspace_renames": true,

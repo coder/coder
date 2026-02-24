@@ -799,13 +799,10 @@ func New(options *Options) *API {
 			Logger:                 options.Logger.Named("chats"),
 			Database:               options.Database,
 			ResolveProviderAPIKeys: chatProviderAPIKeysResolver,
-			TitleGeneration: chatd.TitleGenerationConfig{
-				Prompt: options.DeploymentValues.AI.Chat.TitleGenerationPrompt.Value(),
-			},
-			AgentConn:       api.agentProvider.AgentConn,
-			CreateWorkspace: api.newChatWorkspaceCreator(),
-			Pubsub:          options.Pubsub,
-			Local:           chatLocalConfig,
+			AgentConn:              api.agentProvider.AgentConn,
+			CreateWorkspace:        api.newChatWorkspaceCreator(),
+			Pubsub:                 options.Pubsub,
+			Local:                  chatLocalConfig,
 		})
 	}
 	api.chatProcessor = options.ChatProcessor

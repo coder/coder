@@ -3593,28 +3593,6 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
 		},
-		{
-			Name:        "Chat Title Generation Prompt",
-			Description: "Prompt used to generate chat titles from the first user message.",
-			Flag:        "chat-title-generation-prompt",
-			Env:         "CODER_CHAT_TITLE_GENERATION_PROMPT",
-			Value:       &c.AI.Chat.TitleGenerationPrompt,
-			Default: "Generate a concise title (max 8 words) for the user's first message. " +
-				"Return plain text only, with no surrounding quotes.",
-			Group: &deploymentGroupAIBridge,
-			YAML:  "chat_title_generation_prompt",
-		},
-		{
-			Name:        "Agent Local Workspace",
-			Description: "Enable admin-only local workspace mode for agent chats.",
-			Flag:        "agent-local-workspace",
-			Env:         "CODER_AGENT_LOCAL_WORKSPACE",
-			Value:       &c.AI.Chat.LocalWorkspace,
-			Default:     "false",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "agent_local_workspace",
-		},
-
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
@@ -4015,15 +3993,13 @@ type AIBridgeConfig struct {
 }
 
 type AIBridgeOpenAIConfig struct {
-	BaseURL   serpent.String `json:"base_url" typescript:",notnull"`
-	ModelsURL serpent.String `json:"models_url" typescript:",notnull"`
-	Key       serpent.String `json:"key" typescript:",notnull"`
+	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
+	Key     serpent.String `json:"key" typescript:",notnull"`
 }
 
 type AIBridgeAnthropicConfig struct {
-	BaseURL   serpent.String `json:"base_url" typescript:",notnull"`
-	ModelsURL serpent.String `json:"models_url" typescript:",notnull"`
-	Key       serpent.String `json:"key" typescript:",notnull"`
+	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
+	Key     serpent.String `json:"key" typescript:",notnull"`
 }
 
 type AIBridgeBedrockConfig struct {
@@ -4045,16 +4021,9 @@ type AIBridgeProxyConfig struct {
 	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 }
 
-type AIChatConfig struct {
-	SystemPrompt          serpent.String `json:"system_prompt" typescript:",notnull"`
-	TitleGenerationPrompt serpent.String `json:"title_generation_prompt" typescript:",notnull"`
-	LocalWorkspace        serpent.Bool   `json:"local_workspace" typescript:",notnull"`
-}
-
 type AIConfig struct {
 	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
 	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
-	Chat              AIChatConfig        `json:"chat,omitempty"`
 }
 
 type SupportConfig struct {

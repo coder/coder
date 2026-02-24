@@ -651,42 +651,7 @@ func TestCreateChat_SystemPromptUnauthorized(t *testing.T) {
 func TestCreateChat_DefaultSystemPrompt(t *testing.T) {
 	t.Parallel()
 
-	defaultSystemPrompt := "Use explicit step-by-step planning."
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
-			cfg.AI.Chat.SystemPrompt = serpent.String(defaultSystemPrompt)
-		}),
-	})
-	_ = coderdtest.CreateFirstUser(t, client)
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		Input: &codersdk.ChatInput{
-			Parts: []codersdk.ChatInputPart{
-				{Type: codersdk.ChatInputPartTypeText, Text: "Build a test feature."},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	result, err := client.GetChat(ctx, chat.ID)
-	require.NoError(t, err)
-	require.GreaterOrEqual(t, len(result.Messages), 2)
-	require.Equal(t, "system", result.Messages[0].Role)
-
-	var gotSystemPrompt string
-	require.NoError(t, json.Unmarshal(result.Messages[0].Content, &gotSystemPrompt))
-	require.Equal(t, defaultSystemPrompt, gotSystemPrompt)
-}
-
-func TestCreateChat_DefaultSystemPromptFallback(t *testing.T) {
-	t.Parallel()
-
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
-			cfg.AI.Chat.SystemPrompt = serpent.String("\n\t ")
-		}),
-	})
+	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -709,14 +674,37 @@ func TestCreateChat_DefaultSystemPromptFallback(t *testing.T) {
 	require.Equal(t, chatd.DefaultSystemPrompt, gotSystemPrompt)
 }
 
+func TestCreateChat_DefaultSystemPromptFallback(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Input: &codersdk.ChatInput{
+			Parts: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "Build a test feature."},
+			},
+		},
+		SystemPrompt: "\n\t ",
+	})
+	require.NoError(t, err)
+
+	result, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result.Messages), 2)
+	require.Equal(t, "system", result.Messages[0].Role)
+
+	var gotSystemPrompt string
+	require.NoError(t, json.Unmarshal(result.Messages[0].Content, &gotSystemPrompt))
+	require.Equal(t, chatd.DefaultSystemPrompt, gotSystemPrompt)
+}
+
 func TestCreateChat_StructuredInput(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
-			cfg.AI.Chat.SystemPrompt = serpent.String("")
-		}),
-	})
+	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -764,11 +752,7 @@ func TestCreateChat_StructuredInputUnsupportedType(t *testing.T) {
 func TestCreateChat_SystemPromptAuthorized(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
-			cfg.AI.Chat.SystemPrompt = serpent.String("Use the deployment default.")
-		}),
-	})
+	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -860,37 +844,19 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	})
 }
 
-func TestCreateChat_LocalWorkspaceBootstrap(t *testing.T) {
+func TestCreateChat_LocalWorkspaceDisabled(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
-		DeploymentValues: coderdtest.DeploymentValues(
-			t,
-			func(cfg *codersdk.DeploymentValues) {
-				cfg.AI.Chat.LocalWorkspace = serpent.Bool(true)
-			},
-		),
-	})
+	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	ctx := testutil.Context(t, testutil.WaitShort)
 
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		Message:       "Bootstrap local workspace chat.",
 		WorkspaceMode: codersdk.ChatWorkspaceModeLocal,
 	})
-	require.NoError(t, err)
-	require.Equal(t, codersdk.ChatWorkspaceModeLocal, chat.WorkspaceMode)
-	require.NotNil(t, chat.WorkspaceID)
-	require.NotNil(t, chat.WorkspaceAgentID)
-
-	got, err := client.GetChat(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, codersdk.ChatWorkspaceModeLocal, got.Chat.WorkspaceMode)
-	require.NotNil(t, got.Chat.WorkspaceID)
-	require.NotNil(t, got.Chat.WorkspaceAgentID)
-	require.Equal(t, *chat.WorkspaceID, *got.Chat.WorkspaceID)
-	require.Equal(t, *chat.WorkspaceAgentID, *got.Chat.WorkspaceAgentID)
+	require.Error(t, err)
+	require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
 }
 
 func TestCreateChat_HierarchyMetadata(t *testing.T) {

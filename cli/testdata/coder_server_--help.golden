@@ -174,12 +174,6 @@ AI BRIDGE OPTIONS:
           Emit structured logs for AI Bridge interception records. Use this for
           exporting these records to external SIEM or observability systems.
 
-      --agent-local-workspace bool, $CODER_AGENT_LOCAL_WORKSPACE (default: false)
-          Enable admin-only local workspace mode for agent chats.
-
-      --chat-title-generation-prompt string, $CODER_CHAT_TITLE_GENERATION_PROMPT (default: Generate a concise title (max 8 words) for the user's first message. Return plain text only, with no surrounding quotes.)
-          Prompt used to generate chat titles from the first user message.
-
 AI BRIDGE PROXY OPTIONS: 
       --aibridge-proxy-cert-file string, $CODER_AIBRIDGE_PROXY_CERT_FILE
           Path to the CA certificate file for AI Bridge Proxy.
