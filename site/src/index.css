@@ -108,18 +108,22 @@
 		@apply border-border;
 	}
 
-	html, body, #root, #storybook-root {
+	html,
+	body,
+	#root,
+	#storybook-root {
 		@apply h-full;
 	}
 
-	button, input {
+	button,
+	input {
 		@apply font-sans;
 	}
 
 	input:-webkit-autofill,
 	input:-webkit-autofill:hover,
 	input:-webkit-autofill:focus,
-	input:-webkit-autofill:active  {
+	input:-webkit-autofill:active {
 		-webkit-box-shadow: 0 0 0 100px hsl(var(--surface-primary)) inset !important;
 	}
 
