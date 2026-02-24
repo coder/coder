@@ -40,7 +40,7 @@ export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 			const count = data.invalidated.length;
 
 			toast.success(
-				`Invalidated ${count} ${count === 1 ? "preset" : "presets"} for version ${template_version_name}.`,
+				`Invalidated ${count} ${count === 1 ? "preset" : "presets"} for version "${template_version_name}".`,
 			);
 		},
 	});

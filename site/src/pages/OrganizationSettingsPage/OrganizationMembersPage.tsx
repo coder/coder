@@ -1,4 +1,4 @@
-import { getErrorDetail, getErrorMessage } from "api/errors";
+import { getErrorMessage } from "api/errors";
 import { groupsByUserIdInOrganization } from "api/queries/groups";
 import {
 	addOrganizationMember,
@@ -121,23 +121,25 @@ const OrganizationMembersPage: FC = () => {
 				onClose={() => setMemberToDelete(undefined)}
 				title="Remove member"
 				confirmText="Remove"
-				onConfirm={async () => {
-					try {
-						if (memberToDelete) {
-							await removeMemberMutation.mutateAsync(memberToDelete?.user_id);
-						}
-						setMemberToDelete(undefined);
-						await membersQuery.refetch();
-						toast.success("User removed from organization successfully!");
-					} catch (error) {
-						setMemberToDelete(undefined);
-						toast.error(
-							getErrorMessage(error, "Failed to remove user from organization"),
+				onConfirm={() => {
+					if (memberToDelete) {
+						const mutation = removeMemberMutation.mutateAsync(
+							memberToDelete.user_id,
 							{
-								description: getErrorDetail(error),
+								onSuccess: () => {
+									membersQuery.refetch();
+								},
 							},
 						);
-					} finally {
+						toast.promise(mutation, {
+							loading: `Removing member "${memberToDelete.username}" from organization "${organization.display_name}"...`,
+							success: `User "${memberToDelete.username}" removed from organization "${organization.display_name}" successfully!`,
+							error: (error) =>
+								getErrorMessage(
+									error,
+									`Failed to remove user "${memberToDelete.username}" from organization "${organization.display_name}".`,
+								),
+						});
 						setMemberToDelete(undefined);
 					}
 				}}

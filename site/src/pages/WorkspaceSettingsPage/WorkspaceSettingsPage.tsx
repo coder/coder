@@ -29,7 +29,7 @@ const WorkspaceSettingsPage: FC = () => {
 			]);
 		},
 		onSuccess: (_, formValues) => {
-			toast.success("Workspace updated successfully");
+			toast.success(`Workspace "${formValues.name}" updated successfully.`);
 			navigate(`/@${username}/${formValues.name}/settings`);
 		},
 	});

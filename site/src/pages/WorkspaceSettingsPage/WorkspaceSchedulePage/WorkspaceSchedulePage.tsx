@@ -63,12 +63,17 @@ const WorkspaceSchedulePage: FC = () => {
 					params.workspace,
 				),
 			});
-			toast.success("Workspace schedule updated");
+			toast.success(
+				`Schedule for workspace "${workspaceName}" updated successfully.`,
+			);
 		},
 		onError: (error) =>
-			toast.error("Failed to update workspace schedule", {
-				description: getErrorDetail(error),
-			}),
+			toast.error(
+				`Failed to update schedule for workspace "${workspaceName}".`,
+				{
+					description: getErrorDetail(error),
+				},
+			),
 	});
 	const error = checkPermissionsError || getTemplateError;
 	const isLoading = !template || !permissions;

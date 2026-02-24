@@ -135,8 +135,8 @@ describe("useAgentContainers", () => {
 
 		await waitFor(() => {
 			expect(toastErrorSpy).toHaveBeenCalledWith(
-				"Failed to update containers",
-				{ description: "Please try refreshing the page" },
+				"Failed to update containers.",
+				{ description: "Please try refreshing the page." },
 			);
 		});
 
@@ -193,8 +193,8 @@ describe("useAgentContainers", () => {
 		}
 
 		await waitFor(() => {
-			expect(toastErrorSpy).toHaveBeenCalledWith("Failed to load containers", {
-				description: "Please try refreshing the page",
+			expect(toastErrorSpy).toHaveBeenCalledWith("Failed to load containers.", {
+				description: "Please try refreshing the page.",
 			});
 		});
 

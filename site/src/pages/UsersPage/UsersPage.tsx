@@ -133,14 +133,11 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 				onUpdateUserRoles={async (userId, roles) => {
 					try {
 						await updateRolesMutation.mutateAsync({ userId, roles });
-						toast.success("Successfully updated the user roles.");
+						toast.success("User roles updated successfully.");
 					} catch (e) {
-						toast.error(
-							getErrorMessage(e, "Error on updating the user roles."),
-							{
-								description: getErrorDetail(e),
-							},
-						);
+						toast.error(getErrorMessage(e, "Error updating user roles."), {
+							description: getErrorDetail(e),
+						});
 					}
 				}}
 				isUpdatingUserRoles={updateRolesMutation.isPending}
@@ -172,11 +169,19 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 					try {
 						await deleteUserMutation.mutateAsync(userToDelete.id);
 						setUserToDelete(undefined);
-						toast.success("Successfully deleted the user.");
+						toast.success(
+							`User "${userToDelete.username}" deleted successfully.`,
+						);
 					} catch (e) {
-						toast.error(getErrorMessage(e, "Error deleting user."), {
-							description: getErrorDetail(e),
-						});
+						toast.error(
+							getErrorMessage(
+								e,
+								`Error deleting user "${userToDelete.username}".`,
+							),
+							{
+								description: getErrorDetail(e),
+							},
+						);
 					}
 				}}
 			/>
@@ -196,11 +201,19 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 					try {
 						await suspendUserMutation.mutateAsync(userToSuspend.id);
 						setUserToSuspend(undefined);
-						toast.success("Successfully suspended the user.");
+						toast.success(
+							`User "${userToSuspend.username}" suspended successfully.`,
+						);
 					} catch (e) {
-						toast.error(getErrorMessage(e, "Error suspending user."), {
-							description: getErrorDetail(e),
-						});
+						toast.error(
+							getErrorMessage(
+								e,
+								`Error suspending user "${userToSuspend.username}".`,
+							),
+							{
+								description: getErrorDetail(e),
+							},
+						);
 					}
 				}}
 				description={
@@ -226,11 +239,19 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 					try {
 						await activateUserMutation.mutateAsync(userToActivate.id);
 						setUserToActivate(undefined);
-						toast.success("Successfully activated the user.");
+						toast.success(
+							`User "${userToActivate.username}" activated successfully.`,
+						);
 					} catch (e) {
-						toast.error(getErrorMessage(e, "Error activating user."), {
-							description: getErrorDetail(e),
-						});
+						toast.error(
+							getErrorMessage(
+								e,
+								`Error activating user "${userToActivate.username}".`,
+							),
+							{
+								description: getErrorDetail(e),
+							},
+						);
 					}
 				}}
 				description={
@@ -261,10 +282,15 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 							old_password: "",
 						});
 						setConfirmResetPassword(undefined);
-						toast.success("Successfully updated the user password.");
+						toast.success(
+							`Password for "${confirmResetPassword.user.username}" updated successfully.`,
+						);
 					} catch (e) {
 						toast.error(
-							getErrorMessage(e, "Error on resetting the user password."),
+							getErrorMessage(
+								e,
+								`Error resetting password for "${confirmResetPassword.user.username}".`,
+							),
 						);
 					}
 				}}

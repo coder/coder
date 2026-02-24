@@ -153,7 +153,9 @@ export const OrganizationMembersPageView: FC<
 												// but testing-library does.
 												try {
 													await updateMemberRoles(member, roles);
-													toast.success("Roles updated successfully.");
+													toast.success(
+														`Roles of "${member.username}" updated successfully.`,
+													);
 												} catch {}
 											}}
 										/>
@@ -220,9 +222,17 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 						await onSubmit(selectedUser);
 						setSelectedUser(null);
 					} catch (error) {
-						toast.error(getErrorMessage(error, "Failed to add member."), {
-							description: getErrorDetail(error),
-						});
+						toast.error(
+							getErrorMessage(
+								error,
+								selectedUser
+									? `Failed to add "${selectedUser.username}" as a member.`
+									: "Failed to add member.",
+							),
+							{
+								description: getErrorDetail(error),
+							},
+						);
 					}
 				}
 			}}

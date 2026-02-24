@@ -58,55 +58,71 @@ const EditOAuth2AppPage: FC = () => {
 					deleteSecretMutation.error
 				}
 				updateApp={async (req) => {
-					try {
-						await putAppMutation.mutateAsync({ id: appId, req });
-						// REVIEW: Maybe it is better to stay on the same page?
-						toast.success(
-							`Successfully updated the OAuth2 application "${req.name}".`,
-						);
-						navigate("/deployment/oauth2-provider/apps?updated=true");
-					} catch (error) {
-						toast.error("Failed to update OAuth2 application", {
+					const mutation = putAppMutation.mutateAsync(
+						{ id: appId, req },
+						{
+							onSuccess: () => {
+								navigate("/deployment/oauth2-provider/apps?updated=true");
+							},
+						},
+					);
+					toast.promise(mutation, {
+						success: `Successfully updated the OAuth2 application "${req.name}".`,
+						error: (error) => ({
+							message: `Failed to update "${req.name}" OAuth2 application.`,
 							description: getErrorDetail(error),
-						});
-					}
+						}),
+					});
 				}}
 				deleteApp={async (name) => {
-					try {
-						await deleteAppMutation.mutateAsync(appId);
-						toast.success(
-							`You have successfully deleted the OAuth2 application "${name}"`,
-						);
-						navigate("/deployment/oauth2-provider/apps?deleted=true");
-					} catch (error) {
-						toast.error("Failed to delete OAuth2 application", {
+					const mutation = deleteAppMutation.mutateAsync(appId, {
+						onSuccess: () => {
+							toast.success(
+								`You have successfully deleted the "${name}" OAuth2 application.`,
+							);
+							navigate("/deployment/oauth2-provider/apps?deleted=true");
+						},
+					});
+					toast.promise(mutation, {
+						success: `You have successfully deleted the "${name}" OAuth2 application.`,
+						error: (error) => ({
+							message: `Failed to delete "${name}" OAuth2 application.`,
 							description: getErrorDetail(error),
-						});
-					}
+						}),
+					});
 				}}
 				generateAppSecret={async () => {
-					try {
-						const secret = await postSecretMutation.mutateAsync(appId);
-						toast.success("Successfully generated OAuth2 client secret");
-						setFullNewSecret(secret);
-					} catch (error) {
-						toast.error("Failed to generate OAuth2 client secret", {
+					const mutation = postSecretMutation.mutateAsync(appId, {
+						onSuccess: (secret) => {
+							setFullNewSecret(secret);
+						},
+					});
+					toast.promise(mutation, {
+						success: "Successfully generated OAuth2 client secret.",
+						error: (error) => ({
+							message: "Failed to generate OAuth2 client secret.",
 							description: getErrorDetail(error),
-						});
-					}
+						}),
+					});
 				}}
 				deleteAppSecret={async (secretId: string) => {
-					try {
-						await deleteSecretMutation.mutateAsync({ appId, secretId });
-						toast.success("Successfully deleted an OAuth2 client secret");
-						if (fullNewSecret?.id === secretId) {
-							setFullNewSecret(undefined);
-						}
-					} catch (error) {
-						toast.error("Failed to delete OAuth2 client secret", {
+					const mutation = deleteSecretMutation.mutateAsync(
+						{ appId, secretId },
+						{
+							onSuccess: () => {
+								if (fullNewSecret?.id === secretId) {
+									setFullNewSecret(undefined);
+								}
+							},
+						},
+					);
+					toast.promise(mutation, {
+						success: "Successfully deleted an OAuth2 client secret.",
+						error: (error) => ({
+							message: "Failed to delete OAuth2 client secret.",
 							description: getErrorDetail(error),
-						});
-					}
+						}),
+					});
 				}}
 				canEditApp={permissions.editOAuth2App}
 				canDeleteApp={permissions.deleteOAuth2App}

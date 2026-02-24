@@ -56,7 +56,7 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
 					try {
 						await uploadFileMutation.mutateAsync(file);
 					} catch (error) {
-						toast.error(getErrorMessage(error, "Failed to upload file"), {
+						toast.error(getErrorMessage(error, "Failed to upload file."), {
 							description: getErrorDetail(error),
 						});
 						uploadFileMutation.reset();

@@ -61,21 +61,28 @@ const CreateEditRolePage: FC = () => {
 			<CreateEditRolePageView
 				role={role}
 				onSubmit={async (data: CustomRoleRequest) => {
-					try {
-						if (role) {
-							await updateOrganizationRoleMutation.mutateAsync(data);
-						} else {
-							await createOrganizationRoleMutation.mutateAsync(data);
-						}
-						navigate(`/organizations/${organizationName}/roles`);
-					} catch (error) {
-						toast.error(
-							getErrorMessage(error, "Failed to update custom role"),
-							{
-								description: getErrorDetail(error),
-							},
-						);
-					}
+					const mutation = role
+						? updateOrganizationRoleMutation.mutateAsync(data, {
+								onSuccess: () => {
+									navigate(`/organizations/${organizationName}/roles`);
+								},
+							})
+						: createOrganizationRoleMutation.mutateAsync(data, {
+								onSuccess: () => {
+									navigate(`/organizations/${organizationName}/roles`);
+								},
+							});
+					toast.promise(mutation, {
+						loading: `Updating custom role "${data.name}"...`,
+						success: `Custom role "${data.name}" updated successfully.`,
+						error: (error) => ({
+							message: getErrorMessage(
+								error,
+								`Failed to update custom role "${data.name}".`,
+							),
+							description: getErrorDetail(error),
+						}),
+					});
 				}}
 				error={
 					role

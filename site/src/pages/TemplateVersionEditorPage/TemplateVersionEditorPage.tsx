@@ -268,7 +268,7 @@ const useFileTree = (templateVersion: TemplateVersion | undefined) => {
 				setState({ fileTree, tarFile });
 			} catch (error) {
 				console.error(error);
-				toast.error("Error on initializing the editor", {
+				toast.error("Error on initializing the editor.", {
 					description: getErrorDetail(error),
 				});
 			}

@@ -133,9 +133,13 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									onClick={(e) => {
 										e.preventDefault();
 										if (!proxy.healthy) {
-											toast.error("Failed to select proxy", {
-												description: "Please select a healthy workspace proxy.",
-											});
+											toast.error(
+												`Failed to select proxy "${proxy.display_name}".`,
+												{
+													description:
+														"Please select a healthy workspace proxy.",
+												},
+											);
 											closeMenu();
 											return;
 										}

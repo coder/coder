@@ -30,7 +30,7 @@ const LicensesSettingsPage: FC = () => {
 			toast.error(
 				getErrorMessage(
 					entitlementsQuery.error,
-					"Failed to fetch entitlements",
+					"Failed to fetch entitlements.",
 				),
 				{
 					description: getErrorDetail(entitlementsQuery.error),
@@ -43,11 +43,11 @@ const LicensesSettingsPage: FC = () => {
 		useMutation({
 			mutationFn: API.removeLicense,
 			onSuccess: () => {
-				toast.success("Successfully removed license");
+				toast.success("Successfully removed license.");
 				void queryClient.invalidateQueries({ queryKey: ["licenses"] });
 			},
 			onError: (error) => {
-				toast.error("Failed to remove license", {
+				toast.error("Failed to remove license.", {
 					description: getErrorDetail(error),
 				});
 			},
@@ -97,9 +97,9 @@ const LicensesSettingsPage: FC = () => {
 				refreshEntitlements={async () => {
 					try {
 						await refreshEntitlementsMutation.mutateAsync();
-						toast.success("Successfully removed license");
+						toast.success("Successfully removed license.");
 					} catch (error) {
-						toast.error(getErrorMessage(error, "Failed to remove license"), {
+						toast.error(getErrorMessage(error, "Failed to remove license."), {
 							description: getErrorDetail(error),
 						});
 					}

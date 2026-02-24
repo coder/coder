@@ -32,18 +32,17 @@ export const TaskDeleteDialog: FC<TaskDeleteDialogProps> = ({
 			type="delete"
 			confirmLoading={deleteTaskMutation.isPending}
 			title="Delete task"
-			onConfirm={async () => {
-				try {
-					await deleteTaskMutation.mutateAsync();
-					toast.success("Task deleted successfully");
-					onSuccess?.();
-				} catch (error) {
-					toast.error(getErrorMessage(error, "Failed to delete task"), {
-						description: getErrorDetail(error),
-					});
-				} finally {
-					props.onClose();
-				}
+			onConfirm={() => {
+				const mutation = deleteTaskMutation.mutateAsync();
+				toast.promise(mutation, {
+					loading: `Deleting "${task.name}"...`,
+					success: `"${task.name}" was deleted successfully.`,
+					error: (e) => ({
+						message: getErrorMessage(e, `Failed to delete ${task.name}.`),
+						description: getErrorDetail(e),
+					}),
+				});
+				mutation.then(() => onSuccess?.()).finally(() => props.onClose());
 			}}
 			description={
 				<p>

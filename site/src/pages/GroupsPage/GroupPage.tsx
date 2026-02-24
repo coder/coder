@@ -192,21 +192,25 @@ const GroupPage: FC = () => {
 									key={member.id}
 									canUpdate={canUpdateGroup}
 									onRemove={async () => {
-										try {
-											await removeMemberMutation.mutateAsync({
+										const mutation = removeMemberMutation.mutateAsync(
+											{
 												groupId: groupData.id,
 												userId: member.id,
-											});
-											await groupQuery.refetch();
-											toast.success("Member removed successfully.");
-										} catch (error) {
-											toast.error(
-												getErrorMessage(error, "Failed to remove member."),
-												{
-													description: getErrorDetail(error),
+											},
+											{
+												onSuccess: () => {
+													groupQuery.refetch();
 												},
-											);
-										}
+											},
+										);
+										toast.promise(mutation, {
+											loading: `Removing member "${member.username}" from "${groupData.name}"...`,
+											success: `Member "${member.username}" has been removed from "${groupData.name}" successfully.`,
+											error: (error) => ({
+												message: `Failed to remove member "${member.username}" from "${groupData.name}".`,
+												description: getErrorDetail(error),
+											}),
+										});
 									}}
 								/>
 							))
@@ -224,12 +228,20 @@ const GroupPage: FC = () => {
 					onConfirm={async () => {
 						try {
 							await deleteGroupMutation.mutateAsync(groupId);
-							toast.success("Group deleted successfully.");
+							toast.success(
+								`Group "${groupQuery.data.name}" deleted successfully.`,
+							);
 							navigate("..");
 						} catch (error) {
-							toast.error(getErrorMessage(error, "Failed to delete group."), {
-								description: getErrorDetail(error),
-							});
+							toast.error(
+								getErrorMessage(
+									error,
+									`Failed to delete group "${groupQuery.data.name}".`,
+								),
+								{
+									description: getErrorDetail(error),
+								},
+							);
 						}
 					}}
 					onCancel={() => {

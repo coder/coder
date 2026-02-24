@@ -43,8 +43,8 @@ export function useAgentContainers(
 
 		socket.addEventListener("message", (event) => {
 			if (event.parseError) {
-				toast.error("Failed to update containers", {
-					description: "Please try refreshing the page",
+				toast.error("Failed to update containers.", {
+					description: "Please try refreshing the page.",
 				});
 				return;
 			}
@@ -53,8 +53,8 @@ export function useAgentContainers(
 		});
 
 		socket.addEventListener("error", () => {
-			toast.error("Failed to load containers", {
-				description: "Please try refreshing the page",
+			toast.error("Failed to load containers.", {
+				description: "Please try refreshing the page.",
 			});
 		});
 

@@ -90,7 +90,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 					toast.error(
 						"Unexpected disconnect while watching Metadata changes.",
 						{
-							description: "Please try refreshing the page",
+							description: "Please try refreshing the page.",
 						},
 					);
 					return;

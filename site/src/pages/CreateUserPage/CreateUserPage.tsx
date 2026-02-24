@@ -1,3 +1,4 @@
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { authMethods, createUser } from "api/queries/users";
 import { Margins } from "components/Margins/Margins";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -27,7 +28,7 @@ const CreateUserPage: FC = () => {
 				error={createUserMutation.error}
 				isLoading={createUserMutation.isPending}
 				onSubmit={async (user) => {
-					await createUserMutation.mutateAsync({
+					const mutation = createUserMutation.mutateAsync({
 						username: user.username,
 						name: user.name,
 						email: user.email,
@@ -36,7 +37,17 @@ const CreateUserPage: FC = () => {
 						password: user.password,
 						user_status: null,
 					});
-					toast.success("Successfully created user.");
+					toast.promise(mutation, {
+						loading: `Creating user "${user.username}"...`,
+						success: `User "${user.username}" created successfully.`,
+						error: (e) => ({
+							message: getErrorMessage(
+								e,
+								`Failed to create user "${user.username}".`,
+							),
+							description: getErrorDetail(e),
+						}),
+					});
 					navigate("..", { relative: "path" });
 				}}
 				onCancel={() => {

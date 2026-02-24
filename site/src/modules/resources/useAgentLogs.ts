@@ -57,10 +57,10 @@ export function useAgentLogs(
 			});
 		});
 
-		socket.addEventListener("error", (e) => {
-			console.error("Error in agent log socket: ", e);
-			toast.error("Unable to watch agent logs", {
-				description: "Please try refreshing the browser",
+		socket.addEventListener("error", (error) => {
+			console.error("Error in agent log socket: ", error);
+			toast.error(`Unable to watch "${agentId}" agent logs.`, {
+				description: "Please try refreshing the browser.",
 			});
 			socket.close();
 		});

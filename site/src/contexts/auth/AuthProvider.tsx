@@ -64,7 +64,6 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 		...updateProfileOptions("me"),
 		onSuccess: (user) => {
 			queryClient.setQueryData(meOptions.queryKey, user);
-			toast.success("Updated settings.");
 		},
 	});
 
@@ -96,7 +95,12 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 
 	const updateProfile = useCallback(
 		(req: UpdateUserProfileRequest) => {
-			updateProfileMutation.mutate(req);
+			const mutation = updateProfileMutation.mutateAsync(req);
+			toast.promise(mutation, {
+				loading: "Updating profile...",
+				success: "Profile updated successfully.",
+				error: "Failed to update profile.",
+			});
 		},
 		[updateProfileMutation],
 	);

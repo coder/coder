@@ -47,13 +47,16 @@ const TemplateSettingsPage: FC = () => {
 					queryKey: templateByNameKey(template.organization_name, data.name),
 				});
 			}
-			toast.success("Template updated successfully");
+			toast.success(`Template "${data.name}" updated successfully.`);
 			navigate(getLink(linkToTemplate(data.organization_name, data.name)));
 		},
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to update template"), {
-				description: getErrorDetail(error),
-			});
+			toast.error(
+				getErrorMessage(error, `Failed to update template "${template.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 

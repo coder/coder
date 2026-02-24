@@ -10,9 +10,9 @@ import { toast } from "sonner";
 export const Troubleshooting: FC = () => {
 	const { mutate: sendTestNotificationApi, isPending } = useMutation({
 		mutationFn: API.postTestNotification,
-		onSuccess: () => toast.success("Test notification sent"),
+		onSuccess: () => toast.success("Test notification sent."),
 		onError: (error) =>
-			toast.error("Failed to send test notification", {
+			toast.error("Failed to send test notification.", {
 				description: getErrorDetail(error),
 			}),
 	});

@@ -83,9 +83,15 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 				error: error,
 			});
 		} else {
-			toast.error(getErrorMessage(error, "Failed to delete workspace."), {
-				description: getErrorDetail(error),
-			});
+			toast.error(
+				getErrorMessage(
+					error,
+					`Failed to delete workspace "${workspace.name}".`,
+				),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		}
 	};
 

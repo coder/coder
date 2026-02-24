@@ -1,3 +1,4 @@
+import { getErrorDetail } from "api/errors";
 import { agentLogs } from "api/queries/workspaces";
 import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -46,9 +47,11 @@ export const DownloadAgentLogsButton: FC<DownloadAgentLogsButtonProps> = ({
 					const text = logs.map((l) => l.output).join("\n");
 					const file = new Blob([text], { type: "text/plain" });
 					download(file, `${agent.name}-logs.txt`);
-				} catch (e) {
-					console.error(e);
-					toast.error("Failed to download logs");
+				} catch (error) {
+					console.error(error);
+					toast.error(`Failed to download "${agent.name}" logs.`, {
+						description: getErrorDetail(error),
+					});
 				} finally {
 					setIsDownloading(false);
 				}

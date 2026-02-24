@@ -196,17 +196,23 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 	const pauseMutation = useMutation({
 		...pauseTask(task, queryClient),
 		onError: (error: unknown) => {
-			toast.error(getErrorMessage(error, "Failed to pause task."), {
-				description: getErrorDetail(error),
-			});
+			toast.error(
+				getErrorMessage(error, `Failed to pause task "${task.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 	const resumeMutation = useMutation({
 		...resumeTask(task, queryClient),
 		onError: (error: unknown) => {
-			toast.error(getErrorMessage(error, "Failed to resume task."), {
-				description: getErrorDetail(error),
-			});
+			toast.error(
+				getErrorMessage(error, `Failed to resume task "${task.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 

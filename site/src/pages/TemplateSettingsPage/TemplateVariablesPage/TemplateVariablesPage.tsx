@@ -67,9 +67,11 @@ const TemplateVariablesPage: FC = () => {
 	const publishVersion = useCallback(
 		async (versionId: string) => {
 			await sendUpdateActiveTemplateVersion(versionId);
-			toast.success("Template updated successfully");
+			toast.success(
+				`Template "${template.name}" variables updated successfully.`,
+			);
 		},
-		[sendUpdateActiveTemplateVersion],
+		[sendUpdateActiveTemplateVersion, template.name],
 	);
 
 	const buildVersion = useCallback(

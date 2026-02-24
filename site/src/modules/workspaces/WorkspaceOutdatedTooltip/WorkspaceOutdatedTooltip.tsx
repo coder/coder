@@ -71,9 +71,12 @@ const WorkspaceOutdatedTooltipContent: FC<TooltipContentProps> = ({
 		workspace,
 		latestVersion: activeVersion,
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Error updating workspace"), {
-				description: getErrorDetail(error),
-			});
+			toast.error(
+				getErrorMessage(error, `Error updating workspace "${workspace.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 

@@ -22,7 +22,7 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 		useDeleteToken(queryKey);
 
 	const onDeleteSuccess = () => {
-		toast.success("Token has been deleted");
+		toast.success("Token has been deleted.");
 		setToken(undefined);
 	};
 

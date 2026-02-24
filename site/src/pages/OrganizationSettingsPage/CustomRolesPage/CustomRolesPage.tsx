@@ -104,14 +104,21 @@ const CustomRolesPage: FC = () => {
 					onConfirm={async () => {
 						try {
 							if (roleToDelete) {
-								await deleteRoleMutation.mutateAsync(roleToDelete.name);
+								await deleteRoleMutation.mutateAsync(roleToDelete.name, {
+									onSuccess: () => {
+										setRoleToDelete(undefined);
+										organizationRolesQuery.refetch();
+									},
+								});
 							}
-							setRoleToDelete(undefined);
-							await organizationRolesQuery.refetch();
-							toast.success("Custom role deleted successfully!");
+							toast.success(
+								roleToDelete
+									? `Custom role "${roleToDelete.name}" deleted successfully!`
+									: "Custom role deleted successfully!",
+							);
 						} catch (error) {
 							toast.error(
-								getErrorMessage(error, "Failed to delete custom role"),
+								getErrorMessage(error, "Failed to delete custom role."),
 								{
 									description: getErrorDetail(error),
 								},

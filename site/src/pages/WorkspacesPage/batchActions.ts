@@ -40,7 +40,7 @@ export function useBatchActions(
 		},
 		onSuccess,
 		onError: (error) => {
-			toast.error("Failed to start workspaces", {
+			toast.error("Failed to start workspaces.", {
 				description: getErrorDetail(error),
 			});
 		},
@@ -52,7 +52,7 @@ export function useBatchActions(
 		},
 		onSuccess,
 		onError: (error) => {
-			toast.error("Failed to stop workspaces", {
+			toast.error("Failed to stop workspaces.", {
 				description: getErrorDetail(error),
 			});
 		},
@@ -64,7 +64,7 @@ export function useBatchActions(
 		},
 		onSuccess,
 		onError: (error) => {
-			toast.error("Failed to delete some workspaces", {
+			toast.error("Failed to delete some workspaces.", {
 				description: getErrorDetail(error),
 			});
 		},
@@ -81,7 +81,7 @@ export function useBatchActions(
 		},
 		onSuccess,
 		onError: (error) => {
-			toast.error("Failed to update some workspaces", {
+			toast.error("Failed to update some workspaces.", {
 				description: getErrorDetail(error),
 			});
 		},
@@ -102,7 +102,7 @@ export function useBatchActions(
 		},
 		onSuccess,
 		onError: (error) => {
-			toast.error("Failed to favorite some workspaces", {
+			toast.error("Failed to favorite some workspaces.", {
 				description: getErrorDetail(error),
 			});
 		},
@@ -118,7 +118,7 @@ export function useBatchActions(
 		},
 		onSuccess,
 		onError: (error) => {
-			toast.error("Failed to unfavorite some workspaces", {
+			toast.error("Failed to unfavorite some workspaces.", {
 				description: getErrorDetail(error),
 			});
 		},

@@ -47,15 +47,19 @@ export const CancelJobConfirmationDialog: FC<
 			cancelText="Discard"
 			confirmLoading={cancelMutation.isPending}
 			onConfirm={async () => {
-				try {
-					await cancelMutation.mutateAsync(job);
-					toast.success("Provisioner job canceled successfully");
-					dialogProps.onClose();
-				} catch (e) {
-					toast.error("Failed to cancel provisioner job", {
-						description: getErrorDetail(e),
-					});
-				}
+				const mutation = cancelMutation.mutateAsync(job, {
+					onSuccess: () => {
+						dialogProps.onClose();
+					},
+				});
+				toast.promise(mutation, {
+					loading: `Canceling provisioner job "${job.id}"...`,
+					success: `Provisioner job "${job.id}" canceled successfully.`,
+					error: (error) => ({
+						message: `Failed to cancel provisioner job "${job.id}".`,
+						description: getErrorDetail(error),
+					}),
+				});
 			}}
 		/>
 	);

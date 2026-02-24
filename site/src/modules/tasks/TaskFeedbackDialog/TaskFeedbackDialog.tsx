@@ -44,7 +44,7 @@ export const TaskFeedbackDialog: FC<TaskFeedbackDialogProps> = ({
 		mutationFn: (req: CreateTaskFeedbackRequest) =>
 			API.createTaskFeedback(taskId, req),
 		onSuccess: () => {
-			toast.success("Feedback submitted successfully");
+			toast.success("Feedback submitted successfully.");
 		},
 	});
 

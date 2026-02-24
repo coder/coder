@@ -145,7 +145,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 			await onPreview(fileTree);
 			setSelectedTab("logs");
 		} catch (error) {
-			toast.error(getErrorMessage(error, "Error on previewing the template"), {
+			toast.error(getErrorMessage(error, "Error on previewing the template."), {
 				description: getErrorDetail(error),
 			});
 		}

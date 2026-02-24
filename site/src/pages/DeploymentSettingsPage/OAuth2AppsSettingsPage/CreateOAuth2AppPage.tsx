@@ -31,17 +31,22 @@ const CreateOAuth2AppPage: FC = () => {
 				error={postAppMutation.error}
 				defaultValues={defaultValues}
 				createApp={async (req) => {
-					try {
-						const app = await postAppMutation.mutateAsync(req);
-						toast.success(
-							`Successfully added the OAuth2 application "${app.name}".`,
-						);
-						navigate(`/deployment/oauth2-provider/apps/${app.id}?created=true`);
-					} catch (error) {
-						toast.error("Failed to create OAuth2 application", {
+					const mutation = postAppMutation.mutateAsync(req, {
+						onSuccess: (app) => {
+							navigate(
+								`/deployment/oauth2-provider/apps/${app.id}?created=true`,
+							);
+						},
+					});
+					toast.promise(mutation, {
+						loading: `Creating OAuth2 application "${req.name}"...`,
+						success: (app) =>
+							`OAuth2 application "${app.name}" created successfully.`,
+						error: (error) => ({
+							message: `Failed to create "${req.name}" OAuth2 application.`,
 							description: getErrorDetail(error),
-						});
-					}
+						}),
+					});
 				}}
 				canCreateApp={canCreateApp}
 			/>

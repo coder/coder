@@ -75,9 +75,15 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				error: error,
 			});
 		} else {
-			toast.error(getErrorMessage(error, "Failed to build workspace."), {
-				description: getErrorDetail(error),
-			});
+			toast.error(
+				getErrorMessage(
+					error,
+					`Failed to build workspace "${workspace.name}".`,
+				),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		}
 	};
 
@@ -332,9 +338,15 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					try {
 						await activateWorkspaceMutation.mutateAsync();
 					} catch (e) {
-						toast.error(getErrorMessage(e, "Error activate workspace."), {
-							description: getErrorDetail(e),
-						});
+						toast.error(
+							getErrorMessage(
+								e,
+								`Error activating workspace "${workspace.name}".`,
+							),
+							{
+								description: getErrorDetail(e),
+							},
+						);
 					}
 				}}
 				handleToggleFavorite={() => {

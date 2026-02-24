@@ -86,9 +86,12 @@ const WorkspacePage: FC = () => {
 		const socket = watchWorkspace(workspaceId);
 		socket.addEventListener("message", (event) => {
 			if (event.parseError) {
-				toast.error("Unable to process latest data from the server.", {
-					description: "Please try refreshing the page",
-				});
+				toast.error(
+					`Unable to process latest data for workspace "${workspaceName}".`,
+					{
+						description: "Please try refreshing the page.",
+					},
+				);
 				return;
 			}
 
@@ -97,13 +100,13 @@ const WorkspacePage: FC = () => {
 			}
 		});
 		socket.addEventListener("error", () => {
-			toast.error("Unable to get workspace changes.", {
+			toast.error(`Unable to get changes for workspace "${workspaceName}".`, {
 				description: "Connection has been closed.",
 			});
 		});
 
 		return () => socket.close();
-	}, [updateWorkspaceData, workspaceId]);
+	}, [updateWorkspaceData, workspaceId, workspaceName]);
 
 	// Page statuses
 	const pageError =

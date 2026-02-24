@@ -2,6 +2,7 @@ import { watchBuildLogsByBuildId } from "api/api";
 import type { ProvisionerJobLog } from "api/typesGenerated";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+
 export const useWorkspaceBuildLogs = (
 	// buildId is optional because sometimes the build is not loaded yet
 	buildId: string | undefined,
@@ -31,7 +32,7 @@ export const useWorkspaceBuildLogs = (
 				});
 			},
 			onError: () => {
-				toast.error("Error on getting the build logs");
+				toast.error(`Error on getting "${buildId}" build logs.`);
 			},
 		});
 

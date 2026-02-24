@@ -150,20 +150,19 @@ const IdpSyncPage: FC = () => {
 							onRoleSyncFieldChange={setRoleField}
 							error={error}
 							onSubmitGroupSyncSettings={async (data) => {
-								try {
-									await patchGroupSyncSettingsMutation.mutateAsync(data);
-									toast.success("IdP Group sync settings updated.");
-								} catch (error) {
-									toast.error(
-										getErrorMessage(
+								const mutation =
+									patchGroupSyncSettingsMutation.mutateAsync(data);
+								toast.promise(mutation, {
+									loading: "Updating IdP group sync settings...",
+									success: "IdP group sync settings updated.",
+									error: (error) => ({
+										message: getErrorMessage(
 											error,
-											"Failed to update IdP group sync settings",
+											"Failed to update IdP group sync settings.",
 										),
-										{
-											description: getErrorDetail(error),
-										},
-									);
-								}
+										description: getErrorDetail(error),
+									}),
+								});
 							}}
 							onSubmitRoleSyncSettings={async (data) => {
 								try {
@@ -173,7 +172,7 @@ const IdpSyncPage: FC = () => {
 									toast.error(
 										getErrorMessage(
 											error,
-											"Failed to update IdP role sync settings",
+											"Failed to update IdP role sync settings.",
 										),
 										{
 											description: getErrorDetail(error),

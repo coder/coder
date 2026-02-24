@@ -25,7 +25,7 @@ export function useBatchTaskActions(
 		},
 		onSuccess,
 		onError: () => {
-			toast.error("Failed to delete some tasks");
+			toast.error("Failed to delete some tasks.");
 		},
 	});
 

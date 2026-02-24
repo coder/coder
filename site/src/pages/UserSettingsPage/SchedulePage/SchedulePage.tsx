@@ -50,7 +50,7 @@ const SchedulePage: FC = () => {
 				onSubmit={(values) => {
 					onSubmit(values, {
 						onSuccess: () => {
-							toast.success("Schedule updated successfully");
+							toast.success("Schedule updated successfully.");
 						},
 					});
 				}}

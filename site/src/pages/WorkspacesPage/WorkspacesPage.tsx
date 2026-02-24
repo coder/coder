@@ -197,7 +197,7 @@ const WorkspacesPage: FC = () => {
 					});
 				}}
 				onActionError={(error) => {
-					toast.error(getErrorMessage(error, "Failed to perform action"), {
+					toast.error(getErrorMessage(error, "Failed to perform action."), {
 						description: getErrorDetail(error),
 					});
 				}}

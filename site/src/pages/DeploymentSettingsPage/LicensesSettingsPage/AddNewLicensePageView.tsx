@@ -35,7 +35,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 			onSaveLicenseKey(licenseKey);
 
 			fileReader.onerror = (error) => {
-				toast.error("Failed to read file", {
+				toast.error("Failed to read file.", {
 					description: getErrorDetail(error),
 				});
 			};

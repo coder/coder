@@ -24,18 +24,23 @@ const AppearanceSettingsPage: FC = () => {
 	) => {
 		const newAppearance = { ...appearance, ...newConfig };
 
-		try {
-			await updateAppearanceMutation.mutateAsync(newAppearance);
-			await queryClient.invalidateQueries({ queryKey: appearanceConfigKey });
-			toast.success("Successfully updated appearance settings!");
-		} catch (error) {
-			toast.error(
-				getErrorMessage(error, "Failed to update appearance settings."),
-				{
-					description: getErrorDetail(error),
-				},
-			);
-		}
+		const mutation = updateAppearanceMutation.mutateAsync(newAppearance, {
+			onSuccess: async () => {
+				await queryClient.invalidateQueries({ queryKey: appearanceConfigKey });
+			},
+		});
+
+		toast.promise(mutation, {
+			loading: "Updating appearance settings...",
+			success: "Appearance settings updated successfully!",
+			error: (error) => ({
+				message: getErrorMessage(
+					error,
+					"Failed to update appearance settings.",
+				),
+				description: getErrorDetail(error),
+			}),
+		});
 	};
 
 	return (

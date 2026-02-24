@@ -1,3 +1,4 @@
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
 import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -48,12 +49,31 @@ const TemplatePermissionsPage: FC = () => {
 					}}
 					isAddingUser={addUserMutation.isPending}
 					onUpdateUser={async (user, role) => {
-						await updateUserMutation.mutateAsync({
-							templateId: template.id,
-							userId: user.id,
-							role,
-						});
-						toast.success("User role updated successfully!");
+						await updateUserMutation.mutateAsync(
+							{
+								templateId: template.id,
+								userId: user.id,
+								role,
+							},
+							{
+								onSuccess: () => {
+									toast.success(
+										`Role for "${user.username}" updated to "${role}" successfully.`,
+									);
+								},
+								onError: (error) => {
+									toast.error(
+										getErrorMessage(
+											error,
+											`Failed to update role for "${user.username}".`,
+										),
+										{
+											description: getErrorDetail(error),
+										},
+									);
+								},
+							},
+						);
 					}}
 					updatingUserId={
 						updateUserMutation.isPending
@@ -61,12 +81,31 @@ const TemplatePermissionsPage: FC = () => {
 							: undefined
 					}
 					onRemoveUser={async (user) => {
-						await removeUserMutation.mutateAsync({
-							templateId: template.id,
-							userId: user.id,
-							role: "",
-						});
-						toast.success("User removed successfully!");
+						await removeUserMutation.mutateAsync(
+							{
+								templateId: template.id,
+								userId: user.id,
+								role: "",
+							},
+							{
+								onSuccess: () => {
+									toast.success(
+										`User "${user.username}" removed successfully.`,
+									);
+								},
+								onError: (error) => {
+									toast.error(
+										getErrorMessage(
+											error,
+											`Failed to remove user "${user.username}".`,
+										),
+										{
+											description: getErrorDetail(error),
+										},
+									);
+								},
+							},
+						);
 					}}
 					onAddGroup={async (group, role, reset) => {
 						await addGroupMutation.mutateAsync({
@@ -78,12 +117,31 @@ const TemplatePermissionsPage: FC = () => {
 					}}
 					isAddingGroup={addGroupMutation.isPending}
 					onUpdateGroup={async (group, role) => {
-						await updateGroupMutation.mutateAsync({
-							templateId: template.id,
-							groupId: group.id,
-							role,
-						});
-						toast.success("Group role updated successfully!");
+						await updateGroupMutation.mutateAsync(
+							{
+								templateId: template.id,
+								groupId: group.id,
+								role,
+							},
+							{
+								onSuccess: () => {
+									toast.success(
+										`Role for "${group.display_name || group.name}" updated to "${role}" successfully.`,
+									);
+								},
+								onError: (error) => {
+									toast.error(
+										getErrorMessage(
+											error,
+											`Failed to update role for "${group.display_name || group.name}".`,
+										),
+										{
+											description: getErrorDetail(error),
+										},
+									);
+								},
+							},
+						);
 					}}
 					updatingGroupId={
 						updateGroupMutation.isPending
@@ -91,12 +149,31 @@ const TemplatePermissionsPage: FC = () => {
 							: undefined
 					}
 					onRemoveGroup={async (group) => {
-						await removeGroupMutation.mutateAsync({
-							groupId: group.id,
-							templateId: template.id,
-							role: "",
-						});
-						toast.success("Group removed successfully!");
+						await removeGroupMutation.mutateAsync(
+							{
+								groupId: group.id,
+								templateId: template.id,
+								role: "",
+							},
+							{
+								onSuccess: () => {
+									toast.success(
+										`Group "${group.display_name || group.name}" removed successfully.`,
+									);
+								},
+								onError: (error) => {
+									toast.error(
+										getErrorMessage(
+											error,
+											`Failed to remove group "${group.display_name || group.name}".`,
+										),
+										{
+											description: getErrorDetail(error),
+										},
+									);
+								},
+							},
+						);
 					}}
 				/>
 			)}

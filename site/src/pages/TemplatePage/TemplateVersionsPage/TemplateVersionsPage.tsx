@@ -25,14 +25,32 @@ const TemplateVersionsPage = () => {
 			});
 		},
 		onSuccess: async () => {
+			const versionName = data?.find(
+				(v) => v.id === selectedVersionIdToPromote,
+			)?.name;
 			setLatestActiveVersion(selectedVersionIdToPromote as string);
 			setSelectedVersionIdToPromote(undefined);
-			toast.success("Version promoted successfully");
+			toast.success(
+				versionName
+					? `Version "${versionName}" promoted successfully.`
+					: "Version promoted successfully.",
+			);
 		},
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to promote version"), {
-				description: getErrorDetail(error),
-			});
+			const versionName = data?.find(
+				(v) => v.id === selectedVersionIdToPromote,
+			)?.name;
+			toast.error(
+				getErrorMessage(
+					error,
+					versionName
+						? `Failed to promote version "${versionName}".`
+						: "Failed to promote version.",
+				),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 
@@ -40,19 +58,30 @@ const TemplateVersionsPage = () => {
 		mutationFn: (templateVersionId: string) => {
 			return API.archiveTemplateVersion(templateVersionId);
 		},
-		onSuccess: async () => {
+		onSuccess: async (data) => {
 			// The reload is unfortunate. When a version is archived, we should hide
 			// the row. I do not know an easy way to do that, so a reload makes the API call
 			// resend and now the version is omitted.
 			// TODO: Improve this to not reload the page.
 			location.reload();
 			setSelectedVersionIdToArchive(undefined);
-			toast.success("Version archived successfully");
+			toast.success(`Version "${data.name}" archived successfully.`);
 		},
 		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to archive version"), {
-				description: getErrorDetail(error),
-			});
+			const versionName = data?.find(
+				(v) => v.id === selectedVersionIdToArchive,
+			)?.name;
+			toast.error(
+				getErrorMessage(
+					error,
+					versionName
+						? `Failed to archive version "${versionName}".`
+						: "Failed to archive version.",
+				),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 

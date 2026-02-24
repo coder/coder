@@ -82,10 +82,10 @@ const NotificationsPage: FC = () => {
 		disableMutation
 			.mutateAsync(disabledId)
 			.then(() => {
-				toast.success("Notification has been disabled");
+				toast.success("Notification has been disabled.");
 			})
 			.catch((error) => {
-				toast.error("Error disabling notification", {
+				toast.error("Error disabling notification.", {
 					description: getErrorDetail(error),
 				});
 			});
@@ -150,12 +150,12 @@ const NotificationsPage: FC = () => {
 															{
 																onSuccess: () => {
 																	toast.success(
-																		"Notification preferences updated",
+																		"Notification preferences updated.",
 																	);
 																},
 																onError: (error) => {
 																	toast.error(
-																		"Error updating notification preferences",
+																		"Error updating notification preferences.",
 																		{
 																			description: getErrorDetail(error),
 																		},
@@ -200,12 +200,12 @@ const NotificationsPage: FC = () => {
 																		{
 																			onSuccess: () => {
 																				toast.success(
-																					"Notification preferences updated",
+																					"Notification preferences updated.",
 																				);
 																			},
 																			onError: (error) => {
 																				toast.error(
-																					"Error updating notification preferences",
+																					"Error updating notification preferences.",
 																					{
 																						description: getErrorDetail(error),
 																					},

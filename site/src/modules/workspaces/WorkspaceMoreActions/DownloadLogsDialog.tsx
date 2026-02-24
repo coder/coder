@@ -135,7 +135,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 					}, theme.transitions.duration.leavingScreen);
 				} catch (error) {
 					setIsDownloading(false);
-					toast.error("Error downloading workspace logs", {
+					toast.error(`Error downloading workspace "${workspace.name}" logs.`, {
 						description: getErrorDetail(error),
 					});
 					console.error(error);

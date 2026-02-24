@@ -180,10 +180,10 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 					await updateMethodMutation.mutateAsync({
 						method,
 					});
-					toast.success("Notification method updated");
+					toast.success("Notification method updated.");
 				} catch (error) {
 					toast.error(
-						getErrorMessage(error, "Failed to update notification method"),
+						getErrorMessage(error, "Failed to update notification method."),
 						{
 							description: getErrorDetail(error),
 						},

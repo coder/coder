@@ -17,11 +17,11 @@ const AddNewLicensePage: FC = () => {
 	} = useMutation({
 		mutationFn: API.createLicense,
 		onSuccess: () => {
-			toast.success("You have successfully added a license");
+			toast.success("You have successfully added a license.");
 			navigate("/deployment/licenses?success=true");
 		},
 		onError: (error) =>
-			toast.error("Failed to save license key", {
+			toast.error("Failed to save license key.", {
 				description: getErrorDetail(error),
 			}),
 	});
@@ -31,11 +31,11 @@ const AddNewLicensePage: FC = () => {
 			{ license: licenseKey },
 			{
 				onSuccess: () => {
-					toast.success("You have successfully added a license");
+					toast.success("You have successfully added a license.");
 					navigate("/deployment/licenses?success=true");
 				},
 				onError: (error) =>
-					toast.error("Failed to save license key", {
+					toast.error("Failed to save license key.", {
 						description: getErrorDetail(error),
 					}),
 			},

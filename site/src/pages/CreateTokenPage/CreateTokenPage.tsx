@@ -42,13 +42,13 @@ const CreateTokenPage: FC = () => {
 	const [formError, setFormError] = useState<unknown>(undefined);
 
 	const onCreateSuccess = () => {
-		toast.success("Token has been created");
+		toast.success("Token has been created.");
 		navigate("/settings/tokens");
 	};
 
 	const onCreateError = (error: unknown) => {
 		setFormError(error);
-		toast.error("Failed to create token", {
+		toast.error("Failed to create token.", {
 			description: getErrorDetail(error),
 		});
 	};

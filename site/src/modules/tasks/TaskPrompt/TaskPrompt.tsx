@@ -63,8 +63,8 @@ export const TaskPrompt: FC<TaskPromptProps> = ({
 	return (
 		<CreateTaskForm
 			templates={templates}
-			onSuccess={() => {
-				toast.success("Task created successfully");
+			onSuccess={(task) => {
+				toast.success(`Task "${task.name}" created successfully.`);
 			}}
 		/>
 	);

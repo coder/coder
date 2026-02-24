@@ -49,15 +49,21 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 			const email = searchParams.get("email") ?? "";
 			const otp = searchParams.get("otp") ?? "";
 
-			await changePasswordMutation.mutateAsync({
-				email,
-				one_time_passcode: otp,
-				password: values.password,
-			});
-			toast.success("Password reset successfully");
-			if (redirect) {
-				navigate("/login");
-			}
+			await changePasswordMutation.mutateAsync(
+				{
+					email,
+					one_time_passcode: otp,
+					password: values.password,
+				},
+				{
+					onSuccess: () => {
+						toast.success("Password reset successfully.");
+						if (redirect) {
+							navigate("/login");
+						}
+					},
+				},
+			);
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, changePasswordMutation.error);

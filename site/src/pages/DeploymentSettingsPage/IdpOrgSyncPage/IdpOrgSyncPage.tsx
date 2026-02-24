@@ -48,7 +48,7 @@ const IdpOrgSyncPage: FC = () => {
 			toast.error(
 				getErrorMessage(
 					patchOrganizationSyncSettingsMutation.error,
-					"Error updating organization idp sync settings.",
+					"Error updating organization IdP sync settings.",
 				),
 			);
 		}
@@ -98,7 +98,7 @@ const IdpOrgSyncPage: FC = () => {
 									toast.error(
 										getErrorMessage(
 											error,
-											"Failed to update organization IdP sync settings",
+											"Failed to update organization IdP sync settings.",
 										),
 										{
 											description: getErrorDetail(error),

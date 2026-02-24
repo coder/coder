@@ -64,7 +64,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 				await dismissMutation.mutateAsync({
 					dismissed_healthchecks: updatedSettings,
 				});
-				toast.success("Warnings dismissed successfully!");
+				toast.success("Dismissed warnings successfully!");
 			}}
 		>
 			<Spinner loading={dismissMutation.isPending}>

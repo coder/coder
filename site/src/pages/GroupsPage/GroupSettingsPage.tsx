@@ -46,19 +46,30 @@ const GroupSettingsPage: FC = () => {
 			<GroupSettingsPageView
 				onCancel={navigateToGroup}
 				onSubmit={async (data) => {
-					try {
-						await patchGroupMutation.mutateAsync({
+					await patchGroupMutation.mutateAsync(
+						{
 							groupId,
 							...data,
 							add_users: [],
 							remove_users: [],
-						});
-						navigate(`../${data.name}`);
-					} catch (error) {
-						toast.error(getErrorMessage(error, "Failed to update group"), {
-							description: getErrorDetail(error),
-						});
-					}
+						},
+						{
+							onSuccess: () => {
+								navigate(`../${data.name}`);
+							},
+							onError: (error) => {
+								toast.error(
+									getErrorMessage(
+										error,
+										`Failed to update group "${groupName}".`,
+									),
+									{
+										description: getErrorDetail(error),
+									},
+								);
+							},
+						},
+					);
 				}}
 				group={groupQuery.data}
 				formErrors={groupQuery.error}

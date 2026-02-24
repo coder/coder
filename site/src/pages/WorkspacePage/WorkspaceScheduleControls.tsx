@@ -143,14 +143,16 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	const updateDeadlineMutation = useMutation({
 		...updateDeadline(workspace),
 		onSuccess: (_, updatedDeadline) => {
-			toast.success("Workspace shutdown time has been successfully updated.");
+			toast.success(
+				`Shutdown time for "${workspace.name}" updated successfully.`,
+			);
 			lastStableDeadline.current = updatedDeadline;
 		},
 		onError: (error) => {
 			toast.error(
 				getErrorMessage(
 					error,
-					"We couldn't update your workspace shutdown time. Please try again.",
+					`Failed to update shutdown time for "${workspace.name}". Please try again.`,
 				),
 				{
 					description: getErrorDetail(error),

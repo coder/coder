@@ -59,26 +59,21 @@ const OrganizationSettingsPage: FC = () => {
 		updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
 
 	const handleToggleWorkspaceSharing = async (enabled: boolean) => {
-		try {
-			await patchSharingSettingsMutation.mutateAsync({
-				sharing_disabled: !enabled,
-			});
-			toast.success(
-				enabled ? "Workspace sharing enabled." : "Workspace sharing disabled.",
-			);
-		} catch (error) {
-			toast.error(
-				getErrorMessage(
-					error,
-					enabled
-						? "Failed to enable workspace sharing"
-						: "Failed to disable workspace sharing",
-				),
-				{
-					description: getErrorDetail(error),
-				},
-			);
-		}
+		const mutation = patchSharingSettingsMutation.mutateAsync({
+			sharing_disabled: !enabled,
+		});
+		toast.promise(mutation, {
+			loading: "Toggling workspace sharing...",
+			success: enabled
+				? "Workspace sharing enabled."
+				: "Workspace sharing disabled.",
+			error: (error) => ({
+				message: enabled
+					? "Failed to enable workspace sharing."
+					: "Failed to disable workspace sharing.",
+				description: getErrorDetail(error),
+			}),
+		});
 	};
 
 	return (
@@ -94,16 +89,23 @@ const OrganizationSettingsPage: FC = () => {
 							req: values,
 						});
 					navigate(`/organizations/${updatedOrganization.name}/settings`);
-					toast.success("Organization settings updated.");
+					toast.success(
+						`Organization "${updatedOrganization.name}" settings updated successfully.`,
+					);
 				}}
 				onDeleteOrganization={async () => {
 					try {
 						await deleteOrganizationMutation.mutateAsync(organization.id);
-						toast.success("Organization deleted");
+						toast.success(
+							`Organization "${organization.display_name || organization.name}" deleted successfully.`,
+						);
 						navigate("/organizations");
 					} catch (error) {
 						toast.error(
-							getErrorMessage(error, "Failed to delete organization"),
+							getErrorMessage(
+								error,
+								`Failed to delete organization "${organization.name}".`,
+							),
 							{
 								description: getErrorDetail(error),
 							},

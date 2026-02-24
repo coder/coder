@@ -72,20 +72,20 @@ export const useAppLink = (
 				const isCoderApp = app.url?.startsWith("coder:");
 
 				if (isJetBrainsGateway) {
-					toast.error("Failed to open app", {
-						description: `To use ${label}, you need to have JetBrains Gateway installed.`,
+					toast.error(`Failed to open "${label}".`, {
+						description: "JetBrains Gateway must be installed.",
 					});
 				} else if (isJetBrainsToolbox) {
-					toast.error("Failed to open app", {
-						description: `To use ${label}, you need to have JetBrains Toolbox installed.`,
+					toast.error(`Failed to open "${label}".`, {
+						description: "JetBrains Toolbox must be installed.",
 					});
 				} else if (isCoderApp) {
-					toast.error("Failed to open app", {
-						description: `To use ${label} you need to have Coder Desktop installed`,
+					toast.error(`Failed to open "${label}".`, {
+						description: "Coder Desktop must be installed.",
 					});
 				} else {
-					toast.error("Failed to open app", {
-						description: `${label} must be installed first.`,
+					toast.error(`Failed to open "${label}".`, {
+						description: "The app must be installed first.",
 					});
 				}
 			}, openAppExternallyFailedTimeout);

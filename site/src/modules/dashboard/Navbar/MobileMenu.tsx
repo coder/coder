@@ -151,7 +151,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 									e.preventDefault();
 
 									if (!p.healthy) {
-										toast.error("Failed to select proxy", {
+										toast.error("Failed to select proxy.", {
 											description: "Please select a healthy workspace proxy.",
 										});
 										return;

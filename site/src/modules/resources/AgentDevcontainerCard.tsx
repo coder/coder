@@ -144,7 +144,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 			const errorMessage =
 				error instanceof Error ? error.message : "An unknown error occurred.";
-			toast.error("Failed to rebuild devcontainer", {
+			toast.error(`Failed to rebuild devcontainer "${devcontainer.name}".`, {
 				description: errorMessage,
 			});
 			console.error("Failed to rebuild devcontainer:", error);
