@@ -12849,12 +12849,6 @@ const docTemplate = `{
                 "max_concurrency": {
                     "type": "integer"
                 },
-                "models_allowlist": {
-                    "type": "string"
-                },
-                "models_denylist": {
-                    "type": "string"
-                },
                 "openai": {
                     "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
                 },

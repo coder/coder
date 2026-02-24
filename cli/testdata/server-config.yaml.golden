@@ -926,21 +926,9 @@ aibridge:
   # The base URL of the OpenAI API.
   # (default: https://api.openai.com/v1/, type: string)
   openai_base_url: https://api.openai.com/v1/
-  # Override URL used to list OpenAI models for the chat model catalog.
-  # (default: <unset>, type: string)
-  chat_openai_models_url: ""
   # The base URL of the Anthropic API.
   # (default: https://api.anthropic.com/, type: string)
   anthropic_base_url: https://api.anthropic.com/
-  # Override URL used to list Anthropic models for the chat model catalog.
-  # (default: <unset>, type: string)
-  chat_anthropic_models_url: ""
-  # Comma-separated allowlist of models for the chat model catalog.
-  # (default: <unset>, type: string)
-  chat_models_allowlist: ""
-  # Comma-separated denylist of models for the chat model catalog.
-  # (default: <unset>, type: string)
-  chat_models_denylist: ""
   # The base URL to use for the AWS Bedrock API. Use this setting to specify an
   # exact URL to use. Takes precedence over CODER_AIBRIDGE_BEDROCK_REGION.
   # (default: <unset>, type: string)

@@ -402,8 +402,6 @@
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
-  "models_allowlist": "string",
-  "models_denylist": "string",
   "openai": {
     "base_url": "string",
     "key": "string",
@@ -430,8 +428,6 @@
 | `enabled`                           | boolean                                                              | false    |              |                                                                                                                       |
 | `inject_coder_mcp_tools`            | boolean                                                              | false    |              |                                                                                                                       |
 | `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                       |
-| `models_allowlist`                  | string                                                               | false    |              |                                                                                                                       |
-| `models_denylist`                   | string                                                               | false    |              |                                                                                                                       |
 | `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |                                                                                                                       |
 | `rate_limit`                        | integer                                                              | false    |              |                                                                                                                       |
 | `retention`                         | integer                                                              | false    |              |                                                                                                                       |
@@ -799,8 +795,6 @@
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
-    "models_allowlist": "string",
-    "models_denylist": "string",
     "openai": {
       "base_url": "string",
       "key": "string",
@@ -3474,8 +3468,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
-        "models_allowlist": "string",
-        "models_denylist": "string",
         "openai": {
           "base_url": "string",
           "key": "string",
@@ -4052,8 +4044,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
-      "models_allowlist": "string",
-      "models_denylist": "string",
       "openai": {
         "base_url": "string",
         "key": "string",

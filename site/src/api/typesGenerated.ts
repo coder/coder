@@ -32,8 +32,6 @@ export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	readonly openai: AIBridgeOpenAIConfig;
 	readonly anthropic: AIBridgeAnthropicConfig;
-	readonly models_allowlist: string;
-	readonly models_denylist: string;
 	readonly bedrock: AIBridgeBedrockConfig;
 	readonly inject_coder_mcp_tools: boolean;
 	readonly retention: number;

@@ -195,8 +195,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
-        "models_allowlist": "string",
-        "models_denylist": "string",
         "openai": {
           "base_url": "string",
           "key": "string",

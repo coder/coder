@@ -3716,16 +3716,6 @@ Don't assume what needs to be done - collaborate to define the scope together.
 			YAML:        "openai_base_url",
 		},
 		{
-			Name:        "Chat OpenAI Models URL",
-			Description: "Override URL used to list OpenAI models for the chat model catalog.",
-			Flag:        "chat-openai-models-url",
-			Env:         "CODER_CHAT_OPENAI_MODELS_URL",
-			Value:       &c.AI.BridgeConfig.OpenAI.ModelsURL,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "chat_openai_models_url",
-		},
-		{
 			Name:        "AI Bridge OpenAI Key",
 			Description: "The key to authenticate against the OpenAI API.",
 			Flag:        "aibridge-openai-key",
@@ -3746,16 +3736,6 @@ Don't assume what needs to be done - collaborate to define the scope together.
 			YAML:        "anthropic_base_url",
 		},
 		{
-			Name:        "Chat Anthropic Models URL",
-			Description: "Override URL used to list Anthropic models for the chat model catalog.",
-			Flag:        "chat-anthropic-models-url",
-			Env:         "CODER_CHAT_ANTHROPIC_MODELS_URL",
-			Value:       &c.AI.BridgeConfig.Anthropic.ModelsURL,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "chat_anthropic_models_url",
-		},
-		{
 			Name:        "AI Bridge Anthropic Key",
 			Description: "The key to authenticate against the Anthropic API.",
 			Flag:        "aibridge-anthropic-key",
@@ -3764,26 +3744,6 @@ Don't assume what needs to be done - collaborate to define the scope together.
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
-		},
-		{
-			Name:        "Chat Models Allowlist",
-			Description: "Comma-separated allowlist of models for the chat model catalog.",
-			Flag:        "chat-models-allowlist",
-			Env:         "CODER_CHAT_MODELS_ALLOWLIST",
-			Value:       &c.AI.BridgeConfig.ModelsAllowlist,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "chat_models_allowlist",
-		},
-		{
-			Name:        "Chat Models Denylist",
-			Description: "Comma-separated denylist of models for the chat model catalog.",
-			Flag:        "chat-models-denylist",
-			Env:         "CODER_CHAT_MODELS_DENYLIST",
-			Value:       &c.AI.BridgeConfig.ModelsDenylist,
-			Default:     "",
-			Group:       &deploymentGroupAIBridge,
-			YAML:        "chat_models_denylist",
 		},
 		{
 			Name: "AI Bridge Bedrock Base URL",
@@ -4117,8 +4077,6 @@ type AIBridgeConfig struct {
 	Enabled             serpent.Bool            `json:"enabled" typescript:",notnull"`
 	OpenAI              AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
 	Anthropic           AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	ModelsAllowlist     serpent.String          `json:"models_allowlist" typescript:",notnull"`
-	ModelsDenylist      serpent.String          `json:"models_denylist" typescript:",notnull"`
 	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
 	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`

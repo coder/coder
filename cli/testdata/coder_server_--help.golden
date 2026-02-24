@@ -177,18 +177,6 @@ AI BRIDGE OPTIONS:
       --agent-local-workspace bool, $CODER_AGENT_LOCAL_WORKSPACE (default: false)
           Enable admin-only local workspace mode for agent chats.
 
-      --chat-anthropic-models-url string, $CODER_CHAT_ANTHROPIC_MODELS_URL
-          Override URL used to list Anthropic models for the chat model catalog.
-
-      --chat-models-allowlist string, $CODER_CHAT_MODELS_ALLOWLIST
-          Comma-separated allowlist of models for the chat model catalog.
-
-      --chat-models-denylist string, $CODER_CHAT_MODELS_DENYLIST
-          Comma-separated denylist of models for the chat model catalog.
-
-      --chat-openai-models-url string, $CODER_CHAT_OPENAI_MODELS_URL
-          Override URL used to list OpenAI models for the chat model catalog.
-
       --chat-system-prompt string, $CODER_CHAT_SYSTEM_PROMPT (default: You are the Coder agent — an interactive chat tool that helps users with software-engineering tasks inside of the Coder product.
 Use the instructions below and the tools available to you to assist User.
 
