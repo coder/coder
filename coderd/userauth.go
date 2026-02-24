@@ -704,7 +704,7 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 		Name:   codersdk.SessionTokenCookie,
 		Path:   "/",
 	}
-	http.SetCookie(rw, cookie)
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(cookie))
 
 	// Delete the session token from database.
 	apiKey := httpmw.APIKey(r)

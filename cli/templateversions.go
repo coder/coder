@@ -139,6 +139,7 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 type templateVersionRow struct {
 	// For json format:
 	TemplateVersion codersdk.TemplateVersion `table:"-"`
+	ActiveJSON      bool                     `json:"active" table:"-"`
 
 	// For table format:
 	ID        string    `json:"-" table:"id"`
@@ -167,6 +168,7 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 
 		rows[i] = templateVersionRow{
 			TemplateVersion: templateVersion,
+			ActiveJSON:      templateVersion.ID == activeVersionID,
 			ID:              templateVersion.ID.String(),
 			Name:            templateVersion.Name,
 			CreatedAt:       templateVersion.CreatedAt,

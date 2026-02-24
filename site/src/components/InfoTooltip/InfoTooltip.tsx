@@ -12,7 +12,7 @@ import { cn } from "utils/cn";
 
 interface InfoTooltipProps {
 	type?: ThemeRole;
-	title: ReactNode;
+	title?: ReactNode;
 	message: ReactNode;
 }
 
@@ -39,7 +39,7 @@ export const InfoTooltip: FC<InfoTooltipProps> = ({
 				<HelpTooltipIcon className={cn(tooltipColorClasses[type])} />
 			</HelpTooltipIconTrigger>
 			<HelpTooltipContent>
-				<HelpTooltipTitle>{title}</HelpTooltipTitle>
+				{title && <HelpTooltipTitle>{title}</HelpTooltipTitle>}
 				<HelpTooltipText>{message}</HelpTooltipText>
 			</HelpTooltipContent>
 		</HelpTooltip>

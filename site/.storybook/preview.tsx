@@ -33,7 +33,7 @@ export const parameters: Parameters = {
 		},
 	},
 	viewport: {
-		viewports: {
+		options: {
 			ipad: {
 				name: "iPad Mini",
 				styles: {

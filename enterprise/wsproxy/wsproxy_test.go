@@ -525,7 +525,6 @@ func TestDERPMesh(t *testing.T) {
 	require.Len(t, cases, (len(proxies)*(len(proxies)+1))/2) // triangle number
 
 	for i, c := range cases {
-		i, c := i, c
 		t.Run(fmt.Sprintf("Proxy%d", i), func(t *testing.T) {
 			t.Parallel()
 

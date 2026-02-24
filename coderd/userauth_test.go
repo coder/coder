@@ -1905,10 +1905,13 @@ func TestUserLogout(t *testing.T) {
 	// Create a custom database so it's easier to make scoped tokens for
 	// testing.
 	db, pubSub := dbtestutil.NewDB(t)
+	dv := coderdtest.DeploymentValues(t)
+	dv.HTTPCookies.EnableHostPrefix = true
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		Database: db,
-		Pubsub:   pubSub,
+		DeploymentValues: dv,
+		Database:         db,
+		Pubsub:           pubSub,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 

@@ -1,5 +1,6 @@
 import type { Workspace } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Sidebar as BaseSidebar,
 	SidebarHeader,
@@ -51,6 +52,7 @@ export const Sidebar: FC<SidebarProps> = ({
 			{!sharingDisabled && (
 				<SidebarNavItem href="sharing" icon={SharingIcon}>
 					Sharing
+					<FeatureStageBadge contentType="beta" size="sm" />
 				</SidebarNavItem>
 			)}
 		</BaseSidebar>

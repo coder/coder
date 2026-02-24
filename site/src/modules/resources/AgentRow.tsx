@@ -8,8 +8,8 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { useProxy } from "contexts/ProxyContext";
 import { SquareCheckBigIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
@@ -184,7 +184,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							onClick={() => setShowParentApps((show) => !show)}
 						>
 							Show parent apps
-							<DropdownArrow close={showParentApps} margin={false} />
+							<ChevronDownIcon open={showParentApps} />
 						</Button>
 					)}
 
@@ -342,7 +342,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							variant="subtle"
 							onClick={() => setShowLogs((v) => !v)}
 						>
-							<DropdownArrow close={showLogs} margin={false} />
+							<ChevronDownIcon open={showLogs} />
 							Logs
 						</Button>
 						<Divider orientation="vertical" variant="middle" flexItem />
