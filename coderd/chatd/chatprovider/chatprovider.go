@@ -468,3 +468,64 @@ func isOpenAIReasoningModel(modelID string) bool {
 	}
 	return modelID[index] == '-' || modelID[index] == '.'
 }
+
+// ReasoningEffortFromChat normalizes chat-config reasoning effort values for a
+// provider and returns the canonical provider effort value.
+func ReasoningEffortFromChat(provider string, value *string) *string {
+	if value == nil {
+		return nil
+	}
+
+	normalized := strings.ToLower(strings.TrimSpace(*value))
+	if normalized == "" {
+		return nil
+	}
+
+	switch NormalizeProvider(provider) {
+	case fantasyopenai.Name:
+		return normalizedEnumValue(
+			normalized,
+			string(fantasyopenai.ReasoningEffortMinimal),
+			string(fantasyopenai.ReasoningEffortLow),
+			string(fantasyopenai.ReasoningEffortMedium),
+			string(fantasyopenai.ReasoningEffortHigh),
+		)
+	case fantasyanthropic.Name:
+		return normalizedEnumValue(
+			normalized,
+			string(fantasyanthropic.EffortLow),
+			string(fantasyanthropic.EffortMedium),
+			string(fantasyanthropic.EffortHigh),
+			string(fantasyanthropic.EffortMax),
+		)
+	case fantasyopenrouter.Name:
+		return normalizedEnumValue(
+			normalized,
+			string(fantasyopenrouter.ReasoningEffortLow),
+			string(fantasyopenrouter.ReasoningEffortMedium),
+			string(fantasyopenrouter.ReasoningEffortHigh),
+		)
+	case fantasyvercel.Name:
+		return normalizedEnumValue(
+			normalized,
+			string(fantasyvercel.ReasoningEffortNone),
+			string(fantasyvercel.ReasoningEffortMinimal),
+			string(fantasyvercel.ReasoningEffortLow),
+			string(fantasyvercel.ReasoningEffortMedium),
+			string(fantasyvercel.ReasoningEffortHigh),
+			string(fantasyvercel.ReasoningEffortXHigh),
+		)
+	default:
+		return nil
+	}
+}
+
+func normalizedEnumValue(value string, allowed ...string) *string {
+	for _, candidate := range allowed {
+		if value == strings.ToLower(candidate) {
+			match := candidate
+			return &match
+		}
+	}
+	return nil
+}

@@ -31,6 +31,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -4247,98 +4248,39 @@ func normalizedStringPointer(value *string) *string {
 }
 
 func openAIReasoningEffortFromChat(value *string) *fantasyopenai.ReasoningEffort {
-	normalized := normalizedStringPointer(value)
-	if normalized == nil {
+	effort := chatprovider.ReasoningEffortFromChat(fantasyopenai.Name, value)
+	if effort == nil {
 		return nil
 	}
-	switch strings.ToLower(*normalized) {
-	case string(fantasyopenai.ReasoningEffortMinimal):
-		effort := fantasyopenai.ReasoningEffortMinimal
-		return &effort
-	case string(fantasyopenai.ReasoningEffortLow):
-		effort := fantasyopenai.ReasoningEffortLow
-		return &effort
-	case string(fantasyopenai.ReasoningEffortMedium):
-		effort := fantasyopenai.ReasoningEffortMedium
-		return &effort
-	case string(fantasyopenai.ReasoningEffortHigh):
-		effort := fantasyopenai.ReasoningEffortHigh
-		return &effort
-	default:
-		return nil
-	}
+	valueCopy := fantasyopenai.ReasoningEffort(*effort)
+	return &valueCopy
 }
 
 func anthropicEffortFromChat(value *string) *fantasyanthropic.Effort {
-	normalized := normalizedStringPointer(value)
-	if normalized == nil {
+	effort := chatprovider.ReasoningEffortFromChat(fantasyanthropic.Name, value)
+	if effort == nil {
 		return nil
 	}
-	switch strings.ToLower(*normalized) {
-	case string(fantasyanthropic.EffortLow):
-		effort := fantasyanthropic.EffortLow
-		return &effort
-	case string(fantasyanthropic.EffortMedium):
-		effort := fantasyanthropic.EffortMedium
-		return &effort
-	case string(fantasyanthropic.EffortHigh):
-		effort := fantasyanthropic.EffortHigh
-		return &effort
-	case string(fantasyanthropic.EffortMax):
-		effort := fantasyanthropic.EffortMax
-		return &effort
-	default:
-		return nil
-	}
+	valueCopy := fantasyanthropic.Effort(*effort)
+	return &valueCopy
 }
 
 func openRouterReasoningEffortFromChat(value *string) *fantasyopenrouter.ReasoningEffort {
-	normalized := normalizedStringPointer(value)
-	if normalized == nil {
+	effort := chatprovider.ReasoningEffortFromChat(fantasyopenrouter.Name, value)
+	if effort == nil {
 		return nil
 	}
-	switch strings.ToLower(*normalized) {
-	case string(fantasyopenrouter.ReasoningEffortLow):
-		effort := fantasyopenrouter.ReasoningEffortLow
-		return &effort
-	case string(fantasyopenrouter.ReasoningEffortMedium):
-		effort := fantasyopenrouter.ReasoningEffortMedium
-		return &effort
-	case string(fantasyopenrouter.ReasoningEffortHigh):
-		effort := fantasyopenrouter.ReasoningEffortHigh
-		return &effort
-	default:
-		return nil
-	}
+	valueCopy := fantasyopenrouter.ReasoningEffort(*effort)
+	return &valueCopy
 }
 
 func vercelReasoningEffortFromChat(value *string) *fantasyvercel.ReasoningEffort {
-	normalized := normalizedStringPointer(value)
-	if normalized == nil {
+	effort := chatprovider.ReasoningEffortFromChat(fantasyvercel.Name, value)
+	if effort == nil {
 		return nil
 	}
-	switch strings.ToLower(*normalized) {
-	case string(fantasyvercel.ReasoningEffortNone):
-		effort := fantasyvercel.ReasoningEffortNone
-		return &effort
-	case string(fantasyvercel.ReasoningEffortMinimal):
-		effort := fantasyvercel.ReasoningEffortMinimal
-		return &effort
-	case string(fantasyvercel.ReasoningEffortLow):
-		effort := fantasyvercel.ReasoningEffortLow
-		return &effort
-	case string(fantasyvercel.ReasoningEffortMedium):
-		effort := fantasyvercel.ReasoningEffortMedium
-		return &effort
-	case string(fantasyvercel.ReasoningEffortHigh):
-		effort := fantasyvercel.ReasoningEffortHigh
-		return &effort
-	case string(fantasyvercel.ReasoningEffortXHigh):
-		effort := fantasyvercel.ReasoningEffortXHigh
-		return &effort
-	default:
-		return nil
-	}
+	valueCopy := fantasyvercel.ReasoningEffort(*effort)
+	return &valueCopy
 }
 
 func openAIServiceTierFromChat(value *string) *fantasyopenai.ServiceTier {
