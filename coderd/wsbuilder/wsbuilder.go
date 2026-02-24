@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -280,6 +281,13 @@ func (e BuildError) Unwrap() error {
 }
 
 func (e BuildError) Response() (int, codersdk.Response) {
+	// If the wrapped error knows how to produce its own response
+	// (e.g. DiagnosticError with Validations), prefer that over
+	// the generic BuildError response.
+	if inner, ok := httperror.IsResponder(e.Wrapped); ok {
+		return inner.Response()
+	}
+
 	return e.Status, codersdk.Response{
 		Message: e.Message,
 		Detail:  e.Error(),
