@@ -3196,7 +3196,7 @@ func TestTaskLogsActivityBump(t *testing.T) {
 	t.Run("ActiveTaskBumpsDeadline", func(t *testing.T) {
 		t.Parallel()
 
-		// Minimal fake AgentAPI returning a single message.
+		// Given: a workspace with an active task backed by a fake AgentAPI
 		messageResp := agentapisdk.GetMessagesResponse{
 			Messages: []agentapisdk.Message{
 				{Id: 0, Content: "hello", Role: agentapisdk.RoleAgent, Time: time.Now()},
@@ -3220,8 +3220,6 @@ func TestTaskLogsActivityBump(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		owner := coderdtest.CreateFirstUser(t, client)
 
-		// Create workspace + task via dbfake with app URL pointing
-		// to the fake AgentAPI server.
 		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        owner.UserID,
@@ -3233,7 +3231,6 @@ func TestTaskLogsActivityBump(t *testing.T) {
 			Url:  srv.URL,
 		}).Do()
 
-		// Insert an app status so the task is in the active state.
 		apps, err := db.GetWorkspaceAppsByAgentID(dbauthz.AsSystemRestricted(ctx), wsResp.Agents[0].ID)
 		require.NoError(t, err)
 		_, err = db.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
@@ -3247,12 +3244,11 @@ func TestTaskLogsActivityBump(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Start a fake agent so the workspace agent is connected.
 		_ = agenttest.New(t, client.URL, wsResp.AgentToken)
 		coderdtest.NewWorkspaceAgentWaiter(t, client, wsResp.Workspace.ID).WaitFor(coderdtest.AgentsReady)
 
-		// Set the build deadline close to now so the activity bump
-		// SQL guard (last 5% of TTL) is satisfied.
+		// Given: the build deadline is close to now so the activity bump
+		// SQL guard (last 5% of TTL) is satisfied
 		now := dbtime.Now()
 		tightDeadline := now.Add(time.Minute)
 		err = db.UpdateWorkspaceBuildDeadlineByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceBuildDeadlineByIDParams{
@@ -3263,12 +3259,12 @@ func TestTaskLogsActivityBump(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Fetch task logs — this should trigger an activity bump.
+		// When: the owner fetches the task logs
 		logsResp, err := client.TaskLogs(ctx, "me", wsResp.Task.ID)
 		require.NoError(t, err)
 		require.NotEmpty(t, logsResp.Logs, "expected live logs from fake AgentAPI")
 
-		// Verify the deadline was extended beyond what we set.
+		// Then: the workspace deadline is extended beyond the tight deadline
 		updatedBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), wsResp.Workspace.ID)
 		require.NoError(t, err)
 		assert.True(t, updatedBuild.Deadline.After(tightDeadline),
@@ -3298,9 +3294,10 @@ func TestTaskLogsActivityBump(t *testing.T) {
 				t.Parallel()
 
 				ctx := testutil.Context(t, testutil.WaitMedium)
+
+				// Given: a task in the non-active state with a cached snapshot
 				task := createTask(ctx, t, status)
 
-				// Upsert a snapshot so the handler succeeds.
 				envelope := coderd.TaskLogSnapshotEnvelope{
 					Format: "agentapi",
 					Data: agentapisdk.GetMessagesResponse{
@@ -3319,15 +3316,16 @@ func TestTaskLogsActivityBump(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				// Record the deadline before fetching logs.
+				// Given: the current build deadline
 				buildBefore, err := db.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), task.WorkspaceID.UUID)
 				require.NoError(t, err)
 
+				// When: a member fetches the task logs
 				resp, err := memberClient.TaskLogs(ctx, "me", task.ID)
 				require.NoError(t, err)
 				require.True(t, resp.Snapshot, "expected snapshot response for %s task", status)
 
-				// Verify the deadline was not changed.
+				// Then: the workspace deadline is unchanged
 				buildAfter, err := db.GetLatestWorkspaceBuildByWorkspaceID(dbauthz.AsSystemRestricted(ctx), task.WorkspaceID.UUID)
 				require.NoError(t, err)
 				assert.Equal(t, buildBefore.Deadline, buildAfter.Deadline,
