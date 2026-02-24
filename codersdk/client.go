@@ -126,37 +126,6 @@ func New(serverURL *url.URL, opts ...ClientOption) *Client {
 	return client
 }
 
-// NewWithIndependentTransport creates a Coder client with its own HTTP
-// transport, preventing connection sharing with http.DefaultTransport. This is
-// useful in scenarios where multiple clients need independent connection pools,
-// such as load testing, to ensure HTTP/2 connection multiplexing doesn't cause
-// all requests to route to a single backend server.
-//
-// The cloned transport maintains all the default settings (timeouts, TLS config,
-// etc.) but uses a separate connection pool, meaning each client will establish
-// its own connections to the server.
-func NewWithIndependentTransport(serverURL *url.URL, opts ...ClientOption) *Client {
-	// Clone the default transport to create a new connection pool.
-	// This is a shallow copy that shares configuration but creates independent
-	// connection state (DialContext, connection maps, etc.).
-	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-	if !ok {
-		// This should never happen in practice, but handle it gracefully.
-		defaultTransport = &http.Transport{}
-	}
-	transport := defaultTransport.Clone()
-
-	client := &Client{
-		URL:                  serverURL,
-		HTTPClient:           &http.Client{Transport: transport},
-		SessionTokenProvider: FixedSessionTokenProvider{},
-	}
-	for _, opt := range opts {
-		opt(client)
-	}
-	return client
-}
-
 // Client is an HTTP caller for methods to the Coder API.
 // @typescript-ignore Client
 type Client struct {
