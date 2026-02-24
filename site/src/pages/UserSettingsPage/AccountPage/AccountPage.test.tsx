@@ -44,7 +44,9 @@ describe("AccountPage", () => {
 			renderWithAuth(<AccountPage />);
 			await fillAndSubmitForm();
 
-			const successMessage = await screen.findByText("Updated settings.");
+			const successMessage = await screen.findByText(
+				"Profile updated successfully.",
+			);
 			expect(successMessage).toBeDefined();
 			expect(API.updateProfile).toBeCalledTimes(1);
 			expect(API.updateProfile).toBeCalledWith("me", newData);

@@ -116,7 +116,7 @@ describe("OrganizationMembersPage", () => {
 
 				await renderPage();
 				await updateUserRole(MockOrganizationAuditorRole);
-				await screen.findByText("Roles updated successfully.");
+				await screen.findByText(/Roles of "TestUser" updated successfully\./);
 			});
 		});
 

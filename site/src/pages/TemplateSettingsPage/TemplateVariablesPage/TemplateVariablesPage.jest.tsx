@@ -105,7 +105,7 @@ describe("TemplateVariablesPage", () => {
 
 		await waitFor(() => {
 			expect(toastSuccessSpy).toHaveBeenCalledWith(
-				"Template updated successfully",
+				`Template "test-template" variables updated successfully.`,
 			);
 		});
 		toastSuccessSpy.mockRestore();
