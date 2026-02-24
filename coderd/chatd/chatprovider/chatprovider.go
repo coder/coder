@@ -1,6 +1,7 @@
 package chatprovider
 
 import (
+	"context"
 	"sort"
 	"strings"
 
@@ -554,6 +555,117 @@ func normalizedEnumValue(value string, allowed ...string) *string {
 		}
 	}
 	return nil
+}
+
+// ModelFromConfig resolves a provider/model pair and constructs a fantasy
+// language model client using the provided provider credentials.
+func ModelFromConfig(
+	providerHint string,
+	modelName string,
+	providerKeys ProviderAPIKeys,
+) (fantasy.LanguageModel, error) {
+	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
+	if err != nil {
+		return nil, err
+	}
+
+	apiKey := providerKeys.APIKey(provider)
+	if apiKey == "" {
+		return nil, missingProviderAPIKeyError(provider)
+	}
+	baseURL := providerKeys.BaseURL(provider)
+
+	var providerClient fantasy.Provider
+	switch provider {
+	case fantasyanthropic.Name:
+		options := []fantasyanthropic.Option{
+			fantasyanthropic.WithAPIKey(apiKey),
+		}
+		if baseURL != "" {
+			options = append(options, fantasyanthropic.WithBaseURL(baseURL))
+		}
+		providerClient, err = fantasyanthropic.New(options...)
+	case fantasyazure.Name:
+		if baseURL == "" {
+			return nil, xerrors.New("AZURE_OPENAI_BASE_URL is not set")
+		}
+		providerClient, err = fantasyazure.New(
+			fantasyazure.WithAPIKey(apiKey),
+			fantasyazure.WithBaseURL(baseURL),
+			fantasyazure.WithUseResponsesAPI(),
+		)
+	case fantasybedrock.Name:
+		providerClient, err = fantasybedrock.New(fantasybedrock.WithAPIKey(apiKey))
+	case fantasygoogle.Name:
+		options := []fantasygoogle.Option{
+			fantasygoogle.WithGeminiAPIKey(apiKey),
+		}
+		if baseURL != "" {
+			options = append(options, fantasygoogle.WithBaseURL(baseURL))
+		}
+		providerClient, err = fantasygoogle.New(options...)
+	case fantasyopenai.Name:
+		options := []fantasyopenai.Option{
+			fantasyopenai.WithAPIKey(apiKey),
+			fantasyopenai.WithUseResponsesAPI(),
+		}
+		if baseURL != "" {
+			options = append(options, fantasyopenai.WithBaseURL(baseURL))
+		}
+		providerClient, err = fantasyopenai.New(options...)
+	case fantasyopenaicompat.Name:
+		options := []fantasyopenaicompat.Option{
+			fantasyopenaicompat.WithAPIKey(apiKey),
+		}
+		if baseURL != "" {
+			options = append(options, fantasyopenaicompat.WithBaseURL(baseURL))
+		}
+		providerClient, err = fantasyopenaicompat.New(options...)
+	case fantasyopenrouter.Name:
+		providerClient, err = fantasyopenrouter.New(fantasyopenrouter.WithAPIKey(apiKey))
+	case fantasyvercel.Name:
+		options := []fantasyvercel.Option{
+			fantasyvercel.WithAPIKey(apiKey),
+		}
+		if baseURL != "" {
+			options = append(options, fantasyvercel.WithBaseURL(baseURL))
+		}
+		providerClient, err = fantasyvercel.New(options...)
+	default:
+		return nil, xerrors.Errorf("unsupported model provider %q", provider)
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("create %s provider: %w", provider, err)
+	}
+
+	model, err := providerClient.LanguageModel(context.Background(), modelID)
+	if err != nil {
+		return nil, xerrors.Errorf("load %s model: %w", provider, err)
+	}
+	return model, nil
+}
+
+func missingProviderAPIKeyError(provider string) error {
+	switch provider {
+	case fantasyanthropic.Name:
+		return xerrors.New("ANTHROPIC_API_KEY is not set")
+	case fantasyazure.Name:
+		return xerrors.New("AZURE_OPENAI_API_KEY is not set")
+	case fantasybedrock.Name:
+		return xerrors.New("BEDROCK_API_KEY is not set")
+	case fantasygoogle.Name:
+		return xerrors.New("GOOGLE_API_KEY is not set")
+	case fantasyopenai.Name:
+		return xerrors.New("OPENAI_API_KEY is not set")
+	case fantasyopenaicompat.Name:
+		return xerrors.New("OPENAI_COMPAT_API_KEY is not set")
+	case fantasyopenrouter.Name:
+		return xerrors.New("OPENROUTER_API_KEY is not set")
+	case fantasyvercel.Name:
+		return xerrors.New("VERCEL_API_KEY is not set")
+	default:
+		return xerrors.Errorf("API key for provider %q is not set", provider)
+	}
 }
 
 // ProviderOptionsFromChatModelConfig converts chat model provider options to
