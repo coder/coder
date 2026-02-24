@@ -24,14 +24,6 @@ const (
 	chatAgentEnvVar = "CODER_CHAT_AGENT"
 )
 
-type gitAuthRequiredMarker struct {
-	ProviderID          string `json:"provider_id"`
-	ProviderType        string `json:"provider_type,omitempty"`
-	ProviderDisplayName string `json:"provider_display_name,omitempty"`
-	AuthenticateURL     string `json:"authenticate_url"`
-	Host                string `json:"host,omitempty"`
-}
-
 // detectGitRef attempts to resolve the current git branch and remote
 // origin URL from the given working directory. These are sent to the
 // control plane so it can look up PR/diff status via the GitHub API
