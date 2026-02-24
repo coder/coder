@@ -8,7 +8,10 @@ import {
 } from "react-query";
 
 // Load all tokens
-export const useTokensData = ({ include_all, include_expired }: TokensFilter) => {
+export const useTokensData = ({
+	include_all,
+	include_expired,
+}: TokensFilter) => {
 	const queryKey = ["tokens", include_all, include_expired];
 	const result = useQuery({
 		queryKey,
