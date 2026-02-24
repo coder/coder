@@ -1041,6 +1041,34 @@ func TestTasksTelemetry(t *testing.T) {
 			pausedDurationMS: ptr.Ref(25 * time.Minute.Milliseconds()), // Ongoing pause.
 		},
 		{
+			// When a workspace_app_status and a workspace_build share
+			// the exact same created_at timestamp, the ordering inside
+			// task_status_timeline is ambiguous. The boundary row must
+			// sort after real statuses so that LEAD() and the lws
+			// lateral join produce deterministic results.
+			name:          "status and build at same timestamp - deterministic ordering",
+			createdOffset: -3 * time.Hour,
+			buildOffset:   ptr.Ref(-2 * time.Hour),
+			appStatuses: []statusSpec{
+				{database.WorkspaceAppStatusStateWorking, "Started work", -90 * time.Minute},
+				// This status has the exact same timestamp as the
+				// stop build below, exercising the tiebreaker.
+				{database.WorkspaceAppStatusStateWorking, "Last update before pause", -30 * time.Minute},
+			},
+			extraBuilds: []buildSpec{
+				{2, -30 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
+			},
+			expectEvent:      true,
+			lastPausedOffset: ptr.Ref(-30 * time.Minute),
+			pauseReason:      ptr.Ref("auto"),
+			// The working status at -30m is at the exact same time as
+			// the stop build, so idle duration = 0.
+			idleDurationMS: ptr.Ref(int64(0)),
+			// Active: -90m (working) → -30m (boundary/stop) = 60 min.
+			activeDurationMS: ptr.Ref(60 * time.Minute.Milliseconds()),
+			pausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()),
+		},
+		{
 			// SQL filter: EXISTS (workspace_builds.created_at > createdAfter).
 			// This task has only old builds (7 days ago), so it won't match
 			// the 1-hour createdAfter filter and should not return an event.
