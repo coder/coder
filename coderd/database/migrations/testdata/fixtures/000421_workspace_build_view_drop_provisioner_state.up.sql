@@ -1,3 +1,0 @@
--- Fixture for migration 000421_workspace_build_view_drop_provisioner_state.
--- No fixture rows are required for this migration; this file advances the
--- fixture cursor to the latest migration.
