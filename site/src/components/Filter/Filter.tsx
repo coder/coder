@@ -105,7 +105,7 @@ const parseFilterQuery = (filterQuery: string): FilterValues => {
 	// Matches key:value pairs where the value is either a quoted string
 	// or unquoted (no spaces). Repeated keys (e.g. client:A client:"B C")
 	// are merged into a comma-separated value.
-	const keyValuePair = /(\w+):("([^"]*)"|[^\s]+)/g;
+	const keyValuePair = /([\w-]+):("([^"]*)"|[^\s]+)/g;
 
 	for (const match of filterQuery.matchAll(keyValuePair)) {
 		const key = match[1];
