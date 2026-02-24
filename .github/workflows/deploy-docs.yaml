@@ -1,0 +1,16 @@
+name: Deploy docs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+
+jobs:
+  deploy-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy docs site
+        run: |
+          curl -X POST "${{ secrets.DEPLOY_DOCS_VERCEL_WEBHOOK }}"
