@@ -30,69 +30,19 @@ You will then be taken to the AWS Management Console, CloudFormation `Create sta
 
 ![AWS Marketplace Stack](../../images/platforms/aws/marketplace-stack.png)
 
-The default parameters will support POCs and small team deployments of Coder using `t3.large` (2 cores and 8 GB memory) Nodes.  While the deployment using EKS Auto-mode and will scale using Karpenter, keep in mind this platforms is intended for proof-of-concept
+The default parameters will support POCs and small team deployments of Coder using `t3.large` (2 cores and 8 GB memory) Nodes.  While the deployment uses EKS Auto-mode and will scale using Karpenter, keep in mind this platforms is intended for proof-of-concept
 deployments. You should adjust your infrastructure when preparing for
 production use. See: [Scaling Coder](../../admin/infrastructure/index.md)
 
 ![AWS Marketplace Parameters](../../images/platforms/aws/marketplace-parm.png)
 
-Select `Next` and follow the prompts to submit the CloudFormation Stack.  Deployment of the Stack can take 10-20 minutes, and will create EKS relates sub-stacks and a CodeBuild pipeline that automates the initial Helm deployment of Coder and final AWS Networks services integration.  Once the Stack succesfully creates, access the outputs as show below:
+Select `Next` and follow the prompts to submit the CloudFormation Stack.  Deployment of the Stack can take 10-20 minutes, and will create EKS related sub-stacks and a CodeBuild pipeline that automates the initial Helm deployment of Coder and final AWS network services integration.  Once the Stack succesfully creates, access the `Outputs` as shown below:
 
 ![AWS Marketplace Outputs](../../images/platforms/aws/marketplace-output.png)
 
-Be sure to add a keypair so that you can connect over SSH to further
-[configure Coder](../../admin/setup/index.md).
+Look for the `CoderURL` output link, and use to navigate to your newly deployed instance of Coder Community Edition.
 
-After launching the instance, wait 30 seconds and navigate to the public IPv4
-address. You should be redirected to a public tunnel URL.
-
-<video autoplay playsinline loop>
-  <source src="https://github.com/coder/coder/blob/main/docs/images/platforms/aws/launch.mp4?raw=true" type="video/mp4">
-Your browser does not support the video tag.
-</video>
-
-That's all! Use the UI to create your first user, template, and workspace. We
-recommend starting with a Docker template since the instance has Docker
-pre-installed.
-
-![Coder Workspace and IDE in AWS EC2](../../images/platforms/aws/workspace.png)
-
-## Configuring Coder server
-
-Coder is primarily configured by server-side flags and environment variables.
-Given you created or added key-pairs when launching the instance, you can
-[configure your Coder deployment](../../admin/setup/index.md) by logging in via
-SSH or using the console:
-
-<!-- TOOD(@kylecarbs): fix this weird formatting (https://imgur.com/a/LAUY3cT) -->
-
-```sh
-ssh ubuntu@<ec2-public-IPv4>
-sudo vim /etc/coder.d/coder.env # edit config
-sudo systemctl daemon-reload
-sudo systemctl restart coder # restart Coder
-```
-
-## Give developers EC2 workspaces (optional)
-
-Instead of running containers on the Coder instance, you can offer developers
-full EC2 instances with the
-[aws-linux](https://github.com/coder/coder/tree/main/examples/templates/aws-linux)
-template.
-
-Before you add the AWS template from the dashboard or CLI, you'll need to modify
-the instance IAM role.
-
-![Modify IAM role](../../images/platforms/aws/modify-iam.png)
-
-You must create or select a role that has `EC2FullAccess` permissions or a
-limited
-[Coder-specific permissions policy](https://github.com/coder/coder/tree/main/examples/templates/aws-linux#required-permissions--policy).
-
-From there, you can import the AWS starter template in the dashboard and begin
-creating VM-based workspaces.
-
-![Modify IAM role](../../images/platforms/aws/aws-linux.png)
+That's all! Use the UI to create your first user, template, and workspace. We recommend starting with a Kubernetes template since Coder Community Edition is deployed to EKS.
 
 ### Next steps
 
