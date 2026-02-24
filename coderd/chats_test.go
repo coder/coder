@@ -15,6 +15,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -676,6 +677,36 @@ func TestCreateChat_DefaultSystemPrompt(t *testing.T) {
 	var gotSystemPrompt string
 	require.NoError(t, json.Unmarshal(result.Messages[0].Content, &gotSystemPrompt))
 	require.Equal(t, defaultSystemPrompt, gotSystemPrompt)
+}
+
+func TestCreateChat_DefaultSystemPromptFallback(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
+			cfg.AI.Chat.SystemPrompt = serpent.String("\n\t ")
+		}),
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Input: &codersdk.ChatInput{
+			Parts: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "Build a test feature."},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	result, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result.Messages), 2)
+	require.Equal(t, "system", result.Messages[0].Role)
+
+	var gotSystemPrompt string
+	require.NoError(t, json.Unmarshal(result.Messages[0].Content, &gotSystemPrompt))
+	require.Equal(t, chatd.DefaultSystemPrompt, gotSystemPrompt)
 }
 
 func TestCreateChat_StructuredInput(t *testing.T) {

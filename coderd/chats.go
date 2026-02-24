@@ -2950,10 +2950,12 @@ func mergeMissingModelConfigValues(dst map[string]any, defaults map[string]any) 
 }
 
 func defaultChatSystemPrompt(api *API) string {
-	if api == nil || api.DeploymentValues == nil {
-		return ""
+	if api != nil && api.DeploymentValues != nil {
+		if prompt := strings.TrimSpace(api.DeploymentValues.AI.Chat.SystemPrompt.Value()); prompt != "" {
+			return prompt
+		}
 	}
-	return strings.TrimSpace(api.DeploymentValues.AI.Chat.SystemPrompt.Value())
+	return chatd.DefaultSystemPrompt
 }
 
 func createChatInputFromRequest(req codersdk.CreateChatRequest) (
