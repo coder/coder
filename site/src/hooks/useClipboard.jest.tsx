@@ -11,10 +11,8 @@
  */
 
 import { renderHook } from "@testing-library/react";
-import { ThemeOverride } from "contexts/ThemeProvider";
 import { act } from "react";
 import { toast } from "sonner";
-import themes, { DEFAULT_THEME } from "theme";
 import {
 	COPY_FAILED_MESSAGE,
 	HTTP_FALLBACK_DATA_ID,
@@ -122,9 +120,6 @@ function renderUseClipboard(inputs?: UseClipboardInput) {
 		(props) => useClipboard(props),
 		{
 			initialProps: inputs,
-			wrapper: ({ children }) => (
-				<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
-			),
 		},
 	);
 }
