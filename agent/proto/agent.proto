@@ -436,7 +436,7 @@ message CreateSubAgentRequest {
 	}
 
 	repeated DisplayApp display_apps = 6;
-	
+
 	optional bytes id = 7;
 }
 
@@ -494,6 +494,24 @@ message ReportBoundaryLogsRequest {
 
 message ReportBoundaryLogsResponse {}
 
+// UpdateAppStatusRequest updates the given Workspace App's status. c.f. agentsdk.PatchAppStatus
+message UpdateAppStatusRequest {
+  string slug = 1;
+
+  enum AppStatusState {
+    WORKING = 0;
+    IDLE = 1;
+    COMPLETE = 2;
+    FAILURE = 3;
+  }
+  AppStatusState state = 2;
+
+  string message = 3;
+  string uri = 4;
+}
+
+message UpdateAppStatusResponse {}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -512,4 +530,5 @@ service Agent {
 	rpc DeleteSubAgent(DeleteSubAgentRequest) returns (DeleteSubAgentResponse);
 	rpc ListSubAgents(ListSubAgentsRequest) returns (ListSubAgentsResponse);
 	rpc ReportBoundaryLogs(ReportBoundaryLogsRequest) returns (ReportBoundaryLogsResponse);
+  rpc UpdateAppStatus(UpdateAppStatusRequest) returns (UpdateAppStatusResponse);
 }

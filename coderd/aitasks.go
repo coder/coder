@@ -466,7 +466,6 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 
 	apiWorkspaces, err := convertWorkspaces(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		requesterID,
 		workspaces,
@@ -546,7 +545,6 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 
 	ws, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
