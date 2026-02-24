@@ -77,7 +77,11 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 			return xerrors.Errorf("create user: %w", err)
 		}
 		user = newUser.User
-		client = codersdk.New(r.client.URL)
+		// Use NewWithIndependentTransport to ensure each workspace creation
+		// gets its own HTTP connection pool. This prevents HTTP/2 connection
+		// multiplexing from causing all workspace GET requests to route to a
+		// single backend pod during load testing.
+		client = codersdk.NewWithIndependentTransport(r.client.URL)
 		client.SetSessionToken(newUser.SessionToken)
 	}
 

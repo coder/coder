@@ -76,7 +76,9 @@ func (r *Runner) RunReturningUser(ctx context.Context, id string, logs io.Writer
 	r.user = user
 
 	_, _ = fmt.Fprintln(logs, "\nLogging in as new user...")
-	client := codersdk.New(r.client.URL)
+	// Use NewWithIndependentTransport to ensure each user login gets its own
+	// HTTP connection pool, preventing connection sharing during load testing.
+	client := codersdk.NewWithIndependentTransport(r.client.URL)
 	loginRes, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 		Email:    r.cfg.Email,
 		Password: password,
