@@ -5558,6 +5558,7 @@ export interface TokenConfig {
 // From codersdk/apikey.go
 export interface TokensFilter {
 	readonly include_all: boolean;
+	readonly include_expired: boolean;
 }
 
 // From codersdk/deployment.go

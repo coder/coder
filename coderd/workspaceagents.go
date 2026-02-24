@@ -25,6 +25,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -35,14 +36,11 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	maputil "github.com/coder/coder/v2/coderd/util/maps"
-	strutil "github.com/coder/coder/v2/coderd/util/strings"
-	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -295,51 +293,13 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 // @Param request body agentsdk.PatchAppStatus true "app status"
 // @Success 200 {object} codersdk.Response
 // @Router /workspaceagents/me/app-status [patch]
+// @Deprecated Use UpdateAppStatus on the Agent API instead.
 func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 
 	var req agentsdk.PatchAppStatus
 	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	app, err := api.Database.GetWorkspaceAppByAgentIDAndSlug(ctx, database.GetWorkspaceAppByAgentIDAndSlugParams{
-		AgentID: workspaceAgent.ID,
-		Slug:    req.AppSlug,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to get workspace app.",
-			Detail:  fmt.Sprintf("No app found with slug %q", req.AppSlug),
-		})
-		return
-	}
-
-	if len(req.Message) > 160 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Message is too long.",
-			Detail:  "Message must be less than 160 characters.",
-			Validations: []codersdk.ValidationError{
-				{Field: "message", Detail: "Message must be less than 160 characters."},
-			},
-		})
-		return
-	}
-
-	switch req.State {
-	case codersdk.WorkspaceAppStatusStateComplete,
-		codersdk.WorkspaceAppStatusStateFailure,
-		codersdk.WorkspaceAppStatusStateWorking,
-		codersdk.WorkspaceAppStatusStateIdle: // valid states
-	default:
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid state provided.",
-			Detail:  fmt.Sprintf("invalid state: %q", req.State),
-			Validations: []codersdk.ValidationError{
-				{Field: "state", Detail: "State must be one of: complete, failure, working."},
-			},
-		})
 		return
 	}
 
@@ -352,174 +312,48 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Treat the message as untrusted input.
-	cleaned := strutil.UISanitize(req.Message)
-
-	// Get the latest status for the workspace app to detect no-op updates
-	// nolint:gocritic // This is a system restricted operation.
-	latestAppStatus, err := api.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get latest workspace app status.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	// If no rows found, latestAppStatus will be a zero-value struct (ID == uuid.Nil)
-
-	// nolint:gocritic // This is a system restricted operation.
-	_, err = api.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
-		ID:          uuid.New(),
-		CreatedAt:   dbtime.Now(),
-		WorkspaceID: workspace.ID,
-		AgentID:     workspaceAgent.ID,
-		AppID:       app.ID,
-		State:       database.WorkspaceAppStatusState(req.State),
-		Message:     cleaned,
-		Uri: sql.NullString{
-			String: req.URI,
-			Valid:  req.URI != "",
+	// This functionality has been moved to the AppsAPI in the agentapi. We keep this HTTP handler around for back
+	// compatibility with older agents. We'll translate the request into the protobuf so there is only one primary
+	// implementation.
+	appAPI := &agentapi.AppsAPI{
+		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+			return workspaceAgent, nil
 		},
-	})
+		Database: api.Database,
+		Log:      api.Logger,
+		PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+				Kind:        kind,
+				WorkspaceID: workspace.ID,
+				AgentID:     &agent.ID,
+			})
+			return nil
+		},
+		NotificationsEnqueuer: api.NotificationsEnqueuer,
+		Clock:                 api.Clock,
+	}
+	protoReq, err := agentsdk.ProtoFromPatchAppStatus(req)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to insert workspace app status.",
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to parse request.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-
-	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
-		Kind:        wspubsub.WorkspaceEventKindAgentAppStatusUpdate,
-		WorkspaceID: workspace.ID,
-		AgentID:     &workspaceAgent.ID,
-	})
-
-	// Notify on state change to Working/Idle for AI tasks
-	api.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, req.State, workspace, workspaceAgent)
-
-	// Bump deadline when agent reports working or transitions away from working.
-	// This prevents auto-pause during active work and gives users time to interact
-	// after work completes.
-	shouldBump := false
-	newState := database.WorkspaceAppStatusState(req.State)
-
-	// Bump if reporting working state.
-	if newState == database.WorkspaceAppStatusStateWorking {
-		shouldBump = true
-	}
-
-	// Bump if transitioning away from working state.
-	if latestAppStatus.ID != uuid.Nil {
-		prevState := latestAppStatus.State
-		if prevState == database.WorkspaceAppStatusStateWorking {
-			shouldBump = true
+	_, err = appAPI.UpdateAppStatus(r.Context(), protoReq)
+	if err != nil {
+		sdkErr := new(codersdk.Error)
+		if xerrors.As(err, &sdkErr) {
+			httpapi.Write(ctx, rw, sdkErr.StatusCode(), sdkErr.Response)
+			return
 		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update app status.",
+			Detail:  err.Error(),
+		})
+		return
 	}
-	if shouldBump {
-		// We pass time.Time{} for nextAutostart since we don't have access to
-		// TemplateScheduleStore here. The activity bump logic handles this by
-		// defaulting to the template's activity_bump duration (typically 1 hour).
-		workspacestats.ActivityBumpWorkspace(ctx, api.Logger, api.Database, workspace.ID, time.Time{})
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
-}
-
-// enqueueAITaskStateNotification enqueues a notification when an AI task's app
-// transitions to Working or Idle.
-// No-op if:
-//   - the workspace agent app isn't configured as an AI task,
-//   - the new state equals the latest persisted state,
-//   - the workspace agent is not ready (still starting up).
-func (api *API) enqueueAITaskStateNotification(
-	ctx context.Context,
-	appID uuid.UUID,
-	latestAppStatus database.WorkspaceAppStatus,
-	newAppStatus codersdk.WorkspaceAppStatusState,
-	workspace database.Workspace,
-	agent database.WorkspaceAgent,
-) {
-	// Select notification template based on the new state
-	var notificationTemplate uuid.UUID
-	switch newAppStatus {
-	case codersdk.WorkspaceAppStatusStateWorking:
-		notificationTemplate = notifications.TemplateTaskWorking
-	case codersdk.WorkspaceAppStatusStateIdle:
-		notificationTemplate = notifications.TemplateTaskIdle
-	case codersdk.WorkspaceAppStatusStateComplete:
-		notificationTemplate = notifications.TemplateTaskCompleted
-	case codersdk.WorkspaceAppStatusStateFailure:
-		notificationTemplate = notifications.TemplateTaskFailed
-	default:
-		// Not a notifiable state, do nothing
-		return
-	}
-
-	if !workspace.TaskID.Valid {
-		// Workspace has no task ID, do nothing.
-		return
-	}
-
-	// Only send notifications when the agent is ready. We want to skip
-	// any state transitions that occur whilst the workspace is starting
-	// up as it doesn't make sense to receive them.
-	if agent.LifecycleState != database.WorkspaceAgentLifecycleStateReady {
-		api.Logger.Debug(ctx, "skipping AI task notification because agent is not ready",
-			slog.F("agent_id", agent.ID),
-			slog.F("lifecycle_state", agent.LifecycleState),
-			slog.F("new_app_status", newAppStatus),
-		)
-		return
-	}
-
-	task, err := api.Database.GetTaskByID(ctx, workspace.TaskID.UUID)
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to get task", slog.Error(err))
-		return
-	}
-
-	if !task.WorkspaceAppID.Valid || task.WorkspaceAppID.UUID != appID {
-		// Non-task app, do nothing.
-		return
-	}
-
-	// Skip if the latest persisted state equals the new state (no new transition)
-	// Note: uuid.Nil check is valid here. If no previous status exists,
-	// GetLatestWorkspaceAppStatusByAppID returns sql.ErrNoRows and we get a zero-value struct.
-	if latestAppStatus.ID != uuid.Nil && latestAppStatus.State == database.WorkspaceAppStatusState(newAppStatus) {
-		return
-	}
-
-	// Skip the initial "Working" notification when task first starts.
-	// This is obvious to the user since they just created the task.
-	// We still notify on first "Idle" status and all subsequent transitions.
-	if latestAppStatus.ID == uuid.Nil && newAppStatus == codersdk.WorkspaceAppStatusStateWorking {
-		return
-	}
-
-	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
-		// nolint:gocritic // Need notifier actor to enqueue notifications
-		dbauthz.AsNotifier(ctx),
-		workspace.OwnerID,
-		notificationTemplate,
-		map[string]string{
-			"task":      task.Name,
-			"workspace": workspace.Name,
-		},
-		map[string]any{
-			// Use a 1-minute bucketed timestamp to bypass per-day dedupe,
-			// allowing identical content to resend within the same day
-			// (but not more than once every 10s).
-			"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(time.Minute),
-		},
-		"api-workspace-agent-app-status",
-		// Associate this notification with related entities
-		workspace.ID, workspace.OwnerID, workspace.OrganizationID, appID,
-	); err != nil {
-		api.Logger.Warn(ctx, "failed to notify of task state", slog.Error(err))
-		return
-	}
 }
 
 // workspaceAgentLogs returns the logs associated with a workspace agent

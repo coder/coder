@@ -55,13 +55,25 @@ To list shared workspaces:
 
 ### UI
 
+#### Sharing your Workspace
+
 1. Open a workspace that you own.
 
 1. Locate and click the 'Share' button.
 
+![Sharing a workspace](../images/user-guides/workspace-sharing-button-highlight.png)
+
 1. Add the users or groups that you want to share the workspace with. For each one, select a role.
+
+![Sharing with a user or group](../images/user-guides/workspace-sharing-roles.png)
 
 - `use` allows for connection via SSH and apps, the ability to start and stop the workspace, view logs and stats, and update on start when required.
 - `admin` allows for all of the above, as well as the ability to rename the workspace, update at any time, and invite others with the `use` role.
 - Neither role allows for the user to delete the workspace.
 - After removing a user/group, a workspace restart is required for the removal to take effect.
+
+#### Using a shared workspace
+
+Once a workspace is shared, you can find the shared workspace by filtering for "Shared" in the Workspaces page.
+
+![Sharing with a user or group](../images/user-guides/workspace-sharing-shared-view.png)

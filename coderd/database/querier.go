@@ -169,7 +169,7 @@ type sqlcQuerier interface {
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
-	GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error)
+	GetAPIKeysByLoginType(ctx context.Context, arg GetAPIKeysByLoginTypeParams) ([]APIKey, error)
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
@@ -506,6 +506,11 @@ type sqlcQuerier interface {
 	GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (GetWorkspaceBuildMetricsByResourceIDRow, error)
 	GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceBuildParameter, error)
 	GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]WorkspaceBuildParameter, error)
+	// Fetches the provisioner state of a workspace build, joined through to the
+	// template so that dbauthz can enforce policy.ActionUpdate on the template.
+	// Provisioner state contains sensitive Terraform state and should only be
+	// accessible to template administrators.
+	GetWorkspaceBuildProvisionerStateByID(ctx context.Context, workspaceBuildID uuid.UUID) (GetWorkspaceBuildProvisionerStateByIDRow, error)
 	GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]GetWorkspaceBuildStatsByTemplatesRow, error)
 	GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error)
 	GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error)

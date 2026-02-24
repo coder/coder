@@ -535,6 +535,14 @@ func NewTestError(statusCode int, method string, u string) *Error {
 	}
 }
 
+// NewError creates a new Error with the response and status code.
+func NewError(statusCode int, response Response) *Error {
+	return &Error{
+		statusCode: statusCode,
+		Response:   response,
+	}
+}
+
 type closeFunc func() error
 
 func (c closeFunc) Close() error {
