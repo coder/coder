@@ -139,7 +139,7 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	);
 };
 
-export const withGlobalSnackbar = (Story: FC) => (
+export const withToaster = (Story: FC) => (
 	<>
 		<Story />
 		<Toaster />

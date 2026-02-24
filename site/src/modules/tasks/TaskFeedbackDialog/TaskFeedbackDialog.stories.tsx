@@ -1,5 +1,5 @@
 import { MockTask, mockApiError } from "testHelpers/entities";
-import { withGlobalSnackbar } from "testHelpers/storybook";
+import { withToaster } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { expect, spyOn, userEvent, within } from "storybook/test";
@@ -51,7 +51,7 @@ export const Success: Story = {
 	args: {
 		open: true,
 	},
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	beforeEach: async () => {
 		spyOn(API, "createTaskFeedback").mockResolvedValue();
 	},

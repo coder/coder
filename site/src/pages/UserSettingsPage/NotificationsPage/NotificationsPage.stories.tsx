@@ -8,7 +8,7 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
+	withToaster,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
@@ -48,7 +48,7 @@ const meta = {
 		user: MockUserOwner,
 		permissions: { createTemplates: true, createUser: true },
 	},
-	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
+	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 } satisfies Meta<typeof NotificationsPage>;
 
 export default meta;

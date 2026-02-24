@@ -2,7 +2,7 @@ import { MockAuthMethodsAll, MockUserOwner } from "testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
+	withToaster,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
@@ -71,7 +71,7 @@ const meta: Meta<typeof UsersPage> = {
 	title: "pages/UsersPage",
 	component: UsersPage,
 	parameters,
-	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
+	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 	args: {
 		defaultNewPassword: "edWbqYiaVpEiEWwI",
 	},
