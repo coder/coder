@@ -1061,9 +1061,8 @@ func TestTasksTelemetry(t *testing.T) {
 			expectEvent:      true,
 			lastPausedOffset: ptr.Ref(-30 * time.Minute),
 			pauseReason:      ptr.Ref("auto"),
-			// The working status at -30m is at the exact same time as
-			// the stop build, so idle duration = 0.
-			idleDurationMS: ptr.Ref(int64(0)),
+			// IdleDurationMS is nil: the Go code requires
+			// stop.After(lastWorking), which is false when equal.
 			// Active: -90m (working) → -30m (boundary/stop) = 60 min.
 			activeDurationMS: ptr.Ref(60 * time.Minute.Milliseconds()),
 			pausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()),

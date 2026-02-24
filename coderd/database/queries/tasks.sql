@@ -123,8 +123,8 @@ WITH task_app_ids AS (
     FROM task_workspace_apps
 ),
 task_status_timeline AS (
-	-- All app statusese across every historical app for each task,
-	-- plus synthectic "boundary" rows at each stop/start build transition.
+	-- All app statuses across every historical app for each task,
+	-- plus synthetic "boundary" rows at each stop/start build transition.
 	-- This allows us to correctly take gaps due to pause/resume into account.
 	SELECT tai.task_id, was.created_at, was.state::text AS state
 	FROM workspace_app_statuses was
@@ -189,7 +189,7 @@ task_event_data AS (
 		-- Only consider status before the latest pause so that
 		-- post-resume statuses don't mask pre-pause idle time.
 		AND (stop_build.created_at IS NULL
-			OR tst.created_at < stop_build.created_at)
+			OR tst.created_at <= stop_build.created_at)
         ORDER BY tst.created_at DESC
         LIMIT 1
     ) lws ON TRUE
@@ -218,7 +218,7 @@ task_event_data AS (
             SELECT
                 tst.created_at AS interval_start,
                 COALESCE(
-                    LEAD(tst.created_at) OVER (ORDER BY tst.created_at ASC),
+                    LEAD(tst.created_at) OVER (ORDER BY tst.created_at ASC, CASE WHEN tst.state = '_boundary' THEN 1 ELSE 0 END ASC),
 					CASE WHEN stop_build.created_at IS NOT NULL
 						AND (start_build.created_at IS NULL
 							OR stop_build.created_at > start_build.created_at)
