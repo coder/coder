@@ -235,11 +235,11 @@ func TestParseSubdomainAppURL(t *testing.T) {
 			},
 		},
 		{
-			Name:      "5DigitAppSlug--Workspace--User",
-			Subdomain: "30000--workspace--user",
+			Name:      "5DigitPort--agent--Workspace--User",
+			Subdomain: "30000--agent--workspace--user",
 			Expected: appurl.ApplicationURL{
 				AppSlugOrPort: "30000",
-				AgentName:     "",
+				AgentName:     "agent",
 				WorkspaceName: "workspace",
 				Username:      "user",
 			},
