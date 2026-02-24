@@ -36,7 +36,7 @@ export const Success: Story = {
 			await canvas.findByLabelText("Confirm password *");
 		await user.type(confirmPasswordInput, "password");
 		await user.click(canvas.getByRole("button", { name: /reset password/i }));
-		await canvas.findByText("Password reset successfully");
+		await canvas.findByText("Password reset successfully.");
 	},
 };
 

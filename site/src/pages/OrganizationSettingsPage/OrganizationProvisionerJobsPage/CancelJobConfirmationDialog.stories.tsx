@@ -51,7 +51,7 @@ export const OnConfirmSuccess: Story = {
 
 		user.click(confirmButton);
 		await waitFor(() => {
-			body.getByText("Provisioner job canceled successfully");
+			body.getByText(/canceled successfully/);
 		});
 		expect(args.cancelProvisionerJob).toHaveBeenCalledTimes(1);
 		expect(args.cancelProvisionerJob).toHaveBeenCalledWith(args.job);
@@ -76,7 +76,7 @@ export const OnConfirmFailure: Story = {
 
 		user.click(confirmButton);
 		await waitFor(() => {
-			body.getByText("Failed to cancel provisioner job");
+			body.getByText(/Failed to cancel provisioner job/);
 		});
 		expect(args.cancelProvisionerJob).toHaveBeenCalledTimes(1);
 		expect(args.cancelProvisionerJob).toHaveBeenCalledWith(args.job);

@@ -156,7 +156,7 @@ export const DisableValidTemplate: Story = {
 		},
 	],
 	play: async ({ canvasElement }) => {
-		await within(document.body).findByText("Notification has been disabled");
+		await within(document.body).findByText("Notification has been disabled.");
 		const switchEl = await within(canvasElement).findByLabelText(
 			templateToDisable.name,
 		);
@@ -182,7 +182,7 @@ export const DisableInvalidTemplate: Story = {
 		},
 	],
 	play: async () => {
-		await within(document.body).findByText("Error disabling notification");
+		await within(document.body).findByText("Error disabling notification.");
 	},
 };
 

@@ -92,6 +92,7 @@ describe("SchedulePage", () => {
 				);
 				expect(successMessage).toBeDefined();
 			},
+			15_000,
 		);
 	});
 

@@ -174,7 +174,7 @@ export const OnSuccess: Story = {
 
 		await step("Displays success message", async () => {
 			const body = within(canvasElement.ownerDocument.body);
-			const successMessage = await body.findByText(/task created/i);
+			const successMessage = await body.findByText(/created successfully/i);
 			expect(successMessage).toBeInTheDocument();
 		});
 
@@ -299,7 +299,7 @@ export const SelectTemplateVersion: Story = {
 
 		await step("Displays success message", async () => {
 			const body = within(canvasElement.ownerDocument.body);
-			const successMessage = await body.findByText(/task created/i);
+			const successMessage = await body.findByText(/created successfully/i);
 			expect(successMessage).toBeInTheDocument();
 		});
 	},

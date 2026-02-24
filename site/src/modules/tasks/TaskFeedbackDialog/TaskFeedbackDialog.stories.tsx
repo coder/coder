@@ -76,7 +76,7 @@ export const Success: Story = {
 		});
 
 		step("submitted successfully", async () => {
-			await body.findByText("Feedback submitted successfully");
+			await body.findByText("Feedback submitted successfully.");
 			expect(API.createTaskFeedback).toHaveBeenCalledWith(MockTask.id, {
 				rate: "regular",
 				comment: "This is my comment",
