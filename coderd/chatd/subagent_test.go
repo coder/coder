@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -620,7 +621,7 @@ func TestSubagentService_SendSubagentMessageRequeuesAndReturnsRequestID(t *testi
 	require.True(t, messages[0].SubagentEvent.Valid)
 	require.Equal(t, subagentEventRequest, messages[0].SubagentEvent.String)
 
-	blocks, err := parseContentBlocks(messages[0].Role, messages[0].Content)
+	blocks, err := chatprompt.ParseContent(messages[0].Role, messages[0].Content)
 	require.NoError(t, err)
 	require.Equal(t, "continue with more detail", contentBlocksToText(blocks))
 }
@@ -637,7 +638,7 @@ func TestSubagentService_SynthesizeFallbackSubagentReport(t *testing.T) {
 	)
 	service := newSubagentService(store, nil)
 
-	userContent, err := marshalContentBlocks([]fantasy.Content{
+	userContent, err := chatprompt.MarshalContent([]fantasy.Content{
 		fantasy.TextContent{Text: "user prompt"},
 	})
 	require.NoError(t, err)
@@ -648,7 +649,7 @@ func TestSubagentService_SynthesizeFallbackSubagentReport(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	firstAssistant, err := marshalContentBlocks([]fantasy.Content{
+	firstAssistant, err := chatprompt.MarshalContent([]fantasy.Content{
 		fantasy.TextContent{Text: "first summary"},
 	})
 	require.NoError(t, err)
@@ -663,7 +664,7 @@ func TestSubagentService_SynthesizeFallbackSubagentReport(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	secondAssistant, err := marshalContentBlocks([]fantasy.Content{
+	secondAssistant, err := chatprompt.MarshalContent([]fantasy.Content{
 		fantasy.TextContent{Text: "latest summary"},
 	})
 	require.NoError(t, err)
@@ -930,7 +931,7 @@ func (s *subagentServiceTestStore) chatMessagesByChatID(chatID uuid.UUID) []data
 }
 
 func (s *subagentServiceTestStore) insertSubagentRequestMessage(chatID uuid.UUID, requestID uuid.UUID, text string) error {
-	content, err := marshalContentBlocks([]fantasy.Content{fantasy.TextContent{Text: text}})
+	content, err := chatprompt.MarshalContent([]fantasy.Content{fantasy.TextContent{Text: text}})
 	if err != nil {
 		return err
 	}
@@ -948,7 +949,7 @@ func (s *subagentServiceTestStore) insertSubagentRequestMessage(chatID uuid.UUID
 }
 
 func (s *subagentServiceTestStore) insertSubagentResponseMessage(chatID uuid.UUID, requestID uuid.UUID, report string) error {
-	content, err := marshalContentBlocks([]fantasy.Content{fantasy.TextContent{Text: report}})
+	content, err := chatprompt.MarshalContent([]fantasy.Content{fantasy.TextContent{Text: report}})
 	if err != nil {
 		return err
 	}

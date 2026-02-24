@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -38,14 +39,14 @@ func TestChatMessagesToPrompt_SanitizesToolCallIDs(t *testing.T) {
 	assistantContent, err := json.Marshal(assistantBlocks)
 	require.NoError(t, err)
 
-	toolResults, err := json.Marshal([]ToolResultBlock{{
+	toolResults, err := json.Marshal([]chatprompt.ToolResultBlock{{
 		ToolCallID: legacyToolCallID,
 		ToolName:   "read_file",
 		Result:     map[string]any{"content": "hello"},
 	}})
 	require.NoError(t, err)
 
-	prompt, err := chatMessagesToPrompt([]database.ChatMessage{
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
 		{
 			Role:    string(fantasy.MessageRoleAssistant),
 			Content: pqtype.NullRawMessage{RawMessage: assistantContent, Valid: true},
@@ -54,11 +55,11 @@ func TestChatMessagesToPrompt_SanitizesToolCallIDs(t *testing.T) {
 			Role:    string(fantasy.MessageRoleTool),
 			Content: pqtype.NullRawMessage{RawMessage: toolResults, Valid: true},
 		},
-	})
+	}, subagentReportToolCallIDPrefix)
 	require.NoError(t, err)
 	require.Len(t, prompt, 2)
 
-	assistantToolCalls := extractToolCallsFromMessageParts(prompt[0].Content)
+	assistantToolCalls := chatprompt.ExtractToolCalls(prompt[0].Content)
 	require.Len(t, assistantToolCalls, 1)
 	require.Equal(t, sanitizedToolCallID, assistantToolCalls[0].ToolCallID)
 
@@ -75,7 +76,7 @@ func TestContentToMessageParts_PreservesReasoningProviderMetadata(t *testing.T) 
 		Summary: []string{"Plan migration"},
 	}
 
-	parts := contentToMessageParts([]fantasy.Content{
+	parts := chatprompt.ToMessageParts([]fantasy.Content{
 		fantasy.ReasoningContent{
 			Text: "Plan migration",
 			ProviderMetadata: fantasy.ProviderMetadata{
@@ -177,7 +178,7 @@ func TestContentToMessageParts_PreservesProviderMetadataForOtherParts(t *testing
 		Summary: []string{"tool-result"},
 	}
 
-	parts := contentToMessageParts([]fantasy.Content{
+	parts := chatprompt.ToMessageParts([]fantasy.Content{
 		fantasy.TextContent{
 			Text: "hello",
 			ProviderMetadata: fantasy.ProviderMetadata{
@@ -249,7 +250,7 @@ func TestContentBlockToPart_ReasoningIncludesSummaryTitle(t *testing.T) {
 		Summary: []string{"", "Plan migration"},
 	}
 
-	part := contentBlockToPart(fantasy.ReasoningContent{
+	part := chatprompt.PartFromContent(fantasy.ReasoningContent{
 		Text: "Plan migration",
 		ProviderMetadata: fantasy.ProviderMetadata{
 			fantasyopenai.Name: metadata,
@@ -271,7 +272,7 @@ func TestContentBlockToPart_ReasoningTitleTruncatesSummary(t *testing.T) {
 		},
 	}
 
-	part := contentBlockToPart(fantasy.ReasoningContent{
+	part := chatprompt.PartFromContent(fantasy.ReasoningContent{
 		Text: "Investigated workspace build failures and prepared step-by-step remediation plan for migrations",
 		ProviderMetadata: fantasy.ProviderMetadata{
 			fantasyopenai.Name: metadata,
@@ -296,7 +297,7 @@ func TestContentBlockToPart_ReasoningTitleUsesSummaryHeading(t *testing.T) {
 		},
 	}
 
-	part := contentBlockToPart(fantasy.ReasoningContent{
+	part := chatprompt.PartFromContent(fantasy.ReasoningContent{
 		Text: "Verify schema updates, then apply changes in order.",
 		ProviderMetadata: fantasy.ProviderMetadata{
 			fantasyopenai.Name: metadata,
@@ -312,7 +313,7 @@ func TestReasoningMarkdownTitleFromFirstLine(t *testing.T) {
 
 	t.Run("CompleteHeading", func(t *testing.T) {
 		t.Parallel()
-		title := reasoningMarkdownTitleFromFirstLine(
+		title := chatprompt.ReasoningTitleFromFirstLine(
 			"**Implement migration safely**\n\nVerify schema updates.",
 		)
 		require.Equal(t, "Implement migration safely", title)
@@ -320,19 +321,19 @@ func TestReasoningMarkdownTitleFromFirstLine(t *testing.T) {
 
 	t.Run("IncompleteHeading", func(t *testing.T) {
 		t.Parallel()
-		title := reasoningMarkdownTitleFromFirstLine("**Implement migration")
+		title := chatprompt.ReasoningTitleFromFirstLine("**Implement migration")
 		require.Empty(t, title)
 	})
 
 	t.Run("NonHeadingReasoning", func(t *testing.T) {
 		t.Parallel()
-		title := reasoningMarkdownTitleFromFirstLine("Implement migration")
+		title := chatprompt.ReasoningTitleFromFirstLine("Implement migration")
 		require.Empty(t, title)
 	})
 
 	t.Run("HeadingWithSameLineSuffix", func(t *testing.T) {
 		t.Parallel()
-		title := reasoningMarkdownTitleFromFirstLine("**Implement migration** details")
+		title := chatprompt.ReasoningTitleFromFirstLine("**Implement migration** details")
 		require.Empty(t, title)
 	})
 }
@@ -354,7 +355,7 @@ func TestMarshalContentBlocks_ReasoningPersistsTitle(t *testing.T) {
 		},
 	}
 
-	raw, err := marshalContentBlocks(blocks)
+	raw, err := chatprompt.MarshalContent(blocks)
 	require.NoError(t, err)
 	require.True(t, raw.Valid)
 
@@ -390,7 +391,7 @@ func TestMarshalContentBlocks_ReasoningSkipsTitleWithoutMarkdownHeading(t *testi
 		},
 	}
 
-	raw, err := marshalContentBlocks(blocks)
+	raw, err := chatprompt.MarshalContent(blocks)
 	require.NoError(t, err)
 	require.True(t, raw.Valid)
 
@@ -419,7 +420,7 @@ func TestChatMessagesToPrompt_RepairsLegacyOrphanToolResult(t *testing.T) {
 	userContent, err := json.Marshal(contentFromText("status?"))
 	require.NoError(t, err)
 
-	toolResults, err := json.Marshal([]ToolResultBlock{{
+	toolResults, err := json.Marshal([]chatprompt.ToolResultBlock{{
 		ToolCallID: legacyToolCallID,
 		ToolName:   "subagent_report",
 		Result: map[string]any{
@@ -431,7 +432,7 @@ func TestChatMessagesToPrompt_RepairsLegacyOrphanToolResult(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	prompt, err := chatMessagesToPrompt([]database.ChatMessage{
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
 		{
 			Role:    string(fantasy.MessageRoleUser),
 			Content: pqtype.NullRawMessage{RawMessage: userContent, Valid: true},
@@ -440,13 +441,13 @@ func TestChatMessagesToPrompt_RepairsLegacyOrphanToolResult(t *testing.T) {
 			Role:    string(fantasy.MessageRoleTool),
 			Content: pqtype.NullRawMessage{RawMessage: toolResults, Valid: true},
 		},
-	})
+	}, subagentReportToolCallIDPrefix)
 	require.NoError(t, err)
 	require.Len(t, prompt, 3)
 	require.Equal(t, fantasy.MessageRoleAssistant, prompt[1].Role)
 	require.Equal(t, fantasy.MessageRoleTool, prompt[2].Role)
 
-	toolCalls := extractToolCallsFromMessageParts(prompt[1].Content)
+	toolCalls := chatprompt.ExtractToolCalls(prompt[1].Content)
 	require.Len(t, toolCalls, 1)
 	require.Equal(t, sanitizedToolCallID, toolCalls[0].ToolCallID)
 	require.Equal(t, "subagent_report", toolCalls[0].ToolName)

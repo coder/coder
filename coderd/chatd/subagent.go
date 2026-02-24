@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -189,7 +190,7 @@ func (s *SubagentService) insertRequestMessage(
 	message string,
 	requestID uuid.UUID,
 ) error {
-	userContent, err := marshalContentBlocks([]fantasy.Content{
+	userContent, err := chatprompt.MarshalContent([]fantasy.Content{
 		fantasy.TextContent{Text: message},
 	})
 	if err != nil {
@@ -289,7 +290,7 @@ func (s *SubagentService) MarkReportOnlyPassRequested(
 	chatID uuid.UUID,
 	requestID uuid.UUID,
 ) error {
-	content, err := marshalContentBlocks([]fantasy.Content{
+	content, err := chatprompt.MarshalContent([]fantasy.Content{
 		fantasy.TextContent{Text: "report-only pass requested"},
 	})
 	if err != nil {
@@ -330,7 +331,7 @@ func (s *SubagentService) MarkSubagentReported(
 		return SubagentAwaitResult{}, err
 	}
 
-	responseContent, err := marshalContentBlocks([]fantasy.Content{
+	responseContent, err := chatprompt.MarshalContent([]fantasy.Content{
 		fantasy.TextContent{Text: report},
 	})
 	if err != nil {
@@ -419,7 +420,7 @@ func (s *SubagentService) SynthesizeFallbackSubagentReport(
 			}
 		}
 
-		content, parseErr := parseContentBlocks(message.Role, message.Content)
+		content, parseErr := chatprompt.ParseContent(message.Role, message.Content)
 		if parseErr != nil {
 			continue
 		}
@@ -524,7 +525,7 @@ func (s *SubagentService) responseForRequest(
 	}
 
 	report := ""
-	content, parseErr := parseContentBlocks(message.Role, message.Content)
+	content, parseErr := chatprompt.ParseContent(message.Role, message.Content)
 	if parseErr == nil {
 		report = strings.TrimSpace(contentBlocksToText(content))
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -121,7 +122,7 @@ func TestInsertSystemInstructionAfterSystemMessages(t *testing.T) {
 		},
 	}
 
-	got := insertSystemInstruction(prompt, "project rules")
+	got := chatprompt.InsertSystem(prompt, "project rules")
 	require.Len(t, got, 3)
 	require.Equal(t, fantasy.MessageRoleSystem, got[0].Role)
 	require.Equal(t, fantasy.MessageRoleSystem, got[1].Role)

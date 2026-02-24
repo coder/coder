@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/chatd"
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -1114,7 +1115,7 @@ func TestRunChatLoop(t *testing.T) {
 	require.False(t, toolMessage.CacheCreationTokens.Valid)
 	require.False(t, toolMessage.CacheReadTokens.Valid)
 	require.False(t, toolMessage.ContextLimit.Valid)
-	var toolResults []chatd.ToolResultBlock
+	var toolResults []chatprompt.ToolResultBlock
 	require.NoError(t, json.Unmarshal(toolMessage.Content.RawMessage, &toolResults))
 	require.Len(t, toolResults, 1)
 	resultMap, ok := toolResults[0].Result.(map[string]any)
@@ -1260,7 +1261,7 @@ func TestRunChatLoop_ExecuteTimeoutContinues(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 4)
 
-	var toolResults []chatd.ToolResultBlock
+	var toolResults []chatprompt.ToolResultBlock
 	require.NoError(t, json.Unmarshal(messages[2].Content.RawMessage, &toolResults))
 	require.Len(t, toolResults, 1)
 	require.Equal(t, executeToolName, toolResults[0].ToolName)
@@ -1373,7 +1374,7 @@ func TestRunChatLoop_ReadWriteToolErrorsContinue(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, messages, 4)
 
-			var toolResults []chatd.ToolResultBlock
+			var toolResults []chatprompt.ToolResultBlock
 			require.NoError(t, json.Unmarshal(messages[2].Content.RawMessage, &toolResults))
 			require.Len(t, toolResults, 1)
 			require.Equal(t, tc.toolName, toolResults[0].ToolName)
@@ -1676,7 +1677,7 @@ func TestRunChatLoop_InterruptPersistsPartialStep(t *testing.T) {
 	toolMessage := messages[2]
 	require.Equal(t, string(fantasy.MessageRoleTool), toolMessage.Role)
 
-	var toolResults []chatd.ToolResultBlock
+	var toolResults []chatprompt.ToolResultBlock
 	require.NoError(t, json.Unmarshal(toolMessage.Content.RawMessage, &toolResults))
 	require.Len(t, toolResults, 1)
 	require.Equal(t, "interrupt-tool-1", toolResults[0].ToolCallID)
@@ -2019,7 +2020,7 @@ func TestCreateWorkspaceTool_NilCreator(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 4)
 
-	var toolResults []chatd.ToolResultBlock
+	var toolResults []chatprompt.ToolResultBlock
 	require.NoError(t, json.Unmarshal(messages[2].Content.RawMessage, &toolResults))
 	require.Len(t, toolResults, 1)
 	require.True(t, toolResults[0].IsError)
@@ -2424,7 +2425,7 @@ func TestRunChatLoop_CreateWorkspaceThenExecute_NoHang(t *testing.T) {
 			if message.Role != string(fantasy.MessageRoleTool) {
 				continue
 			}
-			var toolResults []chatd.ToolResultBlock
+			var toolResults []chatprompt.ToolResultBlock
 			if err := json.Unmarshal(message.Content.RawMessage, &toolResults); err != nil {
 				return false
 			}
@@ -2932,7 +2933,7 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 		if message.Role != string(fantasy.MessageRoleTool) {
 			continue
 		}
-		var blocks []chatd.ToolResultBlock
+		var blocks []chatprompt.ToolResultBlock
 		if unmarshalErr := json.Unmarshal(message.Content.RawMessage, &blocks); unmarshalErr != nil {
 			continue
 		}
@@ -3052,7 +3053,7 @@ func TestStreamManagerSnapshotBuffersOnlyMessageParts(t *testing.T) {
 func TestDB2SDKChatMessage_ToolResultPartMetadata(t *testing.T) {
 	t.Parallel()
 
-	raw, err := json.Marshal([]chatd.ToolResultBlock{{
+	raw, err := json.Marshal([]chatprompt.ToolResultBlock{{
 		ToolCallID: "call-3",
 		ToolName:   "execute",
 		Result: map[string]any{
@@ -3146,7 +3147,7 @@ func TestDB2SDKChatMessage_IncludesUsageFields(t *testing.T) {
 func TestDB2SDKChatMessage_ReadFileResultMetadata(t *testing.T) {
 	t.Parallel()
 
-	raw, err := json.Marshal([]chatd.ToolResultBlock{{
+	raw, err := json.Marshal([]chatprompt.ToolResultBlock{{
 		ToolCallID: "call-4",
 		ToolName:   "read_file",
 		Result: map[string]any{
@@ -3369,7 +3370,7 @@ func TestRunChatLoop_ContextCompressionUsesFallbackConfigAndTruncatesSummary(t *
 		}
 
 		if message.Role == string(fantasy.MessageRoleTool) && message.Compressed {
-			var blocks []chatd.ToolResultBlock
+			var blocks []chatprompt.ToolResultBlock
 			require.NoError(t, json.Unmarshal(message.Content.RawMessage, &blocks))
 			require.Len(t, blocks, 1)
 			require.Equal(t, "chat_summarized", blocks[0].ToolName)
