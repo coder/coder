@@ -1899,7 +1899,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -1937,7 +1936,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -1975,7 +1973,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -2013,7 +2010,6 @@ func TestWorkspaceFilter(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
@@ -5249,7 +5245,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5285,7 +5281,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5318,7 +5314,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5358,7 +5354,7 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled) })
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
+
 		adminClient := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			DeploymentValues:         dv,
@@ -5426,11 +5422,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-				}),
-			})
+			client, db                           = coderdtest.NewWithDatabase(t, nil)
 			admin                                = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 			_, toShareWithUser                   = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -5461,11 +5453,7 @@ func TestDeleteWorkspaceACL(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-				}),
-			})
+			client, db                           = coderdtest.NewWithDatabase(t, nil)
 			admin                                = coderdtest.CreateFirstUser(t, client)
 			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 			sharedUseClient, toShareWithUser     = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -5504,11 +5492,7 @@ func TestWorkspaceReadCanListACL(t *testing.T) {
 	t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled) })
 
 	var (
-		client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-				dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
-			}),
-		})
+		client, db                           = coderdtest.NewWithDatabase(t, nil)
 		admin                                = coderdtest.CreateFirstUser(t, client)
 		workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		sharedUserClientA, sharedUserA       = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -5558,7 +5542,6 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 					// DisableWorkspaceSharing is false (default)
 				}),
 			})
@@ -5592,7 +5575,6 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
-					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceSharing)}
 					dv.DisableWorkspaceSharing = true
 				}),
 			})

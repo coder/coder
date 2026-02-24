@@ -1,6 +1,5 @@
-import AlertTitle from "@mui/material/AlertTitle";
 import type { WorkspaceResource } from "api/typesGenerated";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { Link } from "components/Link/Link";
 import { useProxy } from "contexts/ProxyContext";
 import { useAuthenticated } from "hooks/useAuthenticated";
