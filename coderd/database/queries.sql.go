@@ -13295,8 +13295,8 @@ func (q *sqlQuerier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (Tas
 
 const getTelemetryTaskEvents = `-- name: GetTelemetryTaskEvents :many
 WITH task_app_ids AS (
-    SELECT task_id, workspace_app_id
-    FROM task_workspace_apps
+	SELECT task_id, workspace_app_id
+	FROM task_workspace_apps
 ),
 task_status_timeline AS (
 	-- All app statuses across every historical app for each task,
@@ -13314,107 +13314,107 @@ task_status_timeline AS (
 		AND wb.build_number > 1
 ),
 task_event_data AS (
-    SELECT
-        t.id AS task_id,
-        t.workspace_id,
-        twa.workspace_app_id,
-        -- Latest stop build.
-        stop_build.created_at AS stop_build_created_at,
-        stop_build.reason AS stop_build_reason,
-        -- Latest start build (task_resume only).
-        start_build.created_at AS start_build_created_at,
+	SELECT
+		t.id AS task_id,
+		t.workspace_id,
+		twa.workspace_app_id,
+		-- Latest stop build.
+		stop_build.created_at AS stop_build_created_at,
+		stop_build.reason AS stop_build_reason,
+		-- Latest start build (task_resume only).
+		start_build.created_at AS start_build_created_at,
 		start_build.reason AS start_build_reason,
 		start_build.build_number AS start_build_number,
-        -- Last "working" app status (for idle duration).
-        lws.created_at AS last_working_status_at,
-        -- First app status after resume (for resume-to-status duration).
-        -- Only populated for workspaces in an active phase (started more
-        -- recently than stopped).
-        fsar.created_at AS first_status_after_resume_at,
-        -- Cumulative time spent in "working" state.
-        active_dur.total_working_ms AS active_duration_ms
-    FROM tasks t
-    LEFT JOIN LATERAL (
-        SELECT task_app.workspace_app_id
-        FROM task_workspace_apps task_app
-        WHERE task_app.task_id = t.id
-        ORDER BY task_app.workspace_build_number DESC
-        LIMIT 1
-    ) twa ON TRUE
-    LEFT JOIN LATERAL (
-        SELECT wb.created_at, wb.reason, wb.build_number
-        FROM workspace_builds wb
-        WHERE wb.workspace_id = t.workspace_id
-            AND wb.transition = 'stop'
-        ORDER BY wb.build_number DESC
-        LIMIT 1
-    ) stop_build ON TRUE
-    LEFT JOIN LATERAL (
-        SELECT wb.created_at, wb.reason, wb.build_number
-        FROM workspace_builds wb
-        WHERE wb.workspace_id = t.workspace_id
-            AND wb.transition = 'start'
-        ORDER BY wb.build_number DESC
-        LIMIT 1
-    ) start_build ON TRUE
-    LEFT JOIN LATERAL (
-        SELECT tst.created_at
-        FROM task_status_timeline tst
+		-- Last "working" app status (for idle duration).
+		lws.created_at AS last_working_status_at,
+		-- First app status after resume (for resume-to-status duration).
+		-- Only populated for workspaces in an active phase (started more
+		-- recently than stopped).
+		fsar.created_at AS first_status_after_resume_at,
+		-- Cumulative time spent in "working" state.
+		active_dur.total_working_ms AS active_duration_ms
+	FROM tasks t
+	LEFT JOIN LATERAL (
+		SELECT task_app.workspace_app_id
+		FROM task_workspace_apps task_app
+		WHERE task_app.task_id = t.id
+		ORDER BY task_app.workspace_build_number DESC
+		LIMIT 1
+	) twa ON TRUE
+	LEFT JOIN LATERAL (
+		SELECT wb.created_at, wb.reason, wb.build_number
+		FROM workspace_builds wb
+		WHERE wb.workspace_id = t.workspace_id
+			AND wb.transition = 'stop'
+		ORDER BY wb.build_number DESC
+		LIMIT 1
+	) stop_build ON TRUE
+	LEFT JOIN LATERAL (
+		SELECT wb.created_at, wb.reason, wb.build_number
+		FROM workspace_builds wb
+		WHERE wb.workspace_id = t.workspace_id
+			AND wb.transition = 'start'
+		ORDER BY wb.build_number DESC
+		LIMIT 1
+	) start_build ON TRUE
+	LEFT JOIN LATERAL (
+		SELECT tst.created_at
+		FROM task_status_timeline tst
 		WHERE tst.task_id = t.id
-            AND tst.state = 'working'
+			AND tst.state = 'working'
 		-- Only consider status before the latest pause so that
 		-- post-resume statuses don't mask pre-pause idle time.
 		AND (stop_build.created_at IS NULL
 			OR tst.created_at <= stop_build.created_at)
-        ORDER BY tst.created_at DESC
-        LIMIT 1
-    ) lws ON TRUE
-    LEFT JOIN LATERAL (
-        SELECT was.created_at
-        FROM workspace_app_statuses was
-        WHERE was.app_id = twa.workspace_app_id
-            AND was.created_at > start_build.created_at
-        ORDER BY was.created_at ASC
-        LIMIT 1
-    ) fsar ON twa.workspace_app_id IS NOT NULL
-        AND start_build.created_at IS NOT NULL
-        AND (stop_build.created_at IS NULL
-            OR start_build.created_at > stop_build.created_at)
-    -- Active duration: cumulative time spent in "working" state across all
-    -- historical app IDs for this task. Uses LEAD() to convert point-in-time
-    -- statuses into intervals, then sums intervals where state='working'. For
-    -- the last status, falls back to stop_build time (if paused) or @now (if
-    -- still running).
-    LEFT JOIN LATERAL (
-        SELECT COALESCE(
-            SUM(EXTRACT(EPOCH FROM (interval_end - interval_start)) * 1000)::bigint,
-            0
-        )::bigint AS total_working_ms
-        FROM (
-            SELECT
-                tst.created_at AS interval_start,
-                COALESCE(
-                    LEAD(tst.created_at) OVER (ORDER BY tst.created_at ASC, CASE WHEN tst.state = '_boundary' THEN 1 ELSE 0 END ASC),
+		ORDER BY tst.created_at DESC
+		LIMIT 1
+	) lws ON TRUE
+	LEFT JOIN LATERAL (
+		SELECT was.created_at
+		FROM workspace_app_statuses was
+		WHERE was.app_id = twa.workspace_app_id
+			AND was.created_at > start_build.created_at
+		ORDER BY was.created_at ASC
+		LIMIT 1
+	) fsar ON twa.workspace_app_id IS NOT NULL
+		AND start_build.created_at IS NOT NULL
+		AND (stop_build.created_at IS NULL
+			OR start_build.created_at > stop_build.created_at)
+	-- Active duration: cumulative time spent in "working" state across all
+	-- historical app IDs for this task. Uses LEAD() to convert point-in-time
+	-- statuses into intervals, then sums intervals where state='working'. For
+	-- the last status, falls back to stop_build time (if paused) or @now (if
+	-- still running).
+	LEFT JOIN LATERAL (
+		SELECT COALESCE(
+			SUM(EXTRACT(EPOCH FROM (interval_end - interval_start)) * 1000)::bigint,
+			0
+		)::bigint AS total_working_ms
+		FROM (
+			SELECT
+				tst.created_at AS interval_start,
+				COALESCE(
+					LEAD(tst.created_at) OVER (ORDER BY tst.created_at ASC, CASE WHEN tst.state = '_boundary' THEN 1 ELSE 0 END ASC),
 					CASE WHEN stop_build.created_at IS NOT NULL
 						AND (start_build.created_at IS NULL
 							OR stop_build.created_at > start_build.created_at)
 					THEN stop_build.created_at
 					ELSE $1::timestamptz
 					END
-                ) AS interval_end,
-                tst.state
+				) AS interval_end,
+				tst.state
 			FROM task_status_timeline tst
 			WHERE tst.task_id = t.id
-        ) intervals
-        WHERE intervals.state = 'working'
-    ) active_dur ON TRUE
-    WHERE t.deleted_at IS NULL
-        AND t.workspace_id IS NOT NULL
-        AND EXISTS (
-            SELECT 1 FROM workspace_builds wb
-            WHERE wb.workspace_id = t.workspace_id
-              AND wb.created_at > $2
-        )
+		) intervals
+		WHERE intervals.state = 'working'
+	) active_dur ON TRUE
+	WHERE t.deleted_at IS NULL
+		AND t.workspace_id IS NOT NULL
+		AND EXISTS (
+			SELECT 1 FROM workspace_builds wb
+			WHERE wb.workspace_id = t.workspace_id
+			  AND wb.created_at > $2
+		)
 )
 SELECT task_id, workspace_id, workspace_app_id, stop_build_created_at, stop_build_reason, start_build_created_at, start_build_reason, start_build_number, last_working_status_at, first_status_after_resume_at, active_duration_ms FROM task_event_data
 ORDER BY task_id
