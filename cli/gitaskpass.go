@@ -89,7 +89,6 @@ func gitAskpass(agentAuth *AgentAuth) *serpent.Command {
 
 			token, err := client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
 				Match:           host,
-				Workdir:         workingDirectory,
 				GitBranch:       gitBranch,
 				GitRemoteOrigin: gitRemoteOrigin,
 			})
@@ -124,9 +123,8 @@ func gitAskpass(agentAuth *AgentAuth) *serpent.Command {
 
 				for r := retry.New(250*time.Millisecond, 10*time.Second); r.Wait(ctx); {
 					token, err = client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
-						Match:   host,
-						Listen:  true,
-						Workdir: workingDirectory,
+						Match:  host,
+						Listen: true,
 					})
 					if err != nil {
 						continue

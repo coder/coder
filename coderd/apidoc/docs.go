@@ -10050,12 +10050,6 @@ const docTemplate = `{
                         "description": "Wait for a new token to be issued",
                         "name": "listen",
                         "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Working directory used for git context refresh",
-                        "name": "workdir",
-                        "in": "query"
                     }
                 ],
                 "responses": {

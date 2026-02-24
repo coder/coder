@@ -645,9 +645,6 @@ type ExternalAuthRequest struct {
 	ID string
 	// Match is an arbitrary string matched against the regex of the provider.
 	Match string
-	// Workdir is an optional working directory used for follow-up workspace
-	// context refreshes.
-	Workdir string
 	// GitBranch is the current git branch in the working directory.
 	// Sent by the agent so the control plane can resolve diffs
 	// without SSHing into the workspace.
@@ -670,9 +667,6 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 	}
 	if req.Listen {
 		q.Set("listen", "true")
-	}
-	if req.Workdir != "" {
-		q.Set("workdir", req.Workdir)
 	}
 	if req.GitBranch != "" {
 		q.Set("git_branch", req.GitBranch)
