@@ -77,3 +77,38 @@ To list shared workspaces:
 Once a workspace is shared, you can find the shared workspace by filtering for "Shared" in the Workspaces page.
 
 ![Sharing with a user or group](../images/user-guides/workspace-sharing-shared-view.png)
+
+#### Accessing workspace apps in shared workspaces
+
+Sharing a workspace grants SSH and terminal access to other users. However,
+workspace apps like code-server may return a **404 page** for non-owners
+depending on how the app is routed.
+
+By default, workspace apps that don't set `subdomain = true` use **path-based
+routing** (e.g., `coder.example.com/@user/workspace/apps/code-server/`).
+Path-based apps share the same origin as the Coder dashboard, so Coder blocks
+non-owners from accessing them to prevent
+[cross-site scripting risks](../tutorials/best-practices/security-best-practices.md#disable-path-based-apps).
+This restriction applies even when the user has been granted access through
+workspace sharing.
+
+To allow other users to access workspace apps, configure subdomain-based access:
+
+1. Set a
+   [wildcard access URL](../admin/networking/wildcard-access-url.md)
+   on your deployment
+   (e.g., `CODER_WILDCARD_ACCESS_URL=*.coder.example.com`).
+2. Set `subdomain = true` on the workspace app. For example, if you use the
+   [code-server module](https://registry.coder.com/modules/coder/code-server):
+
+   ```hcl
+   module "code-server" {
+     source    = "registry.coder.com/coder/code-server/coder"
+     agent_id  = coder_agent.main.id
+     subdomain = true
+     # ...
+   }
+   ```
+
+Subdomain-based apps run in an isolated browser security context, so Coder
+allows other users to access them without additional configuration.
