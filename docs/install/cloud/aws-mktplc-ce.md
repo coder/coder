@@ -18,7 +18,7 @@ We publish an Ubuntu 22.04 Container Image with Coder pre-installed and a suppor
 
 ![Coder on AWS Marketplace](../../images/platforms/aws/marketplace-ce.png)
 
-Use `View purchase options` to create a zero-cost subscription to Coder Community Edition and then use the `Launch your software` to deploy to your current AWS Account.
+Use `View purchase options` to create a zero-cost subscription to Coder Community Edition and then use `Launch your software` to deploy to your current AWS Account.
 
 ![AWS Marketplace Subscription](../../images/platforms/aws/marketplace-sub.png)
 
@@ -26,11 +26,19 @@ Select `EKS` for the Launch setup, choose the desired/lastest version to deploy,
 
 ![AWS Marketplace Launch](../../images/platforms/aws/marketplace-launch.png)
 
-(`t2.xlarge`, 4 cores and 16 GB
-memory) if you plan on provisioning Docker containers as workspaces on this EC2
-instance. Keep in mind this platforms is intended for proof-of-concept
-deployments and you should adjust your infrastructure when preparing for
+You will then be taken to the AWS Management Console, CloudFormation `Create stack` in the currently selected AWS Region.  Select `Next` to view the Coder Community Edition CloudFormation Stack parameters.
+
+![AWS Marketplace Stack](../../images/platforms/aws/marketplace-stack.png)
+
+The default parameters will support POCs and small team deployments of Coder using `t3.large` (2 cores and 8 GB memory) Nodes.  While the deployment using EKS Auto-mode and will scale using Karpenter, keep in mind this platforms is intended for proof-of-concept
+deployments. You should adjust your infrastructure when preparing for
 production use. See: [Scaling Coder](../../admin/infrastructure/index.md)
+
+![AWS Marketplace Parameters](../../images/platforms/aws/marketplace-parm.png)
+
+Select `Next` and follow the prompts to submit the CloudFormation Stack.  Deployment of the Stack can take 10-20 minutes, and will create EKS relates sub-stacks and a CodeBuild pipeline that automates the initial Helm deployment of Coder and final AWS Networks services integration.  Once the Stack succesfully creates, access the outputs as show below:
+
+![AWS Marketplace Outputs](../../images/platforms/aws/marketplace-output.png)
 
 Be sure to add a keypair so that you can connect over SSH to further
 [configure Coder](../../admin/setup/index.md).
