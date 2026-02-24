@@ -22,14 +22,14 @@ export const AIBridgeProviderIcon = ({
 		case "anthropic":
 			return (
 				<ExternalImage
-					src="/icon/claude.svg"
+					src="/icon/anthropic.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);
 		case "copilot":
 			return (
 				<ExternalImage
-					src="/icon/github.svg"
+					src="/icon/github-copilot.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);
