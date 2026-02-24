@@ -1037,10 +1037,12 @@ func TestCreateChat_HierarchyMetadata(t *testing.T) {
 }
 
 func TestChatModels_NoEnabledModels(t *testing.T) {
-	t.Setenv("OPENAI_API_KEY", "")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-
-	client := coderdtest.New(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
+			cfg.AI.BridgeConfig.OpenAI.Key = serpent.String("")
+			cfg.AI.BridgeConfig.Anthropic.Key = serpent.String("")
+		}),
+	})
 	_ = coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -1055,10 +1057,12 @@ func TestChatModels_NoEnabledModels(t *testing.T) {
 }
 
 func TestChatModels_NoEnabledModelsUsesMergedProviderKeys(t *testing.T) {
-	t.Setenv("OPENAI_API_KEY", "env-openai")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-
-	client := coderdtest.New(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
+			cfg.AI.BridgeConfig.OpenAI.Key = serpent.String("env-openai")
+			cfg.AI.BridgeConfig.Anthropic.Key = serpent.String("")
+		}),
+	})
 	_ = coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -1295,10 +1299,12 @@ func TestChatProviders(t *testing.T) {
 }
 
 func TestChatProviders_ListIncludesSupportedProvidersAndEnvPresets(t *testing.T) {
-	t.Setenv("OPENAI_API_KEY", "env-openai-key")
-	t.Setenv("ANTHROPIC_API_KEY", "")
-
-	client := coderdtest.New(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
+			cfg.AI.BridgeConfig.OpenAI.Key = serpent.String("env-openai-key")
+			cfg.AI.BridgeConfig.Anthropic.Key = serpent.String("")
+		}),
+	})
 	_ = coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitShort)
 

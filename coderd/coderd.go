@@ -13,7 +13,6 @@ import (
 	"net/http"
 	httppprof "net/http/pprof"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"runtime/pprof"
@@ -600,12 +599,6 @@ func New(options *Options) *API {
 			"openai":    options.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.Value(),
 			"anthropic": options.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.Value(),
 		},
-	}
-	if value := strings.TrimSpace(os.Getenv("OPENAI_API_KEY")); value != "" {
-		chatProviderAPIKeys.OpenAI = value
-	}
-	if value := strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY")); value != "" {
-		chatProviderAPIKeys.Anthropic = value
 	}
 
 	chatProviderAPIKeysResolver := func(ctx context.Context) (chatd.ProviderAPIKeys, error) {
