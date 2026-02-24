@@ -327,6 +327,7 @@ func TestTelemetry(t *testing.T) {
 		assert.Nil(t, taskEvent.IdleDurationMS)
 		assert.Nil(t, taskEvent.PausedDurationMS)
 		assert.Nil(t, taskEvent.ResumeToStatusMS)
+		assert.Nil(t, taskEvent.ActiveDurationMS)
 		for _, snapTask := range snapshot.Tasks {
 			assert.Equal(t, task.ID.String(), snapTask.ID)
 			assert.Equal(t, task.OrganizationID.String(), snapTask.OrganizationID)
@@ -997,12 +998,13 @@ func TestTasksTelemetry(t *testing.T) {
 				{2, -60 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 				{3, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonInitiator, nil},
 			},
-			expectEvent:       true,
-			lastPausedOffset:  ptr.Ref(-60 * time.Minute),
+			expectEvent:      true,
+			lastPausedOffset: ptr.Ref(-60 * time.Minute),
+			pauseReason:      ptr.Ref("auto"),
+			resumeReason:     ptr.Ref("other"),
+			// LastResumedAt is set because isResumed is true (build_number > 1)
+			// even though the start reason isn't task_resume.
 			lastResumedOffset: ptr.Ref(-30 * time.Minute),
-			pauseReason:       ptr.Ref("auto"),
-			resumeReason:      ptr.Ref("other"),
-			// LastResumedAt is nil because start wasn't task_resume.
 			// PausedDurationMS reports ongoing pause: now - (-60min) = 60min.
 			pausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()),
 		},
