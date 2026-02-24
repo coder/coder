@@ -77,4 +77,3 @@ To list shared workspaces:
 Once a workspace is shared, you can find the shared workspace by filtering for "Shared" in the Workspaces page.
 
 ![Sharing with a user or group](../images/user-guides/workspace-sharing-shared-view.png)
-
