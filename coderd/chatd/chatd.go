@@ -521,10 +521,10 @@ func (p *Processor) ListModels(ctx context.Context) (codersdk.ChatModelsResponse
 		return codersdk.ChatModelsResponse{}, err
 	}
 	catalog := newModelCatalog(keys)
-	if response, ok := catalog.listConfiguredModels(configuredProviders, configuredModels); ok {
+	if response, ok := catalog.ListConfiguredModels(configuredProviders, configuredModels); ok {
 		return response, nil
 	}
-	return catalog.listConfiguredProviderAvailability(configuredProviders), nil
+	return catalog.ListConfiguredProviderAvailability(configuredProviders), nil
 }
 
 // EffectiveProviderKeys merges configured provider keys over resolver keys.
@@ -1780,7 +1780,7 @@ func (p *Processor) resolveFallbackChatModelConfig(
 		if normalizedProviderHint != "" && provider != normalizedProviderHint {
 			continue
 		}
-		if providerKeys.apiKey(provider) == "" {
+		if providerKeys.APIKey(provider) == "" {
 			continue
 		}
 		return modelConfig, nil
@@ -4418,7 +4418,7 @@ func anyAvailableModel(keys ProviderAPIKeys) (fantasy.LanguageModel, error) {
 
 	var firstErr error
 	for _, candidate := range candidates {
-		if keys.apiKey(candidate.Provider) == "" {
+		if keys.APIKey(candidate.Provider) == "" {
 			continue
 		}
 
@@ -4449,7 +4449,7 @@ func modelFromConfig(config chatModelConfig, providerKeys ProviderAPIKeys) (fant
 		return nil, err
 	}
 
-	apiKey := providerKeys.apiKey(provider)
+	apiKey := providerKeys.APIKey(provider)
 	if apiKey == "" {
 		return nil, missingProviderAPIKeyError(provider)
 	}
