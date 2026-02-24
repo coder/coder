@@ -978,7 +978,7 @@ func buildTaskEvent(
 			// TODO(Cian): will this exist? Future readers may know better than I.
 			// case row.StartBuildReason == database.BuildReasonTaskAutoResume:
 			//	event.ResumeReason = ptr.Ref("auto")
-			case row.StartBuildReason == database.BuildReasonTaskResume:
+			case row.StartBuildReason.BuildReason == database.BuildReasonTaskResume:
 				event.ResumeReason = ptr.Ref("manual")
 			default: // Task resumed by starting workspace?
 				event.ResumeReason = ptr.Ref("other")

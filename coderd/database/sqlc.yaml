@@ -135,6 +135,9 @@ sql:
               type: "NullBuildReason"
           - column: "task_event_data.start_build_created_at"
             go_type: "database/sql.NullTime"
+          - column: "task_event_data.start_build_reason"
+            go_type:
+              type: "NullBuildReason"
           - column: "task_event_data.last_working_status_at"
             go_type: "database/sql.NullTime"
           - column: "task_event_data.first_status_after_resume_at"
