@@ -31,26 +31,26 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { AgentChatInput } from "./AgentChatInput";
-import type { AgentsOutletContext } from "./AgentsPage";
-import { ConversationTimeline } from "./agentDetail/ConversationTimeline";
+import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import {
 	getLatestContextUsage,
 	getParentChatID,
 	getWorkspaceAgent,
 	resolveModelFromChatConfig,
-} from "./agentDetail/chatHelpers";
+} from "./AgentDetail/chatHelpers";
 import {
 	buildParsedMessageSections,
 	buildSubagentTitles,
 	parseMessagesWithMergedTools,
-} from "./agentDetail/messageParsing";
+} from "./AgentDetail/messageParsing";
 import {
 	applyMessagePartToStreamState,
 	buildStreamTools,
-} from "./agentDetail/streamState";
-import { AgentDetailTopBarPortals } from "./agentDetail/TopBarPortals";
-import type { StreamState } from "./agentDetail/types";
-import { useMessageWindow } from "./agentDetail/useMessageWindow";
+} from "./AgentDetail/streamState";
+import { AgentDetailTopBarPortals } from "./AgentDetail/TopBarPortals";
+import type { StreamState } from "./AgentDetail/types";
+import { useMessageWindow } from "./AgentDetail/useMessageWindow";
+import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
