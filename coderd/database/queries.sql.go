@@ -934,7 +934,8 @@ SELECT
 FROM
 	aibridge_interceptions
 WHERE
-	ended_at IS NOT NULL
+	-- Remove inflight interceptions (ones which lack an ended_at value).
+	aibridge_interceptions.ended_at IS NOT NULL
 	-- Filter model
 	AND CASE
 		WHEN $1::text != '' THEN aibridge_interceptions.model LIKE $1::text || '%'
