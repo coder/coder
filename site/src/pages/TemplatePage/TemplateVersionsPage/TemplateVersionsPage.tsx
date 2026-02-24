@@ -1,15 +1,22 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useState } from "react";
 import { useMutation, useQuery } from "react-query";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getTemplatePageTitle } from "../utils";
 import { VersionsTable } from "./VersionsTable";
 
 const TemplateVersionsPage = () => {
+	const navigate = useNavigate();
+	const getLink = useLinks();
 	const { template, permissions } = useTemplateLayoutContext();
+	const templateLink = getLink(
+		linkToTemplate(template.organization_name, template.name),
+	);
 	const { data } = useQuery({
 		queryKey: ["template", "versions", template.id],
 		queryFn: () => API.getTemplateVersions(template.id),
@@ -34,6 +41,12 @@ const TemplateVersionsPage = () => {
 				versionName
 					? `Version "${versionName}" promoted successfully.`
 					: "Version promoted successfully.",
+				{
+					action: {
+						label: "View template",
+						onClick: () => navigate(templateLink),
+					},
+				},
 			);
 		},
 		onError: (error) => {

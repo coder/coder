@@ -48,6 +48,7 @@ import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import {
 	Link as RouterLink,
+	useNavigate,
 	unstable_usePrompt as usePrompt,
 } from "react-router";
 import { toast } from "sonner";
@@ -130,6 +131,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	activePath,
 	onActivePathChange,
 }) => {
+	const navigate = useNavigate();
 	const getLink = useLinks();
 	const [selectedTab, setSelectedTab] = useState<Tab>(defaultTab);
 	const [fileTree, setFileTree] = useState(defaultFileTree);
@@ -174,6 +176,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 		};
 	}, [triggerPreview]);
 
+	const canBuild = !isBuilding;
+	const templateLink = getLink(
+		linkToTemplate(template.organization_name, template.name),
+	);
+
 	// Automatically switch to the template preview tab when the build succeeds.
 	const previousVersion = useRef<TemplateVersion>(undefined);
 	useEffect(() => {
@@ -189,21 +196,22 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 			setDirty(false);
 			toast.success(
 				`Template version "${previousVersion.current.name}" built successfully.`,
+				{
+					action: {
+						label: "View template",
+						onClick: () => navigate(templateLink),
+					},
+				},
 			);
 		}
 		previousVersion.current = templateVersion;
-	}, [templateVersion]);
+	}, [templateVersion, navigate, templateLink]);
 
 	const editorValue = activePath ? getFileText(activePath, fileTree) : "";
 	const isEditorValueBinary =
 		typeof editorValue === "string" ? isBinaryData(editorValue) : false;
 
 	useLeaveSiteWarning(dirty);
-
-	const canBuild = !isBuilding;
-	const templateLink = getLink(
-		linkToTemplate(template.organization_name, template.name),
-	);
 
 	const gotBuildLogs = buildLogs && buildLogs.length > 0;
 

@@ -31,6 +31,7 @@ import { useExternalAuth } from "hooks/useExternalAuth";
 import { ArrowUpIcon, InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
 import TextareaAutosize, {
 	type TextareaAutosizeProps,
 } from "react-textarea-autosize";
@@ -51,6 +52,8 @@ export const TaskPrompt: FC<TaskPromptProps> = ({
 	error,
 	onRetry,
 }) => {
+	const navigate = useNavigate();
+
 	if (error) {
 		return <TaskPromptLoadingError error={error} onRetry={onRetry} />;
 	}
@@ -64,7 +67,13 @@ export const TaskPrompt: FC<TaskPromptProps> = ({
 		<CreateTaskForm
 			templates={templates}
 			onSuccess={(task) => {
-				toast.success(`Task "${task.name}" created successfully.`);
+				toast.success(`Task "${task.name}" created successfully.`, {
+					description: `"${task.initial_prompt}"`,
+					action: {
+						label: "View task",
+						onClick: () => navigate(`/tasks/${task.owner_name}/${task.id}`),
+					},
+				});
 			}}
 		/>
 	);
