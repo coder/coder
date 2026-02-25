@@ -197,8 +197,19 @@ func (m *StreamManager) StopStream(chatID uuid.UUID) {
 	if ok {
 		state.buffer = nil
 		state.buffering = false
+		if len(state.subscribers) == 0 {
+			delete(m.chats, chatID)
+		}
 	}
 	m.mu.Unlock()
+}
+
+// Len returns the number of tracked chat streams. This is intended
+// for use in tests.
+func (m *StreamManager) Len() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.chats)
 }
 
 func (m *StreamManager) Publish(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
@@ -247,6 +258,9 @@ func (m *StreamManager) Subscribe(chatID uuid.UUID) (
 			if subscriber, exists := state.subscribers[id]; exists {
 				delete(state.subscribers, id)
 				close(subscriber)
+			}
+			if !state.buffering && len(state.subscribers) == 0 {
+				delete(m.chats, chatID)
 			}
 		}
 		m.mu.Unlock()
