@@ -64,7 +64,7 @@ const statusBorderClassByLifecycle: Partial<
 	Record<WorkspaceAgent["lifecycle_state"], string>
 > = {
 	starting: "border-border-pending",
-	shutting_down: "border-border-primary",
+	shutting_down: "border-border-pending",
 	ready: "border-border-success",
 	start_timeout: "border-border-warning",
 	shutdown_timeout: "border-border-warning",
