@@ -1262,6 +1262,7 @@ CREATE TABLE chats (
     status chat_status DEFAULT 'waiting'::chat_status NOT NULL,
     worker_id uuid,
     started_at timestamp with time zone,
+    heartbeat_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     parent_chat_id uuid,

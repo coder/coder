@@ -3879,6 +3879,7 @@ type Chat struct {
 	Status           ChatStatus    `db:"status" json:"status"`
 	WorkerID         uuid.NullUUID `db:"worker_id" json:"worker_id"`
 	StartedAt        sql.NullTime  `db:"started_at" json:"started_at"`
+	HeartbeatAt      sql.NullTime  `db:"heartbeat_at" json:"heartbeat_at"`
 	CreatedAt        time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt        time.Time     `db:"updated_at" json:"updated_at"`
 	ParentChatID     uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`

@@ -22,6 +22,7 @@ CREATE TABLE chats (
     status              chat_status NOT NULL DEFAULT 'waiting',
     worker_id           UUID,
     started_at          TIMESTAMPTZ,
+    heartbeat_at        TIMESTAMPTZ,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     parent_chat_id      UUID        REFERENCES chats(id) ON DELETE SET NULL,

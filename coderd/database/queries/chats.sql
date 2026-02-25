@@ -206,6 +206,7 @@ UPDATE
 SET
     status = 'running'::chat_status,
     started_at = @started_at::timestamptz,
+    heartbeat_at = @started_at::timestamptz,
     updated_at = @started_at::timestamptz,
     worker_id = @worker_id::uuid
 WHERE
@@ -233,6 +234,7 @@ SET
     status = @status::chat_status,
     worker_id = sqlc.narg('worker_id')::uuid,
     started_at = sqlc.narg('started_at')::timestamptz,
+    heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -240,15 +242,26 @@ RETURNING
     *;
 
 -- name: GetStaleChats :many
--- Find chats that appear stuck (running but no heartbeat).
--- Used for recovery after coderd crashes.
+-- Find chats that appear stuck (running but heartbeat has expired).
+-- Used for recovery after coderd crashes or long hangs.
 SELECT
     *
 FROM
     chats
 WHERE
     status = 'running'::chat_status
-    AND started_at < @stale_threshold::timestamptz;
+    AND heartbeat_at < @stale_threshold::timestamptz;
+
+-- name: UpdateChatHeartbeat :exec
+-- Bumps the heartbeat timestamp for a running chat so that other
+-- replicas know the worker is still alive.
+UPDATE
+    chats
+SET
+    heartbeat_at = NOW()
+WHERE
+    id = @id::uuid
+    AND status = 'running'::chat_status;
 
 -- name: GetChatDiffStatusByChatID :one
 SELECT

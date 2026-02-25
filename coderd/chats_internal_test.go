@@ -128,58 +128,6 @@ func TestChatWorkspaceAuditStatus(t *testing.T) {
 	})
 }
 
-func TestSynthesizeChatWorkspaceRequestPreservesMetadata(t *testing.T) {
-	t.Parallel()
-
-	requestID := uuid.New()
-	metadata := chatWorkspaceRequestMetadata{
-		Header:     http.Header{"User-Agent": []string{"coder-test-agent"}},
-		RemoteAddr: "203.0.113.42:9999",
-		RequestID:  requestID.String(),
-	}
-
-	req, err := synthesizeChatWorkspaceRequest(
-		context.Background(),
-		"http://localhost/api/v2/chats/workspace",
-		metadata,
-	)
-	require.NoError(t, err)
-	require.Equal(t, metadata.RemoteAddr, req.RemoteAddr)
-	require.Equal(t, metadata.Header.Get("User-Agent"), req.Header.Get("User-Agent"))
-	require.Equal(t, requestID, httpmw.RequestID(req))
-}
-
-func TestSynthesizeChatWorkspaceRequestFallsBackToGeneratedRequestID(t *testing.T) {
-	t.Parallel()
-
-	req, err := synthesizeChatWorkspaceRequest(
-		context.Background(),
-		"http://localhost/api/v2/chats/workspace",
-		chatWorkspaceRequestMetadata{RequestID: "not-a-uuid"},
-	)
-	require.NoError(t, err)
-	require.NotEqual(t, uuid.Nil, httpmw.RequestID(req))
-}
-
-func TestConvertChatMessagesSkipsWorkspaceMetadata(t *testing.T) {
-	t.Parallel()
-
-	messages := []database.ChatMessage{
-		{
-			ID:   1,
-			Role: "user",
-		},
-		{
-			ID:         2,
-			Role:       chatWorkspaceRequestMetadataRole,
-			Visibility: database.ChatMessageVisibilityModel,
-		},
-	}
-
-	converted := convertChatMessages(messages)
-	require.Len(t, converted, 1)
-	require.Equal(t, int64(1), converted[0].ID)
-}
 
 func TestShouldQueueUserMessage(t *testing.T) {
 	t.Parallel()

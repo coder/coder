@@ -224,18 +224,18 @@ func TestChats(t *testing.T) {
 
 		_, err = api.Database.InsertChatMessage(
 			dbauthz.AsSystemRestricted(ctx),
-				database.InsertChatMessageParams{
-					ChatID:  chat.ID,
-					Role:    "assistant",
-					Content: pqtype.NullRawMessage{RawMessage: json.RawMessage(`"usage response"`), Valid: true},
-					Visibility: database.NullChatMessageVisibility{
-						ChatMessageVisibility: database.ChatMessageVisibilityBoth,
-						Valid:                 true,
-					},
-					InputTokens: sql.NullInt64{
-						Int64: 120,
-						Valid: true,
-					},
+			database.InsertChatMessageParams{
+				ChatID:  chat.ID,
+				Role:    "assistant",
+				Content: pqtype.NullRawMessage{RawMessage: json.RawMessage(`"usage response"`), Valid: true},
+				Visibility: database.NullChatMessageVisibility{
+					ChatMessageVisibility: database.ChatMessageVisibilityBoth,
+					Valid:                 true,
+				},
+				InputTokens: sql.NullInt64{
+					Int64: 120,
+					Valid: true,
+				},
 				OutputTokens: sql.NullInt64{
 					Int64: 45,
 					Valid: true,

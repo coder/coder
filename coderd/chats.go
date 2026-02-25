@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -43,7 +42,6 @@ const (
 	chatDiffBackgroundRefreshTimeout = 20 * time.Second
 	githubAPIBaseURL                 = "https://api.github.com"
 
-	chatWorkspaceRequestMetadataRole              = "__chat_workspace_request_metadata"
 	chatContextLimitModelConfigKey                = "context_limit"
 	chatContextCompressionThresholdModelConfigKey = "context_compression_threshold"
 	defaultChatContextCompressionThreshold        = int32(70)
@@ -108,12 +106,6 @@ type chatRepositoryRef struct {
 type chatDiffReference struct {
 	PullRequestURL string
 	RepositoryRef  *chatRepositoryRef
-}
-
-type chatWorkspaceRequestMetadata struct {
-	Header     http.Header `json:"header,omitempty"`
-	RemoteAddr string      `json:"remote_addr,omitempty"`
-	RequestID  string      `json:"request_id,omitempty"`
 }
 
 // @Summary Watch chat list updates
@@ -236,72 +228,6 @@ func (api *API) getChatDiffStatusesByChatID(
 	return statusesByChatID, nil
 }
 
-func chatWorkspaceRequestMetadataFromRequest(r *http.Request) chatWorkspaceRequestMetadata {
-	metadata := chatWorkspaceRequestMetadata{
-		RemoteAddr: strings.TrimSpace(r.RemoteAddr),
-	}
-
-	if requestID, ok := httpmw.RequestIDOptional(r); ok && requestID != uuid.Nil {
-		metadata.RequestID = requestID.String()
-	}
-
-	userAgent := strings.TrimSpace(r.UserAgent())
-	if userAgent != "" {
-		metadata.Header = make(http.Header, 1)
-		metadata.Header.Set("User-Agent", userAgent)
-	}
-
-	return metadata
-}
-
-func (m chatWorkspaceRequestMetadata) empty() bool {
-	return strings.TrimSpace(m.RequestID) == "" &&
-		strings.TrimSpace(m.RemoteAddr) == "" &&
-		len(m.Header) == 0
-}
-
-func (api *API) recordChatWorkspaceRequestMetadata(ctx context.Context, chatID uuid.UUID, r *http.Request) {
-	_ = ctx
-	_ = chatID
-	_ = r
-}
-
-func (api *API) latestChatWorkspaceRequestMetadata(
-	ctx context.Context,
-	chatID uuid.UUID,
-) (chatWorkspaceRequestMetadata, bool) {
-	_ = ctx
-	_ = chatID
-	return chatWorkspaceRequestMetadata{}, false
-}
-
-func synthesizeChatWorkspaceRequest(
-	ctx context.Context,
-	workspaceCreateURL string,
-	metadata chatWorkspaceRequestMetadata,
-) (*http.Request, error) {
-	requestID := uuid.New()
-	if parsedRequestID, err := uuid.Parse(strings.TrimSpace(metadata.RequestID)); err == nil && parsedRequestID != uuid.Nil {
-		requestID = parsedRequestID
-	}
-
-	req, err := http.NewRequestWithContext(
-		httpmw.WithRequestID(ctx, requestID),
-		http.MethodPost,
-		workspaceCreateURL,
-		nil,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(metadata.Header) > 0 {
-		req.Header = metadata.Header.Clone()
-	}
-	req.RemoteAddr = strings.TrimSpace(metadata.RemoteAddr)
-	return req, nil
-}
-
 // @Summary Create a chat
 // @ID create-chat
 // @Security CoderSessionToken
@@ -410,8 +336,6 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	api.recordChatWorkspaceRequestMetadata(ctx, chat.ID, r)
 
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChat(chat, nil))
 }
@@ -673,7 +597,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		response.Messages = convertChatMessages(sendResult.Messages)
-		api.recordChatWorkspaceRequestMetadata(ctx, chatID, r)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -1122,76 +1045,25 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, diff)
 }
 
-func (api *API) newChatWorkspaceCreator() chatd.CreateWorkspaceFunc {
-	return chatd.NewWorkspaceCreator(
-		api.prepareChatWorkspaceCreate,
-		api.authorizedChatWorkspaceTemplates,
-		api.createChatWorkspace,
-		api.Database,
-		api.Pubsub,
-		api.Logger,
-	)
+// chatWorkspaceCreator provides workspace creation for the chat
+// processor. RBAC authorization uses context-based checks via
+// dbauthz.As rather than fake *http.Request objects.
+type chatWorkspaceCreator struct {
+	api *API
 }
 
-func (api *API) prepareChatWorkspaceCreate(
+func (c *chatWorkspaceCreator) CreateWorkspace(
 	ctx context.Context,
-	chat database.Chat,
-) (context.Context, *http.Request, string, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, chat.OwnerID, rbac.ScopeAll)
-	if err != nil {
-		return nil, nil, "", xerrors.Errorf("load chat owner authorization: %w", err)
-	}
-	ctx = dbauthz.As(ctx, actor)
-
-	metadata, _ := api.latestChatWorkspaceRequestMetadata(ctx, chat.ID)
-
-	accessURL := ""
-	workspaceCreateURL := "http://localhost/api/v2/chats/workspace"
-	if api.AccessURL != nil {
-		accessURL = strings.TrimRight(api.AccessURL.String(), "/")
-		workspaceCreateURL = accessURL + "/api/v2/chats/workspace"
-	}
-
-	req, err := synthesizeChatWorkspaceRequest(ctx, workspaceCreateURL, metadata)
-	if err != nil {
-		return nil, nil, "", xerrors.Errorf("create synthetic workspace request: %w", err)
-	}
-
-	return ctx, req, accessURL, nil
-}
-
-func (api *API) authorizedChatWorkspaceTemplates(
-	ctx context.Context,
-	r *http.Request,
-) ([]database.Template, error) {
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceTemplate.Type)
-	if err != nil {
-		return nil, xerrors.Errorf("prepare template authorization filter: %w", err)
-	}
-
-	templates, err := api.Database.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
-		Deleted: false,
-		Deprecated: sql.NullBool{
-			Bool:  false,
-			Valid: true,
-		},
-	}, prepared)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return []database.Template{}, nil
-		}
-		return nil, xerrors.Errorf("get authorized templates: %w", err)
-	}
-	return templates, nil
-}
-
-func (api *API) createChatWorkspace(
-	ctx context.Context,
-	r *http.Request,
 	ownerID uuid.UUID,
 	req codersdk.CreateWorkspaceRequest,
 ) (codersdk.Workspace, error) {
-	ownerUser, err := api.Database.GetUserByID(ctx, ownerID)
+	actor, _, err := httpmw.UserRBACSubject(ctx, c.api.Database, ownerID, rbac.ScopeAll)
+	if err != nil {
+		return codersdk.Workspace{}, xerrors.Errorf("load user authorization: %w", err)
+	}
+	ctx = dbauthz.As(ctx, actor)
+
+	ownerUser, err := c.api.Database.GetUserByID(ctx, ownerID)
 	if err != nil {
 		return codersdk.Workspace{}, xerrors.Errorf("get workspace owner: %w", err)
 	}
@@ -1201,17 +1073,35 @@ func (api *API) createChatWorkspace(
 		AvatarURL: ownerUser.AvatarURL,
 	}
 
-	auditor := api.Auditor.Load()
+	auditor := c.api.Auditor.Load()
 	if auditor == nil {
 		return codersdk.Workspace{}, xerrors.New("auditor is not configured")
 	}
 
+	// The audit system requires a ResponseWriter to capture the
+	// HTTP status code. Since this is a programmatic call, we use
+	// a recorder. The audit entry still captures the owner, action,
+	// and resource correctly.
 	rw := httptest.NewRecorder()
 	sw := &tracing.StatusWriter{ResponseWriter: rw}
+
+	// Build a minimal synthetic request so the audit commit
+	// closure can extract a request ID and user agent. The RBAC
+	// subject is already on the context via dbauthz.As above.
+	auditReq, err := http.NewRequestWithContext(
+		httpmw.WithRequestID(ctx, uuid.New()),
+		http.MethodPost,
+		"http://localhost/internal/chat/workspace",
+		nil,
+	)
+	if err != nil {
+		return codersdk.Workspace{}, xerrors.Errorf("create audit request: %w", err)
+	}
+
 	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](sw, &audit.RequestParams{
 		Audit:   *auditor,
-		Log:     api.Logger,
-		Request: r,
+		Log:     c.api.Logger,
+		Request: auditReq,
 		Action:  database.AuditActionCreate,
 		AdditionalFields: audit.AdditionalFields{
 			WorkspaceOwner: owner.Username,
@@ -1220,7 +1110,7 @@ func (api *API) createChatWorkspace(
 	aReq.UserID = ownerID
 	defer commitAudit()
 
-	workspace, err := createWorkspace(ctx, aReq, ownerID, api, owner, req, r, nil)
+	workspace, err := createWorkspace(ctx, aReq, ownerID, c.api, owner, req, nil)
 	if err != nil {
 		sw.WriteHeader(chatWorkspaceAuditStatus(err))
 		return codersdk.Workspace{}, err
@@ -2682,9 +2572,6 @@ func convertChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage {
 	result := make([]codersdk.ChatMessage, 0, len(messages))
 	for _, m := range messages {
-		if m.Role == chatWorkspaceRequestMetadataRole {
-			continue
-		}
 		result = append(result, convertChatMessage(m))
 	}
 	return result

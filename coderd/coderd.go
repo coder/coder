@@ -806,6 +806,7 @@ func New(options *Options) *API {
 		if replicaHTTPClient == nil {
 			replicaHTTPClient = options.HTTPClient
 		}
+		creator := &chatWorkspaceCreator{api: api}
 		options.ChatProcessor = chatd.New(chatd.Config{
 			Logger:                 options.Logger.Named("chats"),
 			Database:               options.Database,
@@ -814,7 +815,7 @@ func New(options *Options) *API {
 			ReplicaHTTPClient:      replicaHTTPClient,
 			ResolveProviderAPIKeys: chatProviderAPIKeysResolver,
 			AgentConn:              api.agentProvider.AgentConn,
-			CreateWorkspace:        api.newChatWorkspaceCreator(),
+			CreateWorkspace:        creator.CreateWorkspace,
 			Pubsub:                 options.Pubsub,
 		})
 	}

@@ -14,14 +14,6 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasyazure "charm.land/fantasy/providers/azure"
-	fantasybedrock "charm.land/fantasy/providers/bedrock"
-	fantasygoogle "charm.land/fantasy/providers/google"
-	fantasyopenai "charm.land/fantasy/providers/openai"
-	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
-	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
-	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -53,18 +45,13 @@ const (
 
 	defaultExternalAuthWait      = 5 * time.Minute
 	homeInstructionLookupTimeout = 5 * time.Second
+	instructionCacheTTL          = 5 * time.Minute
+	chatHeartbeatInterval        = 30 * time.Second
 	maxChatSteps                 = 1200
 
 	defaultContextCompressionThresholdPercent = int32(70)
 
-	maxReadFileBytes                    int64 = 1 << 20 // 1 MiB
-	maxCreateWorkspaceBuildLogLines           = 120
-	maxCreateWorkspaceBuildLogChars           = 16 * 1024
-	maxCreateWorkspaceBuildLogLineChars       = 240
-
-	defaultTitleGenerationPrompt = "Generate a concise title (max 8 words, under 128 characters) for " +
-		"the user's first message. Return plain text only — no quotes, no emoji, " +
-		"no markdown, no special characters."
+	maxReadFileBytes int64 = 1 << 20 // 1 MiB
 
 	defaultNoWorkspaceInstruction = "No workspace is selected yet. Call the create_workspace tool first before using read_file, write_file, or execute. If create_workspace fails, ask the user to clarify the template or workspace request."
 	defaultSubagentInstruction    = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
@@ -96,58 +83,35 @@ type Server struct {
 	replicaHTTPClient     *http.Client
 
 	agentConnFn              AgentConnFunc
-	createWorkspaceFn        CreateWorkspaceFunc
+	createWorkspaceFn        chattool.CreateWorkspaceFn
 	testing                  *TestingConfig
 	streamManager            *StreamManager
 	pubsub                   pubsub.Pubsub
 	resolveProviderAPIKeysFn ProviderAPIKeysResolver
-	titleGeneration          TitleGenerationConfig
-	titleModelLookup         func(chatprovider.ProviderAPIKeys) (fantasy.LanguageModel, error)
 
 	activeMu      sync.Mutex
 	activeCancels map[uuid.UUID]context.CancelCauseFunc
+
+	// instructionCache caches home instruction file contents by
+	// workspace agent ID so we don't re-dial on every chat turn.
+	instructionCacheMu sync.Mutex
+	instructionCache   map[uuid.UUID]cachedInstruction
 
 	// Configuration
 	pendingChatAcquireInterval time.Duration
 	inFlightChatStaleAfter     time.Duration
 }
 
+type cachedInstruction struct {
+	instruction string
+	fetchedAt   time.Time
+}
+
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
 
-// CreateWorkspaceFunc creates workspaces for chats when none are selected.
-type CreateWorkspaceFunc func(
-	ctx context.Context,
-	req CreateWorkspaceToolRequest,
-) (CreateWorkspaceToolResult, error)
-
-// CreateWorkspaceToolRequest is the request payload for the create_workspace tool.
-type CreateWorkspaceToolRequest struct {
-	Chat            database.Chat
-	Model           fantasy.LanguageModel
-	Prompt          string
-	Spec            json.RawMessage
-	BuildLogHandler CreateWorkspaceBuildLogHandler
-}
-
-type CreateWorkspaceBuildLogHandler func(CreateWorkspaceBuildLog)
-
-type CreateWorkspaceBuildLog struct {
-	Source string
-	Level  string
-	Stage  string
-	Output string
-}
-
-// CreateWorkspaceToolResult is the normalized result payload for the create_workspace tool.
-type CreateWorkspaceToolResult struct {
-	Created          bool
-	WorkspaceID      uuid.UUID
-	WorkspaceAgentID uuid.UUID
-	WorkspaceName    string
-	WorkspaceURL     string
-	Reason           string
-}
+// CreateWorkspaceFn creates a workspace for the given owner.
+type CreateWorkspaceFn = chattool.CreateWorkspaceFn
 
 // ProviderAPIKeysResolver resolves provider API keys for chat model calls.
 type ProviderAPIKeysResolver func(context.Context) (chatprovider.ProviderAPIKeys, error)
@@ -158,21 +122,6 @@ type ReplicaAddressResolver func(context.Context, uuid.UUID) (string, bool)
 // TestingConfig contains hooks intended only for tests.
 type TestingConfig struct {
 	ResolveChatModel func(chat database.Chat) (fantasy.LanguageModel, error)
-}
-
-// TitleGenerationConfig controls AI-generated chat title behavior.
-type TitleGenerationConfig struct {
-	Prompt string
-}
-
-func (c TitleGenerationConfig) withDefaults() TitleGenerationConfig {
-	cfg := TitleGenerationConfig{
-		Prompt: strings.TrimSpace(c.Prompt),
-	}
-	if cfg.Prompt == "" {
-		cfg.Prompt = defaultTitleGenerationPrompt
-	}
-	return cfg
 }
 
 // StreamManager broadcasts in-flight chat stream events.
@@ -926,11 +875,10 @@ type Config struct {
 	PendingChatAcquireInterval time.Duration
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
-	CreateWorkspace            CreateWorkspaceFunc
+	CreateWorkspace            CreateWorkspaceFn
 	StreamManager              *StreamManager
 	Pubsub                     pubsub.Pubsub
 	ResolveProviderAPIKeys     ProviderAPIKeysResolver
-	TitleGeneration            TitleGenerationConfig
 	Testing                    *TestingConfig
 }
 
@@ -985,8 +933,7 @@ func New(cfg Config) *Server {
 		streamManager:              streamManager,
 		pubsub:                     cfg.Pubsub,
 		resolveProviderAPIKeysFn:   resolveProviderAPIKeys,
-		titleGeneration:            cfg.TitleGeneration.withDefaults(),
-		titleModelLookup:           anyAvailableModel,
+		instructionCache:           make(map[uuid.UUID]cachedInstruction),
 		activeCancels:              make(map[uuid.UUID]context.CancelCauseFunc),
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
@@ -1538,6 +1485,24 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	defer p.unregisterChat(chat.ID)
 	defer cancel(nil)
 
+	// Periodically update the heartbeat so other replicas know this
+	// worker is still alive. The goroutine stops when chatCtx is
+	// canceled (either by completion or interruption).
+	go func() {
+		ticker := time.NewTicker(chatHeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-chatCtx.Done():
+				return
+			case <-ticker.C:
+				if err := p.db.UpdateChatHeartbeat(chatCtx, chat.ID); err != nil {
+					logger.Warn(ctx, "failed to update chat heartbeat", slog.Error(err))
+				}
+			}
+		}
+	}()
+
 	p.publishStatus(chat.ID, database.ChatStatusRunning)
 
 	// Determine the final status to set when we're done.
@@ -1660,16 +1625,17 @@ func (p *Server) runChat(
 	chat database.Chat,
 	logger slog.Logger,
 ) error {
+	model, modelConfig, err := p.resolveChatModel(ctx, chat)
+	if err != nil {
+		return err
+	}
+
 	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	if err != nil {
 		return xerrors.Errorf("get chat messages: %w", err)
 	}
-	p.maybeGenerateChatTitle(ctx, chat, messages, logger)
+	p.maybeGenerateChatTitle(ctx, chat, messages, model, logger)
 
-	chat, err = p.recoverMissingWorkspace(ctx, chat, logger)
-	if err != nil {
-		return err
-	}
 	prompt, err := chatprompt.ConvertMessages(messages)
 	if err != nil {
 		return xerrors.Errorf("build chat prompt: %w", err)
@@ -1683,12 +1649,7 @@ func (p *Server) runChat(
 		defer p.streamManager.StopStream(chat.ID)
 	}
 
-	model, modelConfig, err := p.resolveChatModel(ctx, chat)
-	if err != nil {
-		return err
-	}
-
-	result, err := p.runChatWithAgent(
+	_, err = p.runChatWithAgent(
 		ctx,
 		chat,
 		logger,
@@ -1696,13 +1657,7 @@ func (p *Server) runChat(
 		modelConfig,
 		prompt,
 	)
-	if err != nil {
-		return err
-	}
-	if hasExceededChatToolSteps(result) {
-		return xerrors.Errorf("chat exceeded %d tool steps", maxChatSteps)
-	}
-	return nil
+	return err
 }
 
 type chatContextCompressionConfig struct {
@@ -1836,10 +1791,13 @@ func (p *Server) persistChatContextSummary(
 	}
 
 	assistantMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:     chatID,
-		Role:       string(fantasy.MessageRoleAssistant),
-		Content:    assistantContent,
-		Visibility: bothChatMessageVisibility(),
+		ChatID:  chatID,
+		Role:    string(fantasy.MessageRoleAssistant),
+		Content: assistantContent,
+		Visibility: database.NullChatMessageVisibility{
+			ChatMessageVisibility: database.ChatMessageVisibilityUser,
+			Valid:                 true,
+		},
 		Compressed: sql.NullBool{
 			Bool:  true,
 			Valid: true,
@@ -2033,6 +1991,7 @@ func (p *Server) runChatWithAgent(
 	currentChat := chat
 	var (
 		chatStateMu sync.Mutex
+		workspaceMu sync.Mutex
 		conn        workspacesdk.AgentConn
 		releaseConn func()
 	)
@@ -2058,12 +2017,11 @@ func (p *Server) runChatWithAgent(
 			return nil, xerrors.New("workspace agent connector is not configured")
 		}
 
-		agentID, err := p.resolveAgentID(ctx, chatSnapshot)
-		if err != nil {
-			return nil, err
+		if !chatSnapshot.WorkspaceAgentID.Valid {
+			return nil, xerrors.New("chat has no workspace agent")
 		}
 
-		agentConn, agentRelease, err := p.agentConnFn(ctx, agentID)
+		agentConn, agentRelease, err := p.agentConnFn(ctx, chatSnapshot.WorkspaceAgentID.UUID)
 		if err != nil {
 			return nil, xerrors.Errorf("connect to workspace agent: %w", err)
 		}
@@ -2181,7 +2139,7 @@ func (p *Server) runChatWithAgent(
 	return chatloop.Run(ctx, chatloop.RunOptions{
 		Model:      model,
 		Messages:   prompt,
-		Tools:      p.agentTools(model, &currentChat, &chatStateMu, getWorkspaceConn),
+		Tools:      p.agentTools(model, &currentChat, &chatStateMu, &workspaceMu, getWorkspaceConn),
 		StreamCall: streamCall,
 		MaxSteps:   maxChatSteps,
 
@@ -2202,15 +2160,6 @@ func (p *Server) runChatWithAgent(
 	})
 }
 
-func hasExceededChatToolSteps(result *fantasy.AgentResult) bool {
-	if result == nil || len(result.Steps) < maxChatSteps {
-		return false
-	}
-	lastStep := result.Steps[len(result.Steps)-1]
-	return lastStep.FinishReason == fantasy.FinishReasonToolCalls &&
-		len(lastStep.Content.ToolCalls()) > 0
-}
-
 //nolint:revive // Boolean controls SQL NULL validity.
 func usageNullInt64(value int64, valid bool) sql.NullInt64 {
 	if !valid {
@@ -2222,147 +2171,39 @@ func usageNullInt64(value int64, valid bool) sql.NullInt64 {
 	}
 }
 
-func (p *Server) maybeGenerateChatTitle(
-	ctx context.Context,
-	chat database.Chat,
-	messages []database.ChatMessage,
-	logger slog.Logger,
-) {
-	titleInput, shouldGenerate, err := chatTitleInput(chat, messages)
-	if err != nil {
-		logger.Debug(ctx, "skipping AI title generation due to invalid user content",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return
-	}
-	if !shouldGenerate {
-		return
-	}
-
-	titleCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	title, err := p.generateChatTitle(titleCtx, titleInput)
-	if err != nil {
-		logger.Debug(ctx, "failed to generate chat title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return
-	}
-	if title == "" || title == chat.Title {
-		return
-	}
-
-	_, err = p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-		ID:    chat.ID,
-		Title: title,
-	})
-	if err != nil {
-		logger.Warn(ctx, "failed to update generated chat title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return
-	}
-	chat.Title = title
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange)
-}
-
-func (p *Server) generateChatTitle(ctx context.Context, input string) (string, error) {
-	config := p.titleGeneration.withDefaults()
-	keys, err := p.resolveProviderAPIKeys(ctx)
-	if err != nil {
-		return "", xerrors.Errorf("resolve provider API keys: %w", err)
-	}
-	modelLookup := p.titleModelLookup
-	if modelLookup == nil {
-		modelLookup = anyAvailableModel
-	}
-	model, err := modelLookup(keys)
-	if err != nil {
-		return "", xerrors.Errorf("resolve title generation model: %w", err)
-	}
-
-	prompt := []fantasy.Message{
-		{
-			Role: fantasy.MessageRoleSystem,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: config.Prompt},
-			},
-		},
-		{
-			Role: fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: input},
-			},
-		},
-	}
-	toolChoice := fantasy.ToolChoiceNone
-	response, err := model.Generate(ctx, fantasy.Call{
-		Prompt:     prompt,
-		ToolChoice: &toolChoice,
-	})
-	if err != nil {
-		return "", xerrors.Errorf("generate title text: %w", err)
-	}
-
-	title := normalizeGeneratedChatTitle(contentBlocksToText(response.Content))
-	if title == "" {
-		return "", xerrors.New("generated title was empty")
-	}
-	return title, nil
-}
-
-func chatTitleInput(chat database.Chat, messages []database.ChatMessage) (string, bool, error) {
-	userCount := 0
-	firstUserText := ""
-
-	for _, message := range messages {
-		if message.Visibility == database.ChatMessageVisibilityModel {
-			continue
-		}
-
-		switch message.Role {
-		case string(fantasy.MessageRoleAssistant), string(fantasy.MessageRoleTool):
-			return "", false, nil
-		case string(fantasy.MessageRoleUser):
-			userCount++
-			if firstUserText == "" {
-				text, err := userMessageText(message.Content)
-				if err != nil {
-					return "", false, err
-				}
-				firstUserText = text
-			}
-		}
-	}
-
-	if userCount != 1 || firstUserText == "" {
-		return "", false, nil
-	}
-
-	currentTitle := strings.TrimSpace(chat.Title)
-	if currentTitle == "" {
-		return firstUserText, true, nil
-	}
-
-	if currentTitle != fallbackChatTitle(firstUserText) {
-		return "", false, nil
-	}
-
-	return firstUserText, true, nil
-}
-
 func (p *Server) appendHomeInstructionToPrompt(
 	ctx context.Context,
 	chat database.Chat,
 	prompt []fantasy.Message,
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) []fantasy.Message {
-	if !chat.WorkspaceID.Valid || getWorkspaceConn == nil {
+	if !chat.WorkspaceAgentID.Valid || getWorkspaceConn == nil {
 		return prompt
+	}
+
+	instruction := p.resolveHomeInstruction(ctx, chat, getWorkspaceConn)
+	if instruction == "" {
+		return prompt
+	}
+
+	return chatprompt.InsertSystem(prompt, instruction)
+}
+
+// resolveHomeInstruction returns cached home instructions for the
+// workspace agent, fetching them on cache miss or expiry.
+func (p *Server) resolveHomeInstruction(
+	ctx context.Context,
+	chat database.Chat,
+	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
+) string {
+	agentID := chat.WorkspaceAgentID.UUID
+
+	p.instructionCacheMu.Lock()
+	cached, ok := p.instructionCache[agentID]
+	p.instructionCacheMu.Unlock()
+
+	if ok && time.Since(cached.fetchedAt) < instructionCacheTTL {
+		return cached.instruction
 	}
 
 	instructionCtx, cancel := context.WithTimeout(ctx, homeInstructionLookupTimeout)
@@ -2374,7 +2215,7 @@ func (p *Server) appendHomeInstructionToPrompt(
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
-		return prompt
+		return cached.instruction
 	}
 
 	content, sourcePath, truncated, err := readHomeInstructionFile(instructionCtx, conn)
@@ -2383,15 +2224,19 @@ func (p *Server) appendHomeInstructionToPrompt(
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
-		return prompt
+		return cached.instruction
 	}
 
 	instruction := formatHomeInstruction(content, sourcePath, truncated)
-	if instruction == "" {
-		return prompt
-	}
 
-	return chatprompt.InsertSystem(prompt, instruction)
+	p.instructionCacheMu.Lock()
+	p.instructionCache[agentID] = cachedInstruction{
+		instruction: instruction,
+		fetchedAt:   time.Now(),
+	}
+	p.instructionCacheMu.Unlock()
+
+	return instruction
 }
 
 func (p *Server) resolveProviderAPIKeys(
@@ -2427,40 +2272,6 @@ func contentBlocksToText(content []fantasy.Content) string {
 	return strings.Join(parts, " ")
 }
 
-func normalizeGeneratedChatTitle(title string) string {
-	title = strings.TrimSpace(title)
-	if title == "" {
-		return ""
-	}
-
-	title = strings.Trim(title, "\"'`")
-	title = strings.Join(strings.Fields(title), " ")
-	return truncateRunes(title, 80)
-}
-
-func fallbackChatTitle(message string) string {
-	const maxWords = 6
-	const maxRunes = 80
-
-	words := strings.Fields(message)
-	if len(words) == 0 {
-		return "New Chat"
-	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-
-	title := strings.Join(words, " ")
-	if truncated {
-		title += "…"
-	}
-
-	return truncateRunes(title, maxRunes)
-}
-
 func truncateRunes(value string, maxLen int) string {
 	if maxLen <= 0 {
 		return ""
@@ -2472,86 +2283,6 @@ func truncateRunes(value string, maxLen int) string {
 	}
 
 	return string(runes[:maxLen])
-}
-
-func (p *Server) recoverMissingWorkspace(
-	ctx context.Context,
-	chat database.Chat,
-	logger slog.Logger,
-) (database.Chat, error) {
-	if !chat.WorkspaceID.Valid {
-		return chat, nil
-	}
-
-	workspace, err := p.db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
-	switch {
-	case err == nil && !workspace.Deleted:
-		return chat, nil
-	case err == nil && workspace.Deleted:
-		// Continue and clear workspace linkage for deleted workspaces.
-	case errors.Is(err, sql.ErrNoRows):
-		// Continue and clear workspace linkage for missing workspaces.
-	default:
-		return database.Chat{}, xerrors.Errorf("get chat workspace: %w", err)
-	}
-
-	updatedChat, err := p.persistChatWorkspace(ctx, chat, CreateWorkspaceToolResult{})
-	if err != nil {
-		return database.Chat{}, err
-	}
-
-	logger.Info(ctx, "chat workspace reference no longer exists; cleared workspace linkage",
-		slog.F("workspace_id", chat.WorkspaceID.UUID),
-	)
-
-	return updatedChat, nil
-}
-
-func (p *Server) resolveAgentID(ctx context.Context, chat database.Chat) (uuid.UUID, error) {
-	if chat.WorkspaceAgentID.Valid {
-		return chat.WorkspaceAgentID.UUID, nil
-	}
-	if !chat.WorkspaceID.Valid {
-		return uuid.Nil, xerrors.New("chat has no workspace agent")
-	}
-
-	agents, err := p.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("get workspace agents: %w", err)
-	}
-	if len(agents) == 0 {
-		return uuid.Nil, xerrors.New("no workspace agents available")
-	}
-	return agents[0].ID, nil
-}
-
-func (p *Server) persistChatWorkspace(
-	ctx context.Context,
-	chat database.Chat,
-	result CreateWorkspaceToolResult,
-) (database.Chat, error) {
-	updater, ok := p.db.(interface {
-		UpdateChatWorkspace(context.Context, database.UpdateChatWorkspaceParams) (database.Chat, error)
-	})
-	if !ok {
-		return database.Chat{}, xerrors.New("update chat workspace is not implemented by store")
-	}
-
-	updatedChat, err := updater.UpdateChatWorkspace(ctx, database.UpdateChatWorkspaceParams{
-		ID: chat.ID,
-		WorkspaceID: uuid.NullUUID{
-			UUID:  result.WorkspaceID,
-			Valid: result.WorkspaceID != uuid.Nil,
-		},
-		WorkspaceAgentID: uuid.NullUUID{
-			UUID:  result.WorkspaceAgentID,
-			Valid: result.WorkspaceAgentID != uuid.Nil,
-		},
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("update chat workspace: %w", err)
-	}
-	return updatedChat, nil
 }
 
 func (p *Server) recoverStaleChats(ctx context.Context) {
@@ -2634,50 +2365,6 @@ func streamCallOptionsFromChatModelConfig(
 	return streamCall
 }
 
-// anyAvailableModel returns a language model from whichever provider
-// has an API key configured. This is used for lightweight tasks like
-// title generation where we don't need a specific model.
-func anyAvailableModel(
-	keys chatprovider.ProviderAPIKeys,
-) (fantasy.LanguageModel, error) {
-	candidates := []chatModelConfig{
-		{Provider: fantasyopenai.Name, Model: "gpt-4o-mini"},
-		{Provider: fantasyanthropic.Name, Model: "claude-haiku-4-5"},
-		{Provider: fantasyazure.Name, Model: "gpt-4o-mini"},
-		{Provider: fantasyopenrouter.Name, Model: "gpt-4o-mini"},
-		{Provider: fantasyvercel.Name, Model: "gpt-4o-mini"},
-		{Provider: fantasygoogle.Name, Model: "gemini-2.5-flash"},
-		{Provider: fantasybedrock.Name, Model: "anthropic.claude-haiku-4-5-20251001-v1:0"},
-		{Provider: fantasyopenaicompat.Name, Model: "gpt-4o-mini"},
-	}
-
-	var firstErr error
-	for _, candidate := range candidates {
-		if keys.APIKey(candidate.Provider) == "" {
-			continue
-		}
-
-		model, err := modelFromConfig(candidate, keys)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = xerrors.Errorf(
-					"initialize title model for provider %q: %w",
-					candidate.Provider,
-					err,
-				)
-			}
-			continue
-		}
-		return model, nil
-	}
-
-	if firstErr != nil {
-		return nil, firstErr
-	}
-
-	return nil, xerrors.New("no AI provider API keys are configured")
-}
-
 func modelFromConfig(
 	config chatModelConfig,
 	providerKeys chatprovider.ProviderAPIKeys,
@@ -2690,59 +2377,39 @@ type waitForExternalAuthArgs struct {
 	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
 }
 
-type createWorkspaceArgs struct {
-	Prompt    string          `json:"prompt,omitempty"`
-	Workspace json.RawMessage `json:"workspace,omitempty"`
-	Request   json.RawMessage `json:"request,omitempty"`
-}
-
 func (p *Server) agentTools(
 	model fantasy.LanguageModel,
 	chatState *database.Chat,
 	chatStateMu *sync.Mutex,
+	workspaceMu *sync.Mutex,
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) []fantasy.AgentTool {
+	currentChat := func() database.Chat {
+		chatStateMu.Lock()
+		snapshot := *chatState
+		chatStateMu.Unlock()
+		return snapshot
+	}
+
+	ownerID := chatState.OwnerID
+
 	tools := []fantasy.AgentTool{
-		fantasy.NewAgentTool(
-			"create_workspace",
-			"Create a workspace when no workspace is selected, or when you need "+
-				"a different template. Accepts a natural-language prompt and/or a "+
-				"workspace request object.",
-			func(ctx context.Context, _ createWorkspaceArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				toolCall := fantasy.ToolCallContent{
-					ToolCallID: call.ID,
-					ToolName:   call.Name,
-					Input:      call.Input,
-				}
-
-				chatStateMu.Lock()
-				chatSnapshot := *chatState
-				chatStateMu.Unlock()
-
-				toolResult, wsResult := p.executeCreateWorkspaceTool(ctx, chatSnapshot, model, toolCall)
-				if wsResult.Created {
-					if wsResult.WorkspaceID == uuid.Nil {
-						toolResult = toolError(chatprompt.ToolResultBlock{
-							ToolCallID: toolCall.ToolCallID,
-							ToolName:   toolCall.ToolName,
-						}, xerrors.New("workspace creator returned a created workspace without an ID"))
-					} else {
-						updatedChat, err := p.persistChatWorkspace(ctx, chatSnapshot, wsResult)
-						if err != nil {
-							toolResult = toolError(chatprompt.ToolResultBlock{
-								ToolCallID: toolCall.ToolCallID,
-								ToolName:   toolCall.ToolName,
-							}, err)
-						} else {
-							chatStateMu.Lock()
-							*chatState = updatedChat
-							chatStateMu.Unlock()
-						}
-					}
-				}
-				return toolResultBlockToAgentResponse(toolResult), nil
-			},
-		),
+		chattool.ListTemplates(chattool.ListTemplatesOptions{
+			DB:      p.db,
+			OwnerID: ownerID,
+		}),
+		chattool.ReadTemplate(chattool.ReadTemplateOptions{
+			DB:      p.db,
+			OwnerID: ownerID,
+		}),
+		chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
+			DB:          p.db,
+			OwnerID:     ownerID,
+			ChatID:      chatState.ID,
+			CreateFn:    p.createWorkspaceFn,
+			AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
+			WorkspaceMu: workspaceMu,
+		}),
 		chattool.ReadFile(chattool.ReadFileOptions{
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
@@ -2805,12 +2472,6 @@ func (p *Server) agentTools(
 		),
 	}
 
-	currentChat := func() database.Chat {
-		chatStateMu.Lock()
-		snapshot := *chatState
-		chatStateMu.Unlock()
-		return snapshot
-	}
 	tools = append(tools, p.subagentTools(currentChat)...)
 
 	return tools
@@ -2859,168 +2520,6 @@ func (p *Server) waitForExternalAuth(
 		case <-ticker.C:
 		}
 	}
-}
-
-func (p *Server) executeCreateWorkspaceTool(
-	ctx context.Context,
-	chat database.Chat,
-	model fantasy.LanguageModel,
-	toolCall fantasy.ToolCallContent,
-) (chatprompt.ToolResultBlock, CreateWorkspaceToolResult) {
-	base := chatprompt.ToolResultBlock{
-		ToolCallID: toolCall.ToolCallID,
-		ToolName:   toolCall.ToolName,
-	}
-
-	if p.createWorkspaceFn == nil {
-		return toolError(base, xerrors.New("workspace creator is not configured")), CreateWorkspaceToolResult{}
-	}
-
-	args := createWorkspaceArgs{}
-	if err := json.Unmarshal([]byte(toolCall.Input), &args); err != nil {
-		return toolError(base, err), CreateWorkspaceToolResult{}
-	}
-
-	toolReq := CreateWorkspaceToolRequest{
-		Chat:   chat,
-		Model:  model,
-		Prompt: strings.TrimSpace(args.Prompt),
-		Spec:   json.RawMessage(toolCall.Input),
-	}
-	if p != nil && toolCall.ToolCallID != "" {
-		logEmitter := &createWorkspaceBuildLogEmitter{
-			processor:  p,
-			chatID:     chat.ID,
-			toolCallID: toolCall.ToolCallID,
-			toolName:   toolCall.ToolName,
-		}
-		toolReq.BuildLogHandler = logEmitter.Emit
-	}
-	if len(args.Workspace) > 0 && string(args.Workspace) != "null" {
-		toolReq.Spec = args.Workspace
-	} else if len(args.Request) > 0 && string(args.Request) != "null" {
-		toolReq.Spec = args.Request
-	}
-
-	wsResult, err := p.createWorkspaceFn(ctx, toolReq)
-	if err != nil {
-		return toolError(base, err), CreateWorkspaceToolResult{}
-	}
-
-	if strings.TrimSpace(wsResult.Reason) == "" && !wsResult.Created {
-		wsResult.Reason = "workspace was not created"
-	}
-
-	payload := map[string]any{
-		"success": wsResult.Created,
-		"created": wsResult.Created,
-	}
-	if wsResult.WorkspaceID != uuid.Nil {
-		payload["workspace_id"] = wsResult.WorkspaceID.String()
-	}
-	if wsResult.WorkspaceAgentID != uuid.Nil {
-		payload["workspace_agent_id"] = wsResult.WorkspaceAgentID.String()
-	}
-	if wsResult.WorkspaceName != "" {
-		payload["workspace_name"] = wsResult.WorkspaceName
-	}
-	if wsResult.WorkspaceURL != "" {
-		payload["workspace_url"] = wsResult.WorkspaceURL
-	}
-	if wsResult.Reason != "" {
-		payload["reason"] = wsResult.Reason
-	}
-
-	return chatprompt.ToolResultBlock{
-		ToolCallID: toolCall.ToolCallID,
-		ToolName:   toolCall.ToolName,
-		Result:     payload,
-		IsError:    !wsResult.Created,
-	}, wsResult
-}
-
-type createWorkspaceBuildLogEmitter struct {
-	processor  *Server
-	chatID     uuid.UUID
-	toolCallID string
-	toolName   string
-	lineCount  int
-	charCount  int
-	started    bool
-	truncated  bool
-}
-
-func (e *createWorkspaceBuildLogEmitter) Emit(entry CreateWorkspaceBuildLog) {
-	if e == nil || e.truncated {
-		return
-	}
-
-	output := strings.ReplaceAll(entry.Output, "\r\n", "\n")
-	output = strings.ReplaceAll(output, "\r", "\n")
-	lines := strings.Split(output, "\n")
-	if len(lines) == 0 {
-		return
-	}
-
-	parts := []string{"build"}
-	if stage := strings.TrimSpace(entry.Stage); stage != "" {
-		parts = append(parts, stage)
-	}
-	if level := strings.TrimSpace(entry.Level); level != "" {
-		parts = append(parts, level)
-	}
-	prefix := "[" + strings.Join(parts, "/") + "] "
-
-	for _, rawLine := range lines {
-		line := strings.TrimSpace(rawLine)
-		if line == "" {
-			continue
-		}
-		e.emitLine(prefix + line)
-		if e.truncated {
-			return
-		}
-	}
-}
-
-func (e *createWorkspaceBuildLogEmitter) emitLine(line string) {
-	if e == nil || e.truncated {
-		return
-	}
-
-	if !e.started {
-		e.publishDelta("\n[workspace build logs]\n")
-		e.started = true
-	}
-
-	line = truncateRunes(line, maxCreateWorkspaceBuildLogLineChars)
-	if line == "" {
-		return
-	}
-
-	delta := line + "\n"
-	if e.lineCount >= maxCreateWorkspaceBuildLogLines || e.charCount+len(delta) > maxCreateWorkspaceBuildLogChars {
-		e.publishDelta("[workspace build logs truncated]\n")
-		e.truncated = true
-		return
-	}
-
-	e.publishDelta(delta)
-	e.lineCount++
-	e.charCount += len(delta)
-}
-
-func (e *createWorkspaceBuildLogEmitter) publishDelta(delta string) {
-	if e == nil || strings.TrimSpace(delta) == "" {
-		return
-	}
-
-	e.processor.publishMessagePart(e.chatID, string(fantasy.MessageRoleTool), codersdk.ChatMessagePart{
-		Type:        codersdk.ChatMessagePartTypeToolResult,
-		ToolCallID:  e.toolCallID,
-		ToolName:    e.toolName,
-		ResultDelta: delta,
-	})
 }
 
 func toolError(result chatprompt.ToolResultBlock, err error) chatprompt.ToolResultBlock {
