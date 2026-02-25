@@ -40,7 +40,7 @@ export const useClipboard = (input: UseClipboardInput = {}): UseClipboardResult 
 	const {
 		onError = (msg: string) => toast.error(msg),
 		clearErrorOnSuccess = true,
-	} = input ?? {};
+	} = input;
 
 	const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
 	const [error, setError] = useState<Error>();
