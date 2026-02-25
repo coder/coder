@@ -21835,6 +21835,494 @@ func (q *sqlQuerier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Contex
 	return err
 }
 
+const countWorkspaceGitEvents = `-- name: CountWorkspaceGitEvents :one
+SELECT
+	COUNT(*) AS count
+FROM
+	workspace_git_events wge
+WHERE
+	CASE
+		WHEN $1::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN wge.owner_id = $1::uuid
+		ELSE true
+	END
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN wge.workspace_id = $2::uuid
+		ELSE true
+	END
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN wge.organization_id = $3::uuid
+		ELSE true
+	END
+	AND CASE
+		WHEN $4::text != '' THEN wge.event_type = $4::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $5::text != '' THEN wge.session_id = $5::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $6::text != '' THEN wge.agent_name = $6::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $7::text != '' THEN wge.repo_name = $7::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $8::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN wge.created_at >= $8::timestamptz
+		ELSE true
+	END
+`
+
+type CountWorkspaceGitEventsParams struct {
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	WorkspaceID    uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	EventType      string    `db:"event_type" json:"event_type"`
+	SessionID      string    `db:"session_id" json:"session_id"`
+	AgentName      string    `db:"agent_name" json:"agent_name"`
+	RepoName       string    `db:"repo_name" json:"repo_name"`
+	Since          time.Time `db:"since" json:"since"`
+}
+
+func (q *sqlQuerier) CountWorkspaceGitEvents(ctx context.Context, arg CountWorkspaceGitEventsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countWorkspaceGitEvents,
+		arg.OwnerID,
+		arg.WorkspaceID,
+		arg.OrganizationID,
+		arg.EventType,
+		arg.SessionID,
+		arg.AgentName,
+		arg.RepoName,
+		arg.Since,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deleteOldWorkspaceGitEvents = `-- name: DeleteOldWorkspaceGitEvents :one
+WITH deleted AS (
+	DELETE FROM workspace_git_events
+	WHERE created_at < $1::timestamptz
+	RETURNING 1
+)
+SELECT
+	COUNT(*) AS count
+FROM
+	deleted
+`
+
+func (q *sqlQuerier) DeleteOldWorkspaceGitEvents(ctx context.Context, before time.Time) (int64, error) {
+	row := q.db.QueryRowContext(ctx, deleteOldWorkspaceGitEvents, before)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getWorkspaceGitEventByID = `-- name: GetWorkspaceGitEventByID :one
+SELECT
+	id, workspace_id, agent_id, owner_id, organization_id, event_type, session_id, commit_sha, commit_message, branch, repo_name, files_changed, agent_name, ai_bridge_interception_id, created_at
+FROM
+	workspace_git_events
+WHERE
+	id = $1::uuid
+`
+
+func (q *sqlQuerier) GetWorkspaceGitEventByID(ctx context.Context, id uuid.UUID) (WorkspaceGitEvent, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceGitEventByID, id)
+	var i WorkspaceGitEvent
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.AgentID,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.EventType,
+		&i.SessionID,
+		&i.CommitSha,
+		&i.CommitMessage,
+		&i.Branch,
+		&i.RepoName,
+		pq.Array(&i.FilesChanged),
+		&i.AgentName,
+		&i.AiBridgeInterceptionID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getWorkspaceGitEventsBySessionID = `-- name: GetWorkspaceGitEventsBySessionID :many
+SELECT
+	id, workspace_id, agent_id, owner_id, organization_id, event_type, session_id, commit_sha, commit_message, branch, repo_name, files_changed, agent_name, ai_bridge_interception_id, created_at
+FROM
+	workspace_git_events
+WHERE
+	session_id = $1::text
+ORDER BY
+	created_at ASC
+`
+
+func (q *sqlQuerier) GetWorkspaceGitEventsBySessionID(ctx context.Context, sessionID string) ([]WorkspaceGitEvent, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceGitEventsBySessionID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceGitEvent
+	for rows.Next() {
+		var i WorkspaceGitEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AgentID,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.EventType,
+			&i.SessionID,
+			&i.CommitSha,
+			&i.CommitMessage,
+			&i.Branch,
+			&i.RepoName,
+			pq.Array(&i.FilesChanged),
+			&i.AgentName,
+			&i.AiBridgeInterceptionID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceGitEvent = `-- name: InsertWorkspaceGitEvent :one
+INSERT INTO workspace_git_events (
+	workspace_id,
+	agent_id,
+	owner_id,
+	organization_id,
+	event_type,
+	session_id,
+	commit_sha,
+	commit_message,
+	branch,
+	repo_name,
+	files_changed,
+	agent_name,
+	ai_bridge_interception_id
+) VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7,
+	$8,
+	$9,
+	$10,
+	$11,
+	$12,
+	$13
+)
+RETURNING id, workspace_id, agent_id, owner_id, organization_id, event_type, session_id, commit_sha, commit_message, branch, repo_name, files_changed, agent_name, ai_bridge_interception_id, created_at
+`
+
+type InsertWorkspaceGitEventParams struct {
+	WorkspaceID            uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	AgentID                uuid.UUID      `db:"agent_id" json:"agent_id"`
+	OwnerID                uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OrganizationID         uuid.UUID      `db:"organization_id" json:"organization_id"`
+	EventType              string         `db:"event_type" json:"event_type"`
+	SessionID              sql.NullString `db:"session_id" json:"session_id"`
+	CommitSha              sql.NullString `db:"commit_sha" json:"commit_sha"`
+	CommitMessage          sql.NullString `db:"commit_message" json:"commit_message"`
+	Branch                 sql.NullString `db:"branch" json:"branch"`
+	RepoName               sql.NullString `db:"repo_name" json:"repo_name"`
+	FilesChanged           []string       `db:"files_changed" json:"files_changed"`
+	AgentName              sql.NullString `db:"agent_name" json:"agent_name"`
+	AiBridgeInterceptionID uuid.NullUUID  `db:"ai_bridge_interception_id" json:"ai_bridge_interception_id"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceGitEvent(ctx context.Context, arg InsertWorkspaceGitEventParams) (WorkspaceGitEvent, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceGitEvent,
+		arg.WorkspaceID,
+		arg.AgentID,
+		arg.OwnerID,
+		arg.OrganizationID,
+		arg.EventType,
+		arg.SessionID,
+		arg.CommitSha,
+		arg.CommitMessage,
+		arg.Branch,
+		arg.RepoName,
+		pq.Array(arg.FilesChanged),
+		arg.AgentName,
+		arg.AiBridgeInterceptionID,
+	)
+	var i WorkspaceGitEvent
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.AgentID,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.EventType,
+		&i.SessionID,
+		&i.CommitSha,
+		&i.CommitMessage,
+		&i.Branch,
+		&i.RepoName,
+		pq.Array(&i.FilesChanged),
+		&i.AgentName,
+		&i.AiBridgeInterceptionID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listWorkspaceGitEventSessions = `-- name: ListWorkspaceGitEventSessions :many
+SELECT
+	wge.session_id,
+	wge.owner_id,
+	wge.workspace_id,
+	wge.agent_name,
+	MIN(wge.created_at) AS started_at,
+	MAX(wge.created_at) FILTER (WHERE wge.event_type = 'session_end') AS ended_at,
+	COUNT(*) FILTER (WHERE wge.event_type = 'commit') AS commit_count,
+	COUNT(*) FILTER (WHERE wge.event_type = 'push') AS push_count
+FROM
+	workspace_git_events wge
+WHERE
+	wge.session_id IS NOT NULL
+	AND CASE
+		WHEN $1::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN wge.owner_id = $1::uuid
+		ELSE true
+	END
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN wge.workspace_id = $2::uuid
+		ELSE true
+	END
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN wge.organization_id = $3::uuid
+		ELSE true
+	END
+	AND CASE
+		WHEN $4::text != '' THEN wge.agent_name = $4::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $5::text != '' THEN wge.repo_name = $5::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $6::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN wge.created_at >= $6::timestamptz
+		ELSE true
+	END
+GROUP BY
+	wge.session_id,
+	wge.owner_id,
+	wge.workspace_id,
+	wge.agent_name
+HAVING
+	CASE
+		WHEN $7::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN MIN(wge.created_at) < $7::timestamptz
+		ELSE true
+	END
+ORDER BY
+	started_at DESC
+LIMIT COALESCE(NULLIF($8::int, 0), 50)
+`
+
+type ListWorkspaceGitEventSessionsParams struct {
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	WorkspaceID    uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	AgentName      string    `db:"agent_name" json:"agent_name"`
+	RepoName       string    `db:"repo_name" json:"repo_name"`
+	Since          time.Time `db:"since" json:"since"`
+	AfterStartedAt time.Time `db:"after_started_at" json:"after_started_at"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+type ListWorkspaceGitEventSessionsRow struct {
+	SessionID   sql.NullString `db:"session_id" json:"session_id"`
+	OwnerID     uuid.UUID      `db:"owner_id" json:"owner_id"`
+	WorkspaceID uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	AgentName   sql.NullString `db:"agent_name" json:"agent_name"`
+	StartedAt   interface{}    `db:"started_at" json:"started_at"`
+	EndedAt     interface{}    `db:"ended_at" json:"ended_at"`
+	CommitCount int64          `db:"commit_count" json:"commit_count"`
+	PushCount   int64          `db:"push_count" json:"push_count"`
+}
+
+func (q *sqlQuerier) ListWorkspaceGitEventSessions(ctx context.Context, arg ListWorkspaceGitEventSessionsParams) ([]ListWorkspaceGitEventSessionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceGitEventSessions,
+		arg.OwnerID,
+		arg.WorkspaceID,
+		arg.OrganizationID,
+		arg.AgentName,
+		arg.RepoName,
+		arg.Since,
+		arg.AfterStartedAt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWorkspaceGitEventSessionsRow
+	for rows.Next() {
+		var i ListWorkspaceGitEventSessionsRow
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.AgentName,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.CommitCount,
+			&i.PushCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceGitEvents = `-- name: ListWorkspaceGitEvents :many
+SELECT
+	id, workspace_id, agent_id, owner_id, organization_id, event_type, session_id, commit_sha, commit_message, branch, repo_name, files_changed, agent_name, ai_bridge_interception_id, created_at
+FROM
+	workspace_git_events wge
+WHERE
+	CASE
+		WHEN $1::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN wge.owner_id = $1::uuid
+		ELSE true
+	END
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN wge.workspace_id = $2::uuid
+		ELSE true
+	END
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN wge.organization_id = $3::uuid
+		ELSE true
+	END
+	AND CASE
+		WHEN $4::text != '' THEN wge.event_type = $4::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $5::text != '' THEN wge.session_id = $5::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $6::text != '' THEN wge.agent_name = $6::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $7::text != '' THEN wge.repo_name = $7::text
+		ELSE true
+	END
+	AND CASE
+		WHEN $8::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN wge.created_at >= $8::timestamptz
+		ELSE true
+	END
+	AND CASE
+		WHEN $9::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			(wge.created_at, wge.id) < (
+				$10::timestamptz,
+				$9::uuid
+			)
+		)
+		ELSE true
+	END
+ORDER BY
+	wge.created_at DESC,
+	wge.id DESC
+LIMIT COALESCE(NULLIF($11::int, 0), 100)
+`
+
+type ListWorkspaceGitEventsParams struct {
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	WorkspaceID    uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	EventType      string    `db:"event_type" json:"event_type"`
+	SessionID      string    `db:"session_id" json:"session_id"`
+	AgentName      string    `db:"agent_name" json:"agent_name"`
+	RepoName       string    `db:"repo_name" json:"repo_name"`
+	Since          time.Time `db:"since" json:"since"`
+	AfterID        uuid.UUID `db:"after_id" json:"after_id"`
+	AfterCreatedAt time.Time `db:"after_created_at" json:"after_created_at"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+func (q *sqlQuerier) ListWorkspaceGitEvents(ctx context.Context, arg ListWorkspaceGitEventsParams) ([]WorkspaceGitEvent, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceGitEvents,
+		arg.OwnerID,
+		arg.WorkspaceID,
+		arg.OrganizationID,
+		arg.EventType,
+		arg.SessionID,
+		arg.AgentName,
+		arg.RepoName,
+		arg.Since,
+		arg.AfterID,
+		arg.AfterCreatedAt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceGitEvent
+	for rows.Next() {
+		var i WorkspaceGitEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AgentID,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.EventType,
+			&i.SessionID,
+			&i.CommitSha,
+			&i.CommitMessage,
+			&i.Branch,
+			&i.RepoName,
+			pq.Array(&i.FilesChanged),
+			&i.AgentName,
+			&i.AiBridgeInterceptionID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceModulesByJobID = `-- name: GetWorkspaceModulesByJobID :many
 SELECT
 	id, job_id, transition, source, version, key, created_at

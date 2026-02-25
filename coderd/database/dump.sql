@@ -2724,6 +2724,26 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE TABLE workspace_git_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    workspace_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    event_type text NOT NULL,
+    session_id text,
+    commit_sha text,
+    commit_message text,
+    branch text,
+    repo_name text,
+    files_changed text[],
+    agent_name text,
+    ai_bridge_interception_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE workspace_git_events IS 'Stores git events (commits, pushes, session boundaries) captured from AI coding sessions in workspaces.';
+
 CREATE TABLE workspaces (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -3254,6 +3274,9 @@ ALTER TABLE ONLY workspace_builds
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
 
+ALTER TABLE ONLY workspace_git_events
+    ADD CONSTRAINT workspace_git_events_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_proxies
     ADD CONSTRAINT workspace_proxies_pkey PRIMARY KEY (id);
 
@@ -3375,6 +3398,16 @@ CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (de
 CREATE INDEX idx_workspace_app_statuses_workspace_id_created_at ON workspace_app_statuses USING btree (workspace_id, created_at DESC);
 
 CREATE INDEX idx_workspace_builds_initiator_id ON workspace_builds USING btree (initiator_id);
+
+CREATE INDEX idx_workspace_git_events_org ON workspace_git_events USING btree (organization_id, created_at DESC);
+
+CREATE INDEX idx_workspace_git_events_owner ON workspace_git_events USING btree (owner_id, created_at DESC);
+
+CREATE INDEX idx_workspace_git_events_pagination ON workspace_git_events USING btree (created_at DESC, id DESC);
+
+CREATE INDEX idx_workspace_git_events_session ON workspace_git_events USING btree (session_id) WHERE (session_id IS NOT NULL);
+
+CREATE INDEX idx_workspace_git_events_workspace ON workspace_git_events USING btree (workspace_id, created_at DESC);
 
 CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messages USING btree (dedupe_hash);
 
@@ -3826,6 +3859,18 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_git_events
+    ADD CONSTRAINT workspace_git_events_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_git_events
+    ADD CONSTRAINT workspace_git_events_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_git_events
+    ADD CONSTRAINT workspace_git_events_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_git_events
+    ADD CONSTRAINT workspace_git_events_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_modules
     ADD CONSTRAINT workspace_modules_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

@@ -279,6 +279,14 @@ func (m queryMetricsStore) CountUnreadInboxNotificationsByUserID(ctx context.Con
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountWorkspaceGitEvents(ctx context.Context, arg database.CountWorkspaceGitEventsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountWorkspaceGitEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountWorkspaceGitEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountWorkspaceGitEvents").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CreateUserSecret(ctx context.Context, arg database.CreateUserSecretParams) (database.UserSecret, error) {
 	start := time.Now()
 	r0, r1 := m.s.CreateUserSecret(ctx, arg)
@@ -517,6 +525,14 @@ func (m queryMetricsStore) DeleteOldWorkspaceAgentStats(ctx context.Context) err
 	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceAgentStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldWorkspaceAgentStats").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) DeleteOldWorkspaceGitEvents(ctx context.Context, before time.Time) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldWorkspaceGitEvents(ctx, before)
+	m.queryLatencies.WithLabelValues("DeleteOldWorkspaceGitEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldWorkspaceGitEvents").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
@@ -2502,6 +2518,22 @@ func (m queryMetricsStore) GetWorkspaceByWorkspaceAppID(ctx context.Context, wor
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceGitEventByID(ctx context.Context, id uuid.UUID) (database.WorkspaceGitEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceGitEventByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkspaceGitEventByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceGitEventByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceGitEventsBySessionID(ctx context.Context, sessionID string) ([]database.WorkspaceGitEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceGitEventsBySessionID(ctx, sessionID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceGitEventsBySessionID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceGitEventsBySessionID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceModulesByJobID(ctx, jobID)
@@ -3158,6 +3190,14 @@ func (m queryMetricsStore) InsertWorkspaceBuildParameters(ctx context.Context, a
 	return r0
 }
 
+func (m queryMetricsStore) InsertWorkspaceGitEvent(ctx context.Context, arg database.InsertWorkspaceGitEventParams) (database.WorkspaceGitEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceGitEvent(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceGitEvent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWorkspaceGitEvent").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertWorkspaceModule(ctx context.Context, arg database.InsertWorkspaceModuleParams) (database.WorkspaceModule, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertWorkspaceModule(ctx, arg)
@@ -3267,6 +3307,22 @@ func (m queryMetricsStore) ListWorkspaceAgentPortShares(ctx context.Context, wor
 	r0, r1 := m.s.ListWorkspaceAgentPortShares(ctx, workspaceID)
 	m.queryLatencies.WithLabelValues("ListWorkspaceAgentPortShares").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListWorkspaceAgentPortShares").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListWorkspaceGitEventSessions(ctx context.Context, arg database.ListWorkspaceGitEventSessionsParams) ([]database.ListWorkspaceGitEventSessionsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListWorkspaceGitEventSessions(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListWorkspaceGitEventSessions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListWorkspaceGitEventSessions").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListWorkspaceGitEvents(ctx context.Context, arg database.ListWorkspaceGitEventsParams) ([]database.WorkspaceGitEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListWorkspaceGitEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListWorkspaceGitEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListWorkspaceGitEvents").Inc()
 	return r0, r1
 }
 

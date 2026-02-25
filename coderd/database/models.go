@@ -5028,6 +5028,25 @@ type WorkspaceBuildTable struct {
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 }
 
+// Stores git events (commits, pushes, session boundaries) captured from AI coding sessions in workspaces.
+type WorkspaceGitEvent struct {
+	ID                     uuid.UUID      `db:"id" json:"id"`
+	WorkspaceID            uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	AgentID                uuid.UUID      `db:"agent_id" json:"agent_id"`
+	OwnerID                uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OrganizationID         uuid.UUID      `db:"organization_id" json:"organization_id"`
+	EventType              string         `db:"event_type" json:"event_type"`
+	SessionID              sql.NullString `db:"session_id" json:"session_id"`
+	CommitSha              sql.NullString `db:"commit_sha" json:"commit_sha"`
+	CommitMessage          sql.NullString `db:"commit_message" json:"commit_message"`
+	Branch                 sql.NullString `db:"branch" json:"branch"`
+	RepoName               sql.NullString `db:"repo_name" json:"repo_name"`
+	FilesChanged           []string       `db:"files_changed" json:"files_changed"`
+	AgentName              sql.NullString `db:"agent_name" json:"agent_name"`
+	AiBridgeInterceptionID uuid.NullUUID  `db:"ai_bridge_interception_id" json:"ai_bridge_interception_id"`
+	CreatedAt              time.Time      `db:"created_at" json:"created_at"`
+}
+
 type WorkspaceLatestBuild struct {
 	ID                      uuid.UUID            `db:"id" json:"id"`
 	WorkspaceID             uuid.UUID            `db:"workspace_id" json:"workspace_id"`

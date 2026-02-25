@@ -1461,6 +1461,7 @@ func New(options *Options) *API {
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
 				})
+				r.Post("/git-events", api.postWorkspaceAgentGitEvent)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(

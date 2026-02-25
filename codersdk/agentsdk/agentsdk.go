@@ -626,6 +626,21 @@ func (c *Client) PostLogSource(ctx context.Context, req PostLogSourceRequest) (c
 	return logSource, json.NewDecoder(res.Body).Decode(&logSource)
 }
 
+// PostGitEvent reports a git event (commit, push, session start/end) from the
+// workspace agent to the control plane.
+func (c *Client) PostGitEvent(ctx context.Context, req codersdk.CreateWorkspaceGitEventRequest) (codersdk.WorkspaceGitEvent, error) {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/git-events", req)
+	if err != nil {
+		return codersdk.WorkspaceGitEvent{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return codersdk.WorkspaceGitEvent{}, codersdk.ReadBodyAsError(res)
+	}
+	var event codersdk.WorkspaceGitEvent
+	return event, json.NewDecoder(res.Body).Decode(&event)
+}
+
 type ExternalAuthResponse struct {
 	AccessToken string                 `json:"access_token"`
 	TokenExtra  map[string]interface{} `json:"token_extra"`

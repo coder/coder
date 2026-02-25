@@ -77,6 +77,7 @@ type sqlcQuerier interface {
 	// CountPendingNonActivePrebuilds returns the number of pending prebuilds for non-active template versions
 	CountPendingNonActivePrebuilds(ctx context.Context) ([]CountPendingNonActivePrebuildsRow, error)
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
+	CountWorkspaceGitEvents(ctx context.Context, arg CountWorkspaceGitEventsParams) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
 	DeleteAPIKeyByID(ctx context.Context, id string) error
@@ -124,6 +125,7 @@ type sqlcQuerier interface {
 	// Logs can take up a lot of space, so it's important we clean up frequently.
 	DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) (int64, error)
 	DeleteOldWorkspaceAgentStats(ctx context.Context) error
+	DeleteOldWorkspaceGitEvents(ctx context.Context, before time.Time) (int64, error)
 	DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error
 	DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
@@ -519,6 +521,8 @@ type sqlcQuerier interface {
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
 	GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (Workspace, error)
 	GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error)
+	GetWorkspaceGitEventByID(ctx context.Context, id uuid.UUID) (WorkspaceGitEvent, error)
+	GetWorkspaceGitEventsBySessionID(ctx context.Context, sessionID string) ([]WorkspaceGitEvent, error)
 	GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceModule, error)
 	GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceModule, error)
 	GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)
@@ -628,6 +632,7 @@ type sqlcQuerier interface {
 	InsertWorkspaceAppStatus(ctx context.Context, arg InsertWorkspaceAppStatusParams) (WorkspaceAppStatus, error)
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error
 	InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error
+	InsertWorkspaceGitEvent(ctx context.Context, arg InsertWorkspaceGitEventParams) (WorkspaceGitEvent, error)
 	InsertWorkspaceModule(ctx context.Context, arg InsertWorkspaceModuleParams) (WorkspaceModule, error)
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
@@ -644,6 +649,8 @@ type sqlcQuerier interface {
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
 	ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]UserSecret, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
+	ListWorkspaceGitEventSessions(ctx context.Context, arg ListWorkspaceGitEventSessionsParams) ([]ListWorkspaceGitEventSessionsRow, error)
+	ListWorkspaceGitEvents(ctx context.Context, arg ListWorkspaceGitEventsParams) ([]WorkspaceGitEvent, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.

@@ -1677,6 +1677,10 @@ func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, use
 	return q.db.CountUnreadInboxNotificationsByUserID(ctx, userID)
 }
 
+func (q *querier) CountWorkspaceGitEvents(ctx context.Context, arg database.CountWorkspaceGitEventsParams) (int64, error) {
+	panic("not implemented")
+}
+
 func (q *querier) CreateUserSecret(ctx context.Context, arg database.CreateUserSecretParams) (database.UserSecret, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
 	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
@@ -1909,6 +1913,10 @@ func (q *querier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 		return err
 	}
 	return q.db.DeleteOldWorkspaceAgentStats(ctx)
+}
+
+func (q *querier) DeleteOldWorkspaceGitEvents(ctx context.Context, before time.Time) (int64, error) {
+	panic("not implemented")
 }
 
 func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.DeleteOrganizationMemberParams) error {
@@ -3996,6 +4004,14 @@ func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceApp
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
 }
 
+func (q *querier) GetWorkspaceGitEventByID(ctx context.Context, id uuid.UUID) (database.WorkspaceGitEvent, error) {
+	panic("not implemented")
+}
+
+func (q *querier) GetWorkspaceGitEventsBySessionID(ctx context.Context, sessionID string) ([]database.WorkspaceGitEvent, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -4744,6 +4760,12 @@ func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg databa
 	return q.db.InsertWorkspaceBuildParameters(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceGitEvent(ctx context.Context, arg database.InsertWorkspaceGitEventParams) (database.WorkspaceGitEvent, error) {
+	// This is called from the workspace agent, which is already authenticated
+	// via agent token middleware. No additional RBAC check is required.
+	return q.db.InsertWorkspaceGitEvent(ctx, arg)
+}
+
 func (q *querier) InsertWorkspaceModule(ctx context.Context, arg database.InsertWorkspaceModuleParams) (database.WorkspaceModule, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.WorkspaceModule{}, err
@@ -4847,6 +4869,14 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	}
 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
+}
+
+func (q *querier) ListWorkspaceGitEventSessions(ctx context.Context, arg database.ListWorkspaceGitEventSessionsParams) ([]database.ListWorkspaceGitEventSessionsRow, error) {
+	panic("not implemented")
+}
+
+func (q *querier) ListWorkspaceGitEvents(ctx context.Context, arg database.ListWorkspaceGitEventsParams) ([]database.WorkspaceGitEvent, error) {
+	panic("not implemented")
 }
 
 func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {

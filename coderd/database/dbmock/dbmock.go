@@ -411,6 +411,21 @@ func (mr *MockStoreMockRecorder) CountUnreadInboxNotificationsByUserID(ctx, user
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUnreadInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).CountUnreadInboxNotificationsByUserID), ctx, userID)
 }
 
+// CountWorkspaceGitEvents mocks base method.
+func (m *MockStore) CountWorkspaceGitEvents(ctx context.Context, arg database.CountWorkspaceGitEventsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountWorkspaceGitEvents", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountWorkspaceGitEvents indicates an expected call of CountWorkspaceGitEvents.
+func (mr *MockStoreMockRecorder) CountWorkspaceGitEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountWorkspaceGitEvents", reflect.TypeOf((*MockStore)(nil).CountWorkspaceGitEvents), ctx, arg)
+}
+
 // CreateUserSecret mocks base method.
 func (m *MockStore) CreateUserSecret(ctx context.Context, arg database.CreateUserSecretParams) (database.UserSecret, error) {
 	m.ctrl.T.Helper()
@@ -838,6 +853,21 @@ func (m *MockStore) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 func (mr *MockStoreMockRecorder) DeleteOldWorkspaceAgentStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceAgentStats", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceAgentStats), ctx)
+}
+
+// DeleteOldWorkspaceGitEvents mocks base method.
+func (m *MockStore) DeleteOldWorkspaceGitEvents(ctx context.Context, before time.Time) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldWorkspaceGitEvents", ctx, before)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldWorkspaceGitEvents indicates an expected call of DeleteOldWorkspaceGitEvents.
+func (mr *MockStoreMockRecorder) DeleteOldWorkspaceGitEvents(ctx, before any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldWorkspaceGitEvents", reflect.TypeOf((*MockStore)(nil).DeleteOldWorkspaceGitEvents), ctx, before)
 }
 
 // DeleteOrganizationMember mocks base method.
@@ -4679,6 +4709,36 @@ func (mr *MockStoreMockRecorder) GetWorkspaceByWorkspaceAppID(ctx, workspaceAppI
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceByWorkspaceAppID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceByWorkspaceAppID), ctx, workspaceAppID)
 }
 
+// GetWorkspaceGitEventByID mocks base method.
+func (m *MockStore) GetWorkspaceGitEventByID(ctx context.Context, id uuid.UUID) (database.WorkspaceGitEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceGitEventByID", ctx, id)
+	ret0, _ := ret[0].(database.WorkspaceGitEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceGitEventByID indicates an expected call of GetWorkspaceGitEventByID.
+func (mr *MockStoreMockRecorder) GetWorkspaceGitEventByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceGitEventByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceGitEventByID), ctx, id)
+}
+
+// GetWorkspaceGitEventsBySessionID mocks base method.
+func (m *MockStore) GetWorkspaceGitEventsBySessionID(ctx context.Context, sessionID string) ([]database.WorkspaceGitEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceGitEventsBySessionID", ctx, sessionID)
+	ret0, _ := ret[0].([]database.WorkspaceGitEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceGitEventsBySessionID indicates an expected call of GetWorkspaceGitEventsBySessionID.
+func (mr *MockStoreMockRecorder) GetWorkspaceGitEventsBySessionID(ctx, sessionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceGitEventsBySessionID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceGitEventsBySessionID), ctx, sessionID)
+}
+
 // GetWorkspaceModulesByJobID mocks base method.
 func (m *MockStore) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
 	m.ctrl.T.Helper()
@@ -5907,6 +5967,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceBuildParameters(ctx, arg any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceBuildParameters", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceBuildParameters), ctx, arg)
 }
 
+// InsertWorkspaceGitEvent mocks base method.
+func (m *MockStore) InsertWorkspaceGitEvent(ctx context.Context, arg database.InsertWorkspaceGitEventParams) (database.WorkspaceGitEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceGitEvent", ctx, arg)
+	ret0, _ := ret[0].(database.WorkspaceGitEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceGitEvent indicates an expected call of InsertWorkspaceGitEvent.
+func (mr *MockStoreMockRecorder) InsertWorkspaceGitEvent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceGitEvent", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceGitEvent), ctx, arg)
+}
+
 // InsertWorkspaceModule mocks base method.
 func (m *MockStore) InsertWorkspaceModule(ctx context.Context, arg database.InsertWorkspaceModuleParams) (database.WorkspaceModule, error) {
 	m.ctrl.T.Helper()
@@ -6130,6 +6205,36 @@ func (m *MockStore) ListWorkspaceAgentPortShares(ctx context.Context, workspaceI
 func (mr *MockStoreMockRecorder) ListWorkspaceAgentPortShares(ctx, workspaceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceAgentPortShares", reflect.TypeOf((*MockStore)(nil).ListWorkspaceAgentPortShares), ctx, workspaceID)
+}
+
+// ListWorkspaceGitEventSessions mocks base method.
+func (m *MockStore) ListWorkspaceGitEventSessions(ctx context.Context, arg database.ListWorkspaceGitEventSessionsParams) ([]database.ListWorkspaceGitEventSessionsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListWorkspaceGitEventSessions", ctx, arg)
+	ret0, _ := ret[0].([]database.ListWorkspaceGitEventSessionsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListWorkspaceGitEventSessions indicates an expected call of ListWorkspaceGitEventSessions.
+func (mr *MockStoreMockRecorder) ListWorkspaceGitEventSessions(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceGitEventSessions", reflect.TypeOf((*MockStore)(nil).ListWorkspaceGitEventSessions), ctx, arg)
+}
+
+// ListWorkspaceGitEvents mocks base method.
+func (m *MockStore) ListWorkspaceGitEvents(ctx context.Context, arg database.ListWorkspaceGitEventsParams) ([]database.WorkspaceGitEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListWorkspaceGitEvents", ctx, arg)
+	ret0, _ := ret[0].([]database.WorkspaceGitEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListWorkspaceGitEvents indicates an expected call of ListWorkspaceGitEvents.
+func (mr *MockStoreMockRecorder) ListWorkspaceGitEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceGitEvents", reflect.TypeOf((*MockStore)(nil).ListWorkspaceGitEvents), ctx, arg)
 }
 
 // MarkAllInboxNotificationsAsRead mocks base method.
