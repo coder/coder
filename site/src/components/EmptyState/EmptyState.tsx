@@ -1,15 +1,14 @@
-import type { LucideIcon } from "lucide-react";
-import type { FC, HTMLAttributes, ReactNode } from "react";
+import type { FC, HTMLAttributes } from "react";
 import { cn } from "utils/cn";
 
 export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
-	icon?: LucideIcon;
+	icon?: React.ReactNode;
 	/** Text Message to display, placed inside Typography component */
 	message: string;
 	/** Longer optional description to display below the message */
-	description?: string | ReactNode;
-	cta?: ReactNode;
-	image?: ReactNode;
+	description?: string | React.ReactNode;
+	cta?: React.ReactNode;
+	image?: React.ReactNode;
 	isCompact?: boolean;
 }
 
@@ -19,7 +18,7 @@ export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
  * or to add an item that they currently have none of.
  */
 export const EmptyState: FC<EmptyStateProps> = ({
-	icon: Icon,
+	icon,
 	message,
 	description,
 	cta,
@@ -37,7 +36,7 @@ export const EmptyState: FC<EmptyStateProps> = ({
 			)}
 			{...attrs}
 		>
-			{Icon && <Icon className="size-icon-lg" />}
+			{icon}
 			<h5 className="text-xl font-medium m-0">{message}</h5>
 			{description && (
 				<p className="m-0 max-w-md text-content-secondary">{description}</p>

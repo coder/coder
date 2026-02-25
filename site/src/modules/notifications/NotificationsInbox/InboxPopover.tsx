@@ -1,4 +1,5 @@
 import type { InboxNotification } from "api/typesGenerated";
+import { IdentSpin } from "components/AnimatedIcons/IdentSpin";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import {
@@ -8,7 +9,7 @@ import {
 } from "components/Popover/Popover";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
-import { CheckIcon, RefreshCwIcon, SettingsIcon } from "lucide-react";
+import { RefreshCwIcon, SettingsIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
@@ -140,7 +141,7 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 							</div>
 						) : (
 							<EmptyState
-								icon={CheckIcon}
+								icon={<IdentSpin />}
 								message="No new notifications"
 								description="You're all caught up!"
 								cta={
