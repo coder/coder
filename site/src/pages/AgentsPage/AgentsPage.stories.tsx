@@ -128,6 +128,12 @@ export const UsesSavedBehaviorPromptOnSend: Story = {
 			within(dialog).getByRole("button", { name: "Close" }),
 		);
 
+		// Wait for the dialog to fully close (exit animation) before
+		// interacting with the page content underneath.
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		});
+
 		// Type a chat message and send.
 		await userEvent.type(
 			screen.getByPlaceholderText(

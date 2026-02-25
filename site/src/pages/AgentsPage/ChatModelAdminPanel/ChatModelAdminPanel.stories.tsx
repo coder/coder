@@ -395,7 +395,15 @@ export const ModelsListAndCreate: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Open Add model dialog.
+		// Verify the model list renders before switching to the form view.
+		expect(
+			(await body.findAllByText("gpt-5-mini")).length,
+		).toBeGreaterThan(0);
+		expect(
+			(await body.findAllByText("claude-sonnet-4-5")).length,
+		).toBeGreaterThan(0);
+
+		// Open Add model form (replaces the list view entirely).
 		await userEvent.click(
 			await body.findByRole("button", { name: "Add model" }),
 		);
@@ -407,12 +415,6 @@ export const ModelsListAndCreate: Story = {
 				body.getByRole("combobox", { name: "Provider" }),
 			).not.toBeDisabled();
 		});
-		expect(
-			(await body.findAllByText("gpt-5-mini")).length,
-		).toBeGreaterThan(0);
-		expect(
-			(await body.findAllByText("claude-sonnet-4-5")).length,
-		).toBeGreaterThan(0);
 
 		// Fill in form and submit.
 		await userEvent.type(

@@ -9,7 +9,7 @@ import type {
 	ChatModelsResponse,
 	ChatProviderConfig,
 } from "api/typesGenerated";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent } from "storybook/test";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 
 // Pre-seeded query data so that ChatModelAdminPanel renders
@@ -119,12 +119,10 @@ export const EditAndSaveSystemPrompt: Story = {
 		isSystemPromptDirty: true,
 		isDisabled: false,
 	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-
-		// The Behavior section should be visible by default when it is
-		// the only available section.
-		const textarea = canvas.getByPlaceholderText(
+	play: async ({ args }) => {
+		// The dialog portals to document.body, so we must use screen
+		// rather than within(canvasElement) to query its contents.
+		const textarea = await screen.findByPlaceholderText(
 			"Optional. Set deployment-wide instructions for all new chats.",
 		);
 		expect(textarea).toBeVisible();
@@ -136,7 +134,7 @@ export const EditAndSaveSystemPrompt: Story = {
 
 		// Because isSystemPromptDirty is true, the Save button should
 		// be enabled.
-		const saveButton = canvas.getByRole("button", { name: "Save" });
+		const saveButton = screen.getByRole("button", { name: "Save" });
 		expect(saveButton).toBeEnabled();
 
 		await userEvent.click(saveButton);
