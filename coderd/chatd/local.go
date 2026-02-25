@@ -22,7 +22,6 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -322,6 +321,7 @@ func (s *localMode) EnsureWorkspaceBinding(
 	}
 	return binding, nil
 }
+
 func (s *localMode) ensureLocalChatTemplate(
 	ctx context.Context,
 	client *codersdk.Client,

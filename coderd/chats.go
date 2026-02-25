@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
