@@ -746,9 +746,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name              | In    | Type    | Required | Description                        |
+|-------------------|-------|---------|----------|------------------------------------|
+| `user`            | path  | string  | true     | User ID, name, or me               |
+| `include_expired` | query | boolean | false    | Include expired tokens in the list |
 
 ### Example responses
 

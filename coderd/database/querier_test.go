@@ -8195,8 +8195,9 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 
 	// All keys are present before deletion
 	keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
-		LoginType: user.LoginType,
-		UserID:    user.ID,
+		LoginType:      user.LoginType,
+		UserID:         user.ID,
+		IncludeExpired: true,
 	})
 	require.NoError(t, err)
 	require.Len(t, keys, len(expiredTimes)+len(unexpiredTimes))
@@ -8212,8 +8213,9 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 
 	// Ensure it was deleted
 	remaining, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
-		LoginType: user.LoginType,
-		UserID:    user.ID,
+		LoginType:      user.LoginType,
+		UserID:         user.ID,
+		IncludeExpired: true,
 	})
 	require.NoError(t, err)
 	require.Len(t, remaining, len(expiredTimes)+len(unexpiredTimes)-1)
@@ -8228,8 +8230,9 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 
 	// Ensure only unexpired keys remain
 	remaining, err = db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
-		LoginType: user.LoginType,
-		UserID:    user.ID,
+		LoginType:      user.LoginType,
+		UserID:         user.ID,
+		IncludeExpired: true,
 	})
 	require.NoError(t, err)
 	require.Len(t, remaining, len(unexpiredTimes))

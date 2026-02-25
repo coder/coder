@@ -3042,7 +3042,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		},
 		{
 			Name:        "Disable Workspace Sharing",
-			Description: `Disable workspace sharing (requires the "workspace-sharing" experiment to be enabled). Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.`,
+			Description: `Disable workspace sharing. Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.`,
 			Flag:        "disable-workspace-sharing",
 			Env:         "CODER_DISABLE_WORKSPACE_SHARING",
 
@@ -4265,7 +4265,6 @@ const (
 	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
-	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
 )
 
 func (e Experiment) DisplayName() string {
@@ -4284,8 +4283,6 @@ func (e Experiment) DisplayName() string {
 		return "OAuth2 Provider Functionality"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
-	case ExperimentWorkspaceSharing:
-		return "Workspace Sharing"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -4303,7 +4300,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentWebPush,
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
-	ExperimentWorkspaceSharing,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

@@ -832,7 +832,7 @@ func TestTasks(t *testing.T) {
 		t.Run("SendToNonActiveStates", func(t *testing.T) {
 			t.Parallel()
 
-			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
 			owner := coderdtest.CreateFirstUser(t, client)
 			ctx := testutil.Context(t, testutil.WaitMedium)
 
