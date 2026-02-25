@@ -34,9 +34,11 @@ func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.Te
 		if defaultSource == "" {
 			defaultSource = templateVersionParameter.DefaultValue
 		}
-		err = json.Unmarshal([]byte(defaultSource), &defaults)
-		if err != nil {
-			return "", err
+		if defaultSource != "" {
+			err = json.Unmarshal([]byte(defaultSource), &defaults)
+			if err != nil {
+				return "", err
+			}
 		}
 
 		values, err := RichMultiSelect(inv, RichMultiSelectOptions{
