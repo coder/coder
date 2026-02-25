@@ -1,6 +1,7 @@
 import Skeleton from "@mui/material/Skeleton";
 import type * as TypesGen from "api/typesGenerated";
 import { Abbr } from "components/Abbr/Abbr";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -15,7 +16,6 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAuthenticated } from "hooks";
-import { ChevronDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
 import { sortProxiesByLatency } from "./proxyUtils";

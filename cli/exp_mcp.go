@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -23,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
 
@@ -539,7 +541,6 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 			defer cancel()
 			defer srv.queue.Close()
 
-			cliui.Infof(inv.Stderr, "Failed to watch screen events")
 			// Start the reporter, watcher, and server.  These are all tied to the
 			// lifetime of the MCP server, which is itself tied to the lifetime of the
 			// AI agent.
@@ -613,48 +614,51 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 }
 
 func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
-	eventsCh, errCh, err := s.aiAgentAPIClient.SubscribeEvents(ctx)
-	if err != nil {
-		cliui.Warnf(inv.Stderr, "Failed to watch screen events: %s", err)
-		return
-	}
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case event := <-eventsCh:
-				switch ev := event.(type) {
-				case agentapi.EventStatusChange:
-					// If the screen is stable, report idle.
-					state := codersdk.WorkspaceAppStatusStateWorking
-					if ev.Status == agentapi.StatusStable {
-						state = codersdk.WorkspaceAppStatusStateIdle
-					}
-					err := s.queue.Push(taskReport{
-						state: state,
-					})
-					if err != nil {
-						cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
+		for retrier := retry.New(time.Second, 30*time.Second); retrier.Wait(ctx); {
+			eventsCh, errCh, err := s.aiAgentAPIClient.SubscribeEvents(ctx)
+			if err == nil {
+				retrier.Reset()
+			loop:
+				for {
+					select {
+					case <-ctx.Done():
 						return
-					}
-				case agentapi.EventMessageUpdate:
-					if ev.Role == agentapi.RoleUser {
-						err := s.queue.Push(taskReport{
-							messageID: &ev.Id,
-							state:     codersdk.WorkspaceAppStatusStateWorking,
-						})
-						if err != nil {
-							cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
-							return
+					case event := <-eventsCh:
+						switch ev := event.(type) {
+						case agentapi.EventStatusChange:
+							state := codersdk.WorkspaceAppStatusStateWorking
+							if ev.Status == agentapi.StatusStable {
+								state = codersdk.WorkspaceAppStatusStateIdle
+							}
+							err := s.queue.Push(taskReport{
+								state: state,
+							})
+							if err != nil {
+								cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
+								return
+							}
+						case agentapi.EventMessageUpdate:
+							if ev.Role == agentapi.RoleUser {
+								err := s.queue.Push(taskReport{
+									messageID: &ev.Id,
+									state:     codersdk.WorkspaceAppStatusStateWorking,
+								})
+								if err != nil {
+									cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
+									return
+								}
+							}
 						}
+					case err := <-errCh:
+						if !errors.Is(err, context.Canceled) {
+							cliui.Warnf(inv.Stderr, "Received error from screen event watcher: %s", err)
+						}
+						break loop
 					}
 				}
-			case err := <-errCh:
-				if !errors.Is(err, context.Canceled) {
-					cliui.Warnf(inv.Stderr, "Received error from screen event watcher: %s", err)
-				}
-				return
+			} else {
+				cliui.Warnf(inv.Stderr, "Failed to watch screen events: %s", err)
 			}
 		}
 	}()
@@ -692,13 +696,14 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 	// Add tool dependencies.
 	toolOpts := []func(*toolsdk.Deps){
 		toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			// The agent does not reliably report its status correctly.  If AgentAPI
-			// is enabled, we will always set the status to "working" when we get an
-			// MCP message, and rely on the screen watcher to eventually catch the
-			// idle state.
-			state := codersdk.WorkspaceAppStatusStateWorking
-			if s.aiAgentAPIClient == nil {
-				state = codersdk.WorkspaceAppStatusState(args.State)
+			state := codersdk.WorkspaceAppStatusState(args.State)
+			// The agent does not reliably report idle, so when AgentAPI is
+			// enabled we override idle to working and let the screen watcher
+			// detect the real idle via StatusStable.  Final states (failure,
+			// complete) are trusted from the agent since the screen watcher
+			// cannot produce them.
+			if s.aiAgentAPIClient != nil && state == codersdk.WorkspaceAppStatusStateIdle {
+				state = codersdk.WorkspaceAppStatusStateWorking
 			}
 			return s.queue.Push(taskReport{
 				link:         args.Link,

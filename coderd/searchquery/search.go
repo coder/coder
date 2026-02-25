@@ -385,6 +385,7 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
 	filter.Provider = parser.String(values, "", "provider")
 	filter.Model = parser.String(values, "", "model")
+	filter.Client = parser.String(values, "", "client")
 
 	// Time must be between started_after and started_before.
 	filter.StartedAfter = parser.Time3339Nano(values, time.Time{}, "started_after")

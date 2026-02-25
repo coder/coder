@@ -1,5 +1,3 @@
-import { useTheme } from "@emotion/react";
-import Grid from "@mui/material/Grid";
 import { isApiError } from "api/errors";
 import type { Group } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -20,7 +18,6 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 	error,
 	loading,
 }) => {
-	const theme = useTheme();
 	const { showOrganizations } = useDashboard();
 
 	return (
@@ -31,13 +28,7 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 				groups && (
 					<span>
 						You are in{" "}
-						<em
-							css={{
-								fontStyle: "normal",
-								color: theme.palette.text.primary,
-								fontWeight: 600,
-							}}
-						>
+						<em className="not-italic text-content-primary font-semibold">
 							{groups.length} group
 							{groups.length !== 1 && "s"}
 						</em>
@@ -45,30 +36,29 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 				)
 			}
 		>
-			<div css={{ display: "flex", flexFlow: "column nowrap", rowGap: "24px" }}>
+			<div className="flex flex-col gap-6">
 				{isApiError(error) && <ErrorAlert error={error} />}
 
 				{groups && (
-					<Grid container columns={{ xs: 1, md: 2 }} spacing="16px">
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 						{groups.map((group) => (
-							<Grid item key={group.id} xs={1}>
-								<AvatarCard
-									imgUrl={group.avatar_url}
-									header={group.display_name || group.name}
-									subtitle={
-										showOrganizations ? (
-											group.organization_display_name
-										) : (
-											<>
-												{group.total_member_count} member
-												{group.total_member_count !== 1 && "s"}
-											</>
-										)
-									}
-								/>
-							</Grid>
+							<AvatarCard
+								key={group.id}
+								imgUrl={group.avatar_url}
+								header={group.display_name || group.name}
+								subtitle={
+									showOrganizations ? (
+										group.organization_display_name
+									) : (
+										<>
+											{group.total_member_count} member
+											{group.total_member_count !== 1 && "s"}
+										</>
+									)
+								}
+							/>
 						))}
-					</Grid>
+					</div>
 				)}
 
 				{loading && <Loader />}

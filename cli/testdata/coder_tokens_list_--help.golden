@@ -15,6 +15,10 @@ OPTIONS:
   -c, --column [id|name|scopes|allow list|last used|expires at|created at|owner] (default: id,name,scopes,allow list,last used,expires at,created at)
           Columns to display in table output.
 
+      --include-expired bool
+          Include expired tokens in the output. By default, expired tokens are
+          hidden.
+
   -o, --output table|json (default: table)
           Output format.
 

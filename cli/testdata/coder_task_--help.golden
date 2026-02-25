@@ -13,6 +13,7 @@ SUBCOMMANDS:
     list      List tasks
     logs      Show a task's logs
     pause     Pause a task
+    resume    Resume a task
     send      Send input to a task
     status    Show the status of a task.
 

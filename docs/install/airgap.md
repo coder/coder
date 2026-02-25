@@ -235,8 +235,10 @@ accessible for your team to use.
 
 ## Coder Modules
 
-To use Coder modules in offline installations please follow the instructions
-[here](../admin/templates/extending-templates/modules.md#offline-installations).
+To use Coder modules in offline installations, you can either:
+
+- [Mirror the Coder Registry with JFrog Artifactory](./registry-mirror-artifactory.md) (recommended)
+- [Manually publish modules to Artifactory or use a private git repository](../admin/templates/extending-templates/modules.md#offline-installations)
 
 ## Firewall exceptions
 

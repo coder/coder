@@ -237,8 +237,8 @@ func (s *MethodTestSuite) TestAPIKey() {
 	s.Run("GetAPIKeysByLoginType", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		a := testutil.Fake(s.T(), faker, database.APIKey{LoginType: database.LoginTypePassword})
 		b := testutil.Fake(s.T(), faker, database.APIKey{LoginType: database.LoginTypePassword})
-		dbm.EXPECT().GetAPIKeysByLoginType(gomock.Any(), database.LoginTypePassword).Return([]database.APIKey{a, b}, nil).AnyTimes()
-		check.Args(database.LoginTypePassword).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
+		dbm.EXPECT().GetAPIKeysByLoginType(gomock.Any(), database.GetAPIKeysByLoginTypeParams{LoginType: database.LoginTypePassword}).Return([]database.APIKey{a, b}, nil).AnyTimes()
+		check.Args(database.GetAPIKeysByLoginTypeParams{LoginType: database.LoginTypePassword}).Asserts(a, policy.ActionRead, b, policy.ActionRead).Returns(slice.New(a, b))
 	}))
 	s.Run("GetAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u1 := testutil.Fake(s.T(), faker, database.User{})
@@ -1326,6 +1326,11 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().GetTemplateInsightsByTemplate(gomock.Any(), arg).Return([]database.GetTemplateInsightsByTemplateRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
+	s.Run("GetTelemetryTaskEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetTelemetryTaskEventsParams{}
+		dbm.EXPECT().GetTelemetryTaskEvents(gomock.Any(), arg).Return([]database.GetTelemetryTaskEventsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTask.All(), policy.ActionRead)
+	}))
 	s.Run("GetTemplateAppInsights", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetTemplateAppInsightsParams{}
 		dbm.EXPECT().GetTemplateAppInsights(gomock.Any(), arg).Return([]database.GetTemplateAppInsightsRow{}, nil).AnyTimes()
@@ -1968,6 +1973,15 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), build.ID).Return(build, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
 		check.Args(build.ID).Asserts(ws, policy.ActionRead).Returns(build)
+	}))
+	s.Run("GetWorkspaceBuildProvisionerStateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := database.GetWorkspaceBuildProvisionerStateByIDRow{
+			ProvisionerState:       []byte("state"),
+			TemplateID:             uuid.New(),
+			TemplateOrganizationID: uuid.New(),
+		}
+		dbm.EXPECT().GetWorkspaceBuildProvisionerStateByID(gomock.Any(), gomock.Any()).Return(row, nil).AnyTimes()
+		check.Args(uuid.New()).Asserts(row, policy.ActionUpdate).Returns(row)
 	}))
 	s.Run("GetWorkspaceBuildByJobID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})

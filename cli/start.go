@@ -120,7 +120,7 @@ func (r *RootCmd) start() *serpent.Command {
 func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, buildFlags buildFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
 	version := workspace.LatestBuild.TemplateVersionID
 
-	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || action == WorkspaceUpdate {
+	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || workspace.TemplateRequireActiveVersion || action == WorkspaceUpdate {
 		version = workspace.TemplateActiveVersionID
 		if version != workspace.LatestBuild.TemplateVersionID {
 			action = WorkspaceUpdate

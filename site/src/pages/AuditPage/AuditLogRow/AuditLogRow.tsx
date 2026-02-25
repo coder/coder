@@ -1,10 +1,10 @@
 import type { AuditLog, BuildReason } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Avatar } from "components/Avatar/Avatar";
 import {
 	Collapsible,
 	CollapsibleContent,
 } from "components/Collapsible/Collapsible";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Link } from "components/Link/Link";
 import { StatusPill } from "components/StatusPill/StatusPill";
 import { TableCell } from "components/Table/Table";
@@ -238,7 +238,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 
 						{shouldDisplayDiff ? (
 							<div>
-								<DropdownArrow close={isDiffOpen} />
+								<ChevronDownIcon open={isDiffOpen} className="ml-2" />
 							</div>
 						) : (
 							<div className="ml-6" />

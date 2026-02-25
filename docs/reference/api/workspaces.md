@@ -331,6 +331,64 @@ of the template will be used.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get users available for workspace creation
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members/{user}/workspaces/available-users \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/members/{user}/workspaces/available-users`
+
+### Parameters
+
+| Name           | In    | Type         | Required | Description           |
+|----------------|-------|--------------|----------|-----------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID       |
+| `user`         | path  | string       | true     | User ID, name, or me  |
+| `q`            | query | string       | false    | Search query          |
+| `limit`        | query | integer      | false    | Limit results         |
+| `offset`       | query | integer      | false    | Offset for pagination |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                          |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.MinimalUser](schemas.md#codersdkminimaluser) |
+
+<h3 id="get-users-available-for-workspace-creation-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type         | Required | Restrictions | Description |
+|----------------|--------------|----------|--------------|-------------|
+| `[array item]` | array        | false    |              |             |
+| `» avatar_url` | string(uri)  | false    |              |             |
+| `» id`         | string(uuid) | true     |              |             |
+| `» name`       | string       | false    |              |             |
+| `» username`   | string       | true     |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace metadata by user and workspace name
 
 ### Code samples
