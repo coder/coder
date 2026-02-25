@@ -26,8 +26,10 @@ import {
 } from "lucide-react";
 import {
 	type FC,
+	createContext,
 	memo,
 	useCallback,
+	useContext,
 	useEffect,
 	useMemo,
 	useState,
@@ -60,12 +62,6 @@ const statusConfig = {
 	completed: { icon: CheckIcon, className: "text-content-secondary" },
 } as const;
 
-type ChatWithExtendedMetadata = Chat & {
-	readonly diff_status?: ChatDiffStatus;
-	readonly parent_chat_id?: string;
-	readonly root_chat_id?: string;
-};
-
 type ChatTree = {
 	readonly rootIds: readonly string[];
 	readonly childrenById: ReadonlyMap<string, readonly string[]>;
@@ -92,7 +88,7 @@ const getModelDisplayName = (
 		return "Default model";
 	}
 
-	const model = (modelConfig as { model?: string }).model;
+	const model = modelConfig.model;
 	if (!model) {
 		return "Default model";
 	}
@@ -115,15 +111,15 @@ const getModelDisplayName = (
 };
 
 const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
-	return (chat as ChatWithExtendedMetadata).diff_status;
+	return chat.diff_status;
 };
 
 const getParentChatID = (chat: Chat): string | undefined => {
-	return asNonEmptyString((chat as ChatWithExtendedMetadata).parent_chat_id);
+	return asNonEmptyString(chat.parent_chat_id);
 };
 
 const getRootChatID = (chat: Chat): string | undefined => {
-	return asNonEmptyString((chat as ChatWithExtendedMetadata).root_chat_id);
+	return asNonEmptyString(chat.root_chat_id);
 };
 
 const buildChatTree = (chats: readonly Chat[]): ChatTree => {
@@ -222,9 +218,7 @@ const collectVisibleChatIDs = ({
 	return visible;
 };
 
-interface ChatTreeNodeProps {
-	readonly chat: Chat;
-	readonly isChildNode: boolean;
+interface ChatTreeContextValue {
 	readonly chatTree: ChatTree;
 	readonly chatById: ReadonlyMap<string, Chat>;
 	readonly visibleChatIDs: ReadonlySet<string>;
@@ -238,22 +232,38 @@ interface ChatTreeNodeProps {
 	readonly onArchiveAgent: (chatId: string) => void;
 }
 
+const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
+
+function useChatTree(): ChatTreeContextValue {
+	const ctx = useContext(ChatTreeContext);
+	if (!ctx) {
+		throw new Error(
+			"useChatTree must be used within ChatTreeContext.Provider",
+		);
+	}
+	return ctx;
+}
+
+interface ChatTreeNodeProps {
+	readonly chat: Chat;
+	readonly isChildNode: boolean;
+}
+
 const ChatTreeNode = memo<ChatTreeNodeProps>(
-	({
-		chat,
-		isChildNode,
-		chatTree,
-		chatById,
-		visibleChatIDs,
-		normalizedSearch,
-		expandedById,
-		modelOptions,
-		chatErrorReasons,
-		isArchiving,
-		archivingChatId,
-		toggleExpanded,
-		onArchiveAgent,
-	}) => {
+	({ chat, isChildNode }) => {
+		const {
+			chatTree,
+			chatById,
+			visibleChatIDs,
+			normalizedSearch,
+			expandedById,
+			modelOptions,
+			chatErrorReasons,
+			isArchiving,
+			archivingChatId,
+			toggleExpanded,
+			onArchiveAgent,
+		} = useChatTree();
 		const chatID = chat.id;
 		const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter(
 			(childID) => visibleChatIDs.has(childID),
@@ -420,17 +430,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(
 									key={childChat.id}
 									chat={childChat}
 									isChildNode
-									chatTree={chatTree}
-									chatById={chatById}
-									visibleChatIDs={visibleChatIDs}
-									normalizedSearch={normalizedSearch}
-									expandedById={expandedById}
-									modelOptions={modelOptions}
-									chatErrorReasons={chatErrorReasons}
-									isArchiving={isArchiving}
-									archivingChatId={archivingChatId}
-									toggleExpanded={toggleExpanded}
-									onArchiveAgent={onArchiveAgent}
 								/>
 							);
 						})}
@@ -512,6 +511,35 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	}, []);
 
+	const chatTreeCtx = useMemo<ChatTreeContextValue>(
+		() => ({
+			chatTree,
+			chatById,
+			visibleChatIDs,
+			normalizedSearch,
+			expandedById,
+			modelOptions,
+			chatErrorReasons,
+			isArchiving,
+			archivingChatId,
+			toggleExpanded,
+			onArchiveAgent,
+		}),
+		[
+			chatTree,
+			chatById,
+			visibleChatIDs,
+			normalizedSearch,
+			expandedById,
+			modelOptions,
+			chatErrorReasons,
+			isArchiving,
+			archivingChatId,
+			toggleExpanded,
+			onArchiveAgent,
+		],
+	);
+
 	return (
 		<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
 			<div className="border-b border-border-default px-3 pb-3 pt-1.5 md:px-3.5">
@@ -585,7 +613,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							</div>
 						</>
 					) : (
-						<>
+						<ChatTreeContext.Provider value={chatTreeCtx}>
 							<div className="ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 								<span>This Week</span>
 							</div>
@@ -599,17 +627,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											key={chat.id}
 											chat={chat}
 											isChildNode={false}
-											chatTree={chatTree}
-											chatById={chatById}
-											visibleChatIDs={visibleChatIDs}
-											normalizedSearch={normalizedSearch}
-											expandedById={expandedById}
-											modelOptions={modelOptions}
-											chatErrorReasons={chatErrorReasons}
-											isArchiving={isArchiving}
-											archivingChatId={archivingChatId}
-											toggleExpanded={toggleExpanded}
-											onArchiveAgent={onArchiveAgent}
 										/>
 									);
 								})}
@@ -620,7 +637,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									</div>
 								)}
 							</div>
-						</>
+						</ChatTreeContext.Provider>
 					)}
 				</div>
 			</ScrollArea>
