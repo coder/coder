@@ -128,7 +128,7 @@
 	}
 
 	::placeholder {
-		@apply text-content-disabled;
+		@apply text-content-secondary;
 	}
 
 	fieldset {
