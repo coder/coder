@@ -611,7 +611,7 @@ func (s *localMode) localChatTemplateArchiveForProvisioner(
 				if !valid {
 					continue
 				}
-				b.WriteRune(r)
+				_, _ = b.WriteRune(r)
 			}
 			agentResourceName = b.String()
 			if agentResourceName != "" {

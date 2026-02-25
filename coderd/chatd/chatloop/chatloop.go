@@ -657,11 +657,11 @@ func normalizeMetadataKey(key string) string {
 	for _, r := range key {
 		switch {
 		case r >= 'a' && r <= 'z':
-			b.WriteRune(r)
+			_, _ = b.WriteRune(r)
 		case r >= 'A' && r <= 'Z':
-			b.WriteRune(r + ('a' - 'A'))
+			_, _ = b.WriteRune(r + ('a' - 'A'))
 		case r >= '0' && r <= '9':
-			b.WriteRune(r)
+			_, _ = b.WriteRune(r)
 		}
 	}
 

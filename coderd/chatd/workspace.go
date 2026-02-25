@@ -550,9 +550,9 @@ func extractResponseText(content []fantasy.Content) string {
 				continue
 			}
 			if builder.Len() > 0 {
-				builder.WriteString("\n")
+				_, _ = builder.WriteString("\n")
 			}
-			builder.WriteString(payload.Text)
+			_, _ = builder.WriteString(payload.Text)
 			continue
 		}
 		if payload, ok := fantasy.AsContentType[fantasy.ReasoningContent](block); ok {
@@ -560,9 +560,9 @@ func extractResponseText(content []fantasy.Content) string {
 				continue
 			}
 			if builder.Len() > 0 {
-				builder.WriteString("\n")
+				_, _ = builder.WriteString("\n")
 			}
-			builder.WriteString(payload.Text)
+			_, _ = builder.WriteString(payload.Text)
 		}
 	}
 	return strings.TrimSpace(builder.String())
