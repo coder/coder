@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import {
 	type FC,
-	type ReactNode,
+	memo,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -222,82 +222,39 @@ const collectVisibleChatIDs = ({
 	return visible;
 };
 
-export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
-	const {
-		chats,
-		chatErrorReasons,
+interface ChatTreeNodeProps {
+	readonly chat: Chat;
+	readonly isChildNode: boolean;
+	readonly chatTree: ChatTree;
+	readonly chatById: ReadonlyMap<string, Chat>;
+	readonly visibleChatIDs: ReadonlySet<string>;
+	readonly normalizedSearch: string;
+	readonly expandedById: Record<string, boolean>;
+	readonly modelOptions: readonly ModelSelectorOption[];
+	readonly chatErrorReasons: Record<string, string>;
+	readonly isArchiving: boolean;
+	readonly archivingChatId: string | null;
+	readonly toggleExpanded: (chatID: string) => void;
+	readonly onArchiveAgent: (chatId: string) => void;
+}
+
+const ChatTreeNode = memo<ChatTreeNodeProps>(
+	({
+		chat,
+		isChildNode,
+		chatTree,
+		chatById,
+		visibleChatIDs,
+		normalizedSearch,
+		expandedById,
 		modelOptions,
-		logoUrl,
+		chatErrorReasons,
+		isArchiving,
+		archivingChatId,
+		toggleExpanded,
 		onArchiveAgent,
-		onNewAgent,
-		isCreating,
-		isArchiving = false,
-		archivingChatId = null,
-		isLoading = false,
-		loadError,
-		onRetryLoad,
-	} = props;
-	const { agentId, chatId } = useParams<{
-		agentId?: string;
-		chatId?: string;
-	}>();
-	const activeChatId = agentId ?? chatId;
-	const [search, setSearch] = useState("");
-	const normalizedSearch = search.trim().toLowerCase();
-	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
-
-	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
-	const chatById = useMemo(() => {
-		return new Map(chats.map((chat) => [chat.id, chat] as const));
-	}, [chats]);
-	const visibleChatIDs = useMemo(
-		() =>
-			collectVisibleChatIDs({
-				chats,
-				search: normalizedSearch,
-				tree: chatTree,
-			}),
-		[chats, normalizedSearch, chatTree],
-	);
-	const visibleRootIDs = useMemo(
-		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
-		[chatTree.rootIds, visibleChatIDs],
-	);
-
-	// Auto-expand ancestors of the active chat so it's always visible.
-	useEffect(() => {
-		if (!activeChatId) {
-			return;
-		}
-		const toExpand: string[] = [];
-		let cursor = chatTree.parentById.get(activeChatId);
-		const seen = new Set<string>();
-		while (cursor && !seen.has(cursor)) {
-			seen.add(cursor);
-			toExpand.push(cursor);
-			cursor = chatTree.parentById.get(cursor);
-		}
-		if (toExpand.length > 0) {
-			setExpandedById((prev) => {
-				const next = { ...prev };
-				for (const id of toExpand) {
-					next[id] = true;
-				}
-				return next;
-			});
-		}
-	}, [activeChatId, chatTree.parentById]);
-
-	const toggleExpanded = useCallback((chatID: string) => {
-		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
-	}, []);
-
-	const renderChatNode = (chatID: string, isChildNode: boolean): ReactNode => {
-		const chat = chatById.get(chatID);
-		if (!chat || !visibleChatIDs.has(chatID)) {
-			return null;
-		}
-
+	}) => {
+		const chatID = chat.id;
 		const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter(
 			(childID) => visibleChatIDs.has(childID),
 		);
@@ -321,13 +278,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			changedFiles === 1 ? "file" : "files"
 		}`;
 		const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
-
 		const isExpanded = normalizedSearch
 			? true
 			: (expandedById[chatID] ?? false);
 
 		return (
-			<div key={chat.id} className="flex min-w-0 flex-col">
+			<div className="flex min-w-0 flex-col">
 				<div
 					data-testid={`agents-tree-node-${chat.id}`}
 					className={cn(
@@ -456,12 +412,105 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 				{hasChildren && isExpanded && (
 					<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
-						{childIDs.map((childID) => renderChatNode(childID, true))}
+						{childIDs.map((childID) => {
+							const childChat = chatById.get(childID);
+							if (!childChat) return null;
+							return (
+								<ChatTreeNode
+									key={childChat.id}
+									chat={childChat}
+									isChildNode
+									chatTree={chatTree}
+									chatById={chatById}
+									visibleChatIDs={visibleChatIDs}
+									normalizedSearch={normalizedSearch}
+									expandedById={expandedById}
+									modelOptions={modelOptions}
+									chatErrorReasons={chatErrorReasons}
+									isArchiving={isArchiving}
+									archivingChatId={archivingChatId}
+									toggleExpanded={toggleExpanded}
+									onArchiveAgent={onArchiveAgent}
+								/>
+							);
+						})}
 					</div>
 				)}
 			</div>
 		);
-	};
+	},
+);
+ChatTreeNode.displayName = "ChatTreeNode";
+
+export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
+	const {
+		chats,
+		chatErrorReasons,
+		modelOptions,
+		logoUrl,
+		onArchiveAgent,
+		onNewAgent,
+		isCreating,
+		isArchiving = false,
+		archivingChatId = null,
+		isLoading = false,
+		loadError,
+		onRetryLoad,
+	} = props;
+	const { agentId, chatId } = useParams<{
+		agentId?: string;
+		chatId?: string;
+	}>();
+	const activeChatId = agentId ?? chatId;
+	const [search, setSearch] = useState("");
+	const normalizedSearch = search.trim().toLowerCase();
+	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+
+	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
+	const chatById = useMemo(() => {
+		return new Map(chats.map((chat) => [chat.id, chat] as const));
+	}, [chats]);
+	const visibleChatIDs = useMemo(
+		() =>
+			collectVisibleChatIDs({
+				chats,
+				search: normalizedSearch,
+				tree: chatTree,
+			}),
+		[chats, normalizedSearch, chatTree],
+	);
+	const visibleRootIDs = useMemo(
+		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
+		[chatTree.rootIds, visibleChatIDs],
+	);
+
+	// Auto-expand ancestors of the active chat so it's always visible.
+	useEffect(() => {
+		if (!activeChatId) {
+			return;
+		}
+		const toExpand: string[] = [];
+		let cursor = chatTree.parentById.get(activeChatId);
+		const seen = new Set<string>();
+		while (cursor && !seen.has(cursor)) {
+			seen.add(cursor);
+			toExpand.push(cursor);
+			cursor = chatTree.parentById.get(cursor);
+		}
+		if (toExpand.length > 0) {
+			setExpandedById((prev) => {
+				const next = { ...prev };
+				for (const id of toExpand) {
+					next[id] = true;
+				}
+				return next;
+			});
+		}
+	}, [activeChatId, chatTree.parentById]);
+
+	const toggleExpanded = useCallback((chatID: string) => {
+		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
+	}, []);
 
 	return (
 		<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
@@ -542,7 +591,28 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							</div>
 
 							<div className="flex flex-col gap-0.5">
-								{visibleRootIDs.map((chatID) => renderChatNode(chatID, false))}
+								{visibleRootIDs.map((chatID) => {
+									const chat = chatById.get(chatID);
+									if (!chat) return null;
+									return (
+										<ChatTreeNode
+											key={chat.id}
+											chat={chat}
+											isChildNode={false}
+											chatTree={chatTree}
+											chatById={chatById}
+											visibleChatIDs={visibleChatIDs}
+											normalizedSearch={normalizedSearch}
+											expandedById={expandedById}
+											modelOptions={modelOptions}
+											chatErrorReasons={chatErrorReasons}
+											isArchiving={isArchiving}
+											archivingChatId={archivingChatId}
+											toggleExpanded={toggleExpanded}
+											onArchiveAgent={onArchiveAgent}
+										/>
+									);
+								})}
 
 								{visibleRootIDs.length === 0 && (
 									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
