@@ -972,7 +972,7 @@ func stringValue(value any) (string, bool) {
 	}
 }
 
-func boolValue(value any) (bool, bool) {
+func boolValue(value any) (result bool, ok bool) {
 	switch typed := value.(type) {
 	case bool:
 		return typed, true
@@ -1006,15 +1006,15 @@ func intValue(value any) (int, bool) {
 	}
 }
 
-func truncateRunes(value string, max int) string {
-	if max <= 0 {
+func truncateRunes(value string, maxLen int) string {
+	if maxLen <= 0 {
 		return ""
 	}
 
 	runes := []rune(value)
-	if len(runes) <= max {
+	if len(runes) <= maxLen {
 		return value
 	}
 
-	return string(runes[:max])
+	return string(runes[:maxLen])
 }

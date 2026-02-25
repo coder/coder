@@ -116,6 +116,7 @@ func (k ProviderAPIKeys) APIKey(provider string) string {
 	}
 }
 
+//nolint:revive // Intentional: apiKey is the unexported helper for APIKey.
 func (k ProviderAPIKeys) apiKey(provider string) string {
 	return k.APIKey(provider)
 }
@@ -374,11 +375,12 @@ func NormalizeProvider(provider string) string {
 	}
 }
 
+//nolint:revive // Intentional: normalizeProvider is the unexported helper for NormalizeProvider.
 func normalizeProvider(provider string) string {
 	return NormalizeProvider(provider)
 }
 
-func ResolveModelWithProviderHint(modelName, providerHint string) (string, string, error) {
+func ResolveModelWithProviderHint(modelName, providerHint string) (provider string, model string, err error) {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" {
 		return "", "", xerrors.New("model is required")
@@ -412,7 +414,7 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (string, strin
 	return "", "", xerrors.Errorf("unknown model %q", modelName)
 }
 
-func parseCanonicalModelRef(modelRef string) (string, string, bool) {
+func parseCanonicalModelRef(modelRef string) (provider string, model string, ok bool) {
 	modelRef = strings.TrimSpace(modelRef)
 	if modelRef == "" {
 		return "", "", false
