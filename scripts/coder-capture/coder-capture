@@ -1,0 +1,529 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+PROGRAM_NAME="coder-capture"
+CAPTURE_DIR="${HOME}/.coder-capture"
+HOOKS_DIR="${CAPTURE_DIR}/hooks"
+SCRIPTS_DIR="${CAPTURE_DIR}/scripts"
+CONFIG_FILE="${CAPTURE_DIR}/config"
+CURRENT_SESSION_FILE="${CAPTURE_DIR}/.current-session"
+DEFAULT_LOG_DIR="${HOME}/coder-capture-logs"
+
+usage() {
+	cat <<USAGE
+Usage:
+  ${PROGRAM_NAME} enable [--no-trailer] [--log-dir DIR]
+  ${PROGRAM_NAME} disable
+  ${PROGRAM_NAME} status
+USAGE
+}
+
+log_info() {
+	printf '[%s] %s\n' "${PROGRAM_NAME}" "$*"
+}
+
+log_warn() {
+	printf '[%s] warning: %s\n' "${PROGRAM_NAME}" "$*" >&2
+}
+
+log_error() {
+	printf '[%s] error: %s\n' "${PROGRAM_NAME}" "$*" >&2
+}
+
+require_jq() {
+	if ! command -v jq >/dev/null 2>&1; then
+		log_error "jq is required for enable"
+		exit 1
+	fi
+}
+
+load_config() {
+	LOG_DIR="${DEFAULT_LOG_DIR}"
+	TRAILER_ENABLED="1"
+	if [[ -f "${CONFIG_FILE}" ]]; then
+		# shellcheck source=/dev/null
+		source "${CONFIG_FILE}"
+		LOG_DIR="${LOG_DIR:-${DEFAULT_LOG_DIR}}"
+		TRAILER_ENABLED="${TRAILER_ENABLED:-1}"
+	fi
+}
+
+write_config() {
+	local log_dir="$1"
+	local trailer_enabled="$2"
+	mkdir -p "${CAPTURE_DIR}"
+	cat >"${CONFIG_FILE}" <<CONFIG
+LOG_DIR='${log_dir}'
+TRAILER_ENABLED='${trailer_enabled}'
+CONFIG
+}
+
+merge_json() {
+	local target="$1"
+	local overlay_json="$2"
+	mkdir -p "$(dirname "${target}")"
+
+	local base_file overlay_file merged_file
+	base_file="$(mktemp)"
+	overlay_file="$(mktemp)"
+	merged_file="$(mktemp)"
+
+	if [[ -s "${target}" ]] && jq empty "${target}" >/dev/null 2>&1; then
+		cp "${target}" "${base_file}"
+	else
+		printf '{}\n' >"${base_file}"
+	fi
+	printf '%s\n' "${overlay_json}" >"${overlay_file}"
+
+	jq -s '.[0] * .[1]' "${base_file}" "${overlay_file}" >"${merged_file}"
+	mv "${merged_file}" "${target}"
+	rm -f "${base_file}" "${overlay_file}"
+}
+
+write_hook_library() {
+	local log_dir="$1"
+	cat >"${SCRIPTS_DIR}/hook-lib.sh" <<'LIB'
+#!/usr/bin/env bash
+set +e
+
+CAPTURE_DIR="${HOME}/.coder-capture"
+SESSION_FILE="${CAPTURE_DIR}/.current-session"
+LOG_DIR="__LOG_DIR__"
+EVENTS_FILE="${LOG_DIR}/events.jsonl"
+SESSIONS_FILE="${LOG_DIR}/sessions.jsonl"
+
+mkdir -p "${CAPTURE_DIR}" "${LOG_DIR}" >/dev/null 2>&1
+
+json_escape() {
+	local s="${1:-}"
+	s=${s//\\/\\\\}
+	s=${s//\"/\\\"}
+	s=${s//$'\n'/\\n}
+	s=${s//$'\r'/\\r}
+	s=${s//$'\t'/\\t}
+	printf '%s' "${s}"
+}
+
+generate_session_id() {
+	local date_part rand
+	date_part="$(date +%Y%m%d)"
+	if command -v openssl >/dev/null 2>&1; then
+		rand="$(openssl rand -hex 6 2>/dev/null)"
+	elif [[ -r /proc/sys/kernel/random/uuid ]]; then
+		rand="$(tr -d '-' </proc/sys/kernel/random/uuid | cut -c1-12)"
+	else
+		rand="$(printf '%012x' "$((RANDOM * RANDOM + RANDOM))" | cut -c1-12)"
+	fi
+	printf '%s-%s' "${date_part}" "${rand}"
+}
+
+get_session_id() {
+	local sid=""
+	if [[ -f "${SESSION_FILE}" ]]; then
+		sid="$(head -n1 "${SESSION_FILE}" | tr -d '[:space:]')"
+	fi
+	if [[ -z "${sid}" && -n "${CODER_AI_BRIDGE_SESSION_ID:-}" ]]; then
+		sid="${CODER_AI_BRIDGE_SESSION_ID}"
+	fi
+	if [[ -z "${sid}" ]]; then
+		sid="$(generate_session_id)"
+	fi
+	printf '%s' "${sid}"
+}
+
+detect_agent_name() {
+	if [[ -n "${CODER_AI_BRIDGE_AGENT_NAME:-}" ]]; then
+		printf '%s' "${CODER_AI_BRIDGE_AGENT_NAME}"
+	elif [[ -n "${CLAUDECODE:-}" || -n "${CLAUDE_SESSION_ID:-}" ]]; then
+		printf 'claude-code'
+	elif [[ -n "${GEMINI_CLI:-}" || -n "${GEMINI_SESSION_ID:-}" ]]; then
+		printf 'gemini-cli'
+	else
+		printf 'unknown'
+	fi
+}
+
+timestamp_utc() {
+	date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+repo_name() {
+	local top
+	top="$(git rev-parse --show-toplevel 2>/dev/null)"
+	basename "${top:-$(pwd)}"
+}
+
+branch_name() {
+	git rev-parse --abbrev-ref HEAD 2>/dev/null
+}
+
+files_changed_json() {
+	local sha="$1"
+	local item escaped out="" first=1
+	while IFS= read -r item; do
+		[[ -z "${item}" ]] && continue
+		escaped="$(json_escape "${item}")"
+		if [[ ${first} -eq 1 ]]; then
+			out="\"${escaped}\""
+			first=0
+		else
+			out+=",\"${escaped}\""
+		fi
+	done < <(git diff-tree --no-commit-id --name-only -r "${sha}" 2>/dev/null)
+	printf '%s' "${out}"
+}
+
+append_jsonl() {
+	local path="$1"
+	local payload="$2"
+	mkdir -p "$(dirname "${path}")" >/dev/null 2>&1
+	printf '%s\n' "${payload}" >>"${path}"
+}
+
+post_event() {
+	local endpoint="$1"
+	local payload="$2"
+	local fallback_file="$3"
+	if [[ -n "${CODER_AGENT_URL:-}" && -n "${CODER_AGENT_TOKEN:-}" ]]; then
+		(
+			curl -fsS -m 2 -X POST "${endpoint}" \
+				-H "Content-Type: application/json" \
+				-H "Coder-Session-Token: ${CODER_AGENT_TOKEN}" \
+				--data "${payload}" >/dev/null 2>&1 || append_jsonl "${fallback_file}" "${payload}"
+		) &
+	else
+		append_jsonl "${fallback_file}" "${payload}"
+	fi
+}
+LIB
+	sed -i "s|__LOG_DIR__|${log_dir}|g" "${SCRIPTS_DIR}/hook-lib.sh"
+	chmod +x "${SCRIPTS_DIR}/hook-lib.sh"
+}
+
+write_post_commit_hook() {
+	cat >"${HOOKS_DIR}/post-commit" <<'HOOK'
+#!/usr/bin/env bash
+set +e
+
+LIB="${HOME}/.coder-capture/scripts/hook-lib.sh"
+[[ -f "${LIB}" ]] || exit 0
+# shellcheck source=/dev/null
+source "${LIB}"
+
+sha="$(git rev-parse HEAD 2>/dev/null)"
+[[ -n "${sha}" ]] || exit 0
+
+payload="$(printf '{"event_type":"commit","session_id":"%s","commit_sha":"%s","commit_message":"%s","branch":"%s","repo_name":"%s","files_changed":[%s],"agent_name":"%s","workspace_name":"%s","workspace_owner":"%s","ts":"%s"}' \
+	"$(json_escape "$(get_session_id)")" \
+	"$(json_escape "${sha}")" \
+	"$(json_escape "$(git log -1 --pretty=%s "${sha}" 2>/dev/null)")" \
+	"$(json_escape "$(branch_name)")" \
+	"$(json_escape "$(repo_name)")" \
+	"$(files_changed_json "${sha}")" \
+	"$(json_escape "$(detect_agent_name)")" \
+	"$(json_escape "${CODER_WORKSPACE_NAME:-unknown}")" \
+	"$(json_escape "${CODER_WORKSPACE_OWNER_NAME:-unknown}")" \
+	"$(json_escape "$(timestamp_utc)")")"
+
+post_event "${CODER_AGENT_URL%/}/api/v2/workspaceagents/me/git-events" "${payload}" "${EVENTS_FILE}"
+exit 0
+HOOK
+	chmod +x "${HOOKS_DIR}/post-commit"
+}
+
+write_commit_msg_hook() {
+	local trailer_enabled="$1"
+	cat >"${HOOKS_DIR}/commit-msg" <<'HOOK'
+#!/usr/bin/env bash
+set +e
+
+TRAILER_ENABLED="__TRAILER_ENABLED__"
+[[ "${TRAILER_ENABLED}" == "1" ]] || exit 0
+
+LIB="${HOME}/.coder-capture/scripts/hook-lib.sh"
+[[ -f "${LIB}" ]] || exit 0
+# shellcheck source=/dev/null
+source "${LIB}"
+
+msg_file="${1:-}"
+[[ -n "${msg_file}" && -f "${msg_file}" ]] || exit 0
+
+grep -qi '^Coder-Session:' "${msg_file}" && exit 0
+
+sid="$(get_session_id)"
+if command -v git >/dev/null 2>&1; then
+	git interpret-trailers --in-place --if-exists doNothing \
+		--trailer "Coder-Session: ${sid}" "${msg_file}" >/dev/null 2>&1
+else
+	printf '\nCoder-Session: %s\n' "${sid}" >>"${msg_file}"
+fi
+
+exit 0
+HOOK
+	sed -i "s|__TRAILER_ENABLED__|${trailer_enabled}|g" "${HOOKS_DIR}/commit-msg"
+	chmod +x "${HOOKS_DIR}/commit-msg"
+}
+
+write_pre_push_hook() {
+	cat >"${HOOKS_DIR}/pre-push" <<'HOOK'
+#!/usr/bin/env bash
+set +e
+
+LIB="${HOME}/.coder-capture/scripts/hook-lib.sh"
+[[ -f "${LIB}" ]] || exit 0
+# shellcheck source=/dev/null
+source "${LIB}"
+
+remote_name="${1:-unknown}"
+remote_url="${2:-unknown}"
+read -r local_ref local_sha remote_ref remote_sha || true
+
+payload="$(printf '{"event_type":"push","session_id":"%s","commit_sha":"%s","branch":"%s","repo_name":"%s","push_local_ref":"%s","push_remote_ref":"%s","remote_name":"%s","remote_url":"%s","agent_name":"%s","workspace_name":"%s","workspace_owner":"%s","ts":"%s"}' \
+	"$(json_escape "$(get_session_id)")" \
+	"$(json_escape "${local_sha:-}")" \
+	"$(json_escape "$(branch_name)")" \
+	"$(json_escape "$(repo_name)")" \
+	"$(json_escape "${local_ref:-}")" \
+	"$(json_escape "${remote_ref:-}")" \
+	"$(json_escape "${remote_name}")" \
+	"$(json_escape "${remote_url}")" \
+	"$(json_escape "$(detect_agent_name)")" \
+	"$(json_escape "${CODER_WORKSPACE_NAME:-unknown}")" \
+	"$(json_escape "${CODER_WORKSPACE_OWNER_NAME:-unknown}")" \
+	"$(json_escape "$(timestamp_utc)")")"
+
+post_event "${CODER_AGENT_URL%/}/api/v2/workspaceagents/me/git-events" "${payload}" "${EVENTS_FILE}"
+exit 0
+HOOK
+	chmod +x "${HOOKS_DIR}/pre-push"
+}
+
+write_session_start_script() {
+	cat >"${SCRIPTS_DIR}/session-start.sh" <<'SCRIPT'
+#!/usr/bin/env bash
+set +e
+
+LIB="${HOME}/.coder-capture/scripts/hook-lib.sh"
+[[ -f "${LIB}" ]] || exit 0
+# shellcheck source=/dev/null
+source "${LIB}"
+
+sid="$(generate_session_id)"
+printf '%s\n' "${sid}" >"${SESSION_FILE}"
+
+payload="$(printf '{"event_type":"session_start","session_id":"%s","agent_name":"%s","workspace_name":"%s","workspace_owner":"%s","ts":"%s"}' \
+	"$(json_escape "${sid}")" \
+	"$(json_escape "$(detect_agent_name)")" \
+	"$(json_escape "${CODER_WORKSPACE_NAME:-unknown}")" \
+	"$(json_escape "${CODER_WORKSPACE_OWNER_NAME:-unknown}")" \
+	"$(json_escape "$(timestamp_utc)")")"
+
+append_jsonl "${SESSIONS_FILE}" "${payload}"
+post_event "${CODER_AGENT_URL%/}/api/v2/workspaceagents/me/session-events" "${payload}" "${EVENTS_FILE}"
+printf '%s\n' "${sid}"
+exit 0
+SCRIPT
+	chmod +x "${SCRIPTS_DIR}/session-start.sh"
+}
+
+write_session_end_script() {
+	cat >"${SCRIPTS_DIR}/session-end.sh" <<'SCRIPT'
+#!/usr/bin/env bash
+set +e
+
+LIB="${HOME}/.coder-capture/scripts/hook-lib.sh"
+[[ -f "${LIB}" ]] || exit 0
+# shellcheck source=/dev/null
+source "${LIB}"
+
+sid="$(get_session_id)"
+payload="$(printf '{"event_type":"session_end","session_id":"%s","agent_name":"%s","workspace_name":"%s","workspace_owner":"%s","ts":"%s"}' \
+	"$(json_escape "${sid}")" \
+	"$(json_escape "$(detect_agent_name)")" \
+	"$(json_escape "${CODER_WORKSPACE_NAME:-unknown}")" \
+	"$(json_escape "${CODER_WORKSPACE_OWNER_NAME:-unknown}")" \
+	"$(json_escape "$(timestamp_utc)")")"
+
+append_jsonl "${SESSIONS_FILE}" "${payload}"
+post_event "${CODER_AGENT_URL%/}/api/v2/workspaceagents/me/session-events" "${payload}" "${EVENTS_FILE}"
+rm -f "${SESSION_FILE}"
+exit 0
+SCRIPT
+	chmod +x "${SCRIPTS_DIR}/session-end.sh"
+}
+
+tool_status() {
+	local path="$1"
+	local start_cmd="$2"
+	local end_cmd="$3"
+	if [[ ! -f "${path}" ]]; then
+		printf 'not detected'
+		return
+	fi
+	if grep -q "${start_cmd}" "${path}" 2>/dev/null && grep -q "${end_cmd}" "${path}" 2>/dev/null; then
+		printf 'configured'
+	else
+		printf 'detected (hooks not configured)'
+	fi
+}
+
+print_status() {
+	load_config
+	local hooks_path hook current_session events_count sessions_count
+	hooks_path="$(git config --global --get core.hooksPath 2>/dev/null || true)"
+
+	local installed=()
+	for hook in post-commit commit-msg pre-push; do
+		[[ -x "${HOOKS_DIR}/${hook}" ]] && installed+=("${hook}")
+	done
+
+	current_session="none"
+	[[ -f "${CURRENT_SESSION_FILE}" ]] && current_session="$(head -n1 "${CURRENT_SESSION_FILE}" | tr -d '[:space:]')"
+	current_session="${current_session:-none}"
+
+	events_count=0
+	sessions_count=0
+	[[ -f "${LOG_DIR}/events.jsonl" ]] && events_count="$(wc -l <"${LOG_DIR}/events.jsonl" | tr -d '[:space:]')"
+	[[ -f "${LOG_DIR}/sessions.jsonl" ]] && sessions_count="$(wc -l <"${LOG_DIR}/sessions.jsonl" | tr -d '[:space:]')"
+
+	printf 'coder-capture status\n'
+	printf '  capture dir: %s\n' "${CAPTURE_DIR}"
+	printf '  log dir: %s\n' "${LOG_DIR}"
+	printf '  git core.hooksPath: %s\n' "${hooks_path:-unset}"
+	if [[ ${#installed[@]} -gt 0 ]]; then
+		printf '  installed hooks: %s\n' "${installed[*]}"
+	else
+		printf '  installed hooks: none\n'
+	fi
+	printf '  trailer injection: %s\n' "$( [[ "${TRAILER_ENABLED}" == "1" ]] && printf 'enabled' || printf 'disabled' )"
+	printf '  claude code: %s\n' "$(tool_status "${HOME}/.claude/settings.json" "${SCRIPTS_DIR}/session-start.sh" "${SCRIPTS_DIR}/session-end.sh")"
+	printf '  gemini cli: %s\n' "$(tool_status "${HOME}/.gemini/settings.json" "${SCRIPTS_DIR}/session-start.sh" "${SCRIPTS_DIR}/session-end.sh")"
+	printf '  current session: %s\n' "${current_session}"
+	printf '  events logged: %s\n' "${events_count}"
+	printf '  session logs: %s\n' "${sessions_count}"
+}
+
+merge_agent_hooks() {
+	local claude_settings="${HOME}/.claude/settings.json"
+	local gemini_settings="${HOME}/.gemini/settings.json"
+	local claude_overlay gemini_overlay
+
+	claude_overlay="$(cat <<JSON
+{
+  "hooks": {
+    "SessionStart": {
+      "command": "${SCRIPTS_DIR}/session-start.sh"
+    },
+    "Stop": {
+      "command": "${SCRIPTS_DIR}/session-end.sh"
+    }
+  }
+}
+JSON
+)"
+
+	gemini_overlay="$(cat <<JSON
+{
+  "hooks": {
+    "sessionStart": {
+      "command": "${SCRIPTS_DIR}/session-start.sh"
+    },
+    "sessionEnd": {
+      "command": "${SCRIPTS_DIR}/session-end.sh"
+    }
+  }
+}
+JSON
+)"
+
+	merge_json "${claude_settings}" "${claude_overlay}"
+	merge_json "${gemini_settings}" "${gemini_overlay}"
+}
+
+enable_cmd() {
+	local trailer_enabled="1"
+	local log_dir="${DEFAULT_LOG_DIR}"
+
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+		--no-trailer)
+			trailer_enabled="0"
+			shift
+			;;
+		--log-dir)
+			[[ $# -ge 2 ]] || { log_error "--log-dir requires a value"; exit 1; }
+			log_dir="$2"
+			shift 2
+			;;
+		-h|--help)
+			usage
+			exit 0
+			;;
+		*)
+			log_error "unknown enable option: $1"
+			exit 1
+			;;
+		esac
+	done
+
+	require_jq
+	mkdir -p "${HOOKS_DIR}" "${SCRIPTS_DIR}" "${log_dir}"
+
+	write_hook_library "${log_dir}"
+	write_post_commit_hook
+	write_commit_msg_hook "${trailer_enabled}"
+	write_pre_push_hook
+	write_session_start_script
+	write_session_end_script
+	write_config "${log_dir}" "${trailer_enabled}"
+
+	git config --global core.hooksPath "${HOOKS_DIR}"
+	merge_agent_hooks
+
+	log_info "enabled capture hooks and session scripts"
+	print_status
+}
+
+disable_cmd() {
+	load_config
+	[[ -d "${HOOKS_DIR}" ]] && rm -rf "${HOOKS_DIR}"
+	if [[ "$(git config --global --get core.hooksPath 2>/dev/null || true)" == "${HOOKS_DIR}" ]]; then
+		git config --global --unset core.hooksPath || true
+	fi
+	log_info "disabled git hooks. Logs preserved in ${LOG_DIR}"
+	print_status
+}
+
+status_cmd() {
+	print_status
+}
+
+main() {
+	[[ $# -ge 1 ]] || { usage; exit 1; }
+	case "$1" in
+	enable)
+		shift
+		enable_cmd "$@"
+		;;
+	disable)
+		shift
+		disable_cmd "$@"
+		;;
+	status)
+		shift
+		[[ $# -eq 0 ]] || log_warn "status ignores extra arguments"
+		status_cmd
+		;;
+	-h|--help|help)
+		usage
+		;;
+	*)
+		log_error "unknown subcommand: $1"
+		usage
+		exit 1
+		;;
+	esac
+}
+
+main "$@"
