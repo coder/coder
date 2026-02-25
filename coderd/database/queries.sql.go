@@ -2881,7 +2881,7 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
 FROM
     chat_messages
 WHERE
@@ -2900,8 +2900,6 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.ToolCallID,
 		&i.Thinking,
 		&i.Hidden,
-		&i.SubagentRequestID,
-		&i.SubagentEvent,
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.TotalTokens,
@@ -2916,7 +2914,7 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
 FROM
     chat_messages
 WHERE
@@ -2943,8 +2941,6 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UU
 			&i.ToolCallID,
 			&i.Thinking,
 			&i.Hidden,
-			&i.SubagentRequestID,
-			&i.SubagentEvent,
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.TotalTokens,
@@ -2985,7 +2981,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
 FROM
     chat_messages
 WHERE
@@ -3043,8 +3039,6 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.ToolCallID,
 			&i.Thinking,
 			&i.Hidden,
-			&i.SubagentRequestID,
-			&i.SubagentEvent,
 			&i.InputTokens,
 			&i.OutputTokens,
 			&i.TotalTokens,
@@ -3149,51 +3143,6 @@ func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) (
 	return items, nil
 }
 
-const getLatestPendingSubagentRequestIDByChatID = `-- name: GetLatestPendingSubagentRequestIDByChatID :one
-WITH requests AS (
-    SELECT
-        subagent_request_id,
-        MAX(created_at) AS requested_at
-    FROM
-        chat_messages
-    WHERE
-        chat_id = $1::uuid
-        AND subagent_request_id IS NOT NULL
-        AND subagent_event = 'request'
-    GROUP BY
-        subagent_request_id
-)
-SELECT
-    COALESCE(
-        requests.subagent_request_id,
-        '00000000-0000-0000-0000-000000000000'::uuid
-    ) AS subagent_request_id
-FROM
-    requests
-WHERE
-    NOT EXISTS (
-        SELECT
-            1
-        FROM
-            chat_messages responses
-        WHERE
-            responses.chat_id = $1::uuid
-            AND responses.subagent_request_id = requests.subagent_request_id
-            AND responses.subagent_event = 'response'
-    )
-ORDER BY
-    requests.requested_at DESC
-LIMIT
-    1
-`
-
-func (q *sqlQuerier) GetLatestPendingSubagentRequestIDByChatID(ctx context.Context, chatID uuid.UUID) (uuid.NullUUID, error) {
-	row := q.db.QueryRowContext(ctx, getLatestPendingSubagentRequestIDByChatID, chatID)
-	var subagent_request_id uuid.NullUUID
-	err := row.Scan(&subagent_request_id)
-	return subagent_request_id, err
-}
-
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
     id, owner_id, workspace_id, workspace_agent_id, title, status, model_config, worker_id, started_at, created_at, updated_at, parent_chat_id, root_chat_id
@@ -3241,95 +3190,6 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 		return nil, err
 	}
 	return items, nil
-}
-
-const getSubagentRequestDurationByChatIDAndRequestID = `-- name: GetSubagentRequestDurationByChatIDAndRequestID :one
-WITH request AS (
-    SELECT
-        MIN(created_at) AS created_at
-    FROM
-        chat_messages
-    WHERE
-        chat_id = $1::uuid
-        AND subagent_request_id = $2::uuid
-        AND subagent_event = 'request'
-),
-response AS (
-    SELECT
-        MAX(created_at) AS created_at
-    FROM
-        chat_messages
-    WHERE
-        chat_id = $1::uuid
-        AND subagent_request_id = $2::uuid
-        AND subagent_event = 'response'
-)
-SELECT
-    COALESCE(
-        CAST(EXTRACT(EPOCH FROM (response.created_at - request.created_at)) * 1000 AS BIGINT),
-        0::BIGINT
-    )::BIGINT AS duration_ms
-FROM
-    request,
-    response
-`
-
-type GetSubagentRequestDurationByChatIDAndRequestIDParams struct {
-	ChatID            uuid.UUID `db:"chat_id" json:"chat_id"`
-	SubagentRequestID uuid.UUID `db:"subagent_request_id" json:"subagent_request_id"`
-}
-
-func (q *sqlQuerier) GetSubagentRequestDurationByChatIDAndRequestID(ctx context.Context, arg GetSubagentRequestDurationByChatIDAndRequestIDParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getSubagentRequestDurationByChatIDAndRequestID, arg.ChatID, arg.SubagentRequestID)
-	var duration_ms int64
-	err := row.Scan(&duration_ms)
-	return duration_ms, err
-}
-
-const getSubagentResponseMessageByChatIDAndRequestID = `-- name: GetSubagentResponseMessageByChatIDAndRequestID :one
-SELECT
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
-FROM
-    chat_messages
-WHERE
-    chat_id = $1::uuid
-    AND subagent_request_id = $2::uuid
-    AND subagent_event = 'response'
-ORDER BY
-    created_at DESC
-LIMIT
-    1
-`
-
-type GetSubagentResponseMessageByChatIDAndRequestIDParams struct {
-	ChatID            uuid.UUID `db:"chat_id" json:"chat_id"`
-	SubagentRequestID uuid.UUID `db:"subagent_request_id" json:"subagent_request_id"`
-}
-
-func (q *sqlQuerier) GetSubagentResponseMessageByChatIDAndRequestID(ctx context.Context, arg GetSubagentResponseMessageByChatIDAndRequestIDParams) (ChatMessage, error) {
-	row := q.db.QueryRowContext(ctx, getSubagentResponseMessageByChatIDAndRequestID, arg.ChatID, arg.SubagentRequestID)
-	var i ChatMessage
-	err := row.Scan(
-		&i.ID,
-		&i.ChatID,
-		&i.CreatedAt,
-		&i.Role,
-		&i.Content,
-		&i.ToolCallID,
-		&i.Thinking,
-		&i.Hidden,
-		&i.SubagentRequestID,
-		&i.SubagentEvent,
-		&i.InputTokens,
-		&i.OutputTokens,
-		&i.TotalTokens,
-		&i.ReasoningTokens,
-		&i.CacheCreationTokens,
-		&i.CacheReadTokens,
-		&i.ContextLimit,
-		&i.Compressed,
-	)
-	return i, err
 }
 
 const insertChat = `-- name: InsertChat :one
@@ -3401,8 +3261,6 @@ INSERT INTO chat_messages (
     tool_call_id,
     thinking,
     hidden,
-    subagent_request_id,
-    subagent_event,
     input_tokens,
     output_tokens,
     total_tokens,
@@ -3418,19 +3276,17 @@ INSERT INTO chat_messages (
     $4::text,
     $5::text,
     $6::boolean,
-    $7::uuid,
-    $8::text,
+    $7::bigint,
+    $8::bigint,
     $9::bigint,
     $10::bigint,
     $11::bigint,
     $12::bigint,
     $13::bigint,
-    $14::bigint,
-    $15::bigint,
-    COALESCE($16::boolean, FALSE)
+    COALESCE($14::boolean, FALSE)
 )
 RETURNING
-    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, subagent_request_id, subagent_event, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+    id, chat_id, created_at, role, content, tool_call_id, thinking, hidden, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
 `
 
 type InsertChatMessageParams struct {
@@ -3440,8 +3296,6 @@ type InsertChatMessageParams struct {
 	ToolCallID          sql.NullString        `db:"tool_call_id" json:"tool_call_id"`
 	Thinking            sql.NullString        `db:"thinking" json:"thinking"`
 	Hidden              bool                  `db:"hidden" json:"hidden"`
-	SubagentRequestID   uuid.NullUUID         `db:"subagent_request_id" json:"subagent_request_id"`
-	SubagentEvent       sql.NullString        `db:"subagent_event" json:"subagent_event"`
 	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
 	OutputTokens        sql.NullInt64         `db:"output_tokens" json:"output_tokens"`
 	TotalTokens         sql.NullInt64         `db:"total_tokens" json:"total_tokens"`
@@ -3460,8 +3314,6 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 		arg.ToolCallID,
 		arg.Thinking,
 		arg.Hidden,
-		arg.SubagentRequestID,
-		arg.SubagentEvent,
 		arg.InputTokens,
 		arg.OutputTokens,
 		arg.TotalTokens,
@@ -3481,8 +3333,6 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 		&i.ToolCallID,
 		&i.Thinking,
 		&i.Hidden,
-		&i.SubagentRequestID,
-		&i.SubagentEvent,
 		&i.InputTokens,
 		&i.OutputTokens,
 		&i.TotalTokens,

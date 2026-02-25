@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"math"
+	"net/http"
+	"net/url"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"charm.land/fantasy"
@@ -21,15 +22,17 @@ import (
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -47,16 +50,7 @@ const (
 	// chat is considered stale and should be recovered.
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
-	defaultExecuteTimeout = 60 * time.Second
-	maxExecuteTimeout     = 10 * time.Minute
-
-	defaultExternalAuthWait = 5 * time.Minute
-	maxExternalAuthWait     = 10 * time.Minute
-
-	// Subagent await and message share the same timeout bounds.
-	defaultSubagentAwaitTimeout = 5 * time.Minute
-	maxSubagentAwaitTimeout     = 10 * time.Minute
-
+	defaultExternalAuthWait      = 5 * time.Minute
 	homeInstructionLookupTimeout = 5 * time.Second
 	maxChatSteps                 = 1200
 
@@ -72,33 +66,39 @@ const (
 		"no markdown, no special characters."
 
 	defaultNoWorkspaceInstruction = "No workspace is selected yet. Call the create_workspace tool first before using read_file, write_file, or execute. If create_workspace fails, ask the user to clarify the template or workspace request."
-	reportOnlyInstruction         = "Report-only follow-up pass. Call subagent_report exactly once with a concise summary and nothing else."
+	defaultSubagentInstruction    = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 
-	chatAgentEnvVar                 = "CODER_CHAT_AGENT"
-	gitAuthRequiredMarkerPrefix     = "CODER_GITAUTH_REQUIRED:"
-	authRequiredResultReason        = "authentication_required"
 	externalAuthWaitPollInterval    = time.Second
 	externalAuthWaitTimedOutStatus  = "timed_out"
 	externalAuthWaitCompletedStatus = "completed"
 )
 
-// Processor handles background processing of pending chats.
-type Processor struct {
-	closedFlag atomic.Bool
-	cancel     context.CancelFunc
-	closed     chan struct{}
-	inflight   sync.WaitGroup
+const (
+	// RelaySourceHeader marks replica-relayed stream requests.
+	RelaySourceHeader = "X-Coder-Relay-Source-Replica"
+
+	authorizationHeader = "Authorization"
+	cookieHeader        = "Cookie"
+)
+
+// Server handles background processing of pending chats.
+type Server struct {
+	cancel   context.CancelFunc
+	closed   chan struct{}
+	inflight sync.WaitGroup
 
 	db       database.Store
 	workerID uuid.UUID
 	logger   slog.Logger
+
+	resolveReplicaAddress ReplicaAddressResolver
+	replicaHTTPClient     *http.Client
 
 	agentConnFn              AgentConnFunc
 	createWorkspaceFn        CreateWorkspaceFunc
 	testing                  *TestingConfig
 	streamManager            *StreamManager
 	pubsub                   pubsub.Pubsub
-	subagentService          *SubagentService
 	resolveProviderAPIKeysFn ProviderAPIKeysResolver
 	titleGeneration          TitleGenerationConfig
 	titleModelLookup         func(chatprovider.ProviderAPIKeys) (fantasy.LanguageModel, error)
@@ -150,6 +150,9 @@ type CreateWorkspaceToolResult struct {
 
 // ProviderAPIKeysResolver resolves provider API keys for chat model calls.
 type ProviderAPIKeysResolver func(context.Context) (chatprovider.ProviderAPIKeys, error)
+
+// ReplicaAddressResolver maps a replica ID to its relay address.
+type ReplicaAddressResolver func(context.Context, uuid.UUID) (string, bool)
 
 // TestingConfig contains hooks intended only for tests.
 type TestingConfig struct {
@@ -294,10 +297,623 @@ func (m *StreamManager) stateLocked(chatID uuid.UUID) *chatStreamState {
 	return state
 }
 
+// MaxQueueSize is the maximum number of queued user messages per chat.
+const MaxQueueSize = 20
+
+// ErrMessageQueueFull indicates the per-chat queue limit was reached.
+var ErrMessageQueueFull = xerrors.New("chat message queue is full")
+
+// CreateOptions controls chat creation in the shared chat mutation path.
+type CreateOptions struct {
+	OwnerID            uuid.UUID
+	WorkspaceID        uuid.NullUUID
+	WorkspaceAgentID   uuid.NullUUID
+	ParentChatID       uuid.NullUUID
+	RootChatID         uuid.NullUUID
+	Title              string
+	ModelConfig        json.RawMessage
+	SystemPrompt       string
+	InitialUserContent json.RawMessage
+}
+
+// InsertMessageOptions controls direct chat message insertion.
+type InsertMessageOptions struct {
+	ChatID     uuid.UUID
+	Role       string
+	Content    json.RawMessage
+	ToolCallID *string
+	Thinking   *string
+	Hidden     bool
+	Interrupt  bool
+	SetPending bool
+}
+
+// InsertMessageResult contains persisted message metadata and optional chat status.
+type InsertMessageResult struct {
+	Message database.ChatMessage
+	Chat    database.Chat
+}
+
+// PostMessagesOptions controls user message insertion with optional queueing.
+type PostMessagesOptions struct {
+	ChatID          uuid.UUID
+	Content         json.RawMessage
+	ToolCallID      *string
+	Thinking        *string
+	Hidden          bool
+	Interrupt       bool
+	QueueIfBusy     bool
+	IncludeMessages bool
+}
+
+// PostMessagesResult contains the outcome of user message processing.
+type PostMessagesResult struct {
+	Queued        bool
+	QueuedMessage *database.ChatQueuedMessage
+	Message       database.ChatMessage
+	Chat          database.Chat
+	Messages      []database.ChatMessage
+}
+
+// PromoteQueuedOptions controls queued-message promotion.
+type PromoteQueuedOptions struct {
+	ChatID          uuid.UUID
+	QueuedMessageID int64
+}
+
+// PromoteQueuedResult contains the post-promotion message list.
+type PromoteQueuedResult struct {
+	Messages []database.ChatMessage
+}
+
+// Create creates a chat, inserts optional system prompt and initial user
+// message, and moves the chat into pending status.
+func (p *Server) Create(ctx context.Context, opts CreateOptions) (database.Chat, error) {
+	if opts.OwnerID == uuid.Nil {
+		return database.Chat{}, xerrors.New("owner_id is required")
+	}
+	if strings.TrimSpace(opts.Title) == "" {
+		return database.Chat{}, xerrors.New("title is required")
+	}
+	if len(opts.InitialUserContent) == 0 {
+		return database.Chat{}, xerrors.New("initial user content is required")
+	}
+
+	chat, err := p.db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:          opts.OwnerID,
+		WorkspaceID:      opts.WorkspaceID,
+		WorkspaceAgentID: opts.WorkspaceAgentID,
+		ParentChatID:     opts.ParentChatID,
+		RootChatID:       opts.RootChatID,
+		Title:            opts.Title,
+		ModelConfig:      opts.ModelConfig,
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("insert chat: %w", err)
+	}
+
+	systemPrompt := strings.TrimSpace(opts.SystemPrompt)
+	if systemPrompt != "" {
+		systemContent, err := json.Marshal(systemPrompt)
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("marshal system prompt: %w", err)
+		}
+		_, err = p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID: chat.ID,
+			Role:   "system",
+			Content: pqtype.NullRawMessage{
+				RawMessage: systemContent,
+				Valid:      len(systemContent) > 0,
+			},
+			ToolCallID: sql.NullString{},
+			Thinking:   sql.NullString{},
+			Hidden:     true,
+		})
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("insert system message: %w", err)
+		}
+	}
+
+	sendResult, err := p.InsertMessage(ctx, InsertMessageOptions{
+		ChatID:     chat.ID,
+		Role:       "user",
+		Content:    opts.InitialUserContent,
+		Hidden:     false,
+		SetPending: true,
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("insert initial user message: %w", err)
+	}
+	chat = sendResult.Chat
+
+	if !chat.RootChatID.Valid && !chat.ParentChatID.Valid {
+		chat.RootChatID = uuid.NullUUID{UUID: chat.ID, Valid: true}
+	}
+
+	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated)
+	return chat, nil
+}
+
+// PostMessages inserts a user message, optionally queues while a chat is
+// busy, and publishes stream + pubsub updates.
+func (p *Server) PostMessages(
+	ctx context.Context,
+	opts PostMessagesOptions,
+) (PostMessagesResult, error) {
+	if opts.ChatID == uuid.Nil {
+		return PostMessagesResult{}, xerrors.New("chat_id is required")
+	}
+
+	if opts.Interrupt {
+		p.Interrupt(opts.ChatID)
+	}
+
+	var (
+		result            PostMessagesResult
+		queuedMessagesSDK []codersdk.ChatQueuedMessage
+	)
+
+	txErr := p.db.InTx(func(tx database.Store) error {
+		lockedChat, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("lock chat: %w", err)
+		}
+
+		isChatActive := p.IsActive(opts.ChatID)
+		if opts.QueueIfBusy && ShouldQueueUserMessage(lockedChat.Status, isChatActive) {
+			existingQueued, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
+			if err != nil {
+				return xerrors.Errorf("get queued messages: %w", err)
+			}
+			if len(existingQueued) >= MaxQueueSize {
+				return ErrMessageQueueFull
+			}
+
+			queued, err := tx.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+				ChatID:  opts.ChatID,
+				Content: opts.Content,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert queued message: %w", err)
+			}
+
+			queuedMessages, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
+			if err != nil {
+				return xerrors.Errorf("get queued messages: %w", err)
+			}
+
+			result.Queued = true
+			result.QueuedMessage = &queued
+			result.Chat = lockedChat
+			queuedMessagesSDK = toSDKQueuedMessages(queuedMessages)
+			return nil
+		}
+
+		message, err := insertChatMessageWithStore(ctx, tx, database.InsertChatMessageParams{
+			ChatID: opts.ChatID,
+			Role:   "user",
+			Content: pqtype.NullRawMessage{
+				RawMessage: opts.Content,
+				Valid:      len(opts.Content) > 0,
+			},
+			ToolCallID: toNullString(opts.ToolCallID),
+			Thinking:   toNullString(opts.Thinking),
+			Hidden:     opts.Hidden,
+		})
+		if err != nil {
+			return err
+		}
+		result.Message = message
+
+		if lockedChat.Status == database.ChatStatusPending {
+			result.Chat = lockedChat
+		} else {
+			updatedChat, err := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+				ID:        opts.ChatID,
+				Status:    database.ChatStatusPending,
+				WorkerID:  uuid.NullUUID{},
+				StartedAt: sql.NullTime{},
+			})
+			if err != nil {
+				return xerrors.Errorf("set chat pending: %w", err)
+			}
+			result.Chat = updatedChat
+		}
+
+		if opts.IncludeMessages {
+			messages, err := tx.GetChatMessagesByChatID(ctx, opts.ChatID)
+			if err != nil {
+				return xerrors.Errorf("get chat messages: %w", err)
+			}
+			result.Messages = messages
+		}
+
+		return nil
+	}, nil)
+	if txErr != nil {
+		return PostMessagesResult{}, txErr
+	}
+
+	if result.Queued {
+		p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
+			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+			ChatID:         opts.ChatID,
+			QueuedMessages: queuedMessagesSDK,
+		})
+		return result, nil
+	}
+
+	p.publishMessage(opts.ChatID, result.Message)
+	p.publishStatus(opts.ChatID, result.Chat.Status)
+	p.publishSubagentChildStatus(result.Chat, result.Chat.Status)
+	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange)
+	return result, nil
+}
+
+// Delete removes a chat and all descendants, then broadcasts a deleted event.
+func (p *Server) Delete(ctx context.Context, chatID uuid.UUID) error {
+	if chatID == uuid.Nil {
+		return xerrors.New("chat_id is required")
+	}
+
+	chat, err := p.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("get chat: %w", err)
+	}
+
+	err = p.db.InTx(func(tx database.Store) error {
+		// Collect descendants breadth-first, then delete from leaves upward.
+		descendantIDs := make([]uuid.UUID, 0)
+		queue := []uuid.UUID{chatID}
+		for len(queue) > 0 {
+			parentID := queue[0]
+			queue = queue[1:]
+
+			children, err := tx.ListChildChatsByParentID(ctx, parentID)
+			if err != nil {
+				return xerrors.Errorf("list children of chat %s: %w", parentID, err)
+			}
+			for _, child := range children {
+				descendantIDs = append(descendantIDs, child.ID)
+				queue = append(queue, child.ID)
+			}
+		}
+
+		for i := len(descendantIDs) - 1; i >= 0; i-- {
+			if err := tx.DeleteChatByID(ctx, descendantIDs[i]); err != nil {
+				return xerrors.Errorf("delete descendant chat %s: %w", descendantIDs[i], err)
+			}
+		}
+
+		if err := tx.DeleteChatByID(ctx, chatID); err != nil {
+			return xerrors.Errorf("delete chat: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		return err
+	}
+
+	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDeleted)
+	return nil
+}
+
+// DeleteQueued removes a queued user message and publishes the queue update.
+func (p *Server) DeleteQueued(
+	ctx context.Context,
+	chatID uuid.UUID,
+	queuedMessageID int64,
+) error {
+	if chatID == uuid.Nil {
+		return xerrors.New("chat_id is required")
+	}
+
+	err := p.db.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
+		ID:     queuedMessageID,
+		ChatID: chatID,
+	})
+	if err != nil {
+		return xerrors.Errorf("delete queued message: %w", err)
+	}
+
+	queuedMessages, err := p.db.GetChatQueuedMessages(ctx, chatID)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to load queued messages after delete",
+			slog.F("chat_id", chatID),
+			slog.F("queued_message_id", queuedMessageID),
+			slog.Error(err),
+		)
+		return nil
+	}
+
+	p.publishEvent(chatID, codersdk.ChatStreamEvent{
+		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+		QueuedMessages: toSDKQueuedMessages(queuedMessages),
+	})
+	return nil
+}
+
+// PromoteQueued promotes a queued message into chat history and marks the chat pending.
+func (p *Server) PromoteQueued(
+	ctx context.Context,
+	opts PromoteQueuedOptions,
+) (PromoteQueuedResult, error) {
+	if opts.ChatID == uuid.Nil {
+		return PromoteQueuedResult{}, xerrors.New("chat_id is required")
+	}
+
+	chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+	if err != nil {
+		return PromoteQueuedResult{}, xerrors.Errorf("get chat: %w", err)
+	}
+
+	if chat.Status == database.ChatStatusRunning ||
+		chat.Status == database.ChatStatusPending {
+		p.Interrupt(opts.ChatID)
+	}
+
+	var (
+		result         PromoteQueuedResult
+		promoted       database.ChatMessage
+		updatedChat    database.Chat
+		remainingQueue []database.ChatQueuedMessage
+	)
+
+	txErr := p.db.InTx(func(tx database.Store) error {
+		_, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("lock chat: %w", err)
+		}
+
+		queuedMessages, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("get queued messages: %w", err)
+		}
+
+		var (
+			targetContent json.RawMessage
+			found         bool
+		)
+		for _, qm := range queuedMessages {
+			if qm.ID == opts.QueuedMessageID {
+				targetContent = qm.Content
+				found = true
+				break
+			}
+		}
+		if !found {
+			return xerrors.New("queued message not found")
+		}
+
+		err = tx.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
+			ID:     opts.QueuedMessageID,
+			ChatID: opts.ChatID,
+		})
+		if err != nil {
+			return xerrors.Errorf("delete queued message: %w", err)
+		}
+
+		promoted, err = tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID: opts.ChatID,
+			Role:   "user",
+			Content: pqtype.NullRawMessage{
+				RawMessage: targetContent,
+				Valid:      len(targetContent) > 0,
+			},
+			Hidden: false,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert message: %w", err)
+		}
+
+		updatedChat, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:        opts.ChatID,
+			Status:    database.ChatStatusPending,
+			WorkerID:  uuid.NullUUID{},
+			StartedAt: sql.NullTime{},
+		})
+		if err != nil {
+			return xerrors.Errorf("update status: %w", err)
+		}
+
+		remainingQueue, err = tx.GetChatQueuedMessages(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("get remaining queue: %w", err)
+		}
+
+		result.Messages, err = tx.GetChatMessagesByChatID(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("get messages: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if txErr != nil {
+		return PromoteQueuedResult{}, txErr
+	}
+
+	p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
+		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+		QueuedMessages: toSDKQueuedMessages(remainingQueue),
+	})
+	p.publishMessage(opts.ChatID, promoted)
+	p.publishStatus(opts.ChatID, updatedChat.Status)
+
+	return result, nil
+}
+
+// InterruptAndSetWaiting interrupts execution, sets waiting status, and broadcasts status updates.
+func (p *Server) InterruptAndSetWaiting(
+	ctx context.Context,
+	chat database.Chat,
+) database.Chat {
+	if chat.ID == uuid.Nil {
+		return chat
+	}
+
+	p.Interrupt(chat.ID)
+	p.Stop(chat.ID)
+
+	updatedChat, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:        chat.ID,
+		Status:    database.ChatStatusWaiting,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	if err != nil {
+		p.logger.Error(ctx, "failed to mark chat as waiting",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+	} else {
+		chat = updatedChat
+	}
+
+	p.publishStatus(chat.ID, chat.Status)
+	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
+	return chat
+}
+
+// RefreshStatus loads the latest chat status and publishes it to stream subscribers.
+func (p *Server) RefreshStatus(ctx context.Context, chatID uuid.UUID) error {
+	if chatID == uuid.Nil {
+		return xerrors.New("chat_id is required")
+	}
+
+	chat, err := p.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("get chat: %w", err)
+	}
+
+	p.publishStatus(chat.ID, chat.Status)
+	return nil
+}
+
+// InsertMessage inserts a message and optionally marks the chat pending.
+func (p *Server) InsertMessage(
+	ctx context.Context,
+	opts InsertMessageOptions,
+) (InsertMessageResult, error) {
+	if opts.ChatID == uuid.Nil {
+		return InsertMessageResult{}, xerrors.New("chat_id is required")
+	}
+	if opts.Role == "" {
+		return InsertMessageResult{}, xerrors.New("role is required")
+	}
+
+	switch opts.Role {
+	case "user", "assistant", "system", "tool":
+	default:
+		return InsertMessageResult{}, xerrors.Errorf("invalid role %q", opts.Role)
+	}
+
+	message, err := insertChatMessageWithStore(ctx, p.db, database.InsertChatMessageParams{
+		ChatID: opts.ChatID,
+		Role:   opts.Role,
+		Content: pqtype.NullRawMessage{
+			RawMessage: opts.Content,
+			Valid:      len(opts.Content) > 0,
+		},
+		ToolCallID: toNullString(opts.ToolCallID),
+		Thinking:   toNullString(opts.Thinking),
+		Hidden:     opts.Hidden,
+	})
+	if err != nil {
+		return InsertMessageResult{}, err
+	}
+
+	if opts.Interrupt {
+		p.Interrupt(opts.ChatID)
+	}
+
+	result := InsertMessageResult{Message: message}
+	if !opts.SetPending {
+		return result, nil
+	}
+
+	updatedChat, err := p.setChatPending(ctx, opts.ChatID)
+	if err != nil {
+		return InsertMessageResult{}, err
+	}
+	result.Chat = updatedChat
+	return result, nil
+}
+
+func (p *Server) setChatPending(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
+	chat, err := p.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get chat: %w", err)
+	}
+	if chat.Status == database.ChatStatusPending {
+		return chat, nil
+	}
+
+	updatedChat, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:        chat.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
+	}
+	p.publishSubagentChildStatus(updatedChat, database.ChatStatusPending)
+	return updatedChat, nil
+}
+
+func insertChatMessageWithStore(
+	ctx context.Context,
+	store database.Store,
+	params database.InsertChatMessageParams,
+) (database.ChatMessage, error) {
+	message, err := store.InsertChatMessage(ctx, params)
+	if err != nil {
+		return database.ChatMessage{}, xerrors.Errorf("insert chat message: %w", err)
+	}
+	return message, nil
+}
+
+func toNullString(value *string) sql.NullString {
+	if value == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *value, Valid: true}
+}
+
+// ShouldQueueUserMessage reports whether a user message should be queued while
+// a chat is active.
+func ShouldQueueUserMessage(status database.ChatStatus, isChatActive bool) bool {
+	switch status {
+	case database.ChatStatusRunning, database.ChatStatusPending:
+		return true
+	case database.ChatStatusWaiting:
+		return isChatActive
+	default:
+		return false
+	}
+}
+
+func toSDKQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
+	out := make([]codersdk.ChatQueuedMessage, 0, len(messages))
+	for _, message := range messages {
+		out = append(out, codersdk.ChatQueuedMessage{
+			ID:        message.ID,
+			ChatID:    message.ChatID,
+			Content:   message.Content,
+			CreatedAt: message.CreatedAt,
+		})
+	}
+	return out
+}
+
 // Config configures a chat processor.
 type Config struct {
 	Logger                     slog.Logger
 	Database                   database.Store
+	ReplicaID                  uuid.UUID
+	ResolveReplicaAddress      ReplicaAddressResolver
+	ReplicaHTTPClient          *http.Client
 	PendingChatAcquireInterval time.Duration
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
@@ -312,7 +928,7 @@ type Config struct {
 // New creates a new chat processor. The processor polls for pending
 // chats and processes them. It is the caller's responsibility to call Close
 // on the returned instance.
-func New(cfg Config) *Processor {
+func New(cfg Config) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	pendingChatAcquireInterval := cfg.PendingChatAcquireInterval
@@ -336,12 +952,24 @@ func New(cfg Config) *Processor {
 		streamManager = NewStreamManager(cfg.Logger.Named("chat-streams"))
 	}
 
-	p := &Processor{
+	workerID := cfg.ReplicaID
+	if workerID == uuid.Nil {
+		workerID = uuid.New()
+	}
+
+	replicaHTTPClient := cfg.ReplicaHTTPClient
+	if replicaHTTPClient == nil {
+		replicaHTTPClient = http.DefaultClient
+	}
+
+	p := &Server{
 		cancel:                     cancel,
 		closed:                     make(chan struct{}),
 		db:                         cfg.Database,
-		workerID:                   uuid.New(),
+		workerID:                   workerID,
 		logger:                     cfg.Logger.Named("chat-processor"),
+		resolveReplicaAddress:      cfg.ResolveReplicaAddress,
+		replicaHTTPClient:          replicaHTTPClient,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
 		testing:                    cfg.Testing,
@@ -355,9 +983,6 @@ func New(cfg Config) *Processor {
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
 	}
 
-	p.subagentService = newSubagentService(p.db, p.InterruptChat)
-	p.subagentService.setStreamManager(p.streamManager)
-
 	//nolint:gocritic // The chat processor is a system-level service.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	go p.start(ctx)
@@ -365,7 +990,7 @@ func New(cfg Config) *Processor {
 	return p
 }
 
-func (p *Processor) start(ctx context.Context) {
+func (p *Server) start(ctx context.Context) {
 	defer close(p.closed)
 
 	// First, recover any stale chats from crashed workers.
@@ -384,10 +1009,7 @@ func (p *Processor) start(ctx context.Context) {
 	}
 }
 
-func (p *Processor) processOnce(ctx context.Context) {
-	if p.closedFlag.Load() {
-		return
-	}
+func (p *Server) processOnce(ctx context.Context) {
 	// Try to acquire a pending chat.
 	chat, err := p.db.AcquireChat(ctx, database.AcquireChatParams{
 		StartedAt: time.Now(),
@@ -409,19 +1031,19 @@ func (p *Processor) processOnce(ctx context.Context) {
 	}()
 }
 
-func (p *Processor) registerChat(chatID uuid.UUID, cancel context.CancelCauseFunc) {
+func (p *Server) registerChat(chatID uuid.UUID, cancel context.CancelCauseFunc) {
 	p.activeMu.Lock()
 	p.activeCancels[chatID] = cancel
 	p.activeMu.Unlock()
 }
 
-func (p *Processor) unregisterChat(chatID uuid.UUID) {
+func (p *Server) unregisterChat(chatID uuid.UUID) {
 	p.activeMu.Lock()
 	delete(p.activeCancels, chatID)
 	p.activeMu.Unlock()
 }
 
-func (p *Processor) InterruptChat(chatID uuid.UUID) bool {
+func (p *Server) Interrupt(chatID uuid.UUID) bool {
 	p.activeMu.Lock()
 	cancel, ok := p.activeCancels[chatID]
 	p.activeMu.Unlock()
@@ -435,9 +1057,9 @@ func (p *Processor) InterruptChat(chatID uuid.UUID) bool {
 	return true
 }
 
-// IsChatActive reports whether the processor currently has an in-flight
+// IsActive reports whether the processor currently has an in-flight
 // worker for the chat.
-func (p *Processor) IsChatActive(chatID uuid.UUID) bool {
+func (p *Server) IsActive(chatID uuid.UUID) bool {
 	if p == nil {
 		return false
 	}
@@ -447,8 +1069,8 @@ func (p *Processor) IsChatActive(chatID uuid.UUID) bool {
 	return ok
 }
 
-// ListModels returns the currently available chat model catalog.
-func (p *Processor) ListModels(ctx context.Context) (codersdk.ChatModelsResponse, error) {
+// Models returns the currently available chat model catalog.
+func (p *Server) Models(ctx context.Context) (codersdk.ChatModelsResponse, error) {
 	if p == nil {
 		return codersdk.ChatModelsResponse{}, xerrors.New("chat processor is not configured")
 	}
@@ -492,8 +1114,8 @@ func (p *Processor) ListModels(ctx context.Context) (codersdk.ChatModelsResponse
 	return catalog.ListConfiguredProviderAvailability(configuredProviders), nil
 }
 
-// EffectiveProviderKeys merges configured provider keys over resolver keys.
-func (p *Processor) EffectiveProviderKeys(
+// ProviderKeys merges configured provider keys over resolver keys.
+func (p *Server) ProviderKeys(
 	ctx context.Context,
 	configuredProviders []chatprovider.ConfiguredProvider,
 ) (chatprovider.ProviderAPIKeys, error) {
@@ -509,14 +1131,18 @@ func (p *Processor) EffectiveProviderKeys(
 	return chatprovider.MergeProviderAPIKeys(keys, configuredProviders), nil
 }
 
-func (p *Processor) PublishStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
+func (p *Server) publishStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
 	if p == nil || p.streamManager == nil {
 		return
 	}
 	p.streamManager.Publish(chatID, event)
 }
 
-func (p *Processor) SubscribeStream(chatID uuid.UUID) (
+func (p *Server) Subscribe(
+	ctx context.Context,
+	chatID uuid.UUID,
+	requestHeader http.Header,
+) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
 	func(),
@@ -525,18 +1151,239 @@ func (p *Processor) SubscribeStream(chatID uuid.UUID) (
 	if p == nil || p.streamManager == nil {
 		return nil, nil, nil, false
 	}
-	snapshot, events, cancel := p.streamManager.Subscribe(chatID)
-	return snapshot, events, cancel, true
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	relayAddress, ok := p.relayTarget(ctx, chatID, requestHeader)
+	if !ok {
+		snapshot, events, cancel := p.streamManager.Subscribe(chatID)
+		return snapshot, events, cancel, true
+	}
+
+	events, cancel, err := p.subscribeRelay(ctx, chatID, relayAddress, requestHeader)
+	if err != nil {
+		p.logger.Warn(ctx, "failed to subscribe through replica relay",
+			slog.F("chat_id", chatID),
+			slog.F("relay_address", relayAddress),
+			slog.Error(err),
+		)
+		errEvent := make(chan codersdk.ChatStreamEvent, 1)
+		errEvent <- codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeError,
+			ChatID: chatID,
+			Error: &codersdk.ChatStreamError{
+				Message: err.Error(),
+			},
+		}
+		close(errEvent)
+		return nil, errEvent, func() {}, true
+	}
+
+	return nil, events, cancel, true
 }
 
-func (p *Processor) StopStream(chatID uuid.UUID) {
+func (p *Server) relayTarget(
+	ctx context.Context,
+	chatID uuid.UUID,
+	requestHeader http.Header,
+) (string, bool) {
+	if p.resolveReplicaAddress == nil {
+		return "", false
+	}
+	if requestHeader != nil && strings.TrimSpace(requestHeader.Get(RelaySourceHeader)) != "" {
+		return "", false
+	}
+
+	state, err := p.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chatID)
+	if err != nil {
+		p.logger.Debug(ctx, "failed to load stream state for relay routing",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return "", false
+	}
+
+	if state.Status != database.ChatStatusRunning || !state.WorkerID.Valid || state.WorkerID.UUID == p.workerID {
+		return "", false
+	}
+
+	address, ok := p.resolveReplicaAddress(ctx, state.WorkerID.UUID)
+	if !ok {
+		return "", false
+	}
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return "", false
+	}
+	return address, true
+}
+
+type relayEvent struct {
+	Type codersdk.ServerSentEventType `json:"type"`
+	Data json.RawMessage              `json:"data,omitempty"`
+}
+
+func (p *Server) subscribeRelay(
+	ctx context.Context,
+	chatID uuid.UUID,
+	relayAddress string,
+	requestHeader http.Header,
+) (<-chan codersdk.ChatStreamEvent, func(), error) {
+	base, err := url.Parse(relayAddress)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("parse relay address %q: %w", relayAddress, err)
+	}
+	target, err := base.Parse(fmt.Sprintf("/api/v2/chats/%s/stream", chatID))
+	if err != nil {
+		return nil, nil, xerrors.Errorf("build relay stream URL: %w", err)
+	}
+	switch target.Scheme {
+	case "http":
+		target.Scheme = "ws"
+	case "https":
+		target.Scheme = "wss"
+	}
+
+	conn, res, err := websocket.Dial(ctx, target.String(), &websocket.DialOptions{
+		HTTPClient: p.replicaHTTPClient,
+		HTTPHeader: relayHeaders(requestHeader, p.workerID),
+	})
+	if err != nil {
+		if res != nil {
+			if responseErr := codersdk.ReadBodyAsError(res); responseErr != nil {
+				err = responseErr
+			}
+		}
+		return nil, nil, xerrors.Errorf("dial relay stream: %w", err)
+	}
+
+	relayCtx, relayCancel := context.WithCancel(ctx)
+	events := make(chan codersdk.ChatStreamEvent, 128)
+
+	go func() {
+		defer close(events)
+		defer relayCancel()
+		defer func() {
+			_ = conn.Close(websocket.StatusNormalClosure, "")
+		}()
+
+		for {
+			var envelope relayEvent
+			err := wsjson.Read(relayCtx, conn, &envelope)
+			if err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
+				}
+				switch websocket.CloseStatus(err) {
+				case websocket.StatusNormalClosure, websocket.StatusGoingAway:
+					return
+				}
+				select {
+				case events <- relayError(chatID, xerrors.Errorf("read relay stream: %w", err)):
+				case <-relayCtx.Done():
+				}
+				return
+			}
+
+			switch envelope.Type {
+			case codersdk.ServerSentEventTypePing:
+				continue
+			case codersdk.ServerSentEventTypeData:
+				var event codersdk.ChatStreamEvent
+				if err := json.Unmarshal(envelope.Data, &event); err != nil {
+					select {
+					case events <- relayError(chatID, xerrors.Errorf("decode relay data event: %w", err)):
+					case <-relayCtx.Done():
+					}
+					return
+				}
+				if event.ChatID == uuid.Nil {
+					event.ChatID = chatID
+				}
+				select {
+				case events <- event:
+				case <-relayCtx.Done():
+					return
+				}
+			case codersdk.ServerSentEventTypeError:
+				msg := "relay stream returned an error"
+				if len(envelope.Data) > 0 {
+					var response codersdk.Response
+					if err := json.Unmarshal(envelope.Data, &response); err == nil {
+						msg = formatRelayError(response)
+					} else {
+						msg = strings.TrimSpace(string(envelope.Data))
+					}
+				}
+				select {
+				case events <- relayError(chatID, xerrors.New(msg)):
+				case <-relayCtx.Done():
+				}
+				return
+			default:
+				select {
+				case events <- relayError(chatID, xerrors.Errorf("unknown relay event type %q", envelope.Type)):
+				case <-relayCtx.Done():
+				}
+				return
+			}
+		}
+	}()
+
+	cancel := func() {
+		relayCancel()
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	}
+	return events, cancel, nil
+}
+
+func relayHeaders(source http.Header, replicaID uuid.UUID) http.Header {
+	header := make(http.Header)
+	if source != nil {
+		for _, key := range []string{codersdk.SessionTokenHeader, authorizationHeader, cookieHeader} {
+			for _, value := range source.Values(key) {
+				header.Add(key, value)
+			}
+		}
+	}
+	header.Set(RelaySourceHeader, replicaID.String())
+	return header
+}
+
+func relayError(chatID uuid.UUID, err error) codersdk.ChatStreamEvent {
+	return codersdk.ChatStreamEvent{
+		Type:   codersdk.ChatStreamEventTypeError,
+		ChatID: chatID,
+		Error: &codersdk.ChatStreamError{
+			Message: err.Error(),
+		},
+	}
+}
+
+func formatRelayError(response codersdk.Response) string {
+	message := strings.TrimSpace(response.Message)
+	detail := strings.TrimSpace(response.Detail)
+	switch {
+	case message == "" && detail == "":
+		return "relay stream returned an error"
+	case message == "":
+		return detail
+	case detail == "":
+		return message
+	default:
+		return fmt.Sprintf("%s: %s", message, detail)
+	}
+}
+
+func (p *Server) Stop(chatID uuid.UUID) {
 	if p == nil || p.streamManager == nil {
 		return
 	}
 	p.streamManager.StopStream(chatID)
 }
 
-func (p *Processor) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
+func (p *Server) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
 	if p.streamManager == nil {
 		return
 	}
@@ -546,7 +1393,7 @@ func (p *Processor) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEven
 	p.streamManager.Publish(chatID, event)
 }
 
-func (p *Processor) publishStatus(chatID uuid.UUID, status database.ChatStatus) {
+func (p *Server) publishStatus(chatID uuid.UUID, status database.ChatStatus) {
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:   codersdk.ChatStreamEventTypeStatus,
 		Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
@@ -555,7 +1402,7 @@ func (p *Processor) publishStatus(chatID uuid.UUID, status database.ChatStatus) 
 
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
-func (p *Processor) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.ChatEventKind) {
+func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.ChatEventKind) {
 	if p.pubsub == nil {
 		return
 	}
@@ -612,7 +1459,7 @@ func convertChatForPubsub(c database.Chat) codersdk.Chat {
 	return chat
 }
 
-func (p *Processor) publishError(chatID uuid.UUID, message string) {
+func (p *Server) publishError(chatID uuid.UUID, message string) {
 	message = strings.TrimSpace(message)
 	if message == "" {
 		return
@@ -652,7 +1499,7 @@ func panicFailureReason(recovered any) string {
 	return "chat processing panicked: " + reason
 }
 
-func (p *Processor) publishMessage(chatID uuid.UUID, message database.ChatMessage) {
+func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) {
 	sdkMessage := db2sdk.ChatMessage(message)
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:    codersdk.ChatStreamEventTypeMessage,
@@ -660,7 +1507,7 @@ func (p *Processor) publishMessage(chatID uuid.UUID, message database.ChatMessag
 	})
 }
 
-func (p *Processor) publishMessagePart(chatID uuid.UUID, role string, part codersdk.ChatMessagePart) {
+func (p *Server) publishMessagePart(chatID uuid.UUID, role string, part codersdk.ChatMessagePart) {
 	if part.Type == "" {
 		return
 	}
@@ -673,28 +1520,26 @@ func (p *Processor) publishMessagePart(chatID uuid.UUID, role string, part coder
 	})
 }
 
-func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
-	logger := p.logger.With(slog.F("chat_id", chat.ID))
-	logger.Info(ctx, "processing chat turn")
-	reportOnly := false
-	activeSubagentRequestID := uuid.Nil
-	if chat.ParentChatID.Valid && p.subagentService != nil {
-		pendingRequestID, hasPending, err := p.subagentService.LatestPendingRequestID(ctx, chat.ID)
-		if err != nil {
-			logger.Warn(ctx, "failed to get pending delegated request", slog.Error(err))
-		} else if hasPending {
-			activeSubagentRequestID = pendingRequestID
-			reportOnly, err = p.subagentService.ShouldRunReportOnlyPass(
-				ctx,
-				chat.ID,
-				pendingRequestID,
-			)
-			if err != nil {
-				logger.Warn(ctx, "failed to determine delegated report-only mode", slog.Error(err))
-				reportOnly = false
-			}
-		}
+func (p *Server) publishSubagentChildStatus(chat database.Chat, status database.ChatStatus) {
+	if !chat.ParentChatID.Valid || chat.ParentChatID.UUID == uuid.Nil {
+		return
 	}
+	if p.streamManager == nil {
+		return
+	}
+
+	p.streamManager.Publish(chat.ParentChatID.UUID, codersdk.ChatStreamEvent{
+		Type:   codersdk.ChatStreamEventTypeStatus,
+		ChatID: chat.ID,
+		Status: &codersdk.ChatStreamStatus{
+			Status: codersdk.ChatStatus(status),
+		},
+	})
+}
+
+func (p *Server) processChat(ctx context.Context, chat database.Chat) {
+	logger := p.logger.With(slog.F("chat_id", chat.ID))
+	logger.Info(ctx, "processing chat")
 
 	chatCtx, cancel := context.WithCancelCause(ctx)
 	p.registerChat(chat.ID, cancel)
@@ -702,9 +1547,7 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 	defer cancel(nil)
 
 	p.publishStatus(chat.ID, database.ChatStatusRunning)
-	if p.subagentService != nil {
-		p.subagentService.publishChildStatus(chat, database.ChatStatusRunning)
-	}
+	p.publishSubagentChildStatus(chat, database.ChatStatusRunning)
 
 	// Determine the final status to set when we're done.
 	status := database.ChatStatusWaiting
@@ -715,51 +1558,6 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 			logger.Error(ctx, "panic during chat processing", slog.F("panic", r))
 			p.publishError(chat.ID, panicFailureReason(r))
 			status = database.ChatStatusError
-		}
-
-		//nolint:nestif // Complex nested blocks reflect business logic.
-		if chat.ParentChatID.Valid && p.subagentService != nil {
-			hasActiveDescendants, err := p.subagentService.HasActiveDescendants(ctx, chat.ID)
-			if err != nil {
-				logger.Warn(ctx, "failed to check delegated chat descendants", slog.Error(err))
-			} else if !hasActiveDescendants {
-				pendingRequestID, hasPending, pendingErr := p.subagentService.LatestPendingRequestID(ctx, chat.ID)
-				if pendingErr != nil {
-					logger.Warn(ctx, "failed to get pending delegated request", slog.Error(pendingErr))
-				} else if hasPending {
-					if reportOnly {
-						report := p.subagentService.SynthesizeFallbackSubagentReport(
-							ctx,
-							chat.ID,
-							pendingRequestID,
-						)
-						_, markErr := p.subagentService.MarkSubagentReported(
-							ctx,
-							chat.ID,
-							report,
-							uuid.NullUUID{UUID: pendingRequestID, Valid: true},
-						)
-						if markErr != nil {
-							logger.Warn(ctx, "failed to mark delegated chat reported with fallback", slog.Error(markErr))
-						}
-					} else {
-						if err := p.subagentService.MarkReportOnlyPassRequested(ctx, chat.ID, pendingRequestID); err != nil {
-							logger.Warn(ctx, "failed to request delegated report-only pass", slog.Error(err))
-						} else {
-							status = database.ChatStatusPending
-						}
-					}
-				}
-			}
-
-			if status == database.ChatStatusWaiting {
-				hasPendingRequest, pendingErr := p.subagentService.HasPendingRequest(ctx, chat.ID)
-				if pendingErr != nil {
-					logger.Warn(ctx, "failed to check delegated pending request", slog.Error(pendingErr))
-				} else if hasPendingRequest {
-					status = database.ChatStatusPending
-				}
-			}
 		}
 
 		// Check for queued messages and auto-promote the next one.
@@ -794,8 +1592,6 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 						Hidden:              false,
 						ToolCallID:          sql.NullString{},
 						Thinking:            sql.NullString{},
-						SubagentRequestID:   uuid.NullUUID{},
-						SubagentEvent:       sql.NullString{},
 						InputTokens:         sql.NullInt64{},
 						OutputTokens:        sql.NullInt64{},
 						TotalTokens:         sql.NullInt64{},
@@ -852,12 +1648,10 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 		p.publishStatus(chat.ID, status)
 		chat.Status = status
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
-		if p.subagentService != nil {
-			p.subagentService.publishChildStatus(chat, status)
-		}
+		p.publishSubagentChildStatus(chat, status)
 	}()
 
-	if err := p.runChat(chatCtx, chat, logger, reportOnly, activeSubagentRequestID); err != nil {
+	if err := p.runChat(chatCtx, chat, logger); err != nil {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
 			logger.Info(ctx, "chat interrupted")
 			status = database.ChatStatusWaiting
@@ -870,15 +1664,13 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 		status = database.ChatStatusError
 		return
 	}
+
 }
 
-//nolint:revive // Boolean distinguishes report-only mode from full processing.
-func (p *Processor) runChat(
+func (p *Server) runChat(
 	ctx context.Context,
 	chat database.Chat,
 	logger slog.Logger,
-	reportOnly bool,
-	subagentRequestID uuid.UUID,
 ) error {
 	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	if err != nil {
@@ -890,17 +1682,12 @@ func (p *Processor) runChat(
 	if err != nil {
 		return err
 	}
-	prompt, err := chatprompt.ConvertMessages(
-		messages,
-		subagentReportToolCallIDPrefix,
-	)
+	prompt, err := chatprompt.ConvertMessages(messages)
 	if err != nil {
 		return xerrors.Errorf("build chat prompt: %w", err)
 	}
-	if reportOnly {
-		prompt = chatprompt.AppendUser(prompt, reportOnlyInstruction)
-	} else if !chat.WorkspaceID.Valid {
-		prompt = chatprompt.PrependSystem(prompt, defaultNoWorkspaceInstruction)
+	if chat.ParentChatID.Valid {
+		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
 	}
 
 	if p.streamManager != nil {
@@ -920,8 +1707,6 @@ func (p *Processor) runChat(
 		model,
 		modelConfig,
 		prompt,
-		reportOnly,
-		subagentRequestID,
 	)
 	if err != nil {
 		return err
@@ -937,7 +1722,7 @@ type chatContextCompressionConfig struct {
 	ThresholdPercent int32
 }
 
-func (p *Processor) resolveChatContextCompressionConfig(
+func (p *Server) resolveChatContextCompressionConfig(
 	ctx context.Context,
 	chat database.Chat,
 ) (chatContextCompressionConfig, error) {
@@ -1006,7 +1791,7 @@ func (p *Processor) resolveChatContextCompressionConfig(
 	return config, nil
 }
 
-func (p *Processor) persistChatContextSummary(
+func (p *Server) persistChatContextSummary(
 	ctx context.Context,
 	chatID uuid.UUID,
 	result chatloop.CompactionResult,
@@ -1032,8 +1817,6 @@ func (p *Processor) persistChatContextSummary(
 		Compressed:          sql.NullBool{Bool: true, Valid: true},
 		ToolCallID:          sql.NullString{},
 		Thinking:            sql.NullString{},
-		SubagentRequestID:   uuid.NullUUID{},
-		SubagentEvent:       sql.NullString{},
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
 		TotalTokens:         sql.NullInt64{},
@@ -1077,8 +1860,6 @@ func (p *Processor) persistChatContextSummary(
 		},
 		ToolCallID:          sql.NullString{},
 		Thinking:            sql.NullString{},
-		SubagentRequestID:   uuid.NullUUID{},
-		SubagentEvent:       sql.NullString{},
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
 		TotalTokens:         sql.NullInt64{},
@@ -1121,8 +1902,6 @@ func (p *Processor) persistChatContextSummary(
 			Valid: true,
 		},
 		Thinking:            sql.NullString{},
-		SubagentRequestID:   uuid.NullUUID{},
-		SubagentEvent:       sql.NullString{},
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
 		TotalTokens:         sql.NullInt64{},
@@ -1140,7 +1919,7 @@ func (p *Processor) persistChatContextSummary(
 	return nil
 }
 
-func (p *Processor) resolveChatModel(
+func (p *Server) resolveChatModel(
 	ctx context.Context,
 	chat database.Chat,
 ) (fantasy.LanguageModel, chatModelConfig, error) {
@@ -1174,7 +1953,7 @@ func (p *Processor) resolveChatModel(
 	return model, config, nil
 }
 
-func (p *Processor) modelFromChat(
+func (p *Server) modelFromChat(
 	ctx context.Context,
 	config chatModelConfig,
 	providerKeys chatprovider.ProviderAPIKeys,
@@ -1217,7 +1996,7 @@ func applyFallbackChatModelConfig(
 	return config
 }
 
-func (p *Processor) resolveFallbackChatModelConfig(
+func (p *Server) resolveFallbackChatModelConfig(
 	ctx context.Context,
 	providerKeys chatprovider.ProviderAPIKeys,
 	providerHint string,
@@ -1264,22 +2043,14 @@ func (p *Processor) resolveFallbackChatModelConfig(
 	)
 }
 
-//nolint:revive // Boolean distinguishes report-only mode from full processing.
-func (p *Processor) runChatWithAgent(
+func (p *Server) runChatWithAgent(
 	ctx context.Context,
 	chat database.Chat,
 	logger slog.Logger,
 	model fantasy.LanguageModel,
 	modelConfig chatModelConfig,
 	prompt []fantasy.Message,
-	reportOnly bool,
-	subagentRequestID uuid.UUID,
 ) (*fantasy.AgentResult, error) {
-	subagentRequest := uuid.NullUUID{}
-	if chat.ParentChatID.Valid && subagentRequestID != uuid.Nil {
-		subagentRequest = uuid.NullUUID{UUID: subagentRequestID, Valid: true}
-	}
-
 	currentChat := chat
 	var (
 		chatStateMu sync.Mutex
@@ -1370,19 +2141,17 @@ func (p *Processor) runChatWithAgent(
 				Thinking: sql.NullString{
 					Valid: false,
 				},
-				Hidden:            false,
-				SubagentRequestID: subagentRequest,
-				InputTokens:       usageNullInt64(step.Usage.InputTokens, hasUsage),
-				OutputTokens:      usageNullInt64(step.Usage.OutputTokens, hasUsage),
-				TotalTokens:       usageNullInt64(step.Usage.TotalTokens, hasUsage),
-				ReasoningTokens:   usageNullInt64(step.Usage.ReasoningTokens, hasUsage),
+				Hidden:          false,
+				InputTokens:     usageNullInt64(step.Usage.InputTokens, hasUsage),
+				OutputTokens:    usageNullInt64(step.Usage.OutputTokens, hasUsage),
+				TotalTokens:     usageNullInt64(step.Usage.TotalTokens, hasUsage),
+				ReasoningTokens: usageNullInt64(step.Usage.ReasoningTokens, hasUsage),
 				CacheCreationTokens: usageNullInt64(
 					step.Usage.CacheCreationTokens,
 					hasUsage,
 				),
 				CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
 				ContextLimit:    step.ContextLimit,
-				SubagentEvent:   sql.NullString{},
 				Compressed:      sql.NullBool{},
 			})
 			if err != nil {
@@ -1405,18 +2174,7 @@ func (p *Processor) runChatWithAgent(
 					String: result.ToolCallID,
 					Valid:  result.ToolCallID != "",
 				},
-				Hidden:              false,
-				SubagentRequestID:   subagentRequest,
-				Thinking:            sql.NullString{},
-				SubagentEvent:       sql.NullString{},
-				InputTokens:         sql.NullInt64{},
-				OutputTokens:        sql.NullInt64{},
-				TotalTokens:         sql.NullInt64{},
-				ReasoningTokens:     sql.NullInt64{},
-				CacheCreationTokens: sql.NullInt64{},
-				CacheReadTokens:     sql.NullInt64{},
-				ContextLimit:        sql.NullInt64{},
-				Compressed:          sql.NullBool{},
+				Hidden: false,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert tool result: %w", err)
@@ -1427,35 +2185,28 @@ func (p *Processor) runChatWithAgent(
 		return nil
 	}
 	streamCall := streamCallOptionsFromChatModelConfig(model, modelConfig)
-	var activeTools []string
-	if reportOnly {
-		activeTools = append(activeTools, "subagent_report")
-	}
-	var compactionOptions *chatloop.CompactionOptions
-	if !reportOnly {
-		compactionOptions = &chatloop.CompactionOptions{
-			ThresholdPercent: compressionConfig.ThresholdPercent,
-			ContextLimit:     compressionConfig.ContextLimit,
-			Persist: func(
-				persistCtx context.Context,
-				result chatloop.CompactionResult,
-			) error {
-				if err := p.persistChatContextSummary(persistCtx, chat.ID, result); err != nil {
-					return xerrors.Errorf("persist context summary: %w", err)
-				}
-				logger.Info(persistCtx, "chat context summarized",
-					slog.F("chat_id", chat.ID),
-					slog.F("threshold_percent", result.ThresholdPercent),
-					slog.F("usage_percent", result.UsagePercent),
-					slog.F("context_tokens", result.ContextTokens),
-					slog.F("context_limit", result.ContextLimit),
-				)
-				return nil
-			},
-			OnError: func(err error) {
-				logger.Warn(ctx, "failed to compact chat context", slog.Error(err))
-			},
-		}
+	compactionOptions := &chatloop.CompactionOptions{
+		ThresholdPercent: compressionConfig.ThresholdPercent,
+		ContextLimit:     compressionConfig.ContextLimit,
+		Persist: func(
+			persistCtx context.Context,
+			result chatloop.CompactionResult,
+		) error {
+			if err := p.persistChatContextSummary(persistCtx, chat.ID, result); err != nil {
+				return xerrors.Errorf("persist context summary: %w", err)
+			}
+			logger.Info(persistCtx, "chat context summarized",
+				slog.F("chat_id", chat.ID),
+				slog.F("threshold_percent", result.ThresholdPercent),
+				slog.F("usage_percent", result.UsagePercent),
+				slog.F("context_tokens", result.ContextTokens),
+				slog.F("context_limit", result.ContextLimit),
+			)
+			return nil
+		},
+		OnError: func(err error) {
+			logger.Warn(ctx, "failed to compact chat context", slog.Error(err))
+		},
 	}
 
 	return chatloop.Run(ctx, chatloop.RunOptions{
@@ -1465,7 +2216,6 @@ func (p *Processor) runChatWithAgent(
 		StreamCall: streamCall,
 		MaxSteps:   maxChatSteps,
 
-		ActiveTools:          activeTools,
 		ContextLimitFallback: modelConfigContextLimit,
 
 		PersistStep: persistStep,
@@ -1503,7 +2253,7 @@ func usageNullInt64(value int64, valid bool) sql.NullInt64 {
 	}
 }
 
-func (p *Processor) maybeGenerateChatTitle(
+func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
@@ -1551,7 +2301,7 @@ func (p *Processor) maybeGenerateChatTitle(
 	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange)
 }
 
-func (p *Processor) generateChatTitle(ctx context.Context, input string) (string, error) {
+func (p *Server) generateChatTitle(ctx context.Context, input string) (string, error) {
 	config := p.titleGeneration.withDefaults()
 	keys, err := p.resolveProviderAPIKeys(ctx)
 	if err != nil {
@@ -1636,7 +2386,7 @@ func chatTitleInput(chat database.Chat, messages []database.ChatMessage) (string
 	return firstUserText, true, nil
 }
 
-func (p *Processor) appendHomeInstructionToPrompt(
+func (p *Server) appendHomeInstructionToPrompt(
 	ctx context.Context,
 	chat database.Chat,
 	prompt []fantasy.Message,
@@ -1675,7 +2425,7 @@ func (p *Processor) appendHomeInstructionToPrompt(
 	return chatprompt.InsertSystem(prompt, instruction)
 }
 
-func (p *Processor) resolveProviderAPIKeys(
+func (p *Server) resolveProviderAPIKeys(
 	ctx context.Context,
 ) (chatprovider.ProviderAPIKeys, error) {
 	if p.resolveProviderAPIKeysFn == nil {
@@ -1755,7 +2505,7 @@ func truncateRunes(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
-func (p *Processor) recoverMissingWorkspace(
+func (p *Server) recoverMissingWorkspace(
 	ctx context.Context,
 	chat database.Chat,
 	logger slog.Logger,
@@ -1788,7 +2538,7 @@ func (p *Processor) recoverMissingWorkspace(
 	return updatedChat, nil
 }
 
-func (p *Processor) resolveAgentID(ctx context.Context, chat database.Chat) (uuid.UUID, error) {
+func (p *Server) resolveAgentID(ctx context.Context, chat database.Chat) (uuid.UUID, error) {
 	if chat.WorkspaceAgentID.Valid {
 		return chat.WorkspaceAgentID.UUID, nil
 	}
@@ -1806,7 +2556,7 @@ func (p *Processor) resolveAgentID(ctx context.Context, chat database.Chat) (uui
 	return agents[0].ID, nil
 }
 
-func (p *Processor) persistChatWorkspace(
+func (p *Server) persistChatWorkspace(
 	ctx context.Context,
 	chat database.Chat,
 	result CreateWorkspaceToolResult,
@@ -1835,7 +2585,7 @@ func (p *Processor) persistChatWorkspace(
 	return updatedChat, nil
 }
 
-func (p *Processor) recoverStaleChats(ctx context.Context) {
+func (p *Server) recoverStaleChats(ctx context.Context) {
 	staleAfter := time.Now().Add(-p.inFlightChatStaleAfter)
 	staleChats, err := p.db.GetStaleChats(ctx, staleAfter)
 	if err != nil {
@@ -1865,10 +2615,7 @@ func (p *Processor) recoverStaleChats(ctx context.Context) {
 }
 
 // Close stops the processor and waits for it to finish.
-func (p *Processor) Close() error {
-	if !p.closedFlag.CompareAndSwap(false, true) {
-		return nil
-	}
+func (p *Server) Close() error {
 	p.cancel()
 	<-p.closed
 	p.inflight.Wait()
@@ -1970,37 +2717,9 @@ func modelFromConfig(
 	return chatprovider.ModelFromConfig(config.Provider, config.Model, providerKeys)
 }
 
-type readFileArgs struct {
-	Path   string `json:"path"`
-	Offset *int64 `json:"offset,omitempty"`
-	Limit  *int64 `json:"limit,omitempty"`
-}
-
-type writeFileArgs struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
-}
-
-type editFilesArgs struct {
-	Files []workspacesdk.FileEdits `json:"files"`
-}
-
-type executeArgs struct {
-	Command        string `json:"command"`
-	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
-}
-
 type waitForExternalAuthArgs struct {
 	ProviderID     string `json:"provider_id"`
 	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
-}
-
-type gitAuthRequiredMarker struct {
-	ProviderID          string `json:"provider_id"`
-	ProviderType        string `json:"provider_type,omitempty"`
-	ProviderDisplayName string `json:"provider_display_name,omitempty"`
-	AuthenticateURL     string `json:"authenticate_url"`
-	Host                string `json:"host,omitempty"`
 }
 
 type createWorkspaceArgs struct {
@@ -2009,41 +2728,13 @@ type createWorkspaceArgs struct {
 	Request   json.RawMessage `json:"request,omitempty"`
 }
 
-type subagentArgs struct {
-	Prompt     string `json:"prompt"`
-	Title      string `json:"title,omitempty"`
-	Background bool   `json:"background,omitempty"`
-}
-
-type subagentAwaitArgs struct {
-	ChatID         string `json:"chat_id"`
-	RequestID      string `json:"request_id"`
-	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
-}
-
-type subagentMessageArgs struct {
-	ChatID         string `json:"chat_id"`
-	Message        string `json:"message"`
-	Await          bool   `json:"await,omitempty"`
-	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
-}
-
-type subagentTerminateArgs struct {
-	ChatID string `json:"chat_id"`
-}
-
-type subagentReportArgs struct {
-	Report    string `json:"report"`
-	RequestID string `json:"request_id,omitempty"`
-}
-
-func (p *Processor) agentTools(
+func (p *Server) agentTools(
 	model fantasy.LanguageModel,
 	chatState *database.Chat,
 	chatStateMu *sync.Mutex,
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) []fantasy.AgentTool {
-	return []fantasy.AgentTool{
+	tools := []fantasy.AgentTool{
 		fantasy.NewAgentTool(
 			"create_workspace",
 			"Create a workspace when no workspace is selected, or when you need "+
@@ -2084,55 +2775,18 @@ func (p *Processor) agentTools(
 				return toolResultBlockToAgentResponse(toolResult), nil
 			},
 		),
-		fantasy.NewAgentTool(
-			"read_file",
-			"Read a file from the workspace.",
-			func(ctx context.Context, args readFileArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
-				conn, err := getWorkspaceConn(ctx)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-				return toolResultBlockToAgentResponse(executeReadFileTool(ctx, conn, call.ID, args)), nil
-			},
-		),
-		fantasy.NewAgentTool(
-			"write_file",
-			"Write a file to the workspace.",
-			func(ctx context.Context, args writeFileArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
-				conn, err := getWorkspaceConn(ctx)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-				return toolResultBlockToAgentResponse(executeWriteFileTool(ctx, conn, call.ID, args)), nil
-			},
-		),
-		fantasy.NewAgentTool(
-			"edit_files",
-			"Perform search-and-replace edits on one or more files in the workspace."+
-				" Each file can have multiple edits applied atomically.",
-			func(ctx context.Context, args editFilesArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
-				conn, err := getWorkspaceConn(ctx)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-				return toolResultBlockToAgentResponse(executeEditFilesTool(ctx, conn, call.ID, args)), nil
-			},
-		),
-		fantasy.NewAgentTool(
-			"execute",
-			"Execute a shell command in the workspace.",
-			func(ctx context.Context, args executeArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
-				conn, err := getWorkspaceConn(ctx)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-				return toolResultBlockToAgentResponse(executeExecuteTool(ctx, conn, call.ID, args)), nil
-			},
-		),
+		chattool.ReadFile(chattool.ReadFileOptions{
+			GetWorkspaceConn: getWorkspaceConn,
+		}),
+		chattool.WriteFile(chattool.WriteFileOptions{
+			GetWorkspaceConn: getWorkspaceConn,
+		}),
+		chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: getWorkspaceConn,
+		}),
+		chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: getWorkspaceConn,
+		}),
 		fantasy.NewAgentTool(
 			"wait_for_external_auth",
 			"Wait for external authentication to complete after execute reports auth_required=true. "+
@@ -2148,7 +2802,7 @@ func (p *Processor) agentTools(
 				if args.TimeoutSeconds != nil {
 					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
 				}
-				timeout = clampTimeout(timeout, defaultExternalAuthWait, maxExternalAuthWait)
+				timeout = time.Duration(math.Min(float64(timeout), float64(defaultExternalAuthWait)))
 
 				chatStateMu.Lock()
 				chatSnapshot := *chatState
@@ -2181,322 +2835,20 @@ func (p *Processor) agentTools(
 				}), nil
 			},
 		),
-		fantasy.NewAgentTool(
-			"subagent",
-			"Create a delegated child subagent chat. If background=false, this call waits for the child report.",
-			func(ctx context.Context, args subagentArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
-				if p.subagentService == nil {
-					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent service is not configured"))), nil
-				}
-
-				chatStateMu.Lock()
-				chatSnapshot := *chatState
-				chatStateMu.Unlock()
-
-				if chatSnapshot.ParentChatID.Valid {
-					return toolResultBlockToAgentResponse(toolError(
-						base,
-						xerrors.New("delegated chats cannot create child subagents in phase-1"),
-					)), nil
-				}
-
-				childChat, requestID, err := p.subagentService.CreateChildSubagentChat(
-					ctx,
-					chatSnapshot,
-					args.Prompt,
-					args.Title,
-					args.Background,
-				)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-
-				payload := map[string]any{
-					"chat_id":    childChat.ID.String(),
-					"title":      childChat.Title,
-					"request_id": requestID.String(),
-					"background": args.Background,
-					"status":     "pending",
-				}
-				if args.Background {
-					return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-						ToolCallID: call.ID,
-						ToolName:   call.Name,
-						Result:     payload,
-					}), nil
-				}
-
-				awaitResult, err := p.subagentService.AwaitSubagentReport(
-					ctx,
-					chatSnapshot.ID,
-					childChat.ID,
-					requestID,
-					defaultSubagentAwaitTimeout,
-				)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-				payload["report"] = awaitResult.Report
-				payload["duration_ms"] = awaitResult.DurationMS
-				payload["status"] = "completed"
-
-				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-					ToolCallID: call.ID,
-					ToolName:   call.Name,
-					Result:     payload,
-				}), nil
-			},
-		),
-		fantasy.NewAgentTool(
-			"subagent_await",
-			"Wait for a delegated descendant subagent chat to report completion.",
-			func(ctx context.Context, args subagentAwaitArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
-				if p.subagentService == nil {
-					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent service is not configured"))), nil
-				}
-
-				chatID, err := parseSubagentToolChatID(args.ChatID)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-				requestID, err := parseSubagentToolRequestID(args.RequestID)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-
-				timeout := defaultSubagentAwaitTimeout
-				if args.TimeoutSeconds != nil {
-					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
-				}
-				timeout = clampTimeout(timeout, defaultSubagentAwaitTimeout, maxSubagentAwaitTimeout)
-
-				chatStateMu.Lock()
-				chatSnapshot := *chatState
-				chatStateMu.Unlock()
-
-				awaitResult, err := p.subagentService.AwaitSubagentReport(
-					ctx,
-					chatSnapshot.ID,
-					chatID,
-					requestID,
-					timeout,
-				)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-				targetChat, err := p.subagentService.db.GetChatByID(ctx, chatID)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-
-				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-					ToolCallID: call.ID,
-					ToolName:   call.Name,
-					Result: map[string]any{
-						"chat_id":     chatID.String(),
-						"title":       targetChat.Title,
-						"request_id":  awaitResult.RequestID.String(),
-						"report":      awaitResult.Report,
-						"duration_ms": awaitResult.DurationMS,
-						"status":      "completed",
-					},
-				}), nil
-			},
-		),
-		fantasy.NewAgentTool(
-			"subagent_message",
-			"Send a follow-up user message to a delegated descendant subagent chat and optionally wait for a new report.",
-			func(ctx context.Context, args subagentMessageArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
-				if p.subagentService == nil {
-					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent service is not configured"))), nil
-				}
-
-				chatID, err := parseSubagentToolChatID(args.ChatID)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-
-				timeout := defaultSubagentAwaitTimeout
-				if args.TimeoutSeconds != nil {
-					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
-				}
-				timeout = clampTimeout(timeout, defaultSubagentAwaitTimeout, maxSubagentAwaitTimeout)
-
-				chatStateMu.Lock()
-				chatSnapshot := *chatState
-				chatStateMu.Unlock()
-
-				targetChat, requestID, err := p.subagentService.SendSubagentMessage(
-					ctx,
-					chatSnapshot.ID,
-					chatID,
-					args.Message,
-				)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-
-				payload := map[string]any{
-					"chat_id":    chatID.String(),
-					"title":      targetChat.Title,
-					"request_id": requestID.String(),
-					"status":     string(targetChat.Status),
-				}
-				if !args.Await {
-					return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-						ToolCallID: call.ID,
-						ToolName:   call.Name,
-						Result:     payload,
-					}), nil
-				}
-
-				awaitResult, err := p.subagentService.AwaitSubagentReport(
-					ctx,
-					chatSnapshot.ID,
-					chatID,
-					requestID,
-					timeout,
-				)
-				if err != nil {
-					// Include the chat metadata and request_id
-					// in the error response so the LLM can retry
-					// with subagent_await using the correct
-					// request_id.
-					payload["error"] = err.Error()
-					payload["status"] = "error"
-					return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-						ToolCallID: call.ID,
-						ToolName:   call.Name,
-						IsError:    true,
-						Result:     payload,
-					}), nil
-				}
-
-				payload["report"] = awaitResult.Report
-				payload["duration_ms"] = awaitResult.DurationMS
-				payload["status"] = "completed"
-
-				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-					ToolCallID: call.ID,
-					ToolName:   call.Name,
-					Result:     payload,
-				}), nil
-			},
-		),
-		fantasy.NewAgentTool(
-			"subagent_terminate",
-			"Terminate a delegated descendant subagent subtree.",
-			func(ctx context.Context, args subagentTerminateArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
-				if p.subagentService == nil {
-					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent service is not configured"))), nil
-				}
-
-				chatID, err := parseSubagentToolChatID(args.ChatID)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-
-				chatStateMu.Lock()
-				chatSnapshot := *chatState
-				chatStateMu.Unlock()
-
-				if err := p.subagentService.TerminateSubagentSubtree(ctx, chatSnapshot.ID, chatID); err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-
-				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-					ToolCallID: call.ID,
-					ToolName:   call.Name,
-					Result: map[string]any{
-						"chat_id":    chatID.String(),
-						"terminated": true,
-						"status":     "terminated",
-					},
-				}), nil
-			},
-		),
-		fantasy.NewAgentTool(
-			"subagent_report",
-			"Mark the current delegated subagent chat as reported when all descendants are complete.",
-			func(ctx context.Context, args subagentReportArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
-				if p.subagentService == nil {
-					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent service is not configured"))), nil
-				}
-
-				chatStateMu.Lock()
-				chatSnapshot := *chatState
-				chatStateMu.Unlock()
-
-				hasActiveDescendants, err := p.subagentService.HasActiveDescendants(ctx, chatSnapshot.ID)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-				if hasActiveDescendants {
-					return toolResultBlockToAgentResponse(toolError(
-						base,
-						xerrors.New("cannot report while active delegated descendants remain"),
-					)), nil
-				}
-
-				requestID := uuid.NullUUID{}
-				if strings.TrimSpace(args.RequestID) != "" {
-					parsedRequestID, parseErr := parseSubagentToolRequestID(args.RequestID)
-					if parseErr != nil {
-						return toolResultBlockToAgentResponse(toolError(base, parseErr)), nil
-					}
-					requestID = uuid.NullUUID{UUID: parsedRequestID, Valid: true}
-				}
-
-				awaitResult, err := p.subagentService.MarkSubagentReported(
-					ctx,
-					chatSnapshot.ID,
-					args.Report,
-					requestID,
-				)
-				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
-				}
-
-				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-					ToolCallID: call.ID,
-					ToolName:   call.Name,
-					Result: map[string]any{
-						"chat_id":     chatSnapshot.ID.String(),
-						"title":       chatSnapshot.Title,
-						"request_id":  awaitResult.RequestID.String(),
-						"report":      awaitResult.Report,
-						"duration_ms": awaitResult.DurationMS,
-						"reported":    true,
-						"status":      "reported",
-					},
-				}), nil
-			},
-		),
 	}
+
+	currentChat := func() database.Chat {
+		chatStateMu.Lock()
+		snapshot := *chatState
+		chatStateMu.Unlock()
+		return snapshot
+	}
+	tools = append(tools, p.subagentTools(currentChat)...)
+
+	return tools
 }
 
-func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
-	chatID, err := uuid.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return uuid.Nil, xerrors.New("chat_id must be a valid UUID")
-	}
-	return chatID, nil
-}
-
-func parseSubagentToolRequestID(raw string) (uuid.UUID, error) {
-	requestID, err := uuid.Parse(strings.TrimSpace(raw))
-	if err != nil {
-		return uuid.Nil, xerrors.New("request_id must be a valid UUID")
-	}
-	return requestID, nil
-}
-
-func (p *Processor) waitForExternalAuth(
+func (p *Server) waitForExternalAuth(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	providerID string,
@@ -2541,7 +2893,7 @@ func (p *Processor) waitForExternalAuth(
 	}
 }
 
-func (p *Processor) executeCreateWorkspaceTool(
+func (p *Server) executeCreateWorkspaceTool(
 	ctx context.Context,
 	chat database.Chat,
 	model fantasy.LanguageModel,
@@ -2620,7 +2972,7 @@ func (p *Processor) executeCreateWorkspaceTool(
 }
 
 type createWorkspaceBuildLogEmitter struct {
-	processor  *Processor
+	processor  *Server
 	chatID     uuid.UUID
 	toolCallID string
 	toolName   string
@@ -2701,245 +3053,6 @@ func (e *createWorkspaceBuildLogEmitter) publishDelta(delta string) {
 		ToolName:    e.toolName,
 		ResultDelta: delta,
 	})
-}
-
-// clampTimeout returns d clamped to the range (0, max]. If d is
-// non-positive, def is returned instead.
-func clampTimeout(d, def, maxDur time.Duration) time.Duration {
-	if d <= 0 {
-		return def
-	}
-	if d > maxDur {
-		return maxDur
-	}
-	return d
-}
-
-func executeReadFileTool(
-	ctx context.Context,
-	conn workspacesdk.AgentConn,
-	toolCallID string,
-	args readFileArgs,
-) chatprompt.ToolResultBlock {
-	result := chatprompt.ToolResultBlock{
-		ToolCallID: toolCallID,
-		ToolName:   "read_file",
-	}
-	if args.Path == "" {
-		return toolError(result, xerrors.New("path is required"))
-	}
-
-	offset := int64(0)
-	limit := int64(0)
-	if args.Offset != nil {
-		offset = *args.Offset
-	}
-	if args.Limit != nil {
-		limit = *args.Limit
-	}
-	if limit <= 0 || limit > maxReadFileBytes {
-		limit = maxReadFileBytes
-	}
-
-	reader, mimeType, err := conn.ReadFile(ctx, args.Path, offset, limit)
-	if err != nil {
-		return toolError(result, err)
-	}
-	defer reader.Close()
-
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return toolError(result, err)
-	}
-
-	result.Result = map[string]any{
-		"content":   string(data),
-		"mime_type": mimeType,
-	}
-	return result
-}
-
-func executeWriteFileTool(
-	ctx context.Context,
-	conn workspacesdk.AgentConn,
-	toolCallID string,
-	args writeFileArgs,
-) chatprompt.ToolResultBlock {
-	result := chatprompt.ToolResultBlock{
-		ToolCallID: toolCallID,
-		ToolName:   "write_file",
-	}
-	if args.Path == "" {
-		return toolError(result, xerrors.New("path is required"))
-	}
-
-	if err := conn.WriteFile(ctx, args.Path, strings.NewReader(args.Content)); err != nil {
-		return toolError(result, err)
-	}
-	result.Result = map[string]any{"ok": true}
-	return result
-}
-
-func executeEditFilesTool(
-	ctx context.Context,
-	conn workspacesdk.AgentConn,
-	toolCallID string,
-	args editFilesArgs,
-) chatprompt.ToolResultBlock {
-	result := chatprompt.ToolResultBlock{
-		ToolCallID: toolCallID,
-		ToolName:   "edit_files",
-	}
-	if len(args.Files) == 0 {
-		return toolError(result, xerrors.New("files is required"))
-	}
-
-	if err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files}); err != nil {
-		return toolError(result, err)
-	}
-	result.Result = map[string]any{"ok": true}
-	return result
-}
-
-func executeExecuteTool(
-	ctx context.Context,
-	conn workspacesdk.AgentConn,
-	toolCallID string,
-	args executeArgs,
-) chatprompt.ToolResultBlock {
-	result := chatprompt.ToolResultBlock{
-		ToolCallID: toolCallID,
-		ToolName:   "execute",
-	}
-	if args.Command == "" {
-		return toolError(result, xerrors.New("command is required"))
-	}
-
-	timeout := defaultExecuteTimeout
-	if args.TimeoutSeconds != nil {
-		timeout = time.Duration(*args.TimeoutSeconds) * time.Second
-	}
-	timeout = clampTimeout(timeout, defaultExecuteTimeout, maxExecuteTimeout)
-	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	output, exitCode, err := runCommand(cmdCtx, conn, args.Command)
-	authRequired, cleanedOutput := extractGitAuthRequiredMarker(output)
-	resultPayload := map[string]any{
-		"output":    cleanedOutput,
-		"exit_code": exitCode,
-	}
-	if authRequired != nil {
-		resultPayload["auth_required"] = true
-		resultPayload["authenticate_url"] = authRequired.AuthenticateURL
-		resultPayload["reason"] = authRequiredResultReason
-		if strings.TrimSpace(authRequired.ProviderID) != "" {
-			resultPayload["provider_id"] = authRequired.ProviderID
-		}
-		if strings.TrimSpace(authRequired.ProviderType) != "" {
-			resultPayload["provider_type"] = authRequired.ProviderType
-		}
-		if strings.TrimSpace(authRequired.ProviderDisplayName) != "" {
-			resultPayload["provider_display_name"] = authRequired.ProviderDisplayName
-		}
-		if err != nil {
-			resultPayload["error"] = err.Error()
-		}
-		result.Result = resultPayload
-		return result
-	}
-	if err != nil {
-		resultPayload["error"] = err.Error()
-		result.IsError = true
-	}
-	result.Result = resultPayload
-	return result
-}
-
-func runCommand(ctx context.Context, conn workspacesdk.AgentConn, command string) (string, int, error) {
-	sshClient, err := conn.SSHClient(ctx)
-	if err != nil {
-		return "", 0, err
-	}
-	defer sshClient.Close()
-
-	session, err := sshClient.NewSession()
-	if err != nil {
-		return "", 0, err
-	}
-	defer session.Close()
-	if err := session.Setenv(chatAgentEnvVar, "true"); err != nil {
-		return "", 0, xerrors.Errorf("set %s: %w", chatAgentEnvVar, err)
-	}
-
-	resultCh := make(chan struct {
-		output   string
-		exitCode int
-		err      error
-	}, 1)
-
-	go func() {
-		output, err := session.CombinedOutput(command)
-		exitCode := 0
-		if err != nil {
-			var exitErr *ssh.ExitError
-			if xerrors.As(err, &exitErr) {
-				exitCode = exitErr.ExitStatus()
-			} else {
-				exitCode = 1
-			}
-		}
-		resultCh <- struct {
-			output   string
-			exitCode int
-			err      error
-		}{
-			output:   string(output),
-			exitCode: exitCode,
-			err:      err,
-		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		_ = session.Close()
-		return "", 0, ctx.Err()
-	case result := <-resultCh:
-		return result.output, result.exitCode, result.err
-	}
-}
-
-func extractGitAuthRequiredMarker(output string) (*gitAuthRequiredMarker, string) {
-	if output == "" {
-		return nil, output
-	}
-
-	var marker *gitAuthRequiredMarker
-	lines := strings.Split(output, "\n")
-	filteredLines := make([]string, 0, len(lines))
-	for _, line := range lines {
-		idx := strings.Index(line, gitAuthRequiredMarkerPrefix)
-		if idx == -1 {
-			filteredLines = append(filteredLines, line)
-			continue
-		}
-
-		rawPayload := strings.TrimSpace(line[idx+len(gitAuthRequiredMarkerPrefix):])
-		candidate := gitAuthRequiredMarker{}
-		if rawPayload == "" || json.Unmarshal([]byte(rawPayload), &candidate) != nil || strings.TrimSpace(candidate.AuthenticateURL) == "" {
-			filteredLines = append(filteredLines, line)
-			continue
-		}
-		if marker == nil {
-			marker = &candidate
-		}
-
-		prefix := strings.TrimSpace(line[:idx])
-		if prefix != "" {
-			filteredLines = append(filteredLines, prefix)
-		}
-	}
-	return marker, strings.Join(filteredLines, "\n")
 }
 
 func toolError(result chatprompt.ToolResultBlock, err error) chatprompt.ToolResultBlock {

@@ -276,7 +276,6 @@ type sqlcQuerier interface {
 	GetInboxNotificationsByUserID(ctx context.Context, arg GetInboxNotificationsByUserIDParams) ([]InboxNotification, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
-	GetLatestPendingSubagentRequestIDByChatID(ctx context.Context, chatID uuid.UUID) (uuid.NullUUID, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
 	GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
@@ -382,8 +381,6 @@ type sqlcQuerier interface {
 	// Find chats that appear stuck (running but no heartbeat).
 	// Used for recovery after coderd crashes.
 	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
-	GetSubagentRequestDurationByChatIDAndRequestID(ctx context.Context, arg GetSubagentRequestDurationByChatIDAndRequestIDParams) (int64, error)
-	GetSubagentResponseMessageByChatIDAndRequestID(ctx context.Context, arg GetSubagentResponseMessageByChatIDAndRequestIDParams) (ChatMessage, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error)
 	GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error)

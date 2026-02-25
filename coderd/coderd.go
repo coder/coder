@@ -240,6 +240,11 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
+	// ReplicaHTTPClient is used for internal replica-to-replica relay dialing.
+	// If nil, HTTPClient is used.
+	ReplicaHTTPClient *http.Client
+	// ResolveReplicaAddress maps replica IDs to relay addresses for internal relays.
+	ResolveReplicaAddress chatd.ReplicaAddressResolver
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -268,7 +273,7 @@ type Options struct {
 	// stats. This is used to provide insights in the WebUI.
 	DatabaseRolluper *dbrollup.Rolluper
 	// ChatProcessor handles background processing of pending chats.
-	ChatProcessor *chatd.Processor
+	ChatProcessor *chatd.Server
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspacestats.UsageTracker
 	// BoundaryUsageTracker tracks boundary usage for telemetry.
@@ -797,9 +802,16 @@ func New(options *Options) *API {
 	api.agentProvider = stn
 
 	if options.ChatProcessor == nil {
+		replicaHTTPClient := options.ReplicaHTTPClient
+		if replicaHTTPClient == nil {
+			replicaHTTPClient = options.HTTPClient
+		}
 		options.ChatProcessor = chatd.New(chatd.Config{
 			Logger:                 options.Logger.Named("chats"),
 			Database:               options.Database,
+			ReplicaID:              api.ID,
+			ResolveReplicaAddress:  options.ResolveReplicaAddress,
+			ReplicaHTTPClient:      replicaHTTPClient,
 			ResolveProviderAPIKeys: chatProviderAPIKeysResolver,
 			AgentConn:              api.agentProvider.AgentConn,
 			CreateWorkspace:        api.newChatWorkspaceCreator(),
@@ -1238,7 +1250,7 @@ func New(options *Options) *API {
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Get("/", api.getChat)
 				r.Delete("/", api.deleteChat)
-				r.Post("/messages", api.createChatMessage)
+				r.Post("/messages", api.postChatMessages)
 				r.Get("/stream", api.streamChat)
 				r.Post("/interrupt", api.interruptChat)
 				r.Get("/diff-status", api.getChatDiffStatus)
@@ -1992,7 +2004,7 @@ type API struct {
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
 	// chatProcessor handles background processing of pending chats.
-	chatProcessor *chatd.Processor
+	chatProcessor *chatd.Server
 }
 
 // Close waits for all WebSocket connections to drain before returning.

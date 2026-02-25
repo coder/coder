@@ -152,8 +152,6 @@ INSERT INTO chat_messages (
     tool_call_id,
     thinking,
     hidden,
-    subagent_request_id,
-    subagent_event,
     input_tokens,
     output_tokens,
     total_tokens,
@@ -169,8 +167,6 @@ INSERT INTO chat_messages (
     sqlc.narg('tool_call_id')::text,
     sqlc.narg('thinking')::text,
     @hidden::boolean,
-    sqlc.narg('subagent_request_id')::uuid,
-    sqlc.narg('subagent_event')::text,
     sqlc.narg('input_tokens')::bigint,
     sqlc.narg('output_tokens')::bigint,
     sqlc.narg('total_tokens')::bigint,
@@ -182,87 +178,6 @@ INSERT INTO chat_messages (
 )
 RETURNING
     *;
-
--- name: GetLatestPendingSubagentRequestIDByChatID :one
-WITH requests AS (
-    SELECT
-        subagent_request_id,
-        MAX(created_at) AS requested_at
-    FROM
-        chat_messages
-    WHERE
-        chat_id = @chat_id::uuid
-        AND subagent_request_id IS NOT NULL
-        AND subagent_event = 'request'
-    GROUP BY
-        subagent_request_id
-)
-SELECT
-    COALESCE(
-        requests.subagent_request_id,
-        '00000000-0000-0000-0000-000000000000'::uuid
-    ) AS subagent_request_id
-FROM
-    requests
-WHERE
-    NOT EXISTS (
-        SELECT
-            1
-        FROM
-            chat_messages responses
-        WHERE
-            responses.chat_id = @chat_id::uuid
-            AND responses.subagent_request_id = requests.subagent_request_id
-            AND responses.subagent_event = 'response'
-    )
-ORDER BY
-    requests.requested_at DESC
-LIMIT
-    1;
-
--- name: GetSubagentResponseMessageByChatIDAndRequestID :one
-SELECT
-    *
-FROM
-    chat_messages
-WHERE
-    chat_id = @chat_id::uuid
-    AND subagent_request_id = @subagent_request_id::uuid
-    AND subagent_event = 'response'
-ORDER BY
-    created_at DESC
-LIMIT
-    1;
-
--- name: GetSubagentRequestDurationByChatIDAndRequestID :one
-WITH request AS (
-    SELECT
-        MIN(created_at) AS created_at
-    FROM
-        chat_messages
-    WHERE
-        chat_id = @chat_id::uuid
-        AND subagent_request_id = @subagent_request_id::uuid
-        AND subagent_event = 'request'
-),
-response AS (
-    SELECT
-        MAX(created_at) AS created_at
-    FROM
-        chat_messages
-    WHERE
-        chat_id = @chat_id::uuid
-        AND subagent_request_id = @subagent_request_id::uuid
-        AND subagent_event = 'response'
-)
-SELECT
-    COALESCE(
-        CAST(EXTRACT(EPOCH FROM (response.created_at - request.created_at)) * 1000 AS BIGINT),
-        0::BIGINT
-    )::BIGINT AS duration_ms
-FROM
-    request,
-    response;
 
 -- name: UpdateChatByID :one
 UPDATE

@@ -26,7 +26,6 @@ type ToolResultBlock struct {
 
 func ConvertMessages(
 	messages []database.ChatMessage,
-	subagentReportToolCallIDPrefix string,
 ) ([]fantasy.Message, error) {
 	prompt := make([]fantasy.Message, 0, len(messages))
 	toolNameByCallID := make(map[string]string)
@@ -98,7 +97,6 @@ func ConvertMessages(
 	prompt = injectMissingToolUses(
 		prompt,
 		toolNameByCallID,
-		subagentReportToolCallIDPrefix,
 	)
 	return prompt, nil
 }
@@ -567,7 +565,6 @@ func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 func injectMissingToolUses(
 	prompt []fantasy.Message,
 	toolNameByCallID map[string]string,
-	subagentReportToolCallIDPrefix string,
 ) []fantasy.Message {
 	result := make([]fantasy.Message, 0, len(prompt))
 	for _, msg := range prompt {
@@ -628,7 +625,6 @@ func injectMissingToolUses(
 		syntheticToolUse := syntheticToolUseMessage(
 			orphanResults,
 			toolNameByCallID,
-			subagentReportToolCallIDPrefix,
 		)
 		if len(syntheticToolUse.Content) == 0 {
 			result = append(result, msg)
@@ -659,7 +655,6 @@ func toolMessageFromToolResultParts(results []fantasy.ToolResultPart) fantasy.Me
 func syntheticToolUseMessage(
 	toolResults []fantasy.ToolResultPart,
 	toolNameByCallID map[string]string,
-	subagentReportToolCallIDPrefix string,
 ) fantasy.Message {
 	parts := make([]fantasy.MessagePart, 0, len(toolResults))
 	seen := make(map[string]struct{}, len(toolResults))
@@ -674,9 +669,6 @@ func syntheticToolUseMessage(
 		}
 
 		toolName := strings.TrimSpace(toolNameByCallID[toolCallID])
-		if toolName == "" && strings.HasPrefix(toolCallID, subagentReportToolCallIDPrefix) {
-			toolName = "subagent_report"
-		}
 		if toolName == "" {
 			continue
 		}

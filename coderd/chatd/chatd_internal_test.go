@@ -8,7 +8,6 @@ import (
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
-	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -26,8 +25,8 @@ func TestChatMessagesToPrompt_SanitizesToolCallIDs(t *testing.T) {
 	t.Parallel()
 
 	const (
-		legacyToolCallID    = "subagent_report:123e4567-e89b-12d3-a456-426614174000"
-		sanitizedToolCallID = "subagent_report_123e4567-e89b-12d3-a456-426614174000"
+		legacyToolCallID    = "read_file:123e4567-e89b-12d3-a456-426614174000"
+		sanitizedToolCallID = "read_file_123e4567-e89b-12d3-a456-426614174000"
 	)
 
 	assistantBlocks := append(contentFromText("working"), fantasy.ToolCallContent{
@@ -54,7 +53,7 @@ func TestChatMessagesToPrompt_SanitizesToolCallIDs(t *testing.T) {
 			Role:    string(fantasy.MessageRoleTool),
 			Content: pqtype.NullRawMessage{RawMessage: toolResults, Valid: true},
 		},
-	}, subagentReportToolCallIDPrefix)
+	})
 	require.NoError(t, err)
 	require.Len(t, prompt, 2)
 
@@ -95,22 +94,6 @@ func TestContentToMessageParts_PreservesReasoningProviderMetadata(t *testing.T) 
 	require.Equal(t, []string{"Plan migration"}, gotMetadata.Summary)
 }
 
-func TestExtractGitAuthRequiredMarker(t *testing.T) {
-	t.Parallel()
-
-	output := "" +
-		"fatal: could not read Username for 'https://github.com': terminal prompts disabled\n" +
-		"CODER_GITAUTH_REQUIRED:{\"provider_id\":\"github\",\"provider_type\":\"github\",\"provider_display_name\":\"GitHub\",\"authenticate_url\":\"https://coder.example.com/external-auth/github\",\"host\":\"https://github.com\"}\n" +
-		"fatal: Authentication failed\n"
-
-	marker, cleaned := extractGitAuthRequiredMarker(output)
-	require.NotNil(t, marker)
-	require.Equal(t, "github", marker.ProviderID)
-	require.Equal(t, "https://coder.example.com/external-auth/github", marker.AuthenticateURL)
-	require.NotContains(t, cleaned, gitAuthRequiredMarkerPrefix)
-	require.Contains(t, cleaned, "fatal: Authentication failed")
-}
-
 func TestWaitForExternalAuth(t *testing.T) {
 	t.Parallel()
 
@@ -126,7 +109,7 @@ func TestWaitForExternalAuth(t *testing.T) {
 			OAuthExpiry:      time.Now().Add(time.Minute),
 		})
 
-		p := &Processor{db: db}
+		p := &Server{db: db}
 		authenticated, timedOut, err := p.waitForExternalAuth(
 			context.Background(),
 			user.ID,
@@ -143,7 +126,7 @@ func TestWaitForExternalAuth(t *testing.T) {
 
 		db := chatdTestDB(t)
 		user := dbgen.User(t, db, database.User{})
-		p := &Processor{db: db}
+		p := &Server{db: db}
 
 		authenticated, timedOut, err := p.waitForExternalAuth(
 			context.Background(),
@@ -412,8 +395,8 @@ func TestChatMessagesToPrompt_RepairsLegacyOrphanToolResult(t *testing.T) {
 	t.Parallel()
 
 	const (
-		legacyToolCallID    = "subagent_report:123e4567-e89b-12d3-a456-426614174000"
-		sanitizedToolCallID = "subagent_report_123e4567-e89b-12d3-a456-426614174000"
+		legacyToolCallID    = "read_file:123e4567-e89b-12d3-a456-426614174000"
+		sanitizedToolCallID = "read_file_123e4567-e89b-12d3-a456-426614174000"
 	)
 
 	userContent, err := json.Marshal(contentFromText("status?"))
@@ -421,12 +404,10 @@ func TestChatMessagesToPrompt_RepairsLegacyOrphanToolResult(t *testing.T) {
 
 	toolResults, err := json.Marshal([]chatprompt.ToolResultBlock{{
 		ToolCallID: legacyToolCallID,
-		ToolName:   "subagent_report",
+		ToolName:   "read_file",
 		Result: map[string]any{
-			"chat_id":    uuid.NewString(),
-			"request_id": uuid.NewString(),
-			"report":     "done",
-			"status":     "reported",
+			"path":    "/workspace/main.go",
+			"content": "package main",
 		},
 	}})
 	require.NoError(t, err)
@@ -440,7 +421,7 @@ func TestChatMessagesToPrompt_RepairsLegacyOrphanToolResult(t *testing.T) {
 			Role:    string(fantasy.MessageRoleTool),
 			Content: pqtype.NullRawMessage{RawMessage: toolResults, Valid: true},
 		},
-	}, subagentReportToolCallIDPrefix)
+	})
 	require.NoError(t, err)
 	require.Len(t, prompt, 3)
 	require.Equal(t, fantasy.MessageRoleAssistant, prompt[1].Role)
@@ -449,7 +430,7 @@ func TestChatMessagesToPrompt_RepairsLegacyOrphanToolResult(t *testing.T) {
 	toolCalls := chatprompt.ExtractToolCalls(prompt[1].Content)
 	require.Len(t, toolCalls, 1)
 	require.Equal(t, sanitizedToolCallID, toolCalls[0].ToolCallID)
-	require.Equal(t, "subagent_report", toolCalls[0].ToolName)
+	require.Equal(t, "read_file", toolCalls[0].ToolName)
 
 	toolResultParts := messageToolResultParts(prompt[2])
 	require.Len(t, toolResultParts, 1)
@@ -877,7 +858,7 @@ func TestGenerateChatTitle(t *testing.T) {
 			},
 		}
 
-		p := &Processor{
+		p := &Server{
 			resolveProviderAPIKeysFn: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
 				return chatprovider.ProviderAPIKeys{OpenAI: "openai-key"}, nil
 			},
@@ -905,7 +886,7 @@ func TestGenerateChatTitle(t *testing.T) {
 			},
 		}
 
-		p := &Processor{
+		p := &Server{
 			resolveProviderAPIKeysFn: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
 				return chatprovider.ProviderAPIKeys{OpenAI: "openai-key"}, nil
 			},
@@ -928,7 +909,7 @@ func TestGenerateChatTitle(t *testing.T) {
 			},
 		}
 
-		p := &Processor{
+		p := &Server{
 			resolveProviderAPIKeysFn: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
 				return chatprovider.ProviderAPIKeys{OpenAI: "openai-key"}, nil
 			},
@@ -956,7 +937,7 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		chat := insertChatForTesting(t, db, initialTitle)
 		messages := []database.ChatMessage{mustUserChatMessage(t, messageText)}
 
-		p := &Processor{
+		p := &Server{
 			db: db,
 			resolveProviderAPIKeysFn: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
 				return chatprovider.ProviderAPIKeys{OpenAI: "openai-key"}, nil
@@ -988,7 +969,7 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		chat := insertChatForTesting(t, db, initialTitle)
 		messages := []database.ChatMessage{mustUserChatMessage(t, messageText)}
 
-		p := &Processor{
+		p := &Server{
 			db: db,
 			resolveProviderAPIKeysFn: func(context.Context) (chatprovider.ProviderAPIKeys, error) {
 				return chatprovider.ProviderAPIKeys{OpenAI: "openai-key"}, nil

@@ -3850,8 +3850,6 @@ type ChatMessage struct {
 	ToolCallID          sql.NullString        `db:"tool_call_id" json:"tool_call_id"`
 	Thinking            sql.NullString        `db:"thinking" json:"thinking"`
 	Hidden              bool                  `db:"hidden" json:"hidden"`
-	SubagentRequestID   uuid.NullUUID         `db:"subagent_request_id" json:"subagent_request_id"`
-	SubagentEvent       sql.NullString        `db:"subagent_event" json:"subagent_event"`
 	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
 	OutputTokens        sql.NullInt64         `db:"output_tokens" json:"output_tokens"`
 	TotalTokens         sql.NullInt64         `db:"total_tokens" json:"total_tokens"`

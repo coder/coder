@@ -19,6 +19,9 @@ import (
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"github.com/sqlc-dev/pqtype"
@@ -123,6 +126,28 @@ func contentFromText(text string) []fantasy.Content {
 	return []fantasy.Content{
 		fantasy.TextContent{Text: text},
 	}
+}
+
+func containsAssistantText(messages []database.ChatMessage, expected string) bool {
+	for _, message := range messages {
+		if message.Role != string(fantasy.MessageRoleAssistant) {
+			continue
+		}
+		content, err := chatprompt.ParseContent(message.Role, message.Content)
+		if err != nil {
+			continue
+		}
+		for _, block := range content {
+			textBlock, ok := fantasy.AsContentType[fantasy.TextContent](block)
+			if !ok {
+				continue
+			}
+			if strings.Contains(textBlock.Text, expected) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type createWorkspaceToolModel struct {
@@ -791,7 +816,6 @@ func insertDelegatedChildChatWithUserMessage(
 	})
 	require.NoError(t, err)
 
-	requestID := uuid.New()
 	content, err := json.Marshal(contentFromText(message))
 	require.NoError(t, err)
 	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
@@ -799,42 +823,10 @@ func insertDelegatedChildChatWithUserMessage(
 		Role:    string(fantasy.MessageRoleUser),
 		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true},
 		Hidden:  false,
-		SubagentRequestID: uuid.NullUUID{
-			UUID:  requestID,
-			Valid: true,
-		},
-		SubagentEvent: sql.NullString{
-			String: "request",
-			Valid:  true,
-		},
 	})
 	require.NoError(t, err)
 
-	return child, requestID
-}
-
-func insertSubagentReportOnlyMarker(
-	dbCtx context.Context,
-	t *testing.T,
-	db database.Store,
-	chatID uuid.UUID,
-	requestID uuid.UUID,
-) {
-	t.Helper()
-
-	content, err := json.Marshal(contentFromText("report-only pass requested"))
-	require.NoError(t, err)
-	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
-		ChatID:  chatID,
-		Role:    "__subagent_report_only_marker",
-		Content: pqtype.NullRawMessage{RawMessage: content, Valid: true},
-		Hidden:  true,
-		SubagentRequestID: uuid.NullUUID{
-			UUID:  requestID,
-			Valid: true,
-		},
-	})
-	require.NoError(t, err)
+	return child, uuid.Nil
 }
 
 func TestRunChatLoop(t *testing.T) {
@@ -1531,7 +1523,7 @@ func TestRunChatLoop_InterruptPersistsPartialStep(t *testing.T) {
 		t.Fatal("timed out waiting for streaming model to emit partial content")
 	}
 
-	require.True(t, processor.InterruptChat(chat.ID))
+	require.True(t, processor.Interrupt(chat.ID))
 
 	require.Eventually(t, func() bool {
 		storedChat, err := db.GetChatByID(dbCtx, chat.ID)
@@ -2497,71 +2489,7 @@ func TestRunChatLoop_PublishesStreamErrorOnPanic(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
-func TestRunChatLoop_DelegatedChildWithoutReportRequeuesForReportPass(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db := coderdtest.NewWithDatabase(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	dbCtx := dbauthz.AsSystemRestricted(ctx)
-
-	parent := insertChatWithUserMessage(dbCtx, t, db, user.UserID, "parent", "parent prompt")
-	child, requestID := insertDelegatedChildChatWithUserMessage(
-		dbCtx,
-		t,
-		db,
-		user.UserID,
-		parent.ID,
-		"child",
-		"run delegated subagent",
-	)
-
-	model := &fixedTextModel{text: "child completed without explicit report"}
-	processor := chatd.New(chatd.Config{
-		Logger:   testutil.Logger(t).Named("chatd"),
-		Database: db,
-		Testing: &chatd.TestingConfig{
-			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
-				return model, nil
-			},
-		},
-		PendingChatAcquireInterval: 10 * time.Second,
-	})
-	defer processor.Close()
-
-	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
-		ID:        child.ID,
-		Status:    database.ChatStatusPending,
-		WorkerID:  uuid.NullUUID{},
-		StartedAt: sql.NullTime{},
-	})
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		storedChild, err := db.GetChatByID(dbCtx, child.ID)
-		if err != nil {
-			return false
-		}
-		if storedChild.Status != database.ChatStatusPending {
-			return false
-		}
-
-		messages, msgErr := db.GetChatMessagesByChatID(dbCtx, child.ID)
-		if msgErr != nil {
-			return false
-		}
-		for _, message := range messages {
-			if message.Role != "__subagent_report_only_marker" || !message.Hidden {
-				continue
-			}
-			return message.SubagentRequestID.Valid &&
-				message.SubagentRequestID.UUID == requestID
-		}
-		return false
-	}, testutil.WaitLong, testutil.IntervalFast)
-}
-
-func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t *testing.T) {
+func TestRunChatLoop_DelegatedChildWithoutExplicitReportStillResolvesRequest(t *testing.T) {
 	t.Parallel()
 	t.Skip("NOTE(cian: fails due to race between integrated chatd and one in coderdtest, will be fixed in a follow-up")
 
@@ -2581,8 +2509,65 @@ func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t
 		"run delegated subagent",
 	)
 
-	// Keep an active descendant so the old defer branch that only checks
-	// descendants does not run.
+	model := &fixedTextModel{text: "child completed without explicit report"}
+	processor := chatd.New(chatd.Config{
+		Logger:   testutil.Logger(t).Named("chatd"),
+		Database: db,
+		Testing: &chatd.TestingConfig{
+			ResolveChatModel: func(_ database.Chat) (fantasy.LanguageModel, error) {
+				return model, nil
+			},
+		},
+		PendingChatAcquireInterval: 25 * time.Millisecond,
+	})
+	defer processor.Close()
+
+	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        child.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		storedChild, err := db.GetChatByID(dbCtx, child.ID)
+		if err != nil {
+			return false
+		}
+		if storedChild.Status != database.ChatStatusWaiting {
+			return false
+		}
+
+		messages, messagesErr := db.GetChatMessagesByChatID(dbCtx, child.ID)
+		if messagesErr != nil {
+			return false
+		}
+		return containsAssistantText(messages, "child completed without explicit report")
+	}, testutil.WaitLong, 25*time.Millisecond)
+}
+
+func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningProcessesFollowUp(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+
+	parent := insertChatWithUserMessage(t, db, dbCtx, user.UserID, "parent", "parent prompt")
+	child, _ := insertDelegatedChildChatWithUserMessage(
+		t,
+		db,
+		dbCtx,
+		user.UserID,
+		parent.ID,
+		"child",
+		"run delegated subagent",
+	)
+
+	// Keep an active descendant to mirror delegated-child fanout while the
+	// follow-up request is inserted during an in-flight run.
 	_, _ = insertDelegatedChildChatWithUserMessage(
 		dbCtx,
 		t,
@@ -2605,7 +2590,7 @@ func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: testutil.IntervalSlow,
+		PendingChatAcquireInterval: 25 * time.Millisecond,
 	})
 	closed := false
 	defer func() {
@@ -2632,7 +2617,6 @@ func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusRunning, storedChild.Status)
 
-	followUpRequestID := uuid.New()
 	followUpContent, err := json.Marshal(contentFromText("follow up while running"))
 	require.NoError(t, err)
 	_, err = db.InsertChatMessage(dbCtx, database.InsertChatMessageParams{
@@ -2640,41 +2624,46 @@ func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t
 		Role:    string(fantasy.MessageRoleUser),
 		Content: pqtype.NullRawMessage{RawMessage: followUpContent, Valid: true},
 		Hidden:  false,
-		SubagentRequestID: uuid.NullUUID{
-			UUID:  followUpRequestID,
-			Valid: true,
-		},
-		SubagentEvent: sql.NullString{
-			String: "request",
-			Valid:  true,
-		},
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:        child.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
 	})
 	require.NoError(t, err)
 
 	close(model.release)
 
 	require.Eventually(t, func() bool {
-		updatedChild, lookupErr := db.GetChatByID(dbCtx, child.ID)
-		return lookupErr == nil && updatedChild.Status == database.ChatStatusPending
-	}, testutil.WaitLong, testutil.IntervalFast)
+		messages, messagesErr := db.GetChatMessagesByChatID(dbCtx, child.ID)
+		if messagesErr != nil {
+			return false
+		}
+		assistantCount := 0
+		for _, message := range messages {
+			if message.Role == string(fantasy.MessageRoleAssistant) {
+				assistantCount++
+			}
+		}
+		if assistantCount < 2 {
+			return false
+		}
 
-	pendingRequestID, err := db.GetLatestPendingSubagentRequestIDByChatID(dbCtx, child.ID)
+		updatedChild, lookupErr := db.GetChatByID(dbCtx, child.ID)
+		return lookupErr == nil && updatedChild.Status == database.ChatStatusWaiting
+	}, testutil.WaitLong, 25*time.Millisecond)
+
+	messages, err := db.GetChatMessagesByChatID(dbCtx, child.ID)
 	require.NoError(t, err)
-	require.True(t, pendingRequestID.Valid)
-	require.Equal(t, followUpRequestID, pendingRequestID.UUID)
+	require.True(t, containsAssistantText(messages, "done"))
 
 	require.NoError(t, processor.Close())
 	closed = true
-
-	acquired, err := db.AcquireChat(dbCtx, database.AcquireChatParams{
-		StartedAt: time.Now(),
-		WorkerID:  uuid.New(),
-	})
-	require.NoError(t, err)
-	require.Equal(t, child.ID, acquired.ID)
 }
 
-func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) {
+func TestRunChatLoop_DelegatedChildWithoutSubagentToolStillProducesAssistantResponse(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -2691,18 +2680,16 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 	})
 	require.NoError(t, err)
 
-	child, requestID := insertDelegatedChildChatWithUserMessage(
-		dbCtx,
+	child, _ := insertDelegatedChildChatWithUserMessage(
 		t,
 		db,
 		user.UserID,
 		parent.ID,
-		"child report-only subagent",
+		"child delegated subagent",
 		"finish delegated subagent",
 	)
-	insertSubagentReportOnlyMarker(dbCtx, t, db, child.ID, requestID)
 
-	const fallbackSummary = "summarized completion from report-only pass"
+	const fallbackSummary = "summarized completion from delegated pass"
 	model := &fixedTextModel{text: fallbackSummary}
 	processor := chatd.New(chatd.Config{
 		Logger:   testutil.Logger(t).Named("chatd"),
@@ -2725,30 +2712,16 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		responseMarker, markerErr := db.GetSubagentResponseMessageByChatIDAndRequestID(
-			dbCtx,
-			database.GetSubagentResponseMessageByChatIDAndRequestIDParams{
-				ChatID:            child.ID,
-				SubagentRequestID: requestID,
-			},
-		)
-		if markerErr != nil {
+		messages, messagesErr := db.GetChatMessagesByChatID(dbCtx, child.ID)
+		if messagesErr != nil {
 			return false
 		}
-
-		if !strings.Contains(string(responseMarker.Content.RawMessage), fallbackSummary) {
+		if !containsAssistantText(messages, fallbackSummary) {
 			return false
 		}
-
-		durationMS, durationErr := db.GetSubagentRequestDurationByChatIDAndRequestID(
-			dbCtx,
-			database.GetSubagentRequestDurationByChatIDAndRequestIDParams{
-				ChatID:            child.ID,
-				SubagentRequestID: requestID,
-			},
-		)
-		return durationErr == nil && durationMS > 0
-	}, testutil.WaitLong, testutil.IntervalFast)
+		storedChild, lookupErr := db.GetChatByID(dbCtx, child.ID)
+		return lookupErr == nil && storedChild.Status == database.ChatStatusWaiting
+	}, testutil.WaitLong, 25*time.Millisecond)
 
 	// The parent should NOT have any subagent_report messages injected.
 	// Reports are delivered through subagent_await, not separate messages.
@@ -2789,7 +2762,7 @@ func TestProcessorListModels_UsesFallbackAPIKeysWhenProviderKeyBlank(t *testing.
 	})
 	defer processor.Close()
 
-	response, err := processor.ListModels(ctx)
+	response, err := processor.Models(ctx)
 	require.NoError(t, err)
 	require.Len(t, response.Providers, 1)
 
@@ -2824,7 +2797,7 @@ func TestProcessorListModels_NoEnabledModelsReturnsProviderAvailability(t *testi
 	})
 	defer processor.Close()
 
-	response, err := processor.ListModels(ctx)
+	response, err := processor.Models(ctx)
 	require.NoError(t, err)
 	require.Len(t, response.Providers, len(chatprovider.SupportedProviders()))
 
@@ -2836,6 +2809,232 @@ func TestProcessorListModels_NoEnabledModelsReturnsProviderAvailability(t *testi
 	require.True(t, availability["openai"].Available)
 	require.True(t, availability["openrouter"].Available)
 	require.False(t, availability["anthropic"].Available)
+}
+
+func TestSubscribeRelayToOwnerReplica(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	dbCtx := dbauthz.AsSystemRestricted(ctx)
+
+	chat := insertChatWithUserMessage(t, db, dbCtx, user.UserID, "relay-subscribe", "hello")
+	ownerReplicaID := uuid.New()
+	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{
+			UUID:  ownerReplicaID,
+			Valid: true,
+		},
+		StartedAt: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	type forwarded struct {
+		SessionToken  string
+		Authorization string
+		Cookie        string
+		RelaySource   string
+	}
+	forwardedC := make(chan forwarded, 1)
+	handlerErrC := make(chan error, 1)
+	relay := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		expectedPath := fmt.Sprintf("/api/v2/chats/%s/stream", chat.ID)
+		if r.URL.Path != expectedPath {
+			select {
+			case handlerErrC <- fmt.Errorf("unexpected relay path: %s", r.URL.Path):
+			default:
+			}
+			http.Error(rw, "unexpected path", http.StatusBadRequest)
+			return
+		}
+
+		select {
+		case forwardedC <- forwarded{
+			SessionToken:  r.Header.Get(codersdk.SessionTokenHeader),
+			Authorization: r.Header.Get("Authorization"),
+			Cookie:        r.Header.Get("Cookie"),
+			RelaySource:   r.Header.Get(chatd.RelaySourceHeader),
+		}:
+		default:
+		}
+
+		conn, err := websocket.Accept(rw, r, nil)
+		if err != nil {
+			select {
+			case handlerErrC <- err:
+			default:
+			}
+			return
+		}
+		defer func() {
+			_ = conn.Close(websocket.StatusNormalClosure, "")
+		}()
+
+		err = wsjson.Write(r.Context(), conn, codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeData,
+			Data: codersdk.ChatStreamEvent{
+				Type:   codersdk.ChatStreamEventTypeStatus,
+				ChatID: chat.ID,
+				Status: &codersdk.ChatStreamStatus{
+					Status: codersdk.ChatStatusRunning,
+				},
+			},
+		})
+		if err != nil {
+			select {
+			case handlerErrC <- err:
+			default:
+			}
+		}
+	}))
+	defer relay.Close()
+
+	processor := chatd.New(chatd.Config{
+		Logger:    testutil.Logger(t),
+		Database:  db,
+		ReplicaID: uuid.New(),
+		ResolveReplicaAddress: func(_ context.Context, replicaID uuid.UUID) (string, bool) {
+			require.Equal(t, ownerReplicaID, replicaID)
+			return relay.URL, true
+		},
+		ReplicaHTTPClient:          relay.Client(),
+		PendingChatAcquireInterval: time.Hour,
+	})
+	defer processor.Close()
+
+	requestHeader := make(http.Header)
+	requestHeader.Set(codersdk.SessionTokenHeader, "session-header-token")
+	requestHeader.Set("Authorization", "Bearer relay-token")
+	requestHeader.Set("Cookie", "coder_session_token=session-cookie-token")
+
+	snapshot, events, cancel, ok := processor.Subscribe(ctx, chat.ID, requestHeader)
+	require.True(t, ok)
+	require.Empty(t, snapshot)
+	defer cancel()
+
+	select {
+	case err := <-handlerErrC:
+		require.NoError(t, err)
+	default:
+	}
+
+	select {
+	case got := <-forwardedC:
+		require.Equal(t, "session-header-token", got.SessionToken)
+		require.Equal(t, "Bearer relay-token", got.Authorization)
+		require.Equal(t, "coder_session_token=session-cookie-token", got.Cookie)
+		require.NotEmpty(t, got.RelaySource)
+		_, err := uuid.Parse(got.RelaySource)
+		require.NoError(t, err)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for relayed request")
+	}
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok)
+		require.Equal(t, codersdk.ChatStreamEventTypeStatus, event.Type)
+		require.NotNil(t, event.Status)
+		require.Equal(t, codersdk.ChatStatusRunning, event.Status.Status)
+		require.Equal(t, chat.ID, event.ChatID)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for relayed stream event")
+	}
+}
+
+func TestSubscribeRelayLoopProtection(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	manager := chatd.NewStreamManager(testutil.Logger(t))
+	var resolverCalled bool
+	processor := chatd.New(chatd.Config{
+		Logger:   testutil.Logger(t),
+		Database: db,
+		ResolveReplicaAddress: func(context.Context, uuid.UUID) (string, bool) {
+			resolverCalled = true
+			return "http://127.0.0.1:1", true
+		},
+		StreamManager:              manager,
+		PendingChatAcquireInterval: time.Hour,
+	})
+	defer processor.Close()
+
+	chatID := uuid.New()
+	requestHeader := make(http.Header)
+	requestHeader.Set(chatd.RelaySourceHeader, uuid.NewString())
+
+	snapshot, events, cancel, ok := processor.Subscribe(ctx, chatID, requestHeader)
+	require.True(t, ok)
+	require.Empty(t, snapshot)
+	defer cancel()
+
+	manager.Publish(chatID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeStatus,
+		Status: &codersdk.ChatStreamStatus{
+			Status: codersdk.ChatStatusWaiting,
+		},
+	})
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok)
+		require.Equal(t, codersdk.ChatStreamEventTypeStatus, event.Type)
+		require.NotNil(t, event.Status)
+		require.Equal(t, codersdk.ChatStatusWaiting, event.Status.Status)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for local stream event")
+	}
+	require.False(t, resolverCalled)
+}
+
+func TestSubscribeWithoutResolverStaysLocal(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	manager := chatd.NewStreamManager(testutil.Logger(t))
+	processor := chatd.New(chatd.Config{
+		Logger:                     testutil.Logger(t),
+		Database:                   db,
+		StreamManager:              manager,
+		PendingChatAcquireInterval: time.Hour,
+	})
+	defer processor.Close()
+
+	chatID := uuid.New()
+	snapshot, events, cancel, ok := processor.Subscribe(ctx, chatID, nil)
+	require.True(t, ok)
+	require.Empty(t, snapshot)
+	defer cancel()
+
+	manager.Publish(chatID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeStatus,
+		Status: &codersdk.ChatStreamStatus{
+			Status: codersdk.ChatStatusCompleted,
+		},
+	})
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok)
+		require.Equal(t, codersdk.ChatStreamEventTypeStatus, event.Type)
+		require.NotNil(t, event.Status)
+		require.Equal(t, codersdk.ChatStatusCompleted, event.Status.Status)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for local stream event")
+	}
 }
 
 func TestStreamManagerSnapshotBuffersOnlyMessageParts(t *testing.T) {

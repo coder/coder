@@ -3,8 +3,8 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"charm.land/fantasy"
@@ -13,96 +13,224 @@ import (
 
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
 
 const (
-	subagentAwaitPollInterval      = 200 * time.Millisecond
-	subagentReportToolCallIDPrefix = "subagent_report_"
-	defaultFallbackSubagentReport  = "Sub-agent completed without explicit report."
+	subagentAwaitPollInterval  = 200 * time.Millisecond
+	defaultSubagentWaitTimeout = 5 * time.Minute
 )
 
-const (
-	subagentEventRequest  = "request"
-	subagentEventResponse = "response"
-
-	subagentResponseMarkerRole   = "__subagent_response_marker"
-	subagentReportOnlyMarkerRole = "__subagent_report_only_marker"
-)
-
-type interruptChatFn func(chatID uuid.UUID) bool
-
-type SubagentAwaitResult struct {
-	RequestID  uuid.UUID
-	Report     string
-	DurationMS int64
+type spawnAgentArgs struct {
+	Prompt string `json:"prompt"`
+	Title  string `json:"title,omitempty"`
 }
 
-type subagentRequestKey struct {
-	chatID    uuid.UUID
-	requestID uuid.UUID
+type waitAgentArgs struct {
+	ChatID         string `json:"chat_id"`
+	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
 }
 
-// SubagentService handles delegated subagent request/response correlation and
-// in-memory waiting for subagent responses.
-type SubagentService struct {
-	db database.Store
-
-	interruptChat interruptChatFn
-	streamer      *StreamManager
-
-	waitersMu sync.Mutex
-	waiters   map[subagentRequestKey][]chan SubagentAwaitResult
-	results   map[subagentRequestKey]SubagentAwaitResult
+type messageAgentArgs struct {
+	ChatID    string `json:"chat_id"`
+	Message   string `json:"message"`
+	Interrupt bool   `json:"interrupt,omitempty"`
 }
 
-func newSubagentService(db database.Store, interruptChat interruptChatFn) *SubagentService {
-	return &SubagentService{
-		db:            db,
-		interruptChat: interruptChat,
-		waiters:       make(map[subagentRequestKey][]chan SubagentAwaitResult),
-		results:       make(map[subagentRequestKey]SubagentAwaitResult),
+type closeAgentArgs struct {
+	ChatID string `json:"chat_id"`
+}
+
+func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.AgentTool {
+	return []fantasy.AgentTool{
+		fantasy.NewAgentTool(
+			"spawn_agent",
+			"Spawn a delegated child agent chat from the root chat.",
+			func(ctx context.Context, args spawnAgentArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
+				if currentChat == nil {
+					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent callbacks are not configured"))), nil
+				}
+
+				parent := currentChat()
+				if parent.ParentChatID.Valid {
+					return toolResultBlockToAgentResponse(toolError(
+						base,
+						xerrors.New("delegated chats cannot create child subagents"),
+					)), nil
+				}
+
+				parent, err := p.db.GetChatByID(ctx, parent.ID)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+				childChat, err := p.createChildSubagentChat(
+					ctx,
+					parent,
+					args.Prompt,
+					args.Title,
+				)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
+					ToolCallID: call.ID,
+					ToolName:   call.Name,
+					Result: map[string]any{
+						"chat_id": childChat.ID.String(),
+						"title":   childChat.Title,
+						"status":  string(childChat.Status),
+					},
+				}), nil
+			},
+		),
+		fantasy.NewAgentTool(
+			"wait_agent",
+			"Wait until a delegated descendant agent reaches a non-streaming status.",
+			func(ctx context.Context, args waitAgentArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
+				if currentChat == nil {
+					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent callbacks are not configured"))), nil
+				}
+
+				targetChatID, err := parseSubagentToolChatID(args.ChatID)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				timeout := defaultSubagentWaitTimeout
+				if args.TimeoutSeconds != nil {
+					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
+				}
+
+				parent := currentChat()
+				targetChat, report, err := p.awaitSubagentCompletion(
+					ctx,
+					parent.ID,
+					targetChatID,
+					timeout,
+				)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
+					ToolCallID: call.ID,
+					ToolName:   call.Name,
+					Result: map[string]any{
+						"chat_id": targetChatID.String(),
+						"title":   targetChat.Title,
+						"report":  report,
+						"status":  string(targetChat.Status),
+					},
+				}), nil
+			},
+		),
+		fantasy.NewAgentTool(
+			"message_agent",
+			"Send a message to a delegated descendant agent. Use wait_agent to collect a response.",
+			func(ctx context.Context, args messageAgentArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
+				if currentChat == nil {
+					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent callbacks are not configured"))), nil
+				}
+
+				targetChatID, err := parseSubagentToolChatID(args.ChatID)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				parent := currentChat()
+				targetChat, err := p.sendSubagentMessage(
+					ctx,
+					parent.ID,
+					targetChatID,
+					args.Message,
+					args.Interrupt,
+				)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
+					ToolCallID: call.ID,
+					ToolName:   call.Name,
+					Result: map[string]any{
+						"chat_id":     targetChatID.String(),
+						"title":       targetChat.Title,
+						"status":      string(targetChat.Status),
+						"interrupted": args.Interrupt,
+					},
+				}), nil
+			},
+		),
+		fantasy.NewAgentTool(
+			"close_agent",
+			"Interrupt a delegated descendant agent immediately.",
+			func(ctx context.Context, args closeAgentArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
+				if currentChat == nil {
+					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent callbacks are not configured"))), nil
+				}
+
+				targetChatID, err := parseSubagentToolChatID(args.ChatID)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				parent := currentChat()
+				targetChat, err := p.closeSubagent(
+					ctx,
+					parent.ID,
+					targetChatID,
+				)
+				if err != nil {
+					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				}
+
+				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
+					ToolCallID: call.ID,
+					ToolName:   call.Name,
+					Result: map[string]any{
+						"chat_id":    targetChatID.String(),
+						"title":      targetChat.Title,
+						"terminated": true,
+						"status":     string(targetChat.Status),
+					},
+				}), nil
+			},
+		),
 	}
 }
 
-func (s *SubagentService) setStreamManager(streamer *StreamManager) {
-	s.streamer = streamer
+func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
+	chatID, err := uuid.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return uuid.Nil, xerrors.New("chat_id must be a valid UUID")
+	}
+	return chatID, nil
 }
 
-func (s *SubagentService) publishChildStatus(chat database.Chat, status database.ChatStatus) {
-	if !chat.ParentChatID.Valid || chat.ParentChatID.UUID == uuid.Nil {
-		return
-	}
-	if s.streamer == nil {
-		return
-	}
-
-	s.streamer.Publish(chat.ParentChatID.UUID, codersdk.ChatStreamEvent{
-		Type:   codersdk.ChatStreamEventTypeStatus,
-		ChatID: chat.ID,
-		Status: &codersdk.ChatStreamStatus{
-			Status: codersdk.ChatStatus(status),
-		},
-	})
-}
-
-func (s *SubagentService) CreateChildSubagentChat(
+func (p *Server) createChildSubagentChat(
 	ctx context.Context,
 	parent database.Chat,
 	prompt string,
 	title string,
-	background bool,
-) (database.Chat, uuid.UUID, error) {
+) (database.Chat, error) {
+	if parent.ParentChatID.Valid {
+		return database.Chat{}, xerrors.New("delegated chats cannot create child subagents")
+	}
+
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
-		return database.Chat{}, uuid.Nil, xerrors.New("prompt is required")
+		return database.Chat{}, xerrors.New("prompt is required")
 	}
 
 	title = strings.TrimSpace(title)
 	if title == "" {
-		title = fallbackChatTitle(prompt)
+		title = subagentFallbackChatTitle(prompt)
 	}
 
 	rootChatID := parent.ID
@@ -110,7 +238,12 @@ func (s *SubagentService) CreateChildSubagentChat(
 		rootChatID = parent.RootChatID.UUID
 	}
 
-	child, err := s.db.InsertChat(ctx, database.InsertChatParams{
+	userContent, err := chatprompt.MarshalContent([]fantasy.Content{fantasy.TextContent{Text: prompt}})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("marshal subagent prompt: %w", err)
+	}
+
+	child, err := p.Create(ctx, CreateOptions{
 		OwnerID:          parent.OwnerID,
 		WorkspaceID:      parent.WorkspaceID,
 		WorkspaceAgentID: parent.WorkspaceAgentID,
@@ -122,534 +255,206 @@ func (s *SubagentService) CreateChildSubagentChat(
 			UUID:  rootChatID,
 			Valid: true,
 		},
-		Title:       title,
-		ModelConfig: parent.ModelConfig,
+		Title:              title,
+		ModelConfig:        parent.ModelConfig,
+		InitialUserContent: userContent.RawMessage,
 	})
 	if err != nil {
-		return database.Chat{}, uuid.Nil, xerrors.Errorf("insert child chat: %w", err)
+		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
 	}
 
-	requestID := uuid.New()
-	if err := s.insertRequestMessage(ctx, child.ID, prompt, requestID); err != nil {
-		return database.Chat{}, uuid.Nil, err
-	}
-
-	// Child subagents are always enqueued asynchronously in phase-1, regardless
-	// of whether the parent awaits in the same tool call.
-	_ = background
-
-	child, err = s.requeueChatIfNeeded(ctx, child)
-	if err != nil {
-		return database.Chat{}, uuid.Nil, err
-	}
-
-	s.clearCachedResult(child.ID, requestID)
-	return child, requestID, nil
+	return child, nil
 }
 
-func (s *SubagentService) SendSubagentMessage(
+func (p *Server) sendSubagentMessage(
 	ctx context.Context,
 	parentChatID uuid.UUID,
 	targetChatID uuid.UUID,
 	message string,
-) (database.Chat, uuid.UUID, error) {
+	interrupt bool,
+) (database.Chat, error) {
 	message = strings.TrimSpace(message)
 	if message == "" {
-		return database.Chat{}, uuid.Nil, xerrors.New("message is required")
+		return database.Chat{}, xerrors.New("message is required")
 	}
 
-	isDescendant, err := s.isDescendant(ctx, parentChatID, targetChatID)
+	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChatID, targetChatID)
 	if err != nil {
-		return database.Chat{}, uuid.Nil, err
+		return database.Chat{}, err
 	}
 	if !isDescendant {
-		return database.Chat{}, uuid.Nil, ErrSubagentNotDescendant
+		return database.Chat{}, errSubagentNotDescendant
 	}
 
-	targetChat, err := s.db.GetChatByID(ctx, targetChatID)
+	userContent, err := chatprompt.MarshalContent([]fantasy.Content{fantasy.TextContent{Text: message}})
 	if err != nil {
-		return database.Chat{}, uuid.Nil, xerrors.Errorf("get target chat: %w", err)
+		return database.Chat{}, xerrors.Errorf("marshal subagent request message: %w", err)
 	}
 
-	requestID := uuid.New()
-	if err := s.insertRequestMessage(ctx, targetChatID, message, requestID); err != nil {
-		return database.Chat{}, uuid.Nil, err
-	}
-
-	targetChat, err = s.requeueChatIfNeeded(ctx, targetChat)
+	sendResult, err := p.PostMessages(ctx, PostMessagesOptions{
+		ChatID:      targetChatID,
+		Content:     userContent.RawMessage,
+		Hidden:      false,
+		Interrupt:   interrupt,
+		QueueIfBusy: !interrupt,
+	})
 	if err != nil {
-		return database.Chat{}, uuid.Nil, err
+		return database.Chat{}, err
 	}
 
-	s.clearCachedResult(targetChatID, requestID)
-	return targetChat, requestID, nil
+	return sendResult.Chat, nil
 }
 
-func (s *SubagentService) insertRequestMessage(
+func (p *Server) awaitSubagentCompletion(
 	ctx context.Context,
-	chatID uuid.UUID,
-	message string,
-	requestID uuid.UUID,
-) error {
-	userContent, err := chatprompt.MarshalContent([]fantasy.Content{
-		fantasy.TextContent{Text: message},
-	})
+	parentChatID uuid.UUID,
+	targetChatID uuid.UUID,
+	timeout time.Duration,
+) (database.Chat, string, error) {
+	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChatID, targetChatID)
 	if err != nil {
-		return xerrors.Errorf("marshal subagent request message: %w", err)
+		return database.Chat{}, "", err
+	}
+	if !isDescendant {
+		return database.Chat{}, "", errSubagentNotDescendant
 	}
 
-	_, err = s.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:  chatID,
-		Role:    string(fantasy.MessageRoleUser),
-		Content: userContent,
-		Hidden:  false,
-		SubagentRequestID: uuid.NullUUID{
-			UUID:  requestID,
-			Valid: true,
-		},
-		SubagentEvent: sql.NullString{
-			String: subagentEventRequest,
-			Valid:  true,
-		},
-		ToolCallID:          sql.NullString{},
-		Thinking:            sql.NullString{},
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-		Compressed:          sql.NullBool{},
-	})
-	if err != nil {
-		return xerrors.Errorf("insert subagent request message: %w", err)
+	if timeout <= 0 {
+		timeout = defaultSubagentWaitTimeout
 	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
 
-	return nil
+	ticker := time.NewTicker(subagentAwaitPollInterval)
+	defer ticker.Stop()
+
+	for {
+		targetChat, report, done, checkErr := p.checkSubagentCompletion(ctx, targetChatID)
+		if checkErr != nil {
+			return database.Chat{}, "", checkErr
+		}
+		if done {
+			if targetChat.Status == database.ChatStatusError {
+				reason := strings.TrimSpace(report)
+				if reason == "" {
+					reason = "agent reached error status"
+				}
+				return database.Chat{}, "", xerrors.New(reason)
+			}
+			return targetChat, report, nil
+		}
+
+		select {
+		case <-ticker.C:
+		case <-timer.C:
+			return database.Chat{}, "", xerrors.New("timed out waiting for delegated subagent completion")
+		case <-ctx.Done():
+			return database.Chat{}, "", ctx.Err()
+		}
+	}
 }
 
-func (s *SubagentService) requeueChatIfNeeded(ctx context.Context, chat database.Chat) (database.Chat, error) {
-	if chat.Status != database.ChatStatusWaiting && chat.Status != database.ChatStatusCompleted {
-		return chat, nil
+func (p *Server) closeSubagent(
+	ctx context.Context,
+	parentChatID uuid.UUID,
+	targetChatID uuid.UUID,
+) (database.Chat, error) {
+	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChatID, targetChatID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if !isDescendant {
+		return database.Chat{}, errSubagentNotDescendant
 	}
 
-	updatedChat, err := s.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:        chat.ID,
-		Status:    database.ChatStatusPending,
+	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
+	}
+
+	if p.streamManager != nil {
+		p.streamManager.StopStream(targetChatID)
+	}
+	p.Interrupt(targetChatID)
+
+	if targetChat.Status == database.ChatStatusWaiting {
+		return targetChat, nil
+	}
+
+	updatedChat, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:        targetChatID,
+		Status:    database.ChatStatusWaiting,
 		WorkerID:  uuid.NullUUID{},
 		StartedAt: sql.NullTime{},
 	})
 	if err != nil {
-		return database.Chat{}, xerrors.Errorf("requeue subagent chat: %w", err)
+		return database.Chat{}, xerrors.Errorf("set target chat waiting: %w", err)
 	}
-	s.publishChildStatus(updatedChat, database.ChatStatusPending)
+	p.publishSubagentChildStatus(updatedChat, database.ChatStatusWaiting)
 	return updatedChat, nil
 }
 
-func (s *SubagentService) LatestPendingRequestID(
+func (p *Server) checkSubagentCompletion(
 	ctx context.Context,
 	chatID uuid.UUID,
-) (uuid.UUID, bool, error) {
-	requestID, err := s.db.GetLatestPendingSubagentRequestIDByChatID(ctx, chatID)
-	if xerrors.Is(err, sql.ErrNoRows) {
-		return uuid.Nil, false, nil
-	}
+) (database.Chat, string, bool, error) {
+	chat, err := p.db.GetChatByID(ctx, chatID)
 	if err != nil {
-		return uuid.Nil, false, xerrors.Errorf("get latest pending subagent request: %w", err)
+		return database.Chat{}, "", false, xerrors.Errorf("get chat: %w", err)
 	}
-	if !requestID.Valid || requestID.UUID == uuid.Nil {
-		return uuid.Nil, false, nil
+
+	if chat.Status == database.ChatStatusPending || chat.Status == database.ChatStatusRunning {
+		return database.Chat{}, "", false, nil
 	}
-	return requestID.UUID, true, nil
+
+	report, err := latestSubagentAssistantMessage(ctx, p.db, chatID)
+	if err != nil {
+		return database.Chat{}, "", false, err
+	}
+
+	return chat, report, true, nil
 }
 
-func (s *SubagentService) HasPendingRequest(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	_, hasPending, err := s.LatestPendingRequestID(ctx, chatID)
-	if err != nil {
-		return false, err
-	}
-	return hasPending, nil
-}
-
-func (s *SubagentService) ShouldRunReportOnlyPass(
+func latestSubagentAssistantMessage(
 	ctx context.Context,
+	store database.Store,
 	chatID uuid.UUID,
-	requestID uuid.UUID,
-) (bool, error) {
-	messages, err := s.db.GetChatMessagesByChatID(ctx, chatID)
+) (string, error) {
+	messages, err := store.GetChatMessagesByChatID(ctx, chatID)
 	if err != nil {
-		return false, xerrors.Errorf("get chat messages: %w", err)
+		return "", xerrors.Errorf("get chat messages: %w", err)
 	}
+
+	sort.Slice(messages, func(i, j int) bool {
+		if messages[i].CreatedAt.Equal(messages[j].CreatedAt) {
+			return messages[i].ID < messages[j].ID
+		}
+		return messages[i].CreatedAt.Before(messages[j].CreatedAt)
+	})
 
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
-		if !message.SubagentRequestID.Valid || message.SubagentRequestID.UUID != requestID {
+		if message.Role != string(fantasy.MessageRoleAssistant) || message.Hidden {
 			continue
-		}
-		if message.SubagentEvent.Valid && message.SubagentEvent.String == subagentEventRequest {
-			return false, nil
-		}
-		return true, nil
-	}
-
-	return false, nil
-}
-
-func (s *SubagentService) MarkReportOnlyPassRequested(
-	ctx context.Context,
-	chatID uuid.UUID,
-	requestID uuid.UUID,
-) error {
-	content, err := chatprompt.MarshalContent([]fantasy.Content{
-		fantasy.TextContent{Text: "report-only pass requested"},
-	})
-	if err != nil {
-		return xerrors.Errorf("marshal report-only marker: %w", err)
-	}
-
-	_, err = s.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:  chatID,
-		Role:    subagentReportOnlyMarkerRole,
-		Content: content,
-		Hidden:  true,
-		SubagentRequestID: uuid.NullUUID{
-			UUID:  requestID,
-			Valid: true,
-		},
-		ToolCallID:          sql.NullString{},
-		Thinking:            sql.NullString{},
-		SubagentEvent:       sql.NullString{},
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-		Compressed:          sql.NullBool{},
-	})
-	if err != nil {
-		return xerrors.Errorf("insert report-only marker: %w", err)
-	}
-	return nil
-}
-
-func (s *SubagentService) MarkSubagentReported(
-	ctx context.Context,
-	chatID uuid.UUID,
-	report string,
-	explicitRequestID uuid.NullUUID,
-) (SubagentAwaitResult, error) {
-	report = strings.TrimSpace(report)
-
-	chat, err := s.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return SubagentAwaitResult{}, xerrors.Errorf("get chat: %w", err)
-	}
-
-	requestID, err := s.resolveReportRequestID(ctx, chatID, explicitRequestID)
-	if err != nil {
-		return SubagentAwaitResult{}, err
-	}
-
-	responseContent, err := chatprompt.MarshalContent([]fantasy.Content{
-		fantasy.TextContent{Text: report},
-	})
-	if err != nil {
-		return SubagentAwaitResult{}, xerrors.Errorf("marshal subagent response marker: %w", err)
-	}
-
-	_, err = s.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:  chatID,
-		Role:    subagentResponseMarkerRole,
-		Content: responseContent,
-		Hidden:  true,
-		SubagentRequestID: uuid.NullUUID{
-			UUID:  requestID,
-			Valid: true,
-		},
-		SubagentEvent: sql.NullString{
-			String: subagentEventResponse,
-			Valid:  true,
-		},
-		ToolCallID:          sql.NullString{},
-		Thinking:            sql.NullString{},
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-		Compressed:          sql.NullBool{},
-	})
-	if err != nil {
-		return SubagentAwaitResult{}, xerrors.Errorf("insert subagent response marker: %w", err)
-	}
-
-	result, ok, err := s.responseForRequest(ctx, chatID, requestID)
-	if err != nil {
-		return SubagentAwaitResult{}, err
-	}
-	if !ok {
-		result = SubagentAwaitResult{
-			RequestID:  requestID,
-			Report:     report,
-			DurationMS: 0,
-		}
-	}
-
-	s.resolveRequestWaiters(subagentRequestKey{chatID: chatID, requestID: requestID}, result)
-
-	if chat.ParentChatID.Valid {
-		s.publishChildStatus(chat, database.ChatStatusCompleted)
-	}
-
-	return result, nil
-}
-
-func (s *SubagentService) resolveReportRequestID(
-	ctx context.Context,
-	chatID uuid.UUID,
-	explicitRequestID uuid.NullUUID,
-) (uuid.UUID, error) {
-	if explicitRequestID.Valid && explicitRequestID.UUID != uuid.Nil {
-		return explicitRequestID.UUID, nil
-	}
-
-	requestID, err := s.db.GetLatestPendingSubagentRequestIDByChatID(ctx, chatID)
-	if xerrors.Is(err, sql.ErrNoRows) {
-		return uuid.Nil, xerrors.New("no pending subagent request found")
-	}
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("get latest pending subagent request: %w", err)
-	}
-	if !requestID.Valid || requestID.UUID == uuid.Nil {
-		return uuid.Nil, xerrors.New("no pending subagent request found")
-	}
-	return requestID.UUID, nil
-}
-
-func (s *SubagentService) SynthesizeFallbackSubagentReport(
-	ctx context.Context,
-	chatID uuid.UUID,
-	requestID uuid.UUID,
-) string {
-	messages, err := s.db.GetChatMessagesByChatID(ctx, chatID)
-	if err != nil {
-		return defaultFallbackSubagentReport
-	}
-
-	for i := len(messages) - 1; i >= 0; i-- {
-		message := messages[i]
-		if message.Role != string(fantasy.MessageRoleAssistant) {
-			continue
-		}
-		if requestID != uuid.Nil {
-			if !message.SubagentRequestID.Valid || message.SubagentRequestID.UUID != requestID {
-				continue
-			}
 		}
 
 		content, parseErr := chatprompt.ParseContent(message.Role, message.Content)
 		if parseErr != nil {
 			continue
 		}
-		report := strings.TrimSpace(contentBlocksToText(content))
-		if report != "" {
-			return report
+		text := strings.TrimSpace(contentBlocksToText(content))
+		if text == "" {
+			continue
 		}
+		return text, nil
 	}
 
-	return defaultFallbackSubagentReport
+	return "", nil
 }
 
-func (s *SubagentService) AwaitSubagentReport(
+func isSubagentDescendant(
 	ctx context.Context,
-	parentChatID uuid.UUID,
-	targetChatID uuid.UUID,
-	requestID uuid.UUID,
-	timeout time.Duration,
-) (SubagentAwaitResult, error) {
-	isDescendant, err := s.isDescendant(ctx, parentChatID, targetChatID)
-	if err != nil {
-		return SubagentAwaitResult{}, err
-	}
-	if !isDescendant {
-		return SubagentAwaitResult{}, ErrSubagentNotDescendant
-	}
-
-	key := subagentRequestKey{chatID: targetChatID, requestID: requestID}
-	if result, ok := s.cachedResult(targetChatID, requestID); ok {
-		return result, nil
-	}
-
-	if result, ok, err := s.responseForRequest(ctx, targetChatID, requestID); err != nil {
-		return SubagentAwaitResult{}, err
-	} else if ok {
-		s.cacheResult(targetChatID, requestID, result)
-		return result, nil
-	}
-
-	waiter := make(chan SubagentAwaitResult, 1)
-	if result, ok := s.registerWaiter(key, waiter); ok {
-		return result, nil
-	}
-	defer s.unregisterWaiter(key, waiter)
-
-	if timeout <= 0 {
-		timeout = defaultSubagentAwaitTimeout
-	}
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
-
-	ticker := time.NewTicker(subagentAwaitPollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case result := <-waiter:
-			return result, nil
-		case <-ticker.C:
-			result, ok, lookupErr := s.responseForRequest(ctx, targetChatID, requestID)
-			if lookupErr != nil {
-				return SubagentAwaitResult{}, lookupErr
-			}
-			if ok {
-				s.resolveRequestWaiters(key, result)
-				return result, nil
-			}
-		case <-deadline.C:
-			return SubagentAwaitResult{}, xerrors.New("timed out waiting for delegated subagent report")
-		case <-ctx.Done():
-			return SubagentAwaitResult{}, ctx.Err()
-		}
-	}
-}
-
-func (s *SubagentService) responseForRequest(
-	ctx context.Context,
-	chatID uuid.UUID,
-	requestID uuid.UUID,
-) (SubagentAwaitResult, bool, error) {
-	message, err := s.db.GetSubagentResponseMessageByChatIDAndRequestID(ctx,
-		database.GetSubagentResponseMessageByChatIDAndRequestIDParams{
-			ChatID:            chatID,
-			SubagentRequestID: requestID,
-		},
-	)
-	if xerrors.Is(err, sql.ErrNoRows) {
-		return SubagentAwaitResult{}, false, nil
-	}
-	if err != nil {
-		return SubagentAwaitResult{}, false, xerrors.Errorf("get subagent response marker: %w", err)
-	}
-
-	duration, err := s.db.GetSubagentRequestDurationByChatIDAndRequestID(ctx,
-		database.GetSubagentRequestDurationByChatIDAndRequestIDParams{
-			ChatID:            chatID,
-			SubagentRequestID: requestID,
-		},
-	)
-	if err != nil {
-		return SubagentAwaitResult{}, false, xerrors.Errorf("get subagent request duration: %w", err)
-	}
-
-	report := ""
-	content, parseErr := chatprompt.ParseContent(message.Role, message.Content)
-	if parseErr == nil {
-		report = strings.TrimSpace(contentBlocksToText(content))
-	}
-
-	return SubagentAwaitResult{
-		RequestID:  requestID,
-		Report:     report,
-		DurationMS: duration,
-	}, true, nil
-}
-
-func (s *SubagentService) TerminateSubagentSubtree(
-	ctx context.Context,
-	parentChatID uuid.UUID,
-	targetChatID uuid.UUID,
-) error {
-	isDescendant, err := s.isDescendant(ctx, parentChatID, targetChatID)
-	if err != nil {
-		return err
-	}
-	if !isDescendant {
-		return ErrSubagentNotDescendant
-	}
-
-	subtree, err := s.subtree(ctx, targetChatID)
-	if err != nil {
-		return err
-	}
-
-	for _, chat := range subtree {
-		if s.streamer != nil {
-			s.streamer.StopStream(chat.ID)
-		}
-
-		if s.interruptChat != nil {
-			s.interruptChat(chat.ID)
-		}
-
-		if chat.Status == database.ChatStatusPending {
-			updatedChat, err := s.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-				ID:        chat.ID,
-				Status:    database.ChatStatusWaiting,
-				WorkerID:  uuid.NullUUID{},
-				StartedAt: sql.NullTime{},
-			})
-			if err != nil {
-				return xerrors.Errorf("set pending chat waiting for termination: %w", err)
-			}
-			s.publishChildStatus(updatedChat, database.ChatStatusWaiting)
-		}
-
-		for {
-			requestID, hasPending, requestErr := s.LatestPendingRequestID(ctx, chat.ID)
-			if requestErr != nil {
-				return requestErr
-			}
-			if !hasPending {
-				break
-			}
-
-			_, reportErr := s.MarkSubagentReported(ctx, chat.ID, "terminated", uuid.NullUUID{
-				UUID:  requestID,
-				Valid: true,
-			})
-			if reportErr != nil {
-				return reportErr
-			}
-		}
-	}
-
-	return nil
-}
-
-func (s *SubagentService) HasActiveDescendants(ctx context.Context, chatID uuid.UUID) (bool, error) {
-	descendants, err := s.listDescendants(ctx, chatID)
-	if err != nil {
-		return false, err
-	}
-	for _, descendant := range descendants {
-		_, hasPending, requestErr := s.LatestPendingRequestID(ctx, descendant.ID)
-		if requestErr != nil {
-			return false, requestErr
-		}
-		if hasPending {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (s *SubagentService) isDescendant(
-	ctx context.Context,
+	store database.Store,
 	ancestorChatID uuid.UUID,
 	targetChatID uuid.UUID,
 ) (bool, error) {
@@ -657,7 +462,7 @@ func (s *SubagentService) isDescendant(
 		return false, nil
 	}
 
-	descendants, err := s.listDescendants(ctx, ancestorChatID)
+	descendants, err := listSubagentDescendants(ctx, store, ancestorChatID)
 	if err != nil {
 		return false, err
 	}
@@ -669,35 +474,20 @@ func (s *SubagentService) isDescendant(
 	return false, nil
 }
 
-func (s *SubagentService) subtree(ctx context.Context, rootChatID uuid.UUID) ([]database.Chat, error) {
-	rootChat, err := s.db.GetChatByID(ctx, rootChatID)
-	if err != nil {
-		return nil, xerrors.Errorf("get subtree root chat: %w", err)
-	}
-
-	descendants, err := s.listDescendants(ctx, rootChatID)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]database.Chat, 0, len(descendants)+1)
-	out = append(out, rootChat)
-	out = append(out, descendants...)
-	return out, nil
-}
-
-func (s *SubagentService) listDescendants(ctx context.Context, chatID uuid.UUID) ([]database.Chat, error) {
+func listSubagentDescendants(
+	ctx context.Context,
+	store database.Store,
+	chatID uuid.UUID,
+) ([]database.Chat, error) {
 	queue := []uuid.UUID{chatID}
-	visited := map[uuid.UUID]struct{}{
-		chatID: {},
-	}
+	visited := map[uuid.UUID]struct{}{chatID: {}}
 
 	out := make([]database.Chat, 0)
 	for len(queue) > 0 {
 		parentChatID := queue[0]
 		queue = queue[1:]
 
-		children, err := s.db.ListChildChatsByParentID(ctx, parentChatID)
+		children, err := store.ListChildChatsByParentID(ctx, parentChatID)
 		if err != nil {
 			return nil, xerrors.Errorf("list child chats for %s: %w", parentChatID, err)
 		}
@@ -715,85 +505,38 @@ func (s *SubagentService) listDescendants(ctx context.Context, chatID uuid.UUID)
 	return out, nil
 }
 
-func (s *SubagentService) cachedResult(chatID uuid.UUID, requestID uuid.UUID) (SubagentAwaitResult, bool) {
-	s.waitersMu.Lock()
-	defer s.waitersMu.Unlock()
+func subagentFallbackChatTitle(message string) string {
+	const maxWords = 6
+	const maxRunes = 80
 
-	result, ok := s.results[subagentRequestKey{chatID: chatID, requestID: requestID}]
-	return result, ok
-}
-
-func (s *SubagentService) cacheResult(chatID uuid.UUID, requestID uuid.UUID, result SubagentAwaitResult) {
-	s.waitersMu.Lock()
-	defer s.waitersMu.Unlock()
-
-	s.results[subagentRequestKey{chatID: chatID, requestID: requestID}] = result
-}
-
-func (s *SubagentService) clearCachedResult(chatID uuid.UUID, requestID uuid.UUID) {
-	s.waitersMu.Lock()
-	defer s.waitersMu.Unlock()
-
-	delete(s.results, subagentRequestKey{chatID: chatID, requestID: requestID})
-}
-
-func (s *SubagentService) resolveRequestWaiters(
-	key subagentRequestKey,
-	result SubagentAwaitResult,
-) {
-	s.waitersMu.Lock()
-	s.results[key] = result
-	waiters := s.waiters[key]
-	delete(s.waiters, key)
-	s.waitersMu.Unlock()
-
-	for _, waiter := range waiters {
-		select {
-		case waiter <- result:
-		default:
-		}
-		close(waiter)
-	}
-}
-
-func (s *SubagentService) registerWaiter(
-	key subagentRequestKey,
-	waiter chan SubagentAwaitResult,
-) (SubagentAwaitResult, bool) {
-	s.waitersMu.Lock()
-	defer s.waitersMu.Unlock()
-
-	if result, ok := s.results[key]; ok {
-		return result, true
+	words := strings.Fields(message)
+	if len(words) == 0 {
+		return "New Chat"
 	}
 
-	s.waiters[key] = append(s.waiters[key], waiter)
-	return SubagentAwaitResult{}, false
+	truncated := false
+	if len(words) > maxWords {
+		words = words[:maxWords]
+		truncated = true
+	}
+
+	title := strings.Join(words, " ")
+	if truncated {
+		title += "..."
+	}
+
+	return subagentTruncateRunes(title, maxRunes)
 }
 
-func (s *SubagentService) unregisterWaiter(
-	key subagentRequestKey,
-	waiter chan SubagentAwaitResult,
-) {
-	s.waitersMu.Lock()
-	defer s.waitersMu.Unlock()
-
-	waiters := s.waiters[key]
-	if len(waiters) == 0 {
-		return
+func subagentTruncateRunes(value string, max int) string {
+	if max <= 0 {
+		return ""
 	}
 
-	filtered := make([]chan SubagentAwaitResult, 0, len(waiters))
-	for _, current := range waiters {
-		if current == waiter {
-			continue
-		}
-		filtered = append(filtered, current)
+	runes := []rune(value)
+	if len(runes) <= max {
+		return value
 	}
 
-	if len(filtered) == 0 {
-		delete(s.waiters, key)
-		return
-	}
-	s.waiters[key] = filtered
+	return string(runes[:max])
 }

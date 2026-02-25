@@ -72,10 +72,6 @@ type chatGitRef struct {
 	RemoteOrigin string
 }
 
-var errQueueFull = xerrors.New("message queue is full")
-
-const maxQueueSize = 20
-
 var (
 	githubPullRequestPathPattern = regexp.MustCompile(
 		`^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pull/([0-9]+)(?:[/?#].*)?$`,
@@ -451,79 +447,6 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chat, err := api.Database.InsertChat(ctx, database.InsertChatParams{
-		OwnerID: apiKey.UserID,
-		WorkspaceID: uuid.NullUUID{
-			UUID:  uuidOrNil(chatHierarchy.Request.WorkspaceID),
-			Valid: chatHierarchy.Request.WorkspaceID != nil,
-		},
-		WorkspaceAgentID: uuid.NullUUID{
-			UUID:  uuidOrNil(chatHierarchy.Request.WorkspaceAgentID),
-			Valid: chatHierarchy.Request.WorkspaceAgentID != nil,
-		},
-		ParentChatID: chatHierarchy.ParentChatID,
-		RootChatID:   chatHierarchy.RootChatID,
-		Title:        title,
-		ModelConfig:  modelConfig,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to create chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Root chats may not have root_chat_id persisted yet, but they are always
-	// their own root in API responses.
-	if !chat.RootChatID.Valid && !chat.ParentChatID.Valid {
-		chat.RootChatID = uuid.NullUUID{UUID: chat.ID, Valid: true}
-	}
-
-	if systemPrompt != "" {
-		systemContent, err := json.Marshal(systemPrompt)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to encode system prompt.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		_, err = api.Database.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID: chat.ID,
-			Role:   "system",
-			Content: pqtype.NullRawMessage{
-				RawMessage: systemContent,
-				Valid:      len(systemContent) > 0,
-			},
-			ToolCallID: sql.NullString{
-				Valid: false,
-			},
-			Thinking: sql.NullString{
-				Valid: false,
-			},
-			Hidden:              true,
-			SubagentRequestID:   uuid.NullUUID{},
-			SubagentEvent:       sql.NullString{},
-			InputTokens:         sql.NullInt64{},
-			OutputTokens:        sql.NullInt64{},
-			TotalTokens:         sql.NullInt64{},
-			ReasoningTokens:     sql.NullInt64{},
-			CacheCreationTokens: sql.NullInt64{},
-			CacheReadTokens:     sql.NullInt64{},
-			ContextLimit:        sql.NullInt64{},
-			Compressed:          sql.NullBool{},
-		})
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to create chat message.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
 	content, err := json.Marshal(contentBlocks)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -533,54 +456,40 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = api.Database.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID: chat.ID,
-		Role:   "user",
-		Content: pqtype.NullRawMessage{
-			RawMessage: content,
-			Valid:      len(content) > 0,
+	if api.chatProcessor == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
+		})
+		return
+	}
+
+	chat, err := api.chatProcessor.Create(ctx, chatd.CreateOptions{
+		OwnerID: apiKey.UserID,
+		WorkspaceID: uuid.NullUUID{
+			UUID:  uuidOrNil(chatHierarchy.Request.WorkspaceID),
+			Valid: chatHierarchy.Request.WorkspaceID != nil,
 		},
-		ToolCallID: sql.NullString{
-			Valid: false,
+		WorkspaceAgentID: uuid.NullUUID{
+			UUID:  uuidOrNil(chatHierarchy.Request.WorkspaceAgentID),
+			Valid: chatHierarchy.Request.WorkspaceAgentID != nil,
 		},
-		Thinking: sql.NullString{
-			Valid: false,
-		},
-		Hidden:              false,
-		SubagentRequestID:   uuid.NullUUID{},
-		SubagentEvent:       sql.NullString{},
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-		Compressed:          sql.NullBool{},
+		ParentChatID:       chatHierarchy.ParentChatID,
+		RootChatID:         chatHierarchy.RootChatID,
+		Title:              title,
+		ModelConfig:        modelConfig,
+		SystemPrompt:       systemPrompt,
+		InitialUserContent: content,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to create chat message.",
+			Message: "Failed to create chat.",
 			Detail:  err.Error(),
 		})
 		return
 	}
+
 	api.recordChatWorkspaceRequestMetadata(ctx, chat.ID, r)
-
-	updatedChat, err := api.Database.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:        chat.ID,
-		Status:    database.ChatStatusPending,
-		WorkerID:  uuid.NullUUID{},
-		StartedAt: sql.NullTime{},
-	})
-	if err != nil {
-		api.Logger.Error(ctx, "failed to mark chat as pending",
-			slog.F("chat_id", chat.ID), slog.Error(err))
-	} else {
-		chat = updatedChat
-	}
-
-	api.publishChatPubsubEvent(ctx, chat, pubsub.ChatEventKindCreated)
 
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChat(chat, nil))
 }
@@ -602,7 +511,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	response, err := api.chatProcessor.ListModels(ctx)
+	response, err := api.chatProcessor.Models(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to load chat model configuration.",
@@ -684,7 +593,7 @@ func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check that the chat exists and user has access.
-	chat, err := api.Database.GetChatByID(ctx, chatID)
+	_, err := api.Database.GetChatByID(ctx, chatID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -697,11 +606,31 @@ func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete the chat and all its descendants in a transaction.
+	if api.chatProcessor != nil {
+		err = api.chatProcessor.Delete(ctx, chatID)
+	} else {
+		err = deleteChatTree(ctx, api.Database, chatID)
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to delete chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func deleteChatTree(
+	ctx context.Context,
+	store database.Store,
+	chatID uuid.UUID,
+) error {
 	// Child chats (sub-agent chats) reference their parent via
 	// parent_chat_id with ON DELETE SET NULL, so without explicit
 	// cleanup they would become orphaned root-level items.
-	err = api.Database.InTx(func(tx database.Store) error {
+	return store.InTx(func(tx database.Store) error {
 		// Recursively collect all descendant chat IDs.
 		var descendantIDs []uuid.UUID
 		queue := []uuid.UUID{chatID}
@@ -734,17 +663,6 @@ func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 
 		return nil
 	}, nil)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	api.publishChatPubsubEvent(ctx, chat, pubsub.ChatEventKindDeleted)
-
-	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Create a chat message
@@ -757,10 +675,18 @@ func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.CreateChatMessageRequest true "Create chat message request"
 // @Success 200 {object} codersdk.CreateChatMessageResponse
 // @Router /chats/{chat}/messages [post]
-func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chatID, ok := parseChatID(rw, r)
 	if !ok {
+		return
+	}
+
+	if api.chatProcessor == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
+		})
 		return
 	}
 
@@ -769,17 +695,16 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate role.
-	if req.Role != "user" && req.Role != "assistant" && req.Role != "system" && req.Role != "tool" {
+	if req.Role != "user" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid role.",
-			Detail:  "Role must be one of: user, assistant, system, tool",
+			Detail:  "Role must be: user",
 		})
 		return
 	}
 
 	// Check that the chat exists and user has access.
-	chat, err := api.Database.GetChatByID(ctx, chatID)
+	_, err := api.Database.GetChatByID(ctx, chatID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -792,229 +717,44 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For user messages, atomically decide whether to queue or send based on
-	// the chat status. We use a transaction with FOR UPDATE to prevent races
-	// between the user sending and the processor finishing.
-	//nolint:nestif // Complex nested blocks reflect business logic.
-	if req.Role == "user" {
-		var response codersdk.CreateChatMessageResponse
-		var publishFn func()
-
-		txErr := api.Database.InTx(func(tx database.Store) error {
-			// Lock the chat row to serialize with the processor.
-			lockedChat, err := tx.GetChatByIDForUpdate(ctx, chatID)
-			if err != nil {
-				return xerrors.Errorf("lock chat: %w", err)
-			}
-
-			isChatActive := api.chatProcessor != nil && api.chatProcessor.IsChatActive(chatID)
-
-			// If the chat is still being processed, queue the message.
-			if shouldQueueUserMessage(lockedChat.Status, isChatActive) {
-				// Check queue size limit.
-				existingQueuedMessages, err := tx.GetChatQueuedMessages(ctx, chatID)
-				if err != nil {
-					return xerrors.Errorf("get queued messages: %w", err)
-				}
-				if len(existingQueuedMessages) >= maxQueueSize {
-					return errQueueFull
-				}
-
-				queued, err := tx.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-					ChatID:  chatID,
-					Content: req.Content,
-				})
-				if err != nil {
-					return xerrors.Errorf("insert queued message: %w", err)
-				}
-
-				queuedMessages, err := tx.GetChatQueuedMessages(ctx, chatID)
-				if err != nil {
-					return xerrors.Errorf("get queued messages: %w", err)
-				}
-
-				response = codersdk.CreateChatMessageResponse{
-					Queued:        true,
-					QueuedMessage: convertChatQueuedMessagePtr(queued),
-				}
-
-				sdkQueued := convertChatQueuedMessages(queuedMessages)
-				publishFn = func() {
-					if api.chatProcessor != nil {
-						api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
-							Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-							ChatID:         chatID,
-							QueuedMessages: sdkQueued,
-						})
-					}
-				}
-
-				return nil
-			}
-
-			// Chat is idle â insert as a real message and set pending.
-			message, err := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-				ChatID: chatID,
-				Role:   req.Role,
-				Content: pqtype.NullRawMessage{
-					RawMessage: req.Content,
-					Valid:      len(req.Content) > 0,
-				},
-				ToolCallID: sql.NullString{
-					String: stringOrEmpty(req.ToolCallID),
-					Valid:  req.ToolCallID != nil,
-				},
-				Thinking: sql.NullString{
-					String: stringOrEmpty(req.Thinking),
-					Valid:  req.Thinking != nil,
-				},
-				Hidden:              false,
-				SubagentRequestID:   uuid.NullUUID{},
-				SubagentEvent:       sql.NullString{},
-				InputTokens:         sql.NullInt64{},
-				OutputTokens:        sql.NullInt64{},
-				TotalTokens:         sql.NullInt64{},
-				ReasoningTokens:     sql.NullInt64{},
-				CacheCreationTokens: sql.NullInt64{},
-				CacheReadTokens:     sql.NullInt64{},
-				ContextLimit:        sql.NullInt64{},
-				Compressed:          sql.NullBool{},
-			})
-			if err != nil {
-				return xerrors.Errorf("insert message: %w", err)
-			}
-
-			updatedChat, err := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-				ID:        chatID,
-				Status:    database.ChatStatusPending,
-				WorkerID:  uuid.NullUUID{},
-				StartedAt: sql.NullTime{},
-			})
-			if err != nil {
-				return xerrors.Errorf("update chat status: %w", err)
-			}
-
-			allMessages, err := tx.GetChatMessagesByChatID(ctx, chatID)
-			if err != nil {
-				return xerrors.Errorf("get messages: %w", err)
-			}
-
-			response = codersdk.CreateChatMessageResponse{
-				Queued:   false,
-				Messages: convertChatMessages(allMessages),
-			}
-
-			sdkMessage := convertChatMessage(message)
-			publishFn = func() {
-				if api.chatProcessor != nil {
-					api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
-						Type:    codersdk.ChatStreamEventTypeMessage,
-						ChatID:  chatID,
-						Message: &sdkMessage,
-					})
-					api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
-						Type:   codersdk.ChatStreamEventTypeStatus,
-						ChatID: chatID,
-						Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(updatedChat.Status)},
-					})
-				}
-			}
-
-			return nil
-		}, nil)
-
-		if txErr != nil {
-			if xerrors.Is(txErr, errQueueFull) {
-				httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
-					Message: "Message queue is full.",
-					Detail:  fmt.Sprintf("Maximum %d messages can be queued.", maxQueueSize),
-				})
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to create chat message.",
-				Detail:  txErr.Error(),
+	sendResult, sendErr := api.chatProcessor.PostMessages(
+		ctx,
+		chatd.PostMessagesOptions{
+			ChatID:          chatID,
+			Content:         req.Content,
+			ToolCallID:      req.ToolCallID,
+			Thinking:        req.Thinking,
+			Hidden:          false,
+			QueueIfBusy:     true,
+			IncludeMessages: true,
+		},
+	)
+	if sendErr != nil {
+		if xerrors.Is(sendErr, chatd.ErrMessageQueueFull) {
+			httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
+				Message: "Message queue is full.",
+				Detail:  fmt.Sprintf("Maximum %d messages can be queued.", chatd.MaxQueueSize),
 			})
 			return
 		}
-
-		// Publish stream events after the transaction has committed.
-		if publishFn != nil {
-			publishFn()
-		}
-
-		if !response.Queued {
-			chat.Status = database.ChatStatusPending
-			api.publishChatPubsubEvent(ctx, chat, pubsub.ChatEventKindStatusChange)
-		}
-
-		if !response.Queued {
-			api.recordChatWorkspaceRequestMetadata(ctx, chatID, r)
-		}
-
-		httpapi.Write(ctx, rw, http.StatusOK, response)
-		return
-	}
-
-	// Non-user messages (assistant, system, tool) â insert directly without
-	// queue logic. These are typically from the processor itself.
-	message, err := api.Database.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID: chatID,
-		Role:   req.Role,
-		Content: pqtype.NullRawMessage{
-			RawMessage: req.Content,
-			Valid:      len(req.Content) > 0,
-		},
-		ToolCallID: sql.NullString{
-			String: stringOrEmpty(req.ToolCallID),
-			Valid:  req.ToolCallID != nil,
-		},
-		Thinking: sql.NullString{
-			String: stringOrEmpty(req.Thinking),
-			Valid:  req.Thinking != nil,
-		},
-		Hidden:              false,
-		SubagentRequestID:   uuid.NullUUID{},
-		SubagentEvent:       sql.NullString{},
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-		Compressed:          sql.NullBool{},
-	})
-	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create chat message.",
-			Detail:  err.Error(),
+			Detail:  sendErr.Error(),
 		})
 		return
 	}
 
-	if api.chatProcessor != nil {
-		chatMessage := convertChatMessage(message)
-		api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
-			Type:    codersdk.ChatStreamEventTypeMessage,
-			ChatID:  chatID,
-			Message: &chatMessage,
-		})
+	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
+	if sendResult.Queued {
+		if sendResult.QueuedMessage != nil {
+			response.QueuedMessage = convertChatQueuedMessagePtr(*sendResult.QueuedMessage)
+		}
+	} else {
+		response.Messages = convertChatMessages(sendResult.Messages)
+		api.recordChatWorkspaceRequestMetadata(ctx, chatID, r)
 	}
 
-	messages, err := api.Database.GetChatMessagesByChatID(ctx, chatID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat messages.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.CreateChatMessageResponse{
-		Queued:   false,
-		Messages: convertChatMessages(messages),
-	})
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // @Summary Delete a queued chat message
@@ -1056,28 +796,20 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err = api.Database.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
-		ID:     queuedMessageID,
-		ChatID: chatID,
-	})
+	if api.chatProcessor != nil {
+		err = api.chatProcessor.DeleteQueued(ctx, chatID, queuedMessageID)
+	} else {
+		err = api.Database.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
+			ID:     queuedMessageID,
+			ChatID: chatID,
+		})
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete queued message.",
 			Detail:  err.Error(),
 		})
 		return
-	}
-
-	// Publish updated queue.
-	if api.chatProcessor != nil {
-		queuedMessages, qErr := api.Database.GetChatQueuedMessages(ctx, chatID)
-		if qErr == nil {
-			api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
-				Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-				ChatID:         chatID,
-				QueuedMessages: convertChatQueuedMessages(queuedMessages),
-			})
-		}
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
@@ -1110,7 +842,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	}
 
 	// Check that the chat exists and user has access.
-	chat, err := api.Database.GetChatByID(ctx, chatID)
+	_, err = api.Database.GetChatByID(ctx, chatID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -1123,31 +855,67 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Interrupt the running chat if needed.
-	if chat.Status == database.ChatStatusRunning || chat.Status == database.ChatStatusPending {
-		if api.chatProcessor != nil {
-			api.chatProcessor.InterruptChat(chatID)
+	var (
+		response codersdk.CreateChatMessageResponse
+		txErr    error
+	)
+
+	if api.chatProcessor != nil {
+		var promoteResult chatd.PromoteQueuedResult
+		promoteResult, txErr = api.chatProcessor.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+			ChatID:          chatID,
+			QueuedMessageID: queuedMessageID,
+		})
+		if txErr == nil {
+			response = codersdk.CreateChatMessageResponse{
+				Queued:   false,
+				Messages: convertChatMessages(promoteResult.Messages),
+			}
+		}
+	} else {
+		var messages []database.ChatMessage
+		messages, txErr = promoteQueuedWithoutServer(ctx, api.Database, chatID, queuedMessageID)
+		if txErr == nil {
+			response = codersdk.CreateChatMessageResponse{
+				Queued:   false,
+				Messages: convertChatMessages(messages),
+			}
 		}
 	}
 
-	var response codersdk.CreateChatMessageResponse
-	var publishFn func()
+	if txErr != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to promote queued message.",
+			Detail:  txErr.Error(),
+		})
+		return
+	}
 
-	txErr := api.Database.InTx(func(tx database.Store) error {
-		// Lock the chat.
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+func promoteQueuedWithoutServer(
+	ctx context.Context,
+	store database.Store,
+	chatID uuid.UUID,
+	queuedMessageID int64,
+) ([]database.ChatMessage, error) {
+	var responseMessages []database.ChatMessage
+	err := store.InTx(func(tx database.Store) error {
 		_, err := tx.GetChatByIDForUpdate(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
 		}
 
-		// Get all queued messages to find the one we want.
 		queuedMessages, err := tx.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("get queued messages: %w", err)
 		}
 
-		var targetContent json.RawMessage
-		found := false
+		var (
+			targetContent json.RawMessage
+			found         bool
+		)
 		for _, qm := range queuedMessages {
 			if qm.ID == queuedMessageID {
 				targetContent = qm.Content
@@ -1159,7 +927,6 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			return xerrors.New("queued message not found")
 		}
 
-		// Delete the queued message.
 		err = tx.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
 			ID:     queuedMessageID,
 			ChatID: chatID,
@@ -1168,8 +935,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			return xerrors.Errorf("delete queued message: %w", err)
 		}
 
-		// Insert as a real message.
-		msg, err := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		_, err = tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
 			ChatID: chatID,
 			Role:   "user",
 			Content: pqtype.NullRawMessage{
@@ -1194,8 +960,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			return xerrors.Errorf("insert message: %w", err)
 		}
 
-		// Set chat to pending.
-		updatedChat, err := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		_, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 			ID:        chatID,
 			Status:    database.ChatStatusPending,
 			WorkerID:  uuid.NullUUID{},
@@ -1205,60 +970,16 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			return xerrors.Errorf("update status: %w", err)
 		}
 
-		// Get remaining queue.
-		remainingQueue, err := tx.GetChatQueuedMessages(ctx, chatID)
-		if err != nil {
-			return xerrors.Errorf("get remaining queue: %w", err)
-		}
-
-		allMessages, err := tx.GetChatMessagesByChatID(ctx, chatID)
+		responseMessages, err = tx.GetChatMessagesByChatID(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("get messages: %w", err)
 		}
-
-		response = codersdk.CreateChatMessageResponse{
-			Queued:   false,
-			Messages: convertChatMessages(allMessages),
-		}
-
-		sdkMsg := convertChatMessage(msg)
-		sdkQueue := convertChatQueuedMessages(remainingQueue)
-		publishFn = func() {
-			if api.chatProcessor != nil {
-				api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
-					Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-					ChatID:         chatID,
-					QueuedMessages: sdkQueue,
-				})
-				api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
-					Type:    codersdk.ChatStreamEventTypeMessage,
-					ChatID:  chatID,
-					Message: &sdkMsg,
-				})
-				api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
-					Type:   codersdk.ChatStreamEventTypeStatus,
-					ChatID: chatID,
-					Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(updatedChat.Status)},
-				})
-			}
-		}
-
 		return nil
 	}, nil)
-
-	if txErr != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to promote queued message.",
-			Detail:  txErr.Error(),
-		})
-		return
+	if err != nil {
+		return nil, err
 	}
-
-	if publishFn != nil {
-		publishFn()
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, response)
+	return responseMessages, nil
 }
 
 // @Summary Stream chat updates
@@ -1310,7 +1031,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		<-senderClosed
 	}()
 
-	snapshot, events, cancel, ok := api.chatProcessor.SubscribeStream(chatID)
+	snapshot, events, cancel, ok := api.chatProcessor.Subscribe(ctx, chatID, r.Header)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat streaming is not available.",
@@ -1380,35 +1101,21 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if api.chatProcessor != nil {
-		api.chatProcessor.InterruptChat(chatID)
-	}
-
-	if api.chatProcessor != nil {
-		api.chatProcessor.StopStream(chatID)
-	}
-
-	updatedChat, err := api.Database.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:        chatID,
-		Status:    database.ChatStatusWaiting,
-		WorkerID:  uuid.NullUUID{},
-		StartedAt: sql.NullTime{},
-	})
-	if err != nil {
-		api.Logger.Error(ctx, "failed to mark chat as waiting",
-			slog.F("chat_id", chatID), slog.Error(err))
+		chat = api.chatProcessor.InterruptAndSetWaiting(ctx, chat)
 	} else {
-		chat = updatedChat
-	}
-
-	if api.chatProcessor != nil {
-		api.chatProcessor.PublishStream(chatID, codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeStatus,
-			ChatID: chatID,
-			Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(chat.Status)},
+		updatedChat, updateErr := api.Database.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:        chatID,
+			Status:    database.ChatStatusWaiting,
+			WorkerID:  uuid.NullUUID{},
+			StartedAt: sql.NullTime{},
 		})
+		if updateErr != nil {
+			api.Logger.Error(ctx, "failed to mark chat as waiting",
+				slog.F("chat_id", chatID), slog.Error(updateErr))
+		} else {
+			chat = updatedChat
+		}
 	}
-
-	api.publishChatPubsubEvent(ctx, chat, pubsub.ChatEventKindStatusChange)
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
 }
@@ -1796,7 +1503,7 @@ func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceI
 			allHavePR = false
 		}
 
-		api.publishChatStatusEvent(chat)
+		api.publishChatStatusEvent(ctx, chat.ID)
 	}
 
 	return allHavePR
@@ -1813,41 +1520,14 @@ func filterChatsByWorkspaceID(chats []database.Chat, workspaceID uuid.UUID) []da
 	return filteredChats
 }
 
-func (api *API) publishChatStatusEvent(chat database.Chat) {
+func (api *API) publishChatStatusEvent(ctx context.Context, chatID uuid.UUID) {
 	if api.chatProcessor == nil {
 		return
 	}
 
-	api.chatProcessor.PublishStream(chat.ID, codersdk.ChatStreamEvent{
-		Type:   codersdk.ChatStreamEventTypeStatus,
-		ChatID: chat.ID,
-		Status: &codersdk.ChatStreamStatus{
-			Status: codersdk.ChatStatus(chat.Status),
-		},
-	})
-}
-
-// publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
-// LISTEN/NOTIFY so that all server replicas can push real-time updates to
-// watching sidebar WebSocket connections.
-func (api *API) publishChatPubsubEvent(ctx context.Context, chat database.Chat, kind pubsub.ChatEventKind) {
-	sdkChat := convertChat(chat, nil)
-	event := pubsub.ChatEvent{
-		Kind: kind,
-		Chat: sdkChat,
-	}
-	payload, err := json.Marshal(event)
-	if err != nil {
-		api.Logger.Error(ctx, "failed to marshal chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return
-	}
-	if err := api.Pubsub.Publish(pubsub.ChatEventChannel(chat.OwnerID), payload); err != nil {
-		api.Logger.Error(ctx, "failed to publish chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.F("kind", kind),
+	if err := api.chatProcessor.RefreshStatus(ctx, chatID); err != nil {
+		api.Logger.Debug(ctx, "failed to refresh published chat status",
+			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)
 	}
@@ -3131,18 +2811,7 @@ func convertChatQueuedMessages(msgs []database.ChatQueuedMessage) []codersdk.Cha
 }
 
 func shouldQueueUserMessage(status database.ChatStatus, isChatActive bool) bool {
-	switch status {
-	case database.ChatStatusRunning, database.ChatStatusPending:
-		return true
-	case database.ChatStatusWaiting:
-		// During interrupt the API may briefly set the chat to waiting
-		// before the worker finishes persisting an interrupted partial step.
-		// Keep new user messages queued while that worker is still active so
-		// assistant output remains ordered before follow-up prompts.
-		return isChatActive
-	default:
-		return false
-	}
+	return chatd.ShouldQueueUserMessage(status, isChatActive)
 }
 
 func convertChatMessage(m database.ChatMessage) codersdk.ChatMessage {
@@ -3242,7 +2911,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	effectiveKeys, err := api.chatProcessor.EffectiveProviderKeys(ctx, configuredProviders)
+	effectiveKeys, err := api.chatProcessor.ProviderKeys(ctx, configuredProviders)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to resolve provider API keys.",
@@ -3928,7 +3597,7 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 	if api.chatProcessor == nil {
 		return false
 	}
-	effectiveKeys, err := api.chatProcessor.EffectiveProviderKeys(ctx, nil)
+	effectiveKeys, err := api.chatProcessor.ProviderKeys(ctx, nil)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to resolve provider API keys",
 			slog.F("provider", provider.Provider),

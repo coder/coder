@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/tls"
 	"fmt"
 	"math"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
@@ -139,6 +141,36 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			connectionlog.NewDBBackend(options.Database),
 			connectionlog.NewSlogBackend(options.Logger),
 		)
+	}
+
+	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(options.AccessURL.Hostname(), options.TLSCertificates)
+	if err != nil {
+		return nil, xerrors.Errorf("create DERP mesh TLS config: %w", err)
+	}
+	if options.Options.ReplicaHTTPClient == nil {
+		options.Options.ReplicaHTTPClient = replicaRelayHTTPClient(options.HTTPClient, meshTLSConfig)
+	}
+
+	var replicaManagerPtr atomic.Pointer[replicasync.Manager]
+	options.Options.ResolveReplicaAddress = func(
+		_ context.Context,
+		replicaID uuid.UUID,
+	) (string, bool) {
+		manager := replicaManagerPtr.Load()
+		if manager == nil {
+			return "", false
+		}
+		for _, replica := range manager.AllPrimary() {
+			if replica.ID != replicaID {
+				continue
+			}
+			relayAddress := strings.TrimSpace(replica.RelayAddress)
+			if relayAddress == "" {
+				return "", false
+			}
+			return relayAddress, true
+		}
+		return "", false
 	}
 
 	api := &API{
@@ -583,10 +615,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})))
 	}
 
-	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(options.AccessURL.Hostname(), options.TLSCertificates)
-	if err != nil {
-		return nil, xerrors.Errorf("create DERP mesh TLS config: %w", err)
-	}
 	// We always want to run the replica manager even if we don't have DERP
 	// enabled, since it's used to detect other coder servers for licensing.
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
@@ -600,6 +628,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if err != nil {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
 	}
+	replicaManagerPtr.Store(api.replicaManager)
 	if api.DERPServer != nil {
 		api.derpMesh = derpmesh.New(options.Logger.Named("derpmesh"), api.DERPServer, meshTLSConfig)
 	}
@@ -649,6 +678,24 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	go api.BoundaryUsageTracker.StartFlushLoop(ctx, options.Logger.Named("boundary_usage_tracker"), options.Database, api.AGPL.ID)
 
 	return api, nil
+}
+
+func replicaRelayHTTPClient(base *http.Client, tlsConfig *tls.Config) *http.Client {
+	if base == nil {
+		base = http.DefaultClient
+	}
+
+	clone := *base
+	var transport *http.Transport
+	switch t := base.Transport.(type) {
+	case *http.Transport:
+		transport = t.Clone()
+	default:
+		transport = http.DefaultTransport.(*http.Transport).Clone()
+	}
+	transport.TLSClientConfig = tlsConfig
+	clone.Transport = transport
+	return &clone
 }
 
 type Options struct {

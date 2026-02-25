@@ -38,8 +38,6 @@ CREATE TABLE chat_messages (
     tool_call_id            TEXT,
     thinking                TEXT,
     hidden                  BOOLEAN     NOT NULL DEFAULT FALSE,
-    subagent_request_id     UUID,
-    subagent_event          TEXT,
     input_tokens            BIGINT,
     output_tokens           BIGINT,
     total_tokens            BIGINT,
@@ -47,16 +45,11 @@ CREATE TABLE chat_messages (
     cache_creation_tokens   BIGINT,
     cache_read_tokens       BIGINT,
     context_limit           BIGINT,
-    compressed              BOOLEAN     NOT NULL DEFAULT FALSE,
-    CONSTRAINT chat_messages_subagent_event_check
-        CHECK (subagent_event IS NULL OR subagent_event IN ('request', 'response'))
+    compressed              BOOLEAN     NOT NULL DEFAULT FALSE
 );
 
 CREATE INDEX idx_chat_messages_chat ON chat_messages(chat_id);
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages(chat_id, created_at);
-CREATE INDEX idx_chat_messages_subagent_request
-    ON chat_messages(chat_id, subagent_request_id, created_at)
-    WHERE subagent_request_id IS NOT NULL;
 CREATE INDEX idx_chat_messages_compressed_summary_boundary
     ON chat_messages(chat_id, created_at DESC, id DESC)
     WHERE compressed = TRUE

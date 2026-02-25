@@ -1178,8 +1178,6 @@ CREATE TABLE chat_messages (
     tool_call_id text,
     thinking text,
     hidden boolean DEFAULT false NOT NULL,
-    subagent_request_id uuid,
-    subagent_event text,
     input_tokens bigint,
     output_tokens bigint,
     total_tokens bigint,
@@ -1187,8 +1185,7 @@ CREATE TABLE chat_messages (
     cache_creation_tokens bigint,
     cache_read_tokens bigint,
     context_limit bigint,
-    compressed boolean DEFAULT false NOT NULL,
-    CONSTRAINT chat_messages_subagent_event_check CHECK (((subagent_event IS NULL) OR (subagent_event = ANY (ARRAY['request'::text, 'response'::text]))))
+    compressed boolean DEFAULT false NOT NULL
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -3464,8 +3461,6 @@ CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
 
 CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::text) AND (hidden = true));
-
-CREATE INDEX idx_chat_messages_subagent_request ON chat_messages USING btree (chat_id, subagent_request_id, created_at) WHERE (subagent_request_id IS NOT NULL);
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 

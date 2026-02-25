@@ -169,20 +169,46 @@ func TestChats(t *testing.T) {
 
 		before, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
+		beforeUserCount := countMessagesByRole(before.Messages, "user")
 
 		messages, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 			Role:    "user",
 			Content: json.RawMessage(`"Hello, AI!"`),
 		})
 		require.NoError(t, err)
-		require.False(t, messages.Queued)
-		require.Len(t, messages.Messages, len(before.Messages)+1)
-		require.Equal(t, "user", messages.Messages[len(messages.Messages)-1].Role)
+		if messages.Queued {
+			require.NotNil(t, messages.QueuedMessage)
+		} else {
+			require.GreaterOrEqual(
+				t,
+				countMessagesByRole(messages.Messages, "user"),
+				beforeUserCount+1,
+			)
+		}
 
-		// Verify messages were saved.
+		// Verify the posted message is represented in chat history or queue.
 		result, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Len(t, result.Messages, len(before.Messages)+1)
+		afterUserCount := countMessagesByRole(result.Messages, "user")
+		require.True(t, afterUserCount >= beforeUserCount+1 || len(result.QueuedMessages) > 0)
+	})
+
+	t.Run("CreateMessageRejectsNonUserRole", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{Message: "Test Chat"})
+		require.NoError(t, err)
+
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Role:    "assistant",
+			Content: json.RawMessage(`"I should be rejected"`),
+		})
+		require.Error(t, err)
+		sdkErr := coderdtest.SDKError(t, err)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
 	t.Run("GetIncludesMessageUsage", func(t *testing.T) {
@@ -1677,6 +1703,16 @@ func firstChatMessageByRole(messages []codersdk.ChatMessage, role string) (coder
 		}
 	}
 	return codersdk.ChatMessage{}, false
+}
+
+func countMessagesByRole(messages []codersdk.ChatMessage, role string) int {
+	count := 0
+	for _, message := range messages {
+		if message.Role == role {
+			count++
+		}
+	}
+	return count
 }
 
 type roundTripperFunc func(*http.Request) (*http.Response, error)

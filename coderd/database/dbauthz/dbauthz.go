@@ -2756,14 +2756,6 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 	return q.db.GetLatestCryptoKeyByFeature(ctx, feature)
 }
 
-func (q *querier) GetLatestPendingSubagentRequestIDByChatID(ctx context.Context, chatID uuid.UUID) (uuid.NullUUID, error) {
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return uuid.NullUUID{}, err
-	}
-	return q.db.GetLatestPendingSubagentRequestIDByChatID(ctx, chatID)
-}
-
 func (q *querier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.WorkspaceAppStatus{}, err
@@ -3322,22 +3314,6 @@ func (q *querier) GetStaleChats(ctx context.Context, staleThreshold time.Time) (
 		return nil, err
 	}
 	return q.db.GetStaleChats(ctx, staleThreshold)
-}
-
-func (q *querier) GetSubagentRequestDurationByChatIDAndRequestID(ctx context.Context, arg database.GetSubagentRequestDurationByChatIDAndRequestIDParams) (int64, error) {
-	_, err := q.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return 0, err
-	}
-	return q.db.GetSubagentRequestDurationByChatIDAndRequestID(ctx, arg)
-}
-
-func (q *querier) GetSubagentResponseMessageByChatIDAndRequestID(ctx context.Context, arg database.GetSubagentResponseMessageByChatIDAndRequestIDParams) (database.ChatMessage, error) {
-	_, err := q.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return database.ChatMessage{}, err
-	}
-	return q.db.GetSubagentResponseMessageByChatIDAndRequestID(ctx, arg)
 }
 
 func (q *querier) GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]database.TailnetPeer, error) {

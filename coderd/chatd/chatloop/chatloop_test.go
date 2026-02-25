@@ -14,7 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 )
 
-const subagentReportToolName = "subagent_report"
+const activeToolName = "read_file"
 
 func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	t.Parallel()
@@ -46,11 +46,11 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 			textMessage(fantasy.MessageRoleUser, "continue"),
 		},
 		Tools: []fantasy.AgentTool{
-			newNoopTool(subagentReportToolName),
-			newNoopTool("read_file"),
+			newNoopTool(activeToolName),
+			newNoopTool("write_file"),
 		},
 		MaxSteps:             3,
-		ActiveTools:          []string{subagentReportToolName},
+		ActiveTools:          []string{activeToolName},
 		ContextLimitFallback: 4096,
 		PersistStep: func(_ context.Context, step PersistedStep) error {
 			persistStepCalls++
@@ -68,7 +68,7 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	require.NotEmpty(t, capturedCall.Prompt)
 	require.False(t, containsPromptSentinel(capturedCall.Prompt))
 	require.Len(t, capturedCall.Tools, 1)
-	require.Equal(t, subagentReportToolName, capturedCall.Tools[0].GetName())
+	require.Equal(t, activeToolName, capturedCall.Tools[0].GetName())
 
 	require.Len(t, capturedCall.Prompt, 5)
 	require.False(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[0]))

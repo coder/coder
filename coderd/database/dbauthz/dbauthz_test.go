@@ -589,35 +589,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatStatus(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
 	}))
-	s.Run("GetLatestPendingSubagentRequestIDByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		result := uuid.NullUUID{UUID: uuid.New(), Valid: true}
-		dbm.EXPECT().GetLatestPendingSubagentRequestIDByChatID(gomock.Any(), chat.ID).Return(result, nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(result)
-	}))
-	s.Run("GetSubagentRequestDurationByChatIDAndRequestID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.GetSubagentRequestDurationByChatIDAndRequestIDParams{
-			ChatID:            chat.ID,
-			SubagentRequestID: uuid.New(),
-		}
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		const durationMS int64 = 250
-		dbm.EXPECT().GetSubagentRequestDurationByChatIDAndRequestID(gomock.Any(), arg).Return(durationMS, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(durationMS)
-	}))
-	s.Run("GetSubagentResponseMessageByChatIDAndRequestID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.GetSubagentResponseMessageByChatIDAndRequestIDParams{
-			ChatID:            chat.ID,
-			SubagentRequestID: uuid.New(),
-		}
-		message := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().GetSubagentResponseMessageByChatIDAndRequestID(gomock.Any(), arg).Return(message, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(message)
-	}))
 	s.Run("UpdateChatWorkspace", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatWorkspaceParams{
