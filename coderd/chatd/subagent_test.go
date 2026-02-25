@@ -1,4 +1,4 @@
-package chatd
+package chatd //nolint:testpackage // Uses internal symbols.
 
 import (
 	"context"
@@ -191,7 +191,7 @@ func TestSubagentService_AwaitSubagentReportResolvesWaiter(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, requestID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
 	type awaitResult struct {
@@ -415,7 +415,7 @@ func TestSubagentService_TerminateSubagentSubtreeStopsSubtreeStreams(t *testing.
 		default:
 			return false
 		}
-	}, 100*time.Millisecond, 10*time.Millisecond)
+	}, testutil.IntervalMedium, testutil.IntervalFast)
 	require.Never(t, func() bool {
 		select {
 		case <-grandchildEvents:
@@ -423,7 +423,7 @@ func TestSubagentService_TerminateSubagentSubtreeStopsSubtreeStreams(t *testing.
 		default:
 			return false
 		}
-	}, 100*time.Millisecond, 10*time.Millisecond)
+	}, testutil.IntervalMedium, testutil.IntervalFast)
 }
 
 func TestSubagentService_MarkSubagentReportedDoesNotInsertParentMessages(t *testing.T) {
@@ -526,7 +526,7 @@ func TestSubagentService_CreateChildSubagentChatPublishesPendingStatusToParentSt
 		default:
 			return false
 		}
-	}, testutil.WaitShort, 10*time.Millisecond)
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func TestSubagentService_PublishChildStatusSkipsMissingParent(t *testing.T) {

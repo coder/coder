@@ -18,10 +18,11 @@ import (
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
 
-const defaultSubagentAwaitTimeout = 5 * time.Minute
-const subagentAwaitPollInterval = 200 * time.Millisecond
-const subagentReportToolCallIDPrefix = "subagent_report_"
-const defaultFallbackSubagentReport = "Sub-agent completed without explicit report."
+const (
+	subagentAwaitPollInterval      = 200 * time.Millisecond
+	subagentReportToolCallIDPrefix = "subagent_report_"
+	defaultFallbackSubagentReport  = "Sub-agent completed without explicit report."
+)
 
 const (
 	subagentEventRequest  = "request"
@@ -210,6 +211,16 @@ func (s *SubagentService) insertRequestMessage(
 			String: subagentEventRequest,
 			Valid:  true,
 		},
+		ToolCallID:          sql.NullString{},
+		Thinking:            sql.NullString{},
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert subagent request message: %w", err)
@@ -306,6 +317,17 @@ func (s *SubagentService) MarkReportOnlyPassRequested(
 			UUID:  requestID,
 			Valid: true,
 		},
+		ToolCallID:          sql.NullString{},
+		Thinking:            sql.NullString{},
+		SubagentEvent:       sql.NullString{},
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert report-only marker: %w", err)
@@ -351,6 +373,16 @@ func (s *SubagentService) MarkSubagentReported(
 			String: subagentEventResponse,
 			Valid:  true,
 		},
+		ToolCallID:          sql.NullString{},
+		Thinking:            sql.NullString{},
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
 		return SubagentAwaitResult{}, xerrors.Errorf("insert subagent response marker: %w", err)

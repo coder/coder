@@ -632,6 +632,42 @@ func TestChatDiffContents(t *testing.T) {
 	})
 }
 
+func TestChats_CrossUserIsolation(t *testing.T) {
+	t.Parallel()
+
+	ownerClient := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	userBClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// User A (owner) creates a chat.
+	chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		Message: "Owner's private chat",
+	})
+	require.NoError(t, err)
+
+	// User B should not see User A's chat in their list.
+	chats, err := userBClient.ListChats(ctx)
+	require.NoError(t, err)
+	for _, c := range chats {
+		require.NotEqual(t, chat.ID, c.ID, "user B should not see user A's chat")
+	}
+
+	// User B should get 404 when fetching User A's chat by ID.
+	_, err = userBClient.GetChat(ctx, chat.ID)
+	require.Error(t, err)
+	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
+
+	// User B should get 404 when deleting User A's chat.
+	err = userBClient.DeleteChat(ctx, chat.ID)
+	require.Error(t, err)
+	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
+
+	// Verify the chat was not deleted.
+	_, err = ownerClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+}
+
 func TestCreateChat_SystemPromptUnauthorized(t *testing.T) {
 	t.Parallel()
 
@@ -790,6 +826,7 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	workspace, workspaceAgentID := createWorkspaceWithAgent(t, ownerClient, owner.OrganizationID)
 
 	t.Run("WorkspaceIDAuthorized", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		workspaceID := workspace.ID
 		chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -802,6 +839,7 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	})
 
 	t.Run("WorkspaceIDUnauthorized", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		workspaceID := workspace.ID
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -816,6 +854,7 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	})
 
 	t.Run("WorkspaceAgentIDAuthorized", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		workspaceID := workspace.ID
 		agentID := workspaceAgentID
@@ -830,6 +869,7 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	})
 
 	t.Run("WorkspaceAgentIDUnauthorized", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		agentID := workspaceAgentID
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -842,21 +882,6 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Equal(t, "Workspace agent not found or you do not have access to this resource", sdkErr.Message)
 	})
-}
-
-func TestCreateChat_LocalWorkspaceDisabled(t *testing.T) {
-	t.Parallel()
-
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		Message:       "Bootstrap local workspace chat.",
-		WorkspaceMode: codersdk.ChatWorkspaceModeLocal,
-	})
-	require.Error(t, err)
-	require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
 }
 
 func TestCreateChat_HierarchyMetadata(t *testing.T) {
@@ -1003,6 +1028,7 @@ func TestCreateChat_HierarchyMetadata(t *testing.T) {
 }
 
 func TestChatModels_NoEnabledModels(t *testing.T) {
+	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
 			cfg.AI.BridgeConfig.OpenAI.Key = serpent.String("")
@@ -1023,6 +1049,7 @@ func TestChatModels_NoEnabledModels(t *testing.T) {
 }
 
 func TestChatModels_NoEnabledModelsUsesMergedProviderKeys(t *testing.T) {
+	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
 			cfg.AI.BridgeConfig.OpenAI.Key = serpent.String("env-openai")
@@ -1261,10 +1288,10 @@ func TestChatProviders(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
 	})
-
 }
 
 func TestChatProviders_ListIncludesSupportedProvidersAndEnvPresets(t *testing.T) {
+	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
 			cfg.AI.BridgeConfig.OpenAI.Key = serpent.String("env-openai-key")

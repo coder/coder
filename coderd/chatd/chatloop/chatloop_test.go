@@ -1,4 +1,4 @@
-package chatloop
+package chatloop //nolint:testpackage // Uses internal symbols.
 
 import (
 	"context"

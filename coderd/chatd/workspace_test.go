@@ -153,6 +153,7 @@ func TestNewWorkspaceCreator_CreateWorkspace_UsesModelToDisambiguatePromptMatche
 	model := &templateSelectionModel{
 		generateBlocks: []fantasy.Content{
 			fantasy.TextContent{
+				//nolint:gocritic // Building JSON string with embedded quotes.
 				Text: fmt.Sprintf(`{"template_id":"%s","reason":"web stack"}`, templateWebID),
 			},
 		},
@@ -221,6 +222,7 @@ func TestNewWorkspaceCreator_CreateWorkspace_RejectsMismatchedTemplateAndVersion
 		},
 		Prompt: "create workspace",
 		Spec: json.RawMessage(
+			//nolint:gocritic // Building JSON string with embedded quotes.
 			fmt.Sprintf(`{"name":"proj","template_id":"%s","template_version_id":"%s"}`, templateID, templateVersionID),
 		),
 	})
@@ -330,7 +332,8 @@ func TestNewWorkspaceCreator_CreateWorkspace_StreamsBuildLogs(t *testing.T) {
 			OwnerID: uuid.New(),
 		},
 		Prompt: "create a python web workspace",
-		Spec:   json.RawMessage(fmt.Sprintf(`{"name":"proj","template_id":"%s"}`, templateID)),
+		//nolint:gocritic // Building JSON string with embedded quotes.
+		Spec: json.RawMessage(fmt.Sprintf(`{"name":"proj","template_id":"%s"}`, templateID)),
 		BuildLogHandler: func(log chatd.CreateWorkspaceBuildLog) {
 			emitted = append(emitted, log)
 		},

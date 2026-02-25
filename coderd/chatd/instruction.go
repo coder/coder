@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -92,6 +93,7 @@ func sanitizeInstructionMarkdown(content string) string {
 	return strings.TrimSpace(content)
 }
 
+//nolint:revive // Boolean indicates content was truncated.
 func formatHomeInstruction(content string, sourcePath string, truncated bool) string {
 	content = strings.TrimSpace(content)
 	if content == "" {
@@ -103,14 +105,22 @@ func formatHomeInstruction(content string, sourcePath string, truncated bool) st
 	}
 
 	var b strings.Builder
-	b.WriteString("<coder-home-instructions>\n")
-	b.WriteString("Source: ")
-	b.WriteString(sourcePath)
+	_, _ = b.WriteString("<coder-home-instructions>\n")
+	_, _ = b.WriteString("Source: ")
+	_, _ = b.WriteString(sourcePath)
 	if truncated {
-		b.WriteString(" (truncated to 64KiB)")
+		_, _ = b.WriteString(" (truncated to 64KiB)")
 	}
-	b.WriteString("\n\n")
-	b.WriteString(content)
-	b.WriteString("\n</coder-home-instructions>")
+	_, _ = b.WriteString("\n\n")
+	_, _ = b.WriteString(content)
+	_, _ = b.WriteString("\n</coder-home-instructions>")
 	return b.String()
+}
+
+func isCodersdkStatusCode(err error, statusCode int) bool {
+	var sdkErr *codersdk.Error
+	if !xerrors.As(err, &sdkErr) {
+		return false
+	}
+	return sdkErr.StatusCode() == statusCode
 }

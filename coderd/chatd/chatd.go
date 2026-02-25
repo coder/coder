@@ -7,10 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"charm.land/fantasy"
@@ -48,16 +47,25 @@ const (
 	// chat is considered stale and should be recovered.
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
-	defaultExecuteTimeout        = 60 * time.Second
-	defaultExternalAuthWait      = 5 * time.Minute
+	defaultExecuteTimeout = 60 * time.Second
+	maxExecuteTimeout     = 10 * time.Minute
+
+	defaultExternalAuthWait = 5 * time.Minute
+	maxExternalAuthWait     = 10 * time.Minute
+
+	// Subagent await and message share the same timeout bounds.
+	defaultSubagentAwaitTimeout = 5 * time.Minute
+	maxSubagentAwaitTimeout     = 10 * time.Minute
+
 	homeInstructionLookupTimeout = 5 * time.Second
 	maxChatSteps                 = 1200
 
 	defaultContextCompressionThresholdPercent = int32(70)
 
-	maxCreateWorkspaceBuildLogLines     = 120
-	maxCreateWorkspaceBuildLogChars     = 16 * 1024
-	maxCreateWorkspaceBuildLogLineChars = 240
+	maxReadFileBytes                    int64 = 1 << 20 // 1 MiB
+	maxCreateWorkspaceBuildLogLines           = 120
+	maxCreateWorkspaceBuildLogChars           = 16 * 1024
+	maxCreateWorkspaceBuildLogLineChars       = 240
 
 	defaultTitleGenerationPrompt = "Generate a concise title (max 8 words, under 128 characters) for " +
 		"the user's first message. Return plain text only — no quotes, no emoji, " +
@@ -76,9 +84,10 @@ const (
 
 // Processor handles background processing of pending chats.
 type Processor struct {
-	cancel   context.CancelFunc
-	closed   chan struct{}
-	inflight sync.WaitGroup
+	closedFlag atomic.Bool
+	cancel     context.CancelFunc
+	closed     chan struct{}
+	inflight   sync.WaitGroup
 
 	db       database.Store
 	workerID uuid.UUID
@@ -89,7 +98,6 @@ type Processor struct {
 	testing                  *TestingConfig
 	streamManager            *StreamManager
 	pubsub                   pubsub.Pubsub
-	localMode                *localMode
 	subagentService          *SubagentService
 	resolveProviderAPIKeysFn ProviderAPIKeysResolver
 	titleGeneration          TitleGenerationConfig
@@ -191,14 +199,26 @@ func (m *StreamManager) StartStream(chatID uuid.UUID) {
 	m.mu.Unlock()
 }
 
+// StopStream marks the stream as no longer buffering. If
+// subscribers remain, the entry stays in the map until the
+// last subscriber cancels.
 func (m *StreamManager) StopStream(chatID uuid.UUID) {
 	m.mu.Lock()
 	state, ok := m.chats[chatID]
 	if ok {
 		state.buffer = nil
 		state.buffering = false
+		m.cleanupIfIdleLocked(chatID, state)
 	}
 	m.mu.Unlock()
+}
+
+// Len returns the number of tracked chat streams. This is intended
+// for use in tests.
+func (m *StreamManager) Len() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.chats)
 }
 
 func (m *StreamManager) Publish(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
@@ -248,11 +268,21 @@ func (m *StreamManager) Subscribe(chatID uuid.UUID) (
 				delete(state.subscribers, id)
 				close(subscriber)
 			}
+			m.cleanupIfIdleLocked(chatID, state)
 		}
 		m.mu.Unlock()
 	}
 
 	return snapshot, ch, cancel
+}
+
+// cleanupIfIdleLocked removes the chat entry when there are no
+// subscribers and the stream is not buffering. The caller must
+// hold m.mu.
+func (m *StreamManager) cleanupIfIdleLocked(chatID uuid.UUID, state *chatStreamState) {
+	if !state.buffering && len(state.subscribers) == 0 {
+		delete(m.chats, chatID)
+	}
 }
 
 func (m *StreamManager) stateLocked(chatID uuid.UUID) *chatStreamState {
@@ -276,15 +306,7 @@ type Config struct {
 	Pubsub                     pubsub.Pubsub
 	ResolveProviderAPIKeys     ProviderAPIKeysResolver
 	TitleGeneration            TitleGenerationConfig
-	Local                      *LocalConfig
 	Testing                    *TestingConfig
-}
-
-// LocalConfig enables local workspace mode integration in chatd.
-type LocalConfig struct {
-	AccessURL    *url.URL
-	HTTPClient   *http.Client
-	DeploymentID string
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -314,17 +336,6 @@ func New(cfg Config) *Processor {
 		streamManager = NewStreamManager(cfg.Logger.Named("chat-streams"))
 	}
 
-	var localMode *localMode
-	if cfg.Local != nil {
-		localMode = newLocalMode(localModeOptions{
-			logger:       cfg.Logger.Named("chat-local"),
-			database:     cfg.Database,
-			accessURL:    cfg.Local.AccessURL,
-			httpClient:   cfg.Local.HTTPClient,
-			deploymentID: strings.TrimSpace(cfg.Local.DeploymentID),
-		})
-	}
-
 	p := &Processor{
 		cancel:                     cancel,
 		closed:                     make(chan struct{}),
@@ -336,7 +347,6 @@ func New(cfg Config) *Processor {
 		testing:                    cfg.Testing,
 		streamManager:              streamManager,
 		pubsub:                     cfg.Pubsub,
-		localMode:                  localMode,
 		resolveProviderAPIKeysFn:   resolveProviderAPIKeys,
 		titleGeneration:            cfg.TitleGeneration.withDefaults(),
 		titleModelLookup:           anyAvailableModel,
@@ -375,6 +385,9 @@ func (p *Processor) start(ctx context.Context) {
 }
 
 func (p *Processor) processOnce(ctx context.Context) {
+	if p.closedFlag.Load() {
+		return
+	}
 	// Try to acquire a pending chat.
 	chat, err := p.db.AcquireChat(ctx, database.AcquireChatParams{
 		StartedAt: time.Now(),
@@ -434,35 +447,12 @@ func (p *Processor) IsChatActive(chatID uuid.UUID) bool {
 	return ok
 }
 
-func (p *Processor) EnsureLocalWorkspaceBinding(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	sessionToken string,
-) (LocalWorkspaceBinding, error) {
-	if p == nil || p.localMode == nil {
-		return LocalWorkspaceBinding{}, xerrors.New("local chat mode is not configured")
-	}
-	return p.localMode.EnsureWorkspaceBinding(ctx, ownerID, sessionToken)
-}
-
-func (p *Processor) EnsureLocalAgentRuntimeForChat(
-	ctx context.Context,
-	chat database.Chat,
-) error {
-	if workspaceModeFromChat(chat) != codersdk.ChatWorkspaceModeLocal {
-		return nil
-	}
-	if p == nil || p.localMode == nil {
-		return xerrors.New("local chat mode is not configured")
-	}
-	return p.localMode.MaybeLaunchAgentForChat(ctx, chat)
-}
-
 // ListModels returns the currently available chat model catalog.
 func (p *Processor) ListModels(ctx context.Context) (codersdk.ChatModelsResponse, error) {
 	if p == nil {
 		return codersdk.ChatModelsResponse{}, xerrors.New("chat processor is not configured")
 	}
+	//nolint:gocritic // Background chat processor has no user context.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	enabledProviders, err := p.db.GetEnabledChatProviders(ctx)
@@ -510,6 +500,7 @@ func (p *Processor) EffectiveProviderKeys(
 	if p == nil {
 		return chatprovider.ProviderAPIKeys{}, xerrors.New("chat processor is not configured")
 	}
+	//nolint:gocritic // All authenticated users need to list available models.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	keys, err := p.resolveProviderAPIKeys(ctx)
 	if err != nil {
@@ -684,7 +675,7 @@ func (p *Processor) publishMessagePart(chatID uuid.UUID, role string, part coder
 
 func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
-	logger.Info(ctx, "processing chat")
+	logger.Info(ctx, "processing chat turn")
 	reportOnly := false
 	activeSubagentRequestID := uuid.Nil
 	if chat.ParentChatID.Valid && p.subagentService != nil {
@@ -726,6 +717,7 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 			status = database.ChatStatusError
 		}
 
+		//nolint:nestif // Complex nested blocks reflect business logic.
 		if chat.ParentChatID.Valid && p.subagentService != nil {
 			hasActiveDescendants, err := p.subagentService.HasActiveDescendants(ctx, chat.ID)
 			if err != nil {
@@ -799,7 +791,19 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 							RawMessage: nextQueued.Content,
 							Valid:      len(nextQueued.Content) > 0,
 						},
-						Hidden: false,
+						Hidden:              false,
+						ToolCallID:          sql.NullString{},
+						Thinking:            sql.NullString{},
+						SubagentRequestID:   uuid.NullUUID{},
+						SubagentEvent:       sql.NullString{},
+						InputTokens:         sql.NullInt64{},
+						OutputTokens:        sql.NullInt64{},
+						TotalTokens:         sql.NullInt64{},
+						ReasoningTokens:     sql.NullInt64{},
+						CacheCreationTokens: sql.NullInt64{},
+						CacheReadTokens:     sql.NullInt64{},
+						ContextLimit:        sql.NullInt64{},
+						Compressed:          sql.NullBool{},
 					})
 					if insertErr != nil {
 						logger.Error(ctx, "failed to promote queued message",
@@ -868,6 +872,7 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 	}
 }
 
+//nolint:revive // Boolean distinguishes report-only mode from full processing.
 func (p *Processor) runChat(
 	ctx context.Context,
 	chat database.Chat,
@@ -885,10 +890,6 @@ func (p *Processor) runChat(
 	if err != nil {
 		return err
 	}
-	if err := p.EnsureLocalAgentRuntimeForChat(ctx, chat); err != nil {
-		return xerrors.Errorf("ensure local chat runtime: %w", err)
-	}
-
 	prompt, err := chatprompt.ConvertMessages(
 		messages,
 		subagentReportToolCallIDPrefix,
@@ -898,8 +899,7 @@ func (p *Processor) runChat(
 	}
 	if reportOnly {
 		prompt = chatprompt.AppendUser(prompt, reportOnlyInstruction)
-	} else if workspaceModeFromChat(chat) != codersdk.ChatWorkspaceModeLocal &&
-		!chat.WorkspaceID.Valid {
+	} else if !chat.WorkspaceID.Valid {
 		prompt = chatprompt.PrependSystem(prompt, defaultNoWorkspaceInstruction)
 	}
 
@@ -1028,8 +1028,19 @@ func (p *Processor) persistChatContextSummary(
 			RawMessage: systemContent,
 			Valid:      len(systemContent) > 0,
 		},
-		Hidden:     true,
-		Compressed: sql.NullBool{Bool: true, Valid: true},
+		Hidden:              true,
+		Compressed:          sql.NullBool{Bool: true, Valid: true},
+		ToolCallID:          sql.NullString{},
+		Thinking:            sql.NullString{},
+		SubagentRequestID:   uuid.NullUUID{},
+		SubagentEvent:       sql.NullString{},
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert hidden summary message: %w", err)
@@ -1064,6 +1075,17 @@ func (p *Processor) persistChatContextSummary(
 			Bool:  true,
 			Valid: true,
 		},
+		ToolCallID:          sql.NullString{},
+		Thinking:            sql.NullString{},
+		SubagentRequestID:   uuid.NullUUID{},
+		SubagentEvent:       sql.NullString{},
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert summary tool call message: %w", err)
@@ -1098,6 +1120,16 @@ func (p *Processor) persistChatContextSummary(
 			Bool:  true,
 			Valid: true,
 		},
+		Thinking:            sql.NullString{},
+		SubagentRequestID:   uuid.NullUUID{},
+		SubagentEvent:       sql.NullString{},
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert summary tool result message: %w", err)
@@ -1232,6 +1264,7 @@ func (p *Processor) resolveFallbackChatModelConfig(
 	)
 }
 
+//nolint:revive // Boolean distinguishes report-only mode from full processing.
 func (p *Processor) runChatWithAgent(
 	ctx context.Context,
 	chat database.Chat,
@@ -1349,6 +1382,8 @@ func (p *Processor) runChatWithAgent(
 				),
 				CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
 				ContextLimit:    step.ContextLimit,
+				SubagentEvent:   sql.NullString{},
+				Compressed:      sql.NullBool{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert assistant message: %w", err)
@@ -1370,8 +1405,18 @@ func (p *Processor) runChatWithAgent(
 					String: result.ToolCallID,
 					Valid:  result.ToolCallID != "",
 				},
-				Hidden:            false,
-				SubagentRequestID: subagentRequest,
+				Hidden:              false,
+				SubagentRequestID:   subagentRequest,
+				Thinking:            sql.NullString{},
+				SubagentEvent:       sql.NullString{},
+				InputTokens:         sql.NullInt64{},
+				OutputTokens:        sql.NullInt64{},
+				TotalTokens:         sql.NullInt64{},
+				ReasoningTokens:     sql.NullInt64{},
+				CacheCreationTokens: sql.NullInt64{},
+				CacheReadTokens:     sql.NullInt64{},
+				ContextLimit:        sql.NullInt64{},
+				Compressed:          sql.NullBool{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert tool result: %w", err)
@@ -1447,6 +1492,7 @@ func hasExceededChatToolSteps(result *fantasy.AgentResult) bool {
 		len(lastStep.Content.ToolCalls()) > 0
 }
 
+//nolint:revive // Boolean controls SQL NULL validity.
 func usageNullInt64(value int64, valid bool) sql.NullInt64 {
 	if !valid {
 		return sql.NullInt64{}
@@ -1696,17 +1742,17 @@ func fallbackChatTitle(message string) string {
 	return truncateRunes(title, maxRunes)
 }
 
-func truncateRunes(value string, max int) string {
-	if max <= 0 {
+func truncateRunes(value string, maxLen int) string {
+	if maxLen <= 0 {
 		return ""
 	}
 
 	runes := []rune(value)
-	if len(runes) <= max {
+	if len(runes) <= maxLen {
 		return value
 	}
 
-	return string(runes[:max])
+	return string(runes[:maxLen])
 }
 
 func (p *Processor) recoverMissingWorkspace(
@@ -1820,12 +1866,12 @@ func (p *Processor) recoverStaleChats(ctx context.Context) {
 
 // Close stops the processor and waits for it to finish.
 func (p *Processor) Close() error {
+	if !p.closedFlag.CompareAndSwap(false, true) {
+		return nil
+	}
 	p.cancel()
 	<-p.closed
 	p.inflight.Wait()
-	if p.localMode != nil {
-		return p.localMode.Close()
-	}
 	return nil
 }
 
@@ -1871,29 +1917,6 @@ func streamCallOptionsFromChatModelConfig(
 	}
 
 	return streamCall
-}
-
-func workspaceModeFromChat(chat database.Chat) codersdk.ChatWorkspaceMode {
-	config, err := parseChatModelConfig(chat.ModelConfig)
-	if err != nil {
-		return codersdk.ChatWorkspaceModeWorkspace
-	}
-
-	switch codersdk.ChatWorkspaceMode(
-		strings.ToLower(strings.TrimSpace(string(config.WorkspaceMode))),
-	) {
-	case codersdk.ChatWorkspaceModeLocal:
-		return codersdk.ChatWorkspaceModeLocal
-	default:
-		return codersdk.ChatWorkspaceModeWorkspace
-	}
-}
-
-func modelFromName(
-	modelName string,
-	providerKeys chatprovider.ProviderAPIKeys,
-) (fantasy.LanguageModel, error) {
-	return modelFromConfig(chatModelConfig{Model: modelName}, providerKeys)
 }
 
 // anyAvailableModel returns a language model from whichever provider
@@ -2125,6 +2148,7 @@ func (p *Processor) agentTools(
 				if args.TimeoutSeconds != nil {
 					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
 				}
+				timeout = clampTimeout(timeout, defaultExternalAuthWait, maxExternalAuthWait)
 
 				chatStateMu.Lock()
 				chatSnapshot := *chatState
@@ -2246,6 +2270,7 @@ func (p *Processor) agentTools(
 				if args.TimeoutSeconds != nil {
 					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
 				}
+				timeout = clampTimeout(timeout, defaultSubagentAwaitTimeout, maxSubagentAwaitTimeout)
 
 				chatStateMu.Lock()
 				chatSnapshot := *chatState
@@ -2298,6 +2323,7 @@ func (p *Processor) agentTools(
 				if args.TimeoutSeconds != nil {
 					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
 				}
+				timeout = clampTimeout(timeout, defaultSubagentAwaitTimeout, maxSubagentAwaitTimeout)
 
 				chatStateMu.Lock()
 				chatSnapshot := *chatState
@@ -2488,6 +2514,7 @@ func (p *Processor) waitForExternalAuth(
 
 	for {
 		link, linkErr := p.db.GetExternalAuthLink(
+			//nolint:gocritic // Background wait for external auth has no user context.
 			dbauthz.AsSystemRestricted(waitCtx),
 			database.GetExternalAuthLinkParams{
 				ProviderID: providerID,
@@ -2676,6 +2703,18 @@ func (e *createWorkspaceBuildLogEmitter) publishDelta(delta string) {
 	})
 }
 
+// clampTimeout returns d clamped to the range (0, max]. If d is
+// non-positive, def is returned instead.
+func clampTimeout(d, def, maxDur time.Duration) time.Duration {
+	if d <= 0 {
+		return def
+	}
+	if d > maxDur {
+		return maxDur
+	}
+	return d
+}
+
 func executeReadFileTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
@@ -2697,6 +2736,9 @@ func executeReadFileTool(
 	}
 	if args.Limit != nil {
 		limit = *args.Limit
+	}
+	if limit <= 0 || limit > maxReadFileBytes {
+		limit = maxReadFileBytes
 	}
 
 	reader, mimeType, err := conn.ReadFile(ctx, args.Path, offset, limit)
@@ -2777,6 +2819,7 @@ func executeExecuteTool(
 	if args.TimeoutSeconds != nil {
 		timeout = time.Duration(*args.TimeoutSeconds) * time.Second
 	}
+	timeout = clampTimeout(timeout, defaultExecuteTimeout, maxExecuteTimeout)
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 

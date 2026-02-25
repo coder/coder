@@ -116,6 +116,7 @@ func (k ProviderAPIKeys) APIKey(provider string) string {
 	}
 }
 
+//nolint:revive // Intentional: apiKey is the unexported helper for APIKey.
 func (k ProviderAPIKeys) apiKey(provider string) string {
 	return k.APIKey(provider)
 }
@@ -338,16 +339,10 @@ func orderProviders(providerSet map[string]struct{}) []string {
 		}
 	}
 
-	extras := make([]string, 0, len(providerSet))
-	for provider := range providerSet {
-		if NormalizeProvider(provider) != "" {
-			continue
-		}
-		extras = append(extras, provider)
-	}
-	sort.Strings(extras)
-
-	return append(ordered, extras...)
+	// Unknown providers are dropped. The providerSet keys are
+	// already normalized, so any provider not in
+	// supportedProviderNames is silently excluded.
+	return ordered
 }
 
 // NormalizeProvider canonicalizes a provider name.
@@ -374,11 +369,12 @@ func NormalizeProvider(provider string) string {
 	}
 }
 
+//nolint:revive // Intentional: normalizeProvider is the unexported helper for NormalizeProvider.
 func normalizeProvider(provider string) string {
 	return NormalizeProvider(provider)
 }
 
-func ResolveModelWithProviderHint(modelName, providerHint string) (string, string, error) {
+func ResolveModelWithProviderHint(modelName, providerHint string) (provider string, model string, err error) {
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" {
 		return "", "", xerrors.New("model is required")
@@ -412,7 +408,7 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (string, strin
 	return "", "", xerrors.Errorf("unknown model %q", modelName)
 }
 
-func parseCanonicalModelRef(modelRef string) (string, string, bool) {
+func parseCanonicalModelRef(modelRef string) (provider string, model string, ok bool) {
 	modelRef = strings.TrimSpace(modelRef)
 	if modelRef == "" {
 		return "", "", false

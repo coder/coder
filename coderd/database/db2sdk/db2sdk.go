@@ -1412,7 +1412,7 @@ func stringValue(value any) (string, bool) {
 	}
 }
 
-func boolValue(value any) (bool, bool) {
+func boolValue(value any) (result bool, ok bool) {
 	switch typed := value.(type) {
 	case bool:
 		return typed, true

@@ -1,10 +1,10 @@
 package coderd
 
 import (
-	"charm.land/fantasy"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -228,7 +229,7 @@ func (api *API) getChatDiffStatusesByChatID(
 		chatIDs = append(chatIDs, chat.ID)
 	}
 
-	statuses, err := api.Database.GetChatDiffStatusesByChatIDs(dbauthz.AsSystemRestricted(ctx), chatIDs)
+	statuses, err := api.Database.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("get chat diff statuses: %w", err)
 	}
@@ -286,9 +287,19 @@ func (api *API) recordChatWorkspaceRequestMetadata(ctx context.Context, chatID u
 			RawMessage: payload,
 			Valid:      true,
 		},
-		ToolCallID: sql.NullString{Valid: false},
-		Thinking:   sql.NullString{Valid: false},
-		Hidden:     true,
+		ToolCallID:          sql.NullString{Valid: false},
+		Thinking:            sql.NullString{Valid: false},
+		Hidden:              true,
+		SubagentRequestID:   uuid.NullUUID{},
+		SubagentEvent:       sql.NullString{},
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to persist chat workspace request metadata",
@@ -408,52 +419,6 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	workspaceMode := effectiveChatWorkspaceMode(chatHierarchy.Request.WorkspaceMode)
-	if workspaceMode == codersdk.ChatWorkspaceModeLocal {
-		if !chatLocalWorkspaceEnabled(api) {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "Local workspace mode is disabled.",
-			})
-			return
-		}
-		if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-			httpapi.Forbidden(rw)
-			return
-		}
-	}
-	if workspaceMode == codersdk.ChatWorkspaceModeLocal &&
-		(chatHierarchy.Request.WorkspaceID == nil || chatHierarchy.Request.WorkspaceAgentID == nil) {
-		if api.chatProcessor == nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to initialize local workspace.",
-				Detail:  "Chat processor is not configured.",
-			})
-			return
-		}
-
-		localBinding, localErr := api.chatProcessor.EnsureLocalWorkspaceBinding(
-			ctx,
-			apiKey.UserID,
-			httpmw.APITokenFromRequest(r),
-		)
-		if localErr != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to initialize local workspace.",
-				Detail:  localErr.Error(),
-			})
-			return
-		}
-		chatHierarchy.Request.WorkspaceID = &localBinding.WorkspaceID
-		chatHierarchy.Request.WorkspaceAgentID = &localBinding.WorkspaceAgentID
-
-		validationStatus, validationError = api.validateCreateChatWorkspaceSelection(
-			ctx,
-			chatHierarchy.Request,
-		)
-		if validationError != nil {
-			httpapi.Write(ctx, rw, validationStatus, *validationError)
-			return
-		}
-	}
 
 	systemPrompt := defaultChatSystemPrompt()
 	if override := strings.TrimSpace(req.SystemPrompt); override != "" {
@@ -538,7 +503,17 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 			Thinking: sql.NullString{
 				Valid: false,
 			},
-			Hidden: true,
+			Hidden:              true,
+			SubagentRequestID:   uuid.NullUUID{},
+			SubagentEvent:       sql.NullString{},
+			InputTokens:         sql.NullInt64{},
+			OutputTokens:        sql.NullInt64{},
+			TotalTokens:         sql.NullInt64{},
+			ReasoningTokens:     sql.NullInt64{},
+			CacheCreationTokens: sql.NullInt64{},
+			CacheReadTokens:     sql.NullInt64{},
+			ContextLimit:        sql.NullInt64{},
+			Compressed:          sql.NullBool{},
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -571,7 +546,17 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		Thinking: sql.NullString{
 			Valid: false,
 		},
-		Hidden: false,
+		Hidden:              false,
+		SubagentRequestID:   uuid.NullUUID{},
+		SubagentEvent:       sql.NullString{},
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -637,6 +622,8 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatWithMessages
 // @Router /chats/{chat} [get]
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chatID, ok := parseChatID(rw, r)
@@ -808,6 +795,7 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 	// For user messages, atomically decide whether to queue or send based on
 	// the chat status. We use a transaction with FOR UPDATE to prevent races
 	// between the user sending and the processor finishing.
+	//nolint:nestif // Complex nested blocks reflect business logic.
 	if req.Role == "user" {
 		var response codersdk.CreateChatMessageResponse
 		var publishFn func()
@@ -880,7 +868,17 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 					String: stringOrEmpty(req.Thinking),
 					Valid:  req.Thinking != nil,
 				},
-				Hidden: false,
+				Hidden:              false,
+				SubagentRequestID:   uuid.NullUUID{},
+				SubagentEvent:       sql.NullString{},
+				InputTokens:         sql.NullInt64{},
+				OutputTokens:        sql.NullInt64{},
+				TotalTokens:         sql.NullInt64{},
+				ReasoningTokens:     sql.NullInt64{},
+				CacheCreationTokens: sql.NullInt64{},
+				CacheReadTokens:     sql.NullInt64{},
+				ContextLimit:        sql.NullInt64{},
+				Compressed:          sql.NullBool{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert message: %w", err)
@@ -975,7 +973,17 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 			String: stringOrEmpty(req.Thinking),
 			Valid:  req.Thinking != nil,
 		},
-		Hidden: false,
+		Hidden:              false,
+		SubagentRequestID:   uuid.NullUUID{},
+		SubagentEvent:       sql.NullString{},
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1168,7 +1176,19 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
 			},
-			Hidden: false,
+			Hidden:              false,
+			ToolCallID:          sql.NullString{},
+			Thinking:            sql.NullString{},
+			SubagentRequestID:   uuid.NullUUID{},
+			SubagentEvent:       sql.NullString{},
+			InputTokens:         sql.NullInt64{},
+			OutputTokens:        sql.NullInt64{},
+			TotalTokens:         sql.NullInt64{},
+			ReasoningTokens:     sql.NullInt64{},
+			CacheCreationTokens: sql.NullInt64{},
+			CacheReadTokens:     sql.NullInt64{},
+			ContextLimit:        sql.NullInt64{},
+			Compressed:          sql.NullBool{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert message: %w", err)
@@ -1401,6 +1421,8 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatDiffStatus
 // @Router /chats/{chat}/diff-status [get]
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffStatus(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chatID, ok := parseChatID(rw, r)
@@ -1441,6 +1463,8 @@ func (api *API) getChatDiffStatus(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatDiffContents
 // @Router /chats/{chat}/diff [get]
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chatID, ok := parseChatID(rw, r)
@@ -1528,7 +1552,7 @@ func (api *API) authorizedChatWorkspaceTemplates(
 		},
 	}, prepared)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return []database.Template{}, nil
 		}
 		return nil, xerrors.Errorf("get authorized templates: %w", err)
@@ -1542,7 +1566,7 @@ func (api *API) createChatWorkspace(
 	ownerID uuid.UUID,
 	req codersdk.CreateWorkspaceRequest,
 ) (codersdk.Workspace, error) {
-	ownerUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), ownerID)
+	ownerUser, err := api.Database.GetUserByID(ctx, ownerID)
 	if err != nil {
 		return codersdk.Workspace{}, xerrors.Errorf("get workspace owner: %w", err)
 	}
@@ -1596,6 +1620,7 @@ func (api *API) resolveChatDiffStatus(
 	return api.resolveChatDiffStatusWithOptions(ctx, chat, false)
 }
 
+//nolint:revive // Boolean forces cache refresh bypass.
 func (api *API) resolveChatDiffStatusWithOptions(
 	ctx context.Context,
 	chat database.Chat,
@@ -1623,7 +1648,7 @@ func (api *API) resolveChatDiffStatusWithOptions(
 	}
 
 	if !found {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Callers handle nil status explicitly.
 	}
 	if reference.PullRequestURL == "" {
 		return &status, nil
@@ -1660,6 +1685,7 @@ func (api *API) resolveChatDiffStatusWithOptions(
 	return &backoffStatus, nil
 }
 
+//nolint:revive // Boolean forces cache refresh bypass.
 func shouldRefreshChatDiffStatus(status database.ChatDiffStatus, now time.Time, forceRefresh bool) bool {
 	if forceRefresh {
 		return true
@@ -1677,6 +1703,7 @@ func (api *API) triggerWorkspaceChatDiffStatusRefresh(workspace database.Workspa
 		if ctx == nil {
 			ctx = context.Background()
 		}
+		//nolint:gocritic // Background goroutine for diff status refresh has no user context.
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		// Always store the git ref so the data is persisted even
@@ -1721,6 +1748,7 @@ func (api *API) storeChatGitRef(ctx context.Context, workspaceID, workspaceOwner
 			GitBranch:       gitRef.Branch,
 			GitRemoteOrigin: gitRef.RemoteOrigin,
 			StaleAt:         time.Now().UTC().Add(-time.Second),
+			Url:             sql.NullString{},
 		})
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to store git ref on chat diff status",
@@ -1734,7 +1762,7 @@ func (api *API) storeChatGitRef(ctx context.Context, workspaceID, workspaceOwner
 
 // refreshWorkspaceChatDiffStatuses refreshes the diff status for all
 // chats associated with the given workspace. It returns true when
-// every chat has a PR URL resolved, signalling that the caller can
+// every chat has a PR URL resolved, signaling that the caller can
 // stop polling.
 func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceID, workspaceOwnerID uuid.UUID) bool {
 	chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)
@@ -1899,6 +1927,8 @@ func (api *API) resolveChatDiffContents(
 // status stored in the database. The git branch and remote origin are
 // populated by the workspace agent during git operations (via the
 // gitaskpass flow), so no SSH into the workspace is needed here.
+//
+//nolint:revive // Boolean indicates whether diff status was found.
 func (api *API) resolveChatDiffReference(
 	ctx context.Context,
 	chat database.Chat,
@@ -2626,17 +2656,6 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
 	req codersdk.CreateChatRequest,
 ) (int, *codersdk.Response) {
-	if effectiveChatWorkspaceMode(req.WorkspaceMode) == codersdk.ChatWorkspaceModeLocal {
-		if req.WorkspaceID == nil && req.WorkspaceAgentID == nil {
-			return 0, nil
-		}
-		if req.WorkspaceID == nil || req.WorkspaceAgentID == nil {
-			return http.StatusBadRequest, &codersdk.Response{
-				Message: "Local workspace mode requires both workspace and workspace agent.",
-			}
-		}
-	}
-
 	var workspaceID uuid.UUID
 	if req.WorkspaceID != nil {
 		workspace, err := api.Database.GetWorkspaceByID(ctx, *req.WorkspaceID)
@@ -2677,10 +2696,6 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	return 0, nil
 }
 
-func chatLocalWorkspaceEnabled(_ *API) bool {
-	return false
-}
-
 func normalizeRequestedChatWorkspaceMode(
 	mode codersdk.ChatWorkspaceMode,
 ) (codersdk.ChatWorkspaceMode, bool) {
@@ -2691,8 +2706,6 @@ func normalizeRequestedChatWorkspaceMode(
 		return "", true
 	case codersdk.ChatWorkspaceModeWorkspace:
 		return codersdk.ChatWorkspaceModeWorkspace, true
-	case codersdk.ChatWorkspaceModeLocal:
-		return codersdk.ChatWorkspaceModeLocal, true
 	default:
 		return "", false
 	}
@@ -2754,13 +2767,7 @@ func createChatModelConfig(
 	if model != "" {
 		config["model"] = model
 	}
-	if workspaceMode == codersdk.ChatWorkspaceModeLocal {
-		config[chatWorkspaceModeModelConfigKey] = string(
-			codersdk.ChatWorkspaceModeLocal,
-		)
-	} else {
-		delete(config, chatWorkspaceModeModelConfigKey)
-	}
+	delete(config, chatWorkspaceModeModelConfigKey)
 
 	if len(config) == 0 {
 		return json.RawMessage("{}"), nil
@@ -2802,13 +2809,13 @@ func chatCompressionThresholdFromModelConfig(config map[string]any) (int32, bool
 
 	switch typed := raw.(type) {
 	case float64:
-		return int32(typed), true
+		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
 	case float32:
-		return int32(typed), true
+		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
 	case int:
-		return int32(typed), true
+		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
 	case int64:
-		return int32(typed), true
+		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
 	case int32:
 		return typed, true
 	case int16:
@@ -2820,13 +2827,13 @@ func chatCompressionThresholdFromModelConfig(config map[string]any) (int32, bool
 		if err != nil {
 			return 0, false
 		}
-		return int32(parsed), true
+		return int32(parsed), true // #nosec G115 -- Value is a small config threshold (0-100).
 	default:
 		return 0, false
 	}
 }
 
-func chatModelConfigReference(config map[string]any) (string, string, bool) {
+func chatModelConfigReference(config map[string]any) (providerName string, modelID string, found bool) {
 	model, _ := config["model"].(string)
 	model = strings.TrimSpace(model)
 	if model == "" {
@@ -2846,7 +2853,7 @@ func chatModelConfigReference(config map[string]any) (string, string, bool) {
 	return providerHint, model, true
 }
 
-func parseCanonicalChatModelRef(modelRef string) (string, string, bool) {
+func parseCanonicalChatModelRef(modelRef string) (providerName string, modelID string, ok bool) {
 	modelRef = strings.TrimSpace(modelRef)
 	if modelRef == "" {
 		return "", "", false
@@ -2884,6 +2891,7 @@ func (api *API) applyChatModelCompressionConfig(
 
 	if provider, model, ok := chatModelConfigReference(config); ok {
 		modelConfig, err := api.Database.GetChatModelConfigByProviderAndModel(
+			//nolint:gocritic // All authenticated users need to read model configs for chat.
 			dbauthz.AsSystemRestricted(ctx),
 			database.GetChatModelConfigByProviderAndModelParams{
 				Provider: provider,
@@ -3030,17 +3038,17 @@ func chatTitleFromMessage(message string) string {
 	return truncateRunes(title, maxRunes)
 }
 
-func truncateRunes(value string, max int) string {
-	if max <= 0 {
+func truncateRunes(value string, maxLen int) string {
+	if maxLen <= 0 {
 		return ""
 	}
 
 	runes := []rune(value)
-	if len(runes) <= max {
+	if len(runes) <= maxLen {
 		return value
 	}
 
-	return string(runes[:max])
+	return string(runes[:maxLen])
 }
 
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
@@ -3058,13 +3066,14 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		parentChatID := c.ParentChatID.UUID
 		chat.ParentChatID = &parentChatID
 	}
-	if c.RootChatID.Valid {
+	switch {
+	case c.RootChatID.Valid:
 		rootChatID := c.RootChatID.UUID
 		chat.RootChatID = &rootChatID
-	} else if c.ParentChatID.Valid {
+	case c.ParentChatID.Valid:
 		rootChatID := c.ParentChatID.UUID
 		chat.RootChatID = &rootChatID
-	} else {
+	default:
 		rootChatID := c.ID
 		chat.RootChatID = &rootChatID
 	}

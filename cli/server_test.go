@@ -1822,16 +1822,19 @@ func TestServer_ExternalAuthGitHubDefaultProvider(t *testing.T) {
 		unsetPrefixedEnv := func(prefix string) {
 			t.Helper()
 			for _, envVar := range os.Environ() {
-				key, _, found := strings.Cut(envVar, "=")
-				if !found || !strings.HasPrefix(key, prefix) {
+				envKey, _, found := strings.Cut(envVar, "=")
+				if !found || !strings.HasPrefix(envKey, prefix) {
 					continue
 				}
-				value, had := os.LookupEnv(key)
+				value, had := os.LookupEnv(envKey)
 				require.True(t, had)
-				require.NoError(t, os.Unsetenv(key))
-				keyCopy := key
+				require.NoError(t, os.Unsetenv(envKey))
+				keyCopy := envKey
 				valueCopy := value
 				t.Cleanup(func() {
+					// This is for setting/unsetting a number of prefixed env vars.
+					// t.Setenv doesn't cover this use case.
+					// nolint:usetesting
 					_ = os.Setenv(keyCopy, valueCopy)
 				})
 			}
@@ -1867,8 +1870,8 @@ func TestServer_ExternalAuthGitHubDefaultProvider(t *testing.T) {
 		args = append(args, tc.args...)
 
 		inv, cfg := clitest.New(t, args...)
-		for key, value := range tc.env {
-			t.Setenv(key, value)
+		for envKey, value := range tc.env {
+			t.Setenv(envKey, value)
 		}
 		clitest.Start(t, inv)
 
