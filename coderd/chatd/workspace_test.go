@@ -333,7 +333,7 @@ func TestNewWorkspaceCreator_CreateWorkspace_StreamsBuildLogs(t *testing.T) {
 		},
 		Prompt: "create a python web workspace",
 		//nolint:gocritic // Building JSON string with embedded quotes.
-		Spec:   json.RawMessage(fmt.Sprintf(`{"name":"proj","template_id":"%s"}`, templateID)),
+		Spec: json.RawMessage(fmt.Sprintf(`{"name":"proj","template_id":"%s"}`, templateID)),
 		BuildLogHandler: func(log chatd.CreateWorkspaceBuildLog) {
 			emitted = append(emitted, log)
 		},
