@@ -27,12 +27,12 @@ export const TagInput: FC<TagInputProps> = ({
 
 	return (
 		<div>
-			<label
+			<div
 				className="flex flex-wrap min-h-10 px-1.5 py-1.5 gap-2 border border-border border-solid relative rounded-md
 				focus-within:border-content-link focus-within:border-2 focus-within:-top-px focus-within:-left-px"
 			>
 				{values.map((value, index) => (
-					<Badge key={itemIds[index]} size="sm" className="gap-1 pr-1">
+					<Badge key={itemIds[index]} size="md" className="gap-1 pr-1">
 						{value}
 						<Button
 							type="button"
@@ -80,9 +80,9 @@ export const TagInput: FC<TagInputProps> = ({
 						}
 					}}
 				/>
-			</label>
+			</div>
 
-			<p className="text-content-secondary text-xs mt-1 mx-3.5">
+			<p className="text-content-secondary text-xs mt-1">
 				{'Type "," to separate the values'}
 			</p>
 		</div>
