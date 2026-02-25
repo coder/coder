@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -668,6 +669,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatWithMessages
 // @Router /chats/{chat} [get]
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chatID, ok := parseChatID(rw, r)
@@ -839,6 +841,7 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 	// For user messages, atomically decide whether to queue or send based on
 	// the chat status. We use a transaction with FOR UPDATE to prevent races
 	// between the user sending and the processor finishing.
+	//nolint:nestif // Complex nested blocks reflect business logic.
 	if req.Role == "user" {
 		var response codersdk.CreateChatMessageResponse
 		var publishFn func()
@@ -1464,6 +1467,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatDiffStatus
 // @Router /chats/{chat}/diff-status [get]
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffStatus(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chatID, ok := parseChatID(rw, r)
@@ -1504,6 +1508,7 @@ func (api *API) getChatDiffStatus(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatDiffContents
 // @Router /chats/{chat}/diff [get]
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chatID, ok := parseChatID(rw, r)
@@ -1591,7 +1596,7 @@ func (api *API) authorizedChatWorkspaceTemplates(
 		},
 	}, prepared)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return []database.Template{}, nil
 		}
 		return nil, xerrors.Errorf("get authorized templates: %w", err)
@@ -1659,6 +1664,7 @@ func (api *API) resolveChatDiffStatus(
 	return api.resolveChatDiffStatusWithOptions(ctx, chat, false)
 }
 
+//nolint:revive // Boolean forces cache refresh bypass.
 func (api *API) resolveChatDiffStatusWithOptions(
 	ctx context.Context,
 	chat database.Chat,
@@ -1686,7 +1692,7 @@ func (api *API) resolveChatDiffStatusWithOptions(
 	}
 
 	if !found {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Callers handle nil status explicitly.
 	}
 	if reference.PullRequestURL == "" {
 		return &status, nil
@@ -1723,6 +1729,7 @@ func (api *API) resolveChatDiffStatusWithOptions(
 	return &backoffStatus, nil
 }
 
+//nolint:revive // Boolean forces cache refresh bypass.
 func shouldRefreshChatDiffStatus(status database.ChatDiffStatus, now time.Time, forceRefresh bool) bool {
 	if forceRefresh {
 		return true
@@ -1964,6 +1971,7 @@ func (api *API) resolveChatDiffContents(
 // status stored in the database. The git branch and remote origin are
 // populated by the workspace agent during git operations (via the
 // gitaskpass flow), so no SSH into the workspace is needed here.
+//nolint:revive // Boolean indicates whether diff status was found.
 func (api *API) resolveChatDiffReference(
 	ctx context.Context,
 	chat database.Chat,
@@ -2867,13 +2875,13 @@ func chatCompressionThresholdFromModelConfig(config map[string]any) (int32, bool
 
 	switch typed := raw.(type) {
 	case float64:
-		return int32(typed), true
+		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
 	case float32:
-		return int32(typed), true
+		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
 	case int:
-		return int32(typed), true
+		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
 	case int64:
-		return int32(typed), true
+		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
 	case int32:
 		return typed, true
 	case int16:
@@ -2885,13 +2893,13 @@ func chatCompressionThresholdFromModelConfig(config map[string]any) (int32, bool
 		if err != nil {
 			return 0, false
 		}
-		return int32(parsed), true
+		return int32(parsed), true // #nosec G115 -- Value is a small config threshold (0-100).
 	default:
 		return 0, false
 	}
 }
 
-func chatModelConfigReference(config map[string]any) (string, string, bool) {
+func chatModelConfigReference(config map[string]any) (providerName string, modelID string, found bool) {
 	model, _ := config["model"].(string)
 	model = strings.TrimSpace(model)
 	if model == "" {
@@ -2911,7 +2919,7 @@ func chatModelConfigReference(config map[string]any) (string, string, bool) {
 	return providerHint, model, true
 }
 
-func parseCanonicalChatModelRef(modelRef string) (string, string, bool) {
+func parseCanonicalChatModelRef(modelRef string) (providerName string, modelID string, ok bool) {
 	modelRef = strings.TrimSpace(modelRef)
 	if modelRef == "" {
 		return "", "", false
@@ -3096,17 +3104,17 @@ func chatTitleFromMessage(message string) string {
 	return truncateRunes(title, maxRunes)
 }
 
-func truncateRunes(value string, max int) string {
-	if max <= 0 {
+func truncateRunes(value string, maxLen int) string {
+	if maxLen <= 0 {
 		return ""
 	}
 
 	runes := []rune(value)
-	if len(runes) <= max {
+	if len(runes) <= maxLen {
 		return value
 	}
 
-	return string(runes[:max])
+	return string(runes[:maxLen])
 }
 
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
@@ -3124,13 +3132,14 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		parentChatID := c.ParentChatID.UUID
 		chat.ParentChatID = &parentChatID
 	}
-	if c.RootChatID.Valid {
+	switch {
+	case c.RootChatID.Valid:
 		rootChatID := c.RootChatID.UUID
 		chat.RootChatID = &rootChatID
-	} else if c.ParentChatID.Valid {
+	case c.ParentChatID.Valid:
 		rootChatID := c.ParentChatID.UUID
 		chat.RootChatID = &rootChatID
-	} else {
+	default:
 		rootChatID := c.ID
 		chat.RootChatID = &rootChatID
 	}
