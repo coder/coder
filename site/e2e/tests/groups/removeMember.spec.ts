@@ -38,6 +38,6 @@ test("remove member", async ({ page, baseURL }) => {
 	await menu.getByText("Remove").click({ timeout: 1_000 });
 
 	await expect(
-		page.getByText(/has been removed from.*successfully/),
+		page.getByText(/has been removed from .* successfully/),
 	).toBeVisible();
 });
