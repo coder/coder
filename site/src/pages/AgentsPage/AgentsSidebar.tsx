@@ -68,6 +68,24 @@ type ChatTree = {
 	readonly parentById: ReadonlyMap<string, string | undefined>;
 };
 
+const TIME_GROUPS = ["Today", "Yesterday", "This Week", "Older"] as const;
+type TimeGroup = (typeof TIME_GROUPS)[number];
+
+function getTimeGroup(dateStr: string): TimeGroup {
+	const now = new Date();
+	const date = new Date(dateStr);
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	const yesterday = new Date(today);
+	yesterday.setDate(yesterday.getDate() - 1);
+	const weekAgo = new Date(today);
+	weekAgo.setDate(weekAgo.getDate() - 7);
+
+	if (date >= today) return "Today";
+	if (date >= yesterday) return "Yesterday";
+	if (date >= weekAgo) return "This Week";
+	return "Older";
+}
+
 const getStatusConfig = (status: ChatStatus) => {
 	return statusConfig[status] ?? statusConfig.completed;
 };
@@ -614,29 +632,38 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</>
 					) : (
 						<ChatTreeContext.Provider value={chatTreeCtx}>
-							<div className="ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-								<span>This Week</span>
-							</div>
-
-							<div className="flex flex-col gap-0.5">
-								{visibleRootIDs.map((chatID) => {
-									const chat = chatById.get(chatID);
-									if (!chat) return null;
+							{visibleRootIDs.length === 0 ? (
+								<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+									{normalizedSearch ? "No matching agents" : "No agents yet"}
+								</div>
+							) : (
+								TIME_GROUPS.map((group) => {
+									const groupChats = visibleRootIDs
+										.map((id) => chatById.get(id))
+										.filter(
+											(chat): chat is Chat =>
+												chat !== undefined &&
+												getTimeGroup(chat.updated_at) === group,
+										);
+									if (groupChats.length === 0) return null;
 									return (
-										<ChatTreeNode
-											key={chat.id}
-											chat={chat}
-											isChildNode={false}
-										/>
+										<div key={group}>
+											<div className="ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+												<span>{group}</span>
+											</div>
+											<div className="flex flex-col gap-0.5">
+												{groupChats.map((chat) => (
+													<ChatTreeNode
+														key={chat.id}
+														chat={chat}
+														isChildNode={false}
+													/>
+												))}
+											</div>
+										</div>
 									);
-								})}
-
-								{visibleRootIDs.length === 0 && (
-									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-										{normalizedSearch ? "No matching agents" : "No agents yet"}
-									</div>
-								)}
-							</div>
+								})
+							)}
 						</ChatTreeContext.Provider>
 					)}
 				</div>
