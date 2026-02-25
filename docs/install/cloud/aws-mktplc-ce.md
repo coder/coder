@@ -9,7 +9,7 @@ If you are familiar with EC2 however, you can use our
 
 ## Requirements
 
-This guide assumes your AWS account has `AdministratorAccess` permissions given the number and types of AWS Services deployed.  After deployment of Coder into a AWS POC or Sandbox account, it is recommended that the permissions be scaled back to only what your depoyment requires.
+This guide assumes your AWS account has `AdministratorAccess` permissions given the number and types of AWS Services deployed.  After deployment of Coder into a AWS POC or Sandbox account, it is recommended that the permissions be scaled back to only what your deployment requires.
 
 ## Launch Coder Community Edition from the from AWS Marketplace
 
@@ -36,7 +36,7 @@ production use. See: [Scaling Coder](../../admin/infrastructure/index.md)
 
 ![AWS Marketplace Parameters](../../images/platforms/aws/marketplace-parm.png)
 
-Select `Next` and follow the prompts to submit the CloudFormation Stack.  Deployment of the Stack can take 10-20 minutes, and will create EKS related sub-stacks and a CodeBuild pipeline that automates the initial Helm deployment of Coder and final AWS network services integration.  Once the Stack succesfully creates, access the `Outputs` as shown below:
+Select `Next` and follow the prompts to submit the CloudFormation Stack.  Deployment of the Stack can take 10-20 minutes, and will create EKS related sub-stacks and a CodeBuild pipeline that automates the initial Helm deployment of Coder and final AWS network services integration.  Once the Stack successfully creates, access the `Outputs` as shown below:
 
 ![AWS Marketplace Outputs](../../images/platforms/aws/marketplace-output.png)
 
