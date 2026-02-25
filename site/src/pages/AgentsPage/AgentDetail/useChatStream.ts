@@ -2,7 +2,6 @@ import { watchChat } from "api/api";
 import {
 	chatDiffContentsKey,
 	chatDiffStatusKey,
-	chatKey,
 	chatsKey,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
@@ -18,6 +17,29 @@ import { useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { StreamState } from "./types";
+
+const VALID_CHAT_STATUSES: ReadonlySet<string> = new Set<TypesGen.ChatStatus>([
+	"pending",
+	"running",
+	"completed",
+	"error",
+	"paused",
+	"waiting",
+]);
+
+/** Narrow an unknown value to a recognised ChatStatus string. */
+function isValidChatStatus(value: unknown): value is TypesGen.ChatStatus {
+	return typeof value === "string" && VALID_CHAT_STATUSES.has(value);
+}
+
+/** Type guard for ChatStreamEvent coming from SSE. */
+function isChatStreamEvent(
+	data: unknown,
+): data is TypesGen.ChatStreamEvent & Record<string, unknown> {
+	return (
+		typeof data === "object" && data !== null && "type" in data && typeof (data as Record<string, unknown>).type === "string"
+	);
+}
 
 interface UseChatStreamOptions {
 	chatId: string | undefined;
@@ -168,9 +190,8 @@ export function useChatStream(
 				return;
 			}
 
-			const streamEvent = payload.parsedMessage
-				.data as TypesGen.ChatStreamEvent & Record<string, unknown>;
-			if (!streamEvent?.type) {
+			const streamEvent = payload.parsedMessage.data;
+			if (!isChatStreamEvent(streamEvent)) {
 				return;
 			}
 
@@ -211,8 +232,8 @@ export function useChatStream(
 				}
 				case "status": {
 					const status = asRecord(streamEvent.status);
-					const nextStatus = asString(status?.status) as TypesGen.ChatStatus;
-					if (!nextStatus) {
+					const nextStatus = asString(status?.status);
+					if (!isValidChatStatus(nextStatus)) {
 						return;
 					}
 
@@ -254,12 +275,10 @@ export function useChatStream(
 						nextStatus === "paused" ||
 						nextStatus === "waiting";
 					if (shouldRefreshQueries) {
-						void Promise.all([
-							queryClient.invalidateQueries({ queryKey: chatsKey }),
-							queryClient.invalidateQueries({
-								queryKey: chatKey(chatId),
-							}),
-						]);
+						// Hierarchical: chatsKey covers chatKey(chatId).
+						void queryClient.invalidateQueries({
+							queryKey: chatsKey,
+						});
 					}
 					return;
 				}
@@ -277,12 +296,7 @@ export function useChatStream(
 						status: "error",
 						updated_at: new Date().toISOString(),
 					}));
-					void Promise.all([
-						queryClient.invalidateQueries({ queryKey: chatsKey }),
-						queryClient.invalidateQueries({
-							queryKey: chatKey(chatId),
-						}),
-					]);
+					void queryClient.invalidateQueries({ queryKey: chatsKey });
 					return;
 				}
 				default:
@@ -292,12 +306,7 @@ export function useChatStream(
 
 		const handleError = () => {
 			setStreamError((current) => current ?? "Chat stream disconnected.");
-			void Promise.all([
-				queryClient.invalidateQueries({ queryKey: chatsKey }),
-				queryClient.invalidateQueries({
-					queryKey: chatKey(chatId),
-				}),
-			]);
+			void queryClient.invalidateQueries({ queryKey: chatsKey });
 		};
 
 		socket.addEventListener("message", handleMessage);

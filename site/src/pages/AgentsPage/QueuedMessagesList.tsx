@@ -1,6 +1,7 @@
+import type { ChatQueuedMessage } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { X, Play } from "lucide-react";
 import type { FC } from "react";
-import type { ChatQueuedMessage } from "api/typesGenerated";
 
 interface QueuedMessagesListProps {
 	messages: readonly ChatQueuedMessage[];
@@ -89,22 +90,24 @@ const QueuedMessageItem: FC<QueuedMessageItemProps> = ({
 				{displayText}
 			</span>
 			<div className="flex shrink-0 items-center gap-1">
-				<button
-					type="button"
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label="Send now"
 					onClick={() => onPromote(message.id)}
-					className="rounded p-1 text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
-					title="Send now"
+					className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 				>
 					<Play className="h-3.5 w-3.5" />
-				</button>
-				<button
-					type="button"
+				</Button>
+				<Button
+					variant="subtle"
+					size="icon"
+					aria-label="Remove from queue"
 					onClick={() => onDelete(message.id)}
-					className="rounded p-1 text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
-					title="Remove from queue"
+					className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
 				>
 					<X className="h-3.5 w-3.5" />
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

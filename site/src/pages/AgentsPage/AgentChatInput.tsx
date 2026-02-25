@@ -47,8 +47,6 @@ interface AgentChatInputProps {
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
 	isInterruptPending?: boolean;
-	// Whether there are already queued messages waiting.
-	hasQueuedMessages?: boolean;
 	// Extra controls rendered in the left action area (e.g. workspace
 	// selector on the create page).
 	leftActions?: ReactNode;
@@ -235,7 +233,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		isStreaming = false,
 		onInterrupt,
 		isInterruptPending = false,
-		hasQueuedMessages = false,
 		leftActions,
 			contextUsage,
 		sticky = false,
@@ -275,6 +272,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm focus-within:ring-2 focus-within:ring-content-link/40">
 					<TextareaAutosize
 						ref={textareaRef}
+						aria-label="Chat message"
 						className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
 						value={input}

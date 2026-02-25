@@ -422,9 +422,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
-								<DropdownMenuItem onSelect={(event) => event.preventDefault()}>
-									Mark as unread
-								</DropdownMenuItem>
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
 									disabled={isArchiving}

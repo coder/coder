@@ -10,6 +10,7 @@ import {
 	promoteChatQueuedMessage,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
+import { ErrorBoundary } from "components/ErrorBoundary/ErrorBoundary";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
@@ -390,27 +391,35 @@ export const AgentDetail: FC = () => {
 				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				<div>
-					<ConversationTimeline
-						isEmpty={visibleMessages.length === 0}
-						hasMoreMessages={hasMoreMessages}
-						loadMoreSentinelRef={loadMoreSentinelRef}
-						parsedSections={parsedSections}
-						hasStreamOutput={hasStreamOutput}
-						streamState={streamState}
-						streamTools={streamTools}
-						subagentTitles={subagentTitles}
-						subagentStatusOverrides={subagentStatusOverrides}
-						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-						detailErrorMessage={detailErrorMessage}
-					/>
-
-					{queuedMessages.length > 0 && (
-						<QueuedMessagesList
-							messages={queuedMessages}
-							onDelete={(id) => deleteQueuedMutation.mutate(id)}
-							onPromote={(id) => promoteQueuedMutation.mutate(id)}
+					<ErrorBoundary
+						fallback={
+							<div className="flex flex-1 items-center justify-center p-8 text-content-secondary">
+								Something went wrong rendering this conversation.
+							</div>
+						}
+					>
+						<ConversationTimeline
+							isEmpty={visibleMessages.length === 0}
+							hasMoreMessages={hasMoreMessages}
+							loadMoreSentinelRef={loadMoreSentinelRef}
+							parsedSections={parsedSections}
+							hasStreamOutput={hasStreamOutput}
+							streamState={streamState}
+							streamTools={streamTools}
+							subagentTitles={subagentTitles}
+							subagentStatusOverrides={subagentStatusOverrides}
+							isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+							detailErrorMessage={detailErrorMessage}
 						/>
-					)}
+
+						{queuedMessages.length > 0 && (
+							<QueuedMessagesList
+								messages={queuedMessages}
+								onDelete={(id) => deleteQueuedMutation.mutate(id)}
+								onPromote={(id) => promoteQueuedMutation.mutate(id)}
+							/>
+						)}
+					</ErrorBoundary>
 					<AgentChatInput
 						onSend={handleSend}
 						isDisabled={isInputDisabled}
@@ -418,7 +427,6 @@ export const AgentDetail: FC = () => {
 						isStreaming={isStreaming}
 						onInterrupt={handleInterrupt}
 						isInterruptPending={interruptMutation.isPending}
-						hasQueuedMessages={queuedMessages.length > 0}
 						contextUsage={latestContextUsage}
 						hasModelOptions={hasModelOptions}
 						selectedModel={selectedModel}

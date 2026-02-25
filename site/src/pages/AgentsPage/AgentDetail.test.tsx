@@ -5,7 +5,6 @@ import userEvent from "@testing-library/user-event";
 import {
 	chatDiffContentsKey,
 	chatDiffStatusKey,
-	chatKey,
 	chatsKey,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
@@ -168,7 +167,7 @@ const installQueryMocks = ({
 	mockUseQuery.mockImplementation(
 		(query: { queryKey?: readonly unknown[] } | undefined) => {
 			const queryKey = query?.queryKey ?? [];
-			if (queryKey[0] === "chat" && queryKey[2] === "diff-status") {
+			if (queryKey[0] === "chats" && queryKey[2] === "diff-status") {
 				return makeQueryResult({
 					data: {
 						chat_id: chatData.chat.id,
@@ -180,7 +179,7 @@ const installQueryMocks = ({
 					},
 				});
 			}
-			if (queryKey[0] === "chat" && queryKey.length === 2) {
+			if (queryKey[0] === "chats" && queryKey.length === 2) {
 				return makeQueryResult({ data: chatData });
 			}
 			if (queryKey[0] === "workspace") {
@@ -590,11 +589,9 @@ describe(AgentDetail.name, () => {
 			expect(invalidateQueries).toHaveBeenCalledWith({
 				queryKey: chatDiffContentsKey("chat-1"),
 			});
+			// Hierarchical keys: chatsKey covers chatKey(chatId).
 			expect(invalidateQueries).toHaveBeenCalledWith({
 				queryKey: chatsKey,
-			});
-			expect(invalidateQueries).toHaveBeenCalledWith({
-				queryKey: chatKey("chat-1"),
 			});
 		});
 	});
@@ -647,7 +644,7 @@ describe(AgentDetail.name, () => {
 		mockUseQuery.mockImplementation(
 			(query: { queryKey?: readonly unknown[] } | undefined) => {
 				const queryKey = query?.queryKey ?? [];
-				if (queryKey[0] === "chat" && queryKey[2] === "diff-status") {
+				if (queryKey[0] === "chats" && queryKey[2] === "diff-status") {
 					return makeQueryResult({
 						data: {
 							chat_id: chatData.chat.id,
@@ -659,7 +656,7 @@ describe(AgentDetail.name, () => {
 						},
 					});
 				}
-				if (queryKey[0] === "chat" && queryKey.length === 2) {
+				if (queryKey[0] === "chats" && queryKey.length === 2) {
 					return makeQueryResult({
 						// Return a fresh object each render to mimic
 						// metadata-only cache updates (status/title) that

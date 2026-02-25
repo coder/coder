@@ -1,3 +1,4 @@
+import { Button } from "components/Button/Button";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
@@ -136,16 +137,17 @@ export const ExecuteAuthRequiredTool: React.FC<{
 				</span>
 			</div>
 			<div className="flex flex-wrap items-center gap-2 px-3 pb-2">
-				<button
-					type="button"
+				<Button
+					variant="outline"
+					size="sm"
 					onClick={() =>
 						window.open(authenticateURL, "_blank", "width=900,height=600")
 					}
-					className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-solid border-border-default bg-surface-secondary px-2 py-1 text-xs text-content-primary hover:bg-surface-tertiary"
+					className="inline-flex cursor-pointer items-center gap-1 text-xs"
 				>
 					<ExternalLinkIcon className="h-3.5 w-3.5 shrink-0" />
 					Authenticate with {providerLabel}
-				</button>
+				</Button>
 				<a
 					href={authenticateURL}
 					target="_blank"

@@ -208,16 +208,18 @@ export const AgentsPage: FC = () => {
 			if (sse?.type !== "data" || !sse.data) {
 				return;
 			}
-			const chatEvent = sse.data as {
-				kind: string;
-				chat: TypesGen.Chat;
-			};
-			if (!chatEvent?.chat?.id) {
+			const chatEvent = sse.data as Record<string, unknown>;
+			const chat = chatEvent.chat as TypesGen.Chat | undefined;
+			if (
+				typeof chatEvent.kind !== "string" ||
+				!chat?.id
+			) {
 				return;
 			}
-			const updatedChat = chatEvent.chat;
+			const typedEvent = { kind: chatEvent.kind, chat };
+			const updatedChat = typedEvent.chat;
 
-			if (chatEvent.kind === "deleted") {
+			if (typedEvent.kind === "deleted") {
 				queryClient.setQueryData(
 					chatsKey,
 					(prev: TypesGen.Chat[] | undefined) =>
@@ -247,7 +249,7 @@ export const AgentsPage: FC = () => {
 								: c,
 						);
 					}
-					if (chatEvent.kind === "created") {
+					if (typedEvent.kind === "created") {
 						return [updatedChat, ...prev];
 					}
 					return prev;

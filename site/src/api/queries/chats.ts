@@ -7,7 +7,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { QueryClient } from "react-query";
 
 export const chatsKey = ["chats"] as const;
-export const chatKey = (chatId: string) => ["chat", chatId] as const;
+export const chatKey = (chatId: string) => ["chats", chatId] as const;
 
 export const chats = () => ({
 	queryKey: chatsKey,
@@ -40,20 +40,15 @@ export const createChatMessage = (
 	mutationFn: (req: TypesGen.CreateChatMessageRequest) =>
 		API.createChatMessage(chatId, req),
 	onSuccess: async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: chatKey(chatId) }),
-			queryClient.invalidateQueries({ queryKey: chatsKey }),
-		]);
+		// Hierarchical: invalidating chatsKey covers chatKey(chatId) too.
+		await queryClient.invalidateQueries({ queryKey: chatsKey });
 	},
 });
 
 export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.interruptChat(chatId),
 	onSuccess: async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: chatKey(chatId) }),
-			queryClient.invalidateQueries({ queryKey: chatsKey }),
-		]);
+		await queryClient.invalidateQueries({ queryKey: chatsKey });
 	},
 });
 
@@ -75,15 +70,12 @@ export const promoteChatQueuedMessage = (
 	mutationFn: (queuedMessageId: number) =>
 		API.promoteChatQueuedMessage(chatId, queuedMessageId),
 	onSuccess: async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: chatKey(chatId) }),
-			queryClient.invalidateQueries({ queryKey: chatsKey }),
-		]);
+		await queryClient.invalidateQueries({ queryKey: chatsKey });
 	},
 });
 
 export const chatGitChangesKey = (chatId: string) =>
-	["chat", chatId, "git-changes"] as const;
+	["chats", chatId, "git-changes"] as const;
 
 export const chatGitChanges = (chatId: string) => ({
 	queryKey: chatGitChangesKey(chatId),
@@ -92,7 +84,7 @@ export const chatGitChanges = (chatId: string) => ({
 });
 
 export const chatDiffStatusKey = (chatId: string) =>
-	["chat", chatId, "diff-status"] as const;
+	["chats", chatId, "diff-status"] as const;
 
 export const chatDiffStatus = (chatId: string) => ({
 	queryKey: chatDiffStatusKey(chatId),
@@ -100,7 +92,7 @@ export const chatDiffStatus = (chatId: string) => ({
 });
 
 export const chatDiffContentsKey = (chatId: string) =>
-	["chat", chatId, "diff-contents"] as const;
+	["chats", chatId, "diff-contents"] as const;
 
 export const chatDiffContents = (chatId: string) => ({
 	queryKey: chatDiffContentsKey(chatId),
