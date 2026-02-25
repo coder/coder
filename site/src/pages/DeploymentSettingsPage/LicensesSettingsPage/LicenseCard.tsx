@@ -39,7 +39,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	return (
 		<div
 			key={license.id}
-			className="license-card rounded-lg border border-solid border-border bg-surface-primary p-4 text-sm shadow-sm"
+			className="license-card rounded-lg border border-solid border-border bg-surface-secondary p-4 text-sm shadow-sm"
 		>
 			<ConfirmDialog
 				type="delete"
