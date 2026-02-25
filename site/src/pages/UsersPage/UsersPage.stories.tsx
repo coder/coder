@@ -277,7 +277,7 @@ export const ResetUserPasswordSuccess: Story = {
 		await user.click(
 			within(dialog).getByRole("button", { name: "Reset password" }),
 		);
-		await within(document.body).findByText(/password.*updated successfully/i);
+		await within(document.body).findByText(/password .* updated successfully/i);
 	},
 };
 
