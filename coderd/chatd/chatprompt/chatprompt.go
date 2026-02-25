@@ -30,10 +30,12 @@ func ConvertMessages(
 	prompt := make([]fantasy.Message, 0, len(messages))
 	toolNameByCallID := make(map[string]string)
 	for _, message := range messages {
-		// System messages are always included in the prompt even when
-		// hidden, because the system prompt must reach the LLM. Other
-		// hidden messages (e.g. internal bookkeeping) are skipped.
-		if message.Hidden && message.Role != string(fantasy.MessageRoleSystem) {
+		visibility := message.Visibility
+		if visibility == "" {
+			visibility = database.ChatMessageVisibilityBoth
+		}
+		if visibility != database.ChatMessageVisibilityModel &&
+			visibility != database.ChatMessageVisibilityBoth {
 			continue
 		}
 

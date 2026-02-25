@@ -7,6 +7,12 @@ CREATE TYPE chat_status AS ENUM (
     'error'
 );
 
+CREATE TYPE chat_message_visibility AS ENUM (
+    'user',
+    'model',
+    'both'
+);
+
 CREATE TABLE chats (
     id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id            UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -14,7 +20,6 @@ CREATE TABLE chats (
     workspace_agent_id  UUID        REFERENCES workspace_agents(id) ON DELETE SET NULL,
     title               TEXT        NOT NULL DEFAULT 'New Chat',
     status              chat_status NOT NULL DEFAULT 'waiting',
-    model_config        JSONB       NOT NULL DEFAULT '{}'::jsonb,
     worker_id           UUID,
     started_at          TIMESTAMPTZ,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -32,12 +37,11 @@ CREATE INDEX idx_chats_root_chat_id ON chats(root_chat_id);
 CREATE TABLE chat_messages (
     id                      BIGSERIAL   PRIMARY KEY,
     chat_id                 UUID        NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    model_config_id         UUID,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     role                    TEXT        NOT NULL,
     content                 JSONB,
-    tool_call_id            TEXT,
-    thinking                TEXT,
-    hidden                  BOOLEAN     NOT NULL DEFAULT FALSE,
+    visibility              chat_message_visibility NOT NULL DEFAULT 'both',
     input_tokens            BIGINT,
     output_tokens           BIGINT,
     total_tokens            BIGINT,
@@ -54,7 +58,7 @@ CREATE INDEX idx_chat_messages_compressed_summary_boundary
     ON chat_messages(chat_id, created_at DESC, id DESC)
     WHERE compressed = TRUE
         AND role = 'system'
-        AND hidden = TRUE;
+        AND visibility IN ('model', 'both');
 
 CREATE TABLE chat_diff_statuses (
     chat_id             UUID        PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
@@ -80,6 +84,7 @@ CREATE TABLE chat_providers (
     display_name    TEXT        NOT NULL DEFAULT '',
     api_key         TEXT        NOT NULL DEFAULT '',
     api_key_key_id  TEXT        REFERENCES dbcrypt_keys(active_key_digest),
+    created_by      UUID        REFERENCES users(id),
     enabled         BOOLEAN     NOT NULL DEFAULT TRUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -109,12 +114,16 @@ CREATE TABLE chat_model_configs (
     provider                TEXT        NOT NULL REFERENCES chat_providers(provider) ON DELETE CASCADE,
     model                   TEXT        NOT NULL,
     display_name            TEXT        NOT NULL DEFAULT '',
+    created_by              UUID        REFERENCES users(id),
+    updated_by              UUID        REFERENCES users(id),
     enabled                 BOOLEAN     NOT NULL DEFAULT TRUE,
+    deleted                 BOOLEAN     NOT NULL DEFAULT FALSE,
+    deleted_at              TIMESTAMPTZ,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     context_limit           BIGINT      NOT NULL,
     compression_threshold   INTEGER     NOT NULL,
-    model_config            JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    options                 JSONB       NOT NULL DEFAULT '{}'::jsonb,
     CONSTRAINT chat_model_configs_context_limit_check
         CHECK (context_limit > 0),
     CONSTRAINT chat_model_configs_compression_threshold_check
@@ -125,6 +134,10 @@ CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs(enabled);
 CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs(provider);
 CREATE INDEX idx_chat_model_configs_provider_model
     ON chat_model_configs(provider, model);
+
+ALTER TABLE chat_messages
+    ADD CONSTRAINT chat_messages_model_config_id_fkey
+    FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
 
 CREATE TABLE chat_queued_messages (
     id          BIGSERIAL   PRIMARY KEY,

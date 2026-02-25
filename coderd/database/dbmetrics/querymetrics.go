@@ -3679,14 +3679,6 @@ func (m queryMetricsStore) UpdateChatModelConfig(ctx context.Context, arg databa
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatModelConfigByChatID(ctx context.Context, arg database.UpdateChatModelConfigByChatIDParams) (database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateChatModelConfigByChatID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatModelConfigByChatID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatModelConfigByChatID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) UpdateChatProvider(ctx context.Context, arg database.UpdateChatProviderParams) (database.ChatProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatProvider(ctx, arg)

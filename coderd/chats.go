@@ -44,7 +44,6 @@ const (
 	githubAPIBaseURL                 = "https://api.github.com"
 
 	chatWorkspaceRequestMetadataRole              = "__chat_workspace_request_metadata"
-	chatWorkspaceModeModelConfigKey               = "workspace_mode"
 	chatContextLimitModelConfigKey                = "context_limit"
 	chatContextCompressionThresholdModelConfigKey = "context_compression_threshold"
 	defaultChatContextCompressionThreshold        = int32(70)
@@ -262,82 +261,17 @@ func (m chatWorkspaceRequestMetadata) empty() bool {
 }
 
 func (api *API) recordChatWorkspaceRequestMetadata(ctx context.Context, chatID uuid.UUID, r *http.Request) {
-	metadata := chatWorkspaceRequestMetadataFromRequest(r)
-	if metadata.empty() {
-		return
-	}
-
-	payload, err := json.Marshal(metadata)
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to encode chat workspace request metadata",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return
-	}
-
-	_, err = api.Database.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID: chatID,
-		Role:   chatWorkspaceRequestMetadataRole,
-		Content: pqtype.NullRawMessage{
-			RawMessage: payload,
-			Valid:      true,
-		},
-		ToolCallID:          sql.NullString{Valid: false},
-		Thinking:            sql.NullString{Valid: false},
-		Hidden:              true,
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-		Compressed:          sql.NullBool{},
-	})
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to persist chat workspace request metadata",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-	}
+	_ = ctx
+	_ = chatID
+	_ = r
 }
 
 func (api *API) latestChatWorkspaceRequestMetadata(
 	ctx context.Context,
 	chatID uuid.UUID,
 ) (chatWorkspaceRequestMetadata, bool) {
-	messages, err := api.Database.GetChatMessagesByChatID(ctx, chatID)
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to load chat messages for workspace request metadata",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return chatWorkspaceRequestMetadata{}, false
-	}
-
-	for i := len(messages) - 1; i >= 0; i-- {
-		message := messages[i]
-		if message.Role != chatWorkspaceRequestMetadataRole || !message.Hidden || !message.Content.Valid {
-			continue
-		}
-
-		var metadata chatWorkspaceRequestMetadata
-		if err := json.Unmarshal(message.Content.RawMessage, &metadata); err != nil {
-			api.Logger.Warn(ctx, "failed to decode chat workspace request metadata",
-				slog.F("chat_id", chatID),
-				slog.F("message_id", message.ID),
-				slog.Error(err),
-			)
-			continue
-		}
-
-		if metadata.empty() {
-			continue
-		}
-		return metadata, true
-	}
-
+	_ = ctx
+	_ = chatID
 	return chatWorkspaceRequestMetadata{}, false
 }
 
@@ -385,14 +319,6 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	normalizedMode, ok := normalizeRequestedChatWorkspaceMode(req.WorkspaceMode)
-	if !ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid workspace mode.",
-		})
-		return
-	}
-	req.WorkspaceMode = normalizedMode
 
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(req)
 	if inputError != nil {
@@ -412,8 +338,6 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaceMode := effectiveChatWorkspaceMode(chatHierarchy.Request.WorkspaceMode)
-
 	systemPrompt := defaultChatSystemPrompt()
 	if override := strings.TrimSpace(req.SystemPrompt); override != "" {
 		if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -425,7 +349,7 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 
 	title := chatTitleFromMessage(titleSource)
 
-	modelConfig, modelConfigErr := createChatModelConfig(req, workspaceMode)
+	modelConfig, modelConfigErr := createChatModelConfig(req)
 	if modelConfigErr != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid model configuration.",
@@ -462,7 +386,7 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chat, err := api.chatProcessor.CreateChat(ctx, chatd.CreateChatOptions{
+	chat, err := api.chatProcessor.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID: apiKey.UserID,
 		WorkspaceID: uuid.NullUUID{
 			UUID:  uuidOrNil(chatHierarchy.Request.WorkspaceID),
@@ -940,9 +864,7 @@ func promoteQueuedWithoutServer(
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
 			},
-			Hidden:              false,
-			ToolCallID:          sql.NullString{},
-			Thinking:            sql.NullString{},
+			Visibility:          database.NullChatMessageVisibility{ChatMessageVisibility: database.ChatMessageVisibilityBoth, Valid: true},
 			InputTokens:         sql.NullInt64{},
 			OutputTokens:        sql.NullInt64{},
 			TotalTokens:         sql.NullInt64{},
@@ -2268,13 +2190,6 @@ func (api *API) resolveCreateChatHierarchy(
 			Message: "Parent chat not found or you do not have access to this resource",
 		}
 	}
-	parentWorkspaceMode := chatWorkspaceModeFromModelConfig(parentChat.ModelConfig)
-	requestedWorkspaceMode := effectiveChatWorkspaceMode(req.WorkspaceMode)
-	if req.WorkspaceMode != "" && requestedWorkspaceMode != parentWorkspaceMode {
-		return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
-			Message: "Child chat workspace mode must match parent chat workspace mode.",
-		}
-	}
 
 	if !createChatUUIDMatchesParent(req.WorkspaceID, parentChat.WorkspaceID) {
 		return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
@@ -2295,9 +2210,6 @@ func (api *API) resolveCreateChatHierarchy(
 	if resolvedReq.WorkspaceAgentID == nil && parentChat.WorkspaceAgentID.Valid {
 		inheritedWorkspaceAgentID := parentChat.WorkspaceAgentID.UUID
 		resolvedReq.WorkspaceAgentID = &inheritedWorkspaceAgentID
-	}
-	if resolvedReq.WorkspaceMode == "" {
-		resolvedReq.WorkspaceMode = parentWorkspaceMode
 	}
 
 	rootChatID := parentChat.ID
@@ -2372,58 +2284,14 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	return 0, nil
 }
 
-func normalizeRequestedChatWorkspaceMode(
-	mode codersdk.ChatWorkspaceMode,
-) (codersdk.ChatWorkspaceMode, bool) {
-	switch codersdk.ChatWorkspaceMode(
-		strings.ToLower(strings.TrimSpace(string(mode))),
-	) {
-	case "":
-		return "", true
-	case codersdk.ChatWorkspaceModeWorkspace:
-		return codersdk.ChatWorkspaceModeWorkspace, true
-	default:
-		return "", false
-	}
-}
-
-func effectiveChatWorkspaceMode(mode codersdk.ChatWorkspaceMode) codersdk.ChatWorkspaceMode {
-	if mode == "" {
-		return codersdk.ChatWorkspaceModeWorkspace
-	}
-	return mode
-}
-
-func chatWorkspaceModeFromModelConfig(configRaw json.RawMessage) codersdk.ChatWorkspaceMode {
-	if len(configRaw) == 0 {
-		return codersdk.ChatWorkspaceModeWorkspace
-	}
-
-	var config struct {
-		WorkspaceMode codersdk.ChatWorkspaceMode `json:"workspace_mode,omitempty"`
-	}
-	if err := json.Unmarshal(configRaw, &config); err != nil {
-		return codersdk.ChatWorkspaceModeWorkspace
-	}
-
-	normalized, ok := normalizeRequestedChatWorkspaceMode(config.WorkspaceMode)
-	if !ok {
-		return codersdk.ChatWorkspaceModeWorkspace
-	}
-	return effectiveChatWorkspaceMode(normalized)
-}
-
-func createChatModelConfig(
-	req codersdk.CreateChatRequest,
-	workspaceMode codersdk.ChatWorkspaceMode,
-) (json.RawMessage, error) {
+func createChatModelConfig(req codersdk.CreateChatRequest) (json.RawMessage, error) {
 	model := strings.TrimSpace(req.Model)
 	modelConfig := req.ModelConfig
 	config := map[string]any{}
 
 	if len(modelConfig) > 0 {
 		if err := json.Unmarshal(modelConfig, &config); err != nil {
-			if workspaceMode == codersdk.ChatWorkspaceModeWorkspace && model == "" {
+			if model == "" {
 				return modelConfig, nil
 			}
 			return nil, xerrors.Errorf("parse model config: %w", err)
@@ -2433,17 +2301,15 @@ func createChatModelConfig(
 		}
 	}
 
-	if workspaceMode == codersdk.ChatWorkspaceModeWorkspace &&
-		model == "" &&
-		len(modelConfig) > 0 &&
-		len(config) == 0 {
+	if model == "" && len(modelConfig) > 0 && len(config) == 0 {
 		return modelConfig, nil
 	}
 
 	if model != "" {
 		config["model"] = model
 	}
-	delete(config, chatWorkspaceModeModelConfigKey)
+	// Drop the deprecated key for legacy clients that still send it.
+	delete(config, "workspace_mode")
 
 	if len(config) == 0 {
 		return json.RawMessage("{}"), nil
@@ -2578,7 +2444,7 @@ func (api *API) applyChatModelCompressionConfig(
 			return nil, xerrors.Errorf("load model compression config: %w", err)
 		}
 		if err == nil {
-			if defaults := decodeChatModelCallConfigJSONMap(modelConfig.ModelConfig); defaults != nil {
+			if defaults := decodeChatModelCallConfigJSONMap(modelConfig.Options); defaults != nil {
 				mergeMissingModelConfigValues(config, defaults)
 			}
 			config[chatContextLimitModelConfigKey] = modelConfig.ContextLimit
@@ -2729,14 +2595,13 @@ func truncateRunes(value string, maxLen int) string {
 
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 	chat := codersdk.Chat{
-		ID:            c.ID,
-		OwnerID:       c.OwnerID,
-		WorkspaceMode: chatWorkspaceModeFromModelConfig(c.ModelConfig),
-		Title:         c.Title,
-		Status:        codersdk.ChatStatus(c.Status),
-		ModelConfig:   c.ModelConfig,
-		CreatedAt:     c.CreatedAt,
-		UpdatedAt:     c.UpdatedAt,
+		ID:          c.ID,
+		OwnerID:     c.OwnerID,
+		Title:       c.Title,
+		Status:      codersdk.ChatStatus(c.Status),
+		ModelConfig: json.RawMessage(`{}`),
+		CreatedAt:   c.CreatedAt,
+		UpdatedAt:   c.UpdatedAt,
 	}
 	if c.ParentChatID.Valid {
 		parentChatID := c.ParentChatID.UUID
@@ -3247,7 +3112,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		Enabled:              enabled,
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
-		ModelConfig:          modelConfigRaw,
+		Options:              modelConfigRaw,
 	})
 	if err != nil {
 		switch {
@@ -3355,7 +3220,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	modelConfigRaw := existing.ModelConfig
+	modelConfigRaw := existing.Options
 	if req.ModelConfig != nil {
 		encodedModelConfig, modelConfigErr := marshalChatModelCallConfig(req.ModelConfig)
 		if modelConfigErr != nil {
@@ -3375,7 +3240,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		Enabled:              enabled,
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
-		ModelConfig:          modelConfigRaw,
+		Options:              modelConfigRaw,
 		ID:                   existing.ID,
 	})
 	if err != nil {
@@ -3495,7 +3360,7 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelC
 		Enabled:              config.Enabled,
 		ContextLimit:         config.ContextLimit,
 		CompressionThreshold: config.CompressionThreshold,
-		ModelConfig:          unmarshalChatModelCallConfig(config.ModelConfig),
+		ModelConfig:          unmarshalChatModelCallConfig(config.Options),
 		CreatedAt:            config.CreatedAt,
 		UpdatedAt:            config.UpdatedAt,
 	}

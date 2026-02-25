@@ -39,6 +39,7 @@ INSERT INTO chat_providers (
     api_key,
     base_url,
     api_key_key_id,
+    created_by,
     enabled
 ) VALUES (
     @provider::text,
@@ -46,6 +47,7 @@ INSERT INTO chat_providers (
     @api_key::text,
     @base_url::text,
     sqlc.narg('api_key_key_id')::text,
+    sqlc.narg('created_by')::uuid,
     @enabled::boolean
 )
 RETURNING

@@ -1574,28 +1574,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-  "workspace_mode": "workspace"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
 ### Properties
 
-| Name                 | Type                                                     | Required | Restrictions | Description |
-|----------------------|----------------------------------------------------------|----------|--------------|-------------|
-| `created_at`         | string                                                   | false    |              |             |
-| `diff_status`        | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)       | false    |              |             |
-| `id`                 | string                                                   | false    |              |             |
-| `model_config`       | array of integer                                         | false    |              |             |
-| `owner_id`           | string                                                   | false    |              |             |
-| `parent_chat_id`     | string                                                   | false    |              |             |
-| `root_chat_id`       | string                                                   | false    |              |             |
-| `status`             | [codersdk.ChatStatus](#codersdkchatstatus)               | false    |              |             |
-| `title`              | string                                                   | false    |              |             |
-| `updated_at`         | string                                                   | false    |              |             |
-| `workspace_agent_id` | string                                                   | false    |              |             |
-| `workspace_id`       | string                                                   | false    |              |             |
-| `workspace_mode`     | [codersdk.ChatWorkspaceMode](#codersdkchatworkspacemode) | false    |              |             |
+| Name                 | Type                                               | Required | Restrictions | Description |
+|----------------------|----------------------------------------------------|----------|--------------|-------------|
+| `created_at`         | string                                             | false    |              |             |
+| `diff_status`        | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus) | false    |              |             |
+| `id`                 | string                                             | false    |              |             |
+| `model_config`       | array of integer                                   | false    |              |             |
+| `owner_id`           | string                                             | false    |              |             |
+| `parent_chat_id`     | string                                             | false    |              |             |
+| `root_chat_id`       | string                                             | false    |              |             |
+| `status`             | [codersdk.ChatStatus](#codersdkchatstatus)         | false    |              |             |
+| `title`              | string                                             | false    |              |             |
+| `updated_at`         | string                                             | false    |              |             |
+| `workspace_agent_id` | string                                             | false    |              |             |
+| `workspace_id`       | string                                             | false    |              |             |
 
 ## codersdk.ChatDiffContents
 
@@ -2046,8 +2044,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
-    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-    "workspace_mode": "workspace"
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "messages": [
     {
@@ -2128,20 +2125,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `chat`            | [codersdk.Chat](#codersdkchat)                                    | false    |              |             |
 | `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
 | `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |
-
-## codersdk.ChatWorkspaceMode
-
-```json
-"workspace"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)             |
-|----------------------|
-| `local`, `workspace` |
 
 ## codersdk.ConnectionLatency
 
@@ -2517,24 +2500,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "system_prompt": "string",
   "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-  "workspace_mode": "workspace"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
 ### Properties
 
-| Name                 | Type                                                     | Required | Restrictions | Description |
-|----------------------|----------------------------------------------------------|----------|--------------|-------------|
-| `input`              | [codersdk.ChatInput](#codersdkchatinput)                 | false    |              |             |
-| `message`            | string                                                   | false    |              |             |
-| `model`              | string                                                   | false    |              |             |
-| `model_config`       | array of integer                                         | false    |              |             |
-| `parent_chat_id`     | string                                                   | false    |              |             |
-| `system_prompt`      | string                                                   | false    |              |             |
-| `workspace_agent_id` | string                                                   | false    |              |             |
-| `workspace_id`       | string                                                   | false    |              |             |
-| `workspace_mode`     | [codersdk.ChatWorkspaceMode](#codersdkchatworkspacemode) | false    |              |             |
+| Name                 | Type                                     | Required | Restrictions | Description |
+|----------------------|------------------------------------------|----------|--------------|-------------|
+| `input`              | [codersdk.ChatInput](#codersdkchatinput) | false    |              |             |
+| `message`            | string                                   | false    |              |             |
+| `model`              | string                                   | false    |              |             |
+| `model_config`       | array of integer                         | false    |              |             |
+| `parent_chat_id`     | string                                   | false    |              |             |
+| `system_prompt`      | string                                   | false    |              |             |
+| `workspace_agent_id` | string                                   | false    |              |             |
+| `workspace_id`       | string                                   | false    |              |             |
 
 ## codersdk.CreateFirstUserRequest
 

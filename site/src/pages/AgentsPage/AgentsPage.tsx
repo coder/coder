@@ -77,7 +77,6 @@ type ChatModelOption = ModelSelectorOption;
 type CreateChatOptions = {
 	message: string;
 	workspaceId?: string;
-	workspaceMode?: "local";
 	model?: string;
 	systemPrompt?: string;
 };
@@ -201,15 +200,13 @@ export const AgentsPage: FC = () => {
 	const canUseLocalWorkspaceMode = false;
 
 	const handleCreateChat = async (options: CreateChatOptions) => {
-		const { message, workspaceId, workspaceMode, model, systemPrompt } =
-			options;
+		const { message, workspaceId, model, systemPrompt } = options;
 		const createdChat = await createMutation.mutateAsync({
 			message,
 			input: {
 				parts: [{ type: "text", text: message }],
 			},
 			workspace_id: workspaceId,
-			workspace_mode: workspaceMode,
 			model,
 			system_prompt: systemPrompt,
 		});
@@ -606,7 +603,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 				workspaceId: localWorkspaceMode
 					? undefined
 					: (selectedWorkspaceIdRef.current ?? undefined),
-				workspaceMode: localWorkspaceMode ? "local" : undefined,
 				model: selectedModelRef.current || undefined,
 				systemPrompt:
 					canSetSystemPrompt && trimmedSystemPrompt

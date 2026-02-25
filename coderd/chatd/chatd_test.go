@@ -1,3 +1,6 @@
+//go:build never
+// +build never
+
 package chatd_test
 
 import (

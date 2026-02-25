@@ -14175,9 +14175,6 @@ const docTemplate = `{
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "workspace_mode": {
-                    "$ref": "#/definitions/codersdk.ChatWorkspaceMode"
                 }
             }
         },
@@ -14571,15 +14568,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatWorkspaceMode": {
-            "type": "string",
-            "enum": [
-                "workspace"
-            ],
-            "x-enum-varnames": [
-                "ChatWorkspaceModeWorkspace"
-            ]
-        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -14815,9 +14803,6 @@ const docTemplate = `{
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "workspace_mode": {
-                    "$ref": "#/definitions/codersdk.ChatWorkspaceMode"
                 }
             }
         },

@@ -369,7 +369,7 @@ type PromoteQueuedResult struct {
 
 // CreateChat creates a chat, inserts optional system prompt and initial user
 // message, and moves the chat into pending status.
-func (p *Server) CreateChat(ctx context.Context, opts CreateChatOptions) (database.Chat, error) {
+func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
 	if opts.OwnerID == uuid.Nil {
 		return database.Chat{}, xerrors.New("owner_id is required")
 	}
@@ -387,7 +387,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateChatOptions) (databa
 		ParentChatID:     opts.ParentChatID,
 		RootChatID:       opts.RootChatID,
 		Title:            opts.Title,
-		ModelConfig:      opts.ModelConfig,
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("insert chat: %w", err)
@@ -406,9 +405,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateChatOptions) (databa
 				RawMessage: systemContent,
 				Valid:      len(systemContent) > 0,
 			},
-			ToolCallID: sql.NullString{},
-			Thinking:   sql.NullString{},
-			Hidden:     true,
+			Visibility: modelChatMessageVisibility(),
 		})
 		if err != nil {
 			return database.Chat{}, xerrors.Errorf("insert system message: %w", err)
@@ -497,9 +494,7 @@ func (p *Server) PostMessages(
 				RawMessage: opts.Content,
 				Valid:      len(opts.Content) > 0,
 			},
-			ToolCallID: toNullString(opts.ToolCallID),
-			Thinking:   toNullString(opts.Thinking),
-			Hidden:     opts.Hidden,
+			Visibility: visibilityFromLegacyHidden(opts.Hidden),
 		})
 		if err != nil {
 			return err
@@ -701,7 +696,7 @@ func (p *Server) PromoteQueued(
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
 			},
-			Hidden: false,
+			Visibility: bothChatMessageVisibility(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert message: %w", err)
@@ -815,9 +810,7 @@ func (p *Server) InsertMessage(
 			RawMessage: opts.Content,
 			Valid:      len(opts.Content) > 0,
 		},
-		ToolCallID: toNullString(opts.ToolCallID),
-		Thinking:   toNullString(opts.Thinking),
-		Hidden:     opts.Hidden,
+		Visibility: visibilityFromLegacyHidden(opts.Hidden),
 	})
 	if err != nil {
 		return InsertMessageResult{}, err
@@ -873,11 +866,28 @@ func insertChatMessageWithStore(
 	return message, nil
 }
 
-func toNullString(value *string) sql.NullString {
-	if value == nil {
-		return sql.NullString{}
+func chatMessageVisibility(
+	visibility database.ChatMessageVisibility,
+) database.NullChatMessageVisibility {
+	return database.NullChatMessageVisibility{
+		ChatMessageVisibility: visibility,
+		Valid:                 true,
 	}
-	return sql.NullString{String: *value, Valid: true}
+}
+
+func bothChatMessageVisibility() database.NullChatMessageVisibility {
+	return chatMessageVisibility(database.ChatMessageVisibilityBoth)
+}
+
+func modelChatMessageVisibility() database.NullChatMessageVisibility {
+	return chatMessageVisibility(database.ChatMessageVisibilityModel)
+}
+
+func visibilityFromLegacyHidden(hidden bool) database.NullChatMessageVisibility {
+	if hidden {
+		return modelChatMessageVisibility()
+	}
+	return bothChatMessageVisibility()
 }
 
 // ShouldQueueUserMessage reports whether a user message should be queued while
@@ -1570,9 +1580,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 							RawMessage: nextQueued.Content,
 							Valid:      len(nextQueued.Content) > 0,
 						},
-						Hidden:              false,
-						ToolCallID:          sql.NullString{},
-						Thinking:            sql.NullString{},
+						Visibility:          bothChatMessageVisibility(),
 						InputTokens:         sql.NullInt64{},
 						OutputTokens:        sql.NullInt64{},
 						TotalTokens:         sql.NullInt64{},
@@ -1710,7 +1718,7 @@ func (p *Server) resolveChatContextCompressionConfig(
 		ThresholdPercent: defaultContextCompressionThresholdPercent,
 	}
 
-	chatConfig, err := parseChatModelConfig(chat.ModelConfig)
+	chatConfig, err := parseChatModelConfig(nil)
 	if err != nil {
 		return config, nil
 	}
@@ -1793,10 +1801,8 @@ func (p *Server) persistChatContextSummary(
 			RawMessage: systemContent,
 			Valid:      len(systemContent) > 0,
 		},
-		Hidden:              true,
+		Visibility:          bothChatMessageVisibility(),
 		Compressed:          sql.NullBool{Bool: true, Valid: true},
-		ToolCallID:          sql.NullString{},
-		Thinking:            sql.NullString{},
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
 		TotalTokens:         sql.NullInt64{},
@@ -1830,16 +1836,14 @@ func (p *Server) persistChatContextSummary(
 	}
 
 	assistantMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:  chatID,
-		Role:    string(fantasy.MessageRoleAssistant),
-		Content: assistantContent,
-		Hidden:  false,
+		ChatID:     chatID,
+		Role:       string(fantasy.MessageRoleAssistant),
+		Content:    assistantContent,
+		Visibility: bothChatMessageVisibility(),
 		Compressed: sql.NullBool{
 			Bool:  true,
 			Valid: true,
 		},
-		ToolCallID:          sql.NullString{},
-		Thinking:            sql.NullString{},
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
 		TotalTokens:         sql.NullInt64{},
@@ -1869,19 +1873,14 @@ func (p *Server) persistChatContextSummary(
 	}
 
 	toolMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:  chatID,
-		Role:    string(fantasy.MessageRoleTool),
-		Content: toolResult,
-		ToolCallID: sql.NullString{
-			String: toolCallID,
-			Valid:  true,
-		},
-		Hidden: false,
+		ChatID:     chatID,
+		Role:       string(fantasy.MessageRoleTool),
+		Content:    toolResult,
+		Visibility: bothChatMessageVisibility(),
 		Compressed: sql.NullBool{
 			Bool:  true,
 			Valid: true,
 		},
-		Thinking:            sql.NullString{},
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
 		TotalTokens:         sql.NullInt64{},
@@ -1903,7 +1902,7 @@ func (p *Server) resolveChatModel(
 	ctx context.Context,
 	chat database.Chat,
 ) (fantasy.LanguageModel, chatModelConfig, error) {
-	config, parseErr := parseChatModelConfig(chat.ModelConfig)
+	config, parseErr := parseChatModelConfig(nil)
 	if parseErr != nil {
 		return nil, chatModelConfig{}, xerrors.Errorf(
 			"parse model config: %w",
@@ -1964,7 +1963,7 @@ func applyFallbackChatModelConfig(
 	config.Provider = fallbackConfig.Provider
 	config.Model = fallbackConfig.Model
 
-	defaults, err := parseChatModelConfig(fallbackConfig.ModelConfig)
+	defaults, err := parseChatModelConfig(fallbackConfig.Options)
 	if err != nil {
 		return config
 	}
@@ -2112,16 +2111,10 @@ func (p *Server) runChatWithAgent(
 
 			hasUsage := step.Usage != (fantasy.Usage{})
 			assistantMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-				ChatID:  chat.ID,
-				Role:    string(fantasy.MessageRoleAssistant),
-				Content: assistantContent,
-				ToolCallID: sql.NullString{
-					Valid: false,
-				},
-				Thinking: sql.NullString{
-					Valid: false,
-				},
-				Hidden:          false,
+				ChatID:          chat.ID,
+				Role:            string(fantasy.MessageRoleAssistant),
+				Content:         assistantContent,
+				Visibility:      bothChatMessageVisibility(),
 				InputTokens:     usageNullInt64(step.Usage.InputTokens, hasUsage),
 				OutputTokens:    usageNullInt64(step.Usage.OutputTokens, hasUsage),
 				TotalTokens:     usageNullInt64(step.Usage.TotalTokens, hasUsage),
@@ -2147,14 +2140,10 @@ func (p *Server) runChatWithAgent(
 			}
 
 			toolMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-				ChatID:  chat.ID,
-				Role:    string(fantasy.MessageRoleTool),
-				Content: resultContent,
-				ToolCallID: sql.NullString{
-					String: result.ToolCallID,
-					Valid:  result.ToolCallID != "",
-				},
-				Hidden: false,
+				ChatID:     chat.ID,
+				Role:       string(fantasy.MessageRoleTool),
+				Content:    resultContent,
+				Visibility: bothChatMessageVisibility(),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert tool result: %w", err)
@@ -2331,7 +2320,7 @@ func chatTitleInput(chat database.Chat, messages []database.ChatMessage) (string
 	firstUserText := ""
 
 	for _, message := range messages {
-		if message.Hidden {
+		if message.Visibility == database.ChatMessageVisibilityModel {
 			continue
 		}
 
@@ -2604,10 +2593,9 @@ func (p *Server) Close() error {
 
 type chatModelConfig struct {
 	codersdk.ChatModelCallConfig
-	Provider      string                     `json:"provider,omitempty"`
-	Model         string                     `json:"model"`
-	WorkspaceMode codersdk.ChatWorkspaceMode `json:"workspace_mode,omitempty"`
-	ContextLimit  int64                      `json:"context_limit,omitempty"`
+	Provider     string `json:"provider,omitempty"`
+	Model        string `json:"model"`
+	ContextLimit int64  `json:"context_limit,omitempty"`
 }
 
 func parseChatModelConfig(raw json.RawMessage) (chatModelConfig, error) {

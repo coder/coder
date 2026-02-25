@@ -170,9 +170,9 @@ func TestConvertChatMessagesSkipsWorkspaceMetadata(t *testing.T) {
 			Role: "user",
 		},
 		{
-			ID:     2,
-			Role:   chatWorkspaceRequestMetadataRole,
-			Hidden: true,
+			ID:         2,
+			Role:       chatWorkspaceRequestMetadataRole,
+			Visibility: database.ChatMessageVisibilityModel,
 		},
 	}
 

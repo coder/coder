@@ -1055,7 +1055,6 @@ export interface Chat {
 	readonly owner_id: string;
 	readonly workspace_id?: string;
 	readonly workspace_agent_id?: string;
-	readonly workspace_mode?: ChatWorkspaceMode;
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
 	readonly title: string;
@@ -1583,11 +1582,6 @@ export interface ChatWithMessages {
 	readonly queued_messages: readonly ChatQueuedMessage[];
 }
 
-// From codersdk/chats.go
-export type ChatWorkspaceMode = "local" | "workspace";
-
-export const ChatWorkspaceModes: ChatWorkspaceMode[] = ["local", "workspace"];
-
 // From codersdk/client.go
 /**
  * CoderDesktopTelemetryHeader contains a JSON-encoded representation of Desktop telemetry
@@ -1775,7 +1769,6 @@ export interface CreateChatRequest {
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
 	readonly workspace_agent_id?: string;
-	readonly workspace_mode?: ChatWorkspaceMode;
 	readonly parent_chat_id?: string;
 	readonly model?: string;
 	readonly model_config?: Record<string, string>;

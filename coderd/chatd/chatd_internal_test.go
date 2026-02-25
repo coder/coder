@@ -443,7 +443,6 @@ func TestParseChatModelConfig_ParsesCallConfig(t *testing.T) {
 	raw := json.RawMessage(`{
 		"provider":"openai",
 		"model":"gpt-5.2",
-		"workspace_mode":"workspace",
 		"context_limit":131072,
 		"max_output_tokens":2048,
 		"temperature":0.4,
@@ -464,7 +463,6 @@ func TestParseChatModelConfig_ParsesCallConfig(t *testing.T) {
 	require.Equal(t, "openai", config.Provider)
 	require.Equal(t, "gpt-5.2", config.Model)
 	require.Equal(t, int64(131072), config.ContextLimit)
-	require.Equal(t, codersdk.ChatWorkspaceModeWorkspace, config.WorkspaceMode)
 	require.NotNil(t, config.MaxOutputTokens)
 	require.Equal(t, int64(2048), *config.MaxOutputTokens)
 	require.NotNil(t, config.Temperature)
@@ -530,7 +528,7 @@ func TestApplyFallbackChatModelConfig_MergesMissingCallConfigValues(t *testing.T
 	fallbackConfig := database.ChatModelConfig{
 		Provider: "anthropic",
 		Model:    "claude-opus-4-6",
-		ModelConfig: json.RawMessage(`{
+		Options: json.RawMessage(`{
 			"max_output_tokens": 4096,
 			"provider_options": {
 				"anthropic": {
@@ -572,7 +570,7 @@ func TestApplyFallbackChatModelConfig_PreservesExistingProviderOptions(t *testin
 	fallbackConfig := database.ChatModelConfig{
 		Provider: "anthropic",
 		Model:    "claude-opus-4-6",
-		ModelConfig: json.RawMessage(`{
+		Options: json.RawMessage(`{
 			"provider_options": {
 				"anthropic": {
 					"send_reasoning": true,
@@ -603,7 +601,7 @@ func TestApplyFallbackChatModelConfig_MergesOpenAIProviderOptionsIntoEmptyOption
 	fallbackConfig := database.ChatModelConfig{
 		Provider: "openai",
 		Model:    "gpt-5.2",
-		ModelConfig: json.RawMessage(`{
+		Options: json.RawMessage(`{
 			"provider_options": {
 				"openai": {
 					"reasoning_effort": "high"
@@ -640,7 +638,7 @@ func TestApplyFallbackChatModelConfig_MergesOpenAIMissingFields(t *testing.T) {
 	fallbackConfig := database.ChatModelConfig{
 		Provider: "openai",
 		Model:    "gpt-5.2",
-		ModelConfig: json.RawMessage(`{
+		Options: json.RawMessage(`{
 			"provider_options": {
 				"openai": {
 					"reasoning_effort": "high"
@@ -673,7 +671,7 @@ func TestStreamCallOptionsFromChatModelConfig_UsesMergedFallbackOpenAIOptions(t 
 	fallbackConfig := database.ChatModelConfig{
 		Provider: "openai",
 		Model:    "gpt-5.2",
-		ModelConfig: json.RawMessage(`{
+		Options: json.RawMessage(`{
 			"provider_options": {
 				"openai": {
 					"reasoning_effort": "high"
@@ -1060,9 +1058,8 @@ func insertChatForTesting(t *testing.T, db database.Store, title string) databas
 
 	user := dbgen.User(t, db, database.User{})
 	chat, err := db.InsertChat(context.Background(), database.InsertChatParams{
-		OwnerID:     user.ID,
-		Title:       title,
-		ModelConfig: json.RawMessage(`{"provider":"openai","model":"gpt-4o-mini"}`),
+		OwnerID: user.ID,
+		Title:   title,
 	})
 	require.NoError(t, err)
 	return chat

@@ -45,7 +45,7 @@ WITH latest_compressed_summary AS (
     WHERE
         chat_id = @chat_id::uuid
         AND role = 'system'
-        AND hidden = TRUE
+        AND visibility IN ('model', 'both')
         AND compressed = TRUE
     ORDER BY
         created_at DESC,
@@ -59,10 +59,10 @@ FROM
     chat_messages
 WHERE
     chat_id = @chat_id::uuid
+    AND visibility IN ('model', 'both')
     AND (
         (
             role = 'system'
-            AND hidden = TRUE
             AND compressed = FALSE
         )
         OR (
@@ -130,16 +130,14 @@ INSERT INTO chats (
     workspace_agent_id,
     parent_chat_id,
     root_chat_id,
-    title,
-    model_config
+    title
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
     sqlc.narg('workspace_agent_id')::uuid,
     sqlc.narg('parent_chat_id')::uuid,
     sqlc.narg('root_chat_id')::uuid,
-    @title::text,
-    @model_config::jsonb
+    @title::text
 )
 RETURNING
     *;
@@ -147,11 +145,10 @@ RETURNING
 -- name: InsertChatMessage :one
 INSERT INTO chat_messages (
     chat_id,
+    model_config_id,
     role,
     content,
-    tool_call_id,
-    thinking,
-    hidden,
+    visibility,
     input_tokens,
     output_tokens,
     total_tokens,
@@ -162,11 +159,10 @@ INSERT INTO chat_messages (
     compressed
 ) VALUES (
     @chat_id::uuid,
+    sqlc.narg('model_config_id')::uuid,
     @role::text,
     sqlc.narg('content')::jsonb,
-    sqlc.narg('tool_call_id')::text,
-    sqlc.narg('thinking')::text,
-    @hidden::boolean,
+    COALESCE(sqlc.narg('visibility')::chat_message_visibility, 'both'),
     sqlc.narg('input_tokens')::bigint,
     sqlc.narg('output_tokens')::bigint,
     sqlc.narg('total_tokens')::bigint,
@@ -196,17 +192,6 @@ UPDATE
 SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
     workspace_agent_id = sqlc.narg('workspace_agent_id')::uuid,
-    updated_at = NOW()
-WHERE
-    id = @id::uuid
-RETURNING
-    *;
-
--- name: UpdateChatModelConfigByChatID :one
-UPDATE
-    chats
-SET
-    model_config = @model_config::jsonb,
     updated_at = NOW()
 WHERE
     id = @id::uuid

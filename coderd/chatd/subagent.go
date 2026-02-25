@@ -243,7 +243,7 @@ func (p *Server) createChildSubagentChat(
 		return database.Chat{}, xerrors.Errorf("marshal subagent prompt: %w", err)
 	}
 
-	child, err := p.CreateChat(ctx, CreateChatOptions{
+	child, err := p.CreateChat(ctx, CreateOptions{
 		OwnerID:          parent.OwnerID,
 		WorkspaceID:      parent.WorkspaceID,
 		WorkspaceAgentID: parent.WorkspaceAgentID,
@@ -256,7 +256,6 @@ func (p *Server) createChildSubagentChat(
 			Valid: true,
 		},
 		Title:              title,
-		ModelConfig:        parent.ModelConfig,
 		InitialUserContent: userContent.RawMessage,
 	})
 	if err != nil {
@@ -433,7 +432,8 @@ func latestSubagentAssistantMessage(
 
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
-		if message.Role != string(fantasy.MessageRoleAssistant) || message.Hidden {
+		if message.Role != string(fantasy.MessageRoleAssistant) ||
+			message.Visibility == database.ChatMessageVisibilityModel {
 			continue
 		}
 

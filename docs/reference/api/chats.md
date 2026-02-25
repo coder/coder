@@ -43,8 +43,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
-    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-    "workspace_mode": "workspace"
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   }
 ]
 ```
@@ -59,38 +58,36 @@ curl -X GET http://coder-server:8080/api/v2/chats \
 
 Status Code **200**
 
-| Name                    | Type                                                               | Required | Restrictions | Description |
-|-------------------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`          | array                                                              | false    |              |             |
-| `» created_at`          | string(date-time)                                                  | false    |              |             |
-| `» diff_status`         | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)       | false    |              |             |
-| `»» additions`          | integer                                                            | false    |              |             |
-| `»» changed_files`      | integer                                                            | false    |              |             |
-| `»» changes_requested`  | boolean                                                            | false    |              |             |
-| `»» chat_id`            | string(uuid)                                                       | false    |              |             |
-| `»» deletions`          | integer                                                            | false    |              |             |
-| `»» pull_request_state` | string                                                             | false    |              |             |
-| `»» refreshed_at`       | string(date-time)                                                  | false    |              |             |
-| `»» stale_at`           | string(date-time)                                                  | false    |              |             |
-| `»» url`                | string                                                             | false    |              |             |
-| `» id`                  | string(uuid)                                                       | false    |              |             |
-| `» model_config`        | array                                                              | false    |              |             |
-| `» owner_id`            | string(uuid)                                                       | false    |              |             |
-| `» parent_chat_id`      | string(uuid)                                                       | false    |              |             |
-| `» root_chat_id`        | string(uuid)                                                       | false    |              |             |
-| `» status`              | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)               | false    |              |             |
-| `» title`               | string                                                             | false    |              |             |
-| `» updated_at`          | string(date-time)                                                  | false    |              |             |
-| `» workspace_agent_id`  | string(uuid)                                                       | false    |              |             |
-| `» workspace_id`        | string(uuid)                                                       | false    |              |             |
-| `» workspace_mode`      | [codersdk.ChatWorkspaceMode](schemas.md#codersdkchatworkspacemode) | false    |              |             |
+| Name                    | Type                                                         | Required | Restrictions | Description |
+|-------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`          | array                                                        | false    |              |             |
+| `» created_at`          | string(date-time)                                            | false    |              |             |
+| `» diff_status`         | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus) | false    |              |             |
+| `»» additions`          | integer                                                      | false    |              |             |
+| `»» changed_files`      | integer                                                      | false    |              |             |
+| `»» changes_requested`  | boolean                                                      | false    |              |             |
+| `»» chat_id`            | string(uuid)                                                 | false    |              |             |
+| `»» deletions`          | integer                                                      | false    |              |             |
+| `»» pull_request_state` | string                                                       | false    |              |             |
+| `»» refreshed_at`       | string(date-time)                                            | false    |              |             |
+| `»» stale_at`           | string(date-time)                                            | false    |              |             |
+| `»» url`                | string                                                       | false    |              |             |
+| `» id`                  | string(uuid)                                                 | false    |              |             |
+| `» model_config`        | array                                                        | false    |              |             |
+| `» owner_id`            | string(uuid)                                                 | false    |              |             |
+| `» parent_chat_id`      | string(uuid)                                                 | false    |              |             |
+| `» root_chat_id`        | string(uuid)                                                 | false    |              |             |
+| `» status`              | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)         | false    |              |             |
+| `» title`               | string                                                       | false    |              |             |
+| `» updated_at`          | string(date-time)                                            | false    |              |             |
+| `» workspace_agent_id`  | string(uuid)                                                 | false    |              |             |
+| `» workspace_id`        | string(uuid)                                                 | false    |              |             |
 
 #### Enumerated Values
 
-| Property         | Value(s)                                                        |
-|------------------|-----------------------------------------------------------------|
-| `status`         | `completed`, `error`, `paused`, `pending`, `running`, `waiting` |
-| `workspace_mode` | `local`, `workspace`                                            |
+| Property | Value(s)                                                        |
+|----------|-----------------------------------------------------------------|
+| `status` | `completed`, `error`, `paused`, `pending`, `running`, `waiting` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -128,8 +125,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "system_prompt": "string",
   "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-  "workspace_mode": "workspace"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
@@ -168,8 +164,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-  "workspace_mode": "workspace"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
@@ -307,8 +302,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
-    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-    "workspace_mode": "workspace"
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "messages": [
     {
@@ -551,8 +545,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-  "workspace_mode": "workspace"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 

@@ -1066,7 +1066,7 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		ChatID:              m.ChatID,
 		CreatedAt:           m.CreatedAt,
 		Role:                m.Role,
-		Hidden:              m.Hidden,
+		Hidden:              m.Visibility == database.ChatMessageVisibilityModel,
 		InputTokens:         nullInt64Ptr(m.InputTokens),
 		OutputTokens:        nullInt64Ptr(m.OutputTokens),
 		TotalTokens:         nullInt64Ptr(m.TotalTokens),
@@ -1081,12 +1081,6 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		if err == nil {
 			msg.Parts = parts
 		}
-	}
-	if m.ToolCallID.Valid {
-		msg.ToolCallID = &m.ToolCallID.String
-	}
-	if m.Thinking.Valid {
-		msg.Thinking = &m.Thinking.String
 	}
 	return msg
 }

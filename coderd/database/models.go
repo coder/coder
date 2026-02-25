@@ -1034,6 +1034,67 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type ChatMessageVisibility string
+
+const (
+	ChatMessageVisibilityUser  ChatMessageVisibility = "user"
+	ChatMessageVisibilityModel ChatMessageVisibility = "model"
+	ChatMessageVisibilityBoth  ChatMessageVisibility = "both"
+)
+
+func (e *ChatMessageVisibility) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMessageVisibility(s)
+	case string:
+		*e = ChatMessageVisibility(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMessageVisibility: %T", src)
+	}
+	return nil
+}
+
+type NullChatMessageVisibility struct {
+	ChatMessageVisibility ChatMessageVisibility `json:"chat_message_visibility"`
+	Valid                 bool                  `json:"valid"` // Valid is true if ChatMessageVisibility is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMessageVisibility) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMessageVisibility, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMessageVisibility.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMessageVisibility) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMessageVisibility), nil
+}
+
+func (e ChatMessageVisibility) Valid() bool {
+	switch e {
+	case ChatMessageVisibilityUser,
+		ChatMessageVisibilityModel,
+		ChatMessageVisibilityBoth:
+		return true
+	}
+	return false
+}
+
+func AllChatMessageVisibilityValues() []ChatMessageVisibility {
+	return []ChatMessageVisibility{
+		ChatMessageVisibilityUser,
+		ChatMessageVisibilityModel,
+		ChatMessageVisibilityBoth,
+	}
+}
+
 type ChatStatus string
 
 const (
@@ -3810,19 +3871,18 @@ type BoundaryUsageStat struct {
 }
 
 type Chat struct {
-	ID               uuid.UUID       `db:"id" json:"id"`
-	OwnerID          uuid.UUID       `db:"owner_id" json:"owner_id"`
-	WorkspaceID      uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
-	WorkspaceAgentID uuid.NullUUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
-	Title            string          `db:"title" json:"title"`
-	Status           ChatStatus      `db:"status" json:"status"`
-	ModelConfig      json.RawMessage `db:"model_config" json:"model_config"`
-	WorkerID         uuid.NullUUID   `db:"worker_id" json:"worker_id"`
-	StartedAt        sql.NullTime    `db:"started_at" json:"started_at"`
-	CreatedAt        time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time       `db:"updated_at" json:"updated_at"`
-	ParentChatID     uuid.NullUUID   `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID       uuid.NullUUID   `db:"root_chat_id" json:"root_chat_id"`
+	ID               uuid.UUID     `db:"id" json:"id"`
+	OwnerID          uuid.UUID     `db:"owner_id" json:"owner_id"`
+	WorkspaceID      uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Title            string        `db:"title" json:"title"`
+	Status           ChatStatus    `db:"status" json:"status"`
+	WorkerID         uuid.NullUUID `db:"worker_id" json:"worker_id"`
+	StartedAt        sql.NullTime  `db:"started_at" json:"started_at"`
+	CreatedAt        time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time     `db:"updated_at" json:"updated_at"`
+	ParentChatID     uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID       uuid.NullUUID `db:"root_chat_id" json:"root_chat_id"`
 }
 
 type ChatDiffStatus struct {
@@ -3844,12 +3904,11 @@ type ChatDiffStatus struct {
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
 	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
 	Role                string                `db:"role" json:"role"`
 	Content             pqtype.NullRawMessage `db:"content" json:"content"`
-	ToolCallID          sql.NullString        `db:"tool_call_id" json:"tool_call_id"`
-	Thinking            sql.NullString        `db:"thinking" json:"thinking"`
-	Hidden              bool                  `db:"hidden" json:"hidden"`
+	Visibility          ChatMessageVisibility `db:"visibility" json:"visibility"`
 	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
 	OutputTokens        sql.NullInt64         `db:"output_tokens" json:"output_tokens"`
 	TotalTokens         sql.NullInt64         `db:"total_tokens" json:"total_tokens"`
@@ -3865,12 +3924,16 @@ type ChatModelConfig struct {
 	Provider             string          `db:"provider" json:"provider"`
 	Model                string          `db:"model" json:"model"`
 	DisplayName          string          `db:"display_name" json:"display_name"`
+	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`
+	UpdatedBy            uuid.NullUUID   `db:"updated_by" json:"updated_by"`
 	Enabled              bool            `db:"enabled" json:"enabled"`
+	Deleted              bool            `db:"deleted" json:"deleted"`
+	DeletedAt            sql.NullTime    `db:"deleted_at" json:"deleted_at"`
 	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
 	UpdatedAt            time.Time       `db:"updated_at" json:"updated_at"`
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
-	ModelConfig          json.RawMessage `db:"model_config" json:"model_config"`
+	Options              json.RawMessage `db:"options" json:"options"`
 }
 
 type ChatProvider struct {
@@ -3880,6 +3943,7 @@ type ChatProvider struct {
 	APIKey      string    `db:"api_key" json:"api_key"`
 	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted
 	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedBy   uuid.NullUUID  `db:"created_by" json:"created_by"`
 	Enabled     bool           `db:"enabled" json:"enabled"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`

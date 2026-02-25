@@ -260,6 +260,12 @@ CREATE TYPE build_reason AS ENUM (
     'task_resume'
 );
 
+CREATE TYPE chat_message_visibility AS ENUM (
+    'user',
+    'model',
+    'both'
+);
+
 CREATE TYPE chat_status AS ENUM (
     'waiting',
     'pending',
@@ -1172,12 +1178,11 @@ CREATE TABLE chat_diff_statuses (
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
+    model_config_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     role text NOT NULL,
     content jsonb,
-    tool_call_id text,
-    thinking text,
-    hidden boolean DEFAULT false NOT NULL,
+    visibility chat_message_visibility DEFAULT 'both'::chat_message_visibility NOT NULL,
     input_tokens bigint,
     output_tokens bigint,
     total_tokens bigint,
@@ -1202,12 +1207,16 @@ CREATE TABLE chat_model_configs (
     provider text NOT NULL,
     model text NOT NULL,
     display_name text DEFAULT ''::text NOT NULL,
+    created_by uuid,
+    updated_by uuid,
     enabled boolean DEFAULT true NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     context_limit bigint NOT NULL,
     compression_threshold integer NOT NULL,
-    model_config jsonb DEFAULT '{}'::jsonb NOT NULL,
+    options jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT chat_model_configs_compression_threshold_check CHECK (((compression_threshold >= 0) AND (compression_threshold <= 100))),
     CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
 );
@@ -1218,6 +1227,7 @@ CREATE TABLE chat_providers (
     display_name text DEFAULT ''::text NOT NULL,
     api_key text DEFAULT ''::text NOT NULL,
     api_key_key_id text,
+    created_by uuid,
     enabled boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -1250,7 +1260,6 @@ CREATE TABLE chats (
     workspace_agent_id uuid,
     title text DEFAULT 'New Chat'::text NOT NULL,
     status chat_status DEFAULT 'waiting'::chat_status NOT NULL,
-    model_config jsonb DEFAULT '{}'::jsonb NOT NULL,
     worker_id uuid,
     started_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -3460,7 +3469,7 @@ CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
 
-CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::text) AND (hidden = true));
+CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::text) AND (visibility = ANY (ARRAY['model'::chat_message_visibility, 'both'::chat_message_visibility])));
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
@@ -3734,11 +3743,23 @@ ALTER TABLE ONLY chat_diff_statuses
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_messages
+    ADD CONSTRAINT chat_messages_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
+
+ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_provider_fkey FOREIGN KEY (provider) REFERENCES chat_providers(provider) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
+
 ALTER TABLE ONLY chat_providers
     ADD CONSTRAINT chat_providers_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY chat_providers
+    ADD CONSTRAINT chat_providers_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

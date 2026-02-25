@@ -4,7 +4,8 @@ SELECT
 FROM
     chat_model_configs
 WHERE
-    id = @id::uuid;
+    id = @id::uuid
+    AND deleted = FALSE;
 
 -- name: GetChatModelConfigByProviderAndModel :one
 SELECT
@@ -14,6 +15,7 @@ FROM
 WHERE
     provider = @provider::text
     AND model = @model::text
+    AND deleted = FALSE
 ORDER BY
     updated_at DESC,
     created_at DESC,
@@ -25,6 +27,8 @@ SELECT
     *
 FROM
     chat_model_configs
+WHERE
+    deleted = FALSE
 ORDER BY
     provider ASC,
     model ASC,
@@ -40,6 +44,7 @@ JOIN
     chat_providers cp ON cp.provider = cmc.provider
 WHERE
     cmc.enabled = TRUE
+    AND cmc.deleted = FALSE
     AND cp.enabled = TRUE
 ORDER BY
     cmc.provider ASC,
@@ -52,18 +57,22 @@ INSERT INTO chat_model_configs (
     provider,
     model,
     display_name,
+    created_by,
+    updated_by,
     enabled,
     context_limit,
     compression_threshold,
-    model_config
+    options
 ) VALUES (
     @provider::text,
     @model::text,
     @display_name::text,
+    sqlc.narg('created_by')::uuid,
+    sqlc.narg('updated_by')::uuid,
     @enabled::boolean,
     @context_limit::bigint,
     @compression_threshold::integer,
-    @model_config::jsonb
+    @options::jsonb
 )
 RETURNING
     *;
@@ -75,18 +84,24 @@ SET
     provider = @provider::text,
     model = @model::text,
     display_name = @display_name::text,
+    updated_by = sqlc.narg('updated_by')::uuid,
     enabled = @enabled::boolean,
     context_limit = @context_limit::bigint,
     compression_threshold = @compression_threshold::integer,
-    model_config = @model_config::jsonb,
+    options = @options::jsonb,
     updated_at = NOW()
 WHERE
     id = @id::uuid
+    AND deleted = FALSE
 RETURNING
     *;
 
 -- name: DeleteChatModelConfigByID :exec
-DELETE FROM
+UPDATE
     chat_model_configs
+SET
+    deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
 WHERE
     id = @id::uuid;
