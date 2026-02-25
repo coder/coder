@@ -11,13 +11,7 @@ import {
 	SelectValue,
 } from "components/Select/Select";
 import { ArrowLeftIcon, Loader2Icon, PlusIcon, SaveIcon } from "lucide-react";
-import {
-	type FC,
-	type FormEvent,
-	useId,
-	useMemo,
-	useState,
-} from "react";
+import { type FC, type FormEvent, useId, useMemo, useState } from "react";
 import { cn } from "utils/cn";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelConfigFields } from "./ModelConfigFields";
