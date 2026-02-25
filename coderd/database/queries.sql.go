@@ -13211,7 +13211,7 @@ func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status WHERE id = $1::uuid
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, workspace_group_acl, workspace_user_acl, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status WHERE id = $1::uuid
 `
 
 func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
@@ -13229,6 +13229,8 @@ func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error
 		&i.CreatedAt,
 		&i.DeletedAt,
 		&i.DisplayName,
+		&i.WorkspaceGroupACL,
+		&i.WorkspaceUserACL,
 		&i.Status,
 		&i.StatusDebug,
 		&i.WorkspaceBuildNumber,
@@ -13244,7 +13246,7 @@ func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error
 }
 
 const getTaskByOwnerIDAndName = `-- name: GetTaskByOwnerIDAndName :one
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, workspace_group_acl, workspace_user_acl, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status
 WHERE
 	owner_id = $1::uuid
 	AND deleted_at IS NULL
@@ -13271,6 +13273,8 @@ func (q *sqlQuerier) GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByO
 		&i.CreatedAt,
 		&i.DeletedAt,
 		&i.DisplayName,
+		&i.WorkspaceGroupACL,
+		&i.WorkspaceUserACL,
 		&i.Status,
 		&i.StatusDebug,
 		&i.WorkspaceBuildNumber,
@@ -13286,7 +13290,7 @@ func (q *sqlQuerier) GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByO
 }
 
 const getTaskByWorkspaceID = `-- name: GetTaskByWorkspaceID :one
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status WHERE workspace_id = $1::uuid
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, workspace_group_acl, workspace_user_acl, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status WHERE workspace_id = $1::uuid
 `
 
 func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error) {
@@ -13304,6 +13308,8 @@ func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.
 		&i.CreatedAt,
 		&i.DeletedAt,
 		&i.DisplayName,
+		&i.WorkspaceGroupACL,
+		&i.WorkspaceUserACL,
 		&i.Status,
 		&i.StatusDebug,
 		&i.WorkspaceBuildNumber,
@@ -13583,7 +13589,7 @@ func (q *sqlQuerier) InsertTask(ctx context.Context, arg InsertTaskParams) (Task
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status tws
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, workspace_group_acl, workspace_user_acl, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status tws
 WHERE tws.deleted_at IS NULL
 AND CASE WHEN $1::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = $1::UUID ELSE TRUE END
 AND CASE WHEN $2::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = $2::UUID ELSE TRUE END
@@ -13618,6 +13624,8 @@ func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task
 			&i.CreatedAt,
 			&i.DeletedAt,
 			&i.DisplayName,
+			&i.WorkspaceGroupACL,
+			&i.WorkspaceUserACL,
 			&i.Status,
 			&i.StatusDebug,
 			&i.WorkspaceBuildNumber,

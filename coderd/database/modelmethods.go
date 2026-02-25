@@ -155,14 +155,18 @@ func (t Task) TaskTable() TaskTable {
 }
 
 func (t Task) RBACObject() rbac.Object {
-	return t.TaskTable().RBACObject()
-}
-
-func (t TaskTable) RBACObject() rbac.Object {
-	return rbac.ResourceTask.
+	obj := rbac.ResourceTask.
 		WithID(t.ID).
 		WithOwner(t.OwnerID.String()).
 		InOrg(t.OrganizationID)
+
+	if rbac.WorkspaceACLDisabled() {
+		return obj
+	}
+
+	return obj.
+		WithGroupACL(t.WorkspaceGroupACL.RBACACL()).
+		WithACLUserList(t.WorkspaceUserACL.RBACACL())
 }
 
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
