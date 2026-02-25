@@ -339,16 +339,10 @@ func orderProviders(providerSet map[string]struct{}) []string {
 		}
 	}
 
-	extras := make([]string, 0, len(providerSet))
-	for provider := range providerSet {
-		if NormalizeProvider(provider) != "" {
-			continue
-		}
-		extras = append(extras, provider)
-	}
-	sort.Strings(extras)
-
-	return append(ordered, extras...)
+	// Unknown providers are dropped. The providerSet keys are
+	// already normalized, so any provider not in
+	// supportedProviderNames is silently excluded.
+	return ordered
 }
 
 // NormalizeProvider canonicalizes a provider name.

@@ -795,14 +795,6 @@ func New(options *Options) *API {
 		panic("failed to setup server tailnet: " + err.Error())
 	}
 	api.agentProvider = stn
-	var chatLocalConfig *chatd.LocalConfig
-	if chatLocalWorkspaceEnabled(api) {
-		chatLocalConfig = &chatd.LocalConfig{
-			AccessURL:    options.AccessURL,
-			HTTPClient:   options.HTTPClient,
-			DeploymentID: depID,
-		}
-	}
 
 	if options.ChatProcessor == nil {
 		options.ChatProcessor = chatd.New(chatd.Config{
@@ -812,7 +804,6 @@ func New(options *Options) *API {
 			AgentConn:              api.agentProvider.AgentConn,
 			CreateWorkspace:        api.newChatWorkspaceCreator(),
 			Pubsub:                 options.Pubsub,
-			Local:                  chatLocalConfig,
 		})
 	}
 	api.chatProcessor = options.ChatProcessor

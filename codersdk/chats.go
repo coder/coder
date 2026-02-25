@@ -27,7 +27,6 @@ type ChatWorkspaceMode string
 
 const (
 	ChatWorkspaceModeWorkspace ChatWorkspaceMode = "workspace"
-	ChatWorkspaceModeLocal     ChatWorkspaceMode = "local"
 )
 
 // Chat represents a chat session with an AI agent.
