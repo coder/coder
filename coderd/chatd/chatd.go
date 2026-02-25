@@ -59,7 +59,8 @@ const (
 
 	defaultContextCompressionThresholdPercent = int32(70)
 
-	maxCreateWorkspaceBuildLogLines     = 120
+	maxReadFileBytes                    int64 = 1 << 20 // 1 MiB
+	maxCreateWorkspaceBuildLogLines           = 120
 	maxCreateWorkspaceBuildLogChars     = 16 * 1024
 	maxCreateWorkspaceBuildLogLineChars = 240
 
@@ -2793,6 +2794,9 @@ func executeReadFileTool(
 	}
 	if args.Limit != nil {
 		limit = *args.Limit
+	}
+	if limit <= 0 || limit > maxReadFileBytes {
+		limit = maxReadFileBytes
 	}
 
 	reader, mimeType, err := conn.ReadFile(ctx, args.Path, offset, limit)
