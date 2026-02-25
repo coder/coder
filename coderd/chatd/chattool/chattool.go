@@ -8,10 +8,11 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (

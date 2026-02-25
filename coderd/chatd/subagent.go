@@ -243,7 +243,7 @@ func (p *Server) createChildSubagentChat(
 		return database.Chat{}, xerrors.Errorf("marshal subagent prompt: %w", err)
 	}
 
-	child, err := p.Create(ctx, CreateOptions{
+	child, err := p.CreateChat(ctx, CreateChatOptions{
 		OwnerID:          parent.OwnerID,
 		WorkspaceID:      parent.WorkspaceID,
 		WorkspaceAgentID: parent.WorkspaceAgentID,
@@ -283,7 +283,7 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, err
 	}
 	if !isDescendant {
-		return database.Chat{}, errSubagentNotDescendant
+		return database.Chat{}, ErrSubagentNotDescendant
 	}
 
 	userContent, err := chatprompt.MarshalContent([]fantasy.Content{fantasy.TextContent{Text: message}})
@@ -316,7 +316,7 @@ func (p *Server) awaitSubagentCompletion(
 		return database.Chat{}, "", err
 	}
 	if !isDescendant {
-		return database.Chat{}, "", errSubagentNotDescendant
+		return database.Chat{}, "", ErrSubagentNotDescendant
 	}
 
 	if timeout <= 0 {
@@ -364,7 +364,7 @@ func (p *Server) closeSubagent(
 		return database.Chat{}, err
 	}
 	if !isDescendant {
-		return database.Chat{}, errSubagentNotDescendant
+		return database.Chat{}, ErrSubagentNotDescendant
 	}
 
 	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
@@ -390,7 +390,6 @@ func (p *Server) closeSubagent(
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("set target chat waiting: %w", err)
 	}
-	p.publishSubagentChildStatus(updatedChat, database.ChatStatusWaiting)
 	return updatedChat, nil
 }
 

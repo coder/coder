@@ -286,8 +286,6 @@ func (api *API) recordChatWorkspaceRequestMetadata(ctx context.Context, chatID u
 		ToolCallID:          sql.NullString{Valid: false},
 		Thinking:            sql.NullString{Valid: false},
 		Hidden:              true,
-		SubagentRequestID:   uuid.NullUUID{},
-		SubagentEvent:       sql.NullString{},
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
 		TotalTokens:         sql.NullInt64{},
@@ -464,7 +462,7 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chat, err := api.chatProcessor.Create(ctx, chatd.CreateOptions{
+	chat, err := api.chatProcessor.CreateChat(ctx, chatd.CreateChatOptions{
 		OwnerID: apiKey.UserID,
 		WorkspaceID: uuid.NullUUID{
 			UUID:  uuidOrNil(chatHierarchy.Request.WorkspaceID),
@@ -945,8 +943,6 @@ func promoteQueuedWithoutServer(
 			Hidden:              false,
 			ToolCallID:          sql.NullString{},
 			Thinking:            sql.NullString{},
-			SubagentRequestID:   uuid.NullUUID{},
-			SubagentEvent:       sql.NullString{},
 			InputTokens:         sql.NullInt64{},
 			OutputTokens:        sql.NullInt64{},
 			TotalTokens:         sql.NullInt64{},

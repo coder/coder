@@ -22,11 +22,12 @@ import (
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
-	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/chatd/chatloop"
@@ -366,9 +367,9 @@ type PromoteQueuedResult struct {
 	Messages []database.ChatMessage
 }
 
-// Create creates a chat, inserts optional system prompt and initial user
+// CreateChat creates a chat, inserts optional system prompt and initial user
 // message, and moves the chat into pending status.
-func (p *Server) Create(ctx context.Context, opts CreateOptions) (database.Chat, error) {
+func (p *Server) CreateChat(ctx context.Context, opts CreateChatOptions) (database.Chat, error) {
 	if opts.OwnerID == uuid.Nil {
 		return database.Chat{}, xerrors.New("owner_id is required")
 	}
@@ -545,7 +546,6 @@ func (p *Server) PostMessages(
 
 	p.publishMessage(opts.ChatID, result.Message)
 	p.publishStatus(opts.ChatID, result.Chat.Status)
-	p.publishSubagentChildStatus(result.Chat, result.Chat.Status)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange)
 	return result, nil
 }
@@ -858,7 +858,6 @@ func (p *Server) setChatPending(ctx context.Context, chatID uuid.UUID) (database
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
 	}
-	p.publishSubagentChildStatus(updatedChat, database.ChatStatusPending)
 	return updatedChat, nil
 }
 
@@ -1520,23 +1519,6 @@ func (p *Server) publishMessagePart(chatID uuid.UUID, role string, part codersdk
 	})
 }
 
-func (p *Server) publishSubagentChildStatus(chat database.Chat, status database.ChatStatus) {
-	if !chat.ParentChatID.Valid || chat.ParentChatID.UUID == uuid.Nil {
-		return
-	}
-	if p.streamManager == nil {
-		return
-	}
-
-	p.streamManager.Publish(chat.ParentChatID.UUID, codersdk.ChatStreamEvent{
-		Type:   codersdk.ChatStreamEventTypeStatus,
-		ChatID: chat.ID,
-		Status: &codersdk.ChatStreamStatus{
-			Status: codersdk.ChatStatus(status),
-		},
-	})
-}
-
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat")
@@ -1547,7 +1529,6 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	defer cancel(nil)
 
 	p.publishStatus(chat.ID, database.ChatStatusRunning)
-	p.publishSubagentChildStatus(chat, database.ChatStatusRunning)
 
 	// Determine the final status to set when we're done.
 	status := database.ChatStatusWaiting
@@ -1648,7 +1629,6 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		p.publishStatus(chat.ID, status)
 		chat.Status = status
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
-		p.publishSubagentChildStatus(chat, status)
 	}()
 
 	if err := p.runChat(chatCtx, chat, logger); err != nil {
