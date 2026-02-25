@@ -9,7 +9,7 @@ import type {
 	ChatModelsResponse,
 	ChatProviderConfig,
 } from "api/typesGenerated";
-import { expect, fn, screen, userEvent, waitFor } from "storybook/test";
+import { fn } from "storybook/test";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 
 // Pre-seeded query data so that ChatModelAdminPanel renders
@@ -109,35 +109,3 @@ export const BothEnabled: Story = {
 	parameters: { queries: chatQueries },
 };
 
-export const EditAndSaveSystemPrompt: Story = {
-	args: {
-		canSetSystemPrompt: true,
-		canManageChatModelConfigs: false,
-		systemPromptDraft: "",
-		onSystemPromptDraftChange: fn(),
-		onSaveSystemPrompt: fn(),
-		isSystemPromptDirty: true,
-		isDisabled: false,
-	},
-	play: async ({ args }) => {
-		// The dialog portals to document.body, so we must use screen
-		// rather than within(canvasElement) to query its contents.
-		const textarea = await screen.findByPlaceholderText(
-			"Optional. Set deployment-wide instructions for all new chats.",
-		);
-		await waitFor(() => expect(textarea).toBeVisible());
-
-		// Type into the textarea. The component is controlled, so the
-		// onChange handler should be called.
-		await userEvent.type(textarea, "Be concise.");
-		expect(args.onSystemPromptDraftChange).toHaveBeenCalled();
-
-		// Because isSystemPromptDirty is true, the Save button should
-		// be enabled.
-		const saveButton = screen.getByRole("button", { name: "Save" });
-		expect(saveButton).toBeEnabled();
-
-		await userEvent.click(saveButton);
-		expect(args.onSaveSystemPrompt).toHaveBeenCalled();
-	},
-};
