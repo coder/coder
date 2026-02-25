@@ -86,7 +86,6 @@ func streamFromParts(parts []fantasy.StreamPart) fantasy.StreamResponse {
 	})
 }
 
-
 func testAgentConnFunc(client *workspacesdk.Client, logger slog.Logger) chatd.AgentConnFunc {
 	return func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		conn, err := client.DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{Logger: logger})
@@ -993,7 +992,7 @@ func TestRunChatLoop(t *testing.T) {
 			return false
 		}
 		return len(stored) == 4
-	}, testutil.WaitLong, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	stored, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 	require.NoError(t, err)
@@ -1146,7 +1145,7 @@ func TestRunChatLoop_ExecuteTimeoutContinues(t *testing.T) {
 			return false
 		}
 		return streamErr != "" || storedChat.Status == database.ChatStatusWaiting || storedChat.Status == database.ChatStatusCompleted
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	require.Empty(t, streamErr)
 
@@ -1157,7 +1156,7 @@ func TestRunChatLoop_ExecuteTimeoutContinues(t *testing.T) {
 	require.Eventually(t, func() bool {
 		messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 		return err == nil && len(messages) == 4
-	}, testutil.WaitLong, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 	require.NoError(t, err)
@@ -1261,7 +1260,7 @@ func TestRunChatLoop_ReadWriteToolErrorsContinue(t *testing.T) {
 					return false
 				}
 				return streamErr != "" || storedChat.Status == database.ChatStatusWaiting || storedChat.Status == database.ChatStatusCompleted
-			}, testutil.WaitLong, 25*time.Millisecond)
+			}, testutil.WaitLong, testutil.IntervalFast)
 			require.Empty(t, streamErr)
 
 			storedChat, err := db.GetChatByID(dbCtx, chat.ID)
@@ -1271,7 +1270,7 @@ func TestRunChatLoop_ReadWriteToolErrorsContinue(t *testing.T) {
 			require.Eventually(t, func() bool {
 				messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 				return err == nil && len(messages) == 4
-			}, testutil.WaitLong, 50*time.Millisecond)
+			}, testutil.WaitLong, testutil.IntervalFast)
 
 			messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 			require.NoError(t, err)
@@ -1353,7 +1352,7 @@ func TestRunChatLoop_StreamErrorWithToolInputDeltaErrors(t *testing.T) {
 	require.Eventually(t, func() bool {
 		storedChat, err := db.GetChatByID(dbCtx, chat.ID)
 		return err == nil && storedChat.Status == database.ChatStatusError
-	}, testutil.WaitLong, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 	require.NoError(t, err)
@@ -1407,7 +1406,7 @@ func TestRunChatLoop_UnsupportedStreamingDoesNotFallbackToGenerate(t *testing.T)
 	require.Eventually(t, func() bool {
 		storedChat, err := db.GetChatByID(dbCtx, chat.ID)
 		return err == nil && storedChat.Status == database.ChatStatusError
-	}, testutil.WaitLong, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	streamCalls, generateCalls := model.CallCounts()
 	require.Equal(t, 1, streamCalls)
@@ -1476,7 +1475,7 @@ func TestRunChatLoop_StreamErrorWithoutToolCallsErrors(t *testing.T) {
 			return false
 		}
 		return storedChat.Status == database.ChatStatusError
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	if streamErr != "" {
 		require.Contains(t, streamErr, "stream failed without tool call")
@@ -1538,12 +1537,12 @@ func TestRunChatLoop_InterruptPersistsPartialStep(t *testing.T) {
 	require.Eventually(t, func() bool {
 		storedChat, err := db.GetChatByID(dbCtx, chat.ID)
 		return err == nil && storedChat.Status == database.ChatStatusWaiting
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	require.Eventually(t, func() bool {
 		messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 		return err == nil && len(messages) >= 3
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 	require.NoError(t, err)
@@ -1687,7 +1686,7 @@ func testReasoningStreamSummaryTitle(t *testing.T, modelTitle, expectedTitle str
 						storedChat.Status == database.ChatStatusCompleted)
 			}
 		}
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	require.NotEmpty(t, streamReasoningParts)
 	hasReasoningTitle := false
@@ -1780,7 +1779,7 @@ func TestRunChatLoop_ReasoningStreamSkipsTitleWithoutMarkdownHeading(t *testing.
 						storedChat.Status == database.ChatStatusCompleted)
 			}
 		}
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	require.NotEmpty(t, streamReasoningParts)
 	for _, part := range streamReasoningParts {
@@ -1840,7 +1839,7 @@ func TestCreateWorkspaceTool_NilCreator(t *testing.T) {
 	require.Eventually(t, func() bool {
 		messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 		return err == nil && len(messages) == 4
-	}, testutil.WaitLong, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 	require.NoError(t, err)
@@ -1974,7 +1973,7 @@ func TestCreateWorkspaceTool_StreamSnapshotIncludesBuildLogDeltas(t *testing.T) 
 			return false
 		}
 		return updatedChat.Status == database.ChatStatusWaiting
-	}, testutil.WaitLong, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 func TestRunChatLoop_MissingWorkspaceRecovery(t *testing.T) {
@@ -2043,7 +2042,7 @@ func TestRunChatLoop_MissingWorkspaceRecovery(t *testing.T) {
 	require.Eventually(t, func() bool {
 		messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 		return err == nil && len(messages) == 4
-	}, testutil.WaitLong, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	storedChat, err := db.GetChatByID(dbCtx, chat.ID)
 	require.NoError(t, err)
@@ -2132,7 +2131,7 @@ func TestCreateWorkspaceTool_PersistsWorkspaceIDs(t *testing.T) {
 		}
 		return storedChat.WorkspaceID.Valid && storedChat.WorkspaceID.UUID == workspaceID &&
 			storedChat.WorkspaceAgentID.Valid && storedChat.WorkspaceAgentID.UUID == workspaceAgentID
-	}, testutil.WaitLong, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	storedChat, err := db.GetChatByID(dbCtx, chat.ID)
 	require.NoError(t, err)
@@ -2275,7 +2274,7 @@ func TestRunChatLoop_CreateWorkspaceThenExecute_NoHang(t *testing.T) {
 			}
 		}
 		return false
-	}, testutil.WaitLong, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	require.True(t, finalStatus == database.ChatStatusWaiting || finalStatus == database.ChatStatusCompleted)
 	creatorMu.Lock()
@@ -2317,7 +2316,7 @@ func TestRunChatLoop_CreateWorkspaceThenExecute_NoHang(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	require.NotEqual(t, codersdk.ChatStatusRunning, lastStreamStatus)
 	require.GreaterOrEqual(t, model.CallCount(), 3)
@@ -2431,13 +2430,13 @@ func TestRunChatLoop_PublishesStreamErrorOnProcessingFailure(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 	require.Contains(t, streamErr, "resolve model: model resolver failed")
 
 	require.Eventually(t, func() bool {
 		storedChat, err := db.GetChatByID(dbCtx, chat.ID)
 		return err == nil && storedChat.Status == database.ChatStatusError
-	}, testutil.WaitLong, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 func TestRunChatLoop_PublishesStreamErrorOnPanic(t *testing.T) {
@@ -2489,14 +2488,14 @@ func TestRunChatLoop_PublishesStreamErrorOnPanic(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 	require.Contains(t, streamErr, "chat processing panicked")
 	require.Contains(t, streamErr, "stream panic for test")
 
 	require.Eventually(t, func() bool {
 		storedChat, err := db.GetChatByID(dbCtx, chat.ID)
 		return err == nil && storedChat.Status == database.ChatStatusError
-	}, testutil.WaitLong, 50*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 func TestRunChatLoop_DelegatedChildWithoutReportRequeuesForReportPass(t *testing.T) {
@@ -2560,7 +2559,7 @@ func TestRunChatLoop_DelegatedChildWithoutReportRequeuesForReportPass(t *testing
 				message.SubagentRequestID.UUID == requestID
 		}
 		return false
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t *testing.T) {
@@ -2657,7 +2656,7 @@ func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t
 	require.Eventually(t, func() bool {
 		updatedChild, lookupErr := db.GetChatByID(dbCtx, child.ID)
 		return lookupErr == nil && updatedChild.Status == database.ChatStatusPending
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	pendingRequestID, err := db.GetLatestPendingSubagentRequestIDByChatID(dbCtx, child.ID)
 	require.NoError(t, err)
@@ -2749,7 +2748,7 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 			},
 		)
 		return durationErr == nil && durationMS > 0
-	}, testutil.WaitLong, 25*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// The parent should NOT have any subagent_report messages injected.
 	// Reports are delivered through subagent_await, not separate messages.
@@ -3330,7 +3329,7 @@ func waitForChatWithStatus(
 		chat = loaded
 		_, ok := statusSet[loaded.Chat.Status]
 		return ok
-	}, testutil.WaitLong, 100*time.Millisecond)
+	}, testutil.WaitLong, testutil.IntervalMedium)
 
 	return chat
 }
