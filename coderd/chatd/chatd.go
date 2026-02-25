@@ -1947,13 +1947,6 @@ func workspaceModeFromChat(chat database.Chat) codersdk.ChatWorkspaceMode {
 	}
 }
 
-func modelFromName(
-	modelName string,
-	providerKeys chatprovider.ProviderAPIKeys,
-) (fantasy.LanguageModel, error) {
-	return modelFromConfig(chatModelConfig{Model: modelName}, providerKeys)
-}
-
 // anyAvailableModel returns a language model from whichever provider
 // has an API key configured. This is used for lightweight tasks like
 // title generation where we don't need a specific model.

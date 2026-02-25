@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -18,10 +17,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
-)
-
-const (
-	chatAgentEnvVar = "CODER_CHAT_AGENT"
 )
 
 // detectGitRef attempts to resolve the current git branch and remote
@@ -141,43 +136,4 @@ func gitAskpass(agentAuth *AgentAuth) *serpent.Command {
 	}
 	agentAuth.AttachOptions(cmd, false)
 	return cmd
-}
-
-func providerIDFromAuthenticateURL(rawURL string) string {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil {
-		return ""
-	}
-	path := strings.Trim(parsed.Path, "/")
-	if path == "" {
-		return ""
-	}
-	parts := strings.Split(path, "/")
-	for i := 0; i < len(parts)-1; i++ {
-		if parts[i] == "external-auth" {
-			return strings.TrimSpace(parts[i+1])
-		}
-	}
-	return ""
-}
-
-func providerDisplayName(providerType string) string {
-	switch strings.TrimSpace(providerType) {
-	case codersdk.EnhancedExternalAuthProviderGitHub.String():
-		return "GitHub"
-	case codersdk.EnhancedExternalAuthProviderGitLab.String():
-		return "GitLab"
-	case codersdk.EnhancedExternalAuthProviderGitea.String():
-		return "Gitea"
-	case codersdk.EnhancedExternalAuthProviderAzureDevops.String():
-		return "Azure DevOps"
-	case codersdk.EnhancedExternalAuthProviderAzureDevopsEntra.String():
-		return "Azure DevOps Entra"
-	case codersdk.EnhancedExternalAuthProviderBitBucketCloud.String():
-		return "Bitbucket Cloud"
-	case codersdk.EnhancedExternalAuthProviderBitBucketServer.String():
-		return "Bitbucket Server"
-	default:
-		return ""
-	}
 }
