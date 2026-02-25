@@ -135,8 +135,8 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 		return (
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<span
-						tabIndex={0}
+					<button
+						type="button"
 						aria-label={ariaLabel}
 						className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 					>
@@ -172,7 +172,7 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 								{indicatorLabel}
 							</span>
 						)}
-					</span>
+					</button>
 				</TooltipTrigger>
 				<TooltipContent
 					side="top"
@@ -235,7 +235,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		isStreaming = false,
 		onInterrupt,
 		isInterruptPending = false,
-		hasQueuedMessages = false,
+		hasQueuedMessages: _hasQueuedMessages = false,
 		leftActions,
 			contextUsage,
 		sticky = false,
