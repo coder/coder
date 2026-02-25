@@ -97,7 +97,7 @@ export const FollowUpDialog: FC<FollowUpDialogProps> = ({
 			formik.resetForm();
 			return;
 		}
-	}, [open]);
+	}, [open, formik.resetForm]);
 
 	useEffect(() => {
 		if (stage !== "resuming") {
@@ -145,6 +145,7 @@ export const FollowUpDialog: FC<FollowUpDialogProps> = ({
 		sendInputMutation,
 		formik.values.message,
 		onOpenChange,
+		formik.resetForm,
 	]);
 
 	const isWorking = stage !== "idle";

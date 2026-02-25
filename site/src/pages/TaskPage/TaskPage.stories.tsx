@@ -570,7 +570,9 @@ export const TaskFollowUpRetrySendFailure: Story = {
 		);
 
 		await waitFor(async () => {
-			expect(await canvas.findByText("Failed to send message")).toBeInTheDocument();
+			expect(
+				await canvas.findByText("Failed to send message"),
+			).toBeInTheDocument();
 			expect(messageInput).toHaveValue("Please continue");
 		});
 	},
@@ -655,7 +657,9 @@ export const TaskFollowUpNon409SendFailure: Story = {
 		);
 
 		await waitFor(async () => {
-			expect(await canvas.findByText("Failed to send message")).toBeInTheDocument();
+			expect(
+				await canvas.findByText("Failed to send message"),
+			).toBeInTheDocument();
 			expect(messageInput).toHaveValue("Continue task");
 		});
 	},
