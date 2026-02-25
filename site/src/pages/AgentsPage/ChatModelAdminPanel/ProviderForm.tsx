@@ -1,7 +1,9 @@
+import { getErrorMessage } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { CollapsibleContent } from "components/Collapsible/Collapsible";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Input } from "components/Input/Input";
 import { Loader2Icon } from "lucide-react";
 import { type FC, type FormEvent, useEffect, useId, useState } from "react";
@@ -74,43 +76,50 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		const trimmedAPIKey = apiKey.trim();
 		const trimmedBaseURL = baseURLValue.trim();
 
-		if (providerConfig) {
-			const currentDisplayName =
-				readOptionalString(providerConfig.display_name) ?? "";
-			const currentBaseURL = baseURL.trim();
-			const req: TypesGen.UpdateChatProviderConfigRequest = {
-				...(trimmedDisplayName !== currentDisplayName && {
-					display_name: trimmedDisplayName,
-				}),
-				...(trimmedAPIKey && { api_key: trimmedAPIKey }),
-				...(trimmedBaseURL !== currentBaseURL && {
-					base_url: trimmedBaseURL,
-				}),
-			};
+		try {
+			if (providerConfig) {
+				const currentDisplayName =
+					readOptionalString(providerConfig.display_name) ?? "";
+				const currentBaseURL = baseURL.trim();
+				const req: TypesGen.UpdateChatProviderConfigRequest = {
+					...(trimmedDisplayName !== currentDisplayName && {
+						display_name: trimmedDisplayName,
+					}),
+					...(trimmedAPIKey && { api_key: trimmedAPIKey }),
+					...(trimmedBaseURL !== currentBaseURL && {
+						base_url: trimmedBaseURL,
+					}),
+				};
 
-			if (!req.display_name && !req.api_key && !req.base_url) {
-				return;
+				if (!req.display_name && !req.api_key && !req.base_url) {
+					return;
+				}
+
+				await onUpdateProvider(providerConfig.id, req);
+			} else {
+				if (!trimmedAPIKey) {
+					return;
+				}
+
+				const req: TypesGen.CreateChatProviderConfigRequest = {
+					provider,
+					api_key: trimmedAPIKey,
+					...(trimmedDisplayName && {
+						display_name: trimmedDisplayName,
+					}),
+					...(trimmedBaseURL && { base_url: trimmedBaseURL }),
+				};
+
+				await onCreateProvider(req);
 			}
 
-			await onUpdateProvider(providerConfig.id, req);
-		} else {
-			if (!trimmedAPIKey) {
-				return;
-			}
-
-			const req: TypesGen.CreateChatProviderConfigRequest = {
-				provider,
-				api_key: trimmedAPIKey,
-				...(trimmedDisplayName && {
-					display_name: trimmedDisplayName,
-				}),
-				...(trimmedBaseURL && { base_url: trimmedBaseURL }),
-			};
-
-			await onCreateProvider(req);
+			// Only clear the API key field on success.
+			setApiKey("");
+		} catch (error) {
+			displayError(
+				getErrorMessage(error, "Failed to save provider configuration."),
+			);
 		}
-
-		setApiKey("");
 	};
 
 	return (
