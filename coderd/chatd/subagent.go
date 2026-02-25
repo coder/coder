@@ -18,7 +18,6 @@ import (
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
 
-const defaultSubagentAwaitTimeout = 5 * time.Minute
 const subagentAwaitPollInterval = 200 * time.Millisecond
 const subagentReportToolCallIDPrefix = "subagent_report_"
 const defaultFallbackSubagentReport = "Sub-agent completed without explicit report."

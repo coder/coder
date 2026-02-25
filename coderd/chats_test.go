@@ -662,6 +662,10 @@ func TestChats_CrossUserIsolation(t *testing.T) {
 	err = userBClient.DeleteChat(ctx, chat.ID)
 	require.Error(t, err)
 	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
+
+	// Verify the chat was not deleted.
+	_, err = ownerClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
 }
 
 func TestCreateChat_SystemPromptUnauthorized(t *testing.T) {

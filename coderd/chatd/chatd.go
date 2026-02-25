@@ -47,11 +47,16 @@ const (
 	// chat is considered stale and should be recovered.
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
-	defaultExecuteTimeout        = 60 * time.Second
-	maxExecuteTimeout            = 10 * time.Minute
-	defaultExternalAuthWait      = 5 * time.Minute
-	maxExternalAuthWait          = 10 * time.Minute
-	maxSubagentAwaitTimeout      = 10 * time.Minute
+	defaultExecuteTimeout   = 60 * time.Second
+	maxExecuteTimeout       = 10 * time.Minute
+
+	defaultExternalAuthWait = 5 * time.Minute
+	maxExternalAuthWait     = 10 * time.Minute
+
+	// Subagent await and message share the same timeout bounds.
+	defaultSubagentAwaitTimeout = 5 * time.Minute
+	maxSubagentAwaitTimeout     = 10 * time.Minute
+
 	homeInstructionLookupTimeout = 5 * time.Second
 	maxChatSteps                 = 1200
 
@@ -194,15 +199,16 @@ func (m *StreamManager) StartStream(chatID uuid.UUID) {
 	m.mu.Unlock()
 }
 
+// StopStream marks the stream as no longer buffering. If
+// subscribers remain, the entry stays in the map until the
+// last subscriber cancels.
 func (m *StreamManager) StopStream(chatID uuid.UUID) {
 	m.mu.Lock()
 	state, ok := m.chats[chatID]
 	if ok {
 		state.buffer = nil
 		state.buffering = false
-		if len(state.subscribers) == 0 {
-			delete(m.chats, chatID)
-		}
+		m.cleanupIfIdleLocked(chatID, state)
 	}
 	m.mu.Unlock()
 }
@@ -262,14 +268,21 @@ func (m *StreamManager) Subscribe(chatID uuid.UUID) (
 				delete(state.subscribers, id)
 				close(subscriber)
 			}
-			if !state.buffering && len(state.subscribers) == 0 {
-				delete(m.chats, chatID)
-			}
+			m.cleanupIfIdleLocked(chatID, state)
 		}
 		m.mu.Unlock()
 	}
 
 	return snapshot, ch, cancel
+}
+
+// cleanupIfIdleLocked removes the chat entry when there are no
+// subscribers and the stream is not buffering. The caller must
+// hold m.mu.
+func (m *StreamManager) cleanupIfIdleLocked(chatID uuid.UUID, state *chatStreamState) {
+	if !state.buffering && len(state.subscribers) == 0 {
+		delete(m.chats, chatID)
+	}
 }
 
 func (m *StreamManager) stateLocked(chatID uuid.UUID) *chatStreamState {
