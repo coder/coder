@@ -491,7 +491,10 @@ export const AgentDetail: FC = () => {
 		() => buildStreamTools(streamState),
 		[streamState],
 	);
-	const visibleMessages = messages.filter((message) => !message.hidden);
+	const visibleMessages = useMemo(
+		() => messages.filter((message) => !message.hidden),
+		[messages],
+	);
 	const { hasMoreMessages, windowedMessages, loadMoreSentinelRef } =
 		useMessageWindow({
 			messages: visibleMessages,

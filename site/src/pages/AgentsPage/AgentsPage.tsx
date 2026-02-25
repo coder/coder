@@ -186,16 +186,21 @@ export const AgentsPage: FC = () => {
 		},
 		[archiveMutation, queryClient, agentId, navigate, clearChatErrorReason],
 	);
-	const outletContext: AgentsOutletContext = {
-		chatErrorReasons,
-		setChatErrorReason,
-		clearChatErrorReason,
-		topBarTitleRef,
-		topBarActionsRef,
-		rightPanelRef,
-		setRightPanelOpen: setIsRightPanelOpen,
-		requestArchiveAgent,
-	};
+	const outletContext: AgentsOutletContext = useMemo(
+		() => ({
+			chatErrorReasons,
+			setChatErrorReason,
+			clearChatErrorReason,
+			topBarTitleRef,
+			topBarActionsRef,
+			rightPanelRef,
+			setRightPanelOpen: setIsRightPanelOpen,
+			requestArchiveAgent,
+		}),
+		// Refs and useCallback values are stable; only chatErrorReasons
+		// is state that changes identity.
+		[chatErrorReasons],
+	);
 	const canUseLocalWorkspaceMode = false;
 
 	const handleCreateChat = async (options: CreateChatOptions) => {
