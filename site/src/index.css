@@ -6,7 +6,6 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@source "../node_modules/streamdown/dist/*.js";
 
 @layer base {
 	:root,
@@ -54,7 +53,12 @@
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
 		--ring: 240 10% 3.9%;
-		/* shadcn aliases used by streamdown */
+		/*
+		  shadcn-compatible aliases consumed by streamdown and
+		  internal components (e.g. shimmer). These names are
+		  intentionally generic so they match shadcn conventions.
+		  Do NOT rename without updating every consumer.
+		*/
 		--background: 0 0% 98%;
 		--foreground: 240 10% 4%;
 		--muted: 240 5% 96%;
@@ -108,7 +112,7 @@
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
 		--ring: 240 4.9% 83.9%;
-		/* shadcn aliases used by streamdown */
+		/* shadcn-compatible aliases – see :root block for details. */
 		--background: 240 10% 4%;
 		--foreground: 0 0% 98%;
 		--muted: 240 6% 10%;
@@ -131,6 +135,11 @@
 	There’s a related issue on GitHub: Radix UI Primitives Issue #3251
 	https://github.com/radix-ui/primitives/issues/3251
 	 */
+	/* Prevent layout shift when modals open by maintaining scrollbar width */
+	html {
+		scrollbar-gutter: stable;
+	}
+
 	html body[data-scroll-locked] {
 		--removed-body-scroll-bar-size: 0;
 		margin-right: 0;
