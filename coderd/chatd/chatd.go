@@ -47,8 +47,8 @@ const (
 	// chat is considered stale and should be recovered.
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
-	defaultExecuteTimeout   = 60 * time.Second
-	maxExecuteTimeout       = 10 * time.Minute
+	defaultExecuteTimeout = 60 * time.Second
+	maxExecuteTimeout     = 10 * time.Minute
 
 	defaultExternalAuthWait = 5 * time.Minute
 	maxExternalAuthWait     = 10 * time.Minute
@@ -64,8 +64,8 @@ const (
 
 	maxReadFileBytes                    int64 = 1 << 20 // 1 MiB
 	maxCreateWorkspaceBuildLogLines           = 120
-	maxCreateWorkspaceBuildLogChars     = 16 * 1024
-	maxCreateWorkspaceBuildLogLineChars = 240
+	maxCreateWorkspaceBuildLogChars           = 16 * 1024
+	maxCreateWorkspaceBuildLogLineChars       = 240
 
 	defaultTitleGenerationPrompt = "Generate a concise title (max 8 words, under 128 characters) for " +
 		"the user's first message. Return plain text only — no quotes, no emoji, " +
@@ -1919,7 +1919,6 @@ func streamCallOptionsFromChatModelConfig(
 	return streamCall
 }
 
-
 // anyAvailableModel returns a language model from whichever provider
 // has an API key configured. This is used for lightweight tasks like
 // title generation where we don't need a specific model.
@@ -2706,12 +2705,12 @@ func (e *createWorkspaceBuildLogEmitter) publishDelta(delta string) {
 
 // clampTimeout returns d clamped to the range (0, max]. If d is
 // non-positive, def is returned instead.
-func clampTimeout(d, def, max time.Duration) time.Duration {
+func clampTimeout(d, def, maxDur time.Duration) time.Duration {
 	if d <= 0 {
 		return def
 	}
-	if d > max {
-		return max
+	if d > maxDur {
+		return maxDur
 	}
 	return d
 }
