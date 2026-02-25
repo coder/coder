@@ -89,6 +89,7 @@ export const SubagentTool: React.FC<{
 			<div
 				role="button"
 				tabIndex={0}
+				aria-expanded={expanded}
 				onClick={() => hasExpandableContent && setExpanded((v) => !v)}
 				onKeyDown={(e) => {
 					if ((e.key === "Enter" || e.key === " ") && hasExpandableContent) {

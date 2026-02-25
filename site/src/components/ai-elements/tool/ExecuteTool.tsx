@@ -94,6 +94,7 @@ export const ExecuteTool: React.FC<{
 						<div
 							role="button"
 							tabIndex={0}
+							aria-expanded={expanded}
 							onClick={() => setExpanded((v) => !v)}
 							onKeyDown={(e) => {
 								if (e.key === "Enter" || e.key === " ") {

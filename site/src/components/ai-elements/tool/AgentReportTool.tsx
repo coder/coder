@@ -42,6 +42,7 @@ export const AgentReportTool: React.FC<{
 			<div
 				role="button"
 				tabIndex={0}
+				aria-expanded={expanded}
 				onClick={() => overflows && setExpanded((v) => !v)}
 				onKeyDown={(e) => {
 					if ((e.key === "Enter" || e.key === " ") && overflows) {

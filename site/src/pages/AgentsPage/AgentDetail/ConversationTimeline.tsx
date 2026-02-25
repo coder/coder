@@ -47,24 +47,23 @@ const ReasoningDisclosure: FC<{
 	return (
 		<div className="w-full">
 			<div
-				role="button"
-				tabIndex={0}
-				aria-expanded={isOpen}
-				aria-controls={id}
+				role={hasText ? "button" : undefined}
+				tabIndex={hasText ? 0 : undefined}
+				aria-expanded={hasText ? isOpen : undefined}
+				aria-controls={hasText ? id : undefined}
 				className={`flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary ${hasText ? "cursor-pointer" : ""}`}
-				onClick={() => {
-					if (hasText) {
-						setIsOpen((prev) => !prev);
-					}
-				}}
-				onKeyDown={(event) => {
-					if (!hasText) {
-						return;
-					}
-					if (event.key === "Enter" || event.key === " ") {
-						setIsOpen((prev) => !prev);
-					}
-				}}
+				onClick={
+					hasText ? () => setIsOpen((prev) => !prev) : undefined
+				}
+				onKeyDown={
+					hasText
+						? (event) => {
+								if (event.key === "Enter" || event.key === " ") {
+									setIsOpen((prev) => !prev);
+								}
+							}
+						: undefined
+				}
 			>
 				<span className="text-sm">
 					{showStreamingPlaceholder ? (
