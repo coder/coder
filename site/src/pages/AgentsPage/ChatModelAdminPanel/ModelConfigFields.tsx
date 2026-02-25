@@ -9,7 +9,7 @@ import {
 } from "components/Select/Select";
 import type { FC } from "react";
 import { cn } from "utils/cn";
-import type { ModelConfigFormBuildResult, ModelConfigFormState } from "./ModelForm";
+import type { ModelConfigFormBuildResult, ModelConfigFormState } from "./modelConfigFormLogic";
 
 export const modelConfigReasoningEffortOptions = [
 	"minimal",
