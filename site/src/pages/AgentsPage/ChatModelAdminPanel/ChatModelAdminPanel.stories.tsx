@@ -580,7 +580,7 @@ export const NoModelConfigByDefault: Story = {
 		);
 		// The request should not include a model_config key.
 		const callArgs = (
-			API.createChatModelConfig as ReturnType<typeof spyOn>
+			API.createChatModelConfig as unknown as ReturnType<typeof spyOn>
 		).mock.calls[0][0] as Record<string, unknown>;
 		expect(callArgs).not.toHaveProperty("model_config");
 	},
