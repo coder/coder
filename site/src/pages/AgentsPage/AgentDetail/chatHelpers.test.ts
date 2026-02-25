@@ -277,7 +277,7 @@ describe("getWorkspaceAgent", () => {
 			latest_build: {
 				resources: [{ agents }],
 			},
-		}) as TypesGen.Workspace;
+		}) as unknown as TypesGen.Workspace;
 
 	it("returns undefined when workspace is undefined", () => {
 		expect(getWorkspaceAgent(undefined, "agent-1")).toBeUndefined();
@@ -317,7 +317,7 @@ describe("getWorkspaceAgent", () => {
 					{ agents: [makeAgent("r2-a1")] },
 				],
 			},
-		} as TypesGen.Workspace;
+		} as unknown as TypesGen.Workspace;
 		expect(getWorkspaceAgent(ws, "r2-a1")).toEqual(
 			expect.objectContaining({ id: "r2-a1" }),
 		);
