@@ -88,7 +88,27 @@ const CreateEditRolePage: FC = () => {
 							),
 							description: getErrorDetail(error),
 						}),
-					});
+					toast.promise(mutation, role ? ({
+						loading: `Updating custom role "${data.name}"...`,
+						success: `Custom role "${data.name}" updated successfully.`,
+						error: (error) => ({
+							message: getErrorMessage(
+								error,
+								`Failed to update custom role "${data.name}".`,
+							),
+							description: getErrorDetail(error),
+						}),
+					}) : ({
+						loading: `Creating custom role "${data.name}"...`,
+						success: `Custom role "${data.name}" created successfully.`,
+						error: (error) => ({
+							message: getErrorMessage(
+								error,
+								`Failed to create custom role "${data.name}".`,
+							),
+							description: getErrorDetail(error),
+						}),
+					}));
 				}}
 				error={
 					role
