@@ -686,7 +686,7 @@ func (p *Processor) publishMessagePart(chatID uuid.UUID, role string, part coder
 
 func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
-	logger.Info(ctx, "processing chat")
+	logger.Info(ctx, "processing chat turn")
 	reportOnly := false
 	activeSubagentRequestID := uuid.Nil
 	if chat.ParentChatID.Valid && p.subagentService != nil {
@@ -728,6 +728,7 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 			status = database.ChatStatusError
 		}
 
+		//nolint:nestif // Complex nested blocks reflect business logic.
 		if chat.ParentChatID.Valid && p.subagentService != nil {
 			hasActiveDescendants, err := p.subagentService.HasActiveDescendants(ctx, chat.ID)
 			if err != nil {
@@ -882,6 +883,7 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 	}
 }
 
+//nolint:revive // Boolean distinguishes report-only mode from full processing.
 func (p *Processor) runChat(
 	ctx context.Context,
 	chat database.Chat,
@@ -1278,6 +1280,7 @@ func (p *Processor) resolveFallbackChatModelConfig(
 	)
 }
 
+//nolint:revive // Boolean distinguishes report-only mode from full processing.
 func (p *Processor) runChatWithAgent(
 	ctx context.Context,
 	chat database.Chat,
@@ -1505,6 +1508,7 @@ func hasExceededChatToolSteps(result *fantasy.AgentResult) bool {
 		len(lastStep.Content.ToolCalls()) > 0
 }
 
+//nolint:revive // Boolean controls SQL NULL validity.
 func usageNullInt64(value int64, valid bool) sql.NullInt64 {
 	if !valid {
 		return sql.NullInt64{}
@@ -1754,17 +1758,17 @@ func fallbackChatTitle(message string) string {
 	return truncateRunes(title, maxRunes)
 }
 
-func truncateRunes(value string, max int) string {
-	if max <= 0 {
+func truncateRunes(value string, maxLen int) string {
+	if maxLen <= 0 {
 		return ""
 	}
 
 	runes := []rune(value)
-	if len(runes) <= max {
+	if len(runes) <= maxLen {
 		return value
 	}
 
-	return string(runes[:max])
+	return string(runes[:maxLen])
 }
 
 func (p *Processor) recoverMissingWorkspace(

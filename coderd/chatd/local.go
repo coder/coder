@@ -139,11 +139,11 @@ func (s *localMode) startLocalChatAgent(params localChatAgentStartParams) error 
 		return xerrors.New("local chat agent manager start function is not configured")
 	}
 
-	runtime, err := s.startLocalChatAgentFn(params)
+	rt, err := s.startLocalChatAgentFn(params)
 	if err != nil {
 		return err
 	}
-	if runtime == nil {
+	if rt == nil {
 		return xerrors.New("local chat agent manager starter returned a nil runtime")
 	}
 
@@ -151,7 +151,7 @@ func (s *localMode) startLocalChatAgent(params localChatAgentStartParams) error 
 		s.localChatAgents = make(map[uuid.UUID]*localChatManagedAgent)
 	}
 	s.localChatAgents[params.AgentID] = &localChatManagedAgent{
-		runtime: runtime,
+		runtime: rt,
 	}
 	return nil
 }
@@ -185,10 +185,10 @@ func (s *localMode) closeLocalChatAgent(agentID uuid.UUID) error {
 		return nil
 	}
 	managed.closed = true
-	runtime := managed.runtime
+	rt := managed.runtime
 	s.localChatAgentsMu.Unlock()
 
-	if err := runtime.Close(); err != nil {
+	if err := rt.Close(); err != nil {
 		return xerrors.Errorf("close local chat agent runtime %q: %w", agentID, err)
 	}
 	return nil
@@ -205,12 +205,12 @@ func (s *localMode) closeAllLocalChatAgents() error {
 	s.localChatAgentsMu.Unlock()
 
 	var errs error
-	for agentID, runtime := range managed {
-		if runtime == nil || runtime.closed || runtime.runtime == nil {
+	for agentID, rt := range managed {
+		if rt == nil || rt.closed || rt.runtime == nil {
 			continue
 		}
-		runtime.closed = true
-		if err := runtime.runtime.Close(); err != nil {
+		rt.closed = true
+		if err := rt.runtime.Close(); err != nil {
 			errs = errors.Join(errs, xerrors.Errorf(
 				"close local chat agent runtime %q: %w",
 				agentID,
@@ -1006,22 +1006,22 @@ func (s *localMode) resolveLocalChatExternalAgent(
 			err,
 		)
 	}
-	for _, agent := range agents {
-		agentName := strings.TrimSpace(agent.Name)
+	for _, ag := range agents {
+		agentName := strings.TrimSpace(ag.Name)
 		if agentName == localChatExternalAgentName {
 			return localChatExternalAgent{
-				ID:   agent.ID,
+				ID:   ag.ID,
 				Name: agentName,
 			}, nil
 		}
 	}
-	for _, agent := range agents {
-		agentName := strings.TrimSpace(agent.Name)
+	for _, ag := range agents {
+		agentName := strings.TrimSpace(ag.Name)
 		if agentName == "" {
 			continue
 		}
 		return localChatExternalAgent{
-			ID:   agent.ID,
+			ID:   ag.ID,
 			Name: agentName,
 		}, nil
 	}
@@ -1067,22 +1067,22 @@ func (s *localMode) resolveLocalChatExternalAgent(
 			err,
 		)
 	}
-	for _, agent := range agents {
-		agentName := strings.TrimSpace(agent.Name)
+	for _, ag := range agents {
+		agentName := strings.TrimSpace(ag.Name)
 		if agentName == localChatExternalAgentName {
 			return localChatExternalAgent{
-				ID:   agent.ID,
+				ID:   ag.ID,
 				Name: agentName,
 			}, nil
 		}
 	}
-	for _, agent := range agents {
-		agentName := strings.TrimSpace(agent.Name)
+	for _, ag := range agents {
+		agentName := strings.TrimSpace(ag.Name)
 		if agentName == "" {
 			continue
 		}
 		return localChatExternalAgent{
-			ID:   agent.ID,
+			ID:   ag.ID,
 			Name: agentName,
 		}, nil
 	}

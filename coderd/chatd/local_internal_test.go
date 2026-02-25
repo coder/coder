@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -91,7 +92,7 @@ func seedWorkspaceWithLocalChatAgent(
 	db database.Store,
 	agentName string,
 	agentToken uuid.UUID,
-) (uuid.UUID, uuid.UUID) {
+) (workspaceID uuid.UUID, agentID uuid.UUID) {
 	t.Helper()
 
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -153,7 +154,7 @@ func TestLocalChatTemplateArchiveForProvisionerTerraform(t *testing.T) {
 	foundMainTF := false
 	for {
 		header, err := reader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		require.NoError(t, err)
