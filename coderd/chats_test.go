@@ -790,6 +790,7 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	workspace, workspaceAgentID := createWorkspaceWithAgent(t, ownerClient, owner.OrganizationID)
 
 	t.Run("WorkspaceIDAuthorized", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		workspaceID := workspace.ID
 		chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -802,6 +803,7 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	})
 
 	t.Run("WorkspaceIDUnauthorized", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		workspaceID := workspace.ID
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -816,6 +818,7 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	})
 
 	t.Run("WorkspaceAgentIDAuthorized", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		workspaceID := workspace.ID
 		agentID := workspaceAgentID
@@ -830,6 +833,7 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	})
 
 	t.Run("WorkspaceAgentIDUnauthorized", func(t *testing.T) {
+		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		agentID := workspaceAgentID
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1003,6 +1007,7 @@ func TestCreateChat_HierarchyMetadata(t *testing.T) {
 }
 
 func TestChatModels_NoEnabledModels(t *testing.T) {
+	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
 			cfg.AI.BridgeConfig.OpenAI.Key = serpent.String("")
@@ -1023,6 +1028,7 @@ func TestChatModels_NoEnabledModels(t *testing.T) {
 }
 
 func TestChatModels_NoEnabledModelsUsesMergedProviderKeys(t *testing.T) {
+	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
 			cfg.AI.BridgeConfig.OpenAI.Key = serpent.String("env-openai")
@@ -1265,6 +1271,7 @@ func TestChatProviders(t *testing.T) {
 }
 
 func TestChatProviders_ListIncludesSupportedProvidersAndEnvPresets(t *testing.T) {
+	t.Parallel()
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: coderdtest.DeploymentValues(t, func(cfg *codersdk.DeploymentValues) {
 			cfg.AI.BridgeConfig.OpenAI.Key = serpent.String("env-openai-key")

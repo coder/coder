@@ -596,6 +596,7 @@ func TestResolveLocalChatTemplateProvisioner(t *testing.T) {
 }
 
 func TestLocalChatMaybeLaunchAgentConnectedWithoutRuntimeStarts(t *testing.T) {
+	t.Parallel()
 	db := localModeTestDB(t)
 	agentName := "local-agent"
 	agentToken := uuid.New()
@@ -624,6 +625,7 @@ func TestLocalChatMaybeLaunchAgentConnectedWithoutRuntimeStarts(t *testing.T) {
 }
 
 func TestLocalChatMaybeLaunchAgentSkipsWhenRuntimeAlreadyRunning(t *testing.T) {
+	t.Parallel()
 	workspaceID := uuid.New()
 	agentID := uuid.New()
 	agentName := "local-agent"
@@ -663,6 +665,7 @@ func TestLocalChatMaybeLaunchAgentSkipsWhenRuntimeAlreadyRunning(t *testing.T) {
 }
 
 func TestMaybeLaunchLocalChatAgentForChatLocalRunningRuntimeNoop(t *testing.T) {
+	t.Parallel()
 	workspaceID := uuid.New()
 	agentID := uuid.New()
 	agentName := "local-agent"
@@ -705,6 +708,7 @@ func TestMaybeLaunchLocalChatAgentForChatLocalRunningRuntimeNoop(t *testing.T) {
 }
 
 func TestMaybeLaunchLocalChatAgentForChatLocalStartsRuntime(t *testing.T) {
+	t.Parallel()
 	db := localModeTestDB(t)
 	agentName := "local-agent"
 	agentToken := uuid.New()
@@ -737,6 +741,7 @@ func TestMaybeLaunchLocalChatAgentForChatLocalStartsRuntime(t *testing.T) {
 }
 
 func TestMaybeLaunchLocalChatAgentForChatNonLocalNoop(t *testing.T) {
+	t.Parallel()
 	db := localModeTestDB(t)
 
 	var starts atomic.Int32

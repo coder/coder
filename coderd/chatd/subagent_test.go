@@ -1,4 +1,4 @@
-package chatd
+package chatd //nolint:testpackage // Uses internal symbols.
 
 import (
 	"context"
