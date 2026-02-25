@@ -1,5 +1,7 @@
+import { getErrorMessage } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Input } from "components/Input/Input";
 import {
 	Select,
@@ -235,50 +237,52 @@ export const ModelForm: FC<ModelFormProps> = ({
 		const trimmedDisplayName = displayName.trim();
 		const builtModelConfig = modelConfigFormBuildResult.modelConfig;
 
-		if (isEditing && editingModel) {
-			const req: TypesGen.UpdateChatModelConfigRequest = {
-				...(trimmedModel !== editingModel.model && {
-					model: trimmedModel,
-				}),
-				...(trimmedDisplayName !== (editingModel.display_name ?? "") && {
-					display_name: trimmedDisplayName,
-				}),
-				...(parsedContextLimit !== editingModel.context_limit && {
-					context_limit: parsedContextLimit,
-				}),
-				...(parsedCompressionThreshold !==
-					editingModel.compression_threshold && {
-					compression_threshold: parsedCompressionThreshold,
-				}),
-				// Always send model_config so it can be cleared or updated.
-				model_config: builtModelConfig,
-			};
-
-			await onUpdateModel(editingModel.id, req);
-			onCancel();
-		} else {
-			if (!selectedProviderState?.providerConfig) return;
-
-			const req: TypesGen.CreateChatModelConfigRequest = {
-				provider: selectedProviderState.provider,
-				model: trimmedModel,
-				context_limit: parsedContextLimit,
-				compression_threshold: parsedCompressionThreshold,
-				...(trimmedDisplayName && {
-					display_name: trimmedDisplayName,
-				}),
-				...(builtModelConfig && {
+		try {
+			if (isEditing && editingModel) {
+				const req: TypesGen.UpdateChatModelConfigRequest = {
+					...(trimmedModel !== editingModel.model && {
+						model: trimmedModel,
+					}),
+					...(trimmedDisplayName !== (editingModel.display_name ?? "") && {
+						display_name: trimmedDisplayName,
+					}),
+					...(parsedContextLimit !== editingModel.context_limit && {
+						context_limit: parsedContextLimit,
+					}),
+					...(parsedCompressionThreshold !==
+						editingModel.compression_threshold && {
+						compression_threshold: parsedCompressionThreshold,
+					}),
+					// Always send model_config so it can be cleared or updated.
 					model_config: builtModelConfig,
-				}),
-			};
+				};
 
-			await onCreateModel(req);
-			setModel("");
-			setDisplayName("");
-			setContextLimit("");
-			setCompressionThreshold("70");
-			setModelConfigForm({ ...emptyModelConfigFormState });
-			onCancel();
+				await onUpdateModel(editingModel.id, req);
+			} else {
+				if (!selectedProviderState?.providerConfig) return;
+
+				const req: TypesGen.CreateChatModelConfigRequest = {
+					provider: selectedProviderState.provider,
+					model: trimmedModel,
+					context_limit: parsedContextLimit,
+					compression_threshold: parsedCompressionThreshold,
+					...(trimmedDisplayName && {
+						display_name: trimmedDisplayName,
+					}),
+					...(builtModelConfig && {
+						model_config: builtModelConfig,
+					}),
+				};
+
+				await onCreateModel(req);
+			}
+			// Navigation is handled by the parent (ModelsSection) after
+			// the mutation promise resolves, so we do not call onCancel()
+			// here to avoid a double view-transition.
+		} catch (error) {
+			displayError(
+				getErrorMessage(error, "Failed to save model configuration."),
+			);
 		}
 	};
 
