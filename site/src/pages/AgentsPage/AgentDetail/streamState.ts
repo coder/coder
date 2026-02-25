@@ -8,7 +8,7 @@ import {
 import { mergeStreamPayload } from "./streamingJson";
 import type { MergedTool, RenderBlock, StreamState } from "./types";
 
-const createEmptyStreamState = (): StreamState => ({
+export const createEmptyStreamState = (): StreamState => ({
 	blocks: [],
 	toolCalls: {},
 	toolResults: {},
@@ -39,7 +39,7 @@ const mergeThinkingTitles = (
 	return { shouldMerge: false, title: nextTitle };
 };
 
-const appendStreamTextBlock = (
+export const appendStreamTextBlock = (
 	blocks: RenderBlock[],
 	type: "response" | "thinking",
 	text: string,
@@ -90,7 +90,7 @@ const appendStreamTextBlock = (
 	return nextBlocks;
 };
 
-const applyStreamThinkingTitle = (
+export const applyStreamThinkingTitle = (
 	blocks: RenderBlock[],
 	title?: string,
 ): RenderBlock[] => {

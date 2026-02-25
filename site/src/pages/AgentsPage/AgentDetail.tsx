@@ -686,3 +686,4 @@ export const AgentDetail: FC = () => {
 	);
 };
 
+export default AgentDetail;

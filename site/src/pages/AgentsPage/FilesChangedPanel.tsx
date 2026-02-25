@@ -160,3 +160,4 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 	);
 };
 
+export default FilesChangedPanel;

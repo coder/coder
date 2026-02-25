@@ -21,7 +21,7 @@ const getMotionComponent = (element: keyof JSX.IntrinsicElements) => {
 	return component;
 };
 
-interface TextShimmerProps {
+export interface TextShimmerProps {
 	children: string;
 	as?: ElementType;
 	className?: string;

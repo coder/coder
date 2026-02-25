@@ -338,14 +338,14 @@ export type GetTemplatesQuery = Readonly<{
 	readonly q: string;
 }>;
 
-interface ChatModelCatalogModel {
+export interface ChatModelCatalogModel {
 	readonly id: string;
 	readonly provider: string;
 	readonly model: string;
 	readonly display_name: string;
 }
 
-interface ChatModelCatalogProvider {
+export interface ChatModelCatalogProvider {
 	readonly provider: string;
 	readonly available: boolean;
 	readonly unavailable_reason?: string;
@@ -412,7 +412,7 @@ export type CreateChatModelConfigRequest = {
 export type UpdateChatModelConfigRequest =
 	Partial<CreateChatModelConfigRequest>;
 
-interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
+export interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
 	readonly patch?: string;
 	readonly diff_patch?: string;
 	readonly unified_diff?: string;

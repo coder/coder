@@ -1,6 +1,7 @@
 import {
 	API,
 	type ChatDiffStatusResponse,
+	type ChatGitChangeResponse,
 	type ChatModelConfig,
 	type ChatModelsResponse,
 	type ChatProviderConfig,
@@ -88,6 +89,15 @@ export const promoteChatQueuedMessage = (
 	},
 });
 
+export const chatGitChangesKey = (chatId: string) =>
+	["chat", chatId, "git-changes"] as const;
+
+export const chatGitChanges = (chatId: string) => ({
+	queryKey: chatGitChangesKey(chatId),
+	queryFn: (): Promise<ChatGitChangeResponse[]> =>
+		API.getChatGitChanges(chatId),
+});
+
 export const chatDiffStatusKey = (chatId: string) =>
 	["chat", chatId, "diff-status"] as const;
 
@@ -104,21 +114,21 @@ export const chatDiffContents = (chatId: string) => ({
 	queryFn: () => API.getChatDiffContents(chatId),
 });
 
-const chatModelsKey = ["chat-models"] as const;
+export const chatModelsKey = ["chat-models"] as const;
 
 export const chatModels = () => ({
 	queryKey: chatModelsKey,
 	queryFn: (): Promise<ChatModelsResponse> => API.getChatModels(),
 });
 
-const chatProviderConfigsKey = ["chat-provider-configs"] as const;
+export const chatProviderConfigsKey = ["chat-provider-configs"] as const;
 
 export const chatProviderConfigs = () => ({
 	queryKey: chatProviderConfigsKey,
 	queryFn: (): Promise<ChatProviderConfig[]> => API.getChatProviderConfigs(),
 });
 
-const chatModelConfigsKey = ["chat-model-configs"] as const;
+export const chatModelConfigsKey = ["chat-model-configs"] as const;
 
 export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
@@ -141,7 +151,7 @@ export const createChatProviderConfig = (queryClient: QueryClient) => ({
 	},
 });
 
-type UpdateChatProviderConfigMutationArgs = {
+export type UpdateChatProviderConfigMutationArgs = {
 	providerConfigId: string;
 	req: UpdateChatProviderConfigRequest;
 };
@@ -157,6 +167,14 @@ export const updateChatProviderConfig = (queryClient: QueryClient) => ({
 	},
 });
 
+export const deleteChatProviderConfig = (queryClient: QueryClient) => ({
+	mutationFn: (providerConfigId: string) =>
+		API.deleteChatProviderConfig(providerConfigId),
+	onSuccess: async () => {
+		await invalidateChatConfigurationQueries(queryClient);
+	},
+});
+
 export const createChatModelConfig = (queryClient: QueryClient) => ({
 	mutationFn: (req: CreateChatModelConfigRequest) =>
 		API.createChatModelConfig(req),
@@ -165,7 +183,7 @@ export const createChatModelConfig = (queryClient: QueryClient) => ({
 	},
 });
 
-type UpdateChatModelConfigMutationArgs = {
+export type UpdateChatModelConfigMutationArgs = {
 	modelConfigId: string;
 	req: UpdateChatModelConfigRequest;
 };

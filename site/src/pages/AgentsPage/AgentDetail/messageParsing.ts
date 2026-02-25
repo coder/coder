@@ -21,7 +21,7 @@ const appendText = (current: string, next: string): string => {
 	return `${current}\n${next}`;
 };
 
-const asNonEmptyString = (value: unknown): string | undefined => {
+export const asNonEmptyString = (value: unknown): string | undefined => {
 	const next = asString(value).trim();
 	return next.length > 0 ? next : undefined;
 };
@@ -170,7 +170,7 @@ export const ensureToolBlock = (
 	return [...blocks, { type: "tool", id }];
 };
 
-const mergeTools = (
+export const mergeTools = (
 	calls: ParsedToolCall[],
 	results: ParsedToolResult[],
 ): MergedTool[] => {
@@ -206,7 +206,7 @@ const mergeTools = (
 	return merged;
 };
 
-const parseMessageContent = (content: unknown): ParsedMessageContent => {
+export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 	if (typeof content === "string") {
 		return {
 			...emptyParsedMessageContent(),

@@ -869,8 +869,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 		);
 
 	// Reset form fields when the selected provider changes (add
-	// mode only - in edit mode the provider is fixed).
-	// biome-ignore lint/correctness/useExhaustiveDependencies: selectedProviderState?.provider is an intentional trigger to reset the form when the provider changes.
+	// mode only — in edit mode the provider is fixed).
 	useEffect(() => {
 		if (!isEditing) {
 			setModelConfigForm({ ...emptyModelConfigFormState });

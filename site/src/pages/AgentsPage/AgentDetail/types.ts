@@ -56,14 +56,14 @@ export type ParsedMessageSection = {
 	entries: ParsedMessageEntry[];
 };
 
-type StreamToolCall = {
+export type StreamToolCall = {
 	id: string;
 	name: string;
 	args?: unknown;
 	argsRaw?: string;
 };
 
-type StreamToolResult = {
+export type StreamToolResult = {
 	id: string;
 	name: string;
 	result?: unknown;

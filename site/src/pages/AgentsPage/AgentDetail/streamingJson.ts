@@ -366,7 +366,7 @@ export const parseStreamingJSON = (value: string): unknown | null => {
 	return parsePartialJSONObject(value);
 };
 
-type StreamPayloadMerge = {
+export type StreamPayloadMerge = {
 	value: unknown;
 	rawText?: string;
 };

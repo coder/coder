@@ -343,16 +343,8 @@ const ProvisionerJobsPage = lazy(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
 		),
 );
-const AgentsPage = lazy(() =>
-	import("./pages/AgentsPage/AgentsPage").then((m) => ({
-		default: m.AgentsPage,
-	})),
-);
-const AgentDetail = lazy(() =>
-	import("./pages/AgentsPage/AgentDetail").then((m) => ({
-		default: m.AgentDetail,
-	})),
-);
+const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
+const AgentDetail = lazy(() => import("./pages/AgentsPage/AgentDetail"));
 
 import {
 	AgentDetailSkeleton,
