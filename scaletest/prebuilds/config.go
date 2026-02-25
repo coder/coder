@@ -13,6 +13,9 @@ import (
 type Config struct {
 	// OrganizationID is the ID of the organization to create the prebuilds in.
 	OrganizationID uuid.UUID `json:"organization_id"`
+	// ProvisionerTags are optional tags used to route template version
+	// provisioning jobs to specific provisioner daemons.
+	ProvisionerTags map[string]string `json:"provisioner_tags"`
 	// NumPresets is the number of presets the template should have.
 	NumPresets int `json:"num_presets"`
 	// NumPresetPrebuilds is the number of prebuilds per preset.

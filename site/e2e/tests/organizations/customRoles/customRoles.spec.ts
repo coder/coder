@@ -184,9 +184,7 @@ test.describe("CustomRolesPage", () => {
 		await input.fill(customRole.name);
 		await page.getByRole("button", { name: "Delete" }).click();
 
-		await expect(
-			page.getByText("Custom role deleted successfully!"),
-		).toBeVisible();
+		await expect(page.getByText(/deleted successfully/)).toBeVisible();
 
 		await deleteOrganization(org.name);
 	});

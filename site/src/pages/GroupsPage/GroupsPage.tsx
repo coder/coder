@@ -1,9 +1,8 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationsPermissions } from "api/queries/organizations";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import {
 	SettingsHeader,
@@ -17,6 +16,7 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { useGroupsSettings } from "./GroupsPageProvider";
 import { GroupsPageView } from "./GroupsPageView";
@@ -35,16 +35,22 @@ const GroupsPage: FC = () => {
 
 	useEffect(() => {
 		if (groupsQuery.error) {
-			displayError(
+			toast.error(
 				getErrorMessage(groupsQuery.error, "Unable to load groups."),
+				{
+					description: getErrorDetail(groupsQuery.error),
+				},
 			);
 		}
 	}, [groupsQuery.error]);
 
 	useEffect(() => {
 		if (permissionsQuery.error) {
-			displayError(
+			toast.error(
 				getErrorMessage(permissionsQuery.error, "Unable to load permissions."),
+				{
+					description: getErrorDetail(permissionsQuery.error),
+				},
 			);
 		}
 	}, [permissionsQuery.error]);

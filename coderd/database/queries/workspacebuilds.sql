@@ -271,3 +271,23 @@ JOIN workspace_resources wr ON wr.job_id = wb.job_id
 JOIN workspace_agents wa ON wa.resource_id = wr.id
 WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
 GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id;
+
+-- name: GetWorkspaceBuildProvisionerStateByID :one
+-- Fetches the provisioner state of a workspace build, joined through to the
+-- template so that dbauthz can enforce policy.ActionUpdate on the template.
+-- Provisioner state contains sensitive Terraform state and should only be
+-- accessible to template administrators.
+SELECT
+	workspace_builds.provisioner_state,
+	templates.id AS template_id,
+	templates.organization_id AS template_organization_id,
+	templates.user_acl,
+	templates.group_acl
+FROM
+	workspace_builds
+INNER JOIN
+	workspaces ON workspaces.id = workspace_builds.workspace_id
+INNER JOIN
+	templates ON templates.id = workspaces.template_id
+WHERE
+	workspace_builds.id = @workspace_build_id;

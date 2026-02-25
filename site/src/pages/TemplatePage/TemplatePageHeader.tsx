@@ -59,7 +59,11 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 	fileId,
 	onDelete,
 }) => {
-	const dialogState = useDeletionDialogState(templateId, onDelete);
+	const dialogState = useDeletionDialogState(
+		templateId,
+		onDelete,
+		templateName,
+	);
 	const navigate = useNavigate();
 	const getLink = useLinks();
 	const queryText = `template:${templateName}`;

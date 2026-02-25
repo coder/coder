@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"sync"
 	"time"
@@ -321,21 +320,15 @@ func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIV
 	}
 	rpcURL.RawQuery = q.Encode()
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(rpcURL, []*http.Cookie{{
-		Name:  codersdk.SessionTokenCookie,
-		Value: c.SDK.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.SDK.HTTPClient.Transport,
 	}
 	// nolint:bodyclose
 	conn, res, err := websocket.Dial(ctx, rpcURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
+		HTTPHeader: http.Header{
+			codersdk.SessionTokenHeader: []string{c.SDK.SessionToken()},
+		},
 	})
 	if err != nil {
 		if res == nil {
@@ -709,16 +702,7 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(rpcURL, []*http.Cookie{{
-		Name:  codersdk.SessionTokenCookie,
-		Value: c.SDK.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.SDK.HTTPClient.Transport,
 	}
 
@@ -726,6 +710,7 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 	if err != nil {
 		return nil, xerrors.Errorf("build request: %w", err)
 	}
+	req.Header[codersdk.SessionTokenHeader] = []string{c.SDK.SessionToken()}
 
 	res, err := httpClient.Do(req)
 	if err != nil {

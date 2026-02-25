@@ -135,6 +135,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/aibridge/models": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Bridge"
+                ],
+                "summary": "List AI Bridge models",
+                "operationId": "list-ai-bridge-models",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/appearance": {
             "get": {
                 "security": [
@@ -8238,6 +8266,12 @@ const docTemplate = `{
                         "name": "user",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include expired tokens in the list",
+                        "name": "include_expired",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -9545,6 +9579,7 @@ const docTemplate = `{
                 ],
                 "summary": "Patch workspace agent app status",
                 "operationId": "patch-workspace-agent-app-status",
+                "deprecated": true,
                 "parameters": [
                     {
                         "description": "app status",

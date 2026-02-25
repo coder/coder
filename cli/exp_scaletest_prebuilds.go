@@ -29,6 +29,7 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 		templateVersionJobTimeout time.Duration
 		prebuildWorkspaceTimeout  time.Duration
 		noCleanup                 bool
+		provisionerTags           []string
 
 		tracingFlags    = &scaletestTracingFlags{}
 		timeoutStrategy = &timeoutFlags{}
@@ -111,10 +112,16 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 
 			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
 
+			tags, err := ParseProvisionerTags(provisionerTags)
+			if err != nil {
+				return err
+			}
+
 			for i := range numTemplates {
 				id := strconv.Itoa(int(i))
 				cfg := prebuilds.Config{
 					OrganizationID:            me.OrganizationIDs[0],
+					ProvisionerTags:           tags,
 					NumPresets:                int(numPresets),
 					NumPresetPrebuilds:        int(numPresetPrebuilds),
 					TemplateVersionJobTimeout: templateVersionJobTimeout,
@@ -282,6 +289,11 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 			Env:         "CODER_SCALETEST_PREBUILDS_SKIP_CLEANUP",
 			Description: "Skip cleanup (deletion test) and leave resources intact.",
 			Value:       serpent.BoolOf(&noCleanup),
+		},
+		{
+			Flag:        "provisioner-tag",
+			Description: "Specify a set of tags to target provisioner daemons.",
+			Value:       serpent.StringArrayOf(&provisionerTags),
 		},
 	}
 

@@ -87,3 +87,4 @@ SELECT DISTINCT ON (workspace_id)
 FROM workspace_app_statuses
 WHERE workspace_id = ANY(@ids :: uuid[])
 ORDER BY workspace_id, created_at DESC;
+

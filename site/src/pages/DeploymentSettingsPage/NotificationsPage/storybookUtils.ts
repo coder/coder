@@ -7,8 +7,8 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
 	withOrganizationSettingsProvider,
+	withToaster,
 } from "testHelpers/storybook";
 import type { Meta } from "@storybook/react-vite";
 import {
@@ -219,7 +219,7 @@ export const baseMeta = {
 		} as DeploymentValues,
 	},
 	decorators: [
-		withGlobalSnackbar,
+		withToaster,
 		withAuthProvider,
 		withDashboardProvider,
 		withOrganizationSettingsProvider,

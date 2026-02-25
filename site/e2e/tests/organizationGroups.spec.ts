@@ -90,7 +90,7 @@ test("create group", async ({ page }) => {
 	const dialog = page.getByTestId("dialog");
 	await dialog.getByLabel("Name of the group to delete").fill(name);
 	await dialog.getByRole("button", { name: "Delete" }).click();
-	await expect(page.getByText("Group deleted successfully.")).toBeVisible();
+	await expect(page.getByText(/deleted successfully/)).toBeVisible();
 
 	await expectUrl(page).toHavePathName(`/organizations/${org.name}/groups`);
 	await expect(page).toHaveTitle("Groups - Coder");

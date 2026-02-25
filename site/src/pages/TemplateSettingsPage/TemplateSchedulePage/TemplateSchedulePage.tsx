@@ -1,12 +1,12 @@
 import { API } from "api/api";
 import { templateByNameKey } from "api/queries/templates";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSchedulePageView } from "./TemplateSchedulePageView";
@@ -33,7 +33,9 @@ const TemplateSchedulePage: FC = () => {
 			await queryClient.invalidateQueries({
 				queryKey: templateByNameKey(organizationName, templateName),
 			});
-			displaySuccess("Template updated successfully");
+			toast.success(
+				`Template "${template.name}" schedule updated successfully.`,
+			);
 			// clear browser storage of workspaces impending deletion
 			localStorage.removeItem("dismissedWorkspaceList"); // workspaces page
 			localStorage.removeItem("dismissedWorkspace"); // workspace page

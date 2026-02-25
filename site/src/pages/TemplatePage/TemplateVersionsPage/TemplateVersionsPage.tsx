@@ -1,15 +1,22 @@
 import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { linkToTemplate, useLinks } from "modules/navigation";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useState } from "react";
 import { useMutation, useQuery } from "react-query";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { getTemplatePageTitle } from "../utils";
 import { VersionsTable } from "./VersionsTable";
 
 const TemplateVersionsPage = () => {
+	const navigate = useNavigate();
+	const getLink = useLinks();
 	const { template, permissions } = useTemplateLayoutContext();
+	const templateLink = getLink(
+		linkToTemplate(template.organization_name, template.name),
+	);
 	const { data } = useQuery({
 		queryKey: ["template", "versions", template.id],
 		queryFn: () => API.getTemplateVersions(template.id),
@@ -25,12 +32,38 @@ const TemplateVersionsPage = () => {
 			});
 		},
 		onSuccess: async () => {
+			const versionName = data?.find(
+				(v) => v.id === selectedVersionIdToPromote,
+			)?.name;
 			setLatestActiveVersion(selectedVersionIdToPromote as string);
 			setSelectedVersionIdToPromote(undefined);
-			displaySuccess("Version promoted successfully");
+			toast.success(
+				versionName
+					? `Version "${versionName}" promoted successfully.`
+					: "Version promoted successfully.",
+				{
+					action: {
+						label: "View template",
+						onClick: () => navigate(templateLink),
+					},
+				},
+			);
 		},
 		onError: (error) => {
-			displayError(getErrorMessage(error, "Failed to promote version"));
+			const versionName = data?.find(
+				(v) => v.id === selectedVersionIdToPromote,
+			)?.name;
+			toast.error(
+				getErrorMessage(
+					error,
+					versionName
+						? `Failed to promote version "${versionName}".`
+						: "Failed to promote version.",
+				),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 
@@ -38,17 +71,30 @@ const TemplateVersionsPage = () => {
 		mutationFn: (templateVersionId: string) => {
 			return API.archiveTemplateVersion(templateVersionId);
 		},
-		onSuccess: async () => {
+		onSuccess: async (data) => {
 			// The reload is unfortunate. When a version is archived, we should hide
 			// the row. I do not know an easy way to do that, so a reload makes the API call
 			// resend and now the version is omitted.
 			// TODO: Improve this to not reload the page.
 			location.reload();
 			setSelectedVersionIdToArchive(undefined);
-			displaySuccess("Version archived successfully");
+			toast.success(`Version "${data.name}" archived successfully.`);
 		},
 		onError: (error) => {
-			displayError(getErrorMessage(error, "Failed to archive version"));
+			const versionName = data?.find(
+				(v) => v.id === selectedVersionIdToArchive,
+			)?.name;
+			toast.error(
+				getErrorMessage(
+					error,
+					versionName
+						? `Failed to archive version "${versionName}".`
+						: "Failed to archive version.",
+				),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 
