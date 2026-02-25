@@ -56,7 +56,7 @@ export const ExecuteTool: React.FC<{
 				</div>
 				<div className="flex shrink-0 items-center gap-1">
 					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary" />
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 					)}
 					<span className="opacity-0 transition-opacity group-hover/exec:opacity-100">
 						<CopyButton text={command} label="Copy command" />
@@ -196,7 +196,7 @@ export const WaitForExternalAuthTool: React.FC<{
 	const isRunning = status === "running";
 	let label = `Waiting for ${providerLabel} authentication...`;
 	let icon: React.ReactNode = (
-		<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin text-content-link" />
+		<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 	);
 	if (isError) {
 		label =

@@ -1,5 +1,5 @@
 import type { MotionProps } from "motion/react";
-import { motion } from "motion/react";
+import { MotionConfig, motion } from "motion/react";
 import type { CSSProperties, ElementType, JSX } from "react";
 import { memo, useMemo } from "react";
 import { cn } from "utils/cn";
@@ -46,29 +46,31 @@ const ShimmerComponent = ({
 	);
 
 	return (
-		<MotionComponent
-			animate={{ backgroundPosition: "0% center" }}
-			className={cn(
-				"relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
-				"[--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),hsl(var(--background)),#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat,padding-box]",
-				className,
-			)}
-			initial={{ backgroundPosition: "100% center" }}
-			style={
-				{
-					"--spread": `${dynamicSpread}px`,
-					backgroundImage:
-						"var(--bg), linear-gradient(hsl(var(--muted-foreground)), hsl(var(--muted-foreground)))",
-				} as CSSProperties
-			}
-			transition={{
-				duration,
-				ease: "linear",
-				repeat: Number.POSITIVE_INFINITY,
-			}}
-		>
-			{children}
-		</MotionComponent>
+		<MotionConfig reducedMotion="user">
+			<MotionComponent
+				animate={{ backgroundPosition: "0% center" }}
+				className={cn(
+					"relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
+					"[--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),hsl(var(--background)),#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat,padding-box]",
+					className,
+				)}
+				initial={{ backgroundPosition: "100% center" }}
+				style={
+					{
+						"--spread": `${dynamicSpread}px`,
+						backgroundImage:
+							"var(--bg), linear-gradient(hsl(var(--muted-foreground)), hsl(var(--muted-foreground)))",
+					} as CSSProperties
+				}
+				transition={{
+					duration,
+					ease: "linear",
+					repeat: Number.POSITIVE_INFINITY,
+				}}
+			>
+				{children}
+			</MotionComponent>
+		</MotionConfig>
 	);
 };
 

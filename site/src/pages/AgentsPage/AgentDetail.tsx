@@ -641,7 +641,7 @@ export const AgentDetail: FC = () => {
 
 			<div
 				ref={scrollContainerRef}
-				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(240_5%_26%)_transparent]"
+				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				<div>
 					<ConversationTimeline

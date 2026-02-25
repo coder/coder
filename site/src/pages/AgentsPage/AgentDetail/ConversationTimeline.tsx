@@ -8,6 +8,7 @@ import {
 	Tool,
 } from "components/ai-elements";
 import { ChevronDownIcon } from "lucide-react";
+import { cn } from "utils/cn";
 import {
 	type FC,
 	memo,
@@ -51,7 +52,7 @@ const ReasoningDisclosure: FC<{
 				tabIndex={hasText ? 0 : undefined}
 				aria-expanded={hasText ? isOpen : undefined}
 				aria-controls={hasText ? id : undefined}
-				className={`flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary ${hasText ? "cursor-pointer" : ""}`}
+				className={cn("flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary", hasText && "cursor-pointer")}
 				onClick={
 					hasText ? () => setIsOpen((prev) => !prev) : undefined
 				}
@@ -74,7 +75,7 @@ const ReasoningDisclosure: FC<{
 				</span>
 				{hasText ? (
 					<ChevronDownIcon
-						className={`h-3 w-3 shrink-0 text-content-secondary transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`}
+						className={cn("h-3 w-3 shrink-0 text-content-secondary transition-transform", isOpen ? "rotate-0" : "-rotate-90")}
 					/>
 				) : null}
 			</div>

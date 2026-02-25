@@ -42,7 +42,7 @@ const SubagentStatusIcon: React.FC<{
 	}
 	if (toolStatus === "running") {
 		return (
-			<LoaderIcon className="h-4 w-4 shrink-0 animate-spin text-content-link" />
+			<LoaderIcon className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 		);
 	}
 	return <BotIcon className="h-4 w-4 shrink-0 text-content-secondary" />;
