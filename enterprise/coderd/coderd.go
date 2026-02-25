@@ -147,12 +147,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if err != nil {
 		return nil, xerrors.Errorf("create DERP mesh TLS config: %w", err)
 	}
-	if options.Options.ReplicaHTTPClient == nil {
-		options.Options.ReplicaHTTPClient = replicaRelayHTTPClient(options.HTTPClient, meshTLSConfig)
-	}
 
 	var replicaManagerPtr atomic.Pointer[replicasync.Manager]
-	options.Options.ResolveReplicaAddress = func(
+	resolveReplicaAddress := func(
 		_ context.Context,
 		replicaID uuid.UUID,
 	) (string, bool) {
@@ -188,6 +185,45 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	// This must happen before coderd initialization!
 	options.PostAuthAdditionalHeadersFunc = api.writeEntitlementWarningsHeader
+
+	// Wire up enterprise chat relay for cross-replica message_part streaming
+	// Must be set before coderd.New so ChatProcessor gets it
+	replicaHTTPClient := replicaRelayHTTPClient(options.HTTPClient, meshTLSConfig)
+	if replicaHTTPClient == nil {
+		replicaHTTPClient = options.Options.HTTPClient
+	}
+	if replicaHTTPClient == nil {
+		replicaHTTPClient = http.DefaultClient
+	}
+	// Use a closure that captures api by reference so it can access api.AGPL.ID
+	// after coderd.New is called. The provider is only invoked when Subscribe
+	// is called, which happens after initialization, so api.AGPL will be set.
+	options.Options.ChatRemotePartsProvider = func(
+		ctx context.Context,
+		chatID uuid.UUID,
+		workerID uuid.UUID,
+		requestHeader http.Header,
+	) (
+		[]codersdk.ChatStreamEvent,
+		<-chan codersdk.ChatStreamEvent,
+		func(),
+		error,
+	) {
+		// Get the replica ID from the API (will be set after coderd.New)
+		replicaID := api.AGPL.ID
+		if replicaID == uuid.Nil {
+			// Fallback if somehow called before initialization
+			replicaID = uuid.New()
+		}
+		provider := newRemotePartsProvider(
+			resolveReplicaAddress,
+			replicaHTTPClient,
+			replicaID,
+			options.Logger.Named("chat-relay"),
+		)
+		return provider(ctx, chatID, workerID, requestHeader)
+	}
+
 	api.AGPL = coderd.New(options.Options)
 	defer func() {
 		if err != nil {

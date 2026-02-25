@@ -240,11 +240,9 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
-	// ReplicaHTTPClient is used for internal replica-to-replica relay dialing.
-	// If nil, HTTPClient is used.
-	ReplicaHTTPClient *http.Client
-	// ResolveReplicaAddress maps replica IDs to relay addresses for internal relays.
-	ResolveReplicaAddress chatd.ReplicaAddressResolver
+	// ChatRemotePartsProvider provides cross-replica message_part streaming.
+	// Set by enterprise for HA deployments. Nil in AGPL single-replica.
+	ChatRemotePartsProvider chatd.RemotePartsProvider
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -802,17 +800,12 @@ func New(options *Options) *API {
 	api.agentProvider = stn
 
 	if options.ChatProcessor == nil {
-		replicaHTTPClient := options.ReplicaHTTPClient
-		if replicaHTTPClient == nil {
-			replicaHTTPClient = options.HTTPClient
-		}
 		creator := &chatWorkspaceCreator{api: api}
 		options.ChatProcessor = chatd.New(chatd.Config{
 			Logger:                 options.Logger.Named("chats"),
 			Database:               options.Database,
 			ReplicaID:              api.ID,
-			ResolveReplicaAddress:  options.ResolveReplicaAddress,
-			ReplicaHTTPClient:      replicaHTTPClient,
+			RemotePartsProvider:    options.ChatRemotePartsProvider,
 			ResolveProviderAPIKeys: chatProviderAPIKeysResolver,
 			AgentConn:              api.agentProvider.AgentConn,
 			CreateWorkspace:        creator.CreateWorkspace,

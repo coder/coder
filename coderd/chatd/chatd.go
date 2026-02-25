@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -17,9 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/chatd/chatloop"
@@ -61,14 +57,6 @@ const (
 	externalAuthWaitCompletedStatus = "completed"
 )
 
-const (
-	// RelaySourceHeader marks replica-relayed stream requests.
-	RelaySourceHeader = "X-Coder-Relay-Source-Replica"
-
-	authorizationHeader = "Authorization"
-	cookieHeader        = "Cookie"
-)
-
 // Server handles background processing of pending chats.
 type Server struct {
 	cancel   context.CancelFunc
@@ -79,8 +67,7 @@ type Server struct {
 	workerID uuid.UUID
 	logger   slog.Logger
 
-	resolveReplicaAddress ReplicaAddressResolver
-	replicaHTTPClient     *http.Client
+	remotePartsProvider RemotePartsProvider
 
 	agentConnFn              AgentConnFunc
 	createWorkspaceFn        chattool.CreateWorkspaceFn
@@ -118,6 +105,22 @@ type ProviderAPIKeysResolver func(context.Context) (chatprovider.ProviderAPIKeys
 
 // ReplicaAddressResolver maps a replica ID to its relay address.
 type ReplicaAddressResolver func(context.Context, uuid.UUID) (string, bool)
+
+// RemotePartsProvider returns a snapshot and live stream of message_part
+// events from the replica that is running the chat. Called when the chat
+// is actively running on a different replica. Nil in AGPL single-replica
+// deployments.
+type RemotePartsProvider func(
+	ctx context.Context,
+	chatID uuid.UUID,
+	workerID uuid.UUID,
+	requestHeader http.Header,
+) (
+	snapshot []codersdk.ChatStreamEvent,
+	parts <-chan codersdk.ChatStreamEvent,
+	cancel func(),
+	err error,
+)
 
 // TestingConfig contains hooks intended only for tests.
 type TestingConfig struct {
@@ -485,6 +488,9 @@ func (p *Server) PostMessages(
 			ChatID:         opts.ChatID,
 			QueuedMessages: queuedMessagesSDK,
 		})
+		p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
+			QueueUpdate: true,
+		})
 		return result, nil
 	}
 
@@ -574,6 +580,9 @@ func (p *Server) DeleteQueued(
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 		QueuedMessages: toSDKQueuedMessages(queuedMessages),
+	})
+	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		QueueUpdate: true,
 	})
 	return nil
 }
@@ -680,6 +689,9 @@ func (p *Server) PromoteQueued(
 	p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
 		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 		QueuedMessages: toSDKQueuedMessages(remainingQueue),
+	})
+	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
+		QueueUpdate: true,
 	})
 	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status)
@@ -870,8 +882,7 @@ type Config struct {
 	Logger                     slog.Logger
 	Database                   database.Store
 	ReplicaID                  uuid.UUID
-	ResolveReplicaAddress      ReplicaAddressResolver
-	ReplicaHTTPClient          *http.Client
+	RemotePartsProvider        RemotePartsProvider
 	PendingChatAcquireInterval time.Duration
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
@@ -914,19 +925,13 @@ func New(cfg Config) *Server {
 		workerID = uuid.New()
 	}
 
-	replicaHTTPClient := cfg.ReplicaHTTPClient
-	if replicaHTTPClient == nil {
-		replicaHTTPClient = http.DefaultClient
-	}
-
 	p := &Server{
 		cancel:                     cancel,
 		closed:                     make(chan struct{}),
 		db:                         cfg.Database,
 		workerID:                   workerID,
 		logger:                     cfg.Logger.Named("chat-processor"),
-		resolveReplicaAddress:      cfg.ResolveReplicaAddress,
-		replicaHTTPClient:          replicaHTTPClient,
+		remotePartsProvider:        cfg.RemotePartsProvider,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
 		testing:                    cfg.Testing,
@@ -1111,225 +1116,316 @@ func (p *Server) Subscribe(
 		ctx = context.Background()
 	}
 
-	relayAddress, ok := p.relayTarget(ctx, chatID, requestHeader)
-	if !ok {
-		snapshot, events, cancel := p.streamManager.Subscribe(chatID)
-		return snapshot, events, cancel, true
-	}
+	// Subscribe to local StreamManager for message_parts (ephemeral)
+	localSnapshot, localParts, localCancel := p.streamManager.Subscribe(chatID)
 
-	events, cancel, err := p.subscribeRelay(ctx, chatID, relayAddress, requestHeader)
-	if err != nil {
-		p.logger.Warn(ctx, "failed to subscribe through replica relay",
-			slog.F("chat_id", chatID),
-			slog.F("relay_address", relayAddress),
-			slog.Error(err),
-		)
-		errEvent := make(chan codersdk.ChatStreamEvent, 1)
-		errEvent <- codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeError,
-			ChatID: chatID,
-			Error: &codersdk.ChatStreamError{
-				Message: err.Error(),
-			},
+	// Build initial snapshot synchronously
+	initialSnapshot := make([]codersdk.ChatStreamEvent, 0)
+	// Add local message_parts to snapshot
+	for _, event := range localSnapshot {
+		if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+			initialSnapshot = append(initialSnapshot, event)
 		}
-		close(errEvent)
-		return nil, errEvent, func() {}, true
 	}
 
-	return nil, events, cancel, true
-}
-
-func (p *Server) relayTarget(
-	ctx context.Context,
-	chatID uuid.UUID,
-	requestHeader http.Header,
-) (string, bool) {
-	if p.resolveReplicaAddress == nil {
-		return "", false
-	}
-	if requestHeader != nil && strings.TrimSpace(requestHeader.Get(RelaySourceHeader)) != "" {
-		return "", false
-	}
-
-	state, err := p.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chatID)
-	if err != nil {
-		p.logger.Debug(ctx, "failed to load stream state for relay routing",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return "", false
+	// Load initial messages from DB
+	//nolint:gocritic // System context needed to read chat messages for stream.
+	messages, err := p.db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), chatID)
+	if err == nil {
+		for _, msg := range messages {
+			sdkMsg := db2sdk.ChatMessage(msg)
+			initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
+				Type:    codersdk.ChatStreamEventTypeMessage,
+				ChatID:  chatID,
+				Message: &sdkMsg,
+			})
+		}
 	}
 
-	if state.Status != database.ChatStatusRunning || !state.WorkerID.Valid || state.WorkerID.UUID == p.workerID {
-		return "", false
+	// Load initial queue
+	//nolint:gocritic // System context needed to read queued messages for stream.
+	queued, err := p.db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chatID)
+	if err == nil && len(queued) > 0 {
+		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
+			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+			ChatID:         chatID,
+			QueuedMessages: toSDKQueuedMessages(queued),
+		})
 	}
 
-	address, ok := p.resolveReplicaAddress(ctx, state.WorkerID.UUID)
-	if !ok {
-		return "", false
-	}
-	address = strings.TrimSpace(address)
-	if address == "" {
-		return "", false
-	}
-	return address, true
-}
-
-type relayEvent struct {
-	Type codersdk.ServerSentEventType `json:"type"`
-	Data json.RawMessage              `json:"data,omitempty"`
-}
-
-func (p *Server) subscribeRelay(
-	ctx context.Context,
-	chatID uuid.UUID,
-	relayAddress string,
-	requestHeader http.Header,
-) (<-chan codersdk.ChatStreamEvent, func(), error) {
-	base, err := url.Parse(relayAddress)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("parse relay address %q: %w", relayAddress, err)
-	}
-	target, err := base.Parse(fmt.Sprintf("/api/v2/chats/%s/stream", chatID))
-	if err != nil {
-		return nil, nil, xerrors.Errorf("build relay stream URL: %w", err)
-	}
-	switch target.Scheme {
-	case "http":
-		target.Scheme = "ws"
-	case "https":
-		target.Scheme = "wss"
-	}
-
-	conn, res, err := websocket.Dial(ctx, target.String(), &websocket.DialOptions{
-		HTTPClient: p.replicaHTTPClient,
-		HTTPHeader: relayHeaders(requestHeader, p.workerID),
-	})
-	if err != nil {
-		if res != nil {
-			if responseErr := codersdk.ReadBodyAsError(res); responseErr != nil {
-				err = responseErr
+	// Get initial chat state to determine if we need a relay
+	//nolint:gocritic // System context needed to read chat state for relay.
+	chat, err := p.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chatID)
+	var relayCancel func()
+	var relayParts <-chan codersdk.ChatStreamEvent
+	if err == nil && chat.Status == database.ChatStatusRunning && chat.WorkerID.Valid && chat.WorkerID.UUID != p.workerID && p.remotePartsProvider != nil {
+		// Open relay for initial snapshot
+		snapshot, parts, cancel, err := p.remotePartsProvider(ctx, chatID, chat.WorkerID.UUID, requestHeader)
+		if err == nil {
+			relayCancel = cancel
+			relayParts = parts
+			// Add relay message_parts to snapshot
+			for _, event := range snapshot {
+				if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+					initialSnapshot = append(initialSnapshot, event)
+				}
 			}
 		}
-		return nil, nil, xerrors.Errorf("dial relay stream: %w", err)
 	}
 
-	relayCtx, relayCancel := context.WithCancel(ctx)
-	events := make(chan codersdk.ChatStreamEvent, 128)
+	// Track the last message ID we've seen for DB queries
+	var lastMessageID int64
+	if len(messages) > 0 {
+		lastMessageID = messages[len(messages)-1].ID
+	}
 
-	go func() {
-		defer close(events)
-		defer relayCancel()
-		defer func() {
-			_ = conn.Close(websocket.StatusNormalClosure, "")
-		}()
+	// Merge all event sources
+	mergedCtx, mergedCancel := context.WithCancel(ctx)
+	mergedEvents := make(chan codersdk.ChatStreamEvent, 128)
+	var allCancels []func()
+	allCancels = append(allCancels, localCancel)
+	if relayCancel != nil {
+		allCancels = append(allCancels, relayCancel)
+	}
 
-		for {
-			var envelope relayEvent
-			err := wsjson.Read(relayCtx, conn, &envelope)
+	// Helper to close relay
+	closeRelay := func() {
+		if relayCancel != nil {
+			relayCancel()
+			relayCancel = nil
+		}
+		relayParts = nil
+	}
+
+	// Helper to open relay to a worker
+	openRelay := func(workerID uuid.UUID) {
+		if p.remotePartsProvider == nil {
+			return
+		}
+		closeRelay()
+		snapshot, parts, cancel, err := p.remotePartsProvider(mergedCtx, chatID, workerID, requestHeader)
+		if err != nil {
+			p.logger.Warn(mergedCtx, "failed to open relay for message parts",
+				slog.F("chat_id", chatID),
+				slog.F("worker_id", workerID),
+				slog.Error(err),
+			)
+			return
+		}
+		relayParts = parts
+		relayCancel = cancel
+		// Send relay snapshot message_parts
+		for _, event := range snapshot {
+			if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+				select {
+				case <-mergedCtx.Done():
+					return
+				case mergedEvents <- event:
+				}
+			}
+		}
+	}
+
+	// Subscribe to pubsub for durable events
+	var pubsubCancel func()
+	if p.pubsub != nil {
+		notifications := make(chan coderdpubsub.ChatStreamNotifyMessage, 10)
+		errors := make(chan error, 1)
+
+		listener := func(_ context.Context, message []byte, err error) {
 			if err != nil {
-				if errors.Is(err, context.Canceled) {
-					return
-				}
-				switch websocket.CloseStatus(err) {
-				case websocket.StatusNormalClosure, websocket.StatusGoingAway:
-					return
-				}
 				select {
-				case events <- relayError(chatID, xerrors.Errorf("read relay stream: %w", err)):
-				case <-relayCtx.Done():
+				case <-mergedCtx.Done():
+				case errors <- err:
 				}
 				return
 			}
-
-			switch envelope.Type {
-			case codersdk.ServerSentEventTypePing:
-				continue
-			case codersdk.ServerSentEventTypeData:
-				var event codersdk.ChatStreamEvent
-				if err := json.Unmarshal(envelope.Data, &event); err != nil {
-					select {
-					case events <- relayError(chatID, xerrors.Errorf("decode relay data event: %w", err)):
-					case <-relayCtx.Done():
-					}
-					return
-				}
-				if event.ChatID == uuid.Nil {
-					event.ChatID = chatID
-				}
+			var notify coderdpubsub.ChatStreamNotifyMessage
+			if unmarshalErr := json.Unmarshal(message, &notify); unmarshalErr != nil {
 				select {
-				case events <- event:
-				case <-relayCtx.Done():
-					return
-				}
-			case codersdk.ServerSentEventTypeError:
-				msg := "relay stream returned an error"
-				if len(envelope.Data) > 0 {
-					var response codersdk.Response
-					if err := json.Unmarshal(envelope.Data, &response); err == nil {
-						msg = formatRelayError(response)
-					} else {
-						msg = strings.TrimSpace(string(envelope.Data))
-					}
-				}
-				select {
-				case events <- relayError(chatID, xerrors.New(msg)):
-				case <-relayCtx.Done():
+				case <-mergedCtx.Done():
+				case errors <- xerrors.Errorf("unmarshal chat stream notify: %w", unmarshalErr):
 				}
 				return
-			default:
-				select {
-				case events <- relayError(chatID, xerrors.Errorf("unknown relay event type %q", envelope.Type)):
-				case <-relayCtx.Done():
-				}
-				return
+			}
+			select {
+			case <-mergedCtx.Done():
+			case notifications <- notify:
 			}
 		}
-	}()
+
+		var err error
+		pubsubCancel, err = p.pubsub.SubscribeWithErr(
+			coderdpubsub.ChatStreamNotifyChannel(chatID),
+			listener,
+		)
+		if err != nil {
+			p.logger.Warn(mergedCtx, "failed to subscribe to chat stream notifications",
+				slog.F("chat_id", chatID),
+				slog.Error(err),
+			)
+		} else {
+			allCancels = append(allCancels, pubsubCancel)
+		}
+
+		// Handle pubsub notifications in a goroutine
+		go func() {
+			defer close(mergedEvents)
+			defer closeRelay()
+
+			for {
+				select {
+				case <-mergedCtx.Done():
+					return
+				case err := <-errors:
+					p.logger.Error(mergedCtx, "chat stream pubsub error",
+						slog.F("chat_id", chatID),
+						slog.Error(err),
+					)
+					mergedEvents <- codersdk.ChatStreamEvent{
+						Type:   codersdk.ChatStreamEventTypeError,
+						ChatID: chatID,
+						Error: &codersdk.ChatStreamError{
+							Message: err.Error(),
+						},
+					}
+					return
+				case notify := <-notifications:
+					// Handle different notification types
+					if notify.AfterMessageID > 0 {
+						// Read new messages from DB
+						//nolint:gocritic // System context needed to read chat messages for stream.
+						messages, err := p.db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(mergedCtx), chatID)
+						if err == nil {
+							for _, msg := range messages {
+								if msg.ID > lastMessageID {
+									sdkMsg := db2sdk.ChatMessage(msg)
+									select {
+									case <-mergedCtx.Done():
+										return
+									case mergedEvents <- codersdk.ChatStreamEvent{
+										Type:    codersdk.ChatStreamEventTypeMessage,
+										ChatID:  chatID,
+										Message: &sdkMsg,
+									}:
+									}
+									lastMessageID = msg.ID
+								}
+							}
+						}
+					}
+					if notify.Status != "" {
+						status := database.ChatStatus(notify.Status)
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- codersdk.ChatStreamEvent{
+							Type:   codersdk.ChatStreamEventTypeStatus,
+							ChatID: chatID,
+							Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
+						}:
+						}
+						// Manage relay lifecycle based on status
+						if status == database.ChatStatusRunning && notify.WorkerID != "" {
+							workerID, err := uuid.Parse(notify.WorkerID)
+							if err == nil && workerID != p.workerID {
+								openRelay(workerID)
+							} else if workerID == p.workerID {
+								closeRelay()
+							}
+						} else {
+							closeRelay()
+						}
+					}
+					if notify.Error != "" {
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- codersdk.ChatStreamEvent{
+							Type:   codersdk.ChatStreamEventTypeError,
+							ChatID: chatID,
+							Error: &codersdk.ChatStreamError{
+								Message: notify.Error,
+							},
+						}:
+						}
+					}
+					if notify.QueueUpdate {
+						//nolint:gocritic // System context needed to read queued messages for stream.
+						queued, err := p.db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(mergedCtx), chatID)
+						if err == nil {
+							select {
+							case <-mergedCtx.Done():
+								return
+							case mergedEvents <- codersdk.ChatStreamEvent{
+								Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+								ChatID:         chatID,
+								QueuedMessages: toSDKQueuedMessages(queued),
+							}:
+							}
+						}
+					}
+				case event, ok := <-localParts:
+					if !ok {
+						// Local parts channel closed, but continue with pubsub
+						continue
+					}
+					// Only forward message_part events from local (durable events come via pubsub)
+					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- event:
+						}
+					}
+				case event, ok := <-relayParts:
+					if !ok {
+						relayParts = nil
+						continue
+					}
+					// Only forward message_part events from relay (durable events come via pubsub)
+					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- event:
+						}
+					}
+				}
+			}
+		}()
+	} else {
+		// No pubsub, just merge local parts
+		go func() {
+			defer close(mergedEvents)
+			for _, event := range localSnapshot {
+				select {
+				case <-mergedCtx.Done():
+					return
+				case mergedEvents <- event:
+				}
+			}
+			for event := range localParts {
+				select {
+				case <-mergedCtx.Done():
+					return
+				case mergedEvents <- event:
+				}
+			}
+		}()
+	}
 
 	cancel := func() {
-		relayCancel()
-		_ = conn.Close(websocket.StatusNormalClosure, "")
-	}
-	return events, cancel, nil
-}
-
-func relayHeaders(source http.Header, replicaID uuid.UUID) http.Header {
-	header := make(http.Header)
-	if source != nil {
-		for _, key := range []string{codersdk.SessionTokenHeader, authorizationHeader, cookieHeader} {
-			for _, value := range source.Values(key) {
-				header.Add(key, value)
+		mergedCancel()
+		for _, cancelFn := range allCancels {
+			if cancelFn != nil {
+				cancelFn()
 			}
 		}
+		closeRelay()
 	}
-	header.Set(RelaySourceHeader, replicaID.String())
-	return header
-}
 
-func relayError(chatID uuid.UUID, err error) codersdk.ChatStreamEvent {
-	return codersdk.ChatStreamEvent{
-		Type:   codersdk.ChatStreamEventTypeError,
-		ChatID: chatID,
-		Error: &codersdk.ChatStreamError{
-			Message: err.Error(),
-		},
-	}
-}
-
-func formatRelayError(response codersdk.Response) string {
-	message := strings.TrimSpace(response.Message)
-	detail := strings.TrimSpace(response.Detail)
-	switch {
-	case message == "" && detail == "":
-		return "relay stream returned an error"
-	case message == "":
-		return detail
-	case detail == "":
-		return message
-	default:
-		return fmt.Sprintf("%s: %s", message, detail)
-	}
+	return initialSnapshot, mergedEvents, cancel, true
 }
 
 func (p *Server) Stop(chatID uuid.UUID) {
@@ -1354,6 +1450,32 @@ func (p *Server) publishStatus(chatID uuid.UUID, status database.ChatStatus) {
 		Type:   codersdk.ChatStreamEventTypeStatus,
 		Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
 	})
+	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		Status:   string(status),
+		WorkerID: p.workerID.String(),
+	})
+}
+
+// publishChatStreamNotify broadcasts a per-chat stream notification via
+// PostgreSQL pubsub so that all replicas can read updates from the database.
+func (p *Server) publishChatStreamNotify(chatID uuid.UUID, notify coderdpubsub.ChatStreamNotifyMessage) {
+	if p.pubsub == nil {
+		return
+	}
+	payload, err := json.Marshal(notify)
+	if err != nil {
+		p.logger.Error(context.Background(), "failed to marshal chat stream notify",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return
+	}
+	if err := p.pubsub.Publish(coderdpubsub.ChatStreamNotifyChannel(chatID), payload); err != nil {
+		p.logger.Error(context.Background(), "failed to publish chat stream notify",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
 }
 
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
@@ -1424,6 +1546,9 @@ func (p *Server) publishError(chatID uuid.UUID, message string) {
 		Type:  codersdk.ChatStreamEventTypeError,
 		Error: &codersdk.ChatStreamError{Message: message},
 	})
+	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		Error: message,
+	})
 }
 
 func processingFailureReason(err error) (string, bool) {
@@ -1460,6 +1585,9 @@ func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) 
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:    codersdk.ChatStreamEventTypeMessage,
 		Message: &sdkMessage,
+	})
+	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		AfterMessageID: message.ID - 1,
 	})
 }
 
@@ -1581,6 +1709,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 							p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
 								Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 								QueuedMessages: sdkQueued,
+							})
+							p.publishChatStreamNotify(chat.ID, coderdpubsub.ChatStreamNotifyMessage{
+								QueueUpdate: true,
 							})
 						}
 					}
