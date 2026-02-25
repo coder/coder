@@ -1,4 +1,3 @@
-import type { ChatModelsResponse } from "api/api";
 import { watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
@@ -392,7 +391,7 @@ interface AgentsEmptyStateProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
 	createError: unknown;
-	modelCatalog: ChatModelsResponse | null | undefined;
+	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
 	modelOptions: readonly ChatModelOption[];
 	isModelCatalogLoading: boolean;
 	modelCatalogError: unknown;

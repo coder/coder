@@ -1,7 +1,4 @@
-import type {
-	CreateChatProviderConfigRequest,
-	UpdateChatProviderConfigRequest,
-} from "api/api";
+import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	Collapsible,
@@ -28,10 +25,12 @@ type ProvidersSectionProps = {
 	providerStates: readonly ProviderState[];
 	providerConfigsUnavailable: boolean;
 	isProviderMutationPending: boolean;
-	onCreateProvider: (req: CreateChatProviderConfigRequest) => Promise<unknown>;
+	onCreateProvider: (
+		req: TypesGen.CreateChatProviderConfigRequest,
+	) => Promise<unknown>;
 	onUpdateProvider: (
 		providerConfigId: string,
-		req: UpdateChatProviderConfigRequest,
+		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
 	onSelectedProviderChange: (provider: string) => void;
 };
@@ -44,17 +43,12 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	onUpdateProvider,
 	onSelectedProviderChange,
 }) => {
-	const [expandedProvider, setExpandedProvider] = useState<string | null>(
-		null,
-	);
+	const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
 
 	// Reset expanded provider when available providers change.
 	useEffect(() => {
 		setExpandedProvider((current) => {
-			if (
-				current &&
-				providerStates.some((ps) => ps.provider === current)
-			) {
+			if (current && providerStates.some((ps) => ps.provider === current)) {
 				return current;
 			}
 			return null;
@@ -72,8 +66,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	return (
 		<div className="space-y-2">
 			{providerStates.map((providerState) => {
-				const isExpanded =
-					expandedProvider === providerState.provider;
+				const isExpanded = expandedProvider === providerState.provider;
 				const modelsLabel = getProviderModelsLabel(providerState);
 
 				return (
@@ -81,13 +74,9 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 						key={providerState.provider}
 						open={isExpanded}
 						onOpenChange={(nextOpen) => {
-							setExpandedProvider(
-								nextOpen ? providerState.provider : null,
-							);
+							setExpandedProvider(nextOpen ? providerState.provider : null);
 							if (nextOpen) {
-								onSelectedProviderChange(
-									providerState.provider,
-								);
+								onSelectedProviderChange(providerState.provider);
 							}
 						}}
 					>
@@ -112,9 +101,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 										<ProviderIcon
 											provider={providerState.provider}
 											className="h-7 w-7"
-											active={
-												providerState.hasEffectiveAPIKey
-											}
+											active={providerState.hasEffectiveAPIKey}
 										/>
 										<div className="min-w-0">
 											<span
@@ -128,17 +115,14 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 												{providerState.label}
 											</span>
 											<div className="mt-0.5 flex items-center gap-2 text-xs text-content-secondary">
-												<span className="truncate">
-													{modelsLabel}
-												</span>
+												<span className="truncate">{modelsLabel}</span>
 											</div>
 										</div>
 									</div>
 									<ChevronRightIcon
 										className={cn(
 											"h-4 w-4 shrink-0 text-content-secondary transition-transform duration-200",
-											isExpanded &&
-												"rotate-90 text-content-primary",
+											isExpanded && "rotate-90 text-content-primary",
 										)}
 									/>
 								</Button>
@@ -147,17 +131,11 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 							{isExpanded && (
 								<ProviderForm
 									provider={providerState.provider}
-									providerConfig={
-										providerState.providerConfig
-									}
+									providerConfig={providerState.providerConfig}
 									baseURL={providerState.baseURL}
 									isEnvPreset={providerState.isEnvPreset}
-									providerConfigsUnavailable={
-										providerConfigsUnavailable
-									}
-									isProviderMutationPending={
-										isProviderMutationPending
-									}
+									providerConfigsUnavailable={providerConfigsUnavailable}
+									isProviderMutationPending={isProviderMutationPending}
 									onCreateProvider={onCreateProvider}
 									onUpdateProvider={onUpdateProvider}
 								/>

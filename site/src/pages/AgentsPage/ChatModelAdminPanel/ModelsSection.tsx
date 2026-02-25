@@ -1,15 +1,7 @@
-import type {
-	ChatModelConfig,
-	CreateChatModelConfigRequest,
-	UpdateChatModelConfigRequest,
-} from "api/api";
+import type * as TypesGen from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
-import {
-	PencilIcon,
-	PlusIcon,
-	Trash2Icon,
-} from "lucide-react";
+import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "../modelOptions";
@@ -20,22 +12,24 @@ import { ProviderIcon } from "./ProviderIcon";
 type ModelView =
 	| { mode: "list" }
 	| { mode: "add" }
-	| { mode: "edit"; model: ChatModelConfig };
+	| { mode: "edit"; model: TypesGen.ChatModelConfig };
 
 type ModelsSectionProps = {
 	providerStates: readonly ProviderState[];
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
 	onSelectedProviderChange: (provider: string) => void;
-	modelConfigs: readonly ChatModelConfig[];
+	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	modelConfigsUnavailable: boolean;
 	isCreating: boolean;
 	isUpdating: boolean;
 	isDeleting: boolean;
-	onCreateModel: (req: CreateChatModelConfigRequest) => Promise<unknown>;
+	onCreateModel: (
+		req: TypesGen.CreateChatModelConfigRequest,
+	) => Promise<unknown>;
 	onUpdateModel: (
 		modelConfigId: string,
-		req: UpdateChatModelConfigRequest,
+		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
 	onDeleteModel: (modelConfigId: string) => Promise<void>;
 };
@@ -58,8 +52,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 	// When the form is open it takes over the full panel.
 	if (view.mode === "add" || view.mode === "edit") {
-		const editingModel =
-			view.mode === "edit" ? view.model : undefined;
+		const editingModel = view.mode === "edit" ? view.model : undefined;
 
 		// When editing, select the model's provider so the form shows
 		// the correct provider-specific fields.
@@ -67,9 +60,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 			? editingModel.provider
 			: selectedProvider;
 		const effectiveProviderState = editingModel
-			? providerStates.find(
-					(ps) => ps.provider === editingModel.provider,
-				) ?? null
+			? (providerStates.find((ps) => ps.provider === editingModel.provider) ??
+				null)
 			: selectedProviderState;
 
 		return (
@@ -157,14 +149,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 												: "text-content-primary",
 										)}
 									>
-										{modelConfig.display_name ||
-											modelConfig.model}
+										{modelConfig.display_name || modelConfig.model}
 									</span>
-									{modelConfig.is_default && (
-										<Badge size="sm" variant="info">
-											default
-										</Badge>
-									)}
 									{modelConfig.enabled === false && (
 										<Badge size="sm" variant="warning">
 											disabled
@@ -173,21 +159,11 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 								</div>
 								<div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-content-secondary">
 									<span className="inline-flex items-center gap-1">
-										{formatProviderLabel(
-											modelConfig.provider,
-										)}
+										{formatProviderLabel(modelConfig.provider)}
 									</span>
-									<span className="font-mono">
-										{modelConfig.model}
-									</span>
-									<span>
-										{modelConfig.context_limit.toLocaleString()}{" "}
-										ctx
-									</span>
-									<span>
-										{modelConfig.compression_threshold}%
-										compress
-									</span>
+									<span className="font-mono">{modelConfig.model}</span>
+									<span>{modelConfig.context_limit.toLocaleString()} ctx</span>
+									<span>{modelConfig.compression_threshold}% compress</span>
 								</div>
 							</div>
 
@@ -204,23 +180,17 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 									}
 								>
 									<PencilIcon className="h-4 w-4" />
-									<span className="sr-only">
-										Edit model
-									</span>
+									<span className="sr-only">Edit model</span>
 								</Button>
 								<Button
 									size="icon"
 									variant="subtle"
 									className="h-8 w-8 text-content-secondary hover:text-content-destructive"
-									onClick={() =>
-										void onDeleteModel(modelConfig.id)
-									}
+									onClick={() => void onDeleteModel(modelConfig.id)}
 									disabled={isDeleting}
 								>
 									<Trash2Icon className="h-4 w-4" />
-									<span className="sr-only">
-										Delete model
-									</span>
+									<span className="sr-only">Delete model</span>
 								</Button>
 							</div>
 						</div>

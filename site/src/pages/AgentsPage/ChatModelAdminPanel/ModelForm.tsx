@@ -1,8 +1,3 @@
-import type {
-	ChatModelConfig,
-	CreateChatModelConfigRequest,
-	UpdateChatModelConfigRequest,
-} from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Input } from "components/Input/Input";
@@ -156,9 +151,7 @@ const modelConfigSchemaByProvider: Record<
 				},
 			},
 		},
-		notes: [
-			"Responses API models may also use reasoning_summary and include.",
-		],
+		notes: ["Responses API models may also use reasoning_summary and include."],
 	},
 	azure: {
 		modelConfig: {
@@ -288,17 +281,13 @@ const parseThresholdInteger = (value: string): number | null => {
 	return parsed;
 };
 
-const getModelConfigSchemaReference = (
-	providerState: ProviderState | null,
-) => {
+const getModelConfigSchemaReference = (providerState: ProviderState | null) => {
 	const providerLabel = providerState?.label ?? "Provider";
 	const normalizedProvider = (providerState?.provider ?? "")
 		.trim()
 		.toLowerCase();
-	const providerConfigSchema =
-		modelConfigSchemaByProvider[normalizedProvider];
-	const modelConfigTemplate =
-		providerConfigSchema?.modelConfig ?? {};
+	const providerConfigSchema = modelConfigSchemaByProvider[normalizedProvider];
+	const modelConfigTemplate = providerConfigSchema?.modelConfig ?? {};
 	const notes = providerConfigSchema?.notes ?? [
 		"No provider-specific options are documented for this provider yet.",
 	];
@@ -321,7 +310,7 @@ const getModelConfigSchemaReference = (
 // ── Extract model config form state from an existing model ────
 
 const extractModelConfigFormState = (
-	model: ChatModelConfig,
+	model: TypesGen.ChatModelConfig,
 ): ModelConfigFormState => {
 	const config = model.model_config;
 	if (!config) {
@@ -356,10 +345,7 @@ const extractModelConfigFormState = (
 	>;
 	// Vercel options.
 	const vercel = (po.vercel ?? {}) as Record<string, unknown>;
-	const vercelReasoning = (vercel.reasoning ?? {}) as Record<
-		string,
-		unknown
-	>;
+	const vercelReasoning = (vercel.reasoning ?? {}) as Record<string, unknown>;
 
 	return {
 		maxOutputTokens: str(config.max_output_tokens),
@@ -379,9 +365,7 @@ const extractModelConfigFormState = (
 		anthropicEffort: str(anthropic.effort),
 		anthropicThinkingBudgetTokens: str(anthropicThinking.budget_tokens),
 		anthropicSendReasoning: str(anthropic.send_reasoning),
-		anthropicDisableParallelToolUse: str(
-			anthropic.disable_parallel_tool_use,
-		),
+		anthropicDisableParallelToolUse: str(anthropic.disable_parallel_tool_use),
 
 		googleThinkingBudget: str(googleThinking.thinking_budget),
 		googleIncludeThoughts: str(googleThinking.include_thoughts),
@@ -548,9 +532,7 @@ const buildModelConfigFromForm = (
 					: {}),
 				...(textVerbosity ? { text_verbosity: textVerbosity } : {}),
 				...(serviceTier ? { service_tier: serviceTier } : {}),
-				...(reasoningSummary
-					? { reasoning_summary: reasoningSummary }
-					: {}),
+				...(reasoningSummary ? { reasoning_summary: reasoningSummary } : {}),
 				...(user ? { user } : {}),
 			};
 			if (hasObjectKeys(openaiOptions as Record<string, unknown>)) {
@@ -593,9 +575,7 @@ const buildModelConfigFromForm = (
 					? { disable_parallel_tool_use: disableParallelToolUse }
 					: {}),
 			};
-			if (
-				hasObjectKeys(anthropicOptions as Record<string, unknown>)
-			) {
+			if (hasObjectKeys(anthropicOptions as Record<string, unknown>)) {
 				providerOptions = { anthropic: anthropicOptions };
 			}
 			break;
@@ -627,8 +607,7 @@ const buildModelConfigFromForm = (
 				}
 			}
 			const googleOptions: Record<string, unknown> = {
-				...(thinkingBudget !== undefined ||
-				includeThoughts !== undefined
+				...(thinkingBudget !== undefined || includeThoughts !== undefined
 					? {
 							thinking_config: {
 								...(thinkingBudget !== undefined
@@ -640,9 +619,7 @@ const buildModelConfigFromForm = (
 							},
 						}
 					: {}),
-				...(cachedContent
-					? { cached_content: cachedContent }
-					: {}),
+				...(cachedContent ? { cached_content: cachedContent } : {}),
 				...(typedSafetySettings
 					? { safety_settings: typedSafetySettings }
 					: {}),
@@ -721,9 +698,7 @@ const buildModelConfigFromForm = (
 				...(parallelToolCalls !== undefined
 					? { parallel_tool_calls: parallelToolCalls }
 					: {}),
-				...(includeUsage !== undefined
-					? { include_usage: includeUsage }
-					: {}),
+				...(includeUsage !== undefined ? { include_usage: includeUsage } : {}),
 				...(user ? { user } : {}),
 			};
 			if (hasObjectKeys(opts as Record<string, unknown>)) {
@@ -815,17 +790,19 @@ const buildModelConfigFromForm = (
 
 type ModelFormProps = {
 	/** When set, the form is in "edit" mode for the given model. */
-	editingModel?: ChatModelConfig;
+	editingModel?: TypesGen.ChatModelConfig;
 	providerStates: readonly ProviderState[];
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
 	onSelectedProviderChange: (provider: string) => void;
 	modelConfigsUnavailable: boolean;
 	isSaving: boolean;
-	onCreateModel: (req: CreateChatModelConfigRequest) => Promise<unknown>;
+	onCreateModel: (
+		req: TypesGen.CreateChatModelConfigRequest,
+	) => Promise<unknown>;
 	onUpdateModel: (
 		modelConfigId: string,
-		req: UpdateChatModelConfigRequest,
+		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
 	onCancel: () => void;
 };
@@ -861,12 +838,12 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [compressionThreshold, setCompressionThreshold] = useState(
 		editingModel ? String(editingModel.compression_threshold) : "70",
 	);
-	const [modelConfigForm, setModelConfigForm] =
-		useState<ModelConfigFormState>(() =>
+	const [modelConfigForm, setModelConfigForm] = useState<ModelConfigFormState>(
+		() =>
 			editingModel
 				? extractModelConfigFormState(editingModel)
 				: { ...emptyModelConfigFormState },
-		);
+	);
 
 	// Reset form fields when the selected provider changes (add
 	// mode only — in edit mode the provider is fixed).
@@ -923,10 +900,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 					{providerStates.map((ps) => (
 						<SelectItem key={ps.provider} value={ps.provider}>
 							<span className="flex items-center gap-2">
-								<ProviderIcon
-									provider={ps.provider}
-									className="h-4 w-4"
-								/>
+								<ProviderIcon provider={ps.provider} className="h-4 w-4" />
 								{ps.label}
 							</span>
 						</SelectItem>
@@ -1017,42 +991,41 @@ export const ModelForm: FC<ModelFormProps> = ({
 		const builtModelConfig = modelConfigFormBuildResult.modelConfig;
 
 		if (isEditing && editingModel) {
-			const req: UpdateChatModelConfigRequest = {};
-			if (trimmedModel !== editingModel.model) {
-				req.model = trimmedModel;
-			}
-			if (trimmedDisplayName !== (editingModel.display_name ?? "")) {
-				req.display_name = trimmedDisplayName;
-			}
-			if (parsedContextLimit !== editingModel.context_limit) {
-				req.context_limit = parsedContextLimit;
-			}
-			if (
-				parsedCompressionThreshold !==
-				editingModel.compression_threshold
-			) {
-				req.compression_threshold = parsedCompressionThreshold;
-			}
-			// Always send model_config so it can be cleared or updated.
-			req.model_config = builtModelConfig;
+			const req: TypesGen.UpdateChatModelConfigRequest = {
+				...(trimmedModel !== editingModel.model && {
+					model: trimmedModel,
+				}),
+				...(trimmedDisplayName !== (editingModel.display_name ?? "") && {
+					display_name: trimmedDisplayName,
+				}),
+				...(parsedContextLimit !== editingModel.context_limit && {
+					context_limit: parsedContextLimit,
+				}),
+				...(parsedCompressionThreshold !==
+					editingModel.compression_threshold && {
+					compression_threshold: parsedCompressionThreshold,
+				}),
+				// Always send model_config so it can be cleared or updated.
+				model_config: builtModelConfig,
+			};
 
 			await onUpdateModel(editingModel.id, req);
 			onCancel();
 		} else {
 			if (!selectedProviderState?.providerConfig) return;
 
-			const req: CreateChatModelConfigRequest = {
+			const req: TypesGen.CreateChatModelConfigRequest = {
 				provider: selectedProviderState.provider,
 				model: trimmedModel,
 				context_limit: parsedContextLimit,
 				compression_threshold: parsedCompressionThreshold,
+				...(trimmedDisplayName && {
+					display_name: trimmedDisplayName,
+				}),
+				...(builtModelConfig && {
+					model_config: builtModelConfig,
+				}),
 			};
-			if (trimmedDisplayName) {
-				req.display_name = trimmedDisplayName;
-			}
-			if (builtModelConfig) {
-				req.model_config = builtModelConfig;
-			}
 
 			await onCreateModel(req);
 			setModel("");
@@ -1124,9 +1097,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									className="h-10 text-[13px]"
 									placeholder="gpt-5, claude-sonnet-4-5, etc."
 									value={model}
-									onChange={(e) =>
-										setModel(e.target.value)
-									}
+									onChange={(e) => setModel(e.target.value)}
 									disabled={isSaving}
 								/>
 							</div>
@@ -1145,9 +1116,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									className="h-10 text-[13px]"
 									placeholder="Friendly label"
 									value={displayName}
-									onChange={(e) =>
-										setDisplayName(e.target.value)
-									}
+									onChange={(e) => setDisplayName(e.target.value)}
 									disabled={isSaving}
 								/>
 							</div>
@@ -1176,14 +1145,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 									id={contextLimitInputId}
 									className={cn(
 										"h-10 text-[13px]",
-										contextLimitError &&
-											"border-content-destructive",
+										contextLimitError && "border-content-destructive",
 									)}
 									placeholder="200000"
 									value={contextLimit}
-									onChange={(e) =>
-										setContextLimit(e.target.value)
-									}
+									onChange={(e) => setContextLimit(e.target.value)}
 									disabled={isSaving}
 								/>
 								{contextLimitError && (
@@ -1203,16 +1169,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 									id={compressionThresholdInputId}
 									className={cn(
 										"h-10 text-[13px]",
-										compressionThresholdError &&
-											"border-content-destructive",
+										compressionThresholdError && "border-content-destructive",
 									)}
 									placeholder="70"
 									value={compressionThreshold}
-									onChange={(e) =>
-										setCompressionThreshold(
-											e.target.value,
-										)
-									}
+									onChange={(e) => setCompressionThreshold(e.target.value)}
 									disabled={isSaving}
 								/>
 								{compressionThresholdError && (
@@ -1247,15 +1208,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 						</summary>
 						<div className="space-y-2 border-t border-border/60 px-4 pb-4 pt-3">
 							<p className="m-0 text-xs text-content-secondary">
-								Reference JSON for{" "}
-								<code>create/update chat model config</code>{" "}
+								Reference JSON for <code>create/update chat model config</code>{" "}
 								payloads.
 							</p>
 							{modelConfigSchemaReference.notes.map((note) => (
-								<p
-									key={note}
-									className="m-0 text-xs text-content-secondary"
-								>
+								<p key={note} className="m-0 text-xs text-content-secondary">
 									{note}
 								</p>
 							))}
@@ -1271,12 +1228,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 				{/* Sticky footer actions */}
 				<div className="flex items-center justify-end gap-2 border-t border-border bg-surface-primary px-6 py-4">
-					<Button
-						size="sm"
-						variant="outline"
-						type="button"
-						onClick={onCancel}
-					>
+					<Button size="sm" variant="outline" type="button" onClick={onCancel}>
 						Cancel
 					</Button>
 					<Button

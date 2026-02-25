@@ -1,8 +1,3 @@
-import type {
-	ChatModelConfig,
-	ChatModelsResponse,
-	ChatProviderConfig,
-} from "api/api";
 import {
 	chatModelConfigs,
 	chatModels,
@@ -13,6 +8,7 @@ import {
 	updateChatModelConfig as updateChatModelConfigMutation,
 	updateChatProviderConfig as updateChatProviderConfigMutation,
 } from "api/queries/chats";
+import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader2Icon } from "lucide-react";
@@ -28,8 +24,8 @@ import { ProvidersSection } from "./ProvidersSection";
 export type ProviderState = {
 	provider: string;
 	label: string;
-	providerConfig: ChatProviderConfig | undefined;
-	modelConfigs: readonly ChatModelConfig[];
+	providerConfig: TypesGen.ChatProviderConfig | undefined;
+	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	catalogModelCount: number;
 	hasManagedAPIKey: boolean;
 	hasCatalogAPIKey: boolean;
@@ -42,8 +38,7 @@ export type ChatModelAdminSection = "providers" | "models";
 
 // ── Internal helpers ───────────────────────────────────────────
 
-type CatalogProvider = ChatModelsResponse["providers"][number];
-type ProviderConfigSource = "database" | "env_preset" | "supported";
+type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
 
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 const envPresetProviders = new Set(["openai", "anthropic"]);
@@ -58,43 +53,29 @@ const readOptionalString = (value: unknown): string | undefined => {
 };
 
 const hasProviderAPIKey = (
-	providerConfig: ChatProviderConfig | undefined,
+	providerConfig: TypesGen.ChatProviderConfig | undefined,
 ): boolean => {
 	if (!providerConfig) return false;
-	const legacy = providerConfig as ChatProviderConfig & {
-		has_api_key?: boolean;
-		api_key_set?: boolean;
-	};
-	return Boolean(legacy.api_key_set ?? legacy.has_api_key);
+	return providerConfig.has_api_key;
 };
 
 const getProviderConfigSource = (
-	providerConfig: ChatProviderConfig | undefined,
-): ProviderConfigSource | undefined => {
-	const source = readOptionalString(
-		(providerConfig as ChatProviderConfig & { source?: string })?.source,
-	);
-	switch (source) {
-		case "database":
-		case "env_preset":
-		case "supported":
-			return source;
-		default:
-			return undefined;
-	}
+	providerConfig: TypesGen.ChatProviderConfig | undefined,
+): TypesGen.ChatProviderConfigSource | undefined => {
+	return providerConfig?.source;
 };
 
 const isDatabaseProviderConfig = (
-	providerConfig: ChatProviderConfig | undefined,
-	source: ProviderConfigSource | undefined,
-): providerConfig is ChatProviderConfig => {
+	providerConfig: TypesGen.ChatProviderConfig | undefined,
+	source: TypesGen.ChatProviderConfigSource | undefined,
+): providerConfig is TypesGen.ChatProviderConfig => {
 	if (!providerConfig) return false;
 	if (providerConfig.id === nilUUID) return false;
 	return source === undefined || source === "database";
 };
 
 const getCatalogProviders = (
-	catalog: ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
 ): readonly CatalogProvider[] => {
 	const providers = catalog?.providers;
 	return Array.isArray(providers) ? providers : [];
@@ -113,22 +94,17 @@ const getProviderModels = (
 };
 
 const getProviderBaseURL = (
-	providerConfig: ChatProviderConfig | undefined,
+	providerConfig: TypesGen.ChatProviderConfig | undefined,
 ): string => {
-	return (
-		readOptionalString(
-			(providerConfig as ChatProviderConfig & { base_url?: string })
-				?.base_url,
-		) ?? ""
-	);
+	return readOptionalString(providerConfig?.base_url) ?? "";
 };
 
 // ── Hook: compute provider states from query data ──────────────
 
 const useProviderStates = (
-	modelConfigs: readonly ChatModelConfig[],
-	providerConfigsData: ChatProviderConfig[] | null | undefined,
-	catalogData: ChatModelsResponse | null | undefined,
+	modelConfigs: readonly TypesGen.ChatModelConfig[],
+	providerConfigsData: TypesGen.ChatProviderConfig[] | null | undefined,
+	catalogData: TypesGen.ChatModelsResponse | null | undefined,
 ): readonly ProviderState[] =>
 	useMemo(() => {
 		const orderedProviders: string[] = [];
@@ -158,7 +134,7 @@ const useProviderStates = (
 
 		const providerConfigsByProvider = new Map<
 			string,
-			ChatProviderConfig
+			TypesGen.ChatProviderConfig
 		>();
 		for (const pc of providerConfigsData ?? []) {
 			const normalized = normalizeProvider(pc.provider);
@@ -166,7 +142,10 @@ const useProviderStates = (
 			providerConfigsByProvider.set(normalized, pc);
 		}
 
-		const modelConfigsByProvider = new Map<string, ChatModelConfig[]>();
+		const modelConfigsByProvider = new Map<
+			string,
+			TypesGen.ChatModelConfig[]
+		>();
 		for (const mc of modelConfigs) {
 			const normalized = normalizeProvider(mc.provider);
 			if (!normalized) continue;
@@ -179,10 +158,8 @@ const useProviderStates = (
 		}
 
 		return orderedProviders.map((provider) => {
-			const providerConfigEntry =
-				providerConfigsByProvider.get(provider);
-			const providerConfigSource =
-				getProviderConfigSource(providerConfigEntry);
+			const providerConfigEntry = providerConfigsByProvider.get(provider);
+			const providerConfigSource = getProviderConfigSource(providerConfigEntry);
 			const providerConfig = isDatabaseProviderConfig(
 				providerConfigEntry,
 				providerConfigSource,
@@ -191,30 +168,15 @@ const useProviderStates = (
 				: undefined;
 			const catalogProvider = catalogProvidersByProvider.get(provider);
 			const catalogProviderSource = readOptionalString(
-				(catalogProvider as CatalogProvider & { source?: string })
-					?.source,
+				(catalogProvider as CatalogProvider & { source?: string })?.source,
 			);
 			const hasManagedAPIKey = hasProviderAPIKey(providerConfig);
-			const hasProviderEntryAPIKey =
-				hasProviderAPIKey(providerConfigEntry);
+			const hasProviderEntryAPIKey = hasProviderAPIKey(providerConfigEntry);
 			const hasCatalogAPIKey = catalogProvider
 				? providerHasCatalogAPIKey(catalogProvider)
 				: false;
 			const label =
-				readOptionalString(
-					(
-						providerConfigEntry as ChatProviderConfig & {
-							display_name?: string;
-						}
-					)?.display_name,
-				) ??
-				readOptionalString(
-					(
-						catalogProvider as CatalogProvider & {
-							display_name?: string;
-						}
-					)?.display_name,
-				) ??
+				readOptionalString(providerConfigEntry?.display_name) ??
 				formatProviderLabel(provider);
 			const modelConfigsForProvider =
 				modelConfigsByProvider.get(provider) ?? [];
@@ -254,9 +216,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	section = "providers",
 }) => {
 	const queryClient = useQueryClient();
-	const [selectedProvider, setSelectedProvider] = useState<string | null>(
-		null,
-	);
+	const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
 
 	// ── Queries ────────────────────────────────────────────────
 	const providerConfigsQuery = useQuery(chatProviderConfigs());
@@ -300,10 +260,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	// Keep selectedProvider in sync with available providers.
 	useEffect(() => {
 		setSelectedProvider((current) => {
-			if (
-				current &&
-				providerStates.some((ps) => ps.provider === current)
-			) {
+			if (current && providerStates.some((ps) => ps.provider === current)) {
 				return current;
 			}
 			return providerStates[0]?.provider ?? null;
@@ -313,9 +270,8 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const selectedProviderState = useMemo(
 		() =>
 			selectedProvider
-				? (providerStates.find(
-						(ps) => ps.provider === selectedProvider,
-					) ?? null)
+				? (providerStates.find((ps) => ps.provider === selectedProvider) ??
+					null)
 				: null,
 		[providerStates, selectedProvider],
 	);
@@ -361,22 +317,15 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 			{modelCatalogQuery.isError && (
 				<ErrorAlert error={modelCatalogQuery.error} />
 			)}
-			{providerMutationError && (
-				<ErrorAlert error={providerMutationError} />
-			)}
-			{modelMutationError && (
-				<ErrorAlert error={modelMutationError} />
-			)}
+			{providerMutationError && <ErrorAlert error={providerMutationError} />}
+			{modelMutationError && <ErrorAlert error={modelMutationError} />}
 
 			{providerConfigsUnavailable && (
 				<Alert severity="info" className="mb-3">
 					<AlertTitle>
-						Chat provider admin API is unavailable on this
-						deployment.
+						Chat provider admin API is unavailable on this deployment.
 					</AlertTitle>
-					<AlertDetail>
-						/api/v2/chats/providers is missing.
-					</AlertDetail>
+					<AlertDetail>/api/v2/chats/providers is missing.</AlertDetail>
 				</Alert>
 			)}
 
@@ -385,9 +334,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					<AlertTitle>
 						Chat model admin API is unavailable on this deployment.
 					</AlertTitle>
-					<AlertDetail>
-						/api/v2/chats/model-configs is missing.
-					</AlertDetail>
+					<AlertDetail>/api/v2/chats/model-configs is missing.</AlertDetail>
 				</Alert>
 			)}
 
@@ -397,9 +344,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					providerStates={providerStates}
 					providerConfigsUnavailable={providerConfigsUnavailable}
 					isProviderMutationPending={isProviderMutationPending}
-					onCreateProvider={(req) =>
-						createProviderMut.mutateAsync(req)
-					}
+					onCreateProvider={(req) => createProviderMut.mutateAsync(req)}
 					onUpdateProvider={(providerConfigId, req) =>
 						updateProviderMut.mutateAsync({
 							providerConfigId,
@@ -409,29 +354,25 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					onSelectedProviderChange={setSelectedProvider}
 				/>
 			) : (
-			<ModelsSection
-				providerStates={providerStates}
-				selectedProvider={selectedProvider}
-				selectedProviderState={selectedProviderState}
-				onSelectedProviderChange={setSelectedProvider}
-				modelConfigs={modelConfigs}
-				modelConfigsUnavailable={modelConfigsUnavailable}
-				isCreating={createModelMut.isPending}
-				isUpdating={updateModelMut.isPending}
-				isDeleting={deleteModelMut.isPending}
-				onCreateModel={(req) =>
-					createModelMut.mutateAsync(req)
-				}
-				onUpdateModel={(modelConfigId, req) =>
-					updateModelMut.mutateAsync({
-						modelConfigId,
-						req,
-					})
-				}
-				onDeleteModel={(id) =>
-					deleteModelMut.mutateAsync(id)
-				}
-			/>
+				<ModelsSection
+					providerStates={providerStates}
+					selectedProvider={selectedProvider}
+					selectedProviderState={selectedProviderState}
+					onSelectedProviderChange={setSelectedProvider}
+					modelConfigs={modelConfigs}
+					modelConfigsUnavailable={modelConfigsUnavailable}
+					isCreating={createModelMut.isPending}
+					isUpdating={updateModelMut.isPending}
+					isDeleting={deleteModelMut.isPending}
+					onCreateModel={(req) => createModelMut.mutateAsync(req)}
+					onUpdateModel={(modelConfigId, req) =>
+						updateModelMut.mutateAsync({
+							modelConfigId,
+							req,
+						})
+					}
+					onDeleteModel={(id) => deleteModelMut.mutateAsync(id)}
+				/>
 			)}
 		</div>
 	);

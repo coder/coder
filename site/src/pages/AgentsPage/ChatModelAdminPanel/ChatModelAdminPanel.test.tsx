@@ -1,17 +1,13 @@
-import type {
-	ChatModelConfig,
-	ChatModelsResponse,
-	ChatProviderConfig,
-} from "api/api";
-import { HttpResponse, http } from "msw";
-import { QueryClientProvider } from "react-query";
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import {
 	createTestQueryClient,
 	renderComponent,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type * as TypesGen from "api/typesGenerated";
+import { HttpResponse, http } from "msw";
+import { QueryClientProvider } from "react-query";
 import {
 	ChatModelAdminPanel,
 	type ChatModelAdminSection,
@@ -21,9 +17,9 @@ const now = "2026-02-18T12:00:00.000Z";
 const nilProviderConfigID = "00000000-0000-0000-0000-000000000000";
 
 type ChatAdminState = {
-	providerConfigs: ChatProviderConfig[];
-	modelConfigs: ChatModelConfig[];
-	modelCatalog: ChatModelsResponse;
+	providerConfigs: TypesGen.ChatProviderConfig[];
+	modelConfigs: TypesGen.ChatModelConfig[];
+	modelCatalog: TypesGen.ChatModelsResponse;
 };
 
 type RequestLog = {
@@ -36,17 +32,15 @@ type RequestLog = {
 };
 
 const createProviderConfig = (
-	overrides: Partial<ChatProviderConfig> &
-		Pick<ChatProviderConfig, "id" | "provider">,
-): ChatProviderConfig => {
-	const hasAPIKey = Boolean(overrides.api_key_set ?? overrides.has_api_key);
+	overrides: Partial<TypesGen.ChatProviderConfig> &
+		Pick<TypesGen.ChatProviderConfig, "id" | "provider">,
+): TypesGen.ChatProviderConfig => {
 	return {
 		id: overrides.id,
 		provider: overrides.provider,
 		display_name: overrides.display_name ?? "",
 		enabled: overrides.enabled ?? true,
-		api_key_set: hasAPIKey,
-		has_api_key: hasAPIKey,
+		has_api_key: overrides.has_api_key ?? false,
 		base_url: overrides.base_url ?? "",
 		source: overrides.source ?? "database",
 		created_at: overrides.created_at ?? now,
@@ -55,9 +49,9 @@ const createProviderConfig = (
 };
 
 const createModelConfig = (
-	overrides: Partial<ChatModelConfig> &
-		Pick<ChatModelConfig, "id" | "provider" | "model">,
-): ChatModelConfig => {
+	overrides: Partial<TypesGen.ChatModelConfig> &
+		Pick<TypesGen.ChatModelConfig, "id" | "provider" | "model">,
+): TypesGen.ChatModelConfig => {
 	return {
 		id: overrides.id,
 		provider: overrides.provider,
@@ -89,7 +83,7 @@ const installChatHandlers = (state: ChatAdminState, log?: RequestLog) => {
 				id: `provider-${Date.now()}`,
 				provider,
 				display_name: displayName,
-				api_key_set: apiKey.length > 0,
+				has_api_key: apiKey.length > 0,
 				base_url: baseURL,
 				source: "database",
 			});
@@ -103,51 +97,48 @@ const installChatHandlers = (state: ChatAdminState, log?: RequestLog) => {
 
 			return HttpResponse.json(createdProvider, { status: 201 });
 		}),
-		http.patch("/api/v2/chats/providers/:providerConfigId", async ({
-			params,
-			request,
-		}) => {
-			const providerConfigId = `${params.providerConfigId ?? ""}`;
-			const body = (await request.json()) as Record<string, unknown>;
-			log?.updateProviderBodies.push({ providerConfigId, body });
+		http.patch(
+			"/api/v2/chats/providers/:providerConfigId",
+			async ({ params, request }) => {
+				const providerConfigId = `${params.providerConfigId ?? ""}`;
+				const body = (await request.json()) as Record<string, unknown>;
+				log?.updateProviderBodies.push({ providerConfigId, body });
 
-			const providerIndex = state.providerConfigs.findIndex(
-				(providerConfig) => providerConfig.id === providerConfigId,
-			);
-			if (providerIndex < 0) {
-				return HttpResponse.json(
-					{ message: "Provider config not found." },
-					{ status: 404 },
+				const providerIndex = state.providerConfigs.findIndex(
+					(providerConfig) => providerConfig.id === providerConfigId,
 				);
-			}
+				if (providerIndex < 0) {
+					return HttpResponse.json(
+						{ message: "Provider config not found." },
+						{ status: 404 },
+					);
+				}
 
-			const currentProvider = state.providerConfigs[providerIndex];
-			const updatedProvider: ChatProviderConfig = {
-				...currentProvider,
-				display_name:
-					typeof body.display_name === "string"
-						? body.display_name
-						: currentProvider.display_name,
-				api_key_set:
-					typeof body.api_key === "string"
-						? body.api_key.trim().length > 0
-						: currentProvider.api_key_set,
-				has_api_key:
-					typeof body.api_key === "string"
-						? body.api_key.trim().length > 0
-						: currentProvider.has_api_key,
-				base_url:
-					typeof body.base_url === "string"
-						? body.base_url
-						: currentProvider.base_url,
-				updated_at: now,
-			};
-			state.providerConfigs = state.providerConfigs.map((providerConfig, index) =>
-				index === providerIndex ? updatedProvider : providerConfig,
-			);
+				const currentProvider = state.providerConfigs[providerIndex];
+				const updatedProvider: TypesGen.ChatProviderConfig = {
+					...currentProvider,
+					display_name:
+						typeof body.display_name === "string"
+							? body.display_name
+							: currentProvider.display_name,
+					has_api_key:
+						typeof body.api_key === "string"
+							? body.api_key.trim().length > 0
+							: currentProvider.has_api_key,
+					base_url:
+						typeof body.base_url === "string"
+							? body.base_url
+							: currentProvider.base_url,
+					updated_at: now,
+				};
+				state.providerConfigs = state.providerConfigs.map(
+					(providerConfig, index) =>
+						index === providerIndex ? updatedProvider : providerConfig,
+				);
 
-			return HttpResponse.json(updatedProvider);
-		}),
+				return HttpResponse.json(updatedProvider);
+			},
+		),
 		http.get("/api/v2/chats/model-configs", () => {
 			return HttpResponse.json(state.modelConfigs);
 		}),
@@ -164,7 +155,8 @@ const installChatHandlers = (state: ChatAdminState, log?: RequestLog) => {
 				model,
 				display_name: displayName || model,
 				context_limit:
-					typeof body.context_limit === "number" && Number.isFinite(body.context_limit)
+					typeof body.context_limit === "number" &&
+					Number.isFinite(body.context_limit)
 						? body.context_limit
 						: 200000,
 				compression_threshold:
@@ -221,9 +213,7 @@ describe(ChatModelAdminPanel.name, () => {
 
 		expect(await screen.findByText("OpenRouter")).toBeInTheDocument();
 		expect(screen.queryByText("OpenAI")).not.toBeInTheDocument();
-		await userEvent.click(
-			screen.getByRole("button", { name: /OpenRouter/i }),
-		);
+		await userEvent.click(screen.getByRole("button", { name: /OpenRouter/i }));
 		expect(screen.getByLabelText("Base URL (optional)")).toBeInTheDocument();
 	});
 
@@ -234,7 +224,7 @@ describe(ChatModelAdminPanel.name, () => {
 					id: nilProviderConfigID,
 					provider: "openai",
 					display_name: "OpenAI",
-					api_key_set: true,
+					has_api_key: true,
 					source: "env_preset",
 					enabled: true,
 				}),
@@ -242,7 +232,7 @@ describe(ChatModelAdminPanel.name, () => {
 					id: nilProviderConfigID,
 					provider: "anthropic",
 					display_name: "Anthropic",
-					api_key_set: true,
+					has_api_key: true,
 					source: "env_preset",
 					enabled: true,
 				}),
@@ -287,7 +277,7 @@ describe(ChatModelAdminPanel.name, () => {
 					display_name: "OpenAI",
 					source: "supported",
 					enabled: false,
-					api_key_set: false,
+					has_api_key: false,
 				}),
 			],
 			modelConfigs: [],
@@ -314,7 +304,10 @@ describe(ChatModelAdminPanel.name, () => {
 		await userEvent.click(
 			await screen.findByRole("button", { name: /OpenAI/i }),
 		);
-		await userEvent.type(await screen.findByLabelText("API key"), "sk-provider-key");
+		await userEvent.type(
+			await screen.findByLabelText("API key"),
+			"sk-provider-key",
+		);
 		await userEvent.type(
 			screen.getByLabelText("Base URL (optional)"),
 			"https://proxy.example.com/v1",
@@ -338,7 +331,9 @@ describe(ChatModelAdminPanel.name, () => {
 			).toBeInTheDocument();
 		});
 
-		const displayNameInput = screen.getByPlaceholderText("Friendly provider label");
+		const displayNameInput = screen.getByPlaceholderText(
+			"Friendly provider label",
+		);
 		await userEvent.clear(displayNameInput);
 		await userEvent.type(displayNameInput, "Primary OpenAI");
 		const baseURLInput = screen.getByLabelText("Base URL (optional)");
@@ -348,9 +343,7 @@ describe(ChatModelAdminPanel.name, () => {
 			screen.getByLabelText("API key (optional)"),
 			"sk-updated-provider-key",
 		);
-		await userEvent.click(
-			screen.getByRole("button", { name: "Save changes" }),
-		);
+		await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
 		await waitFor(() => {
 			expect(log.updateProviderBodies).toHaveLength(1);
@@ -370,14 +363,14 @@ describe(ChatModelAdminPanel.name, () => {
 					provider: "openai",
 					display_name: "OpenAI",
 					source: "database",
-					api_key_set: true,
+					has_api_key: true,
 				}),
 				createProviderConfig({
 					id: nilProviderConfigID,
 					provider: "anthropic",
 					display_name: "Anthropic",
 					source: "supported",
-					api_key_set: false,
+					has_api_key: false,
 				}),
 			],
 			modelConfigs: [
@@ -443,9 +436,7 @@ describe(ChatModelAdminPanel.name, () => {
 		});
 
 		await userEvent.click(screen.getByRole("button", { name: "Add model" }));
-		await userEvent.click(
-			screen.getByRole("combobox", { name: "Provider" }),
-		);
+		await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
 		const anthropicOption = await screen.findByRole("option", {
 			name: /Anthropic/i,
 		});
@@ -461,14 +452,14 @@ describe(ChatModelAdminPanel.name, () => {
 					provider: "openai",
 					display_name: "OpenAI",
 					source: "database",
-					api_key_set: true,
+					has_api_key: true,
 				}),
 				createProviderConfig({
 					id: "provider-anthropic",
 					provider: "anthropic",
 					display_name: "Anthropic",
 					source: "database",
-					api_key_set: true,
+					has_api_key: true,
 				}),
 			],
 			modelConfigs: [],
@@ -479,16 +470,16 @@ describe(ChatModelAdminPanel.name, () => {
 
 		renderPanel("models");
 
-		await userEvent.click(await screen.findByRole("button", { name: "Add model" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Add model" }),
+		);
 
 		const schemaBlock = await screen.findByTestId("chat-model-config-schema");
 		expect(schemaBlock).toHaveTextContent('"provider": "openai"');
 		expect(schemaBlock).toHaveTextContent('"openai": {');
 		expect(schemaBlock).toHaveTextContent('"reasoning_effort": "high"');
 
-		await userEvent.click(
-			screen.getByRole("combobox", { name: "Provider" }),
-		);
+		await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
 		await userEvent.click(
 			await screen.findByRole("option", { name: /Anthropic/i }),
 		);
@@ -514,7 +505,7 @@ describe(ChatModelAdminPanel.name, () => {
 					provider: "openai",
 					display_name: "OpenAI",
 					source: "database",
-					api_key_set: true,
+					has_api_key: true,
 				}),
 			],
 			modelConfigs: [],
@@ -531,7 +522,9 @@ describe(ChatModelAdminPanel.name, () => {
 
 		renderPanel("models");
 
-		await userEvent.click(await screen.findByRole("button", { name: "Add model" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Add model" }),
+		);
 		await userEvent.type(screen.getByLabelText("Model ID"), "gpt-5-pro");
 		await userEvent.type(screen.getByLabelText("Context limit"), "200000");
 
@@ -558,7 +551,7 @@ describe(ChatModelAdminPanel.name, () => {
 					provider: "openai",
 					display_name: "OpenAI",
 					source: "database",
-					api_key_set: true,
+					has_api_key: true,
 				}),
 			],
 			modelConfigs: [],
@@ -575,7 +568,9 @@ describe(ChatModelAdminPanel.name, () => {
 
 		renderPanel("models");
 
-		await userEvent.click(await screen.findByRole("button", { name: "Add model" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Add model" }),
+		);
 		await userEvent.type(screen.getByLabelText("Model ID"), "gpt-5-pro-custom");
 		await userEvent.type(screen.getByLabelText("Context limit"), "200000");
 
@@ -614,7 +609,7 @@ describe(ChatModelAdminPanel.name, () => {
 					provider: "openai",
 					display_name: "OpenAI",
 					source: "database",
-					api_key_set: true,
+					has_api_key: true,
 				}),
 			],
 			modelConfigs: [],
@@ -631,7 +626,9 @@ describe(ChatModelAdminPanel.name, () => {
 
 		renderPanel("models");
 
-		await userEvent.click(await screen.findByRole("button", { name: "Add model" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Add model" }),
+		);
 		await userEvent.type(screen.getByLabelText("Model ID"), "gpt-5-pro");
 		await userEvent.type(screen.getByLabelText("Context limit"), "200000");
 		await userEvent.type(

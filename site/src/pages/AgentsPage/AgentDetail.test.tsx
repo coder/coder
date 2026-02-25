@@ -2,7 +2,6 @@ import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import { renderComponent } from "testHelpers/renderHelpers";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ChatModelsResponse } from "api/api";
 import {
 	chatDiffContentsKey,
 	chatDiffStatusKey,
@@ -108,7 +107,7 @@ type AgentDetailTestState = {
 	readonly chatData: TypesGen.ChatWithMessages;
 	readonly workspaceData: TypesGen.Workspace;
 	readonly diffUrl?: string;
-	readonly modelCatalog?: ChatModelsResponse;
+	readonly modelCatalog?: TypesGen.ChatModelsResponse;
 };
 
 type MockSocket = {

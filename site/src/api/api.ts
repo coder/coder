@@ -338,80 +338,6 @@ export type GetTemplatesQuery = Readonly<{
 	readonly q: string;
 }>;
 
-export interface ChatModelCatalogModel {
-	readonly id: string;
-	readonly provider: string;
-	readonly model: string;
-	readonly display_name: string;
-}
-
-export interface ChatModelCatalogProvider {
-	readonly provider: string;
-	readonly available: boolean;
-	readonly unavailable_reason?: string;
-	readonly models: readonly ChatModelCatalogModel[];
-}
-
-export interface ChatModelsResponse {
-	readonly providers: readonly ChatModelCatalogProvider[];
-}
-
-export type ChatProviderConfig = Readonly<
-	{
-		id: string;
-		provider: string;
-		display_name?: string;
-		enabled?: boolean;
-		api_key_set?: boolean;
-		base_url?: string;
-		models_url?: string;
-		created_at?: string;
-		updated_at?: string;
-	} & Record<string, unknown>
->;
-
-export type CreateChatProviderConfigRequest = {
-	provider: string;
-	display_name?: string;
-	api_key?: string;
-	base_url?: string;
-	models_url?: string;
-	enabled?: boolean;
-} & Record<string, unknown>;
-
-export type UpdateChatProviderConfigRequest =
-	Partial<CreateChatProviderConfigRequest>;
-
-export type ChatModelConfig = Readonly<
-	{
-		id: string;
-		provider: string;
-		model: string;
-		display_name?: string;
-		enabled?: boolean;
-		is_default?: boolean;
-		context_limit: number;
-		compression_threshold: number;
-		model_config?: TypesGen.ChatModelCallConfig;
-		created_at?: string;
-		updated_at?: string;
-	} & Record<string, unknown>
->;
-
-export type CreateChatModelConfigRequest = {
-	provider: string;
-	model: string;
-	display_name?: string;
-	enabled?: boolean;
-	is_default?: boolean;
-	context_limit?: number;
-	compression_threshold?: number;
-	model_config?: TypesGen.ChatModelCallConfig;
-} & Record<string, unknown>;
-
-export type UpdateChatModelConfigRequest =
-	Partial<CreateChatModelConfigRequest>;
-
 export interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
 	readonly patch?: string;
 	readonly diff_patch?: string;
@@ -3065,24 +2991,24 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getChatModels = async (): Promise<ChatModelsResponse> => {
-		const response = await this.axios.get<ChatModelsResponse>(
+	getChatModels = async (): Promise<TypesGen.ChatModelsResponse> => {
+		const response = await this.axios.get<TypesGen.ChatModelsResponse>(
 			"/api/v2/chats/models",
 		);
 		return response.data;
 	};
 
-	getChatProviderConfigs = async (): Promise<ChatProviderConfig[]> => {
-		const response = await this.axios.get<ChatProviderConfig[]>(
+	getChatProviderConfigs = async (): Promise<TypesGen.ChatProviderConfig[]> => {
+		const response = await this.axios.get<TypesGen.ChatProviderConfig[]>(
 			chatProviderConfigsPath,
 		);
 		return response.data;
 	};
 
 	createChatProviderConfig = async (
-		req: CreateChatProviderConfigRequest,
-	): Promise<ChatProviderConfig> => {
-		const response = await this.axios.post<ChatProviderConfig>(
+		req: TypesGen.CreateChatProviderConfigRequest,
+	): Promise<TypesGen.ChatProviderConfig> => {
+		const response = await this.axios.post<TypesGen.ChatProviderConfig>(
 			chatProviderConfigsPath,
 			req,
 		);
@@ -3091,9 +3017,9 @@ class ApiMethods {
 
 	updateChatProviderConfig = async (
 		providerConfigId: string,
-		req: UpdateChatProviderConfigRequest,
-	): Promise<ChatProviderConfig> => {
-		const response = await this.axios.patch<ChatProviderConfig>(
+		req: TypesGen.UpdateChatProviderConfigRequest,
+	): Promise<TypesGen.ChatProviderConfig> => {
+		const response = await this.axios.patch<TypesGen.ChatProviderConfig>(
 			`${chatProviderConfigsPath}/${encodeURIComponent(providerConfigId)}`,
 			req,
 		);
@@ -3108,16 +3034,16 @@ class ApiMethods {
 		);
 	};
 
-	getChatModelConfigs = async (): Promise<ChatModelConfig[]> => {
+	getChatModelConfigs = async (): Promise<TypesGen.ChatModelConfig[]> => {
 		const response =
-			await this.axios.get<ChatModelConfig[]>(chatModelConfigsPath);
+			await this.axios.get<TypesGen.ChatModelConfig[]>(chatModelConfigsPath);
 		return response.data;
 	};
 
 	createChatModelConfig = async (
-		req: CreateChatModelConfigRequest,
-	): Promise<ChatModelConfig> => {
-		const response = await this.axios.post<ChatModelConfig>(
+		req: TypesGen.CreateChatModelConfigRequest,
+	): Promise<TypesGen.ChatModelConfig> => {
+		const response = await this.axios.post<TypesGen.ChatModelConfig>(
 			chatModelConfigsPath,
 			req,
 		);
@@ -3126,9 +3052,9 @@ class ApiMethods {
 
 	updateChatModelConfig = async (
 		modelConfigId: string,
-		req: UpdateChatModelConfigRequest,
-	): Promise<ChatModelConfig> => {
-		const response = await this.axios.patch<ChatModelConfig>(
+		req: TypesGen.UpdateChatModelConfigRequest,
+	): Promise<TypesGen.ChatModelConfig> => {
+		const response = await this.axios.patch<TypesGen.ChatModelConfig>(
 			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
 			req,
 		);
