@@ -802,6 +802,18 @@ func (p *Processor) processChat(ctx context.Context, chat database.Chat) {
 							Valid:      len(nextQueued.Content) > 0,
 						},
 						Hidden: false,
+						ToolCallID: sql.NullString{},
+						Thinking: sql.NullString{},
+						SubagentRequestID: uuid.NullUUID{},
+						SubagentEvent: sql.NullString{},
+						InputTokens: sql.NullInt64{},
+						OutputTokens: sql.NullInt64{},
+						TotalTokens: sql.NullInt64{},
+						ReasoningTokens: sql.NullInt64{},
+						CacheCreationTokens: sql.NullInt64{},
+						CacheReadTokens: sql.NullInt64{},
+						ContextLimit: sql.NullInt64{},
+						Compressed: sql.NullBool{},
 					})
 					if insertErr != nil {
 						logger.Error(ctx, "failed to promote queued message",
@@ -1032,6 +1044,17 @@ func (p *Processor) persistChatContextSummary(
 		},
 		Hidden:     true,
 		Compressed: sql.NullBool{Bool: true, Valid: true},
+		ToolCallID: sql.NullString{},
+		Thinking: sql.NullString{},
+		SubagentRequestID: uuid.NullUUID{},
+		SubagentEvent: sql.NullString{},
+		InputTokens: sql.NullInt64{},
+		OutputTokens: sql.NullInt64{},
+		TotalTokens: sql.NullInt64{},
+		ReasoningTokens: sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens: sql.NullInt64{},
+		ContextLimit: sql.NullInt64{},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert hidden summary message: %w", err)
@@ -1066,6 +1089,17 @@ func (p *Processor) persistChatContextSummary(
 			Bool:  true,
 			Valid: true,
 		},
+		ToolCallID: sql.NullString{},
+		Thinking: sql.NullString{},
+		SubagentRequestID: uuid.NullUUID{},
+		SubagentEvent: sql.NullString{},
+		InputTokens: sql.NullInt64{},
+		OutputTokens: sql.NullInt64{},
+		TotalTokens: sql.NullInt64{},
+		ReasoningTokens: sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens: sql.NullInt64{},
+		ContextLimit: sql.NullInt64{},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert summary tool call message: %w", err)
@@ -1100,6 +1134,16 @@ func (p *Processor) persistChatContextSummary(
 			Bool:  true,
 			Valid: true,
 		},
+		Thinking: sql.NullString{},
+		SubagentRequestID: uuid.NullUUID{},
+		SubagentEvent: sql.NullString{},
+		InputTokens: sql.NullInt64{},
+		OutputTokens: sql.NullInt64{},
+		TotalTokens: sql.NullInt64{},
+		ReasoningTokens: sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens: sql.NullInt64{},
+		ContextLimit: sql.NullInt64{},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert summary tool result message: %w", err)
@@ -1351,6 +1395,8 @@ func (p *Processor) runChatWithAgent(
 				),
 				CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
 				ContextLimit:    step.ContextLimit,
+				SubagentEvent: sql.NullString{},
+				Compressed: sql.NullBool{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert assistant message: %w", err)
@@ -1374,6 +1420,16 @@ func (p *Processor) runChatWithAgent(
 				},
 				Hidden:            false,
 				SubagentRequestID: subagentRequest,
+				Thinking: sql.NullString{},
+				SubagentEvent: sql.NullString{},
+				InputTokens: sql.NullInt64{},
+				OutputTokens: sql.NullInt64{},
+				TotalTokens: sql.NullInt64{},
+				ReasoningTokens: sql.NullInt64{},
+				CacheCreationTokens: sql.NullInt64{},
+				CacheReadTokens: sql.NullInt64{},
+				ContextLimit: sql.NullInt64{},
+				Compressed: sql.NullBool{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert tool result: %w", err)

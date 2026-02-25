@@ -290,6 +290,16 @@ func (api *API) recordChatWorkspaceRequestMetadata(ctx context.Context, chatID u
 		ToolCallID: sql.NullString{Valid: false},
 		Thinking:   sql.NullString{Valid: false},
 		Hidden:     true,
+		SubagentRequestID: uuid.NullUUID{},
+		SubagentEvent: sql.NullString{},
+		InputTokens: sql.NullInt64{},
+		OutputTokens: sql.NullInt64{},
+		TotalTokens: sql.NullInt64{},
+		ReasoningTokens: sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens: sql.NullInt64{},
+		ContextLimit: sql.NullInt64{},
+		Compressed: sql.NullBool{},
 	})
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to persist chat workspace request metadata",
@@ -540,6 +550,16 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 				Valid: false,
 			},
 			Hidden: true,
+			SubagentRequestID: uuid.NullUUID{},
+			SubagentEvent: sql.NullString{},
+			InputTokens: sql.NullInt64{},
+			OutputTokens: sql.NullInt64{},
+			TotalTokens: sql.NullInt64{},
+			ReasoningTokens: sql.NullInt64{},
+			CacheCreationTokens: sql.NullInt64{},
+			CacheReadTokens: sql.NullInt64{},
+			ContextLimit: sql.NullInt64{},
+			Compressed: sql.NullBool{},
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -573,6 +593,16 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 			Valid: false,
 		},
 		Hidden: false,
+		SubagentRequestID: uuid.NullUUID{},
+		SubagentEvent: sql.NullString{},
+		InputTokens: sql.NullInt64{},
+		OutputTokens: sql.NullInt64{},
+		TotalTokens: sql.NullInt64{},
+		ReasoningTokens: sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens: sql.NullInt64{},
+		ContextLimit: sql.NullInt64{},
+		Compressed: sql.NullBool{},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -882,6 +912,16 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 					Valid:  req.Thinking != nil,
 				},
 				Hidden: false,
+				SubagentRequestID: uuid.NullUUID{},
+				SubagentEvent: sql.NullString{},
+				InputTokens: sql.NullInt64{},
+				OutputTokens: sql.NullInt64{},
+				TotalTokens: sql.NullInt64{},
+				ReasoningTokens: sql.NullInt64{},
+				CacheCreationTokens: sql.NullInt64{},
+				CacheReadTokens: sql.NullInt64{},
+				ContextLimit: sql.NullInt64{},
+				Compressed: sql.NullBool{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert message: %w", err)
@@ -977,6 +1017,16 @@ func (api *API) createChatMessage(rw http.ResponseWriter, r *http.Request) {
 			Valid:  req.Thinking != nil,
 		},
 		Hidden: false,
+		SubagentRequestID: uuid.NullUUID{},
+		SubagentEvent: sql.NullString{},
+		InputTokens: sql.NullInt64{},
+		OutputTokens: sql.NullInt64{},
+		TotalTokens: sql.NullInt64{},
+		ReasoningTokens: sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens: sql.NullInt64{},
+		ContextLimit: sql.NullInt64{},
+		Compressed: sql.NullBool{},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1170,6 +1220,18 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 				Valid:      len(targetContent) > 0,
 			},
 			Hidden: false,
+			ToolCallID: sql.NullString{},
+			Thinking: sql.NullString{},
+			SubagentRequestID: uuid.NullUUID{},
+			SubagentEvent: sql.NullString{},
+			InputTokens: sql.NullInt64{},
+			OutputTokens: sql.NullInt64{},
+			TotalTokens: sql.NullInt64{},
+			ReasoningTokens: sql.NullInt64{},
+			CacheCreationTokens: sql.NullInt64{},
+			CacheReadTokens: sql.NullInt64{},
+			ContextLimit: sql.NullInt64{},
+			Compressed: sql.NullBool{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert message: %w", err)
@@ -1723,6 +1785,7 @@ func (api *API) storeChatGitRef(ctx context.Context, workspaceID, workspaceOwner
 			GitBranch:       gitRef.Branch,
 			GitRemoteOrigin: gitRef.RemoteOrigin,
 			StaleAt:         time.Now().UTC().Add(-time.Second),
+			Url: sql.NullString{},
 		})
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to store git ref on chat diff status",
