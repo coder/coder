@@ -77,10 +77,7 @@ export const ExecuteAuthRequired: Story = {
 		expect(button).toBeInTheDocument();
 		expect(
 			canvas.getByRole("link", { name: "Open authentication link" }),
-		).toHaveAttribute(
-			"href",
-			"https://coder.example.com/external-auth/github",
-		);
+		).toHaveAttribute("href", "https://coder.example.com/external-auth/github");
 
 		const openSpy = spyOn(window, "open").mockImplementation(() => null);
 		await userEvent.click(button);
@@ -125,9 +122,7 @@ export const WaitForExternalAuthAuthenticated: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText("Authenticated with GitHub"),
-		).toBeInTheDocument();
+		expect(canvas.getByText("Authenticated with GitHub")).toBeInTheDocument();
 	},
 };
 
@@ -174,9 +169,10 @@ export const SubagentRunning: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("link", { name: "View agent" }),
-		).toHaveAttribute("href", "/agents/child-chat-id");
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-id",
+		);
 	},
 };
 
@@ -188,9 +184,10 @@ export const SubagentAwaitLinkCard: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("link", { name: "View agent" }),
-		).toHaveAttribute("href", "/agents/child-chat-id");
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-id",
+		);
 	},
 };
 
@@ -202,9 +199,10 @@ export const SubagentMessageLinkCard: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("link", { name: "View agent" }),
-		).toHaveAttribute("href", "/agents/child-chat-id");
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-id",
+		);
 	},
 };
 
@@ -217,9 +215,10 @@ export const SubagentCompletedDelegatedPending: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("link", { name: "View agent" }),
-		).toHaveAttribute("href", "/agents/child-chat-id");
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-id",
+		);
 		expect(
 			canvas.getByRole("button", { name: /Spawned Sub-agent/ }),
 		).toBeInTheDocument();
@@ -279,9 +278,10 @@ export const SubagentAwaitPreferredTitle: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Delegated child title")).toBeInTheDocument();
-		expect(
-			canvas.getByRole("link", { name: "View agent" }),
-		).toHaveAttribute("href", "/agents/child-chat-id");
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-id",
+		);
 		expect(canvas.queryByText("Fallback title")).toBeNull();
 	},
 };
@@ -425,8 +425,6 @@ export const TaskNameGenericRendering: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("task")).toBeInTheDocument();
-		expect(
-			canvas.queryByRole("link", { name: "View agent" }),
-		).toBeNull();
+		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
 	},
 };

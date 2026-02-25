@@ -22,16 +22,16 @@ import {
 import { cn } from "utils/cn";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelConfigFields } from "./ModelConfigFields";
-import { ProviderIcon } from "./ProviderIcon";
 import {
-	type ModelConfigFormState,
 	buildModelConfigFromForm,
 	emptyModelConfigFormState,
 	extractModelConfigFormState,
+	type ModelConfigFormState,
 	parsePositiveInteger,
 	parseThresholdInteger,
 } from "./modelConfigFormLogic";
 import { getModelConfigSchemaReference } from "./modelConfigSchemas";
+import { ProviderIcon } from "./ProviderIcon";
 
 // ── Component ──────────────────────────────────────────────────
 
@@ -403,10 +403,15 @@ export const ModelForm: FC<ModelFormProps> = ({
 									onChange={(e) => setContextLimit(e.target.value)}
 									disabled={isSaving}
 									aria-invalid={!!contextLimitError}
-									aria-describedby={contextLimitError ? contextLimitErrorId : undefined}
+									aria-describedby={
+										contextLimitError ? contextLimitErrorId : undefined
+									}
 								/>
 								{contextLimitError && (
-									<p id={contextLimitErrorId} className="m-0 text-xs text-content-destructive">
+									<p
+										id={contextLimitErrorId}
+										className="m-0 text-xs text-content-destructive"
+									>
 										{contextLimitError}
 									</p>
 								)}
@@ -429,10 +434,17 @@ export const ModelForm: FC<ModelFormProps> = ({
 									onChange={(e) => setCompressionThreshold(e.target.value)}
 									disabled={isSaving}
 									aria-invalid={!!compressionThresholdError}
-									aria-describedby={compressionThresholdError ? compressionThresholdErrorId : undefined}
+									aria-describedby={
+										compressionThresholdError
+											? compressionThresholdErrorId
+											: undefined
+									}
 								/>
 								{compressionThresholdError && (
-									<p id={compressionThresholdErrorId} className="m-0 text-xs text-content-destructive">
+									<p
+										id={compressionThresholdErrorId}
+										className="m-0 text-xs text-content-destructive"
+									>
 										{compressionThresholdError}
 									</p>
 								)}

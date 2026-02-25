@@ -250,7 +250,7 @@ export const getFileContentForViewer = (
 /**
  * Builds a FileDiffMetadata representing a new-file diff (all lines
  * are additions) from the content written by a write_file tool call.
- * Returns null when the content is empty or unparseable.
+ * Returns null when the content is empty or unparsable.
  */
 export const buildWriteFileDiff = (
 	path: string,

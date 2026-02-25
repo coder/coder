@@ -129,9 +129,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								onClick={() => setUserActiveSection(section.id)}
 							>
 								<SectionIcon className="h-[18px] w-[18px] shrink-0" />
-								<span className="text-[13px] font-medium">
-									{section.label}
-								</span>
+								<span className="text-[13px] font-medium">{section.label}</span>
 							</Button>
 						);
 					})}
@@ -140,71 +138,63 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				{/* Content */}
 				<div className="flex min-h-0 flex-col pt-5">
 					<h2 className="m-0 px-6 text-xl font-semibold text-content-primary">
-						{configureSectionOptions.find(
-							(s) => s.id === activeSection,
-						)?.label ?? "Settings"}
+						{configureSectionOptions.find((s) => s.id === activeSection)
+							?.label ?? "Settings"}
 					</h2>
 
-					<ScrollArea
-						className="min-h-0 flex-1"
-						viewportClassName="px-6 pb-6"
-					>
-						{activeSection === "providers" &&
-							canManageChatModelConfigs && (
-								<ChatModelAdminPanel section="providers" />
-							)}
-						{activeSection === "system-prompt" &&
-							canSetSystemPrompt && (
-								<form
-									className="space-y-4"
-									onSubmit={(event) => void onSaveSystemPrompt(event)}
-								>
-									<p className="m-0 text-[13px] leading-relaxed text-content-secondary">
-										Configure how the AI agent behaves across this
-										deployment.
+					<ScrollArea className="min-h-0 flex-1" viewportClassName="px-6 pb-6">
+						{activeSection === "providers" && canManageChatModelConfigs && (
+							<ChatModelAdminPanel section="providers" />
+						)}
+						{activeSection === "system-prompt" && canSetSystemPrompt && (
+							<form
+								className="space-y-4"
+								onSubmit={(event) => void onSaveSystemPrompt(event)}
+							>
+								<p className="m-0 text-[13px] leading-relaxed text-content-secondary">
+									Configure how the AI agent behaves across this deployment.
+								</p>
+								<div className="space-y-2">
+									<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+										System Prompt
+									</h3>
+									<p className="m-0 text-xs text-content-secondary">
+										Admin-only instruction applied to all new chats.
 									</p>
-									<div className="space-y-2">
-										<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-											System Prompt
-										</h3>
-										<p className="m-0 text-xs text-content-secondary">
-											Admin-only instruction applied to all new chats.
-										</p>
-										<TextareaAutosize
-											className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
-											placeholder="Optional. Set deployment-wide instructions for all new chats."
-											value={systemPromptDraft}
-											onChange={(event) =>
-												onSystemPromptDraftChange(event.target.value)
-											}
-											disabled={isDisabled}
-											minRows={7}
-										/>
-										<div className="flex justify-end gap-2">
-											<Button
-												size="sm"
-												variant="outline"
-												type="button"
-												onClick={() => onSystemPromptDraftChange("")}
-												disabled={isDisabled || !systemPromptDraft}
-											>
-												Clear
-											</Button>
-											<Button
-												size="sm"
-												type="submit"
-												disabled={isDisabled || !isSystemPromptDirty}
-											>
-												Save
-											</Button>
-										</div>
+									<TextareaAutosize
+										className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
+										placeholder="Optional. Set deployment-wide instructions for all new chats."
+										value={systemPromptDraft}
+										onChange={(event) =>
+											onSystemPromptDraftChange(event.target.value)
+										}
+										disabled={isDisabled}
+										minRows={7}
+									/>
+									<div className="flex justify-end gap-2">
+										<Button
+											size="sm"
+											variant="outline"
+											type="button"
+											onClick={() => onSystemPromptDraftChange("")}
+											disabled={isDisabled || !systemPromptDraft}
+										>
+											Clear
+										</Button>
+										<Button
+											size="sm"
+											type="submit"
+											disabled={isDisabled || !isSystemPromptDirty}
+										>
+											Save
+										</Button>
 									</div>
-								</form>
-							)}
-						{activeSection === "models" &&
-							canManageChatModelConfigs && (
-								<ChatModelAdminPanel section="models" />
-							)}
+								</div>
+							</form>
+						)}
+						{activeSection === "models" && canManageChatModelConfigs && (
+							<ChatModelAdminPanel section="models" />
+						)}
 					</ScrollArea>
 				</div>
 			</DialogContent>

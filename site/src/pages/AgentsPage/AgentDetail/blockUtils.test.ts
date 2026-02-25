@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import {
+	appendTextBlock,
+	asNonEmptyString,
+	mergeThinkingTitles,
+} from "./blockUtils";
 import type { RenderBlock } from "./types";
-import { appendTextBlock, asNonEmptyString, mergeThinkingTitles } from "./blockUtils";
 
 // ---------------------------------------------------------------------------
 // asNonEmptyString
@@ -122,12 +126,7 @@ describe("appendTextBlock", () => {
 		const blocks: RenderBlock[] = [
 			{ type: "thinking", text: "part1", title: "Reasoning" },
 		];
-		const result = appendTextBlock(
-			blocks,
-			"thinking",
-			"part2",
-			"Reasoning",
-		);
+		const result = appendTextBlock(blocks, "thinking", "part2", "Reasoning");
 		expect(result).toHaveLength(1);
 		expect(result[0]).toEqual({
 			type: "thinking",
@@ -175,7 +174,13 @@ describe("appendTextBlock", () => {
 	it("uses the custom joinText function when merging", () => {
 		const blocks: RenderBlock[] = [{ type: "response", text: "line1" }];
 		const join = (a: string, b: string) => `${a}\n${b}`;
-		const result = appendTextBlock(blocks, "response", "line2", undefined, join);
+		const result = appendTextBlock(
+			blocks,
+			"response",
+			"line2",
+			undefined,
+			join,
+		);
 		expect(result).toHaveLength(1);
 		expect(result[0]).toEqual({ type: "response", text: "line1\nline2" });
 	});

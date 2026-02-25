@@ -72,9 +72,7 @@ const setupChatSpies = (state: {
 			source: "database",
 		});
 		state.providerConfigs = [
-			...state.providerConfigs.filter(
-				(p) => p.provider !== req.provider,
-			),
+			...state.providerConfigs.filter((p) => p.provider !== req.provider),
 			created,
 		];
 		return created;
@@ -100,9 +98,7 @@ const setupChatSpies = (state: {
 						? req.api_key.trim().length > 0
 						: current.has_api_key,
 				base_url:
-					typeof req.base_url === "string"
-						? req.base_url
-						: current.base_url,
+					typeof req.base_url === "string" ? req.base_url : current.base_url,
 				updated_at: now,
 			};
 			state.providerConfigs = state.providerConfigs.map((p, i) =>
@@ -183,15 +179,11 @@ export const ProviderAccordionCards: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await expect(
-			await body.findByText("OpenRouter"),
-		).toBeInTheDocument();
+		await expect(await body.findByText("OpenRouter")).toBeInTheDocument();
 		// OpenAI should not be rendered.
 		expect(body.queryByText("OpenAI")).not.toBeInTheDocument();
 
-		await userEvent.click(
-			body.getByRole("button", { name: /OpenRouter/i }),
-		);
+		await userEvent.click(body.getByRole("button", { name: /OpenRouter/i }));
 		await expect(
 			body.getByLabelText("Base URL (optional)"),
 		).toBeInTheDocument();
@@ -226,13 +218,9 @@ export const EnvPresetProviders: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			await body.findByRole("button", { name: /OpenAI/i }),
-		);
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 		await expect(
-			await body.findByText(
-				"API key managed by environment variable.",
-			),
+			await body.findByText("API key managed by environment variable."),
 		).toBeVisible();
 		expect(body.getByText("Anthropic")).toBeInTheDocument();
 		expect(
@@ -285,9 +273,7 @@ export const CreateAndUpdateProvider: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		// Expand the accordion.
-		await userEvent.click(
-			await body.findByRole("button", { name: /OpenAI/i }),
-		);
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 
 		// Fill in form to create a provider config.
 		await userEvent.type(
@@ -329,17 +315,12 @@ export const CreateAndUpdateProvider: Story = {
 		await userEvent.type(displayNameInput, "Primary OpenAI");
 		const baseURLInput = body.getByLabelText("Base URL (optional)");
 		await userEvent.clear(baseURLInput);
-		await userEvent.type(
-			baseURLInput,
-			"https://internal-proxy.example.com/v2",
-		);
+		await userEvent.type(baseURLInput, "https://internal-proxy.example.com/v2");
 		await userEvent.type(
 			body.getByLabelText("API key (optional)"),
 			"sk-updated-provider-key",
 		);
-		await userEvent.click(
-			body.getByRole("button", { name: "Save changes" }),
-		);
+		await userEvent.click(body.getByRole("button", { name: "Save changes" }));
 
 		await waitFor(() => {
 			expect(API.updateChatProviderConfig).toHaveBeenCalledTimes(1);
@@ -396,9 +377,7 @@ export const ModelsListAndCreate: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		// Verify the model list renders before switching to the form view.
-		expect(
-			(await body.findAllByText("gpt-5-mini")).length,
-		).toBeGreaterThan(0);
+		expect((await body.findAllByText("gpt-5-mini")).length).toBeGreaterThan(0);
 		expect(
 			(await body.findAllByText("claude-sonnet-4-5")).length,
 		).toBeGreaterThan(0);
@@ -407,9 +386,7 @@ export const ModelsListAndCreate: Story = {
 		await userEvent.click(
 			await body.findByRole("button", { name: "Add model" }),
 		);
-		await expect(
-			await body.findByLabelText("Provider"),
-		).toBeInTheDocument();
+		await expect(await body.findByLabelText("Provider")).toBeInTheDocument();
 		await waitFor(() => {
 			expect(
 				body.getByRole("combobox", { name: "Provider" }),
@@ -417,17 +394,9 @@ export const ModelsListAndCreate: Story = {
 		});
 
 		// Fill in form and submit.
-		await userEvent.type(
-			body.getByLabelText("Model ID"),
-			"gpt-5-nano",
-		);
-		await userEvent.type(
-			body.getByLabelText("Context limit"),
-			"200000",
-		);
-		await userEvent.click(
-			body.getByRole("button", { name: "Add model" }),
-		);
+		await userEvent.type(body.getByLabelText("Model ID"), "gpt-5-nano");
+		await userEvent.type(body.getByLabelText("Context limit"), "200000");
+		await userEvent.click(body.getByRole("button", { name: "Add model" }));
 
 		await waitFor(() => {
 			expect(API.createChatModelConfig).toHaveBeenCalledTimes(1);
@@ -440,9 +409,7 @@ export const ModelsListAndCreate: Story = {
 				compression_threshold: 70,
 			}),
 		);
-		expect(
-			(await body.findAllByText("gpt-5-nano")).length,
-		).toBeGreaterThan(0);
+		expect((await body.findAllByText("gpt-5-nano")).length).toBeGreaterThan(0);
 
 		// Delete the newly-added model row.
 		const nanoRowLabel = (await body.findAllByText("gpt-5-nano"))[0];
@@ -450,7 +417,7 @@ export const ModelsListAndCreate: Story = {
 		expect(nanoRow).not.toBeNull();
 		await userEvent.click(
 			within(nanoRow as HTMLElement).getByRole("button", {
-				name: "Remove model",
+				name: "Delete model",
 			}),
 		);
 		await waitFor(() => {
@@ -458,12 +425,8 @@ export const ModelsListAndCreate: Story = {
 		});
 
 		// Verify that unconfigured provider is disabled in selector.
-		await userEvent.click(
-			body.getByRole("button", { name: "Add model" }),
-		);
-		await userEvent.click(
-			body.getByRole("combobox", { name: "Provider" }),
-		);
+		await userEvent.click(body.getByRole("button", { name: "Add model" }));
+		await userEvent.click(body.getByRole("combobox", { name: "Provider" }));
 		const anthropicOption = await body.findByRole("option", {
 			name: /Anthropic/i,
 		});
@@ -503,32 +466,28 @@ export const ProviderSpecificModelConfigSchema: Story = {
 			await body.findByRole("button", { name: "Add model" }),
 		);
 
-		const schemaBlock = await body.findByTestId(
-			"chat-model-config-schema",
-		);
+		const schemaBlock = await body.findByTestId("chat-model-config-schema");
 		expect(schemaBlock).toHaveTextContent('"provider": "openai"');
 		expect(schemaBlock).toHaveTextContent('"openai": {');
 		expect(schemaBlock).toHaveTextContent('"reasoning_effort": "high"');
 
 		// Switch provider to Anthropic.
-		await userEvent.click(
-			body.getByRole("combobox", { name: "Provider" }),
-		);
+		await userEvent.click(body.getByRole("combobox", { name: "Provider" }));
 		await userEvent.click(
 			await body.findByRole("option", { name: /Anthropic/i }),
 		);
 
 		await waitFor(() => {
-			expect(
-				body.getByTestId("chat-model-config-schema"),
-			).toHaveTextContent('"provider": "anthropic"');
+			expect(body.getByTestId("chat-model-config-schema")).toHaveTextContent(
+				'"provider": "anthropic"',
+			);
 		});
-		expect(
-			body.getByTestId("chat-model-config-schema"),
-		).toHaveTextContent('"anthropic": {');
-		expect(
-			body.getByTestId("chat-model-config-schema"),
-		).toHaveTextContent('"thinking": {');
+		expect(body.getByTestId("chat-model-config-schema")).toHaveTextContent(
+			'"anthropic": {',
+		);
+		expect(body.getByTestId("chat-model-config-schema")).toHaveTextContent(
+			'"thinking": {',
+		);
 	},
 };
 
@@ -555,22 +514,14 @@ export const NoModelConfigByDefault: Story = {
 		await userEvent.click(
 			await body.findByRole("button", { name: "Add model" }),
 		);
-		await userEvent.type(
-			body.getByLabelText("Model ID"),
-			"gpt-5-pro",
-		);
-		await userEvent.type(
-			body.getByLabelText("Context limit"),
-			"200000",
-		);
+		await userEvent.type(body.getByLabelText("Model ID"), "gpt-5-pro");
+		await userEvent.type(body.getByLabelText("Context limit"), "200000");
 
 		await expect(
 			await body.findByLabelText("Max output tokens (optional)"),
 		).toHaveValue("");
 
-		await userEvent.click(
-			body.getByRole("button", { name: "Add model" }),
-		);
+		await userEvent.click(body.getByRole("button", { name: "Add model" }));
 		await waitFor(() => {
 			expect(API.createChatModelConfig).toHaveBeenCalledTimes(1);
 		});
@@ -611,14 +562,8 @@ export const SubmitModelConfigExplicitly: Story = {
 		await userEvent.click(
 			await body.findByRole("button", { name: "Add model" }),
 		);
-		await userEvent.type(
-			body.getByLabelText("Model ID"),
-			"gpt-5-pro-custom",
-		);
-		await userEvent.type(
-			body.getByLabelText("Context limit"),
-			"200000",
-		);
+		await userEvent.type(body.getByLabelText("Model ID"), "gpt-5-pro-custom");
+		await userEvent.type(body.getByLabelText("Context limit"), "200000");
 		await userEvent.type(
 			await body.findByLabelText("Max output tokens (optional)"),
 			"32000",
@@ -628,13 +573,9 @@ export const SubmitModelConfigExplicitly: Story = {
 				name: "Reasoning effort (optional)",
 			}),
 		);
-		await userEvent.click(
-			await body.findByRole("option", { name: "high" }),
-		);
+		await userEvent.click(await body.findByRole("option", { name: "high" }));
 
-		await userEvent.click(
-			body.getByRole("button", { name: "Add model" }),
-		);
+		await userEvent.click(body.getByRole("button", { name: "Add model" }));
 		await waitFor(() => {
 			expect(API.createChatModelConfig).toHaveBeenCalledTimes(1);
 		});
@@ -678,14 +619,8 @@ export const ValidatesModelConfigFields: Story = {
 		await userEvent.click(
 			await body.findByRole("button", { name: "Add model" }),
 		);
-		await userEvent.type(
-			body.getByLabelText("Model ID"),
-			"gpt-5-pro",
-		);
-		await userEvent.type(
-			body.getByLabelText("Context limit"),
-			"200000",
-		);
+		await userEvent.type(body.getByLabelText("Model ID"), "gpt-5-pro");
+		await userEvent.type(body.getByLabelText("Context limit"), "200000");
 		await userEvent.type(
 			await body.findByLabelText("Max output tokens (optional)"),
 			"not-a-number",
@@ -693,9 +628,7 @@ export const ValidatesModelConfigFields: Story = {
 		expect(
 			body.getByText("Max output tokens must be a valid number."),
 		).toBeInTheDocument();
-		expect(
-			body.getByRole("button", { name: "Add model" }),
-		).toBeDisabled();
+		expect(body.getByRole("button", { name: "Add model" })).toBeDisabled();
 		// No API call should have been made.
 		expect(API.createChatModelConfig).not.toHaveBeenCalled();
 	},

@@ -269,16 +269,12 @@ function buildReasoningProviderOptions(
 	const user = form[key("User")].trim();
 
 	const reasoning: Record<string, unknown> = {
-		...(reasoningEnabled !== undefined
-			? { enabled: reasoningEnabled }
-			: {}),
+		...(reasoningEnabled !== undefined ? { enabled: reasoningEnabled } : {}),
 		...(reasoningEffort ? { effort: reasoningEffort } : {}),
 		...(reasoningMaxTokens !== undefined
 			? { max_tokens: reasoningMaxTokens }
 			: {}),
-		...(reasoningExclude !== undefined
-			? { exclude: reasoningExclude }
-			: {}),
+		...(reasoningExclude !== undefined ? { exclude: reasoningExclude } : {}),
 	};
 	return {
 		...(hasObjectKeys(reasoning as Record<string, unknown>)

@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, spyOn } from "storybook/test";
-import { API } from "api/api";
 import type { ChatDiffStatusResponse } from "api/api";
+import { API } from "api/api";
 import type { ChatDiffContents } from "api/typesGenerated";
+import { expect, screen, spyOn } from "storybook/test";
 import { FilesChangedPanel } from "./FilesChangedPanel";
 
 const defaultDiffStatus: ChatDiffStatusResponse = {
@@ -45,9 +45,7 @@ export const EmptyDiff: Story = {
 	},
 	play: async () => {
 		await screen.findByText("No file changes to display.");
-		expect(
-			screen.getByText("No file changes to display."),
-		).toBeInTheDocument();
+		expect(screen.getByText("No file changes to display.")).toBeInTheDocument();
 	},
 };
 
@@ -64,8 +62,6 @@ export const ParseError: Story = {
 	},
 	play: async () => {
 		await screen.findByText("No file changes to display.");
-		expect(
-			screen.getByText("No file changes to display."),
-		).toBeInTheDocument();
+		expect(screen.getByText("No file changes to display.")).toBeInTheDocument();
 	},
 };

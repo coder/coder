@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { describe, expect, it } from "vitest";
 import {
 	extractContextUsageFromMessage,
 	getLatestContextUsage,
@@ -91,7 +91,6 @@ describe("extractContextUsageFromMessage", () => {
 		const msg = makeMessage({ input_tokens: -5 });
 		expect(extractContextUsageFromMessage(msg)).toBeNull();
 	});
-
 
 	it("returns usage with only contextLimitTokens and no usedTokens", () => {
 		const msg = makeMessage({ context_limit: 4096 });
@@ -196,12 +195,8 @@ describe("resolveModelFromChatConfig", () => {
 	});
 
 	it("returns first option when modelConfig is undefined", () => {
-		expect(resolveModelFromChatConfig(undefined, options)).toBe(
-			"openai:gpt-4",
-		);
+		expect(resolveModelFromChatConfig(undefined, options)).toBe("openai:gpt-4");
 	});
-
-
 
 	it("matches by exact model id", () => {
 		const config = { model: "anthropic:claude-3" };

@@ -20,9 +20,7 @@ describe("normalizeBlockType", () => {
 
 describe("parseToolResultIsError", () => {
 	it("returns the boolean is_error when present", () => {
-		expect(parseToolResultIsError("tool", { is_error: true }, null)).toBe(
-			true,
-		);
+		expect(parseToolResultIsError("tool", { is_error: true }, null)).toBe(true);
 		expect(parseToolResultIsError("tool", { is_error: false }, null)).toBe(
 			false,
 		);
@@ -192,9 +190,7 @@ describe("parseMessageContent", () => {
 	it("handles non-object array entries gracefully", () => {
 		const result = parseMessageContent(["raw string", 42, null]);
 		expect(result.markdown).toBe("raw string");
-		expect(result.blocks).toEqual([
-			{ type: "response", text: "raw string" },
-		]);
+		expect(result.blocks).toEqual([{ type: "response", text: "raw string" }]);
 	});
 
 	it("handles an object with a parts array", () => {

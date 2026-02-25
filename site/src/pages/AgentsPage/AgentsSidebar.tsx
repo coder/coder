@@ -25,8 +25,8 @@ import {
 	SearchIcon,
 } from "lucide-react";
 import {
-	type FC,
 	createContext,
+	type FC,
 	memo,
 	useCallback,
 	useContext,
@@ -255,9 +255,7 @@ const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
 function useChatTree(): ChatTreeContextValue {
 	const ctx = useContext(ChatTreeContext);
 	if (!ctx) {
-		throw new Error(
-			"useChatTree must be used within ChatTreeContext.Provider",
-		);
+		throw new Error("useChatTree must be used within ChatTreeContext.Provider");
 	}
 	return ctx;
 }
@@ -267,193 +265,183 @@ interface ChatTreeNodeProps {
 	readonly isChildNode: boolean;
 }
 
-const ChatTreeNode = memo<ChatTreeNodeProps>(
-	({ chat, isChildNode }) => {
-		const {
-			chatTree,
-			chatById,
-			visibleChatIDs,
-			normalizedSearch,
-			expandedById,
-			modelOptions,
-			chatErrorReasons,
-			isArchiving,
-			archivingChatId,
-			toggleExpanded,
-			onArchiveAgent,
-		} = useChatTree();
-		const chatID = chat.id;
-		const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter(
-			(childID) => visibleChatIDs.has(childID),
-		);
-		const hasChildren = childIDs.length > 0;
-		const isDelegated = Boolean(getParentChatID(chat));
-		const config = getStatusConfig(chat.status);
-		const StatusIcon = config.icon;
-		const isDelegatedExecuting =
-			isDelegated && (chat.status === "pending" || chat.status === "running");
-		const modelName = getModelDisplayName(chat.model_config, modelOptions);
-		const errorReason =
-			chat.status === "error" ? chatErrorReasons[chat.id] : undefined;
-		const subtitle = errorReason || modelName;
-		const diffStatus = getChatDiffStatus(chat);
-		const hasLinkedDiffStatus = Boolean(diffStatus?.url);
-		const changedFiles = diffStatus?.changed_files ?? 0;
-		const additions = diffStatus?.additions ?? 0;
-		const deletions = diffStatus?.deletions ?? 0;
-		const hasLineStats = additions > 0 || deletions > 0;
-		const filesChangedLabel = `${changedFiles} ${
-			changedFiles === 1 ? "file" : "files"
-		}`;
-		const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
-		const isExpanded = normalizedSearch
-			? true
-			: (expandedById[chatID] ?? false);
+const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
+	const {
+		chatTree,
+		chatById,
+		visibleChatIDs,
+		normalizedSearch,
+		expandedById,
+		modelOptions,
+		chatErrorReasons,
+		isArchiving,
+		archivingChatId,
+		toggleExpanded,
+		onArchiveAgent,
+	} = useChatTree();
+	const chatID = chat.id;
+	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
+		visibleChatIDs.has(childID),
+	);
+	const hasChildren = childIDs.length > 0;
+	const isDelegated = Boolean(getParentChatID(chat));
+	const config = getStatusConfig(chat.status);
+	const StatusIcon = config.icon;
+	const isDelegatedExecuting =
+		isDelegated && (chat.status === "pending" || chat.status === "running");
+	const modelName = getModelDisplayName(chat.model_config, modelOptions);
+	const errorReason =
+		chat.status === "error" ? chatErrorReasons[chat.id] : undefined;
+	const subtitle = errorReason || modelName;
+	const diffStatus = getChatDiffStatus(chat);
+	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
+	const changedFiles = diffStatus?.changed_files ?? 0;
+	const additions = diffStatus?.additions ?? 0;
+	const deletions = diffStatus?.deletions ?? 0;
+	const hasLineStats = additions > 0 || deletions > 0;
+	const filesChangedLabel = `${changedFiles} ${
+		changedFiles === 1 ? "file" : "files"
+	}`;
+	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
+	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
-		return (
-			<div className="flex min-w-0 flex-col">
-				<div
-					data-testid={`agents-tree-node-${chat.id}`}
-					className={cn(
-						"group relative flex min-w-0 items-start gap-1.5 rounded-md pr-1 text-content-secondary",
-						"transition-none hover:bg-surface-tertiary/50 hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
-						"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-						isChildNode &&
-							"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
-					)}
-				>
-					<div className="relative mt-1.5 h-5 w-5 shrink-0">
-						<div
-							className={cn(
-								"flex h-5 w-5 items-center justify-center rounded-md",
-								hasChildren && "group-hover:invisible",
-							)}
-						>
-							<StatusIcon
-								data-testid={
-									isDelegatedExecuting
-										? `agents-tree-executing-${chat.id}`
-										: undefined
-								}
-								className={cn("h-3.5 w-3.5 shrink-0", config.className)}
-							/>
-						</div>
-						{hasChildren && (
-							<Button
-								variant="subtle"
-								size="icon"
-								onClick={() => toggleExpanded(chatID)}
-								className="absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary group-hover:visible [&>svg]:size-3.5"
-								data-testid={`agents-tree-toggle-${chat.id}`}
-								aria-label={isExpanded ? "Collapse" : "Expand"}
-								aria-expanded={isExpanded}
-							>
-								{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-							</Button>
+	return (
+		<div className="flex min-w-0 flex-col">
+			<div
+				data-testid={`agents-tree-node-${chat.id}`}
+				className={cn(
+					"group relative flex min-w-0 items-start gap-1.5 rounded-md pr-1 text-content-secondary",
+					"transition-none hover:bg-surface-tertiary/50 hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+					isChildNode &&
+						"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
+				)}
+			>
+				<div className="relative mt-1.5 h-5 w-5 shrink-0">
+					<div
+						className={cn(
+							"flex h-5 w-5 items-center justify-center rounded-md",
+							hasChildren && "group-hover:invisible",
 						)}
-					</div>
-					<NavLink
-						to={`/agents/${chat.id}`}
-						className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
 					>
-						{({ isActive }) => (
-							<>
-								<div className="min-w-0 flex-1 overflow-hidden text-left">
-									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-										<span
-											className={cn(
-												"block flex-1 truncate text-[13px] text-content-primary",
-												isActive && "font-medium",
-											)}
-										>
-											{chat.title}
-										</span>
-									</div>
-									<div className="flex min-w-0 items-center gap-1.5">
-										{hasLinkedDiffStatus && hasLineStats && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] font-medium leading-none tabular-nums"
-												title={`${filesChangedLabel}, +${additions} -${deletions}`}
-											>
-												<span className="text-content-success">
-													+{additions}
-												</span>
-												<span className="text-content-destructive">
-													-{deletions}
-												</span>
-											</span>
+						<StatusIcon
+							data-testid={
+								isDelegatedExecuting
+									? `agents-tree-executing-${chat.id}`
+									: undefined
+							}
+							className={cn("h-3.5 w-3.5 shrink-0", config.className)}
+						/>
+					</div>
+					{hasChildren && (
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={() => toggleExpanded(chatID)}
+							className="absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary group-hover:visible [&>svg]:size-3.5"
+							data-testid={`agents-tree-toggle-${chat.id}`}
+							aria-label={isExpanded ? "Collapse" : "Expand"}
+							aria-expanded={isExpanded}
+						>
+							{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+						</Button>
+					)}
+				</div>
+				<NavLink
+					to={`/agents/${chat.id}`}
+					className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+				>
+					{({ isActive }) => (
+						<>
+							<div className="min-w-0 flex-1 overflow-hidden text-left">
+								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+									<span
+										className={cn(
+											"block flex-1 truncate text-[13px] text-content-primary",
+											isActive && "font-medium",
 										)}
-										<div
-											className={cn(
-												"min-w-0 overflow-hidden text-[13px] leading-4",
-												errorReason
-													? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-													: "truncate text-content-secondary",
-											)}
-											title={subtitle}
+									>
+										{chat.title}
+									</span>
+								</div>
+								<div className="flex min-w-0 items-center gap-1.5">
+									{hasLinkedDiffStatus && hasLineStats && (
+										<span
+											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] font-medium leading-none tabular-nums"
+											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
-											{subtitle}
-										</div>
+											<span className="text-content-success">+{additions}</span>
+											<span className="text-content-destructive">
+												-{deletions}
+											</span>
+										</span>
+									)}
+									<div
+										className={cn(
+											"min-w-0 overflow-hidden text-[13px] leading-4",
+											errorReason
+												? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+												: "truncate text-content-secondary",
+										)}
+										title={subtitle}
+									>
+										{subtitle}
 									</div>
 								</div>
-							</>
-						)}
-					</NavLink>
-					<div className="relative mr-1 mt-1 h-6 w-7 shrink-0 text-right">
-						<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity group-hover:opacity-0">
-							{shortRelativeTime(chat.updated_at)}
-						</span>
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									size="icon"
-									variant="subtle"
-									className={cn(
-										"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary group-hover:opacity-100",
-										isArchivingThisChat && "opacity-100",
-									)}
-									aria-label={`Open actions for ${chat.title}`}
-								>
-									{isArchivingThisChat ? (
-										<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-									) : (
-										<EllipsisIcon className="h-3.5 w-3.5" />
-									)}
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem
-									className="text-content-destructive focus:text-content-destructive"
-									disabled={isArchiving}
-									onSelect={() => onArchiveAgent(chat.id)}
-								>
-									<ArchiveIcon className="h-3.5 w-3.5" />
-									Archive agent
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</div>
+							</div>
+						</>
+					)}
+				</NavLink>
+				<div className="relative mr-1 mt-1 h-6 w-7 shrink-0 text-right">
+					<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity group-hover:opacity-0">
+						{shortRelativeTime(chat.updated_at)}
+					</span>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								className={cn(
+									"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary group-hover:opacity-100",
+									isArchivingThisChat && "opacity-100",
+								)}
+								aria-label={`Open actions for ${chat.title}`}
+							>
+								{isArchivingThisChat ? (
+									<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<EllipsisIcon className="h-3.5 w-3.5" />
+								)}
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								disabled={isArchiving}
+								onSelect={() => onArchiveAgent(chat.id)}
+							>
+								<ArchiveIcon className="h-3.5 w-3.5" />
+								Archive agent
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</div>
-
-				{hasChildren && isExpanded && (
-					<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
-						{childIDs.map((childID) => {
-							const childChat = chatById.get(childID);
-							if (!childChat) return null;
-							return (
-								<ChatTreeNode
-									key={childChat.id}
-									chat={childChat}
-									isChildNode
-								/>
-							);
-						})}
-					</div>
-				)}
 			</div>
-		);
-	},
-);
+
+			{hasChildren && isExpanded && (
+				<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
+					{childIDs.map((childID) => {
+						const childChat = chatById.get(childID);
+						if (!childChat) return null;
+						return (
+							<ChatTreeNode key={childChat.id} chat={childChat} isChildNode />
+						);
+					})}
+				</div>
+			)}
+		</div>
+	);
+});
 ChatTreeNode.displayName = "ChatTreeNode";
 
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {

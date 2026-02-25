@@ -1,5 +1,4 @@
 import { Input } from "components/Input/Input";
-import { Textarea } from "components/Textarea/Textarea";
 import {
 	Select,
 	SelectContent,
@@ -7,10 +6,14 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
+import { Textarea } from "components/Textarea/Textarea";
 import type { FC } from "react";
 import { cn } from "utils/cn";
 import { normalizeProvider } from "./helpers";
-import type { ModelConfigFormBuildResult, ModelConfigFormState } from "./modelConfigFormLogic";
+import type {
+	ModelConfigFormBuildResult,
+	ModelConfigFormState,
+} from "./modelConfigFormLogic";
 
 export const modelConfigReasoningEffortOptions = [
 	"minimal",
@@ -53,7 +56,16 @@ const InputField: FC<
 		label: string;
 		placeholder: string;
 	}
-> = ({ inputIdPrefix, form, fieldErrors, onChange, disabled, fieldKey, label, placeholder }) => {
+> = ({
+	inputIdPrefix,
+	form,
+	fieldErrors,
+	onChange,
+	disabled,
+	fieldKey,
+	label,
+	placeholder,
+}) => {
 	const fieldID = `${inputIdPrefix}-${fieldKey}`;
 	const errorId = `${fieldID}-error`;
 	const fieldError = fieldErrors[fieldKey];
@@ -64,9 +76,7 @@ const InputField: FC<
 				className="text-[13px] font-medium text-content-primary"
 			>
 				{label}{" "}
-				<span className="font-normal text-content-secondary">
-					(optional)
-				</span>
+				<span className="font-normal text-content-secondary">(optional)</span>
 			</label>
 			<Input
 				id={fieldID}
@@ -96,7 +106,16 @@ const SelectField: FC<
 		label: string;
 		options: readonly string[];
 	}
-> = ({ inputIdPrefix, form, fieldErrors, onChange, disabled, fieldKey, label, options }) => {
+> = ({
+	inputIdPrefix,
+	form,
+	fieldErrors,
+	onChange,
+	disabled,
+	fieldKey,
+	label,
+	options,
+}) => {
 	const fieldID = `${inputIdPrefix}-${fieldKey}`;
 	const errorId = `${fieldID}-error`;
 	const fieldError = fieldErrors[fieldKey];
@@ -107,17 +126,12 @@ const SelectField: FC<
 				className="text-[13px] font-medium text-content-primary"
 			>
 				{label}{" "}
-				<span className="font-normal text-content-secondary">
-					(optional)
-				</span>
+				<span className="font-normal text-content-secondary">(optional)</span>
 			</label>
 			<Select
 				value={form[fieldKey] || unsetSelectValue}
 				onValueChange={(value) =>
-					onChange(
-						fieldKey,
-						value === unsetSelectValue ? "" : value,
-					)
+					onChange(fieldKey, value === unsetSelectValue ? "" : value)
 				}
 				disabled={disabled}
 			>
@@ -133,9 +147,7 @@ const SelectField: FC<
 					<SelectValue placeholder="Use backend default" />
 				</SelectTrigger>
 				<SelectContent>
-					<SelectItem value={unsetSelectValue}>
-						Use backend default
-					</SelectItem>
+					<SelectItem value={unsetSelectValue}>Use backend default</SelectItem>
 					{options.map((option) => (
 						<SelectItem key={option} value={option}>
 							{option}
@@ -158,7 +170,16 @@ const JSONField: FC<
 		label: string;
 		placeholder: string;
 	}
-> = ({ inputIdPrefix, form, fieldErrors, onChange, disabled, fieldKey, label, placeholder }) => {
+> = ({
+	inputIdPrefix,
+	form,
+	fieldErrors,
+	onChange,
+	disabled,
+	fieldKey,
+	label,
+	placeholder,
+}) => {
 	const fieldID = `${inputIdPrefix}-${fieldKey}`;
 	const errorId = `${fieldID}-error`;
 	const fieldError = fieldErrors[fieldKey];
@@ -169,9 +190,7 @@ const JSONField: FC<
 				className="text-[13px] font-medium text-content-primary"
 			>
 				{label}{" "}
-				<span className="font-normal text-content-secondary">
-					(optional)
-				</span>
+				<span className="font-normal text-content-secondary">(optional)</span>
 			</label>
 			<Textarea
 				id={fieldID}
@@ -470,19 +489,9 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 			case "openai":
 				return <OpenAIFields {...ctx} sectionTitle="OpenAI options" />;
 			case "azure":
-				return (
-					<OpenAIFields
-						{...ctx}
-						sectionTitle="OpenAI options (Azure)"
-					/>
-				);
+				return <OpenAIFields {...ctx} sectionTitle="OpenAI options (Azure)" />;
 			case "anthropic":
-				return (
-					<AnthropicFields
-						{...ctx}
-						sectionTitle="Anthropic options"
-					/>
-				);
+				return <AnthropicFields {...ctx} sectionTitle="Anthropic options" />;
 			case "bedrock":
 				return (
 					<AnthropicFields
@@ -501,8 +510,7 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 			default:
 				return (
 					<p className="m-0 text-xs text-content-secondary">
-						No provider-specific options are available for this
-						provider.
+						No provider-specific options are available for this provider.
 					</p>
 				);
 		}
@@ -512,9 +520,7 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 		<div className="space-y-2">
 			<p className="m-0 text-[13px] font-medium text-content-primary">
 				Model call config{" "}
-				<span className="font-normal text-content-secondary">
-					(optional)
-				</span>
+				<span className="font-normal text-content-secondary">(optional)</span>
 			</p>
 			<div className="space-y-2">
 				<p className="m-0 text-xs font-medium uppercase tracking-wide text-content-secondary">
@@ -539,12 +545,7 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 						label="Top P"
 						placeholder="0.95"
 					/>
-					<InputField
-						{...ctx}
-						fieldKey="topK"
-						label="Top K"
-						placeholder="40"
-					/>
+					<InputField {...ctx} fieldKey="topK" label="Top K" placeholder="40" />
 					<InputField
 						{...ctx}
 						fieldKey="presencePenalty"

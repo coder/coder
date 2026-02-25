@@ -122,9 +122,8 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 				value: usage?.cacheCreationTokens,
 			},
 			{ key: "reasoning", label: "Reasoning", value: usage?.reasoningTokens },
-		].filter(
-			(entry): entry is { key: string; label: string; value: number } =>
-				hasFiniteTokenValue(entry.value),
+		].filter((entry): entry is { key: string; label: string; value: number } =>
+			hasFiniteTokenValue(entry.value),
 		);
 		const ariaLabel = hasPercent
 			? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
@@ -189,7 +188,8 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 						</div>
 						{(usedTokens !== undefined || contextLimitTokens !== undefined) && (
 							<div className="font-mono text-2xs tabular-nums text-content-secondary">
-								{formatTokenCount(usedTokens)} / {formatTokenCount(contextLimitTokens)} tokens
+								{formatTokenCount(usedTokens)} /{" "}
+								{formatTokenCount(contextLimitTokens)} tokens
 							</div>
 						)}
 						{breakdown.length > 0 && (
@@ -199,7 +199,9 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 										key={entry.key}
 										className="flex items-center justify-between gap-3 text-2xs"
 									>
-										<span className="text-content-secondary">{entry.label}</span>
+										<span className="text-content-secondary">
+											{entry.label}
+										</span>
 										<span className="font-mono tabular-nums text-content-primary">
 											{formatTokenCount(entry.value)}
 										</span>
@@ -234,7 +236,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		onInterrupt,
 		isInterruptPending = false,
 		leftActions,
-			contextUsage,
+		contextUsage,
 		sticky = false,
 	}) => {
 		const [input, setInput] = useState(initialValue);

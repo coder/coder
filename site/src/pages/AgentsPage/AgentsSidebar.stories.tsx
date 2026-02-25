@@ -31,7 +31,10 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 const agentsRouting = [
 	{ path: "/agents/:agentId", useStoryElement: true },
 	{ path: "/agents", useStoryElement: true },
-] satisfies [{ path: string; useStoryElement: boolean }, ...{ path: string; useStoryElement: boolean }[]];
+] satisfies [
+	{ path: string; useStoryElement: boolean },
+	...{ path: string; useStoryElement: boolean }[],
+];
 
 const meta: Meta<typeof AgentsSidebar> = {
 	title: "pages/AgentsPage/AgentsSidebar",

@@ -416,9 +416,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	);
 	// Derive the effective model — validated against current options
 	// every render so we never reference a stale model id.
-	const selectedModel = modelOptions.some(
-		(m) => m.id === userSelectedModel,
-	)
+	const selectedModel = modelOptions.some((m) => m.id === userSelectedModel)
 		? userSelectedModel
 		: (modelOptions[0]?.id ?? "");
 	const [savedSystemPrompt, setSavedSystemPrompt] =

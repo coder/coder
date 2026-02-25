@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
 	BORDER_BG_STYLE,
+	buildEditDiff,
+	buildWriteFileDiff,
 	COLLAPSED_OUTPUT_HEIGHT,
 	COLLAPSED_REPORT_HEIGHT,
 	DIFFS_FONT_STYLE,
-	buildEditDiff,
-	buildWriteFileDiff,
 	diffViewerCSS,
 	fileViewerCSS,
 	formatResultOutput,
@@ -150,9 +150,7 @@ describe("mapSubagentStatusToToolStatus", () => {
 	});
 
 	it("maps running statuses to running when fallback is not completed", () => {
-		expect(mapSubagentStatusToToolStatus("pending", "running")).toBe(
-			"running",
-		);
+		expect(mapSubagentStatusToToolStatus("pending", "running")).toBe("running");
 		expect(mapSubagentStatusToToolStatus("running", "error")).toBe("running");
 		expect(mapSubagentStatusToToolStatus("awaiting", "running")).toBe(
 			"running",
@@ -258,9 +256,7 @@ describe("formatResultOutput", () => {
 		// Both output and content are empty strings after trim, so
 		// the function falls through to JSON.stringify the record.
 		const result = formatResultOutput({ output: "", content: "" });
-		expect(result).toBe(
-			JSON.stringify({ output: "", content: "" }, null, 2),
-		);
+		expect(result).toBe(JSON.stringify({ output: "", content: "" }, null, 2));
 	});
 
 	it("falls back to JSON.stringify for objects without output/content", () => {
@@ -333,7 +329,11 @@ describe("getFileContentForViewer", () => {
 
 	describe("execute tool", () => {
 		it("returns output with shell path and disabled header/line numbers", () => {
-			const result = getFileContentForViewer("execute", {}, { output: "ls -la" });
+			const result = getFileContentForViewer(
+				"execute",
+				{},
+				{ output: "ls -la" },
+			);
 			expect(result).toEqual({
 				path: "output.sh",
 				content: "ls -la",
@@ -347,7 +347,9 @@ describe("getFileContentForViewer", () => {
 		});
 
 		it("returns null when output is empty", () => {
-			expect(getFileContentForViewer("execute", {}, { output: "  " })).toBeNull();
+			expect(
+				getFileContentForViewer("execute", {}, { output: "  " }),
+			).toBeNull();
 		});
 	});
 
@@ -393,7 +395,10 @@ describe("getFileContentForViewer", () => {
 
 describe("buildWriteFileDiff", () => {
 	it("returns a FileDiffMetadata for new file content", () => {
-		const diff = buildWriteFileDiff("src/hello.ts", "const x = 1;\nconst y = 2;\n");
+		const diff = buildWriteFileDiff(
+			"src/hello.ts",
+			"const x = 1;\nconst y = 2;\n",
+		);
 		expect(diff).not.toBeNull();
 		expect(diff!.name).toContain("hello.ts");
 	});
@@ -419,7 +424,9 @@ describe("buildWriteFileDiff", () => {
 
 describe("getWriteFileDiff", () => {
 	it("returns null for non-write_file tools", () => {
-		expect(getWriteFileDiff("read_file", { path: "x", content: "y" })).toBeNull();
+		expect(
+			getWriteFileDiff("read_file", { path: "x", content: "y" }),
+		).toBeNull();
 		expect(getWriteFileDiff("execute", { path: "x", content: "y" })).toBeNull();
 	});
 
@@ -523,9 +530,7 @@ describe("buildEditDiff", () => {
 	});
 
 	it("skips edits with empty search", () => {
-		const diff = buildEditDiff("file.ts", [
-			{ search: "", replace: "new" },
-		]);
+		const diff = buildEditDiff("file.ts", [{ search: "", replace: "new" }]);
 		// All edits skipped → only header lines remain. The parser
 		// still returns a file entry but with no hunks.
 		expect(diff).not.toBeNull();

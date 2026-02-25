@@ -1,8 +1,15 @@
-import { useRef } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import { spyOn } from "storybook/test";
 import { API } from "api/api";
+import { useRef } from "react";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { AgentsEmptyState } from "./AgentsPage";
 
 const modelOptions = [
@@ -86,9 +93,7 @@ export const SavesBehaviorPromptAndRestores: Story = {
 		);
 
 		await userEvent.type(textarea, "You are a focused coding assistant.");
-		await userEvent.click(
-			within(dialog).getByRole("button", { name: "Save" }),
-		);
+		await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
 			expect(localStorage.getItem(behaviorStorageKey)).toBe(
@@ -117,9 +122,7 @@ export const UsesSavedBehaviorPromptOnSend: Story = {
 		);
 
 		await userEvent.type(textarea, "Use concise and actionable answers.");
-		await userEvent.click(
-			within(dialog).getByRole("button", { name: "Save" }),
-		);
+		await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
 		// Modify without saving, then close.
 		await userEvent.clear(textarea);

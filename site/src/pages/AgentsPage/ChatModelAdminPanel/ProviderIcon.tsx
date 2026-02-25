@@ -1,6 +1,6 @@
-import type { FC } from "react";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { ServerIcon } from "lucide-react";
+import type { FC } from "react";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "../modelOptions";
 import { normalizeProvider } from "./helpers";

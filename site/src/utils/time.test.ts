@@ -93,9 +93,7 @@ describe("shortRelativeTime", () => {
 	});
 
 	it("accepts ISO string input", () => {
-		const isoStr = new Date(
-			NOW.getTime() - 2 * 60 * 60 * 1000,
-		).toISOString();
+		const isoStr = new Date(NOW.getTime() - 2 * 60 * 60 * 1000).toISOString();
 		expect(shortRelativeTime(isoStr)).toBe("2h");
 	});
 

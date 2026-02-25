@@ -9,7 +9,7 @@ import type {
 	ChatModelsResponse,
 	ChatProviderConfig,
 } from "api/typesGenerated";
-import { expect, fn, screen, userEvent } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor } from "storybook/test";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 
 // Pre-seeded query data so that ChatModelAdminPanel renders
@@ -125,7 +125,7 @@ export const EditAndSaveSystemPrompt: Story = {
 		const textarea = await screen.findByPlaceholderText(
 			"Optional. Set deployment-wide instructions for all new chats.",
 		);
-		expect(textarea).toBeVisible();
+		await waitFor(() => expect(textarea).toBeVisible());
 
 		// Type into the textarea. The component is controlled, so the
 		// onChange handler should be called.

@@ -59,10 +59,7 @@ const AgentDetailLayout: FC = () => {
 				</div>
 			</div>
 			{rightPanelOpen && (
-				<div
-					ref={rightPanelRef}
-					className="w-[400px] border-l border-border"
-				/>
+				<div ref={rightPanelRef} className="w-[400px] border-l border-border" />
 			)}
 		</div>
 	);
@@ -176,16 +173,11 @@ const meta: Meta<typeof AgentDetailLayout> = {
 				path: `/agents/${CHAT_ID}`,
 				pathParams: { agentId: CHAT_ID },
 			},
-			routing: reactRouterOutlet(
-				{ path: "/agents/:agentId" },
-				<AgentDetail />,
-			),
+			routing: reactRouterOutlet({ path: "/agents/:agentId" }, <AgentDetail />),
 		}),
 	},
 	beforeEach: () => {
-		spyOn(API, "getApiKey").mockRejectedValue(
-			new Error("missing API key"),
-		);
+		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
 	},
 };
 
@@ -454,8 +446,6 @@ export const StreamedReasoningCollapsed: Story = {
 		await user.click(reasoningToggle);
 
 		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
-		expect(
-			canvas.getByText("Streaming reasoning body"),
-		).toBeInTheDocument();
+		expect(canvas.getByText("Streaming reasoning body")).toBeInTheDocument();
 	},
 };

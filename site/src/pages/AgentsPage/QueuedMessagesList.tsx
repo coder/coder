@@ -1,6 +1,6 @@
 import type { ChatQueuedMessage } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { X, Play } from "lucide-react";
+import { Play, X } from "lucide-react";
 import type { FC } from "react";
 
 interface QueuedMessagesListProps {

@@ -37,7 +37,10 @@ function isChatStreamEvent(
 	data: unknown,
 ): data is TypesGen.ChatStreamEvent & Record<string, unknown> {
 	return (
-		typeof data === "object" && data !== null && "type" in data && typeof (data as Record<string, unknown>).type === "string"
+		typeof data === "object" &&
+		data !== null &&
+		"type" in data &&
+		typeof (data as Record<string, unknown>).type === "string"
 	);
 }
 

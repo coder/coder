@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import type * as TypesGen from "api/typesGenerated";
+import { describe, expect, it } from "vitest";
 import {
-	type ModelConfigFormState,
 	buildModelConfigFromForm,
 	emptyModelConfigFormState,
 	extractModelConfigFormState,
+	type ModelConfigFormState,
 	parsePositiveInteger,
 	parseThresholdInteger,
 } from "./modelConfigFormLogic";
