@@ -164,9 +164,14 @@ func (t Task) RBACObject() rbac.Object {
 		return obj
 	}
 
-	return obj.
-		WithGroupACL(t.WorkspaceGroupACL.RBACACL()).
-		WithACLUserList(t.WorkspaceUserACL.RBACACL())
+	if t.WorkspaceGroupACL != nil {
+		obj = obj.WithGroupACL(t.WorkspaceGroupACL.RBACACL())
+	}
+	if t.WorkspaceUserACL != nil {
+		obj = obj.WithACLUserList(t.WorkspaceUserACL.RBACACL())
+	}
+
+	return obj
 }
 
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
