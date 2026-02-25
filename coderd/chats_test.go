@@ -632,6 +632,38 @@ func TestChatDiffContents(t *testing.T) {
 	})
 }
 
+func TestChats_CrossUserIsolation(t *testing.T) {
+	t.Parallel()
+
+	ownerClient := coderdtest.New(t, nil)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	userBClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// User A (owner) creates a chat.
+	chat, err := ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		Message: "Owner's private chat",
+	})
+	require.NoError(t, err)
+
+	// User B should not see User A's chat in their list.
+	chats, err := userBClient.ListChats(ctx)
+	require.NoError(t, err)
+	for _, c := range chats {
+		require.NotEqual(t, chat.ID, c.ID, "user B should not see user A's chat")
+	}
+
+	// User B should get 404 when fetching User A's chat by ID.
+	_, err = userBClient.GetChat(ctx, chat.ID)
+	require.Error(t, err)
+	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
+
+	// User B should get 404 when deleting User A's chat.
+	err = userBClient.DeleteChat(ctx, chat.ID)
+	require.Error(t, err)
+	require.Equal(t, http.StatusNotFound, coderdtest.SDKError(t, err).StatusCode())
+}
+
 func TestCreateChat_SystemPromptUnauthorized(t *testing.T) {
 	t.Parallel()
 
