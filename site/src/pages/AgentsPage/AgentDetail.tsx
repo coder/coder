@@ -366,16 +366,20 @@ export const AgentDetail: FC = () => {
 				chatTitle={chatTitle}
 				parentChat={parentChat}
 				onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
-				hasDiffStatus={hasDiffStatus}
-				diffStatus={diffStatusQuery.data}
-				showDiffPanel={showDiffPanel}
-				onToggleDiffPanel={() => setShowDiffPanel((prev) => !prev)}
-				canOpenEditors={canOpenEditors}
-				canOpenWorkspace={canOpenWorkspace}
-				onOpenInEditor={(editor) => {
-					void handleOpenInEditor(editor);
+				diff={{
+					hasDiffStatus,
+					diffStatus: diffStatusQuery.data,
+					showDiffPanel,
+					onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
 				}}
-				onViewWorkspace={handleViewWorkspace}
+				workspace={{
+					canOpenEditors,
+					canOpenWorkspace,
+					onOpenInEditor: (editor) => {
+						void handleOpenInEditor(editor);
+					},
+					onViewWorkspace: handleViewWorkspace,
+				}}
 				onArchiveAgent={handleArchiveAgentAction}
 				shouldShowDiffPanel={shouldShowDiffPanel}
 				agentId={agentId}

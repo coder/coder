@@ -61,6 +61,20 @@ const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
 	);
 };
 
+export interface DiffPanelState {
+	hasDiffStatus: boolean;
+	diffStatus: ChatDiffStatusResponse | undefined;
+	showDiffPanel: boolean;
+	onToggleFilesChanged: () => void;
+}
+
+export interface WorkspaceActions {
+	canOpenEditors: boolean;
+	canOpenWorkspace: boolean;
+	onOpenInEditor: (editor: "cursor" | "vscode") => void;
+	onViewWorkspace: () => void;
+}
+
 type AgentDetailTopBarPortalsProps = {
 	topBarTitleRef?: RefObject<HTMLDivElement | null>;
 	topBarActionsRef?: RefObject<HTMLDivElement | null>;
@@ -68,14 +82,8 @@ type AgentDetailTopBarPortalsProps = {
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
 	onOpenParentChat: (chatId: string) => void;
-	hasDiffStatus: boolean;
-	diffStatus?: ChatDiffStatusResponse;
-	showDiffPanel: boolean;
-	onToggleDiffPanel: () => void;
-	canOpenEditors: boolean;
-	canOpenWorkspace: boolean;
-	onOpenInEditor: (editor: "cursor" | "vscode") => void;
-	onViewWorkspace: () => void;
+	diff: DiffPanelState;
+	workspace: WorkspaceActions;
 	onArchiveAgent: () => void;
 	shouldShowDiffPanel: boolean;
 	agentId: string;
@@ -88,14 +96,8 @@ export const AgentDetailTopBarPortals: FC<AgentDetailTopBarPortalsProps> = ({
 	chatTitle,
 	parentChat,
 	onOpenParentChat,
-	hasDiffStatus,
-	diffStatus,
-	showDiffPanel,
-	onToggleDiffPanel,
-	canOpenEditors,
-	canOpenWorkspace,
-	onOpenInEditor,
-	onViewWorkspace,
+	diff,
+	workspace,
 	onArchiveAgent,
 	shouldShowDiffPanel,
 	agentId,
@@ -125,14 +127,14 @@ export const AgentDetailTopBarPortals: FC<AgentDetailTopBarPortalsProps> = ({
 					</div>,
 					topBarTitleRef.current,
 				)}
-			{hasDiffStatus &&
-				diffStatus &&
+			{diff.hasDiffStatus &&
+				diff.diffStatus &&
 				topBarActionsRef?.current &&
 				createPortal(
 					<DiffStatsBadge
-						status={diffStatus}
-						isOpen={showDiffPanel}
-						onToggle={onToggleDiffPanel}
+						status={diff.diffStatus}
+						isOpen={diff.showDiffPanel}
+						onToggle={diff.onToggleFilesChanged}
 					/>,
 					topBarActionsRef.current,
 				)}
@@ -151,26 +153,26 @@ export const AgentDetailTopBarPortals: FC<AgentDetailTopBarPortalsProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem
-								disabled={!canOpenEditors}
+								disabled={!workspace.canOpenEditors}
 								onSelect={() => {
-									onOpenInEditor("cursor");
+									workspace.onOpenInEditor("cursor");
 								}}
 							>
 								<ExternalLinkIcon className="h-3.5 w-3.5" />
 								Open in Cursor
 							</DropdownMenuItem>
 							<DropdownMenuItem
-								disabled={!canOpenEditors}
+								disabled={!workspace.canOpenEditors}
 								onSelect={() => {
-									onOpenInEditor("vscode");
+									workspace.onOpenInEditor("vscode");
 								}}
 							>
 								<ExternalLinkIcon className="h-3.5 w-3.5" />
 								Open in VS Code
 							</DropdownMenuItem>
 							<DropdownMenuItem
-								disabled={!canOpenWorkspace}
-								onSelect={onViewWorkspace}
+								disabled={!workspace.canOpenWorkspace}
+								onSelect={workspace.onViewWorkspace}
 							>
 								<MonitorIcon className="h-3.5 w-3.5" />
 								View Workspace
