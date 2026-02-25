@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"charm.land/fantasy"
@@ -79,9 +80,10 @@ const (
 
 // Processor handles background processing of pending chats.
 type Processor struct {
-	cancel   context.CancelFunc
-	closed   chan struct{}
-	inflight sync.WaitGroup
+	closedFlag atomic.Bool
+	cancel     context.CancelFunc
+	closed     chan struct{}
+	inflight   sync.WaitGroup
 
 	db       database.Store
 	workerID uuid.UUID
@@ -392,6 +394,9 @@ func (p *Processor) start(ctx context.Context) {
 }
 
 func (p *Processor) processOnce(ctx context.Context) {
+	if p.closedFlag.Load() {
+		return
+	}
 	// Try to acquire a pending chat.
 	chat, err := p.db.AcquireChat(ctx, database.AcquireChatParams{
 		StartedAt: time.Now(),
@@ -1899,6 +1904,9 @@ func (p *Processor) recoverStaleChats(ctx context.Context) {
 
 // Close stops the processor and waits for it to finish.
 func (p *Processor) Close() error {
+	if !p.closedFlag.CompareAndSwap(false, true) {
+		return nil
+	}
 	p.cancel()
 	<-p.closed
 	p.inflight.Wait()
