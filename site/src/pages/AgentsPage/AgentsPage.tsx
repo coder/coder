@@ -835,4 +835,3 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	);
 };
 
-export default AgentsPage;
