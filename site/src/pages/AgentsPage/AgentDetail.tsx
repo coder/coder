@@ -9,6 +9,7 @@ import {
 	interruptChat,
 	promoteChatQueuedMessage,
 } from "api/queries/chats";
+import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -81,8 +82,7 @@ export const AgentDetail: FC = () => {
 	const workspaceId = chatQuery.data?.chat?.workspace_id;
 	const workspaceAgentId = chatQuery.data?.chat?.workspace_agent_id;
 	const workspaceQuery = useQuery({
-		queryKey: ["workspace", "agent-detail", workspaceId ?? ""],
-		queryFn: () => API.getWorkspace(workspaceId ?? ""),
+		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
 	});
 	const diffStatusQuery = useQuery({

@@ -6,6 +6,13 @@ import {
 import { withAuthProvider, withWebSocket } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import {
+	chatDiffStatusKey,
+	chatKey,
+	chatModelsKey,
+	chatsKey,
+} from "api/queries/chats";
+import { workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { type FC, useRef, useState } from "react";
 import { Outlet } from "react-router";
@@ -125,10 +132,10 @@ const buildQueries = (
 	chatData: TypesGen.ChatWithMessages,
 	opts?: { diffUrl?: string },
 ) => [
-	{ key: ["chats", CHAT_ID], data: chatData },
-	{ key: ["chats"], data: [chatData.chat] },
+	{ key: chatKey(CHAT_ID), data: chatData },
+	{ key: chatsKey, data: [chatData.chat] },
 	{
-		key: ["chats", CHAT_ID, "diff-status"],
+		key: chatDiffStatusKey(CHAT_ID),
 		data: {
 			chat_id: CHAT_ID,
 			url: opts?.diffUrl,
@@ -139,10 +146,10 @@ const buildQueries = (
 		} satisfies TypesGen.ChatDiffStatus,
 	},
 	{
-		key: ["workspace", "agent-detail", mockWorkspace.id],
+		key: workspaceByIdKey(mockWorkspace.id),
 		data: mockWorkspace,
 	},
-	{ key: ["chat-models"], data: mockModelCatalog },
+	{ key: chatModelsKey, data: mockModelCatalog },
 ];
 
 /**

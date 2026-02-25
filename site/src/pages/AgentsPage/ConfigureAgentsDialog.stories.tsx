@@ -1,4 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	chatModelConfigsKey,
+	chatModelsKey,
+	chatProviderConfigsKey,
+} from "api/queries/chats";
 import type {
 	ChatModelConfig,
 	ChatModelsResponse,
@@ -55,9 +60,9 @@ const mockChatModels: ChatModelsResponse = {
 };
 
 const chatQueries = [
-	{ key: ["chat-provider-configs"], data: mockProviderConfigs },
-	{ key: ["chat-model-configs"], data: mockModelConfigs },
-	{ key: ["chat-models"], data: mockChatModels },
+	{ key: chatProviderConfigsKey, data: mockProviderConfigs },
+	{ key: chatModelConfigsKey, data: mockModelConfigs },
+	{ key: chatModelsKey, data: mockChatModels },
 ];
 
 const meta: Meta<typeof ConfigureAgentsDialog> = {
