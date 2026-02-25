@@ -92,6 +92,7 @@ func sanitizeInstructionMarkdown(content string) string {
 	return strings.TrimSpace(content)
 }
 
+//nolint:revive // Boolean indicates content was truncated.
 func formatHomeInstruction(content string, sourcePath string, truncated bool) string {
 	content = strings.TrimSpace(content)
 	if content == "" {

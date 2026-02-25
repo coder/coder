@@ -472,6 +472,7 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 	return result, nil
 }
 
+//nolint:revive // Boolean controls Anthropic-specific caching behavior.
 func prepareStepResult(
 	messages []fantasy.Message,
 	sentinel string,

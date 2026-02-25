@@ -1028,23 +1028,23 @@ func TestRunChatLoop(t *testing.T) {
 
 		switch call {
 		case 1:
-			fmt.Fprint(
+			_, _ = fmt.Fprint(
 				rw,
 				`data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1730000000,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-1","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"/hello.txt\"}"}}]},"finish_reason":null}]}`+"\n\n",
 			)
 			flusher.Flush()
-			fmt.Fprint(
+			_, _ = fmt.Fprint(
 				rw,
 				`data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1730000000,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":11,"completion_tokens":7,"total_tokens":18}}`+"\n\n",
 			)
 			flusher.Flush()
 		case 2:
-			fmt.Fprint(
+			_, _ = fmt.Fprint(
 				rw,
 				`data: {"id":"chatcmpl-2","object":"chat.completion.chunk","created":1730000001,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{"content":"done"},"finish_reason":null}]}`+"\n\n",
 			)
 			flusher.Flush()
-			fmt.Fprint(
+			_, _ = fmt.Fprint(
 				rw,
 				`data: {"id":"chatcmpl-2","object":"chat.completion.chunk","created":1730000001,"model":"gpt-4o-mini","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":13,"completion_tokens":5,"total_tokens":18}}`+"\n\n",
 			)
@@ -1054,7 +1054,7 @@ func TestRunChatLoop(t *testing.T) {
 			return
 		}
 
-		fmt.Fprint(rw, "data: [DONE]\n\n")
+		_, _ = fmt.Fprint(rw, "data: [DONE]\n\n")
 		flusher.Flush()
 	}))
 	defer provider.Close()
