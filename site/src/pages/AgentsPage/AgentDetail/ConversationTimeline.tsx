@@ -11,15 +11,18 @@ import { ChevronDownIcon } from "lucide-react";
 import {
 	type FC,
 	memo,
+	type ReactNode,
 	type RefObject,
 	useEffect,
 	useRef,
 	useState,
 } from "react";
+import { cn } from "utils/cn";
 import type {
 	MergedTool,
 	ParsedMessageContent,
 	ParsedMessageSection,
+	RenderBlock,
 	StreamState,
 } from "./types";
 
@@ -44,41 +47,45 @@ const ReasoningDisclosure: FC<{
 		);
 	}
 
+	const labelContent = (
+		<span className="text-sm">
+			{showStreamingPlaceholder ? (
+				<Shimmer as="span">Thinking...</Shimmer>
+			) : (
+				label
+			)}
+		</span>
+	);
+
 	return (
 		<div className="w-full">
-			<div
-				role="button"
-				tabIndex={0}
-				aria-expanded={isOpen}
-				aria-controls={id}
-				className={`flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary ${hasText ? "cursor-pointer" : ""}`}
-				onClick={() => {
-					if (hasText) {
-						setIsOpen((prev) => !prev);
-					}
-				}}
-				onKeyDown={(event) => {
-					if (!hasText) {
-						return;
-					}
-					if (event.key === "Enter" || event.key === " ") {
-						setIsOpen((prev) => !prev);
-					}
-				}}
-			>
-				<span className="text-sm">
-					{showStreamingPlaceholder ? (
-						<Shimmer as="span">Thinking...</Shimmer>
-					) : (
-						label
-					)}
-				</span>
-				{hasText ? (
+			{hasText ? (
+				<div
+					role="button"
+					tabIndex={0}
+					aria-expanded={isOpen}
+					aria-controls={id}
+					className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
+					onClick={() => setIsOpen((prev) => !prev)}
+					onKeyDown={(event) => {
+						if (event.key === "Enter" || event.key === " ") {
+							setIsOpen((prev) => !prev);
+						}
+					}}
+				>
+					{labelContent}
 					<ChevronDownIcon
-						className={`h-3 w-3 shrink-0 text-content-secondary transition-transform ${isOpen ? "rotate-0" : "-rotate-90"}`}
+						className={cn(
+							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
+							isOpen ? "rotate-0" : "-rotate-90",
+						)}
 					/>
-				) : null}
-			</div>
+				</div>
+			) : (
+				<div className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary">
+					{labelContent}
+				</div>
+			)}
 			{isOpen && hasText ? (
 				<div id={id} className="mt-1.5">
 					<Response className="text-[11px] text-content-secondary">
@@ -90,12 +97,99 @@ const ReasoningDisclosure: FC<{
 	);
 };
 
+// Shared block renderer used by both ChatMessageItem (historical
+// messages) and StreamingOutput (live stream). Encapsulates the
+// response / thinking / tool switch so the two consumers stay in sync.
+type RenderBlockListParams = {
+	blocks: readonly RenderBlock[];
+	toolByID: ReadonlyMap<string, MergedTool>;
+	keyPrefix: string;
+	isStreaming?: boolean;
+	subagentTitles?: Map<string, string>;
+	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
+};
+
+type RenderBlockListResult = {
+	elements: ReactNode[];
+	renderedToolIDs: ReadonlySet<string>;
+};
+
+function renderBlockList({
+	blocks,
+	toolByID,
+	keyPrefix,
+	isStreaming = false,
+	subagentTitles,
+	subagentStatusOverrides,
+}: RenderBlockListParams): RenderBlockListResult {
+	const renderedToolIDs = new Set<string>();
+	const elements = blocks
+		.map((block, index) => {
+			switch (block.type) {
+				case "response":
+					return (
+						<Response key={`${keyPrefix}-response-${index}`}>
+							{block.text}
+						</Response>
+					);
+				case "thinking":
+					return (
+						<ReasoningDisclosure
+							key={`${keyPrefix}-thinking-${index}`}
+							id={`${keyPrefix}-thinking-${index}`}
+							title={block.title}
+							text={block.text}
+							isStreaming={isStreaming}
+						/>
+					);
+				case "tool": {
+					const tool = toolByID.get(block.id);
+					if (!tool) {
+						if (!isStreaming) {
+							return null;
+						}
+						// Streaming placeholder for not-yet-resolved tool.
+						renderedToolIDs.add(block.id);
+						return (
+							<Tool
+								key={block.id}
+								name="Tool"
+								status="running"
+								isError={false}
+								subagentTitles={subagentTitles}
+								subagentStatusOverrides={subagentStatusOverrides}
+							/>
+						);
+					}
+					renderedToolIDs.add(tool.id);
+					return (
+						<Tool
+							key={tool.id}
+							name={tool.name}
+							args={tool.args}
+							result={tool.result}
+							status={tool.status}
+							isError={tool.isError}
+							subagentTitles={isStreaming ? subagentTitles : undefined}
+							subagentStatusOverrides={
+								isStreaming ? subagentStatusOverrides : undefined
+							}
+						/>
+					);
+				}
+				default:
+					return null;
+			}
+		})
+		.filter((el): el is NonNullable<typeof el> => el != null);
+	return { elements, renderedToolIDs };
+}
+
 const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 }>(({ message, parsed }) => {
 	const isUser = message.role === "user";
-	const renderedToolIDs = new Set<string>();
 	const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
 
 	if (
@@ -112,46 +206,11 @@ const ChatMessageItem = memo<{
 	const conversationItemProps: { role: "user" | "assistant" } = {
 		role: isUser ? "user" : "assistant",
 	};
-	const orderedBlocks = parsed.blocks
-		.map((block, index) => {
-			switch (block.type) {
-				case "response":
-					return (
-						<Response key={`response-${message.id}-${index}`}>
-							{block.text}
-						</Response>
-					);
-				case "thinking":
-					return (
-						<ReasoningDisclosure
-							key={`thinking-${message.id}-${index}`}
-							id={`thinking-${message.id}-${index}`}
-							title={block.title}
-							text={block.text}
-						/>
-					);
-				case "tool": {
-					const tool = toolByID.get(block.id);
-					if (!tool) {
-						return null;
-					}
-					renderedToolIDs.add(tool.id);
-					return (
-						<Tool
-							key={tool.id}
-							name={tool.name}
-							args={tool.args}
-							result={tool.result}
-							status={tool.status}
-							isError={tool.isError}
-						/>
-					);
-				}
-				default:
-					return null;
-			}
-		})
-		.filter((block) => block !== null);
+	const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
+		blocks: parsed.blocks,
+		toolByID,
+		keyPrefix: String(message.id),
+	});
 	const remainingTools = parsed.tools.filter(
 		(tool) => !renderedToolIDs.has(tool.id),
 	);
@@ -208,59 +267,16 @@ const StreamingOutput = memo<{
 		showInitialPlaceholder = false,
 	}) => {
 		const conversationItemProps = { role: "assistant" as const };
-		const renderedToolIDs = new Set<string>();
 		const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
-		const orderedBlocks = (streamState?.blocks ?? [])
-			.map((block, index) => {
-				switch (block.type) {
-					case "response":
-						return (
-							<Response key={`stream-response-${index}`}>{block.text}</Response>
-						);
-					case "thinking":
-						return (
-							<ReasoningDisclosure
-								key={`stream-thinking-${index}`}
-								id={`stream-thinking-${index}`}
-								title={block.title}
-								text={block.text}
-								isStreaming
-							/>
-						);
-					case "tool": {
-						const tool = toolByID.get(block.id);
-						if (!tool) {
-							renderedToolIDs.add(block.id);
-							return (
-								<Tool
-									key={block.id}
-									name="Tool"
-									status="running"
-									isError={false}
-									subagentTitles={subagentTitles}
-									subagentStatusOverrides={subagentStatusOverrides}
-								/>
-							);
-						}
-						renderedToolIDs.add(tool.id);
-						return (
-							<Tool
-								key={tool.id}
-								name={tool.name}
-								args={tool.args}
-								result={tool.result}
-								status={tool.status}
-								isError={tool.isError}
-								subagentTitles={subagentTitles}
-								subagentStatusOverrides={subagentStatusOverrides}
-							/>
-						);
-					}
-					default:
-						return null;
-				}
-			})
-			.filter((block) => block !== null);
+		const blocks = streamState?.blocks ?? [];
+		const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
+			blocks,
+			toolByID,
+			keyPrefix: "stream",
+			isStreaming: true,
+			subagentTitles,
+			subagentStatusOverrides,
+		});
 		const remainingTools = streamTools.filter(
 			(tool) => !renderedToolIDs.has(tool.id),
 		);

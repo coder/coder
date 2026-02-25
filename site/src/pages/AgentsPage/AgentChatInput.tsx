@@ -47,8 +47,6 @@ interface AgentChatInputProps {
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
 	isInterruptPending?: boolean;
-	// Whether there are already queued messages waiting.
-	hasQueuedMessages?: boolean;
 	// Extra controls rendered in the left action area (e.g. workspace
 	// selector on the create page).
 	leftActions?: ReactNode;
@@ -124,9 +122,8 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 				value: usage?.cacheCreationTokens,
 			},
 			{ key: "reasoning", label: "Reasoning", value: usage?.reasoningTokens },
-		].filter(
-			(entry): entry is { key: string; label: string; value: number } =>
-				hasFiniteTokenValue(entry.value),
+		].filter((entry): entry is { key: string; label: string; value: number } =>
+			hasFiniteTokenValue(entry.value),
 		);
 		const ariaLabel = hasPercent
 			? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
@@ -136,6 +133,7 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<span
+						role="button"
 						tabIndex={0}
 						aria-label={ariaLabel}
 						className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
@@ -191,7 +189,8 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 						</div>
 						{(usedTokens !== undefined || contextLimitTokens !== undefined) && (
 							<div className="font-mono text-2xs tabular-nums text-content-secondary">
-								{formatTokenCount(usedTokens)} / {formatTokenCount(contextLimitTokens)} tokens
+								{formatTokenCount(usedTokens)} /{" "}
+								{formatTokenCount(contextLimitTokens)} tokens
 							</div>
 						)}
 						{breakdown.length > 0 && (
@@ -201,7 +200,9 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 										key={entry.key}
 										className="flex items-center justify-between gap-3 text-2xs"
 									>
-										<span className="text-content-secondary">{entry.label}</span>
+										<span className="text-content-secondary">
+											{entry.label}
+										</span>
 										<span className="font-mono tabular-nums text-content-primary">
 											{formatTokenCount(entry.value)}
 										</span>
@@ -235,9 +236,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		isStreaming = false,
 		onInterrupt,
 		isInterruptPending = false,
-		hasQueuedMessages = false,
 		leftActions,
-			contextUsage,
+		contextUsage,
 		sticky = false,
 	}) => {
 		const [input, setInput] = useState(initialValue);
@@ -275,6 +275,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm focus-within:ring-2 focus-within:ring-content-link/40">
 					<TextareaAutosize
 						ref={textareaRef}
+						aria-label="Chat message"
 						className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
 						value={input}

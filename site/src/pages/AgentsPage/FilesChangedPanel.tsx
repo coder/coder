@@ -159,5 +159,3 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 		</div>
 	);
 };
-
-export default FilesChangedPanel;

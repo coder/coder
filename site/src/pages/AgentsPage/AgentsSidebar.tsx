@@ -25,9 +25,11 @@ import {
 	SearchIcon,
 } from "lucide-react";
 import {
+	createContext,
 	type FC,
-	type ReactNode,
+	memo,
 	useCallback,
+	useContext,
 	useEffect,
 	useMemo,
 	useState,
@@ -60,17 +62,29 @@ const statusConfig = {
 	completed: { icon: CheckIcon, className: "text-content-secondary" },
 } as const;
 
-type ChatWithExtendedMetadata = Chat & {
-	readonly diff_status?: ChatDiffStatus;
-	readonly parent_chat_id?: string;
-	readonly root_chat_id?: string;
-};
-
 type ChatTree = {
 	readonly rootIds: readonly string[];
 	readonly childrenById: ReadonlyMap<string, readonly string[]>;
 	readonly parentById: ReadonlyMap<string, string | undefined>;
 };
+
+const TIME_GROUPS = ["Today", "Yesterday", "This Week", "Older"] as const;
+type TimeGroup = (typeof TIME_GROUPS)[number];
+
+function getTimeGroup(dateStr: string): TimeGroup {
+	const now = new Date();
+	const date = new Date(dateStr);
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	const yesterday = new Date(today);
+	yesterday.setDate(yesterday.getDate() - 1);
+	const weekAgo = new Date(today);
+	weekAgo.setDate(weekAgo.getDate() - 7);
+
+	if (date >= today) return "Today";
+	if (date >= yesterday) return "Yesterday";
+	if (date >= weekAgo) return "This Week";
+	return "Older";
+}
 
 const getStatusConfig = (status: ChatStatus) => {
 	return statusConfig[status] ?? statusConfig.completed;
@@ -92,7 +106,7 @@ const getModelDisplayName = (
 		return "Default model";
 	}
 
-	const model = (modelConfig as { model?: string }).model;
+	const model = modelConfig.model;
 	if (!model) {
 		return "Default model";
 	}
@@ -115,15 +129,15 @@ const getModelDisplayName = (
 };
 
 const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
-	return (chat as ChatWithExtendedMetadata).diff_status;
+	return chat.diff_status;
 };
 
 const getParentChatID = (chat: Chat): string | undefined => {
-	return asNonEmptyString((chat as ChatWithExtendedMetadata).parent_chat_id);
+	return asNonEmptyString(chat.parent_chat_id);
 };
 
 const getRootChatID = (chat: Chat): string | undefined => {
-	return asNonEmptyString((chat as ChatWithExtendedMetadata).root_chat_id);
+	return asNonEmptyString(chat.root_chat_id);
 };
 
 const buildChatTree = (chats: readonly Chat[]): ChatTree => {
@@ -222,6 +236,214 @@ const collectVisibleChatIDs = ({
 	return visible;
 };
 
+interface ChatTreeContextValue {
+	readonly chatTree: ChatTree;
+	readonly chatById: ReadonlyMap<string, Chat>;
+	readonly visibleChatIDs: ReadonlySet<string>;
+	readonly normalizedSearch: string;
+	readonly expandedById: Record<string, boolean>;
+	readonly modelOptions: readonly ModelSelectorOption[];
+	readonly chatErrorReasons: Record<string, string>;
+	readonly isArchiving: boolean;
+	readonly archivingChatId: string | null;
+	readonly toggleExpanded: (chatID: string) => void;
+	readonly onArchiveAgent: (chatId: string) => void;
+}
+
+const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
+
+function useChatTree(): ChatTreeContextValue {
+	const ctx = useContext(ChatTreeContext);
+	if (!ctx) {
+		throw new Error("useChatTree must be used within ChatTreeContext.Provider");
+	}
+	return ctx;
+}
+
+interface ChatTreeNodeProps {
+	readonly chat: Chat;
+	readonly isChildNode: boolean;
+}
+
+const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
+	const {
+		chatTree,
+		chatById,
+		visibleChatIDs,
+		normalizedSearch,
+		expandedById,
+		modelOptions,
+		chatErrorReasons,
+		isArchiving,
+		archivingChatId,
+		toggleExpanded,
+		onArchiveAgent,
+	} = useChatTree();
+	const chatID = chat.id;
+	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
+		visibleChatIDs.has(childID),
+	);
+	const hasChildren = childIDs.length > 0;
+	const isDelegated = Boolean(getParentChatID(chat));
+	const config = getStatusConfig(chat.status);
+	const StatusIcon = config.icon;
+	const isDelegatedExecuting =
+		isDelegated && (chat.status === "pending" || chat.status === "running");
+	const modelName = getModelDisplayName(chat.model_config, modelOptions);
+	const errorReason =
+		chat.status === "error" ? chatErrorReasons[chat.id] : undefined;
+	const subtitle = errorReason || modelName;
+	const diffStatus = getChatDiffStatus(chat);
+	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
+	const changedFiles = diffStatus?.changed_files ?? 0;
+	const additions = diffStatus?.additions ?? 0;
+	const deletions = diffStatus?.deletions ?? 0;
+	const hasLineStats = additions > 0 || deletions > 0;
+	const filesChangedLabel = `${changedFiles} ${
+		changedFiles === 1 ? "file" : "files"
+	}`;
+	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
+	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
+
+	return (
+		<div className="flex min-w-0 flex-col">
+			<div
+				data-testid={`agents-tree-node-${chat.id}`}
+				className={cn(
+					"group relative flex min-w-0 items-start gap-1.5 rounded-md pr-1 text-content-secondary",
+					"transition-none hover:bg-surface-tertiary/50 hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+					isChildNode &&
+						"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
+				)}
+			>
+				<div className="relative mt-1.5 h-5 w-5 shrink-0">
+					<div
+						className={cn(
+							"flex h-5 w-5 items-center justify-center rounded-md",
+							hasChildren && "group-hover:invisible",
+						)}
+					>
+						<StatusIcon
+							data-testid={
+								isDelegatedExecuting
+									? `agents-tree-executing-${chat.id}`
+									: undefined
+							}
+							className={cn("h-3.5 w-3.5 shrink-0", config.className)}
+						/>
+					</div>
+					{hasChildren && (
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={() => toggleExpanded(chatID)}
+							className="absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary group-hover:visible [&>svg]:size-3.5"
+							data-testid={`agents-tree-toggle-${chat.id}`}
+							aria-label={isExpanded ? "Collapse" : "Expand"}
+							aria-expanded={isExpanded}
+						>
+							{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+						</Button>
+					)}
+				</div>
+				<NavLink
+					to={`/agents/${chat.id}`}
+					className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+				>
+					{({ isActive }) => (
+						<>
+							<div className="min-w-0 flex-1 overflow-hidden text-left">
+								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+									<span
+										className={cn(
+											"block flex-1 truncate text-[13px] text-content-primary",
+											isActive && "font-medium",
+										)}
+									>
+										{chat.title}
+									</span>
+								</div>
+								<div className="flex min-w-0 items-center gap-1.5">
+									{hasLinkedDiffStatus && hasLineStats && (
+										<span
+											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] font-medium leading-none tabular-nums"
+											title={`${filesChangedLabel}, +${additions} -${deletions}`}
+										>
+											<span className="text-content-success">+{additions}</span>
+											<span className="text-content-destructive">
+												-{deletions}
+											</span>
+										</span>
+									)}
+									<div
+										className={cn(
+											"min-w-0 overflow-hidden text-[13px] leading-4",
+											errorReason
+												? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+												: "truncate text-content-secondary",
+										)}
+										title={subtitle}
+									>
+										{subtitle}
+									</div>
+								</div>
+							</div>
+						</>
+					)}
+				</NavLink>
+				<div className="relative mr-1 mt-1 h-6 w-7 shrink-0 text-right">
+					<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity group-hover:opacity-0">
+						{shortRelativeTime(chat.updated_at)}
+					</span>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								className={cn(
+									"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary group-hover:opacity-100",
+									isArchivingThisChat && "opacity-100",
+								)}
+								aria-label={`Open actions for ${chat.title}`}
+							>
+								{isArchivingThisChat ? (
+									<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<EllipsisIcon className="h-3.5 w-3.5" />
+								)}
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								disabled={isArchiving}
+								onSelect={() => onArchiveAgent(chat.id)}
+							>
+								<ArchiveIcon className="h-3.5 w-3.5" />
+								Archive agent
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+			</div>
+
+			{hasChildren && isExpanded && (
+				<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
+					{childIDs.map((childID) => {
+						const childChat = chatById.get(childID);
+						if (!childChat) return null;
+						return (
+							<ChatTreeNode key={childChat.id} chat={childChat} isChildNode />
+						);
+					})}
+				</div>
+			)}
+		</div>
+	);
+});
+ChatTreeNode.displayName = "ChatTreeNode";
+
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
 		chats,
@@ -292,176 +514,34 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	}, []);
 
-	const renderChatNode = (chatID: string, isChildNode: boolean): ReactNode => {
-		const chat = chatById.get(chatID);
-		if (!chat || !visibleChatIDs.has(chatID)) {
-			return null;
-		}
-
-		const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter(
-			(childID) => visibleChatIDs.has(childID),
-		);
-		const hasChildren = childIDs.length > 0;
-		const isDelegated = Boolean(getParentChatID(chat));
-		const config = getStatusConfig(chat.status);
-		const StatusIcon = config.icon;
-		const isDelegatedExecuting =
-			isDelegated && (chat.status === "pending" || chat.status === "running");
-		const modelName = getModelDisplayName(chat.model_config, modelOptions);
-		const errorReason =
-			chat.status === "error" ? chatErrorReasons[chat.id] : undefined;
-		const subtitle = errorReason || modelName;
-		const diffStatus = getChatDiffStatus(chat);
-		const hasLinkedDiffStatus = Boolean(diffStatus?.url);
-		const changedFiles = diffStatus?.changed_files ?? 0;
-		const additions = diffStatus?.additions ?? 0;
-		const deletions = diffStatus?.deletions ?? 0;
-		const hasLineStats = additions > 0 || deletions > 0;
-		const filesChangedLabel = `${changedFiles} ${
-			changedFiles === 1 ? "file" : "files"
-		}`;
-		const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
-
-		const isExpanded = normalizedSearch
-			? true
-			: (expandedById[chatID] ?? false);
-
-		return (
-			<div key={chat.id} className="flex min-w-0 flex-col">
-				<div
-					data-testid={`agents-tree-node-${chat.id}`}
-					className={cn(
-						"group relative flex min-w-0 items-start gap-1.5 rounded-md pr-1 text-content-secondary",
-						"transition-none hover:bg-surface-tertiary/50 hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
-						"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-						isChildNode &&
-							"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
-					)}
-				>
-					<div className="relative mt-1.5 h-5 w-5 shrink-0">
-						<div
-							className={cn(
-								"flex h-5 w-5 items-center justify-center rounded-md",
-								hasChildren && "group-hover:invisible",
-							)}
-						>
-							<StatusIcon
-								data-testid={
-									isDelegatedExecuting
-										? `agents-tree-executing-${chat.id}`
-										: undefined
-								}
-								className={cn("h-3.5 w-3.5 shrink-0", config.className)}
-							/>
-						</div>
-						{hasChildren && (
-							<Button
-								variant="subtle"
-								size="icon"
-								onClick={() => toggleExpanded(chatID)}
-								className="absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary group-hover:visible [&>svg]:size-3.5"
-								data-testid={`agents-tree-toggle-${chat.id}`}
-								aria-label={isExpanded ? "Collapse" : "Expand"}
-								aria-expanded={isExpanded}
-							>
-								{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-							</Button>
-						)}
-					</div>
-					<NavLink
-						to={`/agents/${chat.id}`}
-						className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
-					>
-						{({ isActive }) => (
-							<>
-								<div className="min-w-0 flex-1 overflow-hidden text-left">
-									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-										<span
-											className={cn(
-												"block flex-1 truncate text-[13px] text-content-primary",
-												isActive && "font-medium",
-											)}
-										>
-											{chat.title}
-										</span>
-									</div>
-									<div className="flex min-w-0 items-center gap-1.5">
-										{hasLinkedDiffStatus && hasLineStats && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] font-medium leading-none tabular-nums"
-												title={`${filesChangedLabel}, +${additions} -${deletions}`}
-											>
-												<span className="text-content-success">
-													+{additions}
-												</span>
-												<span className="text-content-destructive">
-													-{deletions}
-												</span>
-											</span>
-										)}
-										<div
-											className={cn(
-												"min-w-0 overflow-hidden text-[13px] leading-4",
-												errorReason
-													? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-													: "truncate text-content-secondary",
-											)}
-											title={subtitle}
-										>
-											{subtitle}
-										</div>
-									</div>
-								</div>
-							</>
-						)}
-					</NavLink>
-					<div className="relative mr-1 mt-1 h-6 w-7 shrink-0 text-right">
-						<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity group-hover:opacity-0">
-							{shortRelativeTime(chat.updated_at)}
-						</span>
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									size="icon"
-									variant="subtle"
-									className={cn(
-										"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary group-hover:opacity-100",
-										isArchivingThisChat && "opacity-100",
-									)}
-									aria-label={`Open actions for ${chat.title}`}
-								>
-									{isArchivingThisChat ? (
-										<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-									) : (
-										<EllipsisIcon className="h-3.5 w-3.5" />
-									)}
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem onSelect={(event) => event.preventDefault()}>
-									Mark as unread
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									className="text-content-destructive focus:text-content-destructive"
-									disabled={isArchiving}
-									onSelect={() => onArchiveAgent(chat.id)}
-								>
-									<ArchiveIcon className="h-3.5 w-3.5" />
-									Archive agent
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</div>
-				</div>
-
-				{hasChildren && isExpanded && (
-					<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
-						{childIDs.map((childID) => renderChatNode(childID, true))}
-					</div>
-				)}
-			</div>
-		);
-	};
+	const chatTreeCtx = useMemo<ChatTreeContextValue>(
+		() => ({
+			chatTree,
+			chatById,
+			visibleChatIDs,
+			normalizedSearch,
+			expandedById,
+			modelOptions,
+			chatErrorReasons,
+			isArchiving,
+			archivingChatId,
+			toggleExpanded,
+			onArchiveAgent,
+		}),
+		[
+			chatTree,
+			chatById,
+			visibleChatIDs,
+			normalizedSearch,
+			expandedById,
+			modelOptions,
+			chatErrorReasons,
+			isArchiving,
+			archivingChatId,
+			toggleExpanded,
+			onArchiveAgent,
+		],
+	);
 
 	return (
 		<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
@@ -536,21 +616,40 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							</div>
 						</>
 					) : (
-						<>
-							<div className="ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-								<span>This Week</span>
-							</div>
-
-							<div className="flex flex-col gap-0.5">
-								{visibleRootIDs.map((chatID) => renderChatNode(chatID, false))}
-
-								{visibleRootIDs.length === 0 && (
-									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-										{normalizedSearch ? "No matching agents" : "No agents yet"}
-									</div>
-								)}
-							</div>
-						</>
+						<ChatTreeContext.Provider value={chatTreeCtx}>
+							{visibleRootIDs.length === 0 ? (
+								<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+									{normalizedSearch ? "No matching agents" : "No agents yet"}
+								</div>
+							) : (
+								TIME_GROUPS.map((group) => {
+									const groupChats = visibleRootIDs
+										.map((id) => chatById.get(id))
+										.filter(
+											(chat): chat is Chat =>
+												chat !== undefined &&
+												getTimeGroup(chat.updated_at) === group,
+										);
+									if (groupChats.length === 0) return null;
+									return (
+										<div key={group}>
+											<div className="ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+												<span>{group}</span>
+											</div>
+											<div className="flex flex-col gap-0.5">
+												{groupChats.map((chat) => (
+													<ChatTreeNode
+														key={chat.id}
+														chat={chat}
+														isChildNode={false}
+													/>
+												))}
+											</div>
+										</div>
+									);
+								})
+							)}
+						</ChatTreeContext.Provider>
 					)}
 				</div>
 			</ScrollArea>

@@ -1,32 +1,27 @@
-import type {
-	ChatProviderConfig,
-	CreateChatProviderConfigRequest,
-	UpdateChatProviderConfigRequest,
-} from "api/api";
+import { getErrorMessage } from "api/errors";
+import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { CollapsibleContent } from "components/Collapsible/Collapsible";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Input } from "components/Input/Input";
 import { Loader2Icon } from "lucide-react";
 import { type FC, type FormEvent, useEffect, useId, useState } from "react";
-
-const readOptionalString = (value: unknown): string | undefined => {
-	if (typeof value !== "string") return undefined;
-	const trimmed = value.trim();
-	return trimmed || undefined;
-};
+import { readOptionalString } from "./helpers";
 
 type ProviderFormProps = {
 	provider: string;
-	providerConfig: ChatProviderConfig | undefined;
+	providerConfig: TypesGen.ChatProviderConfig | undefined;
 	baseURL: string;
 	isEnvPreset: boolean;
 	providerConfigsUnavailable: boolean;
 	isProviderMutationPending: boolean;
-	onCreateProvider: (req: CreateChatProviderConfigRequest) => Promise<unknown>;
+	onCreateProvider: (
+		req: TypesGen.CreateChatProviderConfigRequest,
+	) => Promise<unknown>;
 	onUpdateProvider: (
 		providerConfigId: string,
-		req: UpdateChatProviderConfigRequest,
+		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
 };
 
@@ -49,9 +44,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const [baseURLValue, setBaseURLValue] = useState("");
 
 	useEffect(() => {
-		setDisplayName(
-			readOptionalString(providerConfig?.display_name) ?? "",
-		);
+		setDisplayName(readOptionalString(providerConfig?.display_name) ?? "");
 		setApiKey("");
 		setBaseURLValue(baseURL);
 	}, [providerConfig, baseURL]);
@@ -78,46 +71,50 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		const trimmedAPIKey = apiKey.trim();
 		const trimmedBaseURL = baseURLValue.trim();
 
-		if (providerConfig) {
-			const currentDisplayName =
-				readOptionalString(providerConfig.display_name) ?? "";
-			const currentBaseURL = baseURL.trim();
-			const req: UpdateChatProviderConfigRequest = {};
+		try {
+			if (providerConfig) {
+				const currentDisplayName =
+					readOptionalString(providerConfig.display_name) ?? "";
+				const currentBaseURL = baseURL.trim();
+				const req: TypesGen.UpdateChatProviderConfigRequest = {
+					...(trimmedDisplayName !== currentDisplayName && {
+						display_name: trimmedDisplayName,
+					}),
+					...(trimmedAPIKey && { api_key: trimmedAPIKey }),
+					...(trimmedBaseURL !== currentBaseURL && {
+						base_url: trimmedBaseURL,
+					}),
+				};
 
-			if (trimmedDisplayName !== currentDisplayName) {
-				req.display_name = trimmedDisplayName;
-			}
-			if (trimmedAPIKey) {
-				req.api_key = trimmedAPIKey;
-			}
-			if (trimmedBaseURL !== currentBaseURL) {
-				req.base_url = trimmedBaseURL;
-			}
-			if (Object.keys(req).length === 0) {
-				return;
+				if (!req.display_name && !req.api_key && !req.base_url) {
+					return;
+				}
+
+				await onUpdateProvider(providerConfig.id, req);
+			} else {
+				if (!trimmedAPIKey) {
+					return;
+				}
+
+				const req: TypesGen.CreateChatProviderConfigRequest = {
+					provider,
+					api_key: trimmedAPIKey,
+					...(trimmedDisplayName && {
+						display_name: trimmedDisplayName,
+					}),
+					...(trimmedBaseURL && { base_url: trimmedBaseURL }),
+				};
+
+				await onCreateProvider(req);
 			}
 
-			await onUpdateProvider(providerConfig.id, req);
-		} else {
-			if (!trimmedAPIKey) {
-				return;
-			}
-
-			const req: CreateChatProviderConfigRequest = {
-				provider,
-				api_key: trimmedAPIKey,
-			};
-			if (trimmedDisplayName) {
-				req.display_name = trimmedDisplayName;
-			}
-			if (trimmedBaseURL) {
-				req.base_url = trimmedBaseURL;
-			}
-
-			await onCreateProvider(req);
+			// Only clear the API key field on success.
+			setApiKey("");
+		} catch (error) {
+			displayError(
+				getErrorMessage(error, "Failed to save provider configuration."),
+			);
 		}
-
-		setApiKey("");
 	};
 
 	return (
@@ -133,12 +130,10 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 				{isAPIKeyEnvManaged && (
 					<Alert severity="info">
-						<AlertTitle>
-							API key managed by environment variable.
-						</AlertTitle>
+						<AlertTitle>API key managed by environment variable.</AlertTitle>
 						<AlertDetail>
-							This provider key is configured from deployment
-							environment settings and cannot be edited in this UI.
+							This provider key is configured from deployment environment
+							settings and cannot be edited in this UI.
 						</AlertDetail>
 					</Alert>
 				)}
@@ -166,8 +161,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									value={displayName}
 									onChange={(e) => setDisplayName(e.target.value)}
 									disabled={
-										providerConfigsUnavailable ||
-										isProviderMutationPending
+										providerConfigsUnavailable || isProviderMutationPending
 									}
 								/>
 							</div>
@@ -196,8 +190,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									value={apiKey}
 									onChange={(e) => setApiKey(e.target.value)}
 									disabled={
-										providerConfigsUnavailable ||
-										isProviderMutationPending
+										providerConfigsUnavailable || isProviderMutationPending
 									}
 								/>
 							</div>
@@ -218,24 +211,17 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									value={baseURLValue}
 									onChange={(e) => setBaseURLValue(e.target.value)}
 									disabled={
-										providerConfigsUnavailable ||
-										isProviderMutationPending
+										providerConfigsUnavailable || isProviderMutationPending
 									}
 								/>
 							</div>
 						</div>
 						<div className="flex items-center justify-end gap-3 border-t border-border pt-3">
-							<Button
-								size="sm"
-								type="submit"
-								disabled={!canSave}
-							>
+							<Button size="sm" type="submit" disabled={!canSave}>
 								{isProviderMutationPending && (
 									<Loader2Icon className="h-4 w-4 animate-spin" />
 								)}
-								{providerConfig
-									? "Save changes"
-									: "Create provider config"}
+								{providerConfig ? "Save changes" : "Create provider config"}
 							</Button>
 						</div>
 					</form>

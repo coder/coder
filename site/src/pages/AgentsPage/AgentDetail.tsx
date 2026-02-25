@@ -1,35 +1,22 @@
-import { API, watchChat } from "api/api";
+import { API } from "api/api";
 import {
 	chat,
-	chatDiffContentsKey,
 	chatDiffStatus,
-	chatDiffStatusKey,
-	chatKey,
 	chatModels,
 	chats,
-	chatsKey,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	interruptChat,
 	promoteChatQueuedMessage,
 } from "api/queries/chats";
+import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
-import {
-	type FC,
-	startTransition,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
-import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { AgentChatInput } from "./AgentChatInput";
 import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import {
@@ -43,12 +30,9 @@ import {
 	buildSubagentTitles,
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
-import {
-	applyMessagePartToStreamState,
-	buildStreamTools,
-} from "./AgentDetail/streamState";
+import { buildStreamTools } from "./AgentDetail/streamState";
 import { AgentDetailTopBarPortals } from "./AgentDetail/TopBarPortals";
-import type { StreamState } from "./AgentDetail/types";
+import { useChatStream } from "./AgentDetail/useChatStream";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
@@ -77,20 +61,6 @@ export const AgentDetail: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	const outletContext = useOutletContext<AgentsOutletContext | undefined>();
 	const queryClient = useQueryClient();
-	const [messagesById, setMessagesById] = useState<
-		Map<number, TypesGen.ChatMessage>
-	>(new Map());
-	const [streamState, setStreamState] = useState<StreamState | null>(null);
-	const [streamError, setStreamError] = useState<string | null>(null);
-	const [queuedMessages, setQueuedMessages] = useState<
-		readonly TypesGen.ChatQueuedMessage[]
-	>([]);
-	const [chatStatus, setChatStatus] = useState<TypesGen.ChatStatus | null>(
-		null,
-	);
-	const [subagentStatusOverrides, setSubagentStatusOverrides] = useState<
-		Map<string, TypesGen.ChatStatus>
-	>(new Map());
 	const [selectedModel, setSelectedModel] = useState("");
 	const [showDiffPanel, setShowDiffPanel] = useState(false);
 	const chatErrorReasons = outletContext?.chatErrorReasons ?? {};
@@ -102,7 +72,6 @@ export const AgentDetail: FC = () => {
 		outletContext?.setRightPanelOpen ?? noopSetRightPanelOpen;
 	const requestArchiveAgent =
 		outletContext?.requestArchiveAgent ?? noopRequestArchiveAgent;
-	const streamResetFrameRef = useRef<number | null>(null);
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
 	const chatQuery = useQuery({
@@ -113,8 +82,7 @@ export const AgentDetail: FC = () => {
 	const workspaceId = chatQuery.data?.chat?.workspace_id;
 	const workspaceAgentId = chatQuery.data?.chat?.workspace_agent_id;
 	const workspaceQuery = useQuery({
-		queryKey: ["workspace", "agent-detail", workspaceId ?? ""],
-		queryFn: () => API.getWorkspace(workspaceId ?? ""),
+		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
 	});
 	const diffStatusQuery = useQuery({
@@ -131,12 +99,19 @@ export const AgentDetail: FC = () => {
 	const chatQueuedMessages = chatData?.queued_messages;
 	const chatModelConfig = chatRecord?.model_config;
 
-	useEffect(() => {
+	// Auto-open the diff panel when diff status first appears.
+	// See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+	const [prevHasDiffStatus, setPrevHasDiffStatus] = useState(false);
+	if (hasDiffStatus !== prevHasDiffStatus) {
+		setPrevHasDiffStatus(hasDiffStatus);
 		if (hasDiffStatus) {
 			setShowDiffPanel(true);
 		}
-	}, [hasDiffStatus]);
+	}
 
+	// Notify the parent layout about right panel visibility. This
+	// useEffect is necessary because we're synchronizing with state
+	// owned by the parent outlet, not adjusting our own state.
 	useEffect(() => {
 		setRightPanelOpen(hasDiffStatus && showDiffPanel);
 		return () => {
@@ -162,76 +137,23 @@ export const AgentDetail: FC = () => {
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
 
-	const updateSidebarChat = useCallback(
-		(updater: (chat: TypesGen.Chat) => TypesGen.Chat) => {
-			if (!agentId) {
-				return;
-			}
-
-			queryClient.setQueryData<readonly TypesGen.Chat[] | undefined>(
-				chatsKey,
-				(currentChats) => {
-					if (!currentChats) {
-						return currentChats;
-					}
-
-					let didUpdate = false;
-					const nextChats = currentChats.map((chat) => {
-						if (chat.id !== agentId) {
-							return chat;
-						}
-						didUpdate = true;
-						return updater(chat);
-					});
-
-					return didUpdate ? nextChats : currentChats;
-				},
-			);
-		},
-		[agentId, queryClient],
-	);
-
-	const cancelScheduledStreamReset = useCallback(() => {
-		if (streamResetFrameRef.current === null) {
-			return;
-		}
-		window.cancelAnimationFrame(streamResetFrameRef.current);
-		streamResetFrameRef.current = null;
-	}, []);
-
-	const scheduleStreamReset = useCallback(() => {
-		cancelScheduledStreamReset();
-		streamResetFrameRef.current = window.requestAnimationFrame(() => {
-			setStreamState(null);
-			streamResetFrameRef.current = null;
-		});
-	}, [cancelScheduledStreamReset]);
-
-	useEffect(() => {
-		if (!chatMessages) {
-			setMessagesById(new Map());
-			return;
-		}
-		setMessagesById(
-			new Map(chatMessages.map((message) => [message.id, message])),
-		);
-	}, [chatMessages]);
-
-	useEffect(() => {
-		if (!chatRecord) {
-			setChatStatus(null);
-			return;
-		}
-		setChatStatus(chatRecord.status);
-	}, [chatRecord]);
-
-	useEffect(() => {
-		if (!chatData) {
-			setQueuedMessages([]);
-			return;
-		}
-		setQueuedMessages(chatQueuedMessages ?? []);
-	}, [chatData, chatQueuedMessages]);
+	const {
+		messagesById,
+		streamState,
+		chatStatus,
+		streamError,
+		queuedMessages,
+		subagentStatusOverrides,
+		clearStreamError,
+	} = useChatStream({
+		chatId: agentId,
+		chatMessages,
+		chatRecord,
+		chatData,
+		chatQueuedMessages,
+		setChatErrorReason,
+		clearChatErrorReason,
+	});
 
 	useEffect(() => {
 		if (!chatModelConfig) {
@@ -244,179 +166,6 @@ export const AgentDetail: FC = () => {
 			return resolveModelFromChatConfig(chatModelConfig, modelOptions);
 		});
 	}, [chatModelConfig, modelOptions]);
-
-	useEffect(() => {
-		if (!agentId) {
-			return;
-		}
-
-		cancelScheduledStreamReset();
-		setStreamState(null);
-		setStreamError(null);
-		setSubagentStatusOverrides(new Map());
-
-		const socket = watchChat(agentId);
-		const handleMessage = (
-			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
-		) => {
-			if (payload.parseError || !payload.parsedMessage) {
-				setStreamError("Failed to parse chat stream update.");
-				return;
-			}
-			if (payload.parsedMessage.type !== "data") {
-				return;
-			}
-
-			const streamEvent = payload.parsedMessage
-				.data as TypesGen.ChatStreamEvent & Record<string, unknown>;
-			if (!streamEvent?.type) {
-				return;
-			}
-
-			switch (streamEvent.type) {
-				case "message": {
-					const message = streamEvent.message;
-					if (!message) {
-						return;
-					}
-					setMessagesById((prev) => {
-						const next = new Map(prev);
-						next.set(message.id, message);
-						return next;
-					});
-					scheduleStreamReset();
-					updateSidebarChat((chat) => ({
-						...chat,
-						updated_at: message.created_at ?? new Date().toISOString(),
-					}));
-					void queryClient.invalidateQueries({ queryKey: chatsKey });
-					return;
-				}
-				case "message_part": {
-					const part = asRecord(streamEvent.message_part?.part);
-					if (!part) {
-						return;
-					}
-					cancelScheduledStreamReset();
-					startTransition(() => {
-						setStreamState((prev) => applyMessagePartToStreamState(prev, part));
-					});
-					return;
-				}
-				case "queue_update": {
-					const queuedMsgs = streamEvent.queued_messages;
-					setQueuedMessages(queuedMsgs ?? []);
-					return;
-				}
-				case "status": {
-					const status = asRecord(streamEvent.status);
-					const nextStatus = asString(status?.status) as TypesGen.ChatStatus;
-					if (!nextStatus) {
-						return;
-					}
-
-					const eventChatID = asString(streamEvent.chat_id);
-					if (eventChatID && eventChatID !== agentId) {
-						setSubagentStatusOverrides((prev) => {
-							if (prev.get(eventChatID) === nextStatus) {
-								return prev;
-							}
-							const next = new Map(prev);
-							next.set(eventChatID, nextStatus);
-							return next;
-						});
-						return;
-					}
-
-					setChatStatus(nextStatus);
-					if (agentId && nextStatus !== "error") {
-						clearChatErrorReason(agentId);
-					}
-					updateSidebarChat((chat) => ({
-						...chat,
-						status: nextStatus,
-						updated_at: new Date().toISOString(),
-					}));
-					if (agentId) {
-						void Promise.all([
-							queryClient.invalidateQueries({
-								queryKey: chatDiffStatusKey(agentId),
-							}),
-							queryClient.invalidateQueries({
-								queryKey: chatDiffContentsKey(agentId),
-							}),
-						]);
-					}
-					const shouldRefreshQueries =
-						nextStatus === "completed" ||
-						nextStatus === "error" ||
-						nextStatus === "paused" ||
-						nextStatus === "waiting";
-					if (shouldRefreshQueries) {
-						void Promise.all([
-							queryClient.invalidateQueries({ queryKey: chatsKey }),
-							queryClient.invalidateQueries({
-								queryKey: chatKey(agentId),
-							}),
-						]);
-					}
-					return;
-				}
-				case "error": {
-					const error = asRecord(streamEvent.error);
-					const reason =
-						asString(error?.message).trim() || "Chat processing failed.";
-					setChatStatus("error");
-					setStreamError(reason);
-					if (agentId) {
-						setChatErrorReason(agentId, reason);
-					}
-					updateSidebarChat((chat) => ({
-						...chat,
-						status: "error",
-						updated_at: new Date().toISOString(),
-					}));
-					void Promise.all([
-						queryClient.invalidateQueries({ queryKey: chatsKey }),
-						queryClient.invalidateQueries({
-							queryKey: chatKey(agentId),
-						}),
-					]);
-					return;
-				}
-				default:
-					break;
-			}
-		};
-
-		const handleError = () => {
-			setStreamError((current) => current ?? "Chat stream disconnected.");
-			void Promise.all([
-				queryClient.invalidateQueries({ queryKey: chatsKey }),
-				queryClient.invalidateQueries({
-					queryKey: chatKey(agentId),
-				}),
-			]);
-		};
-
-		socket.addEventListener("message", handleMessage);
-		socket.addEventListener("error", handleError);
-
-		return () => {
-			socket.removeEventListener("message", handleMessage);
-			socket.removeEventListener("error", handleError);
-			socket.close();
-			cancelScheduledStreamReset();
-		};
-	}, [
-		agentId,
-		cancelScheduledStreamReset,
-		clearChatErrorReason,
-		queryClient,
-		scheduleStreamReset,
-		setChatErrorReason,
-		updateSidebarChat,
-	]);
 
 	const messages = useMemo(() => {
 		const list = Array.from(messagesById.values());
@@ -473,7 +222,7 @@ export const AgentDetail: FC = () => {
 			model: selectedModel || undefined,
 		};
 		clearChatErrorReason(agentId);
-		setStreamError(null);
+		clearStreamError();
 		if (scrollContainerRef.current) {
 			scrollContainerRef.current.scrollTop = 0;
 		}
@@ -491,7 +240,10 @@ export const AgentDetail: FC = () => {
 		() => buildStreamTools(streamState),
 		[streamState],
 	);
-	const visibleMessages = messages.filter((message) => !message.hidden);
+	const visibleMessages = useMemo(
+		() => messages.filter((message) => !message.hidden),
+		[messages],
+	);
 	const { hasMoreMessages, windowedMessages, loadMoreSentinelRef } =
 		useMessageWindow({
 			messages: visibleMessages,
@@ -621,16 +373,20 @@ export const AgentDetail: FC = () => {
 				chatTitle={chatTitle}
 				parentChat={parentChat}
 				onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
-				hasDiffStatus={hasDiffStatus}
-				diffStatus={diffStatusQuery.data}
-				showDiffPanel={showDiffPanel}
-				onToggleDiffPanel={() => setShowDiffPanel((prev) => !prev)}
-				canOpenEditors={canOpenEditors}
-				canOpenWorkspace={canOpenWorkspace}
-				onOpenInEditor={(editor) => {
-					void handleOpenInEditor(editor);
+				diff={{
+					hasDiffStatus,
+					diffStatus: diffStatusQuery.data,
+					showDiffPanel,
+					onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
 				}}
-				onViewWorkspace={handleViewWorkspace}
+				workspace={{
+					canOpenEditors,
+					canOpenWorkspace,
+					onOpenInEditor: (editor) => {
+						void handleOpenInEditor(editor);
+					},
+					onViewWorkspace: handleViewWorkspace,
+				}}
 				onArchiveAgent={handleArchiveAgentAction}
 				shouldShowDiffPanel={shouldShowDiffPanel}
 				agentId={agentId}
@@ -638,7 +394,7 @@ export const AgentDetail: FC = () => {
 
 			<div
 				ref={scrollContainerRef}
-				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(240_5%_26%)_transparent]"
+				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				<div>
 					<ConversationTimeline
@@ -669,7 +425,6 @@ export const AgentDetail: FC = () => {
 						isStreaming={isStreaming}
 						onInterrupt={handleInterrupt}
 						isInterruptPending={interruptMutation.isPending}
-						hasQueuedMessages={queuedMessages.length > 0}
 						contextUsage={latestContextUsage}
 						hasModelOptions={hasModelOptions}
 						selectedModel={selectedModel}

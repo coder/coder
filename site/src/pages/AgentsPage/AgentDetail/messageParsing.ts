@@ -1,5 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
+import { appendTextBlock, asNonEmptyString } from "./blockUtils";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -19,11 +20,6 @@ const appendText = (current: string, next: string): string => {
 		return next;
 	}
 	return `${current}\n${next}`;
-};
-
-export const asNonEmptyString = (value: unknown): string | undefined => {
-	const next = asString(value).trim();
-	return next.length > 0 ? next : undefined;
 };
 
 export const asOptionalTitle = (value: unknown): string | undefined =>
@@ -84,81 +80,13 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	blocks: [],
 });
 
-const mergeThinkingTitles = (
-	currentTitle: string | undefined,
-	nextTitle: string | undefined,
-): { shouldMerge: boolean; title: string | undefined } => {
-	if (!currentTitle && !nextTitle) {
-		return { shouldMerge: true, title: undefined };
-	}
-	if (!currentTitle) {
-		return { shouldMerge: true, title: nextTitle };
-	}
-	if (!nextTitle) {
-		return { shouldMerge: true, title: currentTitle };
-	}
-	if (currentTitle === nextTitle) {
-		return { shouldMerge: true, title: currentTitle };
-	}
-	if (nextTitle.startsWith(currentTitle)) {
-		return { shouldMerge: true, title: nextTitle };
-	}
-	if (currentTitle.startsWith(nextTitle)) {
-		return { shouldMerge: true, title: currentTitle };
-	}
-	return { shouldMerge: false, title: nextTitle };
-};
-
+/** Wraps appendTextBlock with newline-joining for complete message blocks. */
 const appendParsedTextBlock = (
 	blocks: RenderBlock[],
 	type: "response" | "thinking",
 	text: string,
 	title?: string,
-): RenderBlock[] => {
-	if (!text.trim()) {
-		return blocks;
-	}
-	const nextBlocks = [...blocks];
-	const last = nextBlocks[nextBlocks.length - 1];
-	if (last && last.type === type) {
-		const shouldMerge =
-			type === "response" ||
-			(type === "thinking" &&
-				last.type === "thinking" &&
-				mergeThinkingTitles(last.title, title).shouldMerge);
-		if (shouldMerge) {
-			const mergedThinkingTitle =
-				type === "thinking" && last.type === "thinking"
-					? mergeThinkingTitles(last.title, title).title
-					: undefined;
-			nextBlocks[nextBlocks.length - 1] =
-				type === "thinking"
-					? {
-							type,
-							text: appendText(last.text, text),
-							title: mergedThinkingTitle,
-						}
-					: {
-							type,
-							text: appendText(last.text, text),
-						};
-			return nextBlocks;
-		}
-	}
-	nextBlocks.push(
-		type === "thinking"
-			? {
-					type,
-					text,
-					title,
-				}
-			: {
-					type,
-					text,
-				},
-	);
-	return nextBlocks;
-};
+): RenderBlock[] => appendTextBlock(blocks, type, text, title, appendText);
 
 export const ensureToolBlock = (
 	blocks: RenderBlock[],

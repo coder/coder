@@ -2,6 +2,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { asNumber, asString } from "components/ai-elements/runtimeTypeUtils";
 import type { AgentContextUsage } from "../AgentChatInput";
+import { asNonEmptyString } from "./blockUtils";
 
 const asTokenCount = (value: unknown): number | undefined => {
 	const parsed = asNumber(value);
@@ -9,11 +10,6 @@ const asTokenCount = (value: unknown): number | undefined => {
 		return undefined;
 	}
 	return parsed;
-};
-
-const asNonEmptyString = (value: unknown): string | undefined => {
-	const next = asString(value).trim();
-	return next.length > 0 ? next : undefined;
 };
 
 type ChatMessageWithUsage = TypesGen.ChatMessage & {

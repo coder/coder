@@ -9,44 +9,6 @@ export const Message = ({ className, ref, ...props }: MessageProps) => {
 	);
 };
 
-type MessageAvatarProps = ComponentPropsWithRef<"div">;
-
-export const MessageAvatar = ({
-	className,
-	ref,
-	...props
-}: MessageAvatarProps) => {
-	return (
-		<div
-			ref={ref}
-			className={cn(
-				"mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border-default/70 shadow-sm",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
-type MessageHeaderProps = ComponentPropsWithRef<"div">;
-
-export const MessageHeader = ({
-	className,
-	ref,
-	...props
-}: MessageHeaderProps) => {
-	return (
-		<div
-			ref={ref}
-			className={cn(
-				"mb-1 text-xs font-medium text-content-secondary",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
 type MessageContentProps = ComponentPropsWithRef<"div">;
 
 export const MessageContent = ({

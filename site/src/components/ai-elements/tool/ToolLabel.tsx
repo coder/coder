@@ -1,0 +1,135 @@
+import type React from "react";
+import { asRecord, asString, parseArgs } from "./utils";
+
+export const ToolLabel: React.FC<{
+	name: string;
+	args: unknown;
+	result: unknown;
+}> = ({ name, args, result }) => {
+	const parsed = parseArgs(args);
+	const parsedResult = asRecord(result);
+
+	switch (name) {
+		case "execute": {
+			const command = parsed ? asString(parsed.command) : "";
+			if (command) {
+				return (
+					<code className="truncate font-mono text-xs text-content-primary">
+						{command}
+					</code>
+				);
+			}
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Running command
+				</span>
+			);
+		}
+		case "read_file":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Reading file…
+				</span>
+			);
+		case "write_file": {
+			const path = parsed ? asString(parsed.path) : "";
+			if (path) {
+				return (
+					<code className="truncate font-mono text-xs text-content-primary">
+						{path}
+					</code>
+				);
+			}
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Writing file
+				</span>
+			);
+		}
+		case "edit_files": {
+			const files = parsed?.files;
+			if (Array.isArray(files) && files.length === 1) {
+				const path = asString((files[0] as Record<string, unknown>)?.path);
+				if (path) {
+					return (
+						<code className="truncate font-mono text-xs text-content-primary">
+							{path}
+						</code>
+					);
+				}
+			}
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Editing files
+				</span>
+			);
+		}
+		case "create_workspace": {
+			const wsName = parsedResult ? asString(parsedResult.workspace_name) : "";
+			if (wsName) {
+				return (
+					<span className="truncate text-sm text-content-secondary">
+						Created {wsName}
+					</span>
+				);
+			}
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Creating workspace
+				</span>
+			);
+		}
+		case "subagent_terminate":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Terminating sub-agent
+				</span>
+			);
+		case "subagent": {
+			const spawnTitle =
+				(parsedResult ? asString(parsedResult.title) : "") ||
+				(parsed ? asString(parsed.title) : "");
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{spawnTitle ? `Spawning ${spawnTitle}` : "Spawning sub-agent…"}
+				</span>
+			);
+		}
+		case "subagent_await": {
+			const awaitTitle =
+				(parsedResult ? asString(parsedResult.title) : "") ||
+				(parsed ? asString(parsed.title) : "");
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{awaitTitle ? `Waiting for ${awaitTitle}` : "Waiting for sub-agent…"}
+				</span>
+			);
+		}
+		case "subagent_message": {
+			const msgTitle =
+				(parsedResult ? asString(parsedResult.title) : "") ||
+				(parsed ? asString(parsed.title) : "");
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{msgTitle ? `Messaging ${msgTitle}` : "Messaging sub-agent…"}
+				</span>
+			);
+		}
+		case "subagent_report":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Reporting to parent
+				</span>
+			);
+		case "chat_summarized":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Summarized
+				</span>
+			);
+		default:
+			return (
+				<span className="truncate text-sm text-content-secondary">{name}</span>
+			);
+	}
+};

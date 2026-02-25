@@ -1,4 +1,5 @@
 import { asString } from "components/ai-elements/runtimeTypeUtils";
+import { appendTextBlock, mergeThinkingTitles } from "./blockUtils";
 import {
 	asOptionalTitle,
 	ensureToolBlock,
@@ -14,81 +15,8 @@ export const createEmptyStreamState = (): StreamState => ({
 	toolResults: {},
 });
 
-const mergeThinkingTitles = (
-	currentTitle: string | undefined,
-	nextTitle: string | undefined,
-): { shouldMerge: boolean; title: string | undefined } => {
-	if (!currentTitle && !nextTitle) {
-		return { shouldMerge: true, title: undefined };
-	}
-	if (!currentTitle) {
-		return { shouldMerge: true, title: nextTitle };
-	}
-	if (!nextTitle) {
-		return { shouldMerge: true, title: currentTitle };
-	}
-	if (currentTitle === nextTitle) {
-		return { shouldMerge: true, title: currentTitle };
-	}
-	if (nextTitle.startsWith(currentTitle)) {
-		return { shouldMerge: true, title: nextTitle };
-	}
-	if (currentTitle.startsWith(nextTitle)) {
-		return { shouldMerge: true, title: currentTitle };
-	}
-	return { shouldMerge: false, title: nextTitle };
-};
-
-export const appendStreamTextBlock = (
-	blocks: RenderBlock[],
-	type: "response" | "thinking",
-	text: string,
-	title?: string,
-): RenderBlock[] => {
-	if (!text) {
-		return blocks;
-	}
-	const nextBlocks = [...blocks];
-	const last = nextBlocks[nextBlocks.length - 1];
-	if (last && last.type === type) {
-		const shouldMerge =
-			type === "response" ||
-			(type === "thinking" &&
-				last.type === "thinking" &&
-				mergeThinkingTitles(last.title, title).shouldMerge);
-		if (shouldMerge) {
-			const mergedThinkingTitle =
-				type === "thinking" && last.type === "thinking"
-					? mergeThinkingTitles(last.title, title).title
-					: undefined;
-			nextBlocks[nextBlocks.length - 1] =
-				type === "thinking"
-					? {
-							type,
-							text: `${last.text}${text}`,
-							title: mergedThinkingTitle,
-						}
-					: {
-							type,
-							text: `${last.text}${text}`,
-						};
-			return nextBlocks;
-		}
-	}
-	nextBlocks.push(
-		type === "thinking"
-			? {
-					type,
-					text,
-					title,
-				}
-			: {
-					type,
-					text,
-				},
-	);
-	return nextBlocks;
-};
+/** Streaming variant — uses direct concatenation (the default joinText). */
+const appendStreamTextBlock = appendTextBlock;
 
 export const applyStreamThinkingTitle = (
 	blocks: RenderBlock[],

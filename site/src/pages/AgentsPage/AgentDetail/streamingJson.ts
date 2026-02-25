@@ -1,3 +1,19 @@
+/**
+ * Incremental JSON parser for streaming tool call arguments.
+ *
+ * LLM tool calls arrive as partial JSON fragments via server-sent events.
+ * This module provides utilities to extract usable data from incomplete
+ * JSON strings without waiting for the full payload.
+ *
+ * Guarantees:
+ * - Partial object recovery (returns fields parsed so far).
+ * - Graceful handling of truncated strings, numbers, and booleans.
+ *
+ * Known limitations:
+ * - Does not handle partial arrays.
+ * - Does not handle \uXXXX unicode escape sequences in strings.
+ */
+
 const tryParseJSONObject = (value: string): unknown | null => {
 	const trimmed = value.trim();
 	if (!trimmed) {
@@ -366,7 +382,7 @@ export const parseStreamingJSON = (value: string): unknown | null => {
 	return parsePartialJSONObject(value);
 };
 
-export type StreamPayloadMerge = {
+type StreamPayloadMerge = {
 	value: unknown;
 	rawText?: string;
 };

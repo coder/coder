@@ -1,10 +1,10 @@
-import type { ChatModelsResponse } from "api/api";
+import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 
-type CatalogProvider = ChatModelsResponse["providers"][number];
+type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
 
 const getCatalogProviders = (
-	catalog: ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
 ): readonly CatalogProvider[] => {
 	const providers = catalog?.providers;
 	return Array.isArray(providers) ? providers : [];
@@ -31,13 +31,13 @@ const isProviderConfiguredInCatalog = (provider: CatalogProvider): boolean => {
 };
 
 export const hasConfiguredModelsInCatalog = (
-	catalog: ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
 ): boolean => {
 	return getCatalogProviders(catalog).some(isProviderConfiguredInCatalog);
 };
 
 export const getModelOptionsFromCatalog = (
-	catalog: ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
 ): readonly ModelSelectorOption[] => {
 	const optionsByID = new Map<string, ModelSelectorOption>();
 
@@ -128,7 +128,7 @@ export const getModelSelectorPlaceholder = (
 };
 
 export const getModelCatalogStatusMessage = (
-	catalog: ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
 	modelOptions: readonly ModelSelectorOption[],
 	isModelCatalogLoading: boolean,
 	hasModelCatalogError: boolean,
