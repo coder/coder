@@ -49,7 +49,10 @@ const (
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
 	defaultExecuteTimeout        = 60 * time.Second
+	maxExecuteTimeout            = 10 * time.Minute
 	defaultExternalAuthWait      = 5 * time.Minute
+	maxExternalAuthWait          = 10 * time.Minute
+	maxSubagentAwaitTimeout      = 10 * time.Minute
 	homeInstructionLookupTimeout = 5 * time.Second
 	maxChatSteps                 = 1200
 
@@ -2194,6 +2197,7 @@ func (p *Processor) agentTools(
 				if args.TimeoutSeconds != nil {
 					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
 				}
+				timeout = clampTimeout(timeout, defaultExternalAuthWait, maxExternalAuthWait)
 
 				chatStateMu.Lock()
 				chatSnapshot := *chatState
@@ -2315,6 +2319,7 @@ func (p *Processor) agentTools(
 				if args.TimeoutSeconds != nil {
 					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
 				}
+				timeout = clampTimeout(timeout, defaultSubagentAwaitTimeout, maxSubagentAwaitTimeout)
 
 				chatStateMu.Lock()
 				chatSnapshot := *chatState
@@ -2367,6 +2372,7 @@ func (p *Processor) agentTools(
 				if args.TimeoutSeconds != nil {
 					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
 				}
+				timeout = clampTimeout(timeout, defaultSubagentAwaitTimeout, maxSubagentAwaitTimeout)
 
 				chatStateMu.Lock()
 				chatSnapshot := *chatState
@@ -2746,6 +2752,18 @@ func (e *createWorkspaceBuildLogEmitter) publishDelta(delta string) {
 	})
 }
 
+// clampTimeout returns d clamped to the range (0, max]. If d is
+// non-positive, def is returned instead.
+func clampTimeout(d, def, max time.Duration) time.Duration {
+	if d <= 0 {
+		return def
+	}
+	if d > max {
+		return max
+	}
+	return d
+}
+
 func executeReadFileTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
@@ -2847,6 +2865,7 @@ func executeExecuteTool(
 	if args.TimeoutSeconds != nil {
 		timeout = time.Duration(*args.TimeoutSeconds) * time.Second
 	}
+	timeout = clampTimeout(timeout, defaultExecuteTimeout, maxExecuteTimeout)
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
