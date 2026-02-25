@@ -54,6 +54,7 @@ const InputField: FC<
 	}
 > = ({ inputIdPrefix, form, fieldErrors, onChange, disabled, fieldKey, label, placeholder }) => {
 	const fieldID = `${inputIdPrefix}-${fieldKey}`;
+	const errorId = `${fieldID}-error`;
 	const fieldError = fieldErrors[fieldKey];
 	return (
 		<div className="grid gap-1.5">
@@ -76,9 +77,11 @@ const InputField: FC<
 				value={form[fieldKey]}
 				onChange={(e) => onChange(fieldKey, e.target.value)}
 				disabled={disabled}
+				aria-invalid={!!fieldError}
+				aria-describedby={fieldError ? errorId : undefined}
 			/>
 			{fieldError && (
-				<p className="m-0 text-xs text-content-destructive">
+				<p id={errorId} className="m-0 text-xs text-content-destructive">
 					{fieldError}
 				</p>
 			)}
@@ -94,6 +97,7 @@ const SelectField: FC<
 	}
 > = ({ inputIdPrefix, form, fieldErrors, onChange, disabled, fieldKey, label, options }) => {
 	const fieldID = `${inputIdPrefix}-${fieldKey}`;
+	const errorId = `${fieldID}-error`;
 	const fieldError = fieldErrors[fieldKey];
 	return (
 		<div className="grid gap-1.5">
@@ -122,6 +126,8 @@ const SelectField: FC<
 						"h-10 text-[13px]",
 						fieldError && "border-content-destructive",
 					)}
+					aria-invalid={!!fieldError}
+					aria-describedby={fieldError ? errorId : undefined}
 				>
 					<SelectValue placeholder="Use backend default" />
 				</SelectTrigger>
@@ -137,7 +143,7 @@ const SelectField: FC<
 				</SelectContent>
 			</Select>
 			{fieldError && (
-				<p className="m-0 text-xs text-content-destructive">
+				<p id={errorId} className="m-0 text-xs text-content-destructive">
 					{fieldError}
 				</p>
 			)}
@@ -153,6 +159,7 @@ const JSONField: FC<
 	}
 > = ({ inputIdPrefix, form, fieldErrors, onChange, disabled, fieldKey, label, placeholder }) => {
 	const fieldID = `${inputIdPrefix}-${fieldKey}`;
+	const errorId = `${fieldID}-error`;
 	const fieldError = fieldErrors[fieldKey];
 	return (
 		<div className="grid gap-1.5">
@@ -175,9 +182,11 @@ const JSONField: FC<
 				value={form[fieldKey]}
 				onChange={(e) => onChange(fieldKey, e.target.value)}
 				disabled={disabled}
+				aria-invalid={!!fieldError}
+				aria-describedby={fieldError ? errorId : undefined}
 			/>
 			{fieldError && (
-				<p className="m-0 text-xs text-content-destructive">
+				<p id={errorId} className="m-0 text-xs text-content-destructive">
 					{fieldError}
 				</p>
 			)}

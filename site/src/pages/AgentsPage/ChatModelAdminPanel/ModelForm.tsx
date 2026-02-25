@@ -72,7 +72,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const modelInputId = useId();
 	const displayNameInputId = useId();
 	const contextLimitInputId = useId();
+	const contextLimitErrorId = `${contextLimitInputId}-error`;
 	const compressionThresholdInputId = useId();
+	const compressionThresholdErrorId = `${compressionThresholdInputId}-error`;
 	const modelConfigInputId = useId();
 
 	const [model, setModel] = useState(editingModel?.model ?? "");
@@ -400,9 +402,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 									value={contextLimit}
 									onChange={(e) => setContextLimit(e.target.value)}
 									disabled={isSaving}
+									aria-invalid={!!contextLimitError}
+									aria-describedby={contextLimitError ? contextLimitErrorId : undefined}
 								/>
 								{contextLimitError && (
-									<p className="m-0 text-xs text-content-destructive">
+									<p id={contextLimitErrorId} className="m-0 text-xs text-content-destructive">
 										{contextLimitError}
 									</p>
 								)}
@@ -424,9 +428,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 									value={compressionThreshold}
 									onChange={(e) => setCompressionThreshold(e.target.value)}
 									disabled={isSaving}
+									aria-invalid={!!compressionThresholdError}
+									aria-describedby={compressionThresholdError ? compressionThresholdErrorId : undefined}
 								/>
 								{compressionThresholdError && (
-									<p className="m-0 text-xs text-content-destructive">
+									<p id={compressionThresholdErrorId} className="m-0 text-xs text-content-destructive">
 										{compressionThresholdError}
 									</p>
 								)}
