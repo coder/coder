@@ -351,6 +351,15 @@ const AIBridgeLayout = lazy(
 const AIBridgeRequestLogsPage = lazy(
 	() => import("./pages/AIBridgePage/RequestLogsPage/RequestLogsPage"),
 );
+const AIBridgeSessionsPage = lazy(
+	() => import("./pages/AIBridgePage/SessionsPage/SessionsPage"),
+);
+const AIBridgeGitEventsPage = lazy(
+	() => import("./pages/AIBridgePage/GitEventsPage/GitEventsPage"),
+);
+const AIBridgeDashboardPage = lazy(
+	() => import("./pages/AIBridgePage/DashboardPage/DashboardPage"),
+);
 
 const GlobalLayout = () => {
 	return (
@@ -578,8 +587,11 @@ export const router = createBrowserRouter(
 					</Route>
 
 					<Route path="/aibridge" element={<AIBridgeLayout />}>
-						<Route index element={<Navigate to="request-logs" replace />} />
+						<Route index element={<Navigate to="sessions" replace />} />
+						<Route path="sessions" element={<AIBridgeSessionsPage />} />
 						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
+						<Route path="git-events" element={<AIBridgeGitEventsPage />} />
+						<Route path="dashboard" element={<AIBridgeDashboardPage />} />
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>
