@@ -69,7 +69,6 @@ export const Default: Story = {};
 
 export const SavesBehaviorPromptAndRestores: Story = {
 	play: async ({ canvasElement }) => {
-		const body = canvasElement.ownerDocument.body;
 		const host = canvasElement.ownerDocument.querySelector(
 			'[data-testid="topbar-actions-host"]',
 		)!;

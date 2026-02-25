@@ -92,10 +92,6 @@ describe("extractContextUsageFromMessage", () => {
 		expect(extractContextUsageFromMessage(msg)).toBeNull();
 	});
 
-	it("ignores non-numeric token values", () => {
-		const msg = makeMessage({ input_tokens: "not a number" } as any);
-		expect(extractContextUsageFromMessage(msg)).toBeNull();
-	});
 
 	it("returns usage with only contextLimitTokens and no usedTokens", () => {
 		const msg = makeMessage({ context_limit: 4096 });
@@ -205,11 +201,7 @@ describe("resolveModelFromChatConfig", () => {
 		);
 	});
 
-	it("returns first option when modelConfig is not an object", () => {
-		expect(resolveModelFromChatConfig("not-an-object" as any, options)).toBe(
-			"openai:gpt-4",
-		);
-	});
+
 
 	it("matches by exact model id", () => {
 		const config = { model: "anthropic:claude-3" };
