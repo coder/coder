@@ -47,44 +47,45 @@ const ReasoningDisclosure: FC<{
 		);
 	}
 
+	const labelContent = (
+		<span className="text-sm">
+			{showStreamingPlaceholder ? (
+				<Shimmer as="span">Thinking...</Shimmer>
+			) : (
+				label
+			)}
+		</span>
+	);
+
 	return (
 		<div className="w-full">
-			<div
-				role={hasText ? "button" : undefined}
-				tabIndex={hasText ? 0 : undefined}
-				aria-expanded={hasText ? isOpen : undefined}
-				aria-controls={hasText ? id : undefined}
-				className={cn(
-					"flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary",
-					hasText && "cursor-pointer",
-				)}
-				onClick={hasText ? () => setIsOpen((prev) => !prev) : undefined}
-				onKeyDown={
-					hasText
-						? (event) => {
-								if (event.key === "Enter" || event.key === " ") {
-									setIsOpen((prev) => !prev);
-								}
-							}
-						: undefined
-				}
-			>
-				<span className="text-sm">
-					{showStreamingPlaceholder ? (
-						<Shimmer as="span">Thinking...</Shimmer>
-					) : (
-						label
-					)}
-				</span>
-				{hasText ? (
+			{hasText ? (
+				<div
+					role="button"
+					tabIndex={0}
+					aria-expanded={isOpen}
+					aria-controls={id}
+					className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
+					onClick={() => setIsOpen((prev) => !prev)}
+					onKeyDown={(event) => {
+						if (event.key === "Enter" || event.key === " ") {
+							setIsOpen((prev) => !prev);
+						}
+					}}
+				>
+					{labelContent}
 					<ChevronDownIcon
 						className={cn(
 							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
 							isOpen ? "rotate-0" : "-rotate-90",
 						)}
 					/>
-				) : null}
-			</div>
+				</div>
+			) : (
+				<div className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary">
+					{labelContent}
+				</div>
+			)}
 			{isOpen && hasText ? (
 				<div id={id} className="mt-1.5">
 					<Response className="text-[11px] text-content-secondary">

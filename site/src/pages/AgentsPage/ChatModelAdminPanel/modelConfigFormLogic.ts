@@ -219,7 +219,6 @@ export const extractModelConfigFormState = (
 function buildReasoningProviderOptions(
 	form: ModelConfigFormState,
 	prefix: "openrouter" | "vercel",
-	fieldErrors: Partial<Record<keyof ModelConfigFormState, string>>,
 	parseOptionalBoolean: (
 		k: keyof ModelConfigFormState,
 		l: string,
@@ -541,7 +540,6 @@ export const buildModelConfigFromForm = (
 			const opts = buildReasoningProviderOptions(
 				form,
 				"openrouter",
-				fieldErrors,
 				parseOptionalBoolean,
 				parseOptionalSelect,
 				parseOptionalInteger,
@@ -564,7 +562,6 @@ export const buildModelConfigFromForm = (
 			const opts = buildReasoningProviderOptions(
 				form,
 				"vercel",
-				fieldErrors,
 				parseOptionalBoolean,
 				parseOptionalSelect,
 				parseOptionalInteger,

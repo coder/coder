@@ -185,9 +185,12 @@ export const AgentsPage: FC = () => {
 			setRightPanelOpen: setIsRightPanelOpen,
 			requestArchiveAgent,
 		}),
-		// Refs and useCallback values are stable; only chatErrorReasons
-		// is state that changes identity.
-		[chatErrorReasons],
+		[
+			chatErrorReasons,
+			setChatErrorReason,
+			clearChatErrorReason,
+			requestArchiveAgent,
+		],
 	);
 	const handleCreateChat = async (options: CreateChatOptions) => {
 		const { message, workspaceId, model, systemPrompt } = options;

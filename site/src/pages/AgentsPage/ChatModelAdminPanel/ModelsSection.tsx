@@ -69,6 +69,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 		return (
 			<ModelForm
+				key={editingModel?.id ?? effectiveProvider ?? "new"}
 				editingModel={editingModel}
 				providerStates={providerStates}
 				selectedProvider={effectiveProvider}

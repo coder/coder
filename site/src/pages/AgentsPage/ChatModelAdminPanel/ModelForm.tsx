@@ -14,7 +14,6 @@ import { ArrowLeftIcon, Loader2Icon, PlusIcon, SaveIcon } from "lucide-react";
 import {
 	type FC,
 	type FormEvent,
-	useEffect,
 	useId,
 	useMemo,
 	useState,
@@ -93,14 +92,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 				? extractModelConfigFormState(editingModel)
 				: { ...emptyModelConfigFormState },
 	);
-
-	// Reset form fields when the selected provider changes (add
-	// mode only — in edit mode the provider is fixed).
-	useEffect(() => {
-		if (!isEditing) {
-			setModelConfigForm({ ...emptyModelConfigFormState });
-		}
-	}, [isEditing, selectedProviderState?.provider]);
 
 	const canManageModels = Boolean(
 		selectedProviderState?.providerConfig &&

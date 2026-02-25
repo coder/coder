@@ -133,6 +133,7 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<span
+						role="button"
 						tabIndex={0}
 						aria-label={ariaLabel}
 						className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
