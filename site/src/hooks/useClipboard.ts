@@ -36,7 +36,7 @@ export type UseClipboardResult = Readonly<{
 	showCopiedSuccess: boolean;
 }>;
 
-export const useClipboard = (input?: UseClipboardInput): UseClipboardResult => {
+export const useClipboard = (input: UseClipboardInput = {}): UseClipboardResult => {
 	const {
 		onError = (msg: string) => toast.error(msg),
 		clearErrorOnSuccess = true,
