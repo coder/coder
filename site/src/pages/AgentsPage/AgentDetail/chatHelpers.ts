@@ -26,7 +26,7 @@ type ChatMessageWithUsage = TypesGen.ChatMessage & {
 	readonly context_limit?: unknown;
 };
 
-export const extractContextUsageFromMessage = (
+const extractContextUsageFromMessage = (
 	message: TypesGen.ChatMessage,
 ): AgentContextUsage | null => {
 	const withUsage = message as ChatMessageWithUsage;

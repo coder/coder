@@ -338,14 +338,14 @@ export type GetTemplatesQuery = Readonly<{
 	readonly q: string;
 }>;
 
-export interface ChatModelCatalogModel {
+interface ChatModelCatalogModel {
 	readonly id: string;
 	readonly provider: string;
 	readonly model: string;
 	readonly display_name: string;
 }
 
-export interface ChatModelCatalogProvider {
+interface ChatModelCatalogProvider {
 	readonly provider: string;
 	readonly available: boolean;
 	readonly unavailable_reason?: string;

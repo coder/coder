@@ -11,7 +11,7 @@ export const Message = ({ className, ref, ...props }: MessageProps) => {
 
 type MessageAvatarProps = ComponentPropsWithRef<"div">;
 
-export const MessageAvatar = ({
+const MessageAvatar = ({
 	className,
 	ref,
 	...props
@@ -30,7 +30,7 @@ export const MessageAvatar = ({
 
 type MessageHeaderProps = ComponentPropsWithRef<"div">;
 
-export const MessageHeader = ({
+const MessageHeader = ({
 	className,
 	ref,
 	...props

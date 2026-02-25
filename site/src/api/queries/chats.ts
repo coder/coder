@@ -151,7 +151,7 @@ export const createChatProviderConfig = (queryClient: QueryClient) => ({
 	},
 });
 
-export type UpdateChatProviderConfigMutationArgs = {
+type UpdateChatProviderConfigMutationArgs = {
 	providerConfigId: string;
 	req: UpdateChatProviderConfigRequest;
 };
@@ -183,7 +183,7 @@ export const createChatModelConfig = (queryClient: QueryClient) => ({
 	},
 });
 
-export type UpdateChatModelConfigMutationArgs = {
+type UpdateChatModelConfigMutationArgs = {
 	modelConfigId: string;
 	req: UpdateChatModelConfigRequest;
 };
