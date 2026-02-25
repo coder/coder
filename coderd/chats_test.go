@@ -1267,7 +1267,6 @@ func TestChatProviders(t *testing.T) {
 		require.Error(t, err)
 		require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
 	})
-
 }
 
 func TestChatProviders_ListIncludesSupportedProvidersAndEnvPresets(t *testing.T) {

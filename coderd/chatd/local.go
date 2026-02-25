@@ -1153,44 +1153,44 @@ func (s *localMode) MaybeLaunchAgentForChat(
 func (s *localMode) maybeLaunchLocalChatAgent(
 	ctx context.Context,
 	workspaceID uuid.UUID,
-	agent localChatExternalAgent,
+	ag localChatExternalAgent,
 ) error {
 	if s == nil {
 		return xerrors.New("local chat mode is not configured")
 	}
-	if s.hasRunningLocalChatAgent(agent.ID) {
+	if s.hasRunningLocalChatAgent(ag.ID) {
 		return nil
 	}
-	if !s.agentLaunches.Allow(agent.ID, time.Now()) {
+	if !s.agentLaunches.Allow(ag.ID, time.Now()) {
 		return nil
 	}
 
-	_, err, _ := s.localChatAgentLaunchGroup.Do(agent.ID.String(), func() (struct{}, error) {
-		if s.hasRunningLocalChatAgent(agent.ID) {
+	_, err, _ := s.localChatAgentLaunchGroup.Do(ag.ID.String(), func() (struct{}, error) {
+		if s.hasRunningLocalChatAgent(ag.ID) {
 			return struct{}{}, nil
 		}
 
-		row, err := s.db.GetWorkspaceAgentAndWorkspaceByID(ctx, agent.ID)
+		row, err := s.db.GetWorkspaceAgentAndWorkspaceByID(ctx, ag.ID)
 		if err != nil {
 			return struct{}{}, xerrors.Errorf(
 				"get local chat external agent %q from database: %w",
-				agent.ID,
+				ag.ID,
 				err,
 			)
 		}
 		if row.WorkspaceTable.ID != workspaceID {
 			return struct{}{}, xerrors.Errorf(
 				"local chat external agent %q does not belong to workspace %q",
-				agent.ID,
+				ag.ID,
 				workspaceID,
 			)
 		}
 		if strings.TrimSpace(row.WorkspaceAgent.Name) == "" ||
-			strings.TrimSpace(row.WorkspaceAgent.Name) != strings.TrimSpace(agent.Name) {
+			strings.TrimSpace(row.WorkspaceAgent.Name) != strings.TrimSpace(ag.Name) {
 			return struct{}{}, xerrors.Errorf(
 				"local chat external agent %q name mismatch: expected %q, got %q",
-				agent.ID,
-				agent.Name,
+				ag.ID,
+				ag.Name,
 				row.WorkspaceAgent.Name,
 			)
 		}
@@ -1206,8 +1206,8 @@ func (s *localMode) maybeLaunchLocalChatAgent(
 
 		if err := s.startLocalChatAgent(localChatAgentStartParams{
 			WorkspaceID: workspaceID,
-			AgentID:     agent.ID,
-			AgentName:   agent.Name,
+			AgentID:     ag.ID,
+			AgentName:   ag.Name,
 			Credentials: credentials,
 		}); err != nil {
 			return struct{}{}, xerrors.Errorf(

@@ -86,105 +86,6 @@ func streamFromParts(parts []fantasy.StreamPart) fantasy.StreamResponse {
 	})
 }
 
-type fakeModel struct {
-	fakeLanguageModelBase
-	mu    sync.Mutex
-	calls int
-}
-
-type fakeContextLimitMetadata struct {
-	Limits fakeContextLimitMetadataLimits `json:"limits"`
-}
-
-type fakeContextLimitMetadataLimits struct {
-	ContextLimit int64 `json:"context_limit"`
-}
-
-func (*fakeContextLimitMetadata) Options() {}
-
-func (m fakeContextLimitMetadata) MarshalJSON() ([]byte, error) {
-	type plain fakeContextLimitMetadata
-	return json.Marshal(plain(m))
-}
-
-func (m *fakeContextLimitMetadata) UnmarshalJSON(data []byte) error {
-	type plain fakeContextLimitMetadata
-	var decoded plain
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-	*m = fakeContextLimitMetadata(decoded)
-	return nil
-}
-
-func (*fakeModel) Generate(context.Context, fantasy.Call) (*fantasy.Response, error) {
-	return fallbackResponse(), nil
-}
-
-func (f *fakeModel) Stream(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-	f.mu.Lock()
-	f.calls++
-	call := f.calls
-	f.mu.Unlock()
-
-	var parts []fantasy.StreamPart
-	if call == 1 {
-		args, err := json.Marshal(map[string]string{"path": "/hello.txt"})
-		if err != nil {
-			return nil, err
-		}
-		parts = []fantasy.StreamPart{
-			{
-				Type:          fantasy.StreamPartTypeToolCall,
-				ID:            "call-1",
-				ToolCallName:  readFileToolName,
-				ToolCallInput: string(args),
-			},
-			{
-				Type: fantasy.StreamPartTypeFinish,
-				Usage: fantasy.Usage{
-					InputTokens:         11,
-					OutputTokens:        7,
-					TotalTokens:         18,
-					ReasoningTokens:     6,
-					CacheReadTokens:     3,
-					CacheCreationTokens: 2,
-				},
-				ProviderMetadata: fantasy.ProviderMetadata{
-					"fake": &fakeContextLimitMetadata{
-						Limits: fakeContextLimitMetadataLimits{ContextLimit: 8192},
-					},
-				},
-				FinishReason: fantasy.FinishReasonToolCalls,
-			},
-		}
-	} else {
-		parts = []fantasy.StreamPart{
-			{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
-			{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
-			{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
-			{
-				Type: fantasy.StreamPartTypeFinish,
-				Usage: fantasy.Usage{
-					InputTokens:         13,
-					OutputTokens:        5,
-					TotalTokens:         18,
-					ReasoningTokens:     4,
-					CacheReadTokens:     4,
-					CacheCreationTokens: 1,
-				},
-				ProviderMetadata: fantasy.ProviderMetadata{
-					"fake": &fakeContextLimitMetadata{
-						Limits: fakeContextLimitMetadataLimits{ContextLimit: 8192},
-					},
-				},
-				FinishReason: fantasy.FinishReasonToolCalls,
-			},
-		}
-	}
-
-	return streamFromParts(parts), nil
-}
 
 func testAgentConnFunc(client *workspacesdk.Client, logger slog.Logger) chatd.AgentConnFunc {
 	return func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -837,8 +738,8 @@ func (m *reasoningSummaryStreamModel) Stream(_ context.Context, _ fantasy.Call) 
 type workspaceCreatorFunc = chatd.CreateWorkspaceFunc
 
 func insertChatWithUserMessage(
-	t *testing.T,
 	dbCtx context.Context,
+	t *testing.T,
 	db database.Store,
 	ownerID uuid.UUID,
 	title string,
@@ -867,8 +768,8 @@ func insertChatWithUserMessage(
 }
 
 func insertDelegatedChildChatWithUserMessage(
-	t *testing.T,
 	dbCtx context.Context,
+	t *testing.T,
 	db database.Store,
 	ownerID uuid.UUID,
 	parentID uuid.UUID,
@@ -915,8 +816,8 @@ func insertDelegatedChildChatWithUserMessage(
 }
 
 func insertSubagentReportOnlyMarker(
-	t *testing.T,
 	dbCtx context.Context,
+	t *testing.T,
 	db database.Store,
 	chatID uuid.UUID,
 	requestID uuid.UUID,
@@ -1074,7 +975,7 @@ func TestRunChatLoop(t *testing.T) {
 				},
 			}, nil
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -1213,7 +1114,7 @@ func TestRunChatLoop_ExecuteTimeoutContinues(t *testing.T) {
 			},
 		},
 		StreamManager:              manager,
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -1310,7 +1211,7 @@ func TestRunChatLoop_ReadWriteToolErrorsContinue(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			dbCtx := dbauthz.AsSystemRestricted(ctx)
 
-			chat := insertChatWithUserMessage(t, dbCtx, db, user.UserID, tc.name, "run tool")
+			chat := insertChatWithUserMessage(dbCtx, t, db, user.UserID, tc.name, "run tool")
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
 			manager := chatd.NewStreamManager(logger)
 			model := &singleToolThenTextModel{
@@ -1327,7 +1228,7 @@ func TestRunChatLoop_ReadWriteToolErrorsContinue(t *testing.T) {
 						return model, nil
 					},
 				},
-				PendingChatAcquireInterval: 50 * time.Millisecond,
+				PendingChatAcquireInterval: testutil.IntervalFast,
 			})
 			defer processor.Close()
 
@@ -1408,7 +1309,7 @@ func TestRunChatLoop_StreamErrorWithToolInputDeltaErrors(t *testing.T) {
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
 
-	chat := insertChatWithUserMessage(t, dbCtx, db, user.UserID, "stream error tool delta", "create a workspace")
+	chat := insertChatWithUserMessage(dbCtx, t, db, user.UserID, "stream error tool delta", "create a workspace")
 	model := &streamErrorToolInputModel{}
 
 	var (
@@ -1437,7 +1338,7 @@ func TestRunChatLoop_StreamErrorWithToolInputDeltaErrors(t *testing.T) {
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -1480,7 +1381,7 @@ func TestRunChatLoop_UnsupportedStreamingDoesNotFallbackToGenerate(t *testing.T)
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
 
-	chat := insertChatWithUserMessage(t, dbCtx, db, user.UserID, "unsupported stream", "hello")
+	chat := insertChatWithUserMessage(dbCtx, t, db, user.UserID, "unsupported stream", "hello")
 	model := &unsupportedStreamModel{}
 
 	processor := chatd.New(chatd.Config{
@@ -1491,7 +1392,7 @@ func TestRunChatLoop_UnsupportedStreamingDoesNotFallbackToGenerate(t *testing.T)
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -1525,7 +1426,7 @@ func TestRunChatLoop_StreamErrorWithoutToolCallsErrors(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 
-	chat := insertChatWithUserMessage(t, dbCtx, db, user.UserID, "stream error no tool", "hello")
+	chat := insertChatWithUserMessage(dbCtx, t, db, user.UserID, "stream error no tool", "hello")
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
 	manager := chatd.NewStreamManager(logger)
 	model := &streamErrorNoToolModel{}
@@ -1539,7 +1440,7 @@ func TestRunChatLoop_StreamErrorWithoutToolCallsErrors(t *testing.T) {
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -1598,7 +1499,7 @@ func TestRunChatLoop_InterruptPersistsPartialStep(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 
-	chat := insertChatWithUserMessage(t, dbCtx, db, user.UserID, "interrupt partial", "run")
+	chat := insertChatWithUserMessage(dbCtx, t, db, user.UserID, "interrupt partial", "run")
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
 	manager := chatd.NewStreamManager(logger)
 	model := &interruptDuringStreamModel{
@@ -1614,7 +1515,7 @@ func TestRunChatLoop_InterruptPersistsPartialStep(t *testing.T) {
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -1720,8 +1621,8 @@ func testReasoningStreamSummaryTitle(t *testing.T, modelTitle, expectedTitle str
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 
 	chat := insertChatWithUserMessage(
-		t,
 		dbCtx,
+		t,
 		db,
 		user.UserID,
 		"reasoning title stream",
@@ -1742,7 +1643,7 @@ func testReasoningStreamSummaryTitle(t *testing.T, modelTitle, expectedTitle str
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -1813,8 +1714,8 @@ func TestRunChatLoop_ReasoningStreamSkipsTitleWithoutMarkdownHeading(t *testing.
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 
 	chat := insertChatWithUserMessage(
-		t,
 		dbCtx,
+		t,
 		db,
 		user.UserID,
 		"reasoning title stream",
@@ -1835,7 +1736,7 @@ func TestRunChatLoop_ReasoningStreamSkipsTitleWithoutMarkdownHeading(t *testing.
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -1924,7 +1825,7 @@ func TestCreateWorkspaceTool_NilCreator(t *testing.T) {
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -2024,7 +1925,7 @@ func TestCreateWorkspaceTool_StreamSnapshotIncludesBuildLogDeltas(t *testing.T) 
 			},
 		},
 		StreamManager:              manager,
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -2127,7 +2028,7 @@ func TestRunChatLoop_MissingWorkspaceRecovery(t *testing.T) {
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -2212,7 +2113,7 @@ func TestCreateWorkspaceTool_PersistsWorkspaceIDs(t *testing.T) {
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -2314,7 +2215,7 @@ func TestRunChatLoop_CreateWorkspaceThenExecute_NoHang(t *testing.T) {
 			},
 		},
 		StreamManager:              manager,
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -2430,7 +2331,7 @@ func TestProcessorCloseWaitsForInFlightChatProcessing(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 
-	chat := insertChatWithUserMessage(t, dbCtx, db, user.UserID, "close waits", "hello")
+	chat := insertChatWithUserMessage(dbCtx, t, db, user.UserID, "close waits", "hello")
 	model := &blockingCloseModel{
 		started: make(chan struct{}),
 		release: make(chan struct{}),
@@ -2444,7 +2345,7 @@ func TestProcessorCloseWaitsForInFlightChatProcessing(t *testing.T) {
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 25 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 
 	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
@@ -2470,7 +2371,7 @@ func TestProcessorCloseWaitsForInFlightChatProcessing(t *testing.T) {
 	select {
 	case <-closeDone:
 		t.Fatal("processor.Close returned before in-flight chat processing finished")
-	case <-time.After(200 * time.Millisecond):
+	case <-time.After(testutil.IntervalMedium):
 	}
 
 	close(model.release)
@@ -2490,7 +2391,7 @@ func TestRunChatLoop_PublishesStreamErrorOnProcessingFailure(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 
-	chat := insertChatWithUserMessage(t, dbCtx, db, user.UserID, "processing failure", "hello")
+	chat := insertChatWithUserMessage(dbCtx, t, db, user.UserID, "processing failure", "hello")
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
 	manager := chatd.NewStreamManager(logger)
 
@@ -2503,7 +2404,7 @@ func TestRunChatLoop_PublishesStreamErrorOnProcessingFailure(t *testing.T) {
 				return nil, xerrors.New("model resolver failed")
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -2547,7 +2448,7 @@ func TestRunChatLoop_PublishesStreamErrorOnPanic(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 
-	chat := insertChatWithUserMessage(t, dbCtx, db, user.UserID, "panic failure", "hello")
+	chat := insertChatWithUserMessage(dbCtx, t, db, user.UserID, "panic failure", "hello")
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("chatd")
 	manager := chatd.NewStreamManager(logger)
 	model := &panicStreamModel{panicValue: "stream panic for test"}
@@ -2561,7 +2462,7 @@ func TestRunChatLoop_PublishesStreamErrorOnPanic(t *testing.T) {
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -2606,10 +2507,10 @@ func TestRunChatLoop_DelegatedChildWithoutReportRequeuesForReportPass(t *testing
 	user := coderdtest.CreateFirstUser(t, client)
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 
-	parent := insertChatWithUserMessage(t, dbCtx, db, user.UserID, "parent", "parent prompt")
+	parent := insertChatWithUserMessage(dbCtx, t, db, user.UserID, "parent", "parent prompt")
 	child, requestID := insertDelegatedChildChatWithUserMessage(
-		t,
 		dbCtx,
+		t,
 		db,
 		user.UserID,
 		parent.ID,
@@ -2670,10 +2571,10 @@ func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t
 	user := coderdtest.CreateFirstUser(t, client)
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 
-	parent := insertChatWithUserMessage(t, dbCtx, db, user.UserID, "parent", "parent prompt")
+	parent := insertChatWithUserMessage(dbCtx, t, db, user.UserID, "parent", "parent prompt")
 	child, _ := insertDelegatedChildChatWithUserMessage(
-		t,
 		dbCtx,
+		t,
 		db,
 		user.UserID,
 		parent.ID,
@@ -2684,8 +2585,8 @@ func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t
 	// Keep an active descendant so the old defer branch that only checks
 	// descendants does not run.
 	_, _ = insertDelegatedChildChatWithUserMessage(
-		t,
 		dbCtx,
+		t,
 		db,
 		user.UserID,
 		child.ID,
@@ -2705,7 +2606,7 @@ func TestRunChatLoop_DelegatedChildFollowUpInsertedWhileRunningRequeuesPending(t
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 500 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalSlow,
 	})
 	closed := false
 	defer func() {
@@ -2782,7 +2683,7 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 	user := coderdtest.CreateFirstUser(t, client)
 	dbCtx := dbauthz.AsSystemRestricted(ctx)
 
-	parent := insertChatWithUserMessage(t, dbCtx, db, user.UserID, "parent", "parent prompt")
+	parent := insertChatWithUserMessage(dbCtx, t, db, user.UserID, "parent", "parent prompt")
 	_, err := db.UpdateChatStatus(dbCtx, database.UpdateChatStatusParams{
 		ID:        parent.ID,
 		Status:    database.ChatStatusRunning,
@@ -2792,15 +2693,15 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 	require.NoError(t, err)
 
 	child, requestID := insertDelegatedChildChatWithUserMessage(
-		t,
 		dbCtx,
+		t,
 		db,
 		user.UserID,
 		parent.ID,
 		"child report-only subagent",
 		"finish delegated subagent",
 	)
-	insertSubagentReportOnlyMarker(t, dbCtx, db, child.ID, requestID)
+	insertSubagentReportOnlyMarker(dbCtx, t, db, child.ID, requestID)
 
 	const fallbackSummary = "summarized completion from report-only pass"
 	model := &fixedTextModel{text: fallbackSummary}
@@ -2812,7 +2713,7 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 				return model, nil
 			},
 		},
-		PendingChatAcquireInterval: 50 * time.Millisecond,
+		PendingChatAcquireInterval: testutil.IntervalFast,
 	})
 	defer processor.Close()
 
@@ -2876,8 +2777,8 @@ func TestProcessorListModels_UsesFallbackAPIKeysWhenProviderKeyBlank(t *testing.
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	createEnabledChatProvider(t, ctx, client, "openai", "", "")
-	createEnabledChatModelConfig(t, ctx, client, "openai", "gpt-5.2", "GPT 5.2", 200000, 70)
+	createEnabledChatProvider(ctx, t, client, "openai", "", "")
+	createEnabledChatModelConfig(ctx, t, client, "openai", "gpt-5.2", "GPT 5.2", 200000, 70)
 
 	processor := chatd.New(chatd.Config{
 		Logger:   testutil.Logger(t),
@@ -2912,7 +2813,7 @@ func TestProcessorListModels_NoEnabledModelsReturnsProviderAvailability(t *testi
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	createEnabledChatProvider(t, ctx, client, "openrouter", "openrouter-key", "")
+	createEnabledChatProvider(ctx, t, client, "openrouter", "openrouter-key", "")
 
 	processor := chatd.New(chatd.Config{
 		Logger:   testutil.Logger(t),
@@ -3154,8 +3055,8 @@ func TestRunChatLoop_UsesFallbackEnabledModelWhenChatModelUnset(t *testing.T) {
 	}))
 	defer provider.Close()
 
-	createEnabledChatProvider(t, ctx, client, "openai-compat", "test-api-key", provider.URL)
-	createEnabledChatModelConfig(t, ctx, client, "openai-compat", "gpt-4o-mini", "GPT 4o mini", 200000, 70)
+	createEnabledChatProvider(ctx, t, client, "openai-compat", "test-api-key", provider.URL)
+	createEnabledChatModelConfig(ctx, t, client, "openai-compat", "gpt-4o-mini", "GPT 4o mini", 200000, 70)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		Message:     "hello",
@@ -3163,7 +3064,7 @@ func TestRunChatLoop_UsesFallbackEnabledModelWhenChatModelUnset(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result := waitForChatWithStatus(t, ctx, client, chat.ID, codersdk.ChatStatusWaiting, codersdk.ChatStatusCompleted)
+	result := waitForChatWithStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting, codersdk.ChatStatusCompleted)
 	assistant, ok := firstChatMessageByRole(result.Messages, "assistant")
 	require.True(t, ok)
 	require.Equal(t, "done", strings.TrimSpace(chatMessageText(assistant)))
@@ -3181,8 +3082,8 @@ func TestRunChatLoop_UnsetModelAndNoAvailableProviderKeyErrors(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	createEnabledChatProvider(t, ctx, client, "openai-compat", "", "")
-	createEnabledChatModelConfig(t, ctx, client, "openai-compat", "gpt-4o-mini", "GPT 4o mini", 200000, 70)
+	createEnabledChatProvider(ctx, t, client, "openai-compat", "", "")
+	createEnabledChatModelConfig(ctx, t, client, "openai-compat", "gpt-4o-mini", "GPT 4o mini", 200000, 70)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		Message:     "hello",
@@ -3190,7 +3091,7 @@ func TestRunChatLoop_UnsetModelAndNoAvailableProviderKeyErrors(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result := waitForChatWithStatus(t, ctx, client, chat.ID, codersdk.ChatStatusError)
+	result := waitForChatWithStatus(ctx, t, client, chat.ID, codersdk.ChatStatusError)
 	require.Equal(t, codersdk.ChatStatusError, result.Chat.Status)
 	_, hasAssistant := firstChatMessageByRole(result.Messages, "assistant")
 	require.False(t, hasAssistant)
@@ -3272,8 +3173,8 @@ func TestRunChatLoop_ContextCompressionUsesFallbackConfigAndTruncatesSummary(t *
 	}))
 	defer provider.Close()
 
-	createEnabledChatProvider(t, ctx, client, "openai-compat", "test-api-key", provider.URL)
-	createEnabledChatModelConfig(t, ctx, client, "openai-compat", "gpt-4o-mini", "GPT 4o mini", 100, 10)
+	createEnabledChatProvider(ctx, t, client, "openai-compat", "test-api-key", provider.URL)
+	createEnabledChatModelConfig(ctx, t, client, "openai-compat", "gpt-4o-mini", "GPT 4o mini", 100, 10)
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		Message:     "summarize context",
@@ -3281,7 +3182,7 @@ func TestRunChatLoop_ContextCompressionUsesFallbackConfigAndTruncatesSummary(t *
 	})
 	require.NoError(t, err)
 
-	_ = waitForChatWithStatus(t, ctx, client, chat.ID, codersdk.ChatStatusWaiting, codersdk.ChatStatusCompleted)
+	_ = waitForChatWithStatus(ctx, t, client, chat.ID, codersdk.ChatStatusWaiting, codersdk.ChatStatusCompleted)
 
 	messages, err := db.GetChatMessagesByChatID(dbCtx, chat.ID)
 	require.NoError(t, err)
@@ -3340,7 +3241,7 @@ func TestRunChatLoop_AzureModelWithoutBaseURLErrors(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	createEnabledChatProvider(t, ctx, client, "azure", "azure-key", "")
+	createEnabledChatProvider(ctx, t, client, "azure", "azure-key", "")
 
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 		Message:     "hello",
@@ -3348,15 +3249,15 @@ func TestRunChatLoop_AzureModelWithoutBaseURLErrors(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	result := waitForChatWithStatus(t, ctx, client, chat.ID, codersdk.ChatStatusError)
+	result := waitForChatWithStatus(ctx, t, client, chat.ID, codersdk.ChatStatusError)
 	require.Equal(t, codersdk.ChatStatusError, result.Chat.Status)
 	_, hasAssistant := firstChatMessageByRole(result.Messages, "assistant")
 	require.False(t, hasAssistant)
 }
 
 func createEnabledChatProvider(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	client *codersdk.Client,
 	provider string,
 	apiKey string,
@@ -3382,8 +3283,8 @@ func createEnabledChatProvider(
 }
 
 func createEnabledChatModelConfig(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	client *codersdk.Client,
 	provider string,
 	model string,
@@ -3407,8 +3308,8 @@ func createEnabledChatModelConfig(
 }
 
 func waitForChatWithStatus(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	client *codersdk.Client,
 	chatID uuid.UUID,
 	statuses ...codersdk.ChatStatus,
@@ -3461,9 +3362,9 @@ func chatMessageText(message codersdk.ChatMessage) string {
 			continue
 		}
 		if b.Len() > 0 {
-			b.WriteByte('\n')
+			_ = b.WriteByte('\n')
 		}
-		b.WriteString(part.Text)
+		_, _ = b.WriteString(part.Text)
 	}
 	return b.String()
 }
