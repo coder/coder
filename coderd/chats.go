@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"charm.land/fantasy"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"charm.land/fantasy"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -1734,7 +1735,7 @@ func (api *API) storeChatGitRef(ctx context.Context, workspaceID, workspaceOwner
 
 // refreshWorkspaceChatDiffStatuses refreshes the diff status for all
 // chats associated with the given workspace. It returns true when
-// every chat has a PR URL resolved, signalling that the caller can
+// every chat has a PR URL resolved, signaling that the caller can
 // stop polling.
 func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceID, workspaceOwnerID uuid.UUID) bool {
 	chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)

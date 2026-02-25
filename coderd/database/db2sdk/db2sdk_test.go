@@ -436,6 +436,8 @@ func TestAIBridgeInterception(t *testing.T) {
 			}
 		})
 	}
+}
+
 func TestChatMessage_ReasoningPartWithoutPersistedTitleIsEmpty(t *testing.T) {
 	t.Parallel()
 
