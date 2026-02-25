@@ -725,11 +725,16 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		provisionerStateRow, err := s.Database.GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuild.ID)
+		if err != nil {
+			return nil, failJob(fmt.Sprintf("get workspace build provisioner state: %s", err))
+		}
+
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:        workspaceBuild.ID.String(),
 				WorkspaceName:           workspace.Name,
-				State:                   workspaceBuild.ProvisionerState,
+				State:                   provisionerStateRow.ProvisionerState,
 				RichParameterValues:     convertRichParameterValues(workspaceBuildParameters),
 				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
 				VariableValues:          asVariableValues(templateVariables),
@@ -840,7 +845,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 	// Record the time the job spent waiting in the queue.
 	if s.metrics != nil && job.StartedAt.Valid && job.Provisioner.Valid() {
-		queueWaitSeconds := job.StartedAt.Time.Sub(job.CreatedAt).Seconds()
+		// These timestamps lose their monotonic clock component after a Postgres
+		// round-trip, so the subtraction is based purely on wall-clock time. Floor at
+		// 1ms as a defensive measure against clock adjustments producing a negative
+		// delta while acknowledging there's a non-zero queue time.
+		queueWaitSeconds := max(job.StartedAt.Time.Sub(job.CreatedAt).Seconds(), 0.001)
 		s.metrics.ObserveJobQueueWait(string(job.Provisioner), string(job.Type), jobTransition, jobBuildReason, queueWaitSeconds)
 	}
 
@@ -3319,7 +3328,7 @@ func insertDevcontainerSubagent(
 		ResourceID:               resourceID,
 		Name:                     dc.GetName(),
 		AuthToken:                uuid.New(),
-		AuthInstanceID:           parentAgent.AuthInstanceID,
+		AuthInstanceID:           sql.NullString{},
 		Architecture:             parentAgent.Architecture,
 		EnvironmentVariables:     envJSON,
 		Directory:                dc.GetWorkspaceFolder(),

@@ -297,7 +297,7 @@ func (pr *ParameterResolver) verifyConstraints(resolved []codersdk.WorkspaceBuil
 			return xerrors.Errorf("ephemeral parameter %q can be used only with --prompt-ephemeral-parameters or --ephemeral-parameter flag", r.Name)
 		}
 
-		if !tvp.Mutable && action != WorkspaceCreate {
+		if !tvp.Mutable && action != WorkspaceCreate && !pr.isFirstTimeUse(r.Name) {
 			return xerrors.Errorf("parameter %q is immutable and cannot be updated", r.Name)
 		}
 	}

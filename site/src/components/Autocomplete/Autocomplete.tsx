@@ -1,3 +1,4 @@
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import {
 	Command,
 	CommandEmpty,
@@ -12,7 +13,7 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { Spinner } from "components/Spinner/Spinner";
-import { Check, ChevronDown, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import {
 	type KeyboardEvent,
 	type ReactNode,
@@ -187,11 +188,9 @@ export function Autocomplete<TOption>({
 							</span>
 						)}
 						<span className="flex items-center justify-center size-5">
-							<ChevronDown
-								className={cn(
-									"size-icon-lg text-content-secondary transition-transform p-0.5",
-									isOpen && "rotate-180",
-								)}
+							<ChevronDownIcon
+								open={isOpen}
+								className="size-4 text-content-secondary"
 							/>
 						</span>
 					</span>

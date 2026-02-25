@@ -776,6 +776,58 @@ func (CreateSubAgentRequest_App_SharingLevel) EnumDescriptor() ([]byte, []int) {
 	return file_agent_proto_agent_proto_rawDescGZIP(), []int{36, 0, 1}
 }
 
+type UpdateAppStatusRequest_AppStatusState int32
+
+const (
+	UpdateAppStatusRequest_WORKING  UpdateAppStatusRequest_AppStatusState = 0
+	UpdateAppStatusRequest_IDLE     UpdateAppStatusRequest_AppStatusState = 1
+	UpdateAppStatusRequest_COMPLETE UpdateAppStatusRequest_AppStatusState = 2
+	UpdateAppStatusRequest_FAILURE  UpdateAppStatusRequest_AppStatusState = 3
+)
+
+// Enum value maps for UpdateAppStatusRequest_AppStatusState.
+var (
+	UpdateAppStatusRequest_AppStatusState_name = map[int32]string{
+		0: "WORKING",
+		1: "IDLE",
+		2: "COMPLETE",
+		3: "FAILURE",
+	}
+	UpdateAppStatusRequest_AppStatusState_value = map[string]int32{
+		"WORKING":  0,
+		"IDLE":     1,
+		"COMPLETE": 2,
+		"FAILURE":  3,
+	}
+)
+
+func (x UpdateAppStatusRequest_AppStatusState) Enum() *UpdateAppStatusRequest_AppStatusState {
+	p := new(UpdateAppStatusRequest_AppStatusState)
+	*p = x
+	return p
+}
+
+func (x UpdateAppStatusRequest_AppStatusState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (UpdateAppStatusRequest_AppStatusState) Descriptor() protoreflect.EnumDescriptor {
+	return file_agent_proto_agent_proto_enumTypes[14].Descriptor()
+}
+
+func (UpdateAppStatusRequest_AppStatusState) Type() protoreflect.EnumType {
+	return &file_agent_proto_agent_proto_enumTypes[14]
+}
+
+func (x UpdateAppStatusRequest_AppStatusState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use UpdateAppStatusRequest_AppStatusState.Descriptor instead.
+func (UpdateAppStatusRequest_AppStatusState) EnumDescriptor() ([]byte, []int) {
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{45, 0}
+}
+
 type WorkspaceApp struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -3546,6 +3598,116 @@ func (*ReportBoundaryLogsResponse) Descriptor() ([]byte, []int) {
 	return file_agent_proto_agent_proto_rawDescGZIP(), []int{44}
 }
 
+// UpdateAppStatusRequest updates the given Workspace App's status. c.f. agentsdk.PatchAppStatus
+type UpdateAppStatusRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Slug    string                                `protobuf:"bytes,1,opt,name=slug,proto3" json:"slug,omitempty"`
+	State   UpdateAppStatusRequest_AppStatusState `protobuf:"varint,2,opt,name=state,proto3,enum=coder.agent.v2.UpdateAppStatusRequest_AppStatusState" json:"state,omitempty"`
+	Message string                                `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	Uri     string                                `protobuf:"bytes,4,opt,name=uri,proto3" json:"uri,omitempty"`
+}
+
+func (x *UpdateAppStatusRequest) Reset() {
+	*x = UpdateAppStatusRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agent_proto_agent_proto_msgTypes[45]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *UpdateAppStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAppStatusRequest) ProtoMessage() {}
+
+func (x *UpdateAppStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_agent_proto_msgTypes[45]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAppStatusRequest.ProtoReflect.Descriptor instead.
+func (*UpdateAppStatusRequest) Descriptor() ([]byte, []int) {
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *UpdateAppStatusRequest) GetSlug() string {
+	if x != nil {
+		return x.Slug
+	}
+	return ""
+}
+
+func (x *UpdateAppStatusRequest) GetState() UpdateAppStatusRequest_AppStatusState {
+	if x != nil {
+		return x.State
+	}
+	return UpdateAppStatusRequest_WORKING
+}
+
+func (x *UpdateAppStatusRequest) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *UpdateAppStatusRequest) GetUri() string {
+	if x != nil {
+		return x.Uri
+	}
+	return ""
+}
+
+type UpdateAppStatusResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *UpdateAppStatusResponse) Reset() {
+	*x = UpdateAppStatusResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agent_proto_agent_proto_msgTypes[46]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *UpdateAppStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateAppStatusResponse) ProtoMessage() {}
+
+func (x *UpdateAppStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_proto_agent_proto_msgTypes[46]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateAppStatusResponse.ProtoReflect.Descriptor instead.
+func (*UpdateAppStatusResponse) Descriptor() ([]byte, []int) {
+	return file_agent_proto_agent_proto_rawDescGZIP(), []int{46}
+}
+
 type WorkspaceApp_Healthcheck struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -3559,7 +3721,7 @@ type WorkspaceApp_Healthcheck struct {
 func (x *WorkspaceApp_Healthcheck) Reset() {
 	*x = WorkspaceApp_Healthcheck{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[45]
+		mi := &file_agent_proto_agent_proto_msgTypes[47]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3572,7 +3734,7 @@ func (x *WorkspaceApp_Healthcheck) String() string {
 func (*WorkspaceApp_Healthcheck) ProtoMessage() {}
 
 func (x *WorkspaceApp_Healthcheck) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[45]
+	mi := &file_agent_proto_agent_proto_msgTypes[47]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3623,7 +3785,7 @@ type WorkspaceAgentMetadata_Result struct {
 func (x *WorkspaceAgentMetadata_Result) Reset() {
 	*x = WorkspaceAgentMetadata_Result{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[46]
+		mi := &file_agent_proto_agent_proto_msgTypes[48]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3636,7 +3798,7 @@ func (x *WorkspaceAgentMetadata_Result) String() string {
 func (*WorkspaceAgentMetadata_Result) ProtoMessage() {}
 
 func (x *WorkspaceAgentMetadata_Result) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[46]
+	mi := &file_agent_proto_agent_proto_msgTypes[48]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3695,7 +3857,7 @@ type WorkspaceAgentMetadata_Description struct {
 func (x *WorkspaceAgentMetadata_Description) Reset() {
 	*x = WorkspaceAgentMetadata_Description{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[47]
+		mi := &file_agent_proto_agent_proto_msgTypes[49]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3708,7 +3870,7 @@ func (x *WorkspaceAgentMetadata_Description) String() string {
 func (*WorkspaceAgentMetadata_Description) ProtoMessage() {}
 
 func (x *WorkspaceAgentMetadata_Description) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[47]
+	mi := &file_agent_proto_agent_proto_msgTypes[49]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3773,7 +3935,7 @@ type Stats_Metric struct {
 func (x *Stats_Metric) Reset() {
 	*x = Stats_Metric{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[50]
+		mi := &file_agent_proto_agent_proto_msgTypes[52]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3786,7 +3948,7 @@ func (x *Stats_Metric) String() string {
 func (*Stats_Metric) ProtoMessage() {}
 
 func (x *Stats_Metric) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[50]
+	mi := &file_agent_proto_agent_proto_msgTypes[52]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3842,7 +4004,7 @@ type Stats_Metric_Label struct {
 func (x *Stats_Metric_Label) Reset() {
 	*x = Stats_Metric_Label{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[51]
+		mi := &file_agent_proto_agent_proto_msgTypes[53]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3855,7 +4017,7 @@ func (x *Stats_Metric_Label) String() string {
 func (*Stats_Metric_Label) ProtoMessage() {}
 
 func (x *Stats_Metric_Label) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[51]
+	mi := &file_agent_proto_agent_proto_msgTypes[53]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3897,7 +4059,7 @@ type BatchUpdateAppHealthRequest_HealthUpdate struct {
 func (x *BatchUpdateAppHealthRequest_HealthUpdate) Reset() {
 	*x = BatchUpdateAppHealthRequest_HealthUpdate{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[52]
+		mi := &file_agent_proto_agent_proto_msgTypes[54]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3910,7 +4072,7 @@ func (x *BatchUpdateAppHealthRequest_HealthUpdate) String() string {
 func (*BatchUpdateAppHealthRequest_HealthUpdate) ProtoMessage() {}
 
 func (x *BatchUpdateAppHealthRequest_HealthUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[52]
+	mi := &file_agent_proto_agent_proto_msgTypes[54]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3952,7 +4114,7 @@ type GetResourcesMonitoringConfigurationResponse_Config struct {
 func (x *GetResourcesMonitoringConfigurationResponse_Config) Reset() {
 	*x = GetResourcesMonitoringConfigurationResponse_Config{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[53]
+		mi := &file_agent_proto_agent_proto_msgTypes[55]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3965,7 +4127,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Config) String() string {
 func (*GetResourcesMonitoringConfigurationResponse_Config) ProtoMessage() {}
 
 func (x *GetResourcesMonitoringConfigurationResponse_Config) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[53]
+	mi := &file_agent_proto_agent_proto_msgTypes[55]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4006,7 +4168,7 @@ type GetResourcesMonitoringConfigurationResponse_Memory struct {
 func (x *GetResourcesMonitoringConfigurationResponse_Memory) Reset() {
 	*x = GetResourcesMonitoringConfigurationResponse_Memory{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[54]
+		mi := &file_agent_proto_agent_proto_msgTypes[56]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4019,7 +4181,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Memory) String() string {
 func (*GetResourcesMonitoringConfigurationResponse_Memory) ProtoMessage() {}
 
 func (x *GetResourcesMonitoringConfigurationResponse_Memory) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[54]
+	mi := &file_agent_proto_agent_proto_msgTypes[56]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4054,7 +4216,7 @@ type GetResourcesMonitoringConfigurationResponse_Volume struct {
 func (x *GetResourcesMonitoringConfigurationResponse_Volume) Reset() {
 	*x = GetResourcesMonitoringConfigurationResponse_Volume{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[55]
+		mi := &file_agent_proto_agent_proto_msgTypes[57]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4067,7 +4229,7 @@ func (x *GetResourcesMonitoringConfigurationResponse_Volume) String() string {
 func (*GetResourcesMonitoringConfigurationResponse_Volume) ProtoMessage() {}
 
 func (x *GetResourcesMonitoringConfigurationResponse_Volume) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[55]
+	mi := &file_agent_proto_agent_proto_msgTypes[57]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4110,7 +4272,7 @@ type PushResourcesMonitoringUsageRequest_Datapoint struct {
 func (x *PushResourcesMonitoringUsageRequest_Datapoint) Reset() {
 	*x = PushResourcesMonitoringUsageRequest_Datapoint{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[56]
+		mi := &file_agent_proto_agent_proto_msgTypes[58]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4123,7 +4285,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint) String() string {
 func (*PushResourcesMonitoringUsageRequest_Datapoint) ProtoMessage() {}
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[56]
+	mi := &file_agent_proto_agent_proto_msgTypes[58]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4172,7 +4334,7 @@ type PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage struct {
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) Reset() {
 	*x = PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[57]
+		mi := &file_agent_proto_agent_proto_msgTypes[59]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4185,7 +4347,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) String() str
 func (*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) ProtoMessage() {}
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[57]
+	mi := &file_agent_proto_agent_proto_msgTypes[59]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4228,7 +4390,7 @@ type PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage struct {
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) Reset() {
 	*x = PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[58]
+		mi := &file_agent_proto_agent_proto_msgTypes[60]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4241,7 +4403,7 @@ func (x *PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) String() str
 func (*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) ProtoMessage() {}
 
 func (x *PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[58]
+	mi := &file_agent_proto_agent_proto_msgTypes[60]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4301,7 +4463,7 @@ type CreateSubAgentRequest_App struct {
 func (x *CreateSubAgentRequest_App) Reset() {
 	*x = CreateSubAgentRequest_App{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[59]
+		mi := &file_agent_proto_agent_proto_msgTypes[61]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4314,7 +4476,7 @@ func (x *CreateSubAgentRequest_App) String() string {
 func (*CreateSubAgentRequest_App) ProtoMessage() {}
 
 func (x *CreateSubAgentRequest_App) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[59]
+	mi := &file_agent_proto_agent_proto_msgTypes[61]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4434,7 +4596,7 @@ type CreateSubAgentRequest_App_Healthcheck struct {
 func (x *CreateSubAgentRequest_App_Healthcheck) Reset() {
 	*x = CreateSubAgentRequest_App_Healthcheck{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[60]
+		mi := &file_agent_proto_agent_proto_msgTypes[62]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4447,7 +4609,7 @@ func (x *CreateSubAgentRequest_App_Healthcheck) String() string {
 func (*CreateSubAgentRequest_App_Healthcheck) ProtoMessage() {}
 
 func (x *CreateSubAgentRequest_App_Healthcheck) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[60]
+	mi := &file_agent_proto_agent_proto_msgTypes[62]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4497,7 +4659,7 @@ type CreateSubAgentResponse_AppCreationError struct {
 func (x *CreateSubAgentResponse_AppCreationError) Reset() {
 	*x = CreateSubAgentResponse_AppCreationError{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[61]
+		mi := &file_agent_proto_agent_proto_msgTypes[63]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4510,7 +4672,7 @@ func (x *CreateSubAgentResponse_AppCreationError) String() string {
 func (*CreateSubAgentResponse_AppCreationError) ProtoMessage() {}
 
 func (x *CreateSubAgentResponse_AppCreationError) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[61]
+	mi := &file_agent_proto_agent_proto_msgTypes[63]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4563,7 +4725,7 @@ type BoundaryLog_HttpRequest struct {
 func (x *BoundaryLog_HttpRequest) Reset() {
 	*x = BoundaryLog_HttpRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_agent_proto_agent_proto_msgTypes[62]
+		mi := &file_agent_proto_agent_proto_msgTypes[64]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4576,7 +4738,7 @@ func (x *BoundaryLog_HttpRequest) String() string {
 func (*BoundaryLog_HttpRequest) ProtoMessage() {}
 
 func (x *BoundaryLog_HttpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_agent_proto_agent_proto_msgTypes[62]
+	mi := &file_agent_proto_agent_proto_msgTypes[64]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5278,129 +5440,151 @@ var file_agent_proto_agent_proto_rawDesc = []byte{
 	0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x42,
 	0x6f, 0x75, 0x6e, 0x64, 0x61, 0x72, 0x79, 0x4c, 0x6f, 0x67, 0x52, 0x04, 0x6c, 0x6f, 0x67, 0x73,
 	0x22, 0x1c, 0x0a, 0x1a, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x42, 0x6f, 0x75, 0x6e, 0x64, 0x61,
-	0x72, 0x79, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2a, 0x63,
-	0x0a, 0x09, 0x41, 0x70, 0x70, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x12, 0x1a, 0x0a, 0x16, 0x41,
-	0x50, 0x50, 0x5f, 0x48, 0x45, 0x41, 0x4c, 0x54, 0x48, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43,
-	0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x44, 0x49, 0x53, 0x41, 0x42,
-	0x4c, 0x45, 0x44, 0x10, 0x01, 0x12, 0x10, 0x0a, 0x0c, 0x49, 0x4e, 0x49, 0x54, 0x49, 0x41, 0x4c,
-	0x49, 0x5a, 0x49, 0x4e, 0x47, 0x10, 0x02, 0x12, 0x0b, 0x0a, 0x07, 0x48, 0x45, 0x41, 0x4c, 0x54,
-	0x48, 0x59, 0x10, 0x03, 0x12, 0x0d, 0x0a, 0x09, 0x55, 0x4e, 0x48, 0x45, 0x41, 0x4c, 0x54, 0x48,
-	0x59, 0x10, 0x04, 0x32, 0xfe, 0x0d, 0x0a, 0x05, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x12, 0x4b, 0x0a,
-	0x0b, 0x47, 0x65, 0x74, 0x4d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73, 0x74, 0x12, 0x22, 0x2e, 0x63,
-	0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x47, 0x65,
-	0x74, 0x4d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x18, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76,
-	0x32, 0x2e, 0x4d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73, 0x74, 0x12, 0x5a, 0x0a, 0x10, 0x47, 0x65,
-	0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x42, 0x61, 0x6e, 0x6e, 0x65, 0x72, 0x12, 0x27,
+	0x72, 0x79, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0xe9,
+	0x01, 0x0a, 0x16, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x53, 0x74, 0x61, 0x74,
+	0x75, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x6c, 0x75,
+	0x67, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x73, 0x6c, 0x75, 0x67, 0x12, 0x4b, 0x0a,
+	0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x35, 0x2e, 0x63,
+	0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x55, 0x70,
+	0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x2e, 0x41, 0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x53, 0x74,
+	0x61, 0x74, 0x65, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65,
+	0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73,
+	0x73, 0x61, 0x67, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x69, 0x18, 0x04, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x03, 0x75, 0x72, 0x69, 0x22, 0x42, 0x0a, 0x0e, 0x41, 0x70, 0x70, 0x53, 0x74, 0x61,
+	0x74, 0x75, 0x73, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x0b, 0x0a, 0x07, 0x57, 0x4f, 0x52, 0x4b,
+	0x49, 0x4e, 0x47, 0x10, 0x00, 0x12, 0x08, 0x0a, 0x04, 0x49, 0x44, 0x4c, 0x45, 0x10, 0x01, 0x12,
+	0x0c, 0x0a, 0x08, 0x43, 0x4f, 0x4d, 0x50, 0x4c, 0x45, 0x54, 0x45, 0x10, 0x02, 0x12, 0x0b, 0x0a,
+	0x07, 0x46, 0x41, 0x49, 0x4c, 0x55, 0x52, 0x45, 0x10, 0x03, 0x22, 0x19, 0x0a, 0x17, 0x55, 0x70,
+	0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2a, 0x63, 0x0a, 0x09, 0x41, 0x70, 0x70, 0x48, 0x65, 0x61, 0x6c,
+	0x74, 0x68, 0x12, 0x1a, 0x0a, 0x16, 0x41, 0x50, 0x50, 0x5f, 0x48, 0x45, 0x41, 0x4c, 0x54, 0x48,
+	0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x0c,
+	0x0a, 0x08, 0x44, 0x49, 0x53, 0x41, 0x42, 0x4c, 0x45, 0x44, 0x10, 0x01, 0x12, 0x10, 0x0a, 0x0c,
+	0x49, 0x4e, 0x49, 0x54, 0x49, 0x41, 0x4c, 0x49, 0x5a, 0x49, 0x4e, 0x47, 0x10, 0x02, 0x12, 0x0b,
+	0x0a, 0x07, 0x48, 0x45, 0x41, 0x4c, 0x54, 0x48, 0x59, 0x10, 0x03, 0x12, 0x0d, 0x0a, 0x09, 0x55,
+	0x4e, 0x48, 0x45, 0x41, 0x4c, 0x54, 0x48, 0x59, 0x10, 0x04, 0x32, 0xe2, 0x0e, 0x0a, 0x05, 0x41,
+	0x67, 0x65, 0x6e, 0x74, 0x12, 0x4b, 0x0a, 0x0b, 0x47, 0x65, 0x74, 0x4d, 0x61, 0x6e, 0x69, 0x66,
+	0x65, 0x73, 0x74, 0x12, 0x22, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x2e, 0x76, 0x32, 0x2e, 0x47, 0x65, 0x74, 0x4d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73, 0x74,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x18, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x4d, 0x61, 0x6e, 0x69, 0x66, 0x65, 0x73,
+	0x74, 0x12, 0x5a, 0x0a, 0x10, 0x47, 0x65, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x42,
+	0x61, 0x6e, 0x6e, 0x65, 0x72, 0x12, 0x27, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63,
+	0x65, 0x42, 0x61, 0x6e, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d,
 	0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e,
-	0x47, 0x65, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x42, 0x61, 0x6e, 0x6e, 0x65, 0x72,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e,
-	0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65,
-	0x42, 0x61, 0x6e, 0x6e, 0x65, 0x72, 0x12, 0x56, 0x0a, 0x0b, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65,
-	0x53, 0x74, 0x61, 0x74, 0x73, 0x12, 0x22, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x74, 0x61,
-	0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x63, 0x6f, 0x64, 0x65,
-	0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74,
-	0x65, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x54,
-	0x0a, 0x0f, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4c, 0x69, 0x66, 0x65, 0x63, 0x79, 0x63, 0x6c,
-	0x65, 0x12, 0x26, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e,
-	0x76, 0x32, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4c, 0x69, 0x66, 0x65, 0x63, 0x79, 0x63,
-	0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x19, 0x2e, 0x63, 0x6f, 0x64, 0x65,
-	0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x4c, 0x69, 0x66, 0x65, 0x63,
-	0x79, 0x63, 0x6c, 0x65, 0x12, 0x72, 0x0a, 0x15, 0x42, 0x61, 0x74, 0x63, 0x68, 0x55, 0x70, 0x64,
-	0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x73, 0x12, 0x2b, 0x2e,
-	0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x42,
+	0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x42, 0x61, 0x6e, 0x6e, 0x65, 0x72, 0x12, 0x56, 0x0a,
+	0x0b, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x74, 0x61, 0x74, 0x73, 0x12, 0x22, 0x2e, 0x63,
+	0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x55, 0x70,
+	0x64, 0x61, 0x74, 0x65, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x23, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76,
+	0x32, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x54, 0x0a, 0x0f, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4c,
+	0x69, 0x66, 0x65, 0x63, 0x79, 0x63, 0x6c, 0x65, 0x12, 0x26, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72,
+	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65,
+	0x4c, 0x69, 0x66, 0x65, 0x63, 0x79, 0x63, 0x6c, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x19, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76,
+	0x32, 0x2e, 0x4c, 0x69, 0x66, 0x65, 0x63, 0x79, 0x63, 0x6c, 0x65, 0x12, 0x72, 0x0a, 0x15, 0x42,
 	0x61, 0x74, 0x63, 0x68, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x48, 0x65, 0x61,
-	0x6c, 0x74, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2c, 0x2e, 0x63, 0x6f, 0x64,
+	0x6c, 0x74, 0x68, 0x73, 0x12, 0x2b, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x42, 0x61, 0x74, 0x63, 0x68, 0x55, 0x70, 0x64, 0x61, 0x74,
+	0x65, 0x41, 0x70, 0x70, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x2c, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e,
+	0x76, 0x32, 0x2e, 0x42, 0x61, 0x74, 0x63, 0x68, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70,
+	0x70, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x4e, 0x0a, 0x0d, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x74, 0x61, 0x72, 0x74, 0x75, 0x70,
+	0x12, 0x24, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76,
+	0x32, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x74, 0x61, 0x72, 0x74, 0x75, 0x70, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x17, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74, 0x75, 0x70, 0x12,
+	0x6e, 0x0a, 0x13, 0x42, 0x61, 0x74, 0x63, 0x68, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4d, 0x65,
+	0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x12, 0x2a, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x42, 0x61, 0x74, 0x63, 0x68, 0x55, 0x70, 0x64,
+	0x61, 0x74, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x1a, 0x2b, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
+	0x2e, 0x76, 0x32, 0x2e, 0x42, 0x61, 0x74, 0x63, 0x68, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4d,
+	0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x62, 0x0a, 0x0f, 0x42, 0x61, 0x74, 0x63, 0x68, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4c, 0x6f,
+	0x67, 0x73, 0x12, 0x26, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74,
+	0x2e, 0x76, 0x32, 0x2e, 0x42, 0x61, 0x74, 0x63, 0x68, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4c,
+	0x6f, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x63, 0x6f, 0x64,
 	0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x42, 0x61, 0x74, 0x63,
-	0x68, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4e, 0x0a, 0x0d, 0x55, 0x70, 0x64, 0x61,
-	0x74, 0x65, 0x53, 0x74, 0x61, 0x72, 0x74, 0x75, 0x70, 0x12, 0x24, 0x2e, 0x63, 0x6f, 0x64, 0x65,
-	0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74,
-	0x65, 0x53, 0x74, 0x61, 0x72, 0x74, 0x75, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x17, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32,
-	0x2e, 0x53, 0x74, 0x61, 0x72, 0x74, 0x75, 0x70, 0x12, 0x6e, 0x0a, 0x13, 0x42, 0x61, 0x74, 0x63,
-	0x68, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x12,
-	0x2a, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32,
-	0x2e, 0x42, 0x61, 0x74, 0x63, 0x68, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4d, 0x65, 0x74, 0x61,
-	0x64, 0x61, 0x74, 0x61, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2b, 0x2e, 0x63, 0x6f,
-	0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x42, 0x61, 0x74,
-	0x63, 0x68, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x62, 0x0a, 0x0f, 0x42, 0x61, 0x74, 0x63,
-	0x68, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4c, 0x6f, 0x67, 0x73, 0x12, 0x26, 0x2e, 0x63, 0x6f,
-	0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x42, 0x61, 0x74,
-	0x63, 0x68, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x2e, 0x76, 0x32, 0x2e, 0x42, 0x61, 0x74, 0x63, 0x68, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65,
-	0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x77, 0x0a, 0x16,
-	0x47, 0x65, 0x74, 0x41, 0x6e, 0x6e, 0x6f, 0x75, 0x6e, 0x63, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x42,
-	0x61, 0x6e, 0x6e, 0x65, 0x72, 0x73, 0x12, 0x2d, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61,
-	0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x47, 0x65, 0x74, 0x41, 0x6e, 0x6e, 0x6f, 0x75,
-	0x6e, 0x63, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x42, 0x61, 0x6e, 0x6e, 0x65, 0x72, 0x73, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2e, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x47, 0x65, 0x74, 0x41, 0x6e, 0x6e, 0x6f, 0x75, 0x6e,
-	0x63, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x42, 0x61, 0x6e, 0x6e, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x7e, 0x0a, 0x0f, 0x53, 0x63, 0x72, 0x69, 0x70, 0x74, 0x43,
-	0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x12, 0x34, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72,
-	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70,
-	0x61, 0x63, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x63, 0x72, 0x69, 0x70, 0x74, 0x43, 0x6f,
-	0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x35,
-	0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e,
-	0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x63,
-	0x72, 0x69, 0x70, 0x74, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x9e, 0x01, 0x0a, 0x23, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73,
-	0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x4d, 0x6f, 0x6e, 0x69, 0x74, 0x6f, 0x72, 0x69, 0x6e, 0x67,
-	0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x3a, 0x2e,
+	0x68, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x12, 0x77, 0x0a, 0x16, 0x47, 0x65, 0x74, 0x41, 0x6e, 0x6e, 0x6f, 0x75, 0x6e,
+	0x63, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x42, 0x61, 0x6e, 0x6e, 0x65, 0x72, 0x73, 0x12, 0x2d, 0x2e,
 	0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x47,
-	0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x4d, 0x6f, 0x6e, 0x69, 0x74,
-	0x6f, 0x72, 0x69, 0x6e, 0x67, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69,
-	0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x3b, 0x2e, 0x63, 0x6f, 0x64, 0x65,
-	0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65,
-	0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x4d, 0x6f, 0x6e, 0x69, 0x74, 0x6f, 0x72, 0x69, 0x6e,
-	0x67, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x89, 0x01, 0x0a, 0x1c, 0x50, 0x75, 0x73, 0x68, 0x52,
-	0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x4d, 0x6f, 0x6e, 0x69, 0x74, 0x6f, 0x72, 0x69,
-	0x6e, 0x67, 0x55, 0x73, 0x61, 0x67, 0x65, 0x12, 0x33, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e,
-	0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x50, 0x75, 0x73, 0x68, 0x52, 0x65, 0x73,
-	0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x4d, 0x6f, 0x6e, 0x69, 0x74, 0x6f, 0x72, 0x69, 0x6e, 0x67,
-	0x55, 0x73, 0x61, 0x67, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x34, 0x2e, 0x63,
-	0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x50, 0x75,
-	0x73, 0x68, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x4d, 0x6f, 0x6e, 0x69, 0x74,
-	0x6f, 0x72, 0x69, 0x6e, 0x67, 0x55, 0x73, 0x61, 0x67, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x12, 0x53, 0x0a, 0x10, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x43, 0x6f, 0x6e, 0x6e,
-	0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x27, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61,
-	0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x43, 0x6f,
-	0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75,
-	0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x12, 0x5f, 0x0a, 0x0e, 0x43, 0x72, 0x65, 0x61, 0x74,
-	0x65, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x12, 0x25, 0x2e, 0x63, 0x6f, 0x64, 0x65,
-	0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74,
-	0x65, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x26, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76,
-	0x32, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5f, 0x0a, 0x0e, 0x44, 0x65, 0x6c, 0x65,
-	0x74, 0x65, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x12, 0x25, 0x2e, 0x63, 0x6f, 0x64,
-	0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x44, 0x65, 0x6c, 0x65,
-	0x74, 0x65, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x26, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e,
-	0x76, 0x32, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e,
-	0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x5c, 0x0a, 0x0d, 0x4c, 0x69, 0x73,
-	0x74, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x12, 0x24, 0x2e, 0x63, 0x6f, 0x64,
-	0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x4c, 0x69, 0x73, 0x74,
-	0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x25, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76,
-	0x32, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6b, 0x0a, 0x12, 0x52, 0x65, 0x70, 0x6f, 0x72,
-	0x74, 0x42, 0x6f, 0x75, 0x6e, 0x64, 0x61, 0x72, 0x79, 0x4c, 0x6f, 0x67, 0x73, 0x12, 0x29, 0x2e,
+	0x65, 0x74, 0x41, 0x6e, 0x6e, 0x6f, 0x75, 0x6e, 0x63, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x42, 0x61,
+	0x6e, 0x6e, 0x65, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2e, 0x2e, 0x63,
+	0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x47, 0x65,
+	0x74, 0x41, 0x6e, 0x6e, 0x6f, 0x75, 0x6e, 0x63, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x42, 0x61, 0x6e,
+	0x6e, 0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x7e, 0x0a, 0x0f,
+	0x53, 0x63, 0x72, 0x69, 0x70, 0x74, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x12,
+	0x34, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32,
+	0x2e, 0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53,
+	0x63, 0x72, 0x69, 0x70, 0x74, 0x43, 0x6f, 0x6d, 0x70, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x35, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x57, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65,
+	0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x63, 0x72, 0x69, 0x70, 0x74, 0x43, 0x6f, 0x6d, 0x70, 0x6c,
+	0x65, 0x74, 0x65, 0x64, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x9e, 0x01, 0x0a,
+	0x23, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x4d, 0x6f, 0x6e,
+	0x69, 0x74, 0x6f, 0x72, 0x69, 0x6e, 0x67, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x12, 0x3a, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63,
+	0x65, 0x73, 0x4d, 0x6f, 0x6e, 0x69, 0x74, 0x6f, 0x72, 0x69, 0x6e, 0x67, 0x43, 0x6f, 0x6e, 0x66,
+	0x69, 0x67, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x3b, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76,
+	0x32, 0x2e, 0x47, 0x65, 0x74, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x4d, 0x6f,
+	0x6e, 0x69, 0x74, 0x6f, 0x72, 0x69, 0x6e, 0x67, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72,
+	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x89, 0x01,
+	0x0a, 0x1c, 0x50, 0x75, 0x73, 0x68, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x4d,
+	0x6f, 0x6e, 0x69, 0x74, 0x6f, 0x72, 0x69, 0x6e, 0x67, 0x55, 0x73, 0x61, 0x67, 0x65, 0x12, 0x33,
+	0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e,
+	0x50, 0x75, 0x73, 0x68, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x73, 0x4d, 0x6f, 0x6e,
+	0x69, 0x74, 0x6f, 0x72, 0x69, 0x6e, 0x67, 0x55, 0x73, 0x61, 0x67, 0x65, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x34, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e,
+	0x74, 0x2e, 0x76, 0x32, 0x2e, 0x50, 0x75, 0x73, 0x68, 0x52, 0x65, 0x73, 0x6f, 0x75, 0x72, 0x63,
+	0x65, 0x73, 0x4d, 0x6f, 0x6e, 0x69, 0x74, 0x6f, 0x72, 0x69, 0x6e, 0x67, 0x55, 0x73, 0x61, 0x67,
+	0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x53, 0x0a, 0x10, 0x52, 0x65, 0x70,
+	0x6f, 0x72, 0x74, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x27, 0x2e,
 	0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x52,
-	0x65, 0x70, 0x6f, 0x72, 0x74, 0x42, 0x6f, 0x75, 0x6e, 0x64, 0x61, 0x72, 0x79, 0x4c, 0x6f, 0x67,
-	0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2a, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72,
-	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74,
-	0x42, 0x6f, 0x75, 0x6e, 0x64, 0x61, 0x72, 0x79, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x42, 0x27, 0x5a, 0x25, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
-	0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x76,
-	0x32, 0x2f, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x65, 0x70, 0x6f, 0x72, 0x74, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x16, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x12, 0x5f,
+	0x0a, 0x0e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74,
+	0x12, 0x25, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76,
+	0x32, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53,
+	0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x5f, 0x0a, 0x0e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e,
+	0x74, 0x12, 0x25, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e,
+	0x76, 0x32, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e,
+	0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72,
+	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65,
+	0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x12, 0x5c, 0x0a, 0x0d, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74,
+	0x73, 0x12, 0x24, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e,
+	0x76, 0x32, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x75, 0x62, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x73,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e,
+	0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x4c, 0x69, 0x73, 0x74, 0x53, 0x75, 0x62,
+	0x41, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x6b,
+	0x0a, 0x12, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x42, 0x6f, 0x75, 0x6e, 0x64, 0x61, 0x72, 0x79,
+	0x4c, 0x6f, 0x67, 0x73, 0x12, 0x29, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x42, 0x6f, 0x75, 0x6e,
+	0x64, 0x61, 0x72, 0x79, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x2a, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32,
+	0x2e, 0x52, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x42, 0x6f, 0x75, 0x6e, 0x64, 0x61, 0x72, 0x79, 0x4c,
+	0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x62, 0x0a, 0x0f, 0x55,
+	0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x26,
+	0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e,
+	0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70,
+	0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42,
+	0x27, 0x5a, 0x25, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f,
+	0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x76, 0x32, 0x2f, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -5415,8 +5599,8 @@ func file_agent_proto_agent_proto_rawDescGZIP() []byte {
 	return file_agent_proto_agent_proto_rawDescData
 }
 
-var file_agent_proto_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 14)
-var file_agent_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
+var file_agent_proto_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 15)
+var file_agent_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 65)
 var file_agent_proto_agent_proto_goTypes = []interface{}{
 	(AppHealth)(0),                                      // 0: coder.agent.v2.AppHealth
 	(WorkspaceApp_SharingLevel)(0),                      // 1: coder.agent.v2.WorkspaceApp.SharingLevel
@@ -5432,176 +5616,182 @@ var file_agent_proto_agent_proto_goTypes = []interface{}{
 	(CreateSubAgentRequest_DisplayApp)(0),               // 11: coder.agent.v2.CreateSubAgentRequest.DisplayApp
 	(CreateSubAgentRequest_App_OpenIn)(0),               // 12: coder.agent.v2.CreateSubAgentRequest.App.OpenIn
 	(CreateSubAgentRequest_App_SharingLevel)(0),         // 13: coder.agent.v2.CreateSubAgentRequest.App.SharingLevel
-	(*WorkspaceApp)(nil),                                // 14: coder.agent.v2.WorkspaceApp
-	(*WorkspaceAgentScript)(nil),                        // 15: coder.agent.v2.WorkspaceAgentScript
-	(*WorkspaceAgentMetadata)(nil),                      // 16: coder.agent.v2.WorkspaceAgentMetadata
-	(*Manifest)(nil),                                    // 17: coder.agent.v2.Manifest
-	(*WorkspaceAgentDevcontainer)(nil),                  // 18: coder.agent.v2.WorkspaceAgentDevcontainer
-	(*GetManifestRequest)(nil),                          // 19: coder.agent.v2.GetManifestRequest
-	(*ServiceBanner)(nil),                               // 20: coder.agent.v2.ServiceBanner
-	(*GetServiceBannerRequest)(nil),                     // 21: coder.agent.v2.GetServiceBannerRequest
-	(*Stats)(nil),                                       // 22: coder.agent.v2.Stats
-	(*UpdateStatsRequest)(nil),                          // 23: coder.agent.v2.UpdateStatsRequest
-	(*UpdateStatsResponse)(nil),                         // 24: coder.agent.v2.UpdateStatsResponse
-	(*Lifecycle)(nil),                                   // 25: coder.agent.v2.Lifecycle
-	(*UpdateLifecycleRequest)(nil),                      // 26: coder.agent.v2.UpdateLifecycleRequest
-	(*BatchUpdateAppHealthRequest)(nil),                 // 27: coder.agent.v2.BatchUpdateAppHealthRequest
-	(*BatchUpdateAppHealthResponse)(nil),                // 28: coder.agent.v2.BatchUpdateAppHealthResponse
-	(*Startup)(nil),                                     // 29: coder.agent.v2.Startup
-	(*UpdateStartupRequest)(nil),                        // 30: coder.agent.v2.UpdateStartupRequest
-	(*Metadata)(nil),                                    // 31: coder.agent.v2.Metadata
-	(*BatchUpdateMetadataRequest)(nil),                  // 32: coder.agent.v2.BatchUpdateMetadataRequest
-	(*BatchUpdateMetadataResponse)(nil),                 // 33: coder.agent.v2.BatchUpdateMetadataResponse
-	(*Log)(nil),                                         // 34: coder.agent.v2.Log
-	(*BatchCreateLogsRequest)(nil),                      // 35: coder.agent.v2.BatchCreateLogsRequest
-	(*BatchCreateLogsResponse)(nil),                     // 36: coder.agent.v2.BatchCreateLogsResponse
-	(*GetAnnouncementBannersRequest)(nil),               // 37: coder.agent.v2.GetAnnouncementBannersRequest
-	(*GetAnnouncementBannersResponse)(nil),              // 38: coder.agent.v2.GetAnnouncementBannersResponse
-	(*BannerConfig)(nil),                                // 39: coder.agent.v2.BannerConfig
-	(*WorkspaceAgentScriptCompletedRequest)(nil),        // 40: coder.agent.v2.WorkspaceAgentScriptCompletedRequest
-	(*WorkspaceAgentScriptCompletedResponse)(nil),       // 41: coder.agent.v2.WorkspaceAgentScriptCompletedResponse
-	(*Timing)(nil),                                      // 42: coder.agent.v2.Timing
-	(*GetResourcesMonitoringConfigurationRequest)(nil),  // 43: coder.agent.v2.GetResourcesMonitoringConfigurationRequest
-	(*GetResourcesMonitoringConfigurationResponse)(nil), // 44: coder.agent.v2.GetResourcesMonitoringConfigurationResponse
-	(*PushResourcesMonitoringUsageRequest)(nil),         // 45: coder.agent.v2.PushResourcesMonitoringUsageRequest
-	(*PushResourcesMonitoringUsageResponse)(nil),        // 46: coder.agent.v2.PushResourcesMonitoringUsageResponse
-	(*Connection)(nil),                                  // 47: coder.agent.v2.Connection
-	(*ReportConnectionRequest)(nil),                     // 48: coder.agent.v2.ReportConnectionRequest
-	(*SubAgent)(nil),                                    // 49: coder.agent.v2.SubAgent
-	(*CreateSubAgentRequest)(nil),                       // 50: coder.agent.v2.CreateSubAgentRequest
-	(*CreateSubAgentResponse)(nil),                      // 51: coder.agent.v2.CreateSubAgentResponse
-	(*DeleteSubAgentRequest)(nil),                       // 52: coder.agent.v2.DeleteSubAgentRequest
-	(*DeleteSubAgentResponse)(nil),                      // 53: coder.agent.v2.DeleteSubAgentResponse
-	(*ListSubAgentsRequest)(nil),                        // 54: coder.agent.v2.ListSubAgentsRequest
-	(*ListSubAgentsResponse)(nil),                       // 55: coder.agent.v2.ListSubAgentsResponse
-	(*BoundaryLog)(nil),                                 // 56: coder.agent.v2.BoundaryLog
-	(*ReportBoundaryLogsRequest)(nil),                   // 57: coder.agent.v2.ReportBoundaryLogsRequest
-	(*ReportBoundaryLogsResponse)(nil),                  // 58: coder.agent.v2.ReportBoundaryLogsResponse
-	(*WorkspaceApp_Healthcheck)(nil),                    // 59: coder.agent.v2.WorkspaceApp.Healthcheck
-	(*WorkspaceAgentMetadata_Result)(nil),               // 60: coder.agent.v2.WorkspaceAgentMetadata.Result
-	(*WorkspaceAgentMetadata_Description)(nil),          // 61: coder.agent.v2.WorkspaceAgentMetadata.Description
-	nil,                        // 62: coder.agent.v2.Manifest.EnvironmentVariablesEntry
-	nil,                        // 63: coder.agent.v2.Stats.ConnectionsByProtoEntry
-	(*Stats_Metric)(nil),       // 64: coder.agent.v2.Stats.Metric
-	(*Stats_Metric_Label)(nil), // 65: coder.agent.v2.Stats.Metric.Label
-	(*BatchUpdateAppHealthRequest_HealthUpdate)(nil),                  // 66: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
-	(*GetResourcesMonitoringConfigurationResponse_Config)(nil),        // 67: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
-	(*GetResourcesMonitoringConfigurationResponse_Memory)(nil),        // 68: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
-	(*GetResourcesMonitoringConfigurationResponse_Volume)(nil),        // 69: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
-	(*PushResourcesMonitoringUsageRequest_Datapoint)(nil),             // 70: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
-	(*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage)(nil), // 71: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
-	(*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)(nil), // 72: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
-	(*CreateSubAgentRequest_App)(nil),                                 // 73: coder.agent.v2.CreateSubAgentRequest.App
-	(*CreateSubAgentRequest_App_Healthcheck)(nil),                     // 74: coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
-	(*CreateSubAgentResponse_AppCreationError)(nil),                   // 75: coder.agent.v2.CreateSubAgentResponse.AppCreationError
-	(*BoundaryLog_HttpRequest)(nil),                                   // 76: coder.agent.v2.BoundaryLog.HttpRequest
-	(*durationpb.Duration)(nil),                                       // 77: google.protobuf.Duration
-	(*proto.DERPMap)(nil),                                             // 78: coder.tailnet.v2.DERPMap
-	(*timestamppb.Timestamp)(nil),                                     // 79: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                                             // 80: google.protobuf.Empty
+	(UpdateAppStatusRequest_AppStatusState)(0),          // 14: coder.agent.v2.UpdateAppStatusRequest.AppStatusState
+	(*WorkspaceApp)(nil),                                // 15: coder.agent.v2.WorkspaceApp
+	(*WorkspaceAgentScript)(nil),                        // 16: coder.agent.v2.WorkspaceAgentScript
+	(*WorkspaceAgentMetadata)(nil),                      // 17: coder.agent.v2.WorkspaceAgentMetadata
+	(*Manifest)(nil),                                    // 18: coder.agent.v2.Manifest
+	(*WorkspaceAgentDevcontainer)(nil),                  // 19: coder.agent.v2.WorkspaceAgentDevcontainer
+	(*GetManifestRequest)(nil),                          // 20: coder.agent.v2.GetManifestRequest
+	(*ServiceBanner)(nil),                               // 21: coder.agent.v2.ServiceBanner
+	(*GetServiceBannerRequest)(nil),                     // 22: coder.agent.v2.GetServiceBannerRequest
+	(*Stats)(nil),                                       // 23: coder.agent.v2.Stats
+	(*UpdateStatsRequest)(nil),                          // 24: coder.agent.v2.UpdateStatsRequest
+	(*UpdateStatsResponse)(nil),                         // 25: coder.agent.v2.UpdateStatsResponse
+	(*Lifecycle)(nil),                                   // 26: coder.agent.v2.Lifecycle
+	(*UpdateLifecycleRequest)(nil),                      // 27: coder.agent.v2.UpdateLifecycleRequest
+	(*BatchUpdateAppHealthRequest)(nil),                 // 28: coder.agent.v2.BatchUpdateAppHealthRequest
+	(*BatchUpdateAppHealthResponse)(nil),                // 29: coder.agent.v2.BatchUpdateAppHealthResponse
+	(*Startup)(nil),                                     // 30: coder.agent.v2.Startup
+	(*UpdateStartupRequest)(nil),                        // 31: coder.agent.v2.UpdateStartupRequest
+	(*Metadata)(nil),                                    // 32: coder.agent.v2.Metadata
+	(*BatchUpdateMetadataRequest)(nil),                  // 33: coder.agent.v2.BatchUpdateMetadataRequest
+	(*BatchUpdateMetadataResponse)(nil),                 // 34: coder.agent.v2.BatchUpdateMetadataResponse
+	(*Log)(nil),                                         // 35: coder.agent.v2.Log
+	(*BatchCreateLogsRequest)(nil),                      // 36: coder.agent.v2.BatchCreateLogsRequest
+	(*BatchCreateLogsResponse)(nil),                     // 37: coder.agent.v2.BatchCreateLogsResponse
+	(*GetAnnouncementBannersRequest)(nil),               // 38: coder.agent.v2.GetAnnouncementBannersRequest
+	(*GetAnnouncementBannersResponse)(nil),              // 39: coder.agent.v2.GetAnnouncementBannersResponse
+	(*BannerConfig)(nil),                                // 40: coder.agent.v2.BannerConfig
+	(*WorkspaceAgentScriptCompletedRequest)(nil),        // 41: coder.agent.v2.WorkspaceAgentScriptCompletedRequest
+	(*WorkspaceAgentScriptCompletedResponse)(nil),       // 42: coder.agent.v2.WorkspaceAgentScriptCompletedResponse
+	(*Timing)(nil),                                      // 43: coder.agent.v2.Timing
+	(*GetResourcesMonitoringConfigurationRequest)(nil),  // 44: coder.agent.v2.GetResourcesMonitoringConfigurationRequest
+	(*GetResourcesMonitoringConfigurationResponse)(nil), // 45: coder.agent.v2.GetResourcesMonitoringConfigurationResponse
+	(*PushResourcesMonitoringUsageRequest)(nil),         // 46: coder.agent.v2.PushResourcesMonitoringUsageRequest
+	(*PushResourcesMonitoringUsageResponse)(nil),        // 47: coder.agent.v2.PushResourcesMonitoringUsageResponse
+	(*Connection)(nil),                                  // 48: coder.agent.v2.Connection
+	(*ReportConnectionRequest)(nil),                     // 49: coder.agent.v2.ReportConnectionRequest
+	(*SubAgent)(nil),                                    // 50: coder.agent.v2.SubAgent
+	(*CreateSubAgentRequest)(nil),                       // 51: coder.agent.v2.CreateSubAgentRequest
+	(*CreateSubAgentResponse)(nil),                      // 52: coder.agent.v2.CreateSubAgentResponse
+	(*DeleteSubAgentRequest)(nil),                       // 53: coder.agent.v2.DeleteSubAgentRequest
+	(*DeleteSubAgentResponse)(nil),                      // 54: coder.agent.v2.DeleteSubAgentResponse
+	(*ListSubAgentsRequest)(nil),                        // 55: coder.agent.v2.ListSubAgentsRequest
+	(*ListSubAgentsResponse)(nil),                       // 56: coder.agent.v2.ListSubAgentsResponse
+	(*BoundaryLog)(nil),                                 // 57: coder.agent.v2.BoundaryLog
+	(*ReportBoundaryLogsRequest)(nil),                   // 58: coder.agent.v2.ReportBoundaryLogsRequest
+	(*ReportBoundaryLogsResponse)(nil),                  // 59: coder.agent.v2.ReportBoundaryLogsResponse
+	(*UpdateAppStatusRequest)(nil),                      // 60: coder.agent.v2.UpdateAppStatusRequest
+	(*UpdateAppStatusResponse)(nil),                     // 61: coder.agent.v2.UpdateAppStatusResponse
+	(*WorkspaceApp_Healthcheck)(nil),                    // 62: coder.agent.v2.WorkspaceApp.Healthcheck
+	(*WorkspaceAgentMetadata_Result)(nil),               // 63: coder.agent.v2.WorkspaceAgentMetadata.Result
+	(*WorkspaceAgentMetadata_Description)(nil),          // 64: coder.agent.v2.WorkspaceAgentMetadata.Description
+	nil,                        // 65: coder.agent.v2.Manifest.EnvironmentVariablesEntry
+	nil,                        // 66: coder.agent.v2.Stats.ConnectionsByProtoEntry
+	(*Stats_Metric)(nil),       // 67: coder.agent.v2.Stats.Metric
+	(*Stats_Metric_Label)(nil), // 68: coder.agent.v2.Stats.Metric.Label
+	(*BatchUpdateAppHealthRequest_HealthUpdate)(nil),                  // 69: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
+	(*GetResourcesMonitoringConfigurationResponse_Config)(nil),        // 70: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
+	(*GetResourcesMonitoringConfigurationResponse_Memory)(nil),        // 71: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
+	(*GetResourcesMonitoringConfigurationResponse_Volume)(nil),        // 72: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
+	(*PushResourcesMonitoringUsageRequest_Datapoint)(nil),             // 73: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
+	(*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage)(nil), // 74: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
+	(*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)(nil), // 75: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
+	(*CreateSubAgentRequest_App)(nil),                                 // 76: coder.agent.v2.CreateSubAgentRequest.App
+	(*CreateSubAgentRequest_App_Healthcheck)(nil),                     // 77: coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
+	(*CreateSubAgentResponse_AppCreationError)(nil),                   // 78: coder.agent.v2.CreateSubAgentResponse.AppCreationError
+	(*BoundaryLog_HttpRequest)(nil),                                   // 79: coder.agent.v2.BoundaryLog.HttpRequest
+	(*durationpb.Duration)(nil),                                       // 80: google.protobuf.Duration
+	(*proto.DERPMap)(nil),                                             // 81: coder.tailnet.v2.DERPMap
+	(*timestamppb.Timestamp)(nil),                                     // 82: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                                             // 83: google.protobuf.Empty
 }
 var file_agent_proto_agent_proto_depIdxs = []int32{
 	1,  // 0: coder.agent.v2.WorkspaceApp.sharing_level:type_name -> coder.agent.v2.WorkspaceApp.SharingLevel
-	59, // 1: coder.agent.v2.WorkspaceApp.healthcheck:type_name -> coder.agent.v2.WorkspaceApp.Healthcheck
+	62, // 1: coder.agent.v2.WorkspaceApp.healthcheck:type_name -> coder.agent.v2.WorkspaceApp.Healthcheck
 	2,  // 2: coder.agent.v2.WorkspaceApp.health:type_name -> coder.agent.v2.WorkspaceApp.Health
-	77, // 3: coder.agent.v2.WorkspaceAgentScript.timeout:type_name -> google.protobuf.Duration
-	60, // 4: coder.agent.v2.WorkspaceAgentMetadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
-	61, // 5: coder.agent.v2.WorkspaceAgentMetadata.description:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
-	62, // 6: coder.agent.v2.Manifest.environment_variables:type_name -> coder.agent.v2.Manifest.EnvironmentVariablesEntry
-	78, // 7: coder.agent.v2.Manifest.derp_map:type_name -> coder.tailnet.v2.DERPMap
-	15, // 8: coder.agent.v2.Manifest.scripts:type_name -> coder.agent.v2.WorkspaceAgentScript
-	14, // 9: coder.agent.v2.Manifest.apps:type_name -> coder.agent.v2.WorkspaceApp
-	61, // 10: coder.agent.v2.Manifest.metadata:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
-	18, // 11: coder.agent.v2.Manifest.devcontainers:type_name -> coder.agent.v2.WorkspaceAgentDevcontainer
-	63, // 12: coder.agent.v2.Stats.connections_by_proto:type_name -> coder.agent.v2.Stats.ConnectionsByProtoEntry
-	64, // 13: coder.agent.v2.Stats.metrics:type_name -> coder.agent.v2.Stats.Metric
-	22, // 14: coder.agent.v2.UpdateStatsRequest.stats:type_name -> coder.agent.v2.Stats
-	77, // 15: coder.agent.v2.UpdateStatsResponse.report_interval:type_name -> google.protobuf.Duration
+	80, // 3: coder.agent.v2.WorkspaceAgentScript.timeout:type_name -> google.protobuf.Duration
+	63, // 4: coder.agent.v2.WorkspaceAgentMetadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
+	64, // 5: coder.agent.v2.WorkspaceAgentMetadata.description:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
+	65, // 6: coder.agent.v2.Manifest.environment_variables:type_name -> coder.agent.v2.Manifest.EnvironmentVariablesEntry
+	81, // 7: coder.agent.v2.Manifest.derp_map:type_name -> coder.tailnet.v2.DERPMap
+	16, // 8: coder.agent.v2.Manifest.scripts:type_name -> coder.agent.v2.WorkspaceAgentScript
+	15, // 9: coder.agent.v2.Manifest.apps:type_name -> coder.agent.v2.WorkspaceApp
+	64, // 10: coder.agent.v2.Manifest.metadata:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Description
+	19, // 11: coder.agent.v2.Manifest.devcontainers:type_name -> coder.agent.v2.WorkspaceAgentDevcontainer
+	66, // 12: coder.agent.v2.Stats.connections_by_proto:type_name -> coder.agent.v2.Stats.ConnectionsByProtoEntry
+	67, // 13: coder.agent.v2.Stats.metrics:type_name -> coder.agent.v2.Stats.Metric
+	23, // 14: coder.agent.v2.UpdateStatsRequest.stats:type_name -> coder.agent.v2.Stats
+	80, // 15: coder.agent.v2.UpdateStatsResponse.report_interval:type_name -> google.protobuf.Duration
 	4,  // 16: coder.agent.v2.Lifecycle.state:type_name -> coder.agent.v2.Lifecycle.State
-	79, // 17: coder.agent.v2.Lifecycle.changed_at:type_name -> google.protobuf.Timestamp
-	25, // 18: coder.agent.v2.UpdateLifecycleRequest.lifecycle:type_name -> coder.agent.v2.Lifecycle
-	66, // 19: coder.agent.v2.BatchUpdateAppHealthRequest.updates:type_name -> coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
+	82, // 17: coder.agent.v2.Lifecycle.changed_at:type_name -> google.protobuf.Timestamp
+	26, // 18: coder.agent.v2.UpdateLifecycleRequest.lifecycle:type_name -> coder.agent.v2.Lifecycle
+	69, // 19: coder.agent.v2.BatchUpdateAppHealthRequest.updates:type_name -> coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
 	5,  // 20: coder.agent.v2.Startup.subsystems:type_name -> coder.agent.v2.Startup.Subsystem
-	29, // 21: coder.agent.v2.UpdateStartupRequest.startup:type_name -> coder.agent.v2.Startup
-	60, // 22: coder.agent.v2.Metadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
-	31, // 23: coder.agent.v2.BatchUpdateMetadataRequest.metadata:type_name -> coder.agent.v2.Metadata
-	79, // 24: coder.agent.v2.Log.created_at:type_name -> google.protobuf.Timestamp
+	30, // 21: coder.agent.v2.UpdateStartupRequest.startup:type_name -> coder.agent.v2.Startup
+	63, // 22: coder.agent.v2.Metadata.result:type_name -> coder.agent.v2.WorkspaceAgentMetadata.Result
+	32, // 23: coder.agent.v2.BatchUpdateMetadataRequest.metadata:type_name -> coder.agent.v2.Metadata
+	82, // 24: coder.agent.v2.Log.created_at:type_name -> google.protobuf.Timestamp
 	6,  // 25: coder.agent.v2.Log.level:type_name -> coder.agent.v2.Log.Level
-	34, // 26: coder.agent.v2.BatchCreateLogsRequest.logs:type_name -> coder.agent.v2.Log
-	39, // 27: coder.agent.v2.GetAnnouncementBannersResponse.announcement_banners:type_name -> coder.agent.v2.BannerConfig
-	42, // 28: coder.agent.v2.WorkspaceAgentScriptCompletedRequest.timing:type_name -> coder.agent.v2.Timing
-	79, // 29: coder.agent.v2.Timing.start:type_name -> google.protobuf.Timestamp
-	79, // 30: coder.agent.v2.Timing.end:type_name -> google.protobuf.Timestamp
+	35, // 26: coder.agent.v2.BatchCreateLogsRequest.logs:type_name -> coder.agent.v2.Log
+	40, // 27: coder.agent.v2.GetAnnouncementBannersResponse.announcement_banners:type_name -> coder.agent.v2.BannerConfig
+	43, // 28: coder.agent.v2.WorkspaceAgentScriptCompletedRequest.timing:type_name -> coder.agent.v2.Timing
+	82, // 29: coder.agent.v2.Timing.start:type_name -> google.protobuf.Timestamp
+	82, // 30: coder.agent.v2.Timing.end:type_name -> google.protobuf.Timestamp
 	7,  // 31: coder.agent.v2.Timing.stage:type_name -> coder.agent.v2.Timing.Stage
 	8,  // 32: coder.agent.v2.Timing.status:type_name -> coder.agent.v2.Timing.Status
-	67, // 33: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.config:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
-	68, // 34: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.memory:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
-	69, // 35: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.volumes:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
-	70, // 36: coder.agent.v2.PushResourcesMonitoringUsageRequest.datapoints:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
+	70, // 33: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.config:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Config
+	71, // 34: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.memory:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Memory
+	72, // 35: coder.agent.v2.GetResourcesMonitoringConfigurationResponse.volumes:type_name -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse.Volume
+	73, // 36: coder.agent.v2.PushResourcesMonitoringUsageRequest.datapoints:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint
 	9,  // 37: coder.agent.v2.Connection.action:type_name -> coder.agent.v2.Connection.Action
 	10, // 38: coder.agent.v2.Connection.type:type_name -> coder.agent.v2.Connection.Type
-	79, // 39: coder.agent.v2.Connection.timestamp:type_name -> google.protobuf.Timestamp
-	47, // 40: coder.agent.v2.ReportConnectionRequest.connection:type_name -> coder.agent.v2.Connection
-	73, // 41: coder.agent.v2.CreateSubAgentRequest.apps:type_name -> coder.agent.v2.CreateSubAgentRequest.App
+	82, // 39: coder.agent.v2.Connection.timestamp:type_name -> google.protobuf.Timestamp
+	48, // 40: coder.agent.v2.ReportConnectionRequest.connection:type_name -> coder.agent.v2.Connection
+	76, // 41: coder.agent.v2.CreateSubAgentRequest.apps:type_name -> coder.agent.v2.CreateSubAgentRequest.App
 	11, // 42: coder.agent.v2.CreateSubAgentRequest.display_apps:type_name -> coder.agent.v2.CreateSubAgentRequest.DisplayApp
-	49, // 43: coder.agent.v2.CreateSubAgentResponse.agent:type_name -> coder.agent.v2.SubAgent
-	75, // 44: coder.agent.v2.CreateSubAgentResponse.app_creation_errors:type_name -> coder.agent.v2.CreateSubAgentResponse.AppCreationError
-	49, // 45: coder.agent.v2.ListSubAgentsResponse.agents:type_name -> coder.agent.v2.SubAgent
-	79, // 46: coder.agent.v2.BoundaryLog.time:type_name -> google.protobuf.Timestamp
-	76, // 47: coder.agent.v2.BoundaryLog.http_request:type_name -> coder.agent.v2.BoundaryLog.HttpRequest
-	56, // 48: coder.agent.v2.ReportBoundaryLogsRequest.logs:type_name -> coder.agent.v2.BoundaryLog
-	77, // 49: coder.agent.v2.WorkspaceApp.Healthcheck.interval:type_name -> google.protobuf.Duration
-	79, // 50: coder.agent.v2.WorkspaceAgentMetadata.Result.collected_at:type_name -> google.protobuf.Timestamp
-	77, // 51: coder.agent.v2.WorkspaceAgentMetadata.Description.interval:type_name -> google.protobuf.Duration
-	77, // 52: coder.agent.v2.WorkspaceAgentMetadata.Description.timeout:type_name -> google.protobuf.Duration
-	3,  // 53: coder.agent.v2.Stats.Metric.type:type_name -> coder.agent.v2.Stats.Metric.Type
-	65, // 54: coder.agent.v2.Stats.Metric.labels:type_name -> coder.agent.v2.Stats.Metric.Label
-	0,  // 55: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate.health:type_name -> coder.agent.v2.AppHealth
-	79, // 56: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.collected_at:type_name -> google.protobuf.Timestamp
-	71, // 57: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.memory:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
-	72, // 58: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.volumes:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
-	74, // 59: coder.agent.v2.CreateSubAgentRequest.App.healthcheck:type_name -> coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
-	12, // 60: coder.agent.v2.CreateSubAgentRequest.App.open_in:type_name -> coder.agent.v2.CreateSubAgentRequest.App.OpenIn
-	13, // 61: coder.agent.v2.CreateSubAgentRequest.App.share:type_name -> coder.agent.v2.CreateSubAgentRequest.App.SharingLevel
-	19, // 62: coder.agent.v2.Agent.GetManifest:input_type -> coder.agent.v2.GetManifestRequest
-	21, // 63: coder.agent.v2.Agent.GetServiceBanner:input_type -> coder.agent.v2.GetServiceBannerRequest
-	23, // 64: coder.agent.v2.Agent.UpdateStats:input_type -> coder.agent.v2.UpdateStatsRequest
-	26, // 65: coder.agent.v2.Agent.UpdateLifecycle:input_type -> coder.agent.v2.UpdateLifecycleRequest
-	27, // 66: coder.agent.v2.Agent.BatchUpdateAppHealths:input_type -> coder.agent.v2.BatchUpdateAppHealthRequest
-	30, // 67: coder.agent.v2.Agent.UpdateStartup:input_type -> coder.agent.v2.UpdateStartupRequest
-	32, // 68: coder.agent.v2.Agent.BatchUpdateMetadata:input_type -> coder.agent.v2.BatchUpdateMetadataRequest
-	35, // 69: coder.agent.v2.Agent.BatchCreateLogs:input_type -> coder.agent.v2.BatchCreateLogsRequest
-	37, // 70: coder.agent.v2.Agent.GetAnnouncementBanners:input_type -> coder.agent.v2.GetAnnouncementBannersRequest
-	40, // 71: coder.agent.v2.Agent.ScriptCompleted:input_type -> coder.agent.v2.WorkspaceAgentScriptCompletedRequest
-	43, // 72: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:input_type -> coder.agent.v2.GetResourcesMonitoringConfigurationRequest
-	45, // 73: coder.agent.v2.Agent.PushResourcesMonitoringUsage:input_type -> coder.agent.v2.PushResourcesMonitoringUsageRequest
-	48, // 74: coder.agent.v2.Agent.ReportConnection:input_type -> coder.agent.v2.ReportConnectionRequest
-	50, // 75: coder.agent.v2.Agent.CreateSubAgent:input_type -> coder.agent.v2.CreateSubAgentRequest
-	52, // 76: coder.agent.v2.Agent.DeleteSubAgent:input_type -> coder.agent.v2.DeleteSubAgentRequest
-	54, // 77: coder.agent.v2.Agent.ListSubAgents:input_type -> coder.agent.v2.ListSubAgentsRequest
-	57, // 78: coder.agent.v2.Agent.ReportBoundaryLogs:input_type -> coder.agent.v2.ReportBoundaryLogsRequest
-	17, // 79: coder.agent.v2.Agent.GetManifest:output_type -> coder.agent.v2.Manifest
-	20, // 80: coder.agent.v2.Agent.GetServiceBanner:output_type -> coder.agent.v2.ServiceBanner
-	24, // 81: coder.agent.v2.Agent.UpdateStats:output_type -> coder.agent.v2.UpdateStatsResponse
-	25, // 82: coder.agent.v2.Agent.UpdateLifecycle:output_type -> coder.agent.v2.Lifecycle
-	28, // 83: coder.agent.v2.Agent.BatchUpdateAppHealths:output_type -> coder.agent.v2.BatchUpdateAppHealthResponse
-	29, // 84: coder.agent.v2.Agent.UpdateStartup:output_type -> coder.agent.v2.Startup
-	33, // 85: coder.agent.v2.Agent.BatchUpdateMetadata:output_type -> coder.agent.v2.BatchUpdateMetadataResponse
-	36, // 86: coder.agent.v2.Agent.BatchCreateLogs:output_type -> coder.agent.v2.BatchCreateLogsResponse
-	38, // 87: coder.agent.v2.Agent.GetAnnouncementBanners:output_type -> coder.agent.v2.GetAnnouncementBannersResponse
-	41, // 88: coder.agent.v2.Agent.ScriptCompleted:output_type -> coder.agent.v2.WorkspaceAgentScriptCompletedResponse
-	44, // 89: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:output_type -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse
-	46, // 90: coder.agent.v2.Agent.PushResourcesMonitoringUsage:output_type -> coder.agent.v2.PushResourcesMonitoringUsageResponse
-	80, // 91: coder.agent.v2.Agent.ReportConnection:output_type -> google.protobuf.Empty
-	51, // 92: coder.agent.v2.Agent.CreateSubAgent:output_type -> coder.agent.v2.CreateSubAgentResponse
-	53, // 93: coder.agent.v2.Agent.DeleteSubAgent:output_type -> coder.agent.v2.DeleteSubAgentResponse
-	55, // 94: coder.agent.v2.Agent.ListSubAgents:output_type -> coder.agent.v2.ListSubAgentsResponse
-	58, // 95: coder.agent.v2.Agent.ReportBoundaryLogs:output_type -> coder.agent.v2.ReportBoundaryLogsResponse
-	79, // [79:96] is the sub-list for method output_type
-	62, // [62:79] is the sub-list for method input_type
-	62, // [62:62] is the sub-list for extension type_name
-	62, // [62:62] is the sub-list for extension extendee
-	0,  // [0:62] is the sub-list for field type_name
+	50, // 43: coder.agent.v2.CreateSubAgentResponse.agent:type_name -> coder.agent.v2.SubAgent
+	78, // 44: coder.agent.v2.CreateSubAgentResponse.app_creation_errors:type_name -> coder.agent.v2.CreateSubAgentResponse.AppCreationError
+	50, // 45: coder.agent.v2.ListSubAgentsResponse.agents:type_name -> coder.agent.v2.SubAgent
+	82, // 46: coder.agent.v2.BoundaryLog.time:type_name -> google.protobuf.Timestamp
+	79, // 47: coder.agent.v2.BoundaryLog.http_request:type_name -> coder.agent.v2.BoundaryLog.HttpRequest
+	57, // 48: coder.agent.v2.ReportBoundaryLogsRequest.logs:type_name -> coder.agent.v2.BoundaryLog
+	14, // 49: coder.agent.v2.UpdateAppStatusRequest.state:type_name -> coder.agent.v2.UpdateAppStatusRequest.AppStatusState
+	80, // 50: coder.agent.v2.WorkspaceApp.Healthcheck.interval:type_name -> google.protobuf.Duration
+	82, // 51: coder.agent.v2.WorkspaceAgentMetadata.Result.collected_at:type_name -> google.protobuf.Timestamp
+	80, // 52: coder.agent.v2.WorkspaceAgentMetadata.Description.interval:type_name -> google.protobuf.Duration
+	80, // 53: coder.agent.v2.WorkspaceAgentMetadata.Description.timeout:type_name -> google.protobuf.Duration
+	3,  // 54: coder.agent.v2.Stats.Metric.type:type_name -> coder.agent.v2.Stats.Metric.Type
+	68, // 55: coder.agent.v2.Stats.Metric.labels:type_name -> coder.agent.v2.Stats.Metric.Label
+	0,  // 56: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate.health:type_name -> coder.agent.v2.AppHealth
+	82, // 57: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.collected_at:type_name -> google.protobuf.Timestamp
+	74, // 58: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.memory:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.MemoryUsage
+	75, // 59: coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.volumes:type_name -> coder.agent.v2.PushResourcesMonitoringUsageRequest.Datapoint.VolumeUsage
+	77, // 60: coder.agent.v2.CreateSubAgentRequest.App.healthcheck:type_name -> coder.agent.v2.CreateSubAgentRequest.App.Healthcheck
+	12, // 61: coder.agent.v2.CreateSubAgentRequest.App.open_in:type_name -> coder.agent.v2.CreateSubAgentRequest.App.OpenIn
+	13, // 62: coder.agent.v2.CreateSubAgentRequest.App.share:type_name -> coder.agent.v2.CreateSubAgentRequest.App.SharingLevel
+	20, // 63: coder.agent.v2.Agent.GetManifest:input_type -> coder.agent.v2.GetManifestRequest
+	22, // 64: coder.agent.v2.Agent.GetServiceBanner:input_type -> coder.agent.v2.GetServiceBannerRequest
+	24, // 65: coder.agent.v2.Agent.UpdateStats:input_type -> coder.agent.v2.UpdateStatsRequest
+	27, // 66: coder.agent.v2.Agent.UpdateLifecycle:input_type -> coder.agent.v2.UpdateLifecycleRequest
+	28, // 67: coder.agent.v2.Agent.BatchUpdateAppHealths:input_type -> coder.agent.v2.BatchUpdateAppHealthRequest
+	31, // 68: coder.agent.v2.Agent.UpdateStartup:input_type -> coder.agent.v2.UpdateStartupRequest
+	33, // 69: coder.agent.v2.Agent.BatchUpdateMetadata:input_type -> coder.agent.v2.BatchUpdateMetadataRequest
+	36, // 70: coder.agent.v2.Agent.BatchCreateLogs:input_type -> coder.agent.v2.BatchCreateLogsRequest
+	38, // 71: coder.agent.v2.Agent.GetAnnouncementBanners:input_type -> coder.agent.v2.GetAnnouncementBannersRequest
+	41, // 72: coder.agent.v2.Agent.ScriptCompleted:input_type -> coder.agent.v2.WorkspaceAgentScriptCompletedRequest
+	44, // 73: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:input_type -> coder.agent.v2.GetResourcesMonitoringConfigurationRequest
+	46, // 74: coder.agent.v2.Agent.PushResourcesMonitoringUsage:input_type -> coder.agent.v2.PushResourcesMonitoringUsageRequest
+	49, // 75: coder.agent.v2.Agent.ReportConnection:input_type -> coder.agent.v2.ReportConnectionRequest
+	51, // 76: coder.agent.v2.Agent.CreateSubAgent:input_type -> coder.agent.v2.CreateSubAgentRequest
+	53, // 77: coder.agent.v2.Agent.DeleteSubAgent:input_type -> coder.agent.v2.DeleteSubAgentRequest
+	55, // 78: coder.agent.v2.Agent.ListSubAgents:input_type -> coder.agent.v2.ListSubAgentsRequest
+	58, // 79: coder.agent.v2.Agent.ReportBoundaryLogs:input_type -> coder.agent.v2.ReportBoundaryLogsRequest
+	60, // 80: coder.agent.v2.Agent.UpdateAppStatus:input_type -> coder.agent.v2.UpdateAppStatusRequest
+	18, // 81: coder.agent.v2.Agent.GetManifest:output_type -> coder.agent.v2.Manifest
+	21, // 82: coder.agent.v2.Agent.GetServiceBanner:output_type -> coder.agent.v2.ServiceBanner
+	25, // 83: coder.agent.v2.Agent.UpdateStats:output_type -> coder.agent.v2.UpdateStatsResponse
+	26, // 84: coder.agent.v2.Agent.UpdateLifecycle:output_type -> coder.agent.v2.Lifecycle
+	29, // 85: coder.agent.v2.Agent.BatchUpdateAppHealths:output_type -> coder.agent.v2.BatchUpdateAppHealthResponse
+	30, // 86: coder.agent.v2.Agent.UpdateStartup:output_type -> coder.agent.v2.Startup
+	34, // 87: coder.agent.v2.Agent.BatchUpdateMetadata:output_type -> coder.agent.v2.BatchUpdateMetadataResponse
+	37, // 88: coder.agent.v2.Agent.BatchCreateLogs:output_type -> coder.agent.v2.BatchCreateLogsResponse
+	39, // 89: coder.agent.v2.Agent.GetAnnouncementBanners:output_type -> coder.agent.v2.GetAnnouncementBannersResponse
+	42, // 90: coder.agent.v2.Agent.ScriptCompleted:output_type -> coder.agent.v2.WorkspaceAgentScriptCompletedResponse
+	45, // 91: coder.agent.v2.Agent.GetResourcesMonitoringConfiguration:output_type -> coder.agent.v2.GetResourcesMonitoringConfigurationResponse
+	47, // 92: coder.agent.v2.Agent.PushResourcesMonitoringUsage:output_type -> coder.agent.v2.PushResourcesMonitoringUsageResponse
+	83, // 93: coder.agent.v2.Agent.ReportConnection:output_type -> google.protobuf.Empty
+	52, // 94: coder.agent.v2.Agent.CreateSubAgent:output_type -> coder.agent.v2.CreateSubAgentResponse
+	54, // 95: coder.agent.v2.Agent.DeleteSubAgent:output_type -> coder.agent.v2.DeleteSubAgentResponse
+	56, // 96: coder.agent.v2.Agent.ListSubAgents:output_type -> coder.agent.v2.ListSubAgentsResponse
+	59, // 97: coder.agent.v2.Agent.ReportBoundaryLogs:output_type -> coder.agent.v2.ReportBoundaryLogsResponse
+	61, // 98: coder.agent.v2.Agent.UpdateAppStatus:output_type -> coder.agent.v2.UpdateAppStatusResponse
+	81, // [81:99] is the sub-list for method output_type
+	63, // [63:81] is the sub-list for method input_type
+	63, // [63:63] is the sub-list for extension type_name
+	63, // [63:63] is the sub-list for extension extendee
+	0,  // [0:63] is the sub-list for field type_name
 }
 
 func init() { file_agent_proto_agent_proto_init() }
@@ -6151,7 +6341,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[45].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WorkspaceApp_Healthcheck); i {
+			switch v := v.(*UpdateAppStatusRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6163,7 +6353,7 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[46].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*WorkspaceAgentMetadata_Result); i {
+			switch v := v.(*UpdateAppStatusResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6175,6 +6365,30 @@ func file_agent_proto_agent_proto_init() {
 			}
 		}
 		file_agent_proto_agent_proto_msgTypes[47].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*WorkspaceApp_Healthcheck); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agent_proto_agent_proto_msgTypes[48].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*WorkspaceAgentMetadata_Result); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agent_proto_agent_proto_msgTypes[49].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*WorkspaceAgentMetadata_Description); i {
 			case 0:
 				return &v.state
@@ -6186,7 +6400,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[50].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[52].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Stats_Metric); i {
 			case 0:
 				return &v.state
@@ -6198,7 +6412,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[51].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[53].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Stats_Metric_Label); i {
 			case 0:
 				return &v.state
@@ -6210,7 +6424,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[52].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[54].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*BatchUpdateAppHealthRequest_HealthUpdate); i {
 			case 0:
 				return &v.state
@@ -6222,7 +6436,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[53].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[55].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetResourcesMonitoringConfigurationResponse_Config); i {
 			case 0:
 				return &v.state
@@ -6234,7 +6448,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[54].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[56].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetResourcesMonitoringConfigurationResponse_Memory); i {
 			case 0:
 				return &v.state
@@ -6246,7 +6460,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[55].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[57].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetResourcesMonitoringConfigurationResponse_Volume); i {
 			case 0:
 				return &v.state
@@ -6258,7 +6472,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[56].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[58].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PushResourcesMonitoringUsageRequest_Datapoint); i {
 			case 0:
 				return &v.state
@@ -6270,7 +6484,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[57].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[59].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage); i {
 			case 0:
 				return &v.state
@@ -6282,7 +6496,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[58].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[60].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage); i {
 			case 0:
 				return &v.state
@@ -6294,7 +6508,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[59].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[61].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CreateSubAgentRequest_App); i {
 			case 0:
 				return &v.state
@@ -6306,7 +6520,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[60].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[62].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CreateSubAgentRequest_App_Healthcheck); i {
 			case 0:
 				return &v.state
@@ -6318,7 +6532,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[61].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[63].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CreateSubAgentResponse_AppCreationError); i {
 			case 0:
 				return &v.state
@@ -6330,7 +6544,7 @@ func file_agent_proto_agent_proto_init() {
 				return nil
 			}
 		}
-		file_agent_proto_agent_proto_msgTypes[62].Exporter = func(v interface{}, i int) interface{} {
+		file_agent_proto_agent_proto_msgTypes[64].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*BoundaryLog_HttpRequest); i {
 			case 0:
 				return &v.state
@@ -6351,16 +6565,16 @@ func file_agent_proto_agent_proto_init() {
 	file_agent_proto_agent_proto_msgTypes[42].OneofWrappers = []interface{}{
 		(*BoundaryLog_HttpRequest_)(nil),
 	}
-	file_agent_proto_agent_proto_msgTypes[56].OneofWrappers = []interface{}{}
-	file_agent_proto_agent_proto_msgTypes[59].OneofWrappers = []interface{}{}
+	file_agent_proto_agent_proto_msgTypes[58].OneofWrappers = []interface{}{}
 	file_agent_proto_agent_proto_msgTypes[61].OneofWrappers = []interface{}{}
+	file_agent_proto_agent_proto_msgTypes[63].OneofWrappers = []interface{}{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_agent_proto_agent_proto_rawDesc,
-			NumEnums:      14,
-			NumMessages:   63,
+			NumEnums:      15,
+			NumMessages:   65,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

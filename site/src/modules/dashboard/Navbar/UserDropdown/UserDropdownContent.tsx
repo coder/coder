@@ -50,7 +50,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			>
 				<Link to="/settings/account">
 					<div className="flex flex-col">
-						<span className="text-white">{user.username}</span>
+						<span className="text-content-primary">{user.username}</span>
 						<span className="text-xs font-semibold">{user.email}</span>
 					</div>
 				</Link>

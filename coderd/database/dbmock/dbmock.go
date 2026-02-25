@@ -1305,18 +1305,18 @@ func (mr *MockStoreMockRecorder) GetAPIKeyByName(ctx, arg any) *gomock.Call {
 }
 
 // GetAPIKeysByLoginType mocks base method.
-func (m *MockStore) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
+func (m *MockStore) GetAPIKeysByLoginType(ctx context.Context, arg database.GetAPIKeysByLoginTypeParams) ([]database.APIKey, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAPIKeysByLoginType", ctx, loginType)
+	ret := m.ctrl.Call(m, "GetAPIKeysByLoginType", ctx, arg)
 	ret0, _ := ret[0].([]database.APIKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAPIKeysByLoginType indicates an expected call of GetAPIKeysByLoginType.
-func (mr *MockStoreMockRecorder) GetAPIKeysByLoginType(ctx, loginType any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetAPIKeysByLoginType(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysByLoginType", reflect.TypeOf((*MockStore)(nil).GetAPIKeysByLoginType), ctx, loginType)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysByLoginType", reflect.TypeOf((*MockStore)(nil).GetAPIKeysByLoginType), ctx, arg)
 }
 
 // GetAPIKeysByUserID mocks base method.
@@ -3314,6 +3314,21 @@ func (mr *MockStoreMockRecorder) GetTelemetryItems(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetryItems", reflect.TypeOf((*MockStore)(nil).GetTelemetryItems), ctx)
 }
 
+// GetTelemetryTaskEvents mocks base method.
+func (m *MockStore) GetTelemetryTaskEvents(ctx context.Context, arg database.GetTelemetryTaskEventsParams) ([]database.GetTelemetryTaskEventsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTelemetryTaskEvents", ctx, arg)
+	ret0, _ := ret[0].([]database.GetTelemetryTaskEventsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTelemetryTaskEvents indicates an expected call of GetTelemetryTaskEvents.
+func (mr *MockStoreMockRecorder) GetTelemetryTaskEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetryTaskEvents", reflect.TypeOf((*MockStore)(nil).GetTelemetryTaskEvents), ctx, arg)
+}
+
 // GetTemplateAppInsights mocks base method.
 func (m *MockStore) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	m.ctrl.T.Helper()
@@ -4542,6 +4557,21 @@ func (m *MockStore) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, w
 func (mr *MockStoreMockRecorder) GetWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildParametersByBuildIDs", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildParametersByBuildIDs), ctx, workspaceBuildIds)
+}
+
+// GetWorkspaceBuildProvisionerStateByID mocks base method.
+func (m *MockStore) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, workspaceBuildID uuid.UUID) (database.GetWorkspaceBuildProvisionerStateByIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceBuildProvisionerStateByID", ctx, workspaceBuildID)
+	ret0, _ := ret[0].(database.GetWorkspaceBuildProvisionerStateByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceBuildProvisionerStateByID indicates an expected call of GetWorkspaceBuildProvisionerStateByID.
+func (mr *MockStoreMockRecorder) GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuildID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildProvisionerStateByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildProvisionerStateByID), ctx, workspaceBuildID)
 }
 
 // GetWorkspaceBuildStatsByTemplates mocks base method.
@@ -5982,6 +6012,21 @@ func (mr *MockStoreMockRecorder) ListAIBridgeInterceptionsTelemetrySummaries(ctx
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeInterceptionsTelemetrySummaries", reflect.TypeOf((*MockStore)(nil).ListAIBridgeInterceptionsTelemetrySummaries), ctx, arg)
 }
 
+// ListAIBridgeModels mocks base method.
+func (m *MockStore) ListAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAIBridgeModels", ctx, arg)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAIBridgeModels indicates an expected call of ListAIBridgeModels.
+func (mr *MockStoreMockRecorder) ListAIBridgeModels(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeModels", reflect.TypeOf((*MockStore)(nil).ListAIBridgeModels), ctx, arg)
+}
+
 // ListAIBridgeTokenUsagesByInterceptionIDs mocks base method.
 func (m *MockStore) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	m.ctrl.T.Helper()
@@ -6040,6 +6085,21 @@ func (m *MockStore) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg
 func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeInterceptions(ctx, arg, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizedAIBridgeInterceptions", reflect.TypeOf((*MockStore)(nil).ListAuthorizedAIBridgeInterceptions), ctx, arg, prepared)
+}
+
+// ListAuthorizedAIBridgeModels mocks base method.
+func (m *MockStore) ListAuthorizedAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAuthorizedAIBridgeModels", ctx, arg, prepared)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAuthorizedAIBridgeModels indicates an expected call of ListAuthorizedAIBridgeModels.
+func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeModels(ctx, arg, prepared any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizedAIBridgeModels", reflect.TypeOf((*MockStore)(nil).ListAuthorizedAIBridgeModels), ctx, arg, prepared)
 }
 
 // ListProvisionerKeysByOrganization mocks base method.

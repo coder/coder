@@ -56,6 +56,7 @@ export interface AIBridgeInterception {
 	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;
+	readonly client: string | null;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly started_at: string;
@@ -962,6 +963,9 @@ export type BuildReason =
 	| "initiator"
 	| "jetbrains_connection"
 	| "ssh_connection"
+	| "task_auto_pause"
+	| "task_manual_pause"
+	| "task_resume"
 	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
@@ -973,6 +977,9 @@ export const BuildReasons: BuildReason[] = [
 	"initiator",
 	"jetbrains_connection",
 	"ssh_connection",
+	"task_auto_pause",
+	"task_manual_pause",
+	"task_resume",
 	"vscode_connection",
 ];
 
@@ -1932,7 +1939,6 @@ export type Experiment =
 	| "notifications"
 	| "oauth2"
 	| "web-push"
-	| "workspace-sharing"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
@@ -1942,7 +1948,6 @@ export const Experiments: Experiment[] = [
 	"notifications",
 	"oauth2",
 	"web-push",
-	"workspace-sharing",
 	"workspace-usage",
 ];
 
@@ -2105,12 +2110,6 @@ export interface Feature {
 	readonly enabled: boolean;
 	readonly limit?: number;
 	readonly actual?: number;
-	/**
-	 * SoftLimit is the soft limit of the feature, and is only used for showing
-	 * included limits in the dashboard. No license validation or warnings are
-	 * generated from this value.
-	 */
-	readonly soft_limit?: number;
 	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
 	 * this period (and most likely resets with the issuance of the next
@@ -2334,6 +2333,7 @@ export interface GroupSyncSettings {
 export interface HTTPCookieConfig {
 	readonly secure_auth_cookie?: boolean;
 	readonly same_site?: string;
+	readonly host_prefix?: boolean;
 }
 
 // From health/model.go
@@ -2579,6 +2579,10 @@ export interface License {
 
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
+
+// From codersdk/licenses.go
+export const LicenseManagedAgentLimitExceededWarningText =
+	"You have built more workspaces with managed agents than your license allows.";
 
 // From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
@@ -3355,6 +3359,12 @@ export interface OIDCConfig {
 	readonly icon_url: string;
 	readonly signups_disabled_text: string;
 	readonly skip_issuer_checks: boolean;
+	/**
+	 * RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
+	 * situations where the OIDC callback domain is different from the ACCESS_URL
+	 * domain.
+	 */
+	readonly redirect_url: string;
 }
 
 // From codersdk/parameters.go
@@ -4592,6 +4602,7 @@ export interface SerpentOption {
 	readonly yaml?: string;
 	/**
 	 * Default is parsed into Value if set.
+	 * Must be `""` if `DefaultFn` != nil
 	 */
 	readonly default?: string;
 	/**
@@ -5547,6 +5558,7 @@ export interface TokenConfig {
 // From codersdk/apikey.go
 export interface TokensFilter {
 	readonly include_all: boolean;
+	readonly include_expired: boolean;
 }
 
 // From codersdk/deployment.go

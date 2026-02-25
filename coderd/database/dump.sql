@@ -1023,7 +1023,8 @@ CREATE TABLE aibridge_interceptions (
     started_at timestamp with time zone NOT NULL,
     metadata jsonb,
     ended_at timestamp with time zone,
-    api_key_id text
+    api_key_id text,
+    client character varying(64) DEFAULT 'Unknown'::character varying
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1470,7 +1471,9 @@ CREATE TABLE oauth2_provider_app_codes (
     app_id uuid NOT NULL,
     resource_uri text,
     code_challenge text,
-    code_challenge_method text
+    code_challenge_method text,
+    state_hash text,
+    redirect_uri text
 );
 
 COMMENT ON TABLE oauth2_provider_app_codes IS 'Codes are meant to be exchanged for access tokens.';
@@ -1480,6 +1483,10 @@ COMMENT ON COLUMN oauth2_provider_app_codes.resource_uri IS 'RFC 8707 resource p
 COMMENT ON COLUMN oauth2_provider_app_codes.code_challenge IS 'PKCE code challenge for public clients';
 
 COMMENT ON COLUMN oauth2_provider_app_codes.code_challenge_method IS 'PKCE challenge method (S256)';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.state_hash IS 'SHA-256 hash of the OAuth2 state parameter, stored to prevent state reflection attacks.';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.redirect_uri IS 'The redirect_uri provided during authorization, to be verified during token exchange (RFC 6749 §4.1.3).';
 
 CREATE TABLE oauth2_provider_app_secrets (
     id uuid NOT NULL,
@@ -2701,7 +2708,6 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.build_number,
     workspace_builds.transition,
     workspace_builds.initiator_id,
-    workspace_builds.provisioner_state,
     workspace_builds.job_id,
     workspace_builds.deadline,
     workspace_builds.reason,
@@ -3273,6 +3279,8 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 

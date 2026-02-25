@@ -169,7 +169,7 @@ type sqlcQuerier interface {
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
-	GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error)
+	GetAPIKeysByLoginType(ctx context.Context, arg GetAPIKeysByLoginTypeParams) ([]APIKey, error)
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
@@ -361,6 +361,23 @@ type sqlcQuerier interface {
 	GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (TaskSnapshot, error)
 	GetTelemetryItem(ctx context.Context, key string) (TelemetryItem, error)
 	GetTelemetryItems(ctx context.Context) ([]TelemetryItem, error)
+	// Returns all data needed to build task lifecycle events for telemetry
+	// in a single round-trip. For each task whose workspace is in the
+	// given set, fetches:
+	//   - the latest workspace app binding (task_workspace_apps)
+	//   - the most recent stop and start builds (workspace_builds)
+	//   - the last "working" app status (workspace_app_statuses)
+	//   - the first app status after resume, for active workspaces
+	//
+	// Assumptions:
+	// - 1:1 relationship between tasks and workspaces. All builds on the
+	//   workspace are considered task-related.
+	// - Idle duration approximation: If the agent reports "working", does
+	//   work, then reports "done", we miss that working time.
+	// - lws and active_dur join across all historical app IDs for the task,
+	//   because each resume cycle provisions a new app ID. This ensures
+	//   pre-pause statuses contribute to idle duration and active duration.
+	GetTelemetryTaskEvents(ctx context.Context, arg GetTelemetryTaskEventsParams) ([]GetTelemetryTaskEventsRow, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
 	// timeframe. The result can be filtered on template_ids, meaning only user data
 	// from workspaces based on those templates will be included.
@@ -506,6 +523,11 @@ type sqlcQuerier interface {
 	GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id uuid.UUID) (GetWorkspaceBuildMetricsByResourceIDRow, error)
 	GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceBuildParameter, error)
 	GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]WorkspaceBuildParameter, error)
+	// Fetches the provisioner state of a workspace build, joined through to the
+	// template so that dbauthz can enforce policy.ActionUpdate on the template.
+	// Provisioner state contains sensitive Terraform state and should only be
+	// accessible to template administrators.
+	GetWorkspaceBuildProvisionerStateByID(ctx context.Context, workspaceBuildID uuid.UUID) (GetWorkspaceBuildProvisionerStateByIDRow, error)
 	GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]GetWorkspaceBuildStatsByTemplatesRow, error)
 	GetWorkspaceBuildsByWorkspaceID(ctx context.Context, arg GetWorkspaceBuildsByWorkspaceIDParams) ([]WorkspaceBuild, error)
 	GetWorkspaceBuildsCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceBuild, error)
@@ -631,6 +653,7 @@ type sqlcQuerier interface {
 	// Finds all unique AI Bridge interception telemetry summaries combinations
 	// (provider, model, client) in the given timeframe for telemetry reporting.
 	ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error)
+	ListAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams) ([]string, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)

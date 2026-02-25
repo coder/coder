@@ -12,7 +12,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	Table,
@@ -39,6 +38,7 @@ import {
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { relativeTime } from "utils/time";
 
 type TasksTableProps = {
@@ -192,13 +192,17 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 	const pauseMutation = useMutation({
 		...pauseTask(task, queryClient),
 		onError: (error: unknown) => {
-			displayError(getErrorMessage(error, "Failed to pause task."));
+			toast.error(getErrorMessage(error, "Failed to pause task."), {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 	const resumeMutation = useMutation({
 		...resumeTask(task, queryClient),
 		onError: (error: unknown) => {
-			displayError(getErrorMessage(error, "Failed to resume task."));
+			toast.error(getErrorMessage(error, "Failed to resume task."), {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 

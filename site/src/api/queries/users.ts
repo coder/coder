@@ -3,6 +3,7 @@ import type {
 	AuthorizationRequest,
 	GenerateAPIKeyResponse,
 	GetUsersResponse,
+	MinimalUser,
 	RequestOneTimePasscodeRequest,
 	UpdateUserAppearanceSettingsRequest,
 	UpdateUserPasswordRequest,
@@ -54,6 +55,18 @@ export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
 	return {
 		queryKey: usersKey(req),
 		queryFn: ({ signal }) => API.getUsers(req, signal),
+		gcTime: 5 * 1000 * 60,
+	};
+};
+
+export const workspaceAvailableUsers = (
+	organizationId: string,
+	req: UsersRequest,
+): UseQueryOptions<MinimalUser[]> => {
+	return {
+		queryKey: ["workspaceAvailableUsers", organizationId, req],
+		queryFn: ({ signal }) =>
+			API.getWorkspaceAvailableUsers(organizationId, req, signal),
 		gcTime: 5 * 1000 * 60,
 	};
 };

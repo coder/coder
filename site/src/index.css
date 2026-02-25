@@ -45,6 +45,7 @@
 		--radius: 0.5rem;
 		--highlight-purple: 271, 61%, 35%;
 		--highlight-green: 143 64% 24%;
+		--highlight-orange: 30 100% 54%;
 		--highlight-grey: 240 5% 65%;
 		--highlight-sky: 195, 61%, 22%;
 		--highlight-red: 0 74% 42%;
@@ -91,6 +92,7 @@
 		--overlay-default: 240 10% 4% / 80%;
 		--highlight-purple: 269, 100%, 74%;
 		--highlight-green: 141 79% 85%;
+		--highlight-orange: 31 100% 70%;
 		--highlight-grey: 240 4% 46%;
 		--highlight-sky: 188, 75%, 80%;
 		--highlight-red: 0 91% 71%;
@@ -104,6 +106,33 @@
 @layer base {
 	* {
 		@apply border-border;
+	}
+
+	html,
+	body,
+	#root,
+	#storybook-root {
+		@apply h-full;
+	}
+
+	button,
+	input {
+		@apply font-sans;
+	}
+
+	input:-webkit-autofill,
+	input:-webkit-autofill:hover,
+	input:-webkit-autofill:focus,
+	input:-webkit-autofill:active {
+		-webkit-box-shadow: 0 0 0 100px hsl(var(--surface-primary)) inset !important;
+	}
+
+	::placeholder {
+		@apply text-content-secondary;
+	}
+
+	fieldset {
+		@apply border-none p-0 m-0 w-full;
 	}
 
 	/*

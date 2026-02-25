@@ -21,6 +21,7 @@ import {
 	type WorkspaceAgentPortShareProtocol,
 	WorkspaceAppSharingLevels,
 } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import {
 	HelpTooltipLink,
@@ -41,7 +42,6 @@ import {
 import { useFormik } from "formik";
 import {
 	BuildingIcon,
-	ChevronDownIcon,
 	ExternalLinkIcon,
 	LockIcon,
 	LockOpenIcon,

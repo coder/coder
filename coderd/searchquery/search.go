@@ -385,6 +385,7 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
 	filter.Provider = parser.String(values, "", "provider")
 	filter.Model = parser.String(values, "", "model")
+	filter.Client = parser.String(values, "", "client")
 
 	// Time must be between started_after and started_before.
 	filter.StartedAfter = parser.Time3339Nano(values, time.Time{}, "started_after")
@@ -395,6 +396,35 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 			Detail: `Query param "started_before" has invalid value: "started_before" must be after "started_after" if set`,
 		})
 	}
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
+func AIBridgeModels(query string, page codersdk.Pagination) (database.ListAIBridgeModelsParams, []codersdk.ValidationError) {
+	// nolint:exhaustruct // Empty values just means "don't filter by that field".
+	filter := database.ListAIBridgeModelsParams{
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
+		Offset: int32(page.Offset),
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		Limit: int32(page.Limit),
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		// Defaults to the `model` if no `key:value` pair is provided.
+		values.Add("model", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.Model = parser.String(values, "", "model")
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

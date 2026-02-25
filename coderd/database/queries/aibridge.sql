@@ -1,8 +1,8 @@
 -- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, model, metadata, started_at
+	id, api_key_id, initiator_id, provider, model, metadata, started_at, client
 ) VALUES (
-	@id, @api_key_id, @initiator_id, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at
+	@id, @api_key_id, @initiator_id, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client
 )
 RETURNING *;
 
@@ -115,6 +115,11 @@ WHERE
 		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
 		ELSE true
 	END
+	-- Filter client
+	AND CASE
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
 	-- @authorize_filter
 ;
@@ -152,6 +157,11 @@ WHERE
 	-- Filter model
 	AND CASE
 		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
+		ELSE true
+	END
+	-- Filter client
+	AND CASE
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
 		ELSE true
 	END
 	-- Cursor pagination
@@ -219,8 +229,7 @@ SELECT
     DISTINCT ON (provider, model, client)
     provider,
     model,
-    -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
-    'unknown' AS client
+    COALESCE(client, 'Unknown') AS client
 FROM
     aibridge_interceptions
 WHERE
@@ -242,8 +251,7 @@ WITH interceptions_in_range AS (
     WHERE
         provider = @provider::text
         AND model = @model::text
-        -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
-        AND 'unknown' = @client::text
+        AND COALESCE(client, 'Unknown') = @client::text
         AND ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
         AND ended_at >= @ended_at_after::timestamptz
         AND ended_at < @ended_at_before::timestamptz
@@ -366,3 +374,28 @@ SELECT (
   (SELECT COUNT(*) FROM user_prompts) +
   (SELECT COUNT(*) FROM interceptions)
 )::bigint as total_deleted;
+
+-- name: ListAIBridgeModels :many
+SELECT
+	model
+FROM
+	aibridge_interceptions
+WHERE
+	-- Remove inflight interceptions (ones which lack an ended_at value).
+	aibridge_interceptions.ended_at IS NOT NULL
+	-- Filter model
+	AND CASE
+		WHEN @model::text != '' THEN aibridge_interceptions.model LIKE @model::text || '%'
+		ELSE true
+	END
+	-- We use an `@authorize_filter` as we are attempting to list models that are relevant
+	-- to the user and what they are allowed to see.
+	-- Authorize Filter clause will be injected below in ListAIBridgeModelsAuthorized
+	-- @authorize_filter
+GROUP BY
+	model
+ORDER BY
+	model ASC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
+OFFSET @offset_
+;

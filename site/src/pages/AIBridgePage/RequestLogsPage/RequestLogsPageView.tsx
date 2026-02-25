@@ -14,7 +14,7 @@ import {
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { ComponentProps, FC } from "react";
-import { RequestLogsFilter } from "./filter/RequestLogsFilter";
+import { RequestLogsFilter } from "./RequestLogsFilter/RequestLogsFilter";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
 interface RequestLogsPageViewProps {
@@ -50,6 +50,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 							<TableHead>Timestamp</TableHead>
 							<TableHead>Initiator</TableHead>
 							<TableHead>Tokens</TableHead>
+							<TableHead>Client</TableHead>
 							<TableHead>Model</TableHead>
 							<TableHead>Tool Calls</TableHead>
 						</TableRow>

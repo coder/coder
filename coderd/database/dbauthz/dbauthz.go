@@ -668,6 +668,31 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectWorkspaceBuilder = rbac.Subject{
+		Type:         rbac.SubjectTypeWorkspaceBuilder,
+		FriendlyName: "Workspace Builder",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "workspace-builder"},
+				DisplayName: "Workspace Builder",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// Reading provisioner daemons to check eligibility.
+					rbac.ResourceProvisionerDaemon.Type: {policy.ActionRead},
+					// Updating provisioner jobs (e.g. marking prebuild
+					// jobs complete).
+					rbac.ResourceProvisionerJobs.Type: {policy.ActionUpdate},
+					// Reading provisioner state requires template update
+					// permission.
+					rbac.ResourceTemplate.Type: {policy.ActionUpdate},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -772,6 +797,14 @@ func AsDBPurge(ctx context.Context) context.Context {
 // required for the boundary usage tracker to record telemetry statistics.
 func AsBoundaryUsageTracker(ctx context.Context) context.Context {
 	return As(ctx, subjectBoundaryUsageTracker)
+}
+
+// AsWorkspaceBuilder returns a context with an actor that has permissions
+// required for the workspace builder to prepare workspace builds. This
+// includes reading provisioner daemons, updating provisioner jobs, and
+// reading provisioner state (which requires template update permission).
+func AsWorkspaceBuilder(ctx context.Context) context.Context {
+	return As(ctx, subjectWorkspaceBuilder)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -2161,12 +2194,12 @@ func (q *querier) GetAPIKeyByName(ctx context.Context, arg database.GetAPIKeyByN
 	return fetch(q.log, q.auth, q.db.GetAPIKeyByName)(ctx, arg)
 }
 
-func (q *querier) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
+func (q *querier) GetAPIKeysByLoginType(ctx context.Context, loginType database.GetAPIKeysByLoginTypeParams) ([]database.APIKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysByLoginType)(ctx, loginType)
 }
 
 func (q *querier) GetAPIKeysByUserID(ctx context.Context, params database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysByUserID)(ctx, database.GetAPIKeysByUserIDParams{LoginType: params.LoginType, UserID: params.UserID})
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysByUserID)(ctx, params)
 }
 
 func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {
@@ -2257,7 +2290,7 @@ func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditL
 }
 
 func (q *querier) GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow, error) {
-	// This is a system function
+	// This is a system function.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetAuthenticatedWorkspaceAgentAndBuildByAuthTokenRow{}, err
 	}
@@ -3133,6 +3166,13 @@ func (q *querier) GetTelemetryItems(ctx context.Context) ([]database.TelemetryIt
 	return q.db.GetTelemetryItems(ctx)
 }
 
+func (q *querier) GetTelemetryTaskEvents(ctx context.Context, arg database.GetTelemetryTaskEventsParams) ([]database.GetTelemetryTaskEventsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTask.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetTelemetryTaskEvents(ctx, arg)
+}
+
 func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
 		return nil, err
@@ -3912,6 +3952,11 @@ func (q *querier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, wor
 	}
 
 	return q.db.GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs, prep)
+}
+
+func (q *querier) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, buildID uuid.UUID) (database.GetWorkspaceBuildProvisionerStateByIDRow, error) {
+	// Fetching the provisioner state requires Update permission on the template.
+	return fetchWithAction(q.log, q.auth, policy.ActionUpdate, q.db.GetWorkspaceBuildProvisionerStateByID)(ctx, buildID)
 }
 
 func (q *querier) GetWorkspaceBuildStatsByTemplates(ctx context.Context, since time.Time) ([]database.GetWorkspaceBuildStatsByTemplatesRow, error) {
@@ -4744,6 +4789,14 @@ func (q *querier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Contex
 		return nil, err
 	}
 	return q.db.ListAIBridgeInterceptionsTelemetrySummaries(ctx, arg)
+}
+
+func (q *querier) ListAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams) ([]string, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.ListAuthorizedAIBridgeModels(ctx, arg, prep)
 }
 
 func (q *querier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
@@ -6306,4 +6359,11 @@ func (q *querier) CountAuthorizedAIBridgeInterceptions(ctx context.Context, arg 
 	// This cannot be deleted for now because it's included in the
 	// database.Store interface, so dbauthz needs to implement it.
 	return q.CountAIBridgeInterceptions(ctx, arg)
+}
+
+func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams, _ rbac.PreparedAuthorized) ([]string, error) {
+	// TODO: Delete this function, all ListAIBridgeModels should be authorized. For now just call ListAIBridgeModels on the authz querier.
+	// This cannot be deleted for now because it's included in the
+	// database.Store interface, so dbauthz needs to implement it.
+	return q.ListAIBridgeModels(ctx, arg)
 }

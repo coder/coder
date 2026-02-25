@@ -1,3 +1,4 @@
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import {
 	Command,
@@ -12,7 +13,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import { CheckIcon, ChevronDownIcon } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import type React from "react";
 import { createContext, useContext, useState } from "react";
 import { cn } from "utils/cn";

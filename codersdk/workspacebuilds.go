@@ -59,6 +59,15 @@ const (
 	BuildReasonVSCodeConnection BuildReason = "vscode_connection"
 	// BuildReasonJetbrainsConnection "jetbrains_connection" is used when a build to start a workspace is triggered by a JetBrains connection.
 	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
+	// BuildReasonTaskAutoPause "task_auto_pause" is used when a build to stop
+	// a task workspace is triggered by the lifecycle executor.
+	BuildReasonTaskAutoPause BuildReason = "task_auto_pause"
+	// BuildReasonTaskManualPause "task_manual_pause" is used when a build to
+	// stop a task workspace is triggered by a user.
+	BuildReasonTaskManualPause BuildReason = "task_manual_pause"
+	// BuildReasonTaskResume "task_resume" is used when a build to
+	// start a task workspace is triggered by a user.
+	BuildReasonTaskResume BuildReason = "task_resume"
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.

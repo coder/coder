@@ -293,7 +293,7 @@ describe("WorkspaceSchedulePage", () => {
 			await user.click(submitButton);
 
 			const notification = await screen.findByText(
-				"Workspace schedule updated",
+				`Schedule for workspace "Test-Workspace" updated successfully.`,
 			);
 			expect(notification).toBeInTheDocument();
 
@@ -320,7 +320,7 @@ describe("WorkspaceSchedulePage", () => {
 			await user.click(submitButton);
 
 			const notification = await screen.findByText(
-				"Workspace schedule updated",
+				`Schedule for workspace "Test-Workspace" updated successfully.`,
 			);
 			expect(notification).toBeInTheDocument();
 

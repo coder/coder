@@ -1,4 +1,5 @@
 import { API } from "api/api";
+import { getErrorDetail } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import { templateByName } from "api/queries/templates";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
@@ -6,7 +7,6 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -20,6 +20,7 @@ import { useWorkspaceSettings } from "pages/WorkspaceSettingsPage/WorkspaceSetti
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import {
@@ -62,9 +63,17 @@ const WorkspaceSchedulePage: FC = () => {
 					params.workspace,
 				),
 			});
-			displaySuccess("Workspace schedule updated");
+			toast.success(
+				`Schedule for workspace "${workspaceName}" updated successfully.`,
+			);
 		},
-		onError: () => displayError("Failed to update workspace schedule"),
+		onError: (error) =>
+			toast.error(
+				`Failed to update schedule for workspace "${workspaceName}".`,
+				{
+					description: getErrorDetail(error),
+				},
+			),
 	});
 	const error = checkPermissionsError || getTemplateError;
 	const isLoading = !template || !permissions;
