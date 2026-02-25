@@ -1304,6 +1304,7 @@ func TestRunChatLoop_ReadWriteToolErrorsContinue(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 			client, db := coderdtest.NewWithDatabase(t, nil)
 			user := coderdtest.CreateFirstUser(t, client)
@@ -2944,6 +2945,7 @@ func TestRunChatLoop_ReportOnlyPassWithoutSubagentReportFallsBack(t *testing.T) 
 		}
 	}
 }
+
 func TestProcessorListModels_UsesFallbackAPIKeysWhenProviderKeyBlank(t *testing.T) {
 	t.Parallel()
 

@@ -1832,6 +1832,9 @@ func TestServer_ExternalAuthGitHubDefaultProvider(t *testing.T) {
 				keyCopy := key
 				valueCopy := value
 				t.Cleanup(func() {
+					// This is for setting/unsetting a number of prefixed env vars.
+					// t.Setenv doesn't cover this use case.
+					// nolint:usetesting
 					_ = os.Setenv(keyCopy, valueCopy)
 				})
 			}
