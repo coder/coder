@@ -17,14 +17,7 @@ export const SettingsHeader: FC<SettingsHeaderProps> = ({
 }) => {
 	return (
 		<hgroup className="flex flex-col justify-between items-start gap-2 pb-6 sm:flex-row">
-			{/*
-			 * The text-sm class is only meant to adjust the font size of
-			 * SettingsDescription, but we need to apply it here. That way,
-			 * text-sm combines with the max-w-prose class and makes sure
-			 * we have a predictable max width for the header + description by
-			 * default.
-			 */}
-			<div className={cn("text-sm max-w-prose flex flex-col gap-2", className)}>
+			<div className={cn("text-sm flex flex-col gap-2 flex-1", className)}>
 				{children}
 			</div>
 			{actions}

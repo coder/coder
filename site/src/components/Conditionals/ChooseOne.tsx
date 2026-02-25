@@ -17,6 +17,7 @@ interface CondProps {
  * should not have a condition.
  * @param condition boolean expression indicating whether the child should be rendered, or undefined
  * @returns child. Note that Cond alone does not enforce the condition; it should be used inside ChooseOne.
+ * @deprecated Use standard conditional rendering (ternary operators or && expressions) instead.
  */
 export const Cond: FC<CondProps> = ({ children }) => {
 	return <>{children}</>;
@@ -28,6 +29,7 @@ export const Cond: FC<CondProps> = ({ children }) => {
  * will be rendered.
  * @returns one of its children, or null if there are no children
  * @throws an error if its last child has a condition prop, or any non-final children do not have a condition prop
+ * @deprecated Use standard conditional rendering (ternary operators or && expressions) instead.
  */
 export const ChooseOne: FC<PropsWithChildren> = ({ children }) => {
 	const childArray = Children.toArray(children) as JSX.Element[];

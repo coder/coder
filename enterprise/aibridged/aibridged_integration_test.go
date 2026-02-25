@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
+	"github.com/coder/coder/v2/enterprise/aibridgedserver"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -226,9 +227,11 @@ func TestIntegration(t *testing.T) {
     }
   ]
 }`))
+	userAgent := "codex_cli_rs/0.87.0"
 	require.NoError(t, err, "make request to test server")
 	req.Header.Add("Authorization", "Bearer "+apiKey.Key)
 	req.Header.Add("Accept", "application/json")
+	req.Header.Add("User-Agent", userAgent)
 
 	// When: aibridged handles the request.
 	rec := httptest.NewRecorder()
@@ -251,6 +254,11 @@ func TestIntegration(t *testing.T) {
 	require.True(t, intc0.EndedAt.Valid)
 	require.False(t, intc0.EndedAt.Time.Before(intc0.StartedAt), "EndedAt should not be before StartedAt")
 	require.Less(t, intc0.EndedAt.Time.Sub(intc0.StartedAt), 5*time.Second)
+	require.True(t, intc0.Client.Valid)
+	require.Equal(t, aibridge.ClientCodex, intc0.Client.String)
+
+	intc0Metadata := gjson.GetBytes(intc0.Metadata.RawMessage, aibridgedserver.MetadataUserAgentKey)
+	require.Equal(t, userAgent, intc0Metadata.String(), "interception metadata user agent should match request user agent")
 
 	prompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptions[0].ID)
 	require.NoError(t, err)

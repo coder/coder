@@ -5217,6 +5217,7 @@ export const MockInterception: TypesGen.AIBridgeInterception = {
 	],
 	tool_usages: [],
 	api_key_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
+	client: "Claude Code",
 };
 
 export const MockInterceptionAnthropic: TypesGen.AIBridgeInterception = {

@@ -719,6 +719,7 @@ type RenderOAuthAllowData struct {
 	AppName     string
 	CancelURI   string
 	RedirectURI string
+	CSRFToken   string
 	Username    string
 }
 
@@ -730,6 +731,11 @@ type RenderOAuthAllowData struct {
 // It cannot defer to the FE typescript easily.
 func RenderOAuthAllowPage(rw http.ResponseWriter, r *http.Request, data RenderOAuthAllowData) {
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Prevent the consent page from being framed to mitigate
+	// clickjacking attacks (coder/security#121).
+	rw.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+	rw.Header().Set("X-Frame-Options", "DENY")
 
 	err := oauthTemplate.Execute(rw, data)
 	if err != nil {

@@ -29,6 +29,10 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 
 	const currentUserLimit = license.claims.features.user_limit || userLimitLimit;
 
+	const isExpired = dayjs
+		.unix(license.claims.license_expires)
+		.isBefore(dayjs());
+
 	const licenseType = license.claims.trial
 		? "Trial"
 		: license.claims.feature_set?.toLowerCase() === "premium"
@@ -57,7 +61,11 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				title="Confirm License Removal"
 				confirmLoading={isRemoving}
 				confirmText="Remove"
-				description="Removing this license will disable all Premium features. You add a new license at any time."
+				description={
+					isExpired
+						? "This license has already expired and is not providing any features. Removing it will not affect your current entitlements."
+						: "Removing this license will disable all Premium features. You can add a new license at any time."
+				}
 			/>
 			<Stack
 				direction="row"
@@ -94,7 +102,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 						</Stack>
 					)}
 					<Stack direction="column" spacing={0} alignItems="center">
-						{dayjs(license.claims.license_expires * 1000).isBefore(dayjs()) ? (
+						{isExpired ? (
 							<Pill css={styles.expiredBadge} type="error">
 								Expired
 							</Pill>

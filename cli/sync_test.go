@@ -1,5 +1,3 @@
-//go:build !windows
-
 package cli_test
 
 import (
@@ -7,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -25,12 +24,15 @@ func setupSocketServer(t *testing.T) (path string, cleanup func()) {
 	t.Helper()
 
 	// Use a temporary socket path for each test
-	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "test.sock")
+	socketPath := testutil.AgentSocketPath(t)
 
-	// Create parent directory if needed
-	parentDir := filepath.Dir(socketPath)
-	err := os.MkdirAll(parentDir, 0o700)
-	require.NoError(t, err, "create socket directory")
+	// Create parent directory if needed. Not necessary on Windows because named pipes live in an abstract namespace
+	// not tied to any real files.
+	if runtime.GOOS != "windows" {
+		parentDir := filepath.Dir(socketPath)
+		err := os.MkdirAll(parentDir, 0o700)
+		require.NoError(t, err, "create socket directory")
+	}
 
 	server, err := agentsocket.NewServer(
 		slog.Make().Leveled(slog.LevelDebug),

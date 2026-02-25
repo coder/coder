@@ -314,6 +314,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
+      "host_prefix": true,
       "same_site": "string",
       "secure_auth_cookie": true
     },
@@ -431,6 +432,19 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "organization_assign_default": true,
       "organization_field": "string",
       "organization_mapping": {},
+      "redirect_url": {
+        "forceQuery": true,
+        "fragment": "string",
+        "host": "string",
+        "omitHost": true,
+        "opaque": "string",
+        "path": "string",
+        "rawFragment": "string",
+        "rawPath": "string",
+        "rawQuery": "string",
+        "scheme": "string",
+        "user": {}
+      },
       "scopes": [
         "string"
       ],

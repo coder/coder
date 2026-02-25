@@ -584,6 +584,12 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 		});
 
 		await step("Presets are present in new template", async () => {
+			// Wait for the template dropdown's close animation to finish
+			// so its menuitemradio items are removed from the DOM.
+			await waitFor(() => {
+				expect(body.queryAllByRole("menuitemradio")).toHaveLength(0);
+			});
+
 			const presetSelect = await canvas.findByLabelText(/preset/i);
 			await userEvent.click(presetSelect);
 
@@ -605,6 +611,12 @@ export const CheckPresetsWhenChangingTemplate: Story = {
 		});
 
 		await step("Presets are present in original template", async () => {
+			// Wait for the template dropdown's close animation to finish
+			// so its menuitemradio items are removed from the DOM.
+			await waitFor(() => {
+				expect(body.queryAllByRole("menuitemradio")).toHaveLength(0);
+			});
+
 			const presetSelect = await canvas.findByLabelText(/preset/i);
 			await userEvent.click(presetSelect);
 

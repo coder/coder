@@ -1,5 +1,6 @@
 import { chromatic } from "testHelpers/chromatic";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { LicenseManagedAgentLimitExceededWarningText } from "api/typesGenerated";
 import { LicenseBannerView } from "./LicenseBannerView";
 
 const meta: Meta<typeof LicenseBannerView> = {
@@ -34,5 +35,22 @@ export const OneError: Story = {
 			"You have multiple replicas but high availability is an Enterprise feature. You will be unable to connect to workspaces.",
 		],
 		warnings: [],
+	},
+};
+
+export const ManagedAgentLimitExceeded: Story = {
+	args: {
+		errors: [],
+		warnings: [LicenseManagedAgentLimitExceededWarningText],
+	},
+};
+
+export const ManagedAgentLimitExceededWithOtherWarnings: Story = {
+	args: {
+		errors: [],
+		warnings: [
+			LicenseManagedAgentLimitExceededWarningText,
+			"You have exceeded the number of seats in your license.",
+		],
 	},
 };

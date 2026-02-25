@@ -746,9 +746,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 ### Parameters
 
-| Name   | In   | Type   | Required | Description          |
-|--------|------|--------|----------|----------------------|
-| `user` | path | string | true     | User ID, name, or me |
+| Name              | In    | Type    | Required | Description                        |
+|-------------------|-------|---------|----------|------------------------------------|
+| `user`            | path  | string  | true     | User ID, name, or me               |
+| `include_expired` | query | boolean | false    | Include expired tokens in the list |
 
 ### Example responses
 
@@ -1012,6 +1013,40 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 | Status | Meaning                                                         | Description | Schema |
 |--------|-----------------------------------------------------------------|-------------|--------|
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Expire API key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/keys/{keyid}/expire \
+  -H 'Accept: */*' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /users/{user}/keys/{keyid}/expire`
+
+### Parameters
+
+| Name    | In   | Type           | Required | Description          |
+|---------|------|----------------|----------|----------------------|
+| `user`  | path | string         | true     | User ID, name, or me |
+| `keyid` | path | string(string) | true     | Key ID               |
+
+### Example responses
+
+> 404 Response
+
+### Responses
+
+| Status | Meaning                                                                    | Description           | Schema                                           |
+|--------|----------------------------------------------------------------------------|-----------------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5)            | No Content            |                                                  |
+| 404    | [Not Found](https://tools.ietf.org/html/rfc7231#section-6.5.4)             | Not Found             | [codersdk.Response](schemas.md#codersdkresponse) |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
