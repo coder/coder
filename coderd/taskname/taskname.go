@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	defaultModel = anthropic.ModelClaude3_5HaikuLatest
+	defaultModel = anthropic.ModelClaudeHaiku4_5
 	systemPrompt = `Generate a short task display name and name from this AI task prompt.
 Identify the main task (the core action and subject) and base both names on it.
 The task display name and name should be as similar as possible so a human can easily associate them.
