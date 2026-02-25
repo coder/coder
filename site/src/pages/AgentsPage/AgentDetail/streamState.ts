@@ -16,7 +16,7 @@ export const createEmptyStreamState = (): StreamState => ({
 });
 
 /** Streaming variant — uses direct concatenation (the default joinText). */
-export const appendStreamTextBlock = appendTextBlock;
+const appendStreamTextBlock = appendTextBlock;
 
 export const applyStreamThinkingTitle = (
 	blocks: RenderBlock[],

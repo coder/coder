@@ -108,4 +108,3 @@ export const BothEnabled: Story = {
 	},
 	parameters: { queries: chatQueries },
 };
-

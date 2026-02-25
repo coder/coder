@@ -61,14 +61,14 @@ const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
 	);
 };
 
-export interface DiffPanelState {
+interface DiffPanelState {
 	hasDiffStatus: boolean;
 	diffStatus: ChatDiffStatusResponse | undefined;
 	showDiffPanel: boolean;
 	onToggleFilesChanged: () => void;
 }
 
-export interface WorkspaceActions {
+interface WorkspaceActions {
 	canOpenEditors: boolean;
 	canOpenWorkspace: boolean;
 	onOpenInEditor: (editor: "cursor" | "vscode") => void;

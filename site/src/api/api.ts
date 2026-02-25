@@ -338,7 +338,7 @@ export type GetTemplatesQuery = Readonly<{
 	readonly q: string;
 }>;
 
-export interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
+interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
 	readonly patch?: string;
 	readonly diff_patch?: string;
 	readonly unified_diff?: string;

@@ -11,8 +11,6 @@ import type {
 	RenderBlock,
 } from "./types";
 
-export { asNonEmptyString } from "./blockUtils";
-
 const appendText = (current: string, next: string): string => {
 	const trimmed = next.trim();
 	if (!trimmed) {

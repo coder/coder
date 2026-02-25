@@ -512,9 +512,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 			const trimmedSystemPrompt = systemPromptRef.current.trim();
 			await onCreateChat({
 				message,
-				workspaceId: localWorkspaceMode
-					? undefined
-					: (selectedWorkspaceIdRef.current ?? undefined),
+				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
 				model: selectedModelRef.current || undefined,
 				systemPrompt:
 					canSetSystemPrompt && trimmedSystemPrompt

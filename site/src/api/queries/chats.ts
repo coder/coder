@@ -1,8 +1,4 @@
-import {
-	API,
-	type ChatDiffStatusResponse,
-	type ChatGitChangeResponse,
-} from "api/api";
+import { API, type ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { QueryClient } from "react-query";
 
@@ -73,15 +69,6 @@ export const promoteChatQueuedMessage = (
 	},
 });
 
-export const chatGitChangesKey = (chatId: string) =>
-	["chats", chatId, "git-changes"] as const;
-
-export const chatGitChanges = (chatId: string) => ({
-	queryKey: chatGitChangesKey(chatId),
-	queryFn: (): Promise<ChatGitChangeResponse[]> =>
-		API.getChatGitChanges(chatId),
-});
-
 export const chatDiffStatusKey = (chatId: string) =>
 	["chats", chatId, "diff-status"] as const;
 
@@ -136,7 +123,7 @@ export const createChatProviderConfig = (queryClient: QueryClient) => ({
 	},
 });
 
-export type UpdateChatProviderConfigMutationArgs = {
+type UpdateChatProviderConfigMutationArgs = {
 	providerConfigId: string;
 	req: TypesGen.UpdateChatProviderConfigRequest;
 };
@@ -152,14 +139,6 @@ export const updateChatProviderConfig = (queryClient: QueryClient) => ({
 	},
 });
 
-export const deleteChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: (providerConfigId: string) =>
-		API.deleteChatProviderConfig(providerConfigId),
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
-	},
-});
-
 export const createChatModelConfig = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatModelConfigRequest) =>
 		API.createChatModelConfig(req),
@@ -168,7 +147,7 @@ export const createChatModelConfig = (queryClient: QueryClient) => ({
 	},
 });
 
-export type UpdateChatModelConfigMutationArgs = {
+type UpdateChatModelConfigMutationArgs = {
 	modelConfigId: string;
 	req: TypesGen.UpdateChatModelConfigRequest;
 };
