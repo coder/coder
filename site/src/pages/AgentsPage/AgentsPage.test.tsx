@@ -32,7 +32,6 @@ const renderEmptyState = (onCreateChat: (message: string) => Promise<void>) => {
 			modelCatalogError={undefined}
 			canSetSystemPrompt
 			canManageChatModelConfigs={false}
-			canUseLocalWorkspaceMode={false}
 			topBarActionsRef={topBarActionsRef}
 		/>,
 	);

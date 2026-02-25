@@ -13,16 +13,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
-import {
-	Dialog,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "components/Dialog/Dialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	Select,
 	SelectContent,
@@ -31,14 +22,7 @@ import {
 	SelectValue,
 } from "components/Select/Select";
 import { useAuthenticated } from "hooks";
-import type { LucideIcon } from "lucide-react";
-import {
-	BoxesIcon,
-	KeyRoundIcon,
-	MonitorIcon,
-	UserIcon,
-	XIcon,
-} from "lucide-react";
+import { MonitorIcon } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
@@ -53,12 +37,11 @@ import {
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Outlet, useNavigate, useParams } from "react-router";
-import TextareaAutosize from "react-textarea-autosize";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
 import { AgentsSidebar } from "./AgentsSidebar";
-import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
+import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -68,7 +51,6 @@ import {
 
 const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
-const selectedWorkspaceModeStorageKey = "agents.selected-workspace-mode";
 const systemPromptStorageKey = "agents.system-prompt";
 
 type ChatModelOption = ModelSelectorOption;
@@ -78,14 +60,6 @@ type CreateChatOptions = {
 	workspaceId?: string;
 	model?: string;
 	systemPrompt?: string;
-};
-
-type ConfigureAgentsSection = "providers" | "system-prompt" | "models";
-
-type ConfigureAgentsSectionOption = {
-	id: ConfigureAgentsSection;
-	label: string;
-	icon: LucideIcon;
 };
 
 export interface AgentsOutletContext {
@@ -201,8 +175,6 @@ export const AgentsPage: FC = () => {
 		// is state that changes identity.
 		[chatErrorReasons],
 	);
-	const canUseLocalWorkspaceMode = false;
-
 	const handleCreateChat = async (options: CreateChatOptions) => {
 		const { message, workspaceId, model, systemPrompt } = options;
 		const createdChat = await createMutation.mutateAsync({
@@ -375,7 +347,6 @@ export const AgentsPage: FC = () => {
 							modelCatalogError={chatModelsQuery.error}
 							canSetSystemPrompt={canSetSystemPrompt}
 							canManageChatModelConfigs={isAgentsAdmin}
-							canUseLocalWorkspaceMode={canUseLocalWorkspaceMode}
 							topBarActionsRef={topBarActionsRef}
 						/>
 					)}
@@ -402,7 +373,6 @@ interface AgentsEmptyStateProps {
 	modelCatalogError: unknown;
 	canSetSystemPrompt: boolean;
 	canManageChatModelConfigs: boolean;
-	canUseLocalWorkspaceMode: boolean;
 	topBarActionsRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -416,7 +386,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	modelCatalogError,
 	canSetSystemPrompt,
 	canManageChatModelConfigs,
-	canUseLocalWorkspaceMode,
 	topBarActionsRef,
 }) => {
 	const initialInput = useMemo(() => {
@@ -431,15 +400,22 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 		return localStorage.getItem(systemPromptStorageKey) ?? "";
 	}, []);
-	const [selectedModel, setSelectedModel] = useState(modelOptions[0]?.id ?? "");
+	const [userSelectedModel, setUserSelectedModel] = useState(
+		modelOptions[0]?.id ?? "",
+	);
+	// Derive the effective model — validated against current options
+	// every render so we never reference a stale model id.
+	const selectedModel = modelOptions.some(
+		(m) => m.id === userSelectedModel,
+	)
+		? userSelectedModel
+		: (modelOptions[0]?.id ?? "");
 	const [savedSystemPrompt, setSavedSystemPrompt] =
 		useState(initialSystemPrompt);
 	const [systemPromptDraft, setSystemPromptDraft] =
 		useState(initialSystemPrompt);
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
-	const [activeConfigureSection, setActiveConfigureSection] =
-		useState<ConfigureAgentsSection>("providers");
 	const workspacesQuery = useQuery(workspaces({ limit: 50 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -447,43 +423,9 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
 		},
 	);
-	const [selectedWorkspaceMode, setSelectedWorkspaceMode] = useState<
-		"workspace" | "local"
-	>(() => {
-		if (typeof window === "undefined") return "workspace";
-		const stored = localStorage.getItem(selectedWorkspaceModeStorageKey);
-		if (stored === "local") return "local";
-		return "workspace";
-	});
 	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
 	const autoCreateWorkspaceValue = "__auto_create_workspace__";
-	const localWorkspaceValue = "__local_workspace__";
 	const hasAdminControls = canSetSystemPrompt || canManageChatModelConfigs;
-	const configureSectionOptions = useMemo<
-		readonly ConfigureAgentsSectionOption[]
-	>(() => {
-		const options: ConfigureAgentsSectionOption[] = [];
-		if (canManageChatModelConfigs) {
-			options.push({
-				id: "providers",
-				label: "Providers",
-				icon: KeyRoundIcon,
-			});
-			options.push({
-				id: "models",
-				label: "Models",
-				icon: BoxesIcon,
-			});
-		}
-		if (canSetSystemPrompt) {
-			options.push({
-				id: "system-prompt",
-				label: "Behavior",
-				icon: UserIcon,
-			});
-		}
-		return options;
-	}, [canManageChatModelConfigs, canSetSystemPrompt]);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -508,69 +450,24 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	// the shared input component re-rendering on every change.
 	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
 	selectedWorkspaceIdRef.current = selectedWorkspaceId;
-	const selectedWorkspaceModeRef = useRef(selectedWorkspaceMode);
-	selectedWorkspaceModeRef.current = selectedWorkspaceMode;
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
 	const systemPromptRef = useRef(savedSystemPrompt);
 	systemPromptRef.current = savedSystemPrompt;
 	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
 
-	useEffect(() => {
-		setSelectedModel((current) => {
-			if (current && modelOptions.some((model) => model.id === current)) {
-				return current;
-			}
-			return modelOptions[0]?.id ?? "";
-		});
-	}, [modelOptions]);
-
-	useEffect(() => {
-		if (
-			configureSectionOptions.some(
-				(section) => section.id === activeConfigureSection,
-			)
-		) {
-			return;
-		}
-		setActiveConfigureSection(configureSectionOptions[0]?.id ?? "providers");
-	}, [activeConfigureSection, configureSectionOptions]);
-
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
-			setSelectedWorkspaceMode("workspace");
 			setSelectedWorkspaceId(null);
 			if (typeof window !== "undefined") {
-				localStorage.setItem(selectedWorkspaceModeStorageKey, "workspace");
 				localStorage.removeItem(selectedWorkspaceIdStorageKey);
 			}
 			return;
 		}
-		if (value === localWorkspaceValue && canUseLocalWorkspaceMode) {
-			setSelectedWorkspaceMode("local");
-			setSelectedWorkspaceId(null);
-			if (typeof window !== "undefined") {
-				localStorage.setItem(selectedWorkspaceModeStorageKey, "local");
-				localStorage.removeItem(selectedWorkspaceIdStorageKey);
-			}
-			return;
-		}
-		setSelectedWorkspaceMode("workspace");
 		setSelectedWorkspaceId(value);
 		if (typeof window !== "undefined") {
-			localStorage.setItem(selectedWorkspaceModeStorageKey, "workspace");
 			localStorage.setItem(selectedWorkspaceIdStorageKey, value);
 		}
-	};
-
-	const handleOpenConfigureAgentsDialog = () => {
-		const initialSection =
-			configureSectionOptions.find((section) => section.id === "providers")
-				?.id ??
-			configureSectionOptions[0]?.id ??
-			"providers";
-		setActiveConfigureSection(initialSection);
-		setConfigureAgentsDialogOpen(true);
 	};
 
 	const handleInputChange = useCallback((value: string) => {
@@ -601,7 +498,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	const handleSend = useCallback(
 		async (message: string) => {
 			const trimmedSystemPrompt = systemPromptRef.current.trim();
-			const localWorkspaceMode = selectedWorkspaceModeRef.current === "local";
 			await onCreateChat({
 				message,
 				workspaceId: localWorkspaceMode
@@ -617,18 +513,9 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		[onCreateChat, canSetSystemPrompt],
 	);
 
-	useEffect(() => {
-		if (!canUseLocalWorkspaceMode && selectedWorkspaceMode === "local") {
-			setSelectedWorkspaceMode("workspace");
-		}
-	}, [canUseLocalWorkspaceMode, selectedWorkspaceMode]);
-
-	const selectedWorkspaceName =
-		selectedWorkspaceMode === "local"
-			? "Local Workspace"
-			: selectedWorkspaceId
-				? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)?.name
-				: null;
+	const selectedWorkspaceName = selectedWorkspaceId
+		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)?.name
+		: null;
 
 	return (
 		<div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-auto p-4 sm:p-6 lg:p-8">
@@ -639,7 +526,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 						variant="subtle"
 						disabled={isCreating}
 						className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
-						onClick={handleOpenConfigureAgentsDialog}
+						onClick={() => setConfigureAgentsDialogOpen(true)}
 					>
 						Admin
 					</Button>,
@@ -660,7 +547,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					initialValue={initialInput}
 					onInputChange={handleInputChange}
 					selectedModel={selectedModel}
-					onModelChange={setSelectedModel}
+					onModelChange={setUserSelectedModel}
 					modelOptions={modelOptions}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}
 					hasModelOptions={hasModelOptions}
@@ -668,11 +555,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					modelCatalogStatusMessage={modelCatalogStatusMessage}
 					leftActions={
 						<Select
-							value={
-								selectedWorkspaceMode === "local"
-									? localWorkspaceValue
-									: (selectedWorkspaceId ?? autoCreateWorkspaceValue)
-							}
+							value={selectedWorkspaceId ?? autoCreateWorkspaceValue}
 							onValueChange={handleWorkspaceChange}
 							disabled={isCreating || workspacesQuery.isLoading}
 						>
@@ -686,11 +569,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 								<SelectItem value={autoCreateWorkspaceValue}>
 									Auto-create Workspace
 								</SelectItem>
-								{canUseLocalWorkspaceMode && (
-									<SelectItem value={localWorkspaceValue}>
-										Local Workspace
-									</SelectItem>
-								)}
 								{workspaceOptions.map((workspace) => (
 									<SelectItem key={workspace.id} value={workspace.id}>
 										{workspace.name}
@@ -709,127 +587,17 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 			</div>
 
 			{hasAdminControls && (
-				<Dialog
+				<ConfigureAgentsDialog
 					open={isConfigureAgentsDialogOpen}
 					onOpenChange={setConfigureAgentsDialogOpen}
-				>
-					<DialogContent className="grid h-[min(88dvh,720px)] max-w-4xl grid-cols-1 gap-0 overflow-hidden p-0 md:grid-cols-[200px_minmax(0,1fr)]">
-						{/* Visually hidden for accessibility */}
-						<DialogHeader className="sr-only">
-							<DialogTitle>Configure Agents</DialogTitle>
-							<DialogDescription>
-								Manage providers, system prompt, and available models.
-							</DialogDescription>
-						</DialogHeader>
-
-						{/* Sidebar */}
-						<nav className="flex flex-row gap-0.5 overflow-x-auto border-b border-border p-2 md:flex-col md:overflow-x-visible md:border-b-0 md:border-r md:p-3">
-							<DialogClose asChild>
-								<Button
-									variant="subtle"
-									size="icon"
-									className="mb-2 h-8 w-8 shrink-0 border-none bg-transparent shadow-none hover:bg-surface-tertiary/30"
-								>
-									<XIcon className="h-[18px] w-[18px] text-content-secondary" />
-									<span className="sr-only">Close</span>
-								</Button>
-							</DialogClose>
-							{configureSectionOptions.map((section) => {
-								const isActive = section.id === activeConfigureSection;
-								const SectionIcon = section.icon;
-								return (
-									<Button
-										key={section.id}
-										variant="subtle"
-										className={cn(
-											"h-auto justify-start gap-2.5 rounded-lg border-none px-3 py-2 text-left shadow-none",
-											isActive
-												? "bg-surface-tertiary/50 text-content-primary hover:bg-surface-tertiary/50"
-												: "bg-transparent text-content-secondary hover:bg-surface-tertiary/30 hover:text-content-primary",
-										)}
-										onClick={() => setActiveConfigureSection(section.id)}
-									>
-										<SectionIcon className="h-[18px] w-[18px] shrink-0" />
-										<span className="text-[13px] font-medium">
-											{section.label}
-										</span>
-									</Button>
-								);
-							})}
-						</nav>
-
-						{/* Content */}
-						<div className="flex min-h-0 flex-col pt-5">
-							<h2 className="m-0 px-6 text-xl font-semibold text-content-primary">
-								{configureSectionOptions.find(
-									(s) => s.id === activeConfigureSection,
-								)?.label ?? "Settings"}
-							</h2>
-
-							<ScrollArea
-								className="min-h-0 flex-1"
-								viewportClassName="px-6 pb-6"
-							>
-								{activeConfigureSection === "providers" &&
-									canManageChatModelConfigs && (
-										<ChatModelAdminPanel section="providers" />
-									)}
-								{activeConfigureSection === "system-prompt" &&
-									canSetSystemPrompt && (
-										<form
-											className="space-y-4"
-											onSubmit={(event) => void handleSaveSystemPrompt(event)}
-										>
-											<p className="m-0 text-[13px] leading-relaxed text-content-secondary">
-												Configure how the AI agent behaves across this
-												deployment.
-											</p>
-											<div className="space-y-2">
-												<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-													System Prompt
-												</h3>
-												<p className="m-0 text-xs text-content-secondary">
-													Admin-only instruction applied to all new chats.
-												</p>
-												<TextareaAutosize
-													className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
-													placeholder="Optional. Set deployment-wide instructions for all new chats."
-													value={systemPromptDraft}
-													onChange={(event) =>
-														setSystemPromptDraft(event.target.value)
-													}
-													disabled={isCreating}
-													minRows={7}
-												/>
-												<div className="flex justify-end gap-2">
-													<Button
-														size="sm"
-														variant="outline"
-														type="button"
-														onClick={() => setSystemPromptDraft("")}
-														disabled={isCreating || !systemPromptDraft}
-													>
-														Clear
-													</Button>
-													<Button
-														size="sm"
-														type="submit"
-														disabled={isCreating || !isSystemPromptDirty}
-													>
-														Save
-													</Button>
-												</div>
-											</div>
-										</form>
-									)}
-								{activeConfigureSection === "models" &&
-									canManageChatModelConfigs && (
-										<ChatModelAdminPanel section="models" />
-									)}
-							</ScrollArea>
-						</div>
-					</DialogContent>
-				</Dialog>
+					canManageChatModelConfigs={canManageChatModelConfigs}
+					canSetSystemPrompt={canSetSystemPrompt}
+					systemPromptDraft={systemPromptDraft}
+					onSystemPromptDraftChange={setSystemPromptDraft}
+					onSaveSystemPrompt={handleSaveSystemPrompt}
+					isSystemPromptDirty={isSystemPromptDirty}
+					isDisabled={isCreating}
+				/>
 			)}
 		</div>
 	);
