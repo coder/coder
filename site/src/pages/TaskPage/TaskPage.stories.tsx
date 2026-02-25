@@ -369,6 +369,298 @@ export const TaskPausedSnapshotTooltip: Story = {
 	},
 };
 
+export const TaskPausedWithFollowUpDialog: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const followUpButton = await canvas.findByRole("button", {
+			name: /follow-up/i,
+		});
+		await userEvent.click(followUpButton);
+
+		const body = within(canvasElement.ownerDocument.body);
+		const dialogTitle = await body.findByText("Send Follow-up Message");
+		expect(dialogTitle).toBeInTheDocument();
+	},
+};
+
+export const TaskFollowUpAutoResumeSuccess: Story = {
+	beforeEach: () => {
+		let isTaskActive = false;
+		spyOn(API, "getTask").mockImplementation(async () => ({
+			...MockTask,
+			status: isTaskActive ? "active" : "paused",
+		}));
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		spyOn(API, "sendTaskInput").mockImplementation(async () => {
+			if (!isTaskActive) {
+				throw {
+					...mockApiError({
+						message: "Task is paused",
+						detail: "Resume required before sending",
+					}),
+					status: 409,
+				};
+			}
+		});
+		spyOn(API, "resumeTask").mockImplementation(async () => {
+			isTaskActive = true;
+			return {
+				workspace_build: MockStartingWorkspace.latest_build,
+			};
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		await userEvent.type(
+			await canvas.findByLabelText(/follow-up message/i),
+			"Continue from where you left off",
+		);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /resume and send message/i }),
+		);
+
+		await waitFor(() => {
+			expect(API.resumeTask).toHaveBeenCalled();
+			expect(API.sendTaskInput).toHaveBeenCalledTimes(1);
+		});
+	},
+};
+
+export const TaskFollowUpActiveTaskDirectSend: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "active",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(MockWorkspace);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		spyOn(API, "sendTaskInput").mockResolvedValue();
+		spyOn(API, "resumeTask").mockResolvedValue({
+			workspace_build: MockWorkspace.latest_build,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		await userEvent.type(
+			await canvas.findByLabelText(/follow-up message/i),
+			"Please continue with the next step",
+		);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /resume and send message/i }),
+		);
+
+		await waitFor(() => {
+			expect(API.sendTaskInput).toHaveBeenCalledTimes(1);
+			expect(API.resumeTask).not.toHaveBeenCalled();
+		});
+	},
+};
+
+export const TaskFollowUpEmptyMessageDisabled: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const submit = await canvas.findByRole("button", {
+			name: /resume and send message/i,
+		});
+		expect(submit).toBeDisabled();
+	},
+};
+
+export const TaskFollowUpShowsResumingProgress: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		spyOn(API, "sendTaskInput").mockRejectedValue({
+			...mockApiError({
+				message: "Task is paused",
+			}),
+			status: 409,
+		});
+		// Keep resuming stage visible for assertions.
+		spyOn(API, "resumeTask").mockImplementation(() => new Promise(() => {}));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const messageInput = await canvas.findByLabelText(/follow-up message/i);
+		await userEvent.type(messageInput, "Continue task");
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /resume and send message/i }),
+		);
+
+		await waitFor(async () => {
+			expect(await canvas.findByText("Resuming task...")).toBeInTheDocument();
+			expect(await canvas.findByText(/Build status:/i)).toBeInTheDocument();
+			expect(messageInput).toBeDisabled();
+			expect(messageInput).toHaveValue("Continue task");
+		});
+	},
+};
+
+export const TaskFollowUpRetrySendFailure: Story = {
+	beforeEach: () => {
+		let isTaskActive = false;
+		spyOn(API, "getTask").mockImplementation(async () => ({
+			...MockTask,
+			status: isTaskActive ? "active" : "paused",
+		}));
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		spyOn(API, "sendTaskInput").mockRejectedValue(
+			new Error("Failed to send message"),
+		);
+		spyOn(API, "resumeTask").mockImplementation(async () => {
+			isTaskActive = true;
+			return {
+				workspace_build: MockStartingWorkspace.latest_build,
+			};
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const messageInput = await canvas.findByLabelText(/follow-up message/i);
+		await userEvent.type(messageInput, "Please continue");
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /resume and send message/i }),
+		);
+
+		await waitFor(async () => {
+			expect(await canvas.findByText("Failed to send message")).toBeInTheDocument();
+			expect(messageInput).toHaveValue("Please continue");
+		});
+	},
+};
+
+export const TaskFollowUpResumeBuildFailure: Story = {
+	beforeEach: () => {
+		let hasBuildFailed = false;
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "paused",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockImplementation(async () => {
+			if (!hasBuildFailed) {
+				return MockStoppedWorkspace;
+			}
+			return {
+				...MockStoppedWorkspace,
+				latest_build: {
+					...MockStoppedWorkspace.latest_build,
+					status: "failed",
+				},
+			};
+		});
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		spyOn(API, "sendTaskInput").mockRejectedValue({
+			...mockApiError({
+				message: "Task is paused",
+			}),
+			status: 409,
+		});
+		spyOn(API, "resumeTask").mockImplementation(async () => {
+			hasBuildFailed = true;
+			return {
+				workspace_build: MockStartingWorkspace.latest_build,
+			};
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const messageInput = await canvas.findByLabelText(/follow-up message/i);
+		await userEvent.type(messageInput, "Continue task");
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /resume and send message/i }),
+		);
+
+		await waitFor(async () => {
+			expect(
+				await canvas.findByText(
+					"Failed to resume task because the workspace build did not complete successfully.",
+				),
+			).toBeInTheDocument();
+			expect(messageInput).toHaveValue("Continue task");
+		});
+	},
+};
+
+export const TaskFollowUpNon409SendFailure: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTask").mockResolvedValue({
+			...MockTask,
+			status: "active",
+		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(MockWorkspace);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+		spyOn(API, "sendTaskInput").mockRejectedValue(
+			new Error("Failed to send message"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /follow-up/i }),
+		);
+		const messageInput = await canvas.findByLabelText(/follow-up message/i);
+		await userEvent.type(messageInput, "Continue task");
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /resume and send message/i }),
+		);
+
+		await waitFor(async () => {
+			expect(await canvas.findByText("Failed to send message")).toBeInTheDocument();
+			expect(messageInput).toHaveValue("Continue task");
+		});
+	},
+};
+
 export const TaskPausedTimeout: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTask").mockResolvedValue({

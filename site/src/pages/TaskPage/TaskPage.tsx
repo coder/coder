@@ -53,6 +53,7 @@ import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "../WorkspacePage/WorkspaceBuildProgress";
+import { FollowUpDialog } from "./FollowUpDialog";
 import { ModifyPromptDialog } from "./ModifyPromptDialog";
 import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskApps } from "./TaskApps";
@@ -69,6 +70,7 @@ const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 
 const TaskPage = () => {
 	const [isModifyDialogOpen, setIsModifyDialogOpen] = useState(false);
+	const [isFollowUpDialogOpen, setIsFollowUpDialogOpen] = useState(false);
 	const { taskId, username } = useParams() as {
 		taskId: string;
 		username: string;
@@ -159,6 +161,7 @@ const TaskPage = () => {
 				task={task}
 				workspace={workspace}
 				onEditPrompt={() => setIsModifyDialogOpen(true)}
+				onAddFollowUp={() => setIsFollowUpDialogOpen(true)}
 			/>
 		);
 	} else if (workspace.latest_build.status === "canceling") {
@@ -224,6 +227,12 @@ const TaskPage = () => {
 				workspace={workspace}
 				open={isModifyDialogOpen}
 				onOpenChange={setIsModifyDialogOpen}
+			/>
+			<FollowUpDialog
+				task={task}
+				workspace={workspace}
+				open={isFollowUpDialogOpen}
+				onOpenChange={setIsFollowUpDialogOpen}
 			/>
 		</TaskPageLayout>
 	);
@@ -437,9 +446,15 @@ type TaskPausedProps = {
 	task: Task;
 	workspace: Workspace;
 	onEditPrompt: () => void;
+	onAddFollowUp: () => void;
 };
 
-const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
+const TaskPaused: FC<TaskPausedProps> = ({
+	task,
+	workspace,
+	onEditPrompt,
+	onAddFollowUp,
+}) => {
 	const queryClient = useQueryClient();
 
 	// Use mutation config directly to customize error handling:
@@ -503,8 +518,11 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 							<Spinner loading={isWaitingForStart} />
 							Resume
 						</Button>
-						<Button size="sm" onClick={onEditPrompt} variant="outline">
+						<Button size="sm" variant="outline" onClick={onEditPrompt}>
 							Edit prompt
+						</Button>
+						<Button size="sm" variant="outline" onClick={onAddFollowUp}>
+							Follow-up
 						</Button>
 					</div>
 				}
