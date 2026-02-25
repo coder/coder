@@ -1,3 +1,4 @@
+import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import type { ComponentPropsWithRef } from "react";
@@ -21,10 +22,10 @@ import {
 	asRecord,
 	asString,
 	buildEditDiff,
-	DIFF_VIEWER_OPTIONS,
 	DIFFS_FONT_STYLE,
-	FILE_VIEWER_OPTIONS,
-	FILE_VIEWER_OPTIONS_NO_HEADER,
+	getDiffViewerOptions,
+	getFileViewerOptions,
+	getFileViewerOptionsNoHeader,
 	formatResultOutput,
 	getFileContentForViewer,
 	getWriteFileDiff,
@@ -62,6 +63,8 @@ export const Tool = memo(
 		ref,
 		...props
 	}: ToolProps) => {
+		const theme = useTheme();
+		const isDark = theme.palette.mode === "dark";
 		const parsedArgs = parseArgs(args);
 		const resultOutput = formatResultOutput(result);
 		const fileContent = getFileContentForViewer(name, args, result);
@@ -71,13 +74,14 @@ export const Tool = memo(
 			name === "edit_files"
 				? editFiles.map((file) => buildEditDiff(file.path, file.edits))
 				: [];
+		const fileViewerOpts = getFileViewerOptions(isDark);
 		const fileContentOptions = fileContent
 			? {
-					...FILE_VIEWER_OPTIONS,
+					...fileViewerOpts,
 					disableFileHeader: fileContent.disableHeader,
 					disableLineNumbers: fileContent.disableLineNumbers,
 				}
-			: FILE_VIEWER_OPTIONS;
+			: fileViewerOpts;
 
 		// Render execute tools with the specialized terminal-style block.
 		if (name === "execute") {
@@ -348,7 +352,7 @@ export const Tool = memo(
 						viewportClassName="max-h-64"
 						scrollBarClassName="w-1.5"
 					>
-						<FileDiff fileDiff={writeFileDiff} options={DIFF_VIEWER_OPTIONS} />
+						<FileDiff fileDiff={writeFileDiff} options={getDiffViewerOptions(isDark)} />
 					</ScrollArea>
 				) : fileContent ? (
 					<ScrollArea
@@ -376,7 +380,7 @@ export const Tool = memo(
 									name: "output.json",
 									contents: resultOutput,
 								}}
-								options={FILE_VIEWER_OPTIONS_NO_HEADER}
+								options={getFileViewerOptionsNoHeader(isDark)}
 								style={DIFFS_FONT_STYLE}
 							/>
 						</ScrollArea>

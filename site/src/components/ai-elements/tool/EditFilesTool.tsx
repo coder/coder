@@ -1,3 +1,4 @@
+import { useTheme } from "@emotion/react";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
@@ -11,9 +12,9 @@ import type React from "react";
 import { cn } from "utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 import {
-	DIFF_VIEWER_OPTIONS,
 	DIFFS_FONT_STYLE,
 	type EditFilesFileEntry,
+	getDiffViewerOptions,
 	type ToolStatus,
 } from "./utils";
 
@@ -29,6 +30,8 @@ export const EditFilesTool: React.FC<{
 	isError: boolean;
 	errorMessage?: string;
 }> = ({ files, diffs, status, isError, errorMessage }) => {
+	const theme = useTheme();
+	const isDark = theme.palette.mode === "dark";
 	const isRunning = status === "running";
 	const hasDiffs = diffs.some((d) => d !== null);
 
@@ -92,7 +95,7 @@ export const EditFilesTool: React.FC<{
 						>
 							<FileDiff
 								fileDiff={diff}
-								options={DIFF_VIEWER_OPTIONS}
+								options={getDiffViewerOptions(isDark)}
 								style={DIFFS_FONT_STYLE}
 							/>
 						</ScrollArea>

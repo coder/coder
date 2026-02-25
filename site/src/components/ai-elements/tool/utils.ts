@@ -152,34 +152,41 @@ export const fileViewerCSS =
 export const diffViewerCSS =
 	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; } [data-diffs-header] { border-left: 1px solid var(--border); }";
 
-// Stable option/style objects shared across tool renderers to
-// avoid creating new references on every render.
-export const DIFF_VIEWER_OPTIONS = {
-	diffStyle: "unified" as const,
-	diffIndicators: "bars" as const,
-	overflow: "scroll" as const,
-	themeType: "dark" as const,
-	theme: "github-dark-high-contrast",
-	unsafeCSS: diffViewerCSS,
-};
+// Theme-aware option factories shared across tool renderers.
+export function getDiffViewerOptions(isDark: boolean) {
+	return {
+		diffStyle: "unified" as const,
+		diffIndicators: "bars" as const,
+		overflow: "scroll" as const,
+		themeType: (isDark ? "dark" : "light") as "dark" | "light",
+		theme: isDark ? "github-dark-high-contrast" : "github-light",
+		unsafeCSS: diffViewerCSS,
+	};
+}
 
-export const FILE_VIEWER_OPTIONS = {
-	overflow: "scroll" as const,
-	themeType: "dark" as const,
-	theme: "github-dark-high-contrast",
-	unsafeCSS: fileViewerCSS,
-};
+export function getFileViewerOptions(isDark: boolean) {
+	return {
+		overflow: "scroll" as const,
+		themeType: (isDark ? "dark" : "light") as "dark" | "light",
+		theme: isDark ? "github-dark-high-contrast" : "github-light",
+		unsafeCSS: fileViewerCSS,
+	};
+}
 
-export const FILE_VIEWER_OPTIONS_NO_HEADER = {
-	...FILE_VIEWER_OPTIONS,
-	disableFileHeader: true,
-};
+export function getFileViewerOptionsNoHeader(isDark: boolean) {
+	return {
+		...getFileViewerOptions(isDark),
+		disableFileHeader: true,
+	};
+}
 
-export const FILE_VIEWER_OPTIONS_MINIMAL = {
-	...FILE_VIEWER_OPTIONS,
-	disableFileHeader: true,
-	disableLineNumbers: true,
-};
+export function getFileViewerOptionsMinimal(isDark: boolean) {
+	return {
+		...getFileViewerOptions(isDark),
+		disableFileHeader: true,
+		disableLineNumbers: true,
+	};
+}
 
 export const DIFFS_FONT_STYLE = {
 	"--diffs-font-size": "11px",

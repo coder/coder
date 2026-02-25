@@ -1,3 +1,4 @@
+import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
@@ -11,7 +12,7 @@ import { cn } from "utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 import {
 	DIFFS_FONT_STYLE,
-	FILE_VIEWER_OPTIONS_MINIMAL,
+	getFileViewerOptionsMinimal,
 	type ToolStatus,
 } from "./utils";
 
@@ -26,6 +27,8 @@ export const ReadFileTool: React.FC<{
 	isError: boolean;
 	errorMessage?: string;
 }> = ({ path, content, status, isError, errorMessage }) => {
+	const theme = useTheme();
+	const isDark = theme.palette.mode === "dark";
 	const hasContent = content.length > 0;
 	const isRunning = status === "running";
 
@@ -69,7 +72,7 @@ export const ReadFileTool: React.FC<{
 						name: path,
 						contents: content,
 					}}
-					options={FILE_VIEWER_OPTIONS_MINIMAL}
+					options={getFileViewerOptionsMinimal(isDark)}
 					style={DIFFS_FONT_STYLE}
 				/>
 			</ScrollArea>

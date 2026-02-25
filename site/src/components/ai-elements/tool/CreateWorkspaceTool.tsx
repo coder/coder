@@ -1,3 +1,4 @@
+import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
@@ -11,7 +12,7 @@ import { useState } from "react";
 import { cn } from "utils/cn";
 import {
 	DIFFS_FONT_STYLE,
-	FILE_VIEWER_OPTIONS_MINIMAL,
+	getFileViewerOptionsMinimal,
 	type ToolStatus,
 } from "./utils";
 
@@ -41,6 +42,8 @@ export const CreateWorkspaceTool: React.FC<{
 	isError,
 	errorMessage,
 }) => {
+	const theme = useTheme();
+	const isDark = theme.palette.mode === "dark";
 	const [expanded, setExpanded] = useState(false);
 	const isBuilding = buildLogs.length > 0 && resultJson.length === 0;
 	const isRunning = status === "running" || isBuilding;
@@ -125,7 +128,7 @@ export const CreateWorkspaceTool: React.FC<{
 							name: "result.json",
 							contents: resultJson,
 						}}
-						options={FILE_VIEWER_OPTIONS_MINIMAL}
+						options={getFileViewerOptionsMinimal(isDark)}
 						style={DIFFS_FONT_STYLE}
 					/>
 				</ScrollArea>
