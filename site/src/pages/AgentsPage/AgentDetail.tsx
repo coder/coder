@@ -10,7 +10,6 @@ import {
 	promoteChatQueuedMessage,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
-import { ErrorBoundary } from "components/ErrorBoundary/ErrorBoundary";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
@@ -100,12 +99,19 @@ export const AgentDetail: FC = () => {
 	const chatQueuedMessages = chatData?.queued_messages;
 	const chatModelConfig = chatRecord?.model_config;
 
-	useEffect(() => {
+	// Auto-open the diff panel when diff status first appears.
+	// See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+	const [prevHasDiffStatus, setPrevHasDiffStatus] = useState(false);
+	if (hasDiffStatus !== prevHasDiffStatus) {
+		setPrevHasDiffStatus(hasDiffStatus);
 		if (hasDiffStatus) {
 			setShowDiffPanel(true);
 		}
-	}, [hasDiffStatus]);
+	}
 
+	// Notify the parent layout about right panel visibility. This
+	// useEffect is necessary because we're synchronizing with state
+	// owned by the parent outlet, not adjusting our own state.
 	useEffect(() => {
 		setRightPanelOpen(hasDiffStatus && showDiffPanel);
 		return () => {
@@ -391,35 +397,27 @@ export const AgentDetail: FC = () => {
 				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				<div>
-					<ErrorBoundary
-						fallback={
-							<div className="flex flex-1 items-center justify-center p-8 text-content-secondary">
-								Something went wrong rendering this conversation.
-							</div>
-						}
-					>
-						<ConversationTimeline
-							isEmpty={visibleMessages.length === 0}
-							hasMoreMessages={hasMoreMessages}
-							loadMoreSentinelRef={loadMoreSentinelRef}
-							parsedSections={parsedSections}
-							hasStreamOutput={hasStreamOutput}
-							streamState={streamState}
-							streamTools={streamTools}
-							subagentTitles={subagentTitles}
-							subagentStatusOverrides={subagentStatusOverrides}
-							isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-							detailErrorMessage={detailErrorMessage}
-						/>
+					<ConversationTimeline
+						isEmpty={visibleMessages.length === 0}
+						hasMoreMessages={hasMoreMessages}
+						loadMoreSentinelRef={loadMoreSentinelRef}
+						parsedSections={parsedSections}
+						hasStreamOutput={hasStreamOutput}
+						streamState={streamState}
+						streamTools={streamTools}
+						subagentTitles={subagentTitles}
+						subagentStatusOverrides={subagentStatusOverrides}
+						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+						detailErrorMessage={detailErrorMessage}
+					/>
 
-						{queuedMessages.length > 0 && (
-							<QueuedMessagesList
-								messages={queuedMessages}
-								onDelete={(id) => deleteQueuedMutation.mutate(id)}
-								onPromote={(id) => promoteQueuedMutation.mutate(id)}
-							/>
-						)}
-					</ErrorBoundary>
+					{queuedMessages.length > 0 && (
+						<QueuedMessagesList
+							messages={queuedMessages}
+							onDelete={(id) => deleteQueuedMutation.mutate(id)}
+							onPromote={(id) => promoteQueuedMutation.mutate(id)}
+						/>
+					)}
 					<AgentChatInput
 						onSend={handleSend}
 						isDisabled={isInputDisabled}

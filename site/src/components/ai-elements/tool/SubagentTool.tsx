@@ -17,6 +17,13 @@ import {
 	type ToolStatus,
 } from "./utils";
 
+const SUBAGENT_VERBS: Record<string, { completed: string; running: string }> = {
+	subagent: { completed: "Spawned ", running: "Spawning " },
+	subagent_await: { completed: "Waited for ", running: "Waiting for " },
+	subagent_message: { completed: "Messaged ", running: "Messaging " },
+	subagent_terminate: { completed: "Terminated ", running: "Terminating " },
+};
+
 /**
  * Resolves a sub-agent status string and tool-level status into a
  * display icon. The sub-agent status in the tool result is a
@@ -107,23 +114,9 @@ export const SubagentTool: React.FC<{
 					isError={isError}
 				/>
 				<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
-					{toolName === "subagent"
-						? toolStatus === "completed"
-							? "Spawned "
-							: "Spawning "
-						: toolName === "subagent_await"
-							? toolStatus === "completed"
-								? "Waited for "
-								: "Waiting for "
-							: toolName === "subagent_message"
-								? toolStatus === "completed"
-									? "Messaged "
-									: "Messaging "
-								: toolName === "subagent_terminate"
-									? toolStatus === "completed"
-										? "Terminated "
-										: "Terminating "
-									: ""}
+					{SUBAGENT_VERBS[toolName]?.[
+						toolStatus === "completed" ? "completed" : "running"
+					] ?? ""}
 					<span className="text-content-secondary opacity-60">{title}</span>
 					{chatId && (
 						<Link

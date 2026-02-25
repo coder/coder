@@ -95,31 +95,30 @@ const ReasoningDisclosure: FC<{
 // Shared block renderer used by both ChatMessageItem (historical
 // messages) and StreamingOutput (live stream). Encapsulates the
 // response / thinking / tool switch so the two consumers stay in sync.
-//
-// This is a plain function (not a component) so the returned elements
-// and the side-effect of populating renderedToolIDs both happen during
-// the caller's render body — before the caller evaluates sibling JSX
-// that depends on the Set contents.
 type RenderBlockListParams = {
 	blocks: readonly RenderBlock[];
 	toolByID: ReadonlyMap<string, MergedTool>;
-	renderedToolIDs: Set<string>;
 	keyPrefix: string;
 	isStreaming?: boolean;
 	subagentTitles?: Map<string, string>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 };
 
+type RenderBlockListResult = {
+	elements: ReactNode[];
+	renderedToolIDs: ReadonlySet<string>;
+};
+
 function renderBlockList({
 	blocks,
 	toolByID,
-	renderedToolIDs,
 	keyPrefix,
 	isStreaming = false,
 	subagentTitles,
 	subagentStatusOverrides,
-}: RenderBlockListParams): ReactNode[] {
-	return blocks
+}: RenderBlockListParams): RenderBlockListResult {
+	const renderedToolIDs = new Set<string>();
+	const elements = blocks
 		.map((block, index) => {
 			switch (block.type) {
 				case "response":
@@ -178,6 +177,7 @@ function renderBlockList({
 			}
 		})
 		.filter((el): el is NonNullable<typeof el> => el != null);
+	return { elements, renderedToolIDs };
 }
 
 const ChatMessageItem = memo<{
@@ -185,7 +185,6 @@ const ChatMessageItem = memo<{
 	parsed: ParsedMessageContent;
 }>(({ message, parsed }) => {
 	const isUser = message.role === "user";
-	const renderedToolIDs = new Set<string>();
 	const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
 
 	if (
@@ -202,10 +201,9 @@ const ChatMessageItem = memo<{
 	const conversationItemProps: { role: "user" | "assistant" } = {
 		role: isUser ? "user" : "assistant",
 	};
-	const orderedBlocks = renderBlockList({
+	const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
 		blocks: parsed.blocks,
 		toolByID,
-		renderedToolIDs,
 		keyPrefix: String(message.id),
 	});
 	const remainingTools = parsed.tools.filter(
@@ -264,13 +262,11 @@ const StreamingOutput = memo<{
 		showInitialPlaceholder = false,
 	}) => {
 		const conversationItemProps = { role: "assistant" as const };
-		const renderedToolIDs = new Set<string>();
 		const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
 		const blocks = streamState?.blocks ?? [];
-		const orderedBlocks = renderBlockList({
+		const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
 			blocks,
 			toolByID,
-			renderedToolIDs,
 			keyPrefix: "stream",
 			isStreaming: true,
 			subagentTitles,

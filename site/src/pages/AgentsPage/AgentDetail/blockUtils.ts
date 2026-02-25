@@ -1,6 +1,13 @@
 import { asString } from "components/ai-elements/runtimeTypeUtils";
 import type { RenderBlock } from "./types";
 
+const createBlock = (
+	type: "response" | "thinking",
+	text: string,
+	title?: string,
+): RenderBlock =>
+	type === "thinking" ? { type, text, title } : { type, text };
+
 export const asNonEmptyString = (value: unknown): string | undefined => {
 	const next = asString(value).trim();
 	return next.length > 0 ? next : undefined;
@@ -60,35 +67,18 @@ export const appendTextBlock = (
 				last.type === "thinking" &&
 				mergeThinkingTitles(last.title, title).shouldMerge);
 		if (shouldMerge) {
-			const mergedThinkingTitle =
+			const mergedTitle =
 				type === "thinking" && last.type === "thinking"
 					? mergeThinkingTitles(last.title, title).title
 					: undefined;
-			nextBlocks[nextBlocks.length - 1] =
-				type === "thinking"
-					? {
-							type,
-							text: joinText(last.text, text),
-							title: mergedThinkingTitle,
-						}
-					: {
-							type,
-							text: joinText(last.text, text),
-						};
+			nextBlocks[nextBlocks.length - 1] = createBlock(
+				type,
+				joinText(last.text, text),
+				mergedTitle,
+			);
 			return nextBlocks;
 		}
 	}
-	nextBlocks.push(
-		type === "thinking"
-			? {
-					type,
-					text,
-					title,
-				}
-			: {
-					type,
-					text,
-				},
-	);
+	nextBlocks.push(createBlock(type, text, title));
 	return nextBlocks;
 };

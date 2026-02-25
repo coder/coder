@@ -40,7 +40,6 @@ export const createChatMessage = (
 	mutationFn: (req: TypesGen.CreateChatMessageRequest) =>
 		API.createChatMessage(chatId, req),
 	onSuccess: async () => {
-		// Hierarchical: invalidating chatsKey covers chatKey(chatId) too.
 		await queryClient.invalidateQueries({ queryKey: chatsKey });
 	},
 });

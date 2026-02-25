@@ -29,7 +29,7 @@ export const ExecuteTool: React.FC<{
 	isError: boolean;
 }> = ({ command, output, status, isError }) => {
 	const [expanded, setExpanded] = useState(false);
-	const outputRef = useRef<HTMLPreElement>(null);
+	const outputRef = useRef<HTMLPreElement | null>(null);
 	const hasOutput = output.length > 0;
 	const isRunning = status === "running";
 
@@ -37,7 +37,7 @@ export const ExecuteTool: React.FC<{
 	// know if we need to show the expand toggle at all.
 	const [overflows, setOverflows] = useState(false);
 	const measureRef = (node: HTMLPreElement | null) => {
-		(outputRef as React.MutableRefObject<HTMLPreElement | null>).current = node;
+		outputRef.current = node;
 		if (node) {
 			setOverflows(node.scrollHeight > COLLAPSED_OUTPUT_HEIGHT);
 		}
