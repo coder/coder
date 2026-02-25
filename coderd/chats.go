@@ -229,7 +229,7 @@ func (api *API) getChatDiffStatusesByChatID(
 		chatIDs = append(chatIDs, chat.ID)
 	}
 
-	statuses, err := api.Database.GetChatDiffStatusesByChatIDs(dbauthz.AsSystemRestricted(ctx), chatIDs)
+	statuses, err := api.Database.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("get chat diff statuses: %w", err)
 	}
@@ -1543,7 +1543,7 @@ func (api *API) createChatWorkspace(
 	ownerID uuid.UUID,
 	req codersdk.CreateWorkspaceRequest,
 ) (codersdk.Workspace, error) {
-	ownerUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), ownerID)
+	ownerUser, err := api.Database.GetUserByID(ctx, ownerID)
 	if err != nil {
 		return codersdk.Workspace{}, xerrors.Errorf("get workspace owner: %w", err)
 	}
@@ -1678,6 +1678,7 @@ func (api *API) triggerWorkspaceChatDiffStatusRefresh(workspace database.Workspa
 		if ctx == nil {
 			ctx = context.Background()
 		}
+		//nolint:gocritic // Background goroutine for diff status refresh has no user context.
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		// Always store the git ref so the data is persisted even
@@ -2885,6 +2886,7 @@ func (api *API) applyChatModelCompressionConfig(
 
 	if provider, model, ok := chatModelConfigReference(config); ok {
 		modelConfig, err := api.Database.GetChatModelConfigByProviderAndModel(
+			//nolint:gocritic // All authenticated users need to read model configs for chat.
 			dbauthz.AsSystemRestricted(ctx),
 			database.GetChatModelConfigByProviderAndModelParams{
 				Provider: provider,

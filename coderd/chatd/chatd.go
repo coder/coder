@@ -463,6 +463,7 @@ func (p *Processor) ListModels(ctx context.Context) (codersdk.ChatModelsResponse
 	if p == nil {
 		return codersdk.ChatModelsResponse{}, xerrors.New("chat processor is not configured")
 	}
+	//nolint:gocritic // Background chat processor has no user context.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
 	enabledProviders, err := p.db.GetEnabledChatProviders(ctx)
@@ -510,6 +511,7 @@ func (p *Processor) EffectiveProviderKeys(
 	if p == nil {
 		return chatprovider.ProviderAPIKeys{}, xerrors.New("chat processor is not configured")
 	}
+	//nolint:gocritic // All authenticated users need to list available models.
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	keys, err := p.resolveProviderAPIKeys(ctx)
 	if err != nil {
@@ -2488,6 +2490,7 @@ func (p *Processor) waitForExternalAuth(
 
 	for {
 		link, linkErr := p.db.GetExternalAuthLink(
+			//nolint:gocritic // Background wait for external auth has no user context.
 			dbauthz.AsSystemRestricted(waitCtx),
 			database.GetExternalAuthLinkParams{
 				ProviderID: providerID,

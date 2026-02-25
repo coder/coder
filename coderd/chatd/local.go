@@ -521,6 +521,7 @@ func (s *localMode) resolveLocalChatTemplateProvisioner(
 	organizationID uuid.UUID,
 ) (codersdk.ProvisionerType, error) {
 	daemons, err := s.db.GetProvisionerDaemonsWithStatusByOrganization(
+		//nolint:gocritic // System-level provisioner daemon lookup; users lack read access.
 		dbauthz.AsSystemRestricted(ctx),
 		database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID:  organizationID,
@@ -700,6 +701,7 @@ func (s *localMode) ensureLocalChatTemplateVersionProvisionable(
 		return xerrors.New("local chat template version job ID is empty")
 	}
 	eligible, err := s.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(
+		//nolint:gocritic // System-level provisioner eligibility check; users lack read access.
 		dbauthz.AsSystemRestricted(ctx),
 		[]uuid.UUID{jobID},
 	)
