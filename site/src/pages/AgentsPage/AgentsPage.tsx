@@ -62,6 +62,20 @@ type CreateChatOptions = {
 	systemPrompt?: string;
 };
 
+// Type guard for SSE events from the chat list watch endpoint.
+function isChatListSSEEvent(
+	data: unknown,
+): data is { kind: string; chat: TypesGen.Chat } {
+	if (typeof data !== "object" || data === null) return false;
+	const obj = data as Record<string, unknown>;
+	return (
+		typeof obj.kind === "string" &&
+		typeof obj.chat === "object" &&
+		obj.chat !== null &&
+		"id" in obj.chat
+	);
+}
+
 export interface AgentsOutletContext {
 	chatErrorReasons: Record<string, string>;
 	setChatErrorReason: (chatId: string, reason: string) => void;
@@ -208,18 +222,13 @@ export const AgentsPage: FC = () => {
 			if (sse?.type !== "data" || !sse.data) {
 				return;
 			}
-			const chatEvent = sse.data as Record<string, unknown>;
-			const chat = chatEvent.chat as TypesGen.Chat | undefined;
-			if (
-				typeof chatEvent.kind !== "string" ||
-				!chat?.id
-			) {
+			if (!isChatListSSEEvent(sse.data)) {
 				return;
 			}
-			const typedEvent = { kind: chatEvent.kind, chat };
-			const updatedChat = typedEvent.chat;
+			const chatEvent = sse.data;
+			const updatedChat = chatEvent.chat;
 
-			if (typedEvent.kind === "deleted") {
+			if (chatEvent.kind === "deleted") {
 				queryClient.setQueryData(
 					chatsKey,
 					(prev: TypesGen.Chat[] | undefined) =>
@@ -249,7 +258,7 @@ export const AgentsPage: FC = () => {
 								: c,
 						);
 					}
-					if (typedEvent.kind === "created") {
+					if (chatEvent.kind === "created") {
 						return [updatedChat, ...prev];
 					}
 					return prev;
