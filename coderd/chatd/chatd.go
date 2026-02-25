@@ -7,8 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -95,7 +93,6 @@ type Processor struct {
 	testing                  *TestingConfig
 	streamManager            *StreamManager
 	pubsub                   pubsub.Pubsub
-	localMode                *localMode
 	subagentService          *SubagentService
 	resolveProviderAPIKeysFn ProviderAPIKeysResolver
 	titleGeneration          TitleGenerationConfig
@@ -296,15 +293,7 @@ type Config struct {
 	Pubsub                     pubsub.Pubsub
 	ResolveProviderAPIKeys     ProviderAPIKeysResolver
 	TitleGeneration            TitleGenerationConfig
-	Local                      *LocalConfig
 	Testing                    *TestingConfig
-}
-
-// LocalConfig enables local workspace mode integration in chatd.
-type LocalConfig struct {
-	AccessURL    *url.URL
-	HTTPClient   *http.Client
-	DeploymentID string
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -334,17 +323,6 @@ func New(cfg Config) *Processor {
 		streamManager = NewStreamManager(cfg.Logger.Named("chat-streams"))
 	}
 
-	var localMode *localMode
-	if cfg.Local != nil {
-		localMode = newLocalMode(localModeOptions{
-			logger:       cfg.Logger.Named("chat-local"),
-			database:     cfg.Database,
-			accessURL:    cfg.Local.AccessURL,
-			httpClient:   cfg.Local.HTTPClient,
-			deploymentID: strings.TrimSpace(cfg.Local.DeploymentID),
-		})
-	}
-
 	p := &Processor{
 		cancel:                     cancel,
 		closed:                     make(chan struct{}),
@@ -356,7 +334,6 @@ func New(cfg Config) *Processor {
 		testing:                    cfg.Testing,
 		streamManager:              streamManager,
 		pubsub:                     cfg.Pubsub,
-		localMode:                  localMode,
 		resolveProviderAPIKeysFn:   resolveProviderAPIKeys,
 		titleGeneration:            cfg.TitleGeneration.withDefaults(),
 		titleModelLookup:           anyAvailableModel,
@@ -455,30 +432,6 @@ func (p *Processor) IsChatActive(chatID uuid.UUID) bool {
 	_, ok := p.activeCancels[chatID]
 	p.activeMu.Unlock()
 	return ok
-}
-
-func (p *Processor) EnsureLocalWorkspaceBinding(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	sessionToken string,
-) (LocalWorkspaceBinding, error) {
-	if p == nil || p.localMode == nil {
-		return LocalWorkspaceBinding{}, xerrors.New("local chat mode is not configured")
-	}
-	return p.localMode.EnsureWorkspaceBinding(ctx, ownerID, sessionToken)
-}
-
-func (p *Processor) EnsureLocalAgentRuntimeForChat(
-	ctx context.Context,
-	chat database.Chat,
-) error {
-	if workspaceModeFromChat(chat) != codersdk.ChatWorkspaceModeLocal {
-		return nil
-	}
-	if p == nil || p.localMode == nil {
-		return xerrors.New("local chat mode is not configured")
-	}
-	return p.localMode.MaybeLaunchAgentForChat(ctx, chat)
 }
 
 // ListModels returns the currently available chat model catalog.
@@ -924,10 +877,6 @@ func (p *Processor) runChat(
 	if err != nil {
 		return err
 	}
-	if err := p.EnsureLocalAgentRuntimeForChat(ctx, chat); err != nil {
-		return xerrors.Errorf("ensure local chat runtime: %w", err)
-	}
-
 	prompt, err := chatprompt.ConvertMessages(
 		messages,
 		subagentReportToolCallIDPrefix,
@@ -937,8 +886,7 @@ func (p *Processor) runChat(
 	}
 	if reportOnly {
 		prompt = chatprompt.AppendUser(prompt, reportOnlyInstruction)
-	} else if workspaceModeFromChat(chat) != codersdk.ChatWorkspaceModeLocal &&
-		!chat.WorkspaceID.Valid {
+	} else if !chat.WorkspaceID.Valid {
 		prompt = chatprompt.PrependSystem(prompt, defaultNoWorkspaceInstruction)
 	}
 
@@ -1911,9 +1859,6 @@ func (p *Processor) Close() error {
 	p.cancel()
 	<-p.closed
 	p.inflight.Wait()
-	if p.localMode != nil {
-		return p.localMode.Close()
-	}
 	return nil
 }
 
@@ -1961,21 +1906,6 @@ func streamCallOptionsFromChatModelConfig(
 	return streamCall
 }
 
-func workspaceModeFromChat(chat database.Chat) codersdk.ChatWorkspaceMode {
-	config, err := parseChatModelConfig(chat.ModelConfig)
-	if err != nil {
-		return codersdk.ChatWorkspaceModeWorkspace
-	}
-
-	switch codersdk.ChatWorkspaceMode(
-		strings.ToLower(strings.TrimSpace(string(config.WorkspaceMode))),
-	) {
-	case codersdk.ChatWorkspaceModeLocal:
-		return codersdk.ChatWorkspaceModeLocal
-	default:
-		return codersdk.ChatWorkspaceModeWorkspace
-	}
-}
 
 // anyAvailableModel returns a language model from whichever provider
 // has an API key configured. This is used for lightweight tasks like

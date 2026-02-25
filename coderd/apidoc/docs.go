@@ -14574,12 +14574,10 @@ const docTemplate = `{
         "codersdk.ChatWorkspaceMode": {
             "type": "string",
             "enum": [
-                "workspace",
-                "local"
+                "workspace"
             ],
             "x-enum-varnames": [
-                "ChatWorkspaceModeWorkspace",
-                "ChatWorkspaceModeLocal"
+                "ChatWorkspaceModeWorkspace"
             ]
         },
         "codersdk.ConnectionLatency": {

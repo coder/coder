@@ -880,21 +880,6 @@ func TestCreateChat_WorkspaceSelectionAuthorization(t *testing.T) {
 	})
 }
 
-func TestCreateChat_LocalWorkspaceDisabled(t *testing.T) {
-	t.Parallel()
-
-	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		Message:       "Bootstrap local workspace chat.",
-		WorkspaceMode: codersdk.ChatWorkspaceModeLocal,
-	})
-	require.Error(t, err)
-	require.Equal(t, http.StatusForbidden, coderdtest.SDKError(t, err).StatusCode())
-}
-
 func TestCreateChat_HierarchyMetadata(t *testing.T) {
 	t.Parallel()
 

@@ -420,52 +420,6 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	workspaceMode := effectiveChatWorkspaceMode(chatHierarchy.Request.WorkspaceMode)
-	if workspaceMode == codersdk.ChatWorkspaceModeLocal {
-		if !chatLocalWorkspaceEnabled(api) {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "Local workspace mode is disabled.",
-			})
-			return
-		}
-		if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-			httpapi.Forbidden(rw)
-			return
-		}
-	}
-	if workspaceMode == codersdk.ChatWorkspaceModeLocal &&
-		(chatHierarchy.Request.WorkspaceID == nil || chatHierarchy.Request.WorkspaceAgentID == nil) {
-		if api.chatProcessor == nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to initialize local workspace.",
-				Detail:  "Chat processor is not configured.",
-			})
-			return
-		}
-
-		localBinding, localErr := api.chatProcessor.EnsureLocalWorkspaceBinding(
-			ctx,
-			apiKey.UserID,
-			httpmw.APITokenFromRequest(r),
-		)
-		if localErr != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to initialize local workspace.",
-				Detail:  localErr.Error(),
-			})
-			return
-		}
-		chatHierarchy.Request.WorkspaceID = &localBinding.WorkspaceID
-		chatHierarchy.Request.WorkspaceAgentID = &localBinding.WorkspaceAgentID
-
-		validationStatus, validationError = api.validateCreateChatWorkspaceSelection(
-			ctx,
-			chatHierarchy.Request,
-		)
-		if validationError != nil {
-			httpapi.Write(ctx, rw, validationStatus, *validationError)
-			return
-		}
-	}
 
 	systemPrompt := defaultChatSystemPrompt()
 	if override := strings.TrimSpace(req.SystemPrompt); override != "" {
@@ -2703,17 +2657,6 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
 	req codersdk.CreateChatRequest,
 ) (int, *codersdk.Response) {
-	if effectiveChatWorkspaceMode(req.WorkspaceMode) == codersdk.ChatWorkspaceModeLocal {
-		if req.WorkspaceID == nil && req.WorkspaceAgentID == nil {
-			return 0, nil
-		}
-		if req.WorkspaceID == nil || req.WorkspaceAgentID == nil {
-			return http.StatusBadRequest, &codersdk.Response{
-				Message: "Local workspace mode requires both workspace and workspace agent.",
-			}
-		}
-	}
-
 	var workspaceID uuid.UUID
 	if req.WorkspaceID != nil {
 		workspace, err := api.Database.GetWorkspaceByID(ctx, *req.WorkspaceID)
@@ -2754,10 +2697,6 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	return 0, nil
 }
 
-func chatLocalWorkspaceEnabled(_ *API) bool {
-	return false
-}
-
 func normalizeRequestedChatWorkspaceMode(
 	mode codersdk.ChatWorkspaceMode,
 ) (codersdk.ChatWorkspaceMode, bool) {
@@ -2768,8 +2707,6 @@ func normalizeRequestedChatWorkspaceMode(
 		return "", true
 	case codersdk.ChatWorkspaceModeWorkspace:
 		return codersdk.ChatWorkspaceModeWorkspace, true
-	case codersdk.ChatWorkspaceModeLocal:
-		return codersdk.ChatWorkspaceModeLocal, true
 	default:
 		return "", false
 	}
@@ -2831,13 +2768,7 @@ func createChatModelConfig(
 	if model != "" {
 		config["model"] = model
 	}
-	if workspaceMode == codersdk.ChatWorkspaceModeLocal {
-		config[chatWorkspaceModeModelConfigKey] = string(
-			codersdk.ChatWorkspaceModeLocal,
-		)
-	} else {
-		delete(config, chatWorkspaceModeModelConfigKey)
-	}
+	delete(config, chatWorkspaceModeModelConfigKey)
 
 	if len(config) == 0 {
 		return json.RawMessage("{}"), nil

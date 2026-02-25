@@ -13088,10 +13088,9 @@
 		},
 		"codersdk.ChatWorkspaceMode": {
 			"type": "string",
-			"enum": ["workspace", "local"],
+			"enum": ["workspace"],
 			"x-enum-varnames": [
-				"ChatWorkspaceModeWorkspace",
-				"ChatWorkspaceModeLocal"
+					"ChatWorkspaceModeWorkspace"
 			]
 		},
 		"codersdk.ConnectionLatency": {

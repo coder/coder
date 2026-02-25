@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -114,4 +115,12 @@ func formatHomeInstruction(content string, sourcePath string, truncated bool) st
 	_, _ = b.WriteString(content)
 	_, _ = b.WriteString("\n</coder-home-instructions>")
 	return b.String()
+}
+
+func isCodersdkStatusCode(err error, statusCode int) bool {
+	var sdkErr *codersdk.Error
+	if !xerrors.As(err, &sdkErr) {
+		return false
+	}
+	return sdkErr.StatusCode() == statusCode
 }
