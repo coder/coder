@@ -1,6 +1,7 @@
 import type * as TypesGen from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { type FC, useState } from "react";
 import { cn } from "utils/cn";
@@ -49,6 +50,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	onDeleteModel,
 }) => {
 	const [view, setView] = useState<ModelView>({ mode: "list" });
+	const [modelToDelete, setModelToDelete] =
+		useState<TypesGen.ChatModelConfig | null>(null);
 
 	// When the form is open it takes over the full panel.
 	if (view.mode === "add" || view.mode === "edit") {
@@ -89,6 +92,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	// ── List view ──────────────────────────────────────────────
 
 	return (
+		<>
 		<div className="space-y-4">
 			{/* Add model button */}
 			<div className="flex items-center justify-end">
@@ -186,7 +190,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 									size="icon"
 									variant="subtle"
 									className="h-8 w-8 text-content-secondary hover:text-content-destructive"
-									onClick={() => void onDeleteModel(modelConfig.id)}
+									onClick={() => setModelToDelete(modelConfig)}
 									disabled={isDeleting}
 								>
 									<Trash2Icon className="h-4 w-4" />
@@ -198,5 +202,21 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				</div>
 			)}
 		</div>
+
+		<DeleteDialog
+			isOpen={modelToDelete !== null}
+			onCancel={() => setModelToDelete(null)}
+			onConfirm={() => {
+				if (modelToDelete) {
+					void onDeleteModel(modelToDelete.id).finally(() =>
+						setModelToDelete(null),
+					);
+				}
+			}}
+			entity="model"
+			name={modelToDelete?.display_name || modelToDelete?.model || ""}
+			confirmLoading={isDeleting}
+		/>
+		</>
 	);
 };
