@@ -55,11 +55,6 @@ runs:
       run: |
         go run scripts/embedded-pg/main.go -path "${EMBEDDED_PG_PATH}" -cache "${EMBEDDED_PG_CACHE_DIR}"
 
-    - name: Set GOEXPERIMENT for Windows
-      if: runner.os == 'Windows'
-      shell: bash
-      run: echo "GOEXPERIMENT=nogreenteagc" >> $GITHUB_ENV
-
     - name: Run tests
       shell: bash
       env:
