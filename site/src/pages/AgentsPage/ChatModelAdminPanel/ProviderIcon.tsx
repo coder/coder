@@ -3,6 +3,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { ServerIcon } from "lucide-react";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "../modelOptions";
+import { normalizeProvider } from "./helpers";
 
 const providerIconMap: Record<string, string> = {
 	openai: "/icon/openai.svg",
@@ -28,7 +29,7 @@ export const ProviderIcon: FC<ProviderIconProps> = ({
 	className,
 	active,
 }) => {
-	const normalized = provider.trim().toLowerCase();
+	const normalized = normalizeProvider(provider);
 	const iconPath = providerIconMap[normalized];
 	if (iconPath) {
 		return (

@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import { normalizeProvider } from "./helpers";
 import {
 	modelConfigAnthropicEffortOptions,
 	modelConfigReasoningEffortOptions,
@@ -394,7 +395,7 @@ export const buildModelConfigFromForm = (
 	);
 
 	let providerOptions: TypesGen.ChatModelProviderOptions | undefined;
-	const normalizedProvider = (provider ?? "").trim().toLowerCase();
+	const normalizedProvider = normalizeProvider(provider ?? "");
 
 	switch (normalizedProvider) {
 		case "openai":

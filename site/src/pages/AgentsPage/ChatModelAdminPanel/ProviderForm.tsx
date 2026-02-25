@@ -7,12 +7,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Input } from "components/Input/Input";
 import { Loader2Icon } from "lucide-react";
 import { type FC, type FormEvent, useEffect, useId, useState } from "react";
-
-const readOptionalString = (value: unknown): string | undefined => {
-	if (typeof value !== "string") return undefined;
-	const trimmed = value.trim();
-	return trimmed || undefined;
-};
+import { readOptionalString } from "./helpers";
 
 type ProviderFormProps = {
 	provider: string;

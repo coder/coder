@@ -16,6 +16,7 @@ import { type FC, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "../modelOptions";
+import { normalizeProvider, readOptionalString } from "./helpers";
 import { ModelsSection } from "./ModelsSection";
 import { ProvidersSection } from "./ProvidersSection";
 
@@ -42,15 +43,6 @@ type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
 
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 const envPresetProviders = new Set(["openai", "anthropic"]);
-
-const normalizeProvider = (provider: string): string =>
-	provider.trim().toLowerCase();
-
-const readOptionalString = (value: unknown): string | undefined => {
-	if (typeof value !== "string") return undefined;
-	const trimmed = value.trim();
-	return trimmed || undefined;
-};
 
 const hasProviderAPIKey = (
 	providerConfig: TypesGen.ChatProviderConfig | undefined,

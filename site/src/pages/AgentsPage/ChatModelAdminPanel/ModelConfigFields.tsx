@@ -9,6 +9,7 @@ import {
 } from "components/Select/Select";
 import type { FC } from "react";
 import { cn } from "utils/cn";
+import { normalizeProvider } from "./helpers";
 import type { ModelConfigFormBuildResult, ModelConfigFormState } from "./modelConfigFormLogic";
 
 export const modelConfigReasoningEffortOptions = [
@@ -462,7 +463,7 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 		onChange,
 		disabled,
 	};
-	const normalized = provider.trim().toLowerCase();
+	const normalized = normalizeProvider(provider);
 
 	const renderProviderSpecificFields = () => {
 		switch (normalized) {
