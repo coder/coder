@@ -1,4 +1,4 @@
-export { Conversation, ConversationItem } from "./conversation";
+export { ConversationItem } from "./conversation";
 export { Message, MessageContent } from "./message";
 export type { ModelSelectorOption } from "./model-selector";
 export { ModelSelector } from "./model-selector";

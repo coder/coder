@@ -412,7 +412,7 @@ export type CreateChatModelConfigRequest = {
 export type UpdateChatModelConfigRequest =
 	Partial<CreateChatModelConfigRequest>;
 
-export interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
+interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
 	readonly patch?: string;
 	readonly diff_patch?: string;
 	readonly unified_diff?: string;
