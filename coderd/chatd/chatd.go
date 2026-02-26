@@ -43,8 +43,6 @@ const (
 	chatHeartbeatInterval        = 30 * time.Second
 	maxChatSteps                 = 1200
 
-	defaultContextCompressionThresholdPercent = int32(70)
-
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
 
@@ -276,7 +274,10 @@ func (p *Server) PostMessages(
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
 		}
-		modelConfigID := resolveMessageModelConfigIDFromChat(opts.ModelConfigID, lockedChat)
+		modelConfigID := lockedChat.LastModelConfigID
+		if opts.ModelConfigID != nil {
+			modelConfigID = *opts.ModelConfigID
+		}
 
 		isChatActive := p.IsActive(opts.ChatID)
 		if opts.QueueIfBusy && shouldQueueUserMessage(lockedChat.Status, isChatActive) {
@@ -310,7 +311,7 @@ func (p *Server) PostMessages(
 
 		message, err := insertChatMessageWithStore(ctx, tx, database.InsertChatMessageParams{
 			ChatID:        opts.ChatID,
-			ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 			Role:          "user",
 			Content: pqtype.NullRawMessage{
 				RawMessage: opts.Content,
@@ -487,7 +488,10 @@ func (p *Server) PromoteQueued(
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
 		}
-		modelConfigID := resolveMessageModelConfigIDFromChat(opts.ModelConfigID, lockedChat)
+		modelConfigID := lockedChat.LastModelConfigID
+		if opts.ModelConfigID != nil {
+			modelConfigID = *opts.ModelConfigID
+		}
 
 		queuedMessages, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
@@ -519,7 +523,7 @@ func (p *Server) PromoteQueued(
 
 		promoted, err = tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
 			ChatID:        opts.ChatID,
-			ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 			Role:          "user",
 			Content: pqtype.NullRawMessage{
 				RawMessage: targetContent,
@@ -635,9 +639,14 @@ func (p *Server) InsertMessage(
 		return InsertMessageResult{}, xerrors.Errorf("invalid role %q", opts.Role)
 	}
 
+	var modelConfigID uuid.NullUUID
+	if opts.ModelConfigID != nil {
+		modelConfigID = uuid.NullUUID{UUID: *opts.ModelConfigID, Valid: true}
+	}
+
 	message, err := insertChatMessageWithStore(ctx, p.db, database.InsertChatMessageParams{
 		ChatID:        opts.ChatID,
-		ModelConfigID: modelConfigIDNullUUID(opts.ModelConfigID),
+		ModelConfigID: modelConfigID,
 		Role:          opts.Role,
 		Content: pqtype.NullRawMessage{
 			RawMessage: opts.Content,
@@ -999,10 +1008,23 @@ func (p *Server) ProviderKeys(
 	}
 	//nolint:gocritic // All authenticated users need to list available models.
 	ctx = dbauthz.AsSystemRestricted(ctx)
-	keys, err := p.resolveProviderAPIKeys(ctx)
+	providers, err := p.db.GetEnabledChatProviders(ctx)
 	if err != nil {
 		return chatprovider.ProviderAPIKeys{}, err
 	}
+	dbProviders := make(
+		[]chatprovider.ConfiguredProvider, 0, len(providers),
+	)
+	for _, provider := range providers {
+		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
+			Provider: provider.Provider,
+			APIKey:   provider.APIKey,
+			BaseURL:  provider.BaseUrl,
+		})
+	}
+	keys := chatprovider.MergeProviderAPIKeys(
+		p.providerAPIKeys, dbProviders,
+	)
 	return chatprovider.MergeProviderAPIKeys(keys, configuredProviders), nil
 }
 
@@ -1570,10 +1592,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				// Try to auto-promote the next queued message.
 				nextQueued, popErr := tx.PopNextQueuedMessage(ctx, chat.ID)
 				if popErr == nil {
-					modelConfigID := resolveMessageModelConfigIDFromChat(nil, latestChat)
 					msg, insertErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
 						ChatID:        chat.ID,
-						ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+						ModelConfigID: uuid.NullUUID{UUID: latestChat.LastModelConfigID, Valid: true},
 						Role:          "user",
 						Content: pqtype.NullRawMessage{
 							RawMessage: nextQueued.Content,
@@ -1742,18 +1763,10 @@ func (p *Server) runChat(
 		getWorkspaceConn,
 	)
 
-	// Resolve the model config's context_limit so we can use it as a
-	// fallback when the LLM provider doesn't include context_limit in
-	// its response metadata (which is the common case).
-	compressionConfig := chatContextCompressionConfig{
-		ThresholdPercent: defaultContextCompressionThresholdPercent,
-	}
-	if resolvedCompressionConfig, err := p.resolveChatContextCompressionConfig(ctx, chat); err != nil {
-		logger.Warn(ctx, "failed to resolve chat compaction config", slog.Error(err))
-	} else {
-		compressionConfig = resolvedCompressionConfig
-	}
-	modelConfigContextLimit := compressionConfig.ContextLimit
+	// Use the model config's context_limit as a fallback when the LLM
+	// provider doesn't include context_limit in its response metadata
+	// (which is the common case).
+	modelConfigContextLimit := modelConfig.ContextLimit
 
 	persistStep := func(persistCtx context.Context, step chatloop.PersistedStep) error {
 		// Split the step content into assistant blocks and tool
@@ -1782,7 +1795,7 @@ func (p *Server) runChat(
 			hasUsage := step.Usage != (fantasy.Usage{})
 			assistantMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 				ChatID:        chat.ID,
-				ModelConfigID: modelConfigIDNullUUID(modelConfig.ModelConfigID),
+				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ModelConfigID, Valid: true},
 				Role:          string(fantasy.MessageRoleAssistant),
 				Content:       assistantContent,
 				Visibility:    database.ChatMessageVisibilityBoth,
@@ -1815,7 +1828,7 @@ func (p *Server) runChat(
 
 			toolMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 				ChatID:        chat.ID,
-				ModelConfigID: modelConfigIDNullUUID(modelConfig.ModelConfigID),
+				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ModelConfigID, Valid: true},
 				Role:          string(fantasy.MessageRoleTool),
 				Content:       resultContent,
 				Visibility:    database.ChatMessageVisibilityBoth,
@@ -1828,10 +1841,25 @@ func (p *Server) runChat(
 		}
 		return nil
 	}
-	streamCall := streamCallOptionsFromChatModelConfig(model, modelConfig)
+
+	streamCall := fantasy.AgentStreamCall{
+		MaxOutputTokens:  modelConfig.MaxOutputTokens,
+		Temperature:      modelConfig.Temperature,
+		TopP:             modelConfig.TopP,
+		TopK:             modelConfig.TopK,
+		PresencePenalty:  modelConfig.PresencePenalty,
+		FrequencyPenalty: modelConfig.FrequencyPenalty,
+		ProviderOptions:  chatprovider.ProviderOptionsFromChatModelConfig(model, modelConfig.ProviderOptions),
+	}
+
+	if streamCall.MaxOutputTokens == nil {
+		maxOutputTokens := int64(32_000)
+		streamCall.MaxOutputTokens = &maxOutputTokens
+	}
+
 	compactionOptions := &chatloop.CompactionOptions{
-		ThresholdPercent: compressionConfig.ThresholdPercent,
-		ContextLimit:     compressionConfig.ContextLimit,
+		ThresholdPercent: modelConfig.CompressionThreshold,
+		ContextLimit:     modelConfig.ContextLimit,
 		Persist: func(
 			persistCtx context.Context,
 			result chatloop.CompactionResult,
@@ -1918,33 +1946,12 @@ func (p *Server) runChat(
 	return err
 }
 
-type chatContextCompressionConfig struct {
-	ContextLimit     int64
-	ThresholdPercent int32
-}
-
-func (p *Server) resolveChatContextCompressionConfig(
-	ctx context.Context,
-	chat database.Chat,
-) (chatContextCompressionConfig, error) {
-	config := chatContextCompressionConfig{
-		ThresholdPercent: defaultContextCompressionThresholdPercent,
-	}
-
-	dbConfig, err := p.resolveModelConfig(ctx, chat)
-	if err != nil {
-		return config, xerrors.Errorf("resolve model config: %w", err)
-	}
-
-	config.ContextLimit = dbConfig.ContextLimit
-	config.ThresholdPercent = dbConfig.CompressionThreshold
-	return config, nil
-}
-
+// persistChatContextSummary persists a chat context summary to the database.
+// This is invoked via the chat loop's compaction callback.
 func (p *Server) persistChatContextSummary(
 	ctx context.Context,
 	chatID uuid.UUID,
-	modelConfigID *uuid.UUID,
+	modelConfigID uuid.UUID,
 	result chatloop.CompactionResult,
 ) error {
 	if strings.TrimSpace(result.SystemSummary) == "" ||
@@ -1959,7 +1966,7 @@ func (p *Server) persistChatContextSummary(
 
 	_, err = p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
 		ChatID:        chatID,
-		ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		Role:          string(fantasy.MessageRoleSystem),
 		Content: pqtype.NullRawMessage{
 			RawMessage: systemContent,
@@ -2001,7 +2008,7 @@ func (p *Server) persistChatContextSummary(
 
 	assistantMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
 		ChatID:        chatID,
-		ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		Role:          string(fantasy.MessageRoleAssistant),
 		Content:       assistantContent,
 		Visibility:    database.ChatMessageVisibilityUser,
@@ -2044,7 +2051,7 @@ func (p *Server) persistChatContextSummary(
 
 	toolMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
 		ChatID:        chatID,
-		ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		Role:          string(fantasy.MessageRoleTool),
 		Content:       toolResult,
 		Visibility:    database.ChatMessageVisibilityBoth,
@@ -2080,16 +2087,36 @@ func (p *Server) resolveChatModel(
 		)
 	}
 
-	config := chatModelConfigFromDB(dbConfig)
+	config, _ := parseChatModelConfig(dbConfig.Options)
+	config.Provider = dbConfig.Provider
+	config.Model = dbConfig.Model
+	config.ContextLimit = dbConfig.ContextLimit
+	config.CompressionThreshold = dbConfig.CompressionThreshold
+	config.ModelConfigID = dbConfig.ID
 
-	keys, err := p.resolveProviderAPIKeys(ctx)
+	providers, err := p.db.GetEnabledChatProviders(ctx)
 	if err != nil {
 		return nil, chatModelConfig{}, xerrors.Errorf(
-			"resolve provider API keys: %w", err,
+			"get enabled chat providers: %w", err,
 		)
 	}
+	dbProviders := make(
+		[]chatprovider.ConfiguredProvider, 0, len(providers),
+	)
+	for _, provider := range providers {
+		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
+			Provider: provider.Provider,
+			APIKey:   provider.APIKey,
+			BaseURL:  provider.BaseUrl,
+		})
+	}
+	keys := chatprovider.MergeProviderAPIKeys(
+		p.providerAPIKeys, dbProviders,
+	)
 
-	model, err := modelFromConfig(config, keys)
+	model, err := chatprovider.ModelFromConfig(
+		config.Provider, config.Model, keys,
+	)
 	if err != nil {
 		return nil, chatModelConfig{}, xerrors.Errorf(
 			"create model: %w", err,
@@ -2134,17 +2161,6 @@ func (p *Server) resolveModelConfig(
 		)
 	}
 	return defaultConfig, nil
-}
-
-// chatModelConfigFromDB builds a chatModelConfig from a database
-// ChatModelConfig row, parsing call options from the Options JSON.
-func chatModelConfigFromDB(dbConfig database.ChatModelConfig) chatModelConfig {
-	config, _ := parseChatModelConfig(dbConfig.Options)
-	config.Provider = dbConfig.Provider
-	config.Model = dbConfig.Model
-	config.ContextLimit = dbConfig.ContextLimit
-	config.ModelConfigID = uuidPointer(dbConfig.ID)
-	return config
 }
 
 //nolint:revive // Boolean controls SQL NULL validity.
@@ -2226,73 +2242,6 @@ func (p *Server) resolveHomeInstruction(
 	return instruction
 }
 
-func (p *Server) resolveProviderAPIKeys(
-	ctx context.Context,
-) (chatprovider.ProviderAPIKeys, error) {
-	providers, err := p.db.GetEnabledChatProviders(ctx)
-	if err != nil {
-		return chatprovider.ProviderAPIKeys{}, err
-	}
-
-	configuredProviders := make(
-		[]chatprovider.ConfiguredProvider,
-		0,
-		len(providers),
-	)
-	for _, provider := range providers {
-		configuredProviders = append(
-			configuredProviders,
-			chatprovider.ConfiguredProvider{
-				Provider: provider.Provider,
-				APIKey:   provider.APIKey,
-				BaseURL:  provider.BaseUrl,
-			},
-		)
-	}
-
-	return chatprovider.MergeProviderAPIKeys(
-		p.providerAPIKeys,
-		configuredProviders,
-	), nil
-}
-
-func userMessageText(raw pqtype.NullRawMessage) (string, error) {
-	content, err := chatprompt.ParseContent(string(fantasy.MessageRoleUser), raw)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(contentBlocksToText(content)), nil
-}
-
-func contentBlocksToText(content []fantasy.Content) string {
-	parts := make([]string, 0, len(content))
-	for _, block := range content {
-		textBlock, ok := fantasy.AsContentType[fantasy.TextContent](block)
-		if !ok {
-			continue
-		}
-		text := strings.TrimSpace(textBlock.Text)
-		if text == "" {
-			continue
-		}
-		parts = append(parts, text)
-	}
-	return strings.Join(parts, " ")
-}
-
-func truncateRunes(value string, maxLen int) string {
-	if maxLen <= 0 {
-		return ""
-	}
-
-	runes := []rune(value)
-	if len(runes) <= maxLen {
-		return value
-	}
-
-	return string(runes[:maxLen])
-}
-
 func (p *Server) recoverStaleChats(ctx context.Context) {
 	staleAfter := time.Now().Add(-p.inFlightChatStaleAfter)
 	staleChats, err := p.db.GetStaleChats(ctx, staleAfter)
@@ -2332,10 +2281,11 @@ func (p *Server) Close() error {
 
 type chatModelConfig struct {
 	codersdk.ChatModelCallConfig
-	Provider      string `json:"provider,omitempty"`
-	Model         string `json:"model"`
-	ContextLimit  int64  `json:"context_limit,omitempty"`
-	ModelConfigID *uuid.UUID
+	Provider             string `json:"provider,omitempty"`
+	Model                string `json:"model"`
+	ContextLimit         int64  `json:"context_limit,omitempty"`
+	CompressionThreshold int32  `json:"compression_threshold,omitempty"`
+	ModelConfigID        uuid.UUID
 }
 
 func parseChatModelConfig(raw json.RawMessage) (chatModelConfig, error) {
@@ -2347,72 +2297,4 @@ func parseChatModelConfig(raw json.RawMessage) (chatModelConfig, error) {
 		return chatModelConfig{}, err
 	}
 	return config, nil
-}
-
-func resolveMessageModelConfigIDFromChat(
-	explicitModelConfigID *uuid.UUID,
-	chat database.Chat,
-) *uuid.UUID {
-	if explicitModelConfigID != nil {
-		return explicitModelConfigID
-	}
-	return uuidPointer(chat.LastModelConfigID)
-}
-
-func uuidPointer(id uuid.UUID) *uuid.UUID {
-	if id == uuid.Nil {
-		return nil
-	}
-	idCopy := id
-	return &idCopy
-}
-
-func modelConfigIDNullUUID(modelConfigID *uuid.UUID) uuid.NullUUID {
-	if modelConfigID == nil || *modelConfigID == uuid.Nil {
-		return uuid.NullUUID{}
-	}
-	return uuid.NullUUID{
-		UUID:  *modelConfigID,
-		Valid: true,
-	}
-}
-
-func streamCallOptionsFromChatModelConfig(
-	model fantasy.LanguageModel,
-	config chatModelConfig,
-) fantasy.AgentStreamCall {
-	streamCall := fantasy.AgentStreamCall{
-		MaxOutputTokens:  config.MaxOutputTokens,
-		Temperature:      config.Temperature,
-		TopP:             config.TopP,
-		TopK:             config.TopK,
-		PresencePenalty:  config.PresencePenalty,
-		FrequencyPenalty: config.FrequencyPenalty,
-		ProviderOptions: chatprovider.ProviderOptionsFromChatModelConfig(
-			model,
-			config.ProviderOptions,
-		),
-	}
-
-	if streamCall.MaxOutputTokens == nil {
-		maxOutputTokens := int64(32_000)
-		streamCall.MaxOutputTokens = &maxOutputTokens
-	}
-
-	return streamCall
-}
-
-func modelFromConfig(
-	config chatModelConfig,
-	providerKeys chatprovider.ProviderAPIKeys,
-) (fantasy.LanguageModel, error) {
-	return chatprovider.ModelFromConfig(config.Provider, config.Model, providerKeys)
-}
-
-func toolJSONResponse(result map[string]any) fantasy.ToolResponse {
-	data, err := json.Marshal(result)
-	if err != nil {
-		return fantasy.NewTextResponse("{}")
-	}
-	return fantasy.NewTextResponse(string(data))
 }

@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
@@ -122,11 +123,15 @@ func titleInput(
 		case string(fantasy.MessageRoleUser):
 			userCount++
 			if firstUserText == "" {
-				text, err := userMessageText(message.Content)
+				parsed, err := chatprompt.ParseContent(
+					string(fantasy.MessageRoleUser), message.Content,
+				)
 				if err != nil {
 					return "", false
 				}
-				firstUserText = text
+				firstUserText = strings.TrimSpace(
+					contentBlocksToText(parsed),
+				)
 			}
 		}
 	}
@@ -179,4 +184,33 @@ func fallbackChatTitle(message string) string {
 	}
 
 	return truncateRunes(title, maxRunes)
+}
+
+// contentBlocksToText concatenates the text parts of content blocks
+// into a single space-separated string.
+func contentBlocksToText(content []fantasy.Content) string {
+	parts := make([]string, 0, len(content))
+	for _, block := range content {
+		textBlock, ok := fantasy.AsContentType[fantasy.TextContent](block)
+		if !ok {
+			continue
+		}
+		text := strings.TrimSpace(textBlock.Text)
+		if text == "" {
+			continue
+		}
+		parts = append(parts, text)
+	}
+	return strings.Join(parts, " ")
+}
+
+func truncateRunes(value string, maxLen int) string {
+	if maxLen <= 0 {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= maxLen {
+		return value
+	}
+	return string(runes[:maxLen])
 }

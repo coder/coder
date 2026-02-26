@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"sort"
 	"strings"
 	"time"
@@ -516,4 +517,12 @@ func subagentTruncateRunes(value string, max int) string {
 	}
 
 	return string(runes[:max])
+}
+
+func toolJSONResponse(result map[string]any) fantasy.ToolResponse {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fantasy.NewTextResponse("{}")
+	}
+	return fantasy.NewTextResponse(string(data))
 }
