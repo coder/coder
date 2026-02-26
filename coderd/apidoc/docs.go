@@ -14140,11 +14140,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "model_config": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                "last_model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "owner_id": {
                     "type": "string",
@@ -14237,17 +14235,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatInput": {
-            "type": "object",
-            "properties": {
-                "parts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatInputPart"
-                    }
-                }
-            }
-        },
         "codersdk.ChatInputPart": {
             "type": "object",
             "properties": {
@@ -14302,6 +14289,10 @@ const docTemplate = `{
                 },
                 "input_tokens": {
                     "type": "integer"
+                },
+                "model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "output_tokens": {
                     "type": "integer"
@@ -14740,17 +14731,12 @@ const docTemplate = `{
                 "content": {
                     "type": "array",
                     "items": {
-                        "type": "integer"
+                        "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
-                "role": {
-                    "type": "string"
-                },
-                "thinking": {
-                    "type": "string"
-                },
-                "tool_call_id": {
-                    "type": "string"
+                "model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -14774,27 +14760,15 @@ const docTemplate = `{
         "codersdk.CreateChatRequest": {
             "type": "object",
             "properties": {
-                "input": {
-                    "$ref": "#/definitions/codersdk.ChatInput"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "model": {
-                    "type": "string"
-                },
-                "model_config": {
+                "content": {
                     "type": "array",
                     "items": {
-                        "type": "integer"
+                        "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
-                "parent_chat_id": {
+                "model_config_id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "system_prompt": {
-                    "type": "string"
                 },
                 "workspace_agent_id": {
                     "type": "string",
@@ -23933,19 +23907,19 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "forceQuery": {
-                    "description": "append a query ('?') even if RawQuery is empty",
+                    "description": "ForceQuery indicates whether the original URL contained a query ('?') character.\nWhen set, the String method will include a trailing '?', even when RawQuery is empty.",
                     "type": "boolean"
                 },
                 "fragment": {
-                    "description": "fragment for references, without '#'",
+                    "description": "fragment for references (without '#')",
                     "type": "string"
                 },
                 "host": {
-                    "description": "host or host:port (see Hostname and Port methods)",
+                    "description": "\"host\" or \"host:port\" (see Hostname and Port methods)",
                     "type": "string"
                 },
                 "omitHost": {
-                    "description": "do not emit empty host (authority)",
+                    "description": "OmitHost indicates the URL has an empty host (authority).\nWhen set, the String method will not include the host when it is empty.",
                     "type": "boolean"
                 },
                 "opaque": {
@@ -23957,15 +23931,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "rawFragment": {
-                    "description": "encoded fragment hint (see EscapedFragment method)",
+                    "description": "RawFragment is an optional field containing an encoded fragment hint.\nSee the EscapedFragment method for more details.\n\nIn general, code should call EscapedFragment instead of reading RawFragment.",
                     "type": "string"
                 },
                 "rawPath": {
-                    "description": "encoded path hint (see EscapedPath method)",
+                    "description": "RawPath is an optional field containing an encoded path hint.\nSee the EscapedPath method for more details.\n\nIn general, code should call EscapedPath instead of reading RawPath.",
                     "type": "string"
                 },
                 "rawQuery": {
-                    "description": "encoded query values, without '?'",
+                    "description": "RawQuery contains the encoded query values, without the initial '?'.\nUse URL.Query to decode the query.",
                     "type": "string"
                 },
                 "scheme": {

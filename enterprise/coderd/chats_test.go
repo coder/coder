@@ -51,7 +51,10 @@ func TestChatStreamRelay(t *testing.T) {
 
 		// Create a chat on the first replica
 		chat, err := firstClient.CreateChat(ctx, codersdk.CreateChatRequest{
-			Message: "Test chat for relay",
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Test chat for relay",
+			}},
 		})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)

@@ -1057,10 +1057,10 @@ export interface Chat {
 	readonly workspace_agent_id?: string;
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
+	readonly last_model_config_id?: string;
 	readonly title: string;
 	readonly status: ChatStatus;
 	readonly diff_status?: ChatDiffStatus;
-	readonly model_config?: Record<string, string>;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -1112,14 +1112,6 @@ export interface ChatGitChange {
 
 // From codersdk/chats.go
 /**
- * ChatInput is the structured user input payload for chat creation.
- */
-export interface ChatInput {
-	readonly parts: readonly ChatInputPart[];
-}
-
-// From codersdk/chats.go
-/**
  * ChatInputPart is a single user input part for creating a chat.
  */
 export interface ChatInputPart {
@@ -1139,6 +1131,7 @@ export const ChatInputPartTypes: ChatInputPartType[] = ["text"];
 export interface ChatMessage {
 	readonly id: number;
 	readonly chat_id: string;
+	readonly model_config_id?: string;
 	readonly created_at: string;
 	readonly role: string;
 	readonly content?: Record<string, string>;
@@ -1717,10 +1710,8 @@ export interface ConvertLoginRequest {
  * CreateChatMessageRequest is the request to add a message to a chat.
  */
 export interface CreateChatMessageRequest {
-	readonly role: string;
-	readonly content?: Record<string, string>;
-	readonly tool_call_id?: string;
-	readonly thinking?: string;
+	readonly content: readonly ChatInputPart[];
+	readonly model_config_id?: string;
 }
 
 // From codersdk/chats.go
@@ -1764,14 +1755,10 @@ export interface CreateChatProviderConfigRequest {
  * CreateChatRequest is the request to create a new chat.
  */
 export interface CreateChatRequest {
-	readonly input?: ChatInput;
-	readonly message?: string;
-	readonly system_prompt?: string;
+	readonly content: readonly ChatInputPart[];
 	readonly workspace_id?: string;
 	readonly workspace_agent_id?: string;
-	readonly parent_chat_id?: string;
-	readonly model?: string;
-	readonly model_config?: Record<string, string>;
+	readonly model_config_id: string;
 }
 
 // From codersdk/users.go

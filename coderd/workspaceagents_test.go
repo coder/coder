@@ -2883,7 +2883,10 @@ func TestWorkspaceAgentExternalAuthStoresGitRef(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	workspaceID := r.Workspace.ID
 	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		Message:     "Track branch status from external auth.",
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "Track branch status from external auth.",
+		}},
 		WorkspaceID: &workspaceID,
 	})
 	require.NoError(t, err)

@@ -130,6 +130,7 @@ INSERT INTO chats (
     workspace_agent_id,
     parent_chat_id,
     root_chat_id,
+    last_model_config_id,
     title
 ) VALUES (
     @owner_id::uuid,
@@ -137,43 +138,61 @@ INSERT INTO chats (
     sqlc.narg('workspace_agent_id')::uuid,
     sqlc.narg('parent_chat_id')::uuid,
     sqlc.narg('root_chat_id')::uuid,
+    sqlc.narg('last_model_config_id')::uuid,
     @title::text
 )
 RETURNING
     *;
 
 -- name: InsertChatMessage :one
-INSERT INTO chat_messages (
-    chat_id,
-    model_config_id,
-    role,
-    content,
-    visibility,
-    input_tokens,
-    output_tokens,
-    total_tokens,
-    reasoning_tokens,
-    cache_creation_tokens,
-    cache_read_tokens,
-    context_limit,
-    compressed
-) VALUES (
-    @chat_id::uuid,
-    sqlc.narg('model_config_id')::uuid,
-    @role::text,
-    sqlc.narg('content')::jsonb,
-    COALESCE(sqlc.narg('visibility')::chat_message_visibility, 'both'),
-    sqlc.narg('input_tokens')::bigint,
-    sqlc.narg('output_tokens')::bigint,
-    sqlc.narg('total_tokens')::bigint,
-    sqlc.narg('reasoning_tokens')::bigint,
-    sqlc.narg('cache_creation_tokens')::bigint,
-    sqlc.narg('cache_read_tokens')::bigint,
-    sqlc.narg('context_limit')::bigint,
-    COALESCE(sqlc.narg('compressed')::boolean, FALSE)
+WITH inserted AS (
+    INSERT INTO chat_messages (
+        chat_id,
+        model_config_id,
+        role,
+        content,
+        visibility,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        reasoning_tokens,
+        cache_creation_tokens,
+        cache_read_tokens,
+        context_limit,
+        compressed
+    ) VALUES (
+        @chat_id::uuid,
+        sqlc.narg('model_config_id')::uuid,
+        @role::text,
+        sqlc.narg('content')::jsonb,
+        COALESCE(sqlc.narg('visibility')::chat_message_visibility, 'both'),
+        sqlc.narg('input_tokens')::bigint,
+        sqlc.narg('output_tokens')::bigint,
+        sqlc.narg('total_tokens')::bigint,
+        sqlc.narg('reasoning_tokens')::bigint,
+        sqlc.narg('cache_creation_tokens')::bigint,
+        sqlc.narg('cache_read_tokens')::bigint,
+        sqlc.narg('context_limit')::bigint,
+        COALESCE(sqlc.narg('compressed')::boolean, FALSE)
+    )
+    RETURNING
+        id
+),
+updated_chat AS (
+    UPDATE
+        chats
+    SET
+        last_model_config_id = sqlc.narg('model_config_id')::uuid
+    WHERE
+        id = @chat_id::uuid
+        AND sqlc.narg('model_config_id')::uuid IS NOT NULL
 )
-RETURNING
-    *;
+SELECT
+    cm.*
+FROM
+    chat_messages cm
+JOIN
+    inserted i ON i.id = cm.id;
 
 -- name: UpdateChatByID :one
 UPDATE

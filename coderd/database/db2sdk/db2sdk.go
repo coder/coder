@@ -1064,6 +1064,7 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 	msg := codersdk.ChatMessage{
 		ID:                  m.ID,
 		ChatID:              m.ChatID,
+		ModelConfigID:       modelConfigUUIDPtr(m.ModelConfigID),
 		CreatedAt:           m.CreatedAt,
 		Role:                m.Role,
 		Hidden:              m.Visibility == database.ChatMessageVisibilityModel,
@@ -1083,6 +1084,14 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		}
 	}
 	return msg
+}
+
+func modelConfigUUIDPtr(id uuid.NullUUID) *uuid.UUID {
+	if !id.Valid {
+		return nil
+	}
+	modelConfigID := id.UUID
+	return &modelConfigID
 }
 
 func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {

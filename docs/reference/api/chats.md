@@ -33,9 +33,7 @@ curl -X GET http://coder-server:8080/api/v2/chats \
       "url": "string"
     },
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "model_config": [
-      0
-    ],
+    "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
@@ -58,30 +56,30 @@ curl -X GET http://coder-server:8080/api/v2/chats \
 
 Status Code **200**
 
-| Name                    | Type                                                         | Required | Restrictions | Description |
-|-------------------------|--------------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`          | array                                                        | false    |              |             |
-| `» created_at`          | string(date-time)                                            | false    |              |             |
-| `» diff_status`         | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus) | false    |              |             |
-| `»» additions`          | integer                                                      | false    |              |             |
-| `»» changed_files`      | integer                                                      | false    |              |             |
-| `»» changes_requested`  | boolean                                                      | false    |              |             |
-| `»» chat_id`            | string(uuid)                                                 | false    |              |             |
-| `»» deletions`          | integer                                                      | false    |              |             |
-| `»» pull_request_state` | string                                                       | false    |              |             |
-| `»» refreshed_at`       | string(date-time)                                            | false    |              |             |
-| `»» stale_at`           | string(date-time)                                            | false    |              |             |
-| `»» url`                | string                                                       | false    |              |             |
-| `» id`                  | string(uuid)                                                 | false    |              |             |
-| `» model_config`        | array                                                        | false    |              |             |
-| `» owner_id`            | string(uuid)                                                 | false    |              |             |
-| `» parent_chat_id`      | string(uuid)                                                 | false    |              |             |
-| `» root_chat_id`        | string(uuid)                                                 | false    |              |             |
-| `» status`              | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)         | false    |              |             |
-| `» title`               | string                                                       | false    |              |             |
-| `» updated_at`          | string(date-time)                                            | false    |              |             |
-| `» workspace_agent_id`  | string(uuid)                                                 | false    |              |             |
-| `» workspace_id`        | string(uuid)                                                 | false    |              |             |
+| Name                     | Type                                                         | Required | Restrictions | Description |
+|--------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`           | array                                                        | false    |              |             |
+| `» created_at`           | string(date-time)                                            | false    |              |             |
+| `» diff_status`          | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus) | false    |              |             |
+| `»» additions`           | integer                                                      | false    |              |             |
+| `»» changed_files`       | integer                                                      | false    |              |             |
+| `»» changes_requested`   | boolean                                                      | false    |              |             |
+| `»» chat_id`             | string(uuid)                                                 | false    |              |             |
+| `»» deletions`           | integer                                                      | false    |              |             |
+| `»» pull_request_state`  | string                                                       | false    |              |             |
+| `»» refreshed_at`        | string(date-time)                                            | false    |              |             |
+| `»» stale_at`            | string(date-time)                                            | false    |              |             |
+| `»» url`                 | string                                                       | false    |              |             |
+| `» id`                   | string(uuid)                                                 | false    |              |             |
+| `» last_model_config_id` | string(uuid)                                                 | false    |              |             |
+| `» owner_id`             | string(uuid)                                                 | false    |              |             |
+| `» parent_chat_id`       | string(uuid)                                                 | false    |              |             |
+| `» root_chat_id`         | string(uuid)                                                 | false    |              |             |
+| `» status`               | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)         | false    |              |             |
+| `» title`                | string                                                       | false    |              |             |
+| `» updated_at`           | string(date-time)                                            | false    |              |             |
+| `» workspace_agent_id`   | string(uuid)                                                 | false    |              |             |
+| `» workspace_id`         | string(uuid)                                                 | false    |              |             |
 
 #### Enumerated Values
 
@@ -109,21 +107,13 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 
 ```json
 {
-  "input": {
-    "parts": [
-      {
-        "text": "string",
-        "type": "text"
-      }
-    ]
-  },
-  "message": "string",
-  "model": "string",
-  "model_config": [
-    0
+  "content": [
+    {
+      "text": "string",
+      "type": "text"
+    }
   ],
-  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
-  "system_prompt": "string",
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
@@ -154,9 +144,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
     "url": "string"
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "model_config": [
-    0
-  ],
+  "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
@@ -292,9 +280,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "url": "string"
     },
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "model_config": [
-      0
-    ],
+    "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
@@ -317,6 +303,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "hidden": true,
       "id": 0,
       "input_tokens": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "output_tokens": 0,
       "parts": [
         {
@@ -535,9 +522,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
     "url": "string"
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "model_config": [
-    0
-  ],
+  "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
@@ -576,11 +561,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 ```json
 {
   "content": [
-    0
+    {
+      "text": "string",
+      "type": "text"
+    }
   ],
-  "role": "string",
-  "thinking": "string",
-  "tool_call_id": "string"
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
 }
 ```
 
@@ -610,6 +596,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "hidden": true,
       "id": 0,
       "input_tokens": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "output_tokens": 0,
       "parts": [
         {
@@ -742,6 +729,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}/
       "hidden": true,
       "id": 0,
       "input_tokens": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "output_tokens": 0,
       "parts": [
         {

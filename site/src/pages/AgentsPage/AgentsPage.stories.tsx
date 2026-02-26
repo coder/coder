@@ -149,7 +149,7 @@ export const UsesSavedBehaviorPromptOnSend: Story = {
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalledWith(
 				expect.objectContaining({
-					systemPrompt: "Use concise and actionable answers.",
+					message: "Create a README checklist",
 				}),
 			);
 		});

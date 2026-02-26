@@ -1,4 +1,9 @@
-import type { Chat, ChatDiffStatus, ChatStatus } from "api/typesGenerated";
+import type {
+	Chat,
+	ChatDiffStatus,
+	ChatModelConfig,
+	ChatStatus,
+} from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
@@ -42,6 +47,7 @@ interface AgentsSidebarProps {
 	chats: readonly Chat[];
 	chatErrorReasons: Record<string, string>;
 	modelOptions: readonly ModelSelectorOption[];
+	modelConfigs: readonly ChatModelConfig[];
 	logoUrl?: string;
 	onArchiveAgent: (chatId: string) => void;
 	onNewAgent: () => void;
@@ -99,30 +105,35 @@ const asNonEmptyString = (value: unknown): string | undefined => {
 };
 
 const getModelDisplayName = (
-	modelConfig: Chat["model_config"] | undefined,
+	lastModelConfigID: Chat["last_model_config_id"] | undefined,
+	modelConfigs: readonly ChatModelConfig[],
 	modelOptions: readonly ModelSelectorOption[],
 ) => {
-	if (!modelConfig || typeof modelConfig !== "object") {
+	if (!lastModelConfigID) {
 		return "Default model";
 	}
-
-	const model = modelConfig.model;
-	if (!model) {
+	const modelConfig = modelConfigs.find((config) => config.id === lastModelConfigID);
+	if (!modelConfig) {
 		return "Default model";
+	}
+	const provider = modelConfig.provider.trim().toLowerCase();
+	const model = modelConfig.model.trim();
+	if (!provider || !model) {
+		return modelConfig.display_name.trim() || "Default model";
 	}
 
 	// Try to find a matching option with a display name.
 	const match = modelOptions.find(
-		(opt) => opt.id === model || opt.model === model,
+		(opt) =>
+			opt.id === `${provider}:${model}` ||
+			(opt.provider === provider && opt.model === model),
 	);
 	if (match?.displayName) {
 		return match.displayName;
 	}
 
-	// Fall back to stripping the provider prefix.
-	const parts = model.split(":");
-	if (parts.length === 2) {
-		return parts[1];
+	if (modelConfig.display_name.trim()) {
+		return modelConfig.display_name.trim();
 	}
 
 	return model;
@@ -243,6 +254,7 @@ interface ChatTreeContextValue {
 	readonly normalizedSearch: string;
 	readonly expandedById: Record<string, boolean>;
 	readonly modelOptions: readonly ModelSelectorOption[];
+	readonly modelConfigs: readonly ChatModelConfig[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly isArchiving: boolean;
 	readonly archivingChatId: string | null;
@@ -273,6 +285,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		normalizedSearch,
 		expandedById,
 		modelOptions,
+		modelConfigs,
 		chatErrorReasons,
 		isArchiving,
 		archivingChatId,
@@ -289,7 +302,11 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	const StatusIcon = config.icon;
 	const isDelegatedExecuting =
 		isDelegated && (chat.status === "pending" || chat.status === "running");
-	const modelName = getModelDisplayName(chat.model_config, modelOptions);
+	const modelName = getModelDisplayName(
+		chat.last_model_config_id,
+		modelConfigs,
+		modelOptions,
+	);
 	const errorReason =
 		chat.status === "error" ? chatErrorReasons[chat.id] : undefined;
 	const subtitle = errorReason || modelName;
@@ -449,6 +466,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		chats,
 		chatErrorReasons,
 		modelOptions,
+		modelConfigs,
 		logoUrl,
 		onArchiveAgent,
 		onNewAgent,
@@ -522,6 +540,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			normalizedSearch,
 			expandedById,
 			modelOptions,
+			modelConfigs,
 			chatErrorReasons,
 			isArchiving,
 			archivingChatId,
@@ -535,6 +554,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			normalizedSearch,
 			expandedById,
 			modelOptions,
+			modelConfigs,
 			chatErrorReasons,
 			isArchiving,
 			archivingChatId,

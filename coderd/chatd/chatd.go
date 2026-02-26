@@ -264,6 +264,7 @@ type CreateOptions struct {
 	ParentChatID       uuid.NullUUID
 	RootChatID         uuid.NullUUID
 	Title              string
+	ModelConfigID      uuid.UUID
 	ModelConfig        json.RawMessage
 	SystemPrompt       string
 	InitialUserContent json.RawMessage
@@ -271,14 +272,15 @@ type CreateOptions struct {
 
 // InsertMessageOptions controls direct chat message insertion.
 type InsertMessageOptions struct {
-	ChatID     uuid.UUID
-	Role       string
-	Content    json.RawMessage
-	ToolCallID *string
-	Thinking   *string
-	Hidden     bool
-	Interrupt  bool
-	SetPending bool
+	ChatID        uuid.UUID
+	ModelConfigID *uuid.UUID
+	Role          string
+	Content       json.RawMessage
+	ToolCallID    *string
+	Thinking      *string
+	Hidden        bool
+	Interrupt     bool
+	SetPending    bool
 }
 
 // InsertMessageResult contains persisted message metadata and optional chat status.
@@ -291,6 +293,7 @@ type InsertMessageResult struct {
 type PostMessagesOptions struct {
 	ChatID          uuid.UUID
 	Content         json.RawMessage
+	ModelConfigID   *uuid.UUID
 	ToolCallID      *string
 	Thinking        *string
 	Hidden          bool
@@ -312,6 +315,7 @@ type PostMessagesResult struct {
 type PromoteQueuedOptions struct {
 	ChatID          uuid.UUID
 	QueuedMessageID int64
+	ModelConfigID   *uuid.UUID
 }
 
 // PromoteQueuedResult contains the post-promotion message list.
@@ -331,6 +335,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if len(opts.InitialUserContent) == 0 {
 		return database.Chat{}, xerrors.New("initial user content is required")
 	}
+	modelConfigID := resolveMessageModelConfigID(opts.ModelConfigID, opts.ModelConfig)
 
 	chat, err := p.db.InsertChat(ctx, database.InsertChatParams{
 		OwnerID:          opts.OwnerID,
@@ -338,6 +343,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		WorkspaceAgentID: opts.WorkspaceAgentID,
 		ParentChatID:     opts.ParentChatID,
 		RootChatID:       opts.RootChatID,
+		LastModelConfigID: modelConfigIDNullUUID(modelConfigID),
 		Title:            opts.Title,
 	})
 	if err != nil {
@@ -351,8 +357,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return database.Chat{}, xerrors.Errorf("marshal system prompt: %w", err)
 		}
 		_, err = p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID: chat.ID,
-			Role:   "system",
+			ChatID:        chat.ID,
+			ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+			Role:          "system",
 			Content: pqtype.NullRawMessage{
 				RawMessage: systemContent,
 				Valid:      len(systemContent) > 0,
@@ -365,11 +372,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 
 	sendResult, err := p.InsertMessage(ctx, InsertMessageOptions{
-		ChatID:     chat.ID,
-		Role:       "user",
-		Content:    opts.InitialUserContent,
-		Hidden:     false,
-		SetPending: true,
+		ChatID:        chat.ID,
+		ModelConfigID: modelConfigID,
+		Role:          "user",
+		Content:       opts.InitialUserContent,
+		Hidden:        false,
+		SetPending:    true,
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("insert initial user message: %w", err)
@@ -408,6 +416,7 @@ func (p *Server) PostMessages(
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
 		}
+		modelConfigID := resolveMessageModelConfigIDFromChat(opts.ModelConfigID, lockedChat)
 
 		isChatActive := p.IsActive(opts.ChatID)
 		if opts.QueueIfBusy && ShouldQueueUserMessage(lockedChat.Status, isChatActive) {
@@ -440,8 +449,9 @@ func (p *Server) PostMessages(
 		}
 
 		message, err := insertChatMessageWithStore(ctx, tx, database.InsertChatMessageParams{
-			ChatID: opts.ChatID,
-			Role:   "user",
+			ChatID:        opts.ChatID,
+			ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+			Role:          "user",
 			Content: pqtype.NullRawMessage{
 				RawMessage: opts.Content,
 				Valid:      len(opts.Content) > 0,
@@ -600,7 +610,6 @@ func (p *Server) PromoteQueued(
 	if err != nil {
 		return PromoteQueuedResult{}, xerrors.Errorf("get chat: %w", err)
 	}
-
 	if chat.Status == database.ChatStatusRunning ||
 		chat.Status == database.ChatStatusPending {
 		p.Interrupt(opts.ChatID)
@@ -614,10 +623,11 @@ func (p *Server) PromoteQueued(
 	)
 
 	txErr := p.db.InTx(func(tx database.Store) error {
-		_, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
+		lockedChat, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
 		}
+		modelConfigID := resolveMessageModelConfigIDFromChat(opts.ModelConfigID, lockedChat)
 
 		queuedMessages, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
@@ -648,8 +658,9 @@ func (p *Server) PromoteQueued(
 		}
 
 		promoted, err = tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID: opts.ChatID,
-			Role:   "user",
+			ChatID:        opts.ChatID,
+			ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+			Role:          "user",
 			Content: pqtype.NullRawMessage{
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
@@ -765,8 +776,9 @@ func (p *Server) InsertMessage(
 	}
 
 	message, err := insertChatMessageWithStore(ctx, p.db, database.InsertChatMessageParams{
-		ChatID: opts.ChatID,
-		Role:   opts.Role,
+		ChatID:        opts.ChatID,
+		ModelConfigID: modelConfigIDNullUUID(opts.ModelConfigID),
+		Role:          opts.Role,
 		Content: pqtype.NullRawMessage{
 			RawMessage: opts.Content,
 			Valid:      len(opts.Content) > 0,
@@ -1666,9 +1678,11 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				// Try to auto-promote the next queued message.
 				nextQueued, popErr := tx.PopNextQueuedMessage(ctx, chat.ID)
 				if popErr == nil {
+					modelConfigID := resolveMessageModelConfigIDFromChat(nil, latestChat)
 					msg, insertErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-						ChatID: chat.ID,
-						Role:   "user",
+						ChatID:        chat.ID,
+						ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+						Role:          "user",
 						Content: pqtype.NullRawMessage{
 							RawMessage: nextQueued.Content,
 							Valid:      len(nextQueued.Content) > 0,
@@ -1808,6 +1822,13 @@ func (p *Server) resolveChatContextCompressionConfig(
 	if err != nil {
 		return config, nil
 	}
+	latestConfig, found, latestErr := p.resolveLatestMessageModelConfig(ctx, chat)
+	if latestErr != nil {
+		return config, xerrors.Errorf("resolve latest message model config: %w", latestErr)
+	}
+	if found {
+		chatConfig = applyFallbackChatModelConfig(chatConfig, latestConfig)
+	}
 
 	if chatConfig.ContextLimit > 0 {
 		config.ContextLimit = chatConfig.ContextLimit
@@ -1868,6 +1889,7 @@ func (p *Server) resolveChatContextCompressionConfig(
 func (p *Server) persistChatContextSummary(
 	ctx context.Context,
 	chatID uuid.UUID,
+	modelConfigID *uuid.UUID,
 	result chatloop.CompactionResult,
 ) error {
 	if strings.TrimSpace(result.SystemSummary) == "" ||
@@ -1881,8 +1903,9 @@ func (p *Server) persistChatContextSummary(
 	}
 
 	_, err = p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID: chatID,
-		Role:   string(fantasy.MessageRoleSystem),
+		ChatID:        chatID,
+		ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+		Role:          string(fantasy.MessageRoleSystem),
 		Content: pqtype.NullRawMessage{
 			RawMessage: systemContent,
 			Valid:      len(systemContent) > 0,
@@ -1922,9 +1945,10 @@ func (p *Server) persistChatContextSummary(
 	}
 
 	assistantMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:  chatID,
-		Role:    string(fantasy.MessageRoleAssistant),
-		Content: assistantContent,
+		ChatID:        chatID,
+		ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+		Role:          string(fantasy.MessageRoleAssistant),
+		Content:       assistantContent,
 		Visibility: database.NullChatMessageVisibility{
 			ChatMessageVisibility: database.ChatMessageVisibilityUser,
 			Valid:                 true,
@@ -1962,10 +1986,11 @@ func (p *Server) persistChatContextSummary(
 	}
 
 	toolMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:     chatID,
-		Role:       string(fantasy.MessageRoleTool),
-		Content:    toolResult,
-		Visibility: bothChatMessageVisibility(),
+		ChatID:        chatID,
+		ModelConfigID: modelConfigIDNullUUID(modelConfigID),
+		Role:          string(fantasy.MessageRoleTool),
+		Content:       toolResult,
+		Visibility:    bothChatMessageVisibility(),
 		Compressed: sql.NullBool{
 			Bool:  true,
 			Valid: true,
@@ -1993,10 +2018,17 @@ func (p *Server) resolveChatModel(
 ) (fantasy.LanguageModel, chatModelConfig, error) {
 	config, parseErr := parseChatModelConfig(nil)
 	if parseErr != nil {
+		config = chatModelConfig{}
+	}
+	latestConfig, found, latestErr := p.resolveLatestMessageModelConfig(ctx, chat)
+	if latestErr != nil {
 		return nil, chatModelConfig{}, xerrors.Errorf(
-			"parse model config: %w",
-			parseErr,
+			"resolve latest message model config: %w",
+			latestErr,
 		)
+	}
+	if found {
+		config = applyFallbackChatModelConfig(config, latestConfig)
 	}
 
 	if p.testing != nil && p.testing.ResolveChatModel != nil {
@@ -2037,6 +2069,7 @@ func (p *Server) modelFromChat(
 		}
 		config = applyFallbackChatModelConfig(config, fallbackConfig)
 	}
+	config = p.resolveModelConfigIDByReference(ctx, config)
 
 	model, err := modelFromConfig(config, providerKeys)
 	if err != nil {
@@ -2051,6 +2084,9 @@ func applyFallbackChatModelConfig(
 ) chatModelConfig {
 	config.Provider = fallbackConfig.Provider
 	config.Model = fallbackConfig.Model
+	if config.ModelConfigID == nil {
+		config.ModelConfigID = uuidPointer(fallbackConfig.ID)
+	}
 
 	defaults, err := parseChatModelConfig(fallbackConfig.Options)
 	if err != nil {
@@ -2109,6 +2145,56 @@ func (p *Server) resolveFallbackChatModelConfig(
 	return database.ChatModelConfig{}, xerrors.New(
 		"chat model is not configured and no enabled models with API keys are available",
 	)
+}
+
+func (p *Server) resolveLatestMessageModelConfig(
+	ctx context.Context,
+	chat database.Chat,
+) (database.ChatModelConfig, bool, error) {
+	if !chat.LastModelConfigID.Valid {
+		return database.ChatModelConfig{}, false, nil
+	}
+
+	modelConfig, err := p.db.GetChatModelConfigByID(ctx, chat.LastModelConfigID.UUID)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return database.ChatModelConfig{}, false, nil
+		}
+		return database.ChatModelConfig{}, false, xerrors.Errorf("load chat model config by id: %w", err)
+	}
+
+	return modelConfig, true, nil
+}
+
+func (p *Server) resolveModelConfigIDByReference(
+	ctx context.Context,
+	config chatModelConfig,
+) chatModelConfig {
+	if config.ModelConfigID != nil {
+		return config
+	}
+
+	provider, modelID, err := chatprovider.ResolveModelWithProviderHint(
+		strings.TrimSpace(config.Model),
+		strings.TrimSpace(config.Provider),
+	)
+	if err != nil {
+		return config
+	}
+
+	modelConfig, err := p.db.GetChatModelConfigByProviderAndModel(
+		ctx,
+		database.GetChatModelConfigByProviderAndModelParams{
+			Provider: provider,
+			Model:    modelID,
+		},
+	)
+	if err != nil {
+		return config
+	}
+
+	config.ModelConfigID = uuidPointer(modelConfig.ID)
+	return config
 }
 
 func (p *Server) runChatWithAgent(
@@ -2200,14 +2286,18 @@ func (p *Server) runChatWithAgent(
 
 			hasUsage := step.Usage != (fantasy.Usage{})
 			assistantMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-				ChatID:          chat.ID,
-				Role:            string(fantasy.MessageRoleAssistant),
-				Content:         assistantContent,
-				Visibility:      bothChatMessageVisibility(),
-				InputTokens:     usageNullInt64(step.Usage.InputTokens, hasUsage),
-				OutputTokens:    usageNullInt64(step.Usage.OutputTokens, hasUsage),
-				TotalTokens:     usageNullInt64(step.Usage.TotalTokens, hasUsage),
-				ReasoningTokens: usageNullInt64(step.Usage.ReasoningTokens, hasUsage),
+				ChatID:        chat.ID,
+				ModelConfigID: modelConfigIDNullUUID(modelConfig.ModelConfigID),
+				Role:          string(fantasy.MessageRoleAssistant),
+				Content:       assistantContent,
+				Visibility:    bothChatMessageVisibility(),
+				InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
+				OutputTokens:  usageNullInt64(step.Usage.OutputTokens, hasUsage),
+				TotalTokens:   usageNullInt64(step.Usage.TotalTokens, hasUsage),
+				ReasoningTokens: usageNullInt64(
+					step.Usage.ReasoningTokens,
+					hasUsage,
+				),
 				CacheCreationTokens: usageNullInt64(
 					step.Usage.CacheCreationTokens,
 					hasUsage,
@@ -2229,10 +2319,11 @@ func (p *Server) runChatWithAgent(
 			}
 
 			toolMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-				ChatID:     chat.ID,
-				Role:       string(fantasy.MessageRoleTool),
-				Content:    resultContent,
-				Visibility: bothChatMessageVisibility(),
+				ChatID:        chat.ID,
+				ModelConfigID: modelConfigIDNullUUID(modelConfig.ModelConfigID),
+				Role:          string(fantasy.MessageRoleTool),
+				Content:       resultContent,
+				Visibility:    bothChatMessageVisibility(),
 			})
 			if err != nil {
 				return xerrors.Errorf("insert tool result: %w", err)
@@ -2250,7 +2341,12 @@ func (p *Server) runChatWithAgent(
 			persistCtx context.Context,
 			result chatloop.CompactionResult,
 		) error {
-			if err := p.persistChatContextSummary(persistCtx, chat.ID, result); err != nil {
+			if err := p.persistChatContextSummary(
+				persistCtx,
+				chat.ID,
+				modelConfig.ModelConfigID,
+				result,
+			); err != nil {
 				return xerrors.Errorf("persist context summary: %w", err)
 			}
 			logger.Info(persistCtx, "chat context summarized",
@@ -2455,9 +2551,10 @@ func (p *Server) Close() error {
 
 type chatModelConfig struct {
 	codersdk.ChatModelCallConfig
-	Provider     string `json:"provider,omitempty"`
-	Model        string `json:"model"`
-	ContextLimit int64  `json:"context_limit,omitempty"`
+	Provider      string `json:"provider,omitempty"`
+	Model         string `json:"model"`
+	ContextLimit  int64  `json:"context_limit,omitempty"`
+	ModelConfigID *uuid.UUID
 }
 
 func parseChatModelConfig(raw json.RawMessage) (chatModelConfig, error) {
@@ -2468,7 +2565,85 @@ func parseChatModelConfig(raw json.RawMessage) (chatModelConfig, error) {
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return chatModelConfig{}, err
 	}
+	config.ModelConfigID = parseModelConfigID(raw)
 	return config, nil
+}
+
+func parseModelConfigID(raw json.RawMessage) *uuid.UUID {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	decoded := map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return nil
+	}
+
+	modelConfigIDRaw, ok := decoded["model_config_id"]
+	if !ok || len(modelConfigIDRaw) == 0 {
+		return nil
+	}
+
+	var modelConfigIDText string
+	if err := json.Unmarshal(modelConfigIDRaw, &modelConfigIDText); err != nil {
+		return nil
+	}
+	modelConfigIDText = strings.TrimSpace(modelConfigIDText)
+	if modelConfigIDText == "" {
+		return nil
+	}
+
+	modelConfigID, err := uuid.Parse(modelConfigIDText)
+	if err != nil || modelConfigID == uuid.Nil {
+		return nil
+	}
+
+	return uuidPointer(modelConfigID)
+}
+
+func resolveMessageModelConfigID(
+	explicitModelConfigID uuid.UUID,
+	modelConfigRaw json.RawMessage,
+) *uuid.UUID {
+	if explicitModelConfigID != uuid.Nil {
+		return uuidPointer(explicitModelConfigID)
+	}
+	config, err := parseChatModelConfig(modelConfigRaw)
+	if err != nil {
+		return nil
+	}
+	return config.ModelConfigID
+}
+
+func resolveMessageModelConfigIDFromChat(
+	explicitModelConfigID *uuid.UUID,
+	chat database.Chat,
+) *uuid.UUID {
+	if explicitModelConfigID != nil {
+		return explicitModelConfigID
+	}
+	if !chat.LastModelConfigID.Valid {
+		return nil
+	}
+	return uuidPointer(chat.LastModelConfigID.UUID)
+}
+
+func uuidPointer(id uuid.UUID) *uuid.UUID {
+	if id == uuid.Nil {
+		return nil
+	}
+	idCopy := id
+	return &idCopy
+}
+
+func modelConfigIDNullUUID(modelConfigID *uuid.UUID) uuid.NullUUID {
+	if modelConfigID == nil || *modelConfigID == uuid.Nil {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{
+		UUID:  *modelConfigID,
+		Valid: true,
+	}
 }
 
 func streamCallOptionsFromChatModelConfig(

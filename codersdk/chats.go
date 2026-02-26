@@ -30,10 +30,10 @@ type Chat struct {
 	WorkspaceAgentID *uuid.UUID      `json:"workspace_agent_id,omitempty" format:"uuid"`
 	ParentChatID     *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
 	RootChatID       *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID *uuid.UUID      `json:"last_model_config_id,omitempty" format:"uuid"`
 	Title            string          `json:"title"`
 	Status           ChatStatus      `json:"status"`
 	DiffStatus       *ChatDiffStatus `json:"diff_status,omitempty"`
-	ModelConfig      json.RawMessage `json:"model_config,omitempty"`
 	CreatedAt        time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt        time.Time       `json:"updated_at" format:"date-time"`
 }
@@ -42,6 +42,7 @@ type Chat struct {
 type ChatMessage struct {
 	ID                  int64             `json:"id"`
 	ChatID              uuid.UUID         `json:"chat_id" format:"uuid"`
+	ModelConfigID       *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	CreatedAt           time.Time         `json:"created_at" format:"date-time"`
 	Role                string            `json:"role"`
 	Content             json.RawMessage   `json:"content,omitempty"`
@@ -118,21 +119,12 @@ type ChatInputPart struct {
 	Text string            `json:"text,omitempty"`
 }
 
-// ChatInput is the structured user input payload for chat creation.
-type ChatInput struct {
-	Parts []ChatInputPart `json:"parts"`
-}
-
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	Input            *ChatInput      `json:"input,omitempty"`
-	Message          string          `json:"message,omitempty"`
-	SystemPrompt     string          `json:"system_prompt,omitempty"`
+	Content          []ChatInputPart `json:"content"`
 	WorkspaceID      *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
 	WorkspaceAgentID *uuid.UUID      `json:"workspace_agent_id,omitempty" format:"uuid"`
-	ParentChatID     *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
-	Model            string          `json:"model,omitempty"`
-	ModelConfig      json.RawMessage `json:"model_config,omitempty"`
+	ModelConfigID    uuid.UUID       `json:"model_config_id" format:"uuid"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -142,10 +134,8 @@ type UpdateChatRequest struct {
 
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
-	Role       string          `json:"role"`
-	Content    json.RawMessage `json:"content,omitempty"`
-	ToolCallID *string         `json:"tool_call_id,omitempty"`
-	Thinking   *string         `json:"thinking,omitempty"`
+	Content       []ChatInputPart `json:"content"`
+	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.

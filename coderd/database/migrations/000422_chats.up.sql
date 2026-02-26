@@ -26,7 +26,8 @@ CREATE TABLE chats (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     parent_chat_id      UUID        REFERENCES chats(id) ON DELETE SET NULL,
-    root_chat_id        UUID        REFERENCES chats(id) ON DELETE SET NULL
+    root_chat_id        UUID        REFERENCES chats(id) ON DELETE SET NULL,
+    last_model_config_id UUID
 );
 
 CREATE INDEX idx_chats_owner ON chats(owner_id);
@@ -34,6 +35,7 @@ CREATE INDEX idx_chats_workspace ON chats(workspace_id);
 CREATE INDEX idx_chats_pending ON chats(status) WHERE status = 'pending';
 CREATE INDEX idx_chats_parent_chat_id ON chats(parent_chat_id);
 CREATE INDEX idx_chats_root_chat_id ON chats(root_chat_id);
+CREATE INDEX idx_chats_last_model_config_id ON chats(last_model_config_id);
 
 CREATE TABLE chat_messages (
     id                      BIGSERIAL   PRIMARY KEY,
@@ -139,6 +141,10 @@ CREATE INDEX idx_chat_model_configs_provider_model
 ALTER TABLE chat_messages
     ADD CONSTRAINT chat_messages_model_config_id_fkey
     FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
+
+ALTER TABLE chats
+    ADD CONSTRAINT chats_last_model_config_id_fkey
+    FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);
 
 CREATE TABLE chat_queued_messages (
     id          BIGSERIAL   PRIMARY KEY,

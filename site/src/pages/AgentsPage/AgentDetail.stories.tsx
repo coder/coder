@@ -115,7 +115,6 @@ const baseChatFields = {
 	owner_id: "owner-id",
 	workspace_id: mockWorkspace.id,
 	workspace_agent_id: mockWorkspaceAgent.id,
-	model_config: { model: "gpt-4o", provider: "openai" },
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 } as const;

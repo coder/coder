@@ -93,7 +93,7 @@ export const getParentChatID = (
 };
 
 export const resolveModelFromChatConfig = (
-	modelConfig: TypesGen.Chat["model_config"],
+	modelConfig: unknown,
 	modelOptions: readonly ModelSelectorOption[],
 ): string => {
 	if (modelOptions.length === 0) {

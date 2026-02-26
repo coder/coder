@@ -2,6 +2,7 @@ import { API } from "api/api";
 import {
 	chat,
 	chatDiffStatus,
+	chatModelConfigs,
 	chatModels,
 	chats,
 	createChatMessage,
@@ -23,7 +24,6 @@ import {
 	getLatestContextUsage,
 	getParentChatID,
 	getWorkspaceAgent,
-	resolveModelFromChatConfig,
 } from "./AgentDetail/chatHelpers";
 import {
 	buildParsedMessageSections,
@@ -42,10 +42,6 @@ import {
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
-
-type CreateChatMessagePayload = TypesGen.CreateChatMessageRequest & {
-	readonly model?: string;
-};
 
 const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
 	() => {};
@@ -90,6 +86,7 @@ export const AgentDetail: FC = () => {
 		enabled: Boolean(agentId),
 	});
 	const chatModelsQuery = useQuery(chatModels());
+	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const hasDiffStatus = Boolean(diffStatusQuery.data?.url);
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, workspaceAgentId);
@@ -97,7 +94,7 @@ export const AgentDetail: FC = () => {
 	const chatRecord = chatData?.chat;
 	const chatMessages = chatData?.messages;
 	const chatQueuedMessages = chatData?.queued_messages;
-	const chatModelConfig = chatRecord?.model_config;
+	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	// Auto-open the diff panel when diff status first appears.
 	// See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
@@ -123,6 +120,28 @@ export const AgentDetail: FC = () => {
 		() => getModelOptionsFromCatalog(chatModelsQuery.data),
 		[chatModelsQuery.data],
 	);
+	const modelConfigIDByModelID = useMemo(() => {
+		const byModelID = new Map<string, string>();
+		for (const config of chatModelConfigsQuery.data ?? []) {
+			const provider = config.provider.trim().toLowerCase();
+			const model = config.model.trim();
+			if (!provider || !model) {
+				continue;
+			}
+			byModelID.set(`${provider}:${model}`, config.id);
+			byModelID.set(`${provider}/${model}`, config.id);
+		}
+		return byModelID;
+	}, [chatModelConfigsQuery.data]);
+	const modelIDByConfigID = useMemo(() => {
+		const byConfigID = new Map<string, string>();
+		for (const [modelID, configID] of modelConfigIDByModelID.entries()) {
+			if (!byConfigID.has(configID)) {
+				byConfigID.set(configID, modelID);
+			}
+		}
+		return byConfigID;
+	}, [modelConfigIDByModelID]);
 
 	const sendMutation = useMutation(
 		createChatMessage(queryClient, agentId ?? ""),
@@ -156,16 +175,19 @@ export const AgentDetail: FC = () => {
 	});
 
 	useEffect(() => {
-		if (!chatModelConfig) {
-			return;
-		}
 		setSelectedModel((current) => {
 			if (current && modelOptions.some((model) => model.id === current)) {
 				return current;
 			}
-			return resolveModelFromChatConfig(chatModelConfig, modelOptions);
+			if (chatLastModelConfigID) {
+				const fromChat = modelIDByConfigID.get(chatLastModelConfigID);
+				if (fromChat && modelOptions.some((model) => model.id === fromChat)) {
+					return fromChat;
+				}
+			}
+			return modelOptions[0]?.id ?? "";
 		});
-	}, [chatModelConfig, modelOptions]);
+	}, [chatLastModelConfigID, modelIDByConfigID, modelOptions]);
 
 	const messages = useMemo(() => {
 		const list = Array.from(messagesById.values());
@@ -216,10 +238,11 @@ export const AgentDetail: FC = () => {
 		) {
 			return;
 		}
-		const request: CreateChatMessagePayload = {
-			role: "user",
-			content: JSON.parse(JSON.stringify(message)),
-			model: selectedModel || undefined,
+		const request: TypesGen.CreateChatMessageRequest = {
+			content: [{ type: "text", text: message }],
+			model_config_id:
+				(selectedModel && modelConfigIDByModelID.get(selectedModel)) ||
+				undefined,
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();

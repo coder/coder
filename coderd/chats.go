@@ -252,48 +252,13 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chatHierarchy, hierarchyStatus, hierarchyError := api.resolveCreateChatHierarchy(ctx, apiKey.UserID, req)
-	if hierarchyError != nil {
-		httpapi.Write(ctx, rw, hierarchyStatus, *hierarchyError)
-		return
-	}
-
-	validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, chatHierarchy.Request)
+	validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, req)
 	if validationError != nil {
 		httpapi.Write(ctx, rw, validationStatus, *validationError)
 		return
 	}
 
-	systemPrompt := defaultChatSystemPrompt()
-	if override := strings.TrimSpace(req.SystemPrompt); override != "" {
-		if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-			httpapi.Forbidden(rw)
-			return
-		}
-		systemPrompt = override
-	}
-
 	title := chatTitleFromMessage(titleSource)
-
-	modelConfig, modelConfigErr := createChatModelConfig(req)
-	if modelConfigErr != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid model configuration.",
-			Detail:  modelConfigErr.Error(),
-		})
-		return
-	}
-	modelConfig, modelConfigErr = api.applyChatModelCompressionConfig(
-		ctx,
-		modelConfig,
-	)
-	if modelConfigErr != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid model configuration.",
-			Detail:  modelConfigErr.Error(),
-		})
-		return
-	}
 
 	content, err := json.Marshal(contentBlocks)
 	if err != nil {
@@ -315,18 +280,16 @@ func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
 	chat, err := api.chatProcessor.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID: apiKey.UserID,
 		WorkspaceID: uuid.NullUUID{
-			UUID:  uuidOrNil(chatHierarchy.Request.WorkspaceID),
-			Valid: chatHierarchy.Request.WorkspaceID != nil,
+			UUID:  uuidOrNil(req.WorkspaceID),
+			Valid: req.WorkspaceID != nil,
 		},
 		WorkspaceAgentID: uuid.NullUUID{
-			UUID:  uuidOrNil(chatHierarchy.Request.WorkspaceAgentID),
-			Valid: chatHierarchy.Request.WorkspaceAgentID != nil,
+			UUID:  uuidOrNil(req.WorkspaceAgentID),
+			Valid: req.WorkspaceAgentID != nil,
 		},
-		ParentChatID:       chatHierarchy.ParentChatID,
-		RootChatID:         chatHierarchy.RootChatID,
 		Title:              title,
-		ModelConfig:        modelConfig,
-		SystemPrompt:       systemPrompt,
+		ModelConfigID:      req.ModelConfigID,
+		SystemPrompt:       defaultChatSystemPrompt(),
 		InitialUserContent: content,
 	})
 	if err != nil {
@@ -541,16 +504,26 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Role != "user" {
+	contentBlocks, _, inputError := createChatInputFromParts(req.Content, "content")
+	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid role.",
-			Detail:  "Role must be: user",
+			Message: inputError.Message,
+			Detail:  inputError.Detail,
+		})
+		return
+	}
+
+	content, err := json.Marshal(contentBlocks)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to encode chat message.",
+			Detail:  err.Error(),
 		})
 		return
 	}
 
 	// Check that the chat exists and user has access.
-	_, err := api.Database.GetChatByID(ctx, chatID)
+	_, err = api.Database.GetChatByID(ctx, chatID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
@@ -567,9 +540,8 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		ctx,
 		chatd.PostMessagesOptions{
 			ChatID:          chatID,
-			Content:         req.Content,
-			ToolCallID:      req.ToolCallID,
-			Thinking:        req.Thinking,
+			Content:         content,
+			ModelConfigID:   req.ModelConfigID,
 			Hidden:          false,
 			QueueIfBusy:     true,
 			IncludeMessages: true,
@@ -2037,99 +2009,6 @@ func uuidOrNil(u *uuid.UUID) uuid.UUID {
 	return *u
 }
 
-func stringOrEmpty(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
-type createChatHierarchy struct {
-	Request      codersdk.CreateChatRequest
-	ParentChatID uuid.NullUUID
-	RootChatID   uuid.NullUUID
-}
-
-func (api *API) resolveCreateChatHierarchy(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	req codersdk.CreateChatRequest,
-) (createChatHierarchy, int, *codersdk.Response) {
-	hierarchy := createChatHierarchy{
-		Request: req,
-	}
-
-	if req.ParentChatID == nil {
-		return hierarchy, 0, nil
-	}
-
-	parentChat, err := api.Database.GetChatByID(ctx, *req.ParentChatID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
-				Message: "Parent chat not found or you do not have access to this resource",
-			}
-		}
-		return createChatHierarchy{}, http.StatusInternalServerError, &codersdk.Response{
-			Message: "Failed to get parent chat.",
-			Detail:  err.Error(),
-		}
-	}
-	if parentChat.OwnerID != ownerID {
-		return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
-			Message: "Parent chat not found or you do not have access to this resource",
-		}
-	}
-
-	if !createChatUUIDMatchesParent(req.WorkspaceID, parentChat.WorkspaceID) {
-		return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
-			Message: "Child chat workspace must match parent chat workspace.",
-		}
-	}
-	if !createChatUUIDMatchesParent(req.WorkspaceAgentID, parentChat.WorkspaceAgentID) {
-		return createChatHierarchy{}, http.StatusBadRequest, &codersdk.Response{
-			Message: "Child chat workspace agent must match parent chat workspace agent.",
-		}
-	}
-
-	resolvedReq := req
-	if resolvedReq.WorkspaceID == nil && parentChat.WorkspaceID.Valid {
-		inheritedWorkspaceID := parentChat.WorkspaceID.UUID
-		resolvedReq.WorkspaceID = &inheritedWorkspaceID
-	}
-	if resolvedReq.WorkspaceAgentID == nil && parentChat.WorkspaceAgentID.Valid {
-		inheritedWorkspaceAgentID := parentChat.WorkspaceAgentID.UUID
-		resolvedReq.WorkspaceAgentID = &inheritedWorkspaceAgentID
-	}
-
-	rootChatID := parentChat.ID
-	if parentChat.RootChatID.Valid {
-		rootChatID = parentChat.RootChatID.UUID
-	}
-
-	hierarchy.Request = resolvedReq
-	hierarchy.ParentChatID = uuid.NullUUID{
-		UUID:  parentChat.ID,
-		Valid: true,
-	}
-	hierarchy.RootChatID = uuid.NullUUID{
-		UUID:  rootChatID,
-		Valid: true,
-	}
-
-	return hierarchy, 0, nil
-}
-
-func createChatUUIDMatchesParent(requested *uuid.UUID, parentValue uuid.NullUUID) bool {
-	if requested == nil {
-		return true
-	}
-	if !parentValue.Valid {
-		return false
-	}
-	return *requested == parentValue.UUID
-}
-
 func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
 	req codersdk.CreateChatRequest,
@@ -2172,44 +2051,6 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	}
 
 	return 0, nil
-}
-
-func createChatModelConfig(req codersdk.CreateChatRequest) (json.RawMessage, error) {
-	model := strings.TrimSpace(req.Model)
-	modelConfig := req.ModelConfig
-	config := map[string]any{}
-
-	if len(modelConfig) > 0 {
-		if err := json.Unmarshal(modelConfig, &config); err != nil {
-			if model == "" {
-				return modelConfig, nil
-			}
-			return nil, xerrors.Errorf("parse model config: %w", err)
-		}
-		if config == nil {
-			config = map[string]any{}
-		}
-	}
-
-	if model == "" && len(modelConfig) > 0 && len(config) == 0 {
-		return modelConfig, nil
-	}
-
-	if model != "" {
-		config["model"] = model
-	}
-	// Drop the deprecated key for legacy clients that still send it.
-	delete(config, "workspace_mode")
-
-	if len(config) == 0 {
-		return json.RawMessage("{}"), nil
-	}
-
-	encoded, err := json.Marshal(config)
-	if err != nil {
-		return nil, xerrors.Errorf("encode model config: %w", err)
-	}
-	return encoded, nil
 }
 
 func normalizeChatCompressionThreshold(
@@ -2396,59 +2237,55 @@ func createChatInputFromRequest(req codersdk.CreateChatRequest) (
 	string,
 	*codersdk.Response,
 ) {
-	if req.Input != nil {
-		if len(req.Input.Parts) == 0 {
-			return nil, "", &codersdk.Response{
-				Message: "Input is required.",
-				Detail:  "Input parts cannot be empty.",
-			}
-		}
+	return createChatInputFromParts(req.Content, "content")
+}
 
-		content := make([]fantasy.Content, 0, len(req.Input.Parts))
-		textParts := make([]string, 0, len(req.Input.Parts))
-		for i, part := range req.Input.Parts {
-			switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
-			case string(codersdk.ChatInputPartTypeText):
-				text := strings.TrimSpace(part.Text)
-				if text == "" {
-					return nil, "", &codersdk.Response{
-						Message: "Invalid input part.",
-						Detail:  fmt.Sprintf("input.parts[%d].text cannot be empty.", i),
-					}
-				}
-				content = append(content, fantasy.TextContent{Text: text})
-				textParts = append(textParts, text)
-			default:
+func createChatInputFromParts(
+	parts []codersdk.ChatInputPart,
+	fieldName string,
+) ([]fantasy.Content, string, *codersdk.Response) {
+	if len(parts) == 0 {
+		return nil, "", &codersdk.Response{
+			Message: "Content is required.",
+			Detail:  "Content cannot be empty.",
+		}
+	}
+
+	content := make([]fantasy.Content, 0, len(parts))
+	textParts := make([]string, 0, len(parts))
+	for i, part := range parts {
+		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
+		case string(codersdk.ChatInputPartTypeText):
+			text := strings.TrimSpace(part.Text)
+			if text == "" {
 				return nil, "", &codersdk.Response{
 					Message: "Invalid input part.",
-					Detail: fmt.Sprintf(
-						"input.parts[%d].type %q is not supported.",
-						i,
-						part.Type,
-					),
+					Detail:  fmt.Sprintf("%s[%d].text cannot be empty.", fieldName, i),
 				}
 			}
-		}
-
-		titleSource := strings.TrimSpace(strings.Join(textParts, " "))
-		if titleSource == "" {
+			content = append(content, fantasy.TextContent{Text: text})
+			textParts = append(textParts, text)
+		default:
 			return nil, "", &codersdk.Response{
-				Message: "Input is required.",
-				Detail:  "Input must include at least one text part.",
+				Message: "Invalid input part.",
+				Detail: fmt.Sprintf(
+					"%s[%d].type %q is not supported.",
+					fieldName,
+					i,
+					part.Type,
+				),
 			}
 		}
-		return content, titleSource, nil
 	}
 
-	message := strings.TrimSpace(req.Message)
-	if message == "" {
+	titleSource := strings.TrimSpace(strings.Join(textParts, " "))
+	if titleSource == "" {
 		return nil, "", &codersdk.Response{
-			Message: "Input is required.",
-			Detail:  "Provide input.parts or message.",
+			Message: "Content is required.",
+			Detail:  "Content must include at least one text part.",
 		}
 	}
-
-	return []fantasy.Content{fantasy.TextContent{Text: message}}, message, nil
+	return content, titleSource, nil
 }
 
 func chatTitleFromMessage(message string) string {
@@ -2483,15 +2320,23 @@ func truncateRunes(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
+func modelConfigUUIDPtr(id uuid.NullUUID) *uuid.UUID {
+	if !id.Valid {
+		return nil
+	}
+	modelConfigID := id.UUID
+	return &modelConfigID
+}
+
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 	chat := codersdk.Chat{
-		ID:          c.ID,
-		OwnerID:     c.OwnerID,
-		Title:       c.Title,
-		Status:      codersdk.ChatStatus(c.Status),
-		ModelConfig: json.RawMessage(`{}`),
-		CreatedAt:   c.CreatedAt,
-		UpdatedAt:   c.UpdatedAt,
+		ID:                c.ID,
+		OwnerID:           c.OwnerID,
+		LastModelConfigID: modelConfigUUIDPtr(c.LastModelConfigID),
+		Title:             c.Title,
+		Status:            codersdk.ChatStatus(c.Status),
+		CreatedAt:         c.CreatedAt,
+		UpdatedAt:         c.UpdatedAt,
 	}
 	if c.ParentChatID.Valid {
 		parentChatID := c.ParentChatID.UUID

@@ -2,6 +2,7 @@ import { watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
 	chatKey,
+	chatModelConfigs,
 	chatModels,
 	chats,
 	chatsKey,
@@ -52,6 +53,7 @@ import {
 const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const systemPromptStorageKey = "agents.system-prompt";
+const nilUUID = "00000000-0000-0000-0000-000000000000";
 
 type ChatModelOption = ModelSelectorOption;
 
@@ -59,7 +61,6 @@ type CreateChatOptions = {
 	message: string;
 	workspaceId?: string;
 	model?: string;
-	systemPrompt?: string;
 };
 
 // Type guard for SSE events from the chat list watch endpoint.
@@ -100,6 +101,7 @@ export const AgentsPage: FC = () => {
 
 	const chatsQuery = useQuery(chats());
 	const chatModelsQuery = useQuery(chatModels());
+	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const createMutation = useMutation(createChat(queryClient));
 	const archiveMutation = useMutation(deleteChat(queryClient));
 	const [archivingChatId, setArchivingChatId] = useState<string | null>(null);
@@ -111,6 +113,19 @@ export const AgentsPage: FC = () => {
 		() => getModelOptionsFromCatalog(chatModelsQuery.data),
 		[chatModelsQuery.data],
 	);
+	const modelConfigIDByModelID = useMemo(() => {
+		const byModelID = new Map<string, string>();
+		for (const config of chatModelConfigsQuery.data ?? []) {
+			const provider = config.provider.trim().toLowerCase();
+			const model = config.model.trim();
+			if (!provider || !model) {
+				continue;
+			}
+			byModelID.set(`${provider}:${model}`, config.id);
+			byModelID.set(`${provider}/${model}`, config.id);
+		}
+		return byModelID;
+	}, [chatModelConfigsQuery.data]);
 	const setChatErrorReason = useCallback((chatId: string, reason: string) => {
 		const trimmedReason = reason.trim();
 		if (!chatId || !trimmedReason) {
@@ -193,15 +208,12 @@ export const AgentsPage: FC = () => {
 		],
 	);
 	const handleCreateChat = async (options: CreateChatOptions) => {
-		const { message, workspaceId, model, systemPrompt } = options;
+		const { message, workspaceId, model } = options;
 		const createdChat = await createMutation.mutateAsync({
-			message,
-			input: {
-				parts: [{ type: "text", text: message }],
-			},
+			content: [{ type: "text", text: message }],
 			workspace_id: workspaceId,
-			model,
-			system_prompt: systemPrompt,
+			model_config_id:
+				(model && modelConfigIDByModelID.get(model)) || nilUUID,
 		});
 
 		if (typeof window !== "undefined") {
@@ -306,12 +318,13 @@ export const AgentsPage: FC = () => {
 					agentId && "hidden md:block",
 				)}
 			>
-				<AgentsSidebar
-					chats={chatList}
-					chatErrorReasons={chatErrorReasons}
-					modelOptions={catalogModelOptions}
-					logoUrl={appearance.logo_url}
-					onArchiveAgent={requestArchiveAgent}
+					<AgentsSidebar
+						chats={chatList}
+						chatErrorReasons={chatErrorReasons}
+						modelOptions={catalogModelOptions}
+						modelConfigs={chatModelConfigsQuery.data ?? []}
+						logoUrl={appearance.logo_url}
+						onArchiveAgent={requestArchiveAgent}
 					onNewAgent={handleNewAgent}
 					isCreating={createMutation.isPending}
 					isArchiving={archiveMutation.isPending}
@@ -464,8 +477,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	selectedWorkspaceIdRef.current = selectedWorkspaceId;
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
-	const systemPromptRef = useRef(savedSystemPrompt);
-	systemPromptRef.current = savedSystemPrompt;
 	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
 
 	const handleWorkspaceChange = (value: string) => {
@@ -509,18 +520,13 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 
 	const handleSend = useCallback(
 		async (message: string) => {
-			const trimmedSystemPrompt = systemPromptRef.current.trim();
 			await onCreateChat({
 				message,
 				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
 				model: selectedModelRef.current || undefined,
-				systemPrompt:
-					canSetSystemPrompt && trimmedSystemPrompt
-						? trimmedSystemPrompt
-						: undefined,
 			});
 		},
-		[onCreateChat, canSetSystemPrompt],
+		[onCreateChat],
 	);
 
 	const selectedWorkspaceName = selectedWorkspaceId

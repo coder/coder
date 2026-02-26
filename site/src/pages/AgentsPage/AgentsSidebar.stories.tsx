@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Chat } from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -14,15 +15,26 @@ const defaultModelOptions: ModelSelectorOption[] = [
 	},
 ];
 
+const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
+	{
+		id: "config-openai-gpt-4o",
+		provider: "openai",
+		model: "gpt-4o",
+		display_name: "GPT-4o",
+		enabled: true,
+		context_limit: 200000,
+		compression_threshold: 70,
+		created_at: "2026-02-18T00:00:00.000Z",
+		updated_at: "2026-02-18T00:00:00.000Z",
+	},
+];
+
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	owner_id: "owner-1",
 	title: "Agent",
 	status: "completed",
-	model_config: {
-		provider: "openai",
-		model: "gpt-4o",
-	},
+	last_model_config_id: defaultModelConfigs[0].id,
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	...overrides,
@@ -42,6 +54,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 	args: {
 		chatErrorReasons: {},
 		modelOptions: defaultModelOptions,
+		modelConfigs: defaultModelConfigs,
 		onArchiveAgent: fn(),
 		onNewAgent: fn(),
 		isCreating: false,
