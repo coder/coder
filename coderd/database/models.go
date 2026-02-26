@@ -3645,7 +3645,7 @@ type AIBridgeInterception struct {
 	Client      sql.NullString        `db:"client" json:"client"`
 	// The interception which directly caused this interception to occur, usually through an agentic loop or threaded conversation.
 	ThreadParentID uuid.NullUUID `db:"thread_parent_id" json:"thread_parent_id"`
-	// The root interception of the thread that this interception belongs to. NULL if this interception is itself the root.
+	// The root interception of the thread that this interception belongs to.
 	ThreadRootID uuid.NullUUID `db:"thread_root_id" json:"thread_root_id"`
 }
 

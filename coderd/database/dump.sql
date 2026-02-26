@@ -1035,7 +1035,7 @@ COMMENT ON COLUMN aibridge_interceptions.initiator_id IS 'Relates to a users rec
 
 COMMENT ON COLUMN aibridge_interceptions.thread_parent_id IS 'The interception which directly caused this interception to occur, usually through an agentic loop or threaded conversation.';
 
-COMMENT ON COLUMN aibridge_interceptions.thread_root_id IS 'The root interception of the thread that this interception belongs to. NULL if this interception is itself the root.';
+COMMENT ON COLUMN aibridge_interceptions.thread_root_id IS 'The root interception of the thread that this interception belongs to.';
 
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,

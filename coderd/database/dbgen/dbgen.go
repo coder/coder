@@ -1594,6 +1594,7 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		StartedAt:                  takeFirst(seed.StartedAt, dbtime.Now()),
 		Client:                     seed.Client,
 		ThreadParentInterceptionID: seed.ThreadParentInterceptionID,
+		ThreadRootInterceptionID:   seed.ThreadRootInterceptionID,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{
