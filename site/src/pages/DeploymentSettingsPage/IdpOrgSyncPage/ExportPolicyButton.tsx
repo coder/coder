@@ -1,9 +1,10 @@
+import { getErrorDetail } from "api/errors";
 import type { OrganizationSyncSettings } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { saveAs } from "file-saver";
 import { Download } from "lucide-react";
 import { type FC, useState } from "react";
+import { toast } from "sonner";
 
 interface ExportPolicyButtonProps {
 	syncSettings: OrganizationSyncSettings | undefined;
@@ -31,9 +32,11 @@ export const ExportPolicyButton: FC<ExportPolicyButtonProps> = ({
 							type: "application/json",
 						});
 						download(file, "organizations_policy.json");
-					} catch (e) {
-						console.error(e);
-						displayError("Failed to export organizations policy json");
+					} catch (error) {
+						console.error(error);
+						toast.error("Failed to export organizations policy JSON.", {
+							description: getErrorDetail(error),
+						});
 					} finally {
 						setIsDownloading(false);
 					}

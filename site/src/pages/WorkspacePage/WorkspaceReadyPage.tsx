@@ -1,5 +1,10 @@
 import { API } from "api/api";
-import { type ApiError, getErrorMessage, isApiError } from "api/errors";
+import {
+	type ApiError,
+	getErrorDetail,
+	getErrorMessage,
+	isApiError,
+} from "api/errors";
 import { templateVersion } from "api/queries/templates";
 import { workspaceBuildTimings } from "api/queries/workspaceBuilds";
 import {
@@ -15,7 +20,6 @@ import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
@@ -27,6 +31,7 @@ import {
 } from "modules/workspaces/WorkspaceUpdateDialogs";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { Workspace } from "./Workspace";
 
@@ -70,7 +75,15 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				error: error,
 			});
 		} else {
-			displayError(getErrorMessage(error, "Failed to build workspace."));
+			toast.error(
+				getErrorMessage(
+					error,
+					`Failed to build workspace "${workspace.name}".`,
+				),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		}
 	};
 
@@ -325,8 +338,15 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 					try {
 						await activateWorkspaceMutation.mutateAsync();
 					} catch (e) {
-						const message = getErrorMessage(e, "Error activate workspace.");
-						displayError(message);
+						toast.error(
+							getErrorMessage(
+								e,
+								`Error activating workspace "${workspace.name}".`,
+							),
+							{
+								description: getErrorDetail(e),
+							},
+						);
 					}
 				}}
 				handleToggleFavorite={() => {

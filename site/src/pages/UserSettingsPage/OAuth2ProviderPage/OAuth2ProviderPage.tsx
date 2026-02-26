@@ -1,10 +1,10 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { getApps, revokeApp } from "api/queries/oauth2";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useAuthenticated } from "hooks";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import { Section } from "../Section";
 import OAuth2ProviderPageView from "./OAuth2ProviderPageView";
 
@@ -42,13 +42,16 @@ const OAuth2ProviderPage: FC = () => {
 					onConfirm={async () => {
 						try {
 							await revokeAppMutation.mutateAsync(appToRevoke.id);
-							displaySuccess(
-								`You have successfully revoked the OAuth2 application "${appToRevoke.name}"`,
+							toast.success(
+								`OAuth2 application "${appToRevoke.name}" revoked successfully.`,
 							);
 							setAppIdToRevoke(undefined);
 						} catch (error) {
-							displayError(
+							toast.error(
 								getErrorMessage(error, "Failed to revoke application."),
+								{
+									description: getErrorDetail(error),
+								},
 							);
 						}
 					}}

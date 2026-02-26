@@ -2,10 +2,10 @@ import Skeleton from "@mui/material/Skeleton";
 import { healthSettings, updateHealthSettings } from "api/queries/debug";
 import type { HealthSection } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
 import { BellIcon, BellOffIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 
 export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 	const queryClient = useQueryClient();
@@ -44,7 +44,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 					await enableMutation.mutateAsync({
 						dismissed_healthchecks: updatedSettings,
 					});
-					displaySuccess("Warnings enabled successfully!");
+					toast.success("Warnings enabled successfully.");
 				}}
 			>
 				<Spinner loading={enableMutation.isPending}>
@@ -64,7 +64,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 				await dismissMutation.mutateAsync({
 					dismissed_healthchecks: updatedSettings,
 				});
-				displaySuccess("Warnings dismissed successfully!");
+				toast.success("Dismissed warnings successfully.");
 			}}
 		>
 			<Spinner loading={dismissMutation.isPending}>

@@ -47,7 +47,7 @@ describe("Create User Page", () => {
 		await renderCreateUserPage();
 		await fillForm({});
 		const successMessage = await screen.findByText(
-			"Successfully created user.",
+			'User "someuser" created successfully.',
 		);
 		expect(successMessage).toBeDefined();
 	});

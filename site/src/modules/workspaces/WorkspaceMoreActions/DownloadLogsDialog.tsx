@@ -1,5 +1,6 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
+import { getErrorDetail } from "api/errors";
 import { agentLogs, buildLogs } from "api/queries/workspaces";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -7,12 +8,12 @@ import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery } from "react-query";
+import { toast } from "sonner";
 
 type DownloadLogsDialogProps = Pick<
 	ConfirmDialogProps,
@@ -134,7 +135,9 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 					}, theme.transitions.duration.leavingScreen);
 				} catch (error) {
 					setIsDownloading(false);
-					displayError("Error downloading workspace logs");
+					toast.error(`Error downloading workspace "${workspace.name}" logs.`, {
+						description: getErrorDetail(error),
+					});
 					console.error(error);
 				}
 			}}

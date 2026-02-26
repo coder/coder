@@ -2905,6 +2905,7 @@ class ApiMethods {
 		return response.data;
 	};
 
+<<<<<<< HEAD
 	// Chat API methods
 	getChats = async (): Promise<TypesGen.Chat[]> => {
 		const response = await this.axios.get<TypesGen.Chat[]>("/api/v2/chats");
@@ -3066,6 +3067,14 @@ class ApiMethods {
 			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
 		);
 	};
+=======
+	getAIBridgeModels = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+>>>>>>> origin/main
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";

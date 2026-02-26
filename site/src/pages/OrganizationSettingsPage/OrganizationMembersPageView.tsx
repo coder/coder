@@ -1,4 +1,4 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import type {
 	Group,
 	OrganizationMemberWithUserData,
@@ -15,7 +15,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
 import {
@@ -37,6 +36,7 @@ import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
+import { toast } from "sonner";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
 import { UserRoleCell } from "./UserTable/UserRoleCell";
 
@@ -153,7 +153,9 @@ export const OrganizationMembersPageView: FC<
 												// but testing-library does.
 												try {
 													await updateMemberRoles(member, roles);
-													displaySuccess("Roles updated successfully.");
+													toast.success(
+														`Roles of "${member.username}" updated successfully.`,
+													);
 												} catch {}
 											}}
 										/>
@@ -220,7 +222,17 @@ const AddOrganizationMember: FC<AddOrganizationMemberProps> = ({
 						await onSubmit(selectedUser);
 						setSelectedUser(null);
 					} catch (error) {
-						displayError(getErrorMessage(error, "Failed to add member."));
+						toast.error(
+							getErrorMessage(
+								error,
+								selectedUser
+									? `Failed to add "${selectedUser.username}" as a member.`
+									: "Failed to add member.",
+							),
+							{
+								description: getErrorDetail(error),
+							},
+						);
 					}
 				}
 			}}

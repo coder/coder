@@ -25,8 +25,8 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
 	withProxyProvider,
+	withToaster,
 	withWebSocket,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
@@ -730,7 +730,7 @@ export const ActivePreview: Story = {
 };
 
 export const TaskResuming: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	beforeEach: () => {
 		spyOn(API, "getTask").mockResolvedValue({
 			...MockTask,
@@ -772,7 +772,7 @@ export const TaskResuming: Story = {
 };
 
 export const TaskResumeFailure: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	beforeEach: () => {
 		spyOn(API, "getTask").mockResolvedValue({
 			...MockTask,
