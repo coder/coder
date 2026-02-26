@@ -233,7 +233,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				RawMessage: systemContent,
 				Valid:      len(systemContent) > 0,
 			},
-			Visibility: modelChatMessageVisibility(),
+			Visibility: database.NullChatMessageVisibility{
+				ChatMessageVisibility: database.ChatMessageVisibilityModel,
+				Valid:                 true,
+			},
 		})
 		if err != nil {
 			return database.Chat{}, xerrors.Errorf("insert system message: %w", err)

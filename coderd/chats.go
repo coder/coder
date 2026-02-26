@@ -277,12 +277,18 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	modelConfigID, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, req)
+	if modelConfigError != nil {
+		httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
+		return
+	}
+
 	chat, err := api.chatProcessor.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		WorkspaceAgentID:   workspaceSelection.WorkspaceAgentID,
 		Title:              title,
-		ModelConfigID:      req.ModelConfigID,
+		ModelConfigID:      modelConfigID,
 		SystemPrompt:       defaultChatSystemPrompt(),
 		InitialUserContent: content,
 	})
@@ -1908,6 +1914,35 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	return selection, 0, nil
 }
 
+func (api *API) resolveCreateChatModelConfigID(
+	ctx context.Context,
+	req codersdk.CreateChatRequest,
+) (uuid.UUID, int, *codersdk.Response) {
+	if req.ModelConfigID != nil {
+		if *req.ModelConfigID == uuid.Nil {
+			return uuid.Nil, http.StatusBadRequest, &codersdk.Response{
+				Message: "Invalid model config ID.",
+			}
+		}
+		return *req.ModelConfigID, 0, nil
+	}
+
+	defaultModelConfig, err := api.Database.GetDefaultChatModelConfig(ctx)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return uuid.Nil, http.StatusBadRequest, &codersdk.Response{
+				Message: "No default chat model config is configured.",
+			}
+		}
+		return uuid.Nil, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to resolve chat model config.",
+			Detail:  err.Error(),
+		}
+	}
+
+	return defaultModelConfig.ID, 0, nil
+}
+
 func normalizeChatCompressionThreshold(
 	requested *int32,
 	fallback int32,
@@ -2695,25 +2730,45 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		Options:              modelConfigRaw,
 	}
 
-	var (
-		inserted database.ChatModelConfig
-		err      error
-	)
-	if isDefault {
-		err = api.Database.InTx(func(tx database.Store) error {
+	var inserted database.ChatModelConfig
+	err := api.Database.InTx(func(tx database.Store) error {
+		insertAsDefault := isDefault
+		if !insertAsDefault {
+			_, err := tx.GetDefaultChatModelConfig(ctx)
+			switch {
+			case err == nil:
+				// A default already exists.
+			case xerrors.Is(err, sql.ErrNoRows):
+				insertAsDefault = true
+			default:
+				return xerrors.Errorf("get default model config: %w", err)
+			}
+		}
+
+		if insertAsDefault {
 			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
 				return xerrors.Errorf("unset default model configs: %w", err)
 			}
-			config, err := tx.InsertChatModelConfig(ctx, insertParams)
-			if err != nil {
-				return err
-			}
-			inserted = config
-			return nil
-		}, nil)
-	} else {
-		inserted, err = api.Database.InsertChatModelConfig(ctx, insertParams)
-	}
+		}
+		insertParams.IsDefault = insertAsDefault
+
+		config, err := tx.InsertChatModelConfig(ctx, insertParams)
+		if err != nil {
+			return err
+		}
+		inserted = config
+
+		if err := ensureDefaultChatModelConfig(ctx, tx); err != nil {
+			return err
+		}
+
+		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, inserted.ID)
+		if err != nil {
+			return xerrors.Errorf("refresh inserted chat model config: %w", err)
+		}
+		inserted = refreshedConfig
+		return nil
+	}, nil)
 	if err != nil {
 		switch {
 		case database.IsUniqueViolation(err):
@@ -2849,23 +2904,40 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ID:                   existing.ID,
 	}
 
-	setAsDefault := req.IsDefault != nil && *req.IsDefault && !existing.IsDefault
 	var updated database.ChatModelConfig
-	if setAsDefault {
-		err = api.Database.InTx(func(tx database.Store) error {
+	err = api.Database.InTx(func(tx database.Store) error {
+		setAsDefault := updateParams.IsDefault && !existing.IsDefault
+		if setAsDefault {
 			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
 				return xerrors.Errorf("unset default model configs: %w", err)
 			}
-			config, err := tx.UpdateChatModelConfig(ctx, updateParams)
-			if err != nil {
-				return err
-			}
-			updated = config
-			return nil
-		}, nil)
-	} else {
-		updated, err = api.Database.UpdateChatModelConfig(ctx, updateParams)
-	}
+		}
+
+		_, err := tx.UpdateChatModelConfig(ctx, updateParams)
+		if err != nil {
+			return err
+		}
+
+		excludeConfigID := uuid.Nil
+		if existing.IsDefault && req.IsDefault != nil && !*req.IsDefault {
+			excludeConfigID = existing.ID
+		}
+
+		if err := ensureDefaultChatModelConfig(
+			ctx,
+			tx,
+			excludeConfigID,
+		); err != nil {
+			return err
+		}
+
+		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, existing.ID)
+		if err != nil {
+			return xerrors.Errorf("refresh updated chat model config: %w", err)
+		}
+		updated = refreshedConfig
+		return nil
+	}, nil)
 	if err != nil {
 		switch {
 		case database.IsUniqueViolation(err):
@@ -2916,7 +2988,15 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := api.Database.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
+	if err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
+			return err
+		}
+		if err := ensureDefaultChatModelConfig(ctx, tx); err != nil {
+			return err
+		}
+		return nil
+	}, nil); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat model config.",
 			Detail:  err.Error(),
@@ -2925,6 +3005,72 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+func ensureDefaultChatModelConfig(
+	ctx context.Context,
+	tx database.Store,
+	excludedConfigIDs ...uuid.UUID,
+) error {
+	_, err := tx.GetDefaultChatModelConfig(ctx)
+	switch {
+	case err == nil:
+		return nil
+	case !xerrors.Is(err, sql.ErrNoRows):
+		return xerrors.Errorf("get default model config: %w", err)
+	}
+
+	modelConfigs, err := tx.GetChatModelConfigs(ctx)
+	if err != nil {
+		return xerrors.Errorf("list chat model configs: %w", err)
+	}
+	if len(modelConfigs) == 0 {
+		return nil
+	}
+
+	candidateConfig := modelConfigs[0]
+	excluded := make(map[uuid.UUID]struct{}, len(excludedConfigIDs))
+	for _, configID := range excludedConfigIDs {
+		if configID == uuid.Nil {
+			continue
+		}
+		excluded[configID] = struct{}{}
+	}
+	for _, config := range modelConfigs {
+		if _, skip := excluded[config.ID]; skip {
+			continue
+		}
+		candidateConfig = config
+		break
+	}
+
+	if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
+		return xerrors.Errorf("unset default model configs: %w", err)
+	}
+
+	params := chatModelConfigToUpdateParams(candidateConfig)
+	params.IsDefault = true
+	if _, err := tx.UpdateChatModelConfig(ctx, params); err != nil {
+		return xerrors.Errorf("set default model config: %w", err)
+	}
+	return nil
+}
+
+func chatModelConfigToUpdateParams(
+	config database.ChatModelConfig,
+) database.UpdateChatModelConfigParams {
+	return database.UpdateChatModelConfigParams{
+		Provider:             config.Provider,
+		Model:                config.Model,
+		DisplayName:          config.DisplayName,
+		UpdatedBy:            config.UpdatedBy,
+		Enabled:              config.Enabled,
+		IsDefault:            config.IsDefault,
+		ContextLimit:         config.ContextLimit,
+		CompressionThreshold: config.CompressionThreshold,
+		Options:              config.Options,
+		ID:                   config.ID,
+	}
 }
 
 func parseChatProviderID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {

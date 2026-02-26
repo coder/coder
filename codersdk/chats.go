@@ -113,7 +113,7 @@ type ChatInputPart struct {
 type CreateChatRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	WorkspaceID   *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	ModelConfigID uuid.UUID       `json:"model_config_id" format:"uuid"`
+	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
 }
 
 // UpdateChatRequest is the request to update a chat.

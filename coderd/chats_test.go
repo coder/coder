@@ -35,7 +35,6 @@ func TestChats(t *testing.T) {
 						Text: "hello from chats route tests",
 					},
 				},
-				ModelConfigID: modelConfig.ID,
 			})
 			require.NoError(t, err)
 
@@ -92,8 +91,7 @@ func TestChats(t *testing.T) {
 						Text: "hello",
 					},
 				},
-				WorkspaceID:   &workspaceBuild.Workspace.ID,
-				ModelConfigID: uuid.New(),
+				WorkspaceID: &workspaceBuild.Workspace.ID,
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equal(t, "Workspace not found or you do not have access to this resource", sdkErr.Message)
@@ -114,8 +112,7 @@ func TestChats(t *testing.T) {
 						Text: "hello",
 					},
 				},
-				WorkspaceID:   &workspaceID,
-				ModelConfigID: uuid.New(),
+				WorkspaceID: &workspaceID,
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equal(t, "Workspace not found or you do not have access to this resource", sdkErr.Message)
@@ -141,14 +138,33 @@ func TestChats(t *testing.T) {
 						Text: "hello",
 					},
 				},
-				WorkspaceID:   &workspaceBuild.Workspace.ID,
-				ModelConfigID: modelConfig.ID,
+				WorkspaceID: &workspaceBuild.Workspace.ID,
 			})
 			require.NoError(t, err)
 			require.NotNil(t, chat.WorkspaceID)
 			require.Equal(t, workspaceBuild.Workspace.ID, *chat.WorkspaceID)
 			require.NotNil(t, chat.WorkspaceAgentID)
 			require.Equal(t, workspaceBuild.Agents[0].ID, *chat.WorkspaceAgentID)
+			require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
+		})
+
+		t.Run("MissingDefaultModelConfig", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := coderdtest.New(t, nil)
+			_ = coderdtest.CreateFirstUser(t, client)
+
+			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				Content: []codersdk.ChatInputPart{
+					{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: "hello",
+					},
+				},
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "No default chat model config is configured.", sdkErr.Message)
 		})
 
 		t.Run("EmptyContent", func(t *testing.T) {
@@ -159,8 +175,7 @@ func TestChats(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 
 			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-				Content:       nil,
-				ModelConfigID: uuid.New(),
+				Content: nil,
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equal(t, "Content is required.", sdkErr.Message)
@@ -181,7 +196,6 @@ func TestChats(t *testing.T) {
 						Text: "   ",
 					},
 				},
-				ModelConfigID: uuid.New(),
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equal(t, "Invalid input part.", sdkErr.Message)
@@ -202,7 +216,6 @@ func TestChats(t *testing.T) {
 						Text: "hello",
 					},
 				},
-				ModelConfigID: uuid.New(),
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equal(t, "Invalid input part.", sdkErr.Message)

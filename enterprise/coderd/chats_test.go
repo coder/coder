@@ -92,7 +92,7 @@ func TestChatStreamRelay(t *testing.T) {
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "Test chat for relay",
 			}},
-			ModelConfigID: model.ID,
+			ModelConfigID: &model.ID,
 		})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
@@ -332,7 +332,7 @@ func TestChatModelConfigDefault(t *testing.T) {
 	firstStored = findChatModelConfigByID(t, modelConfigs, firstModel.ID)
 	secondStored = findChatModelConfigByID(t, modelConfigs, secondModel.ID)
 	require.False(t, firstStored.IsDefault)
-	require.False(t, secondStored.IsDefault)
+	require.True(t, secondStored.IsDefault)
 }
 
 func findChatModelConfigByID(
