@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { API, withDefaultFeatures } from "api/api";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
+import { act } from "react";
 import { validationSchema } from "./TemplateSettingsForm";
 import TemplateSettingsPage from "./TemplateSettingsPage";
 
@@ -77,48 +78,52 @@ const fillAndSubmitForm = async ({
 	icon,
 	allow_user_cancel_workspace_jobs,
 }: FormValues) => {
+	const user = userEvent.setup();
+
 	const nameField = await screen.findByLabelText("Name");
-	await userEvent.clear(nameField);
-	await userEvent.type(nameField, name);
+	await user.clear(nameField);
+	await user.type(nameField, name);
 
 	const displayNameField = await screen.findByLabelText("Display name");
-	await userEvent.clear(displayNameField);
-	await userEvent.type(displayNameField, display_name);
+	await user.clear(displayNameField);
+	await user.type(displayNameField, display_name);
 
 	const descriptionField = await screen.findByLabelText("Description");
-	await userEvent.clear(descriptionField);
-	await userEvent.type(descriptionField, description);
+	await user.clear(descriptionField);
+	await user.type(descriptionField, description);
 
 	const iconField = await screen.findByLabelText("Icon");
-	await userEvent.clear(iconField);
-	await userEvent.type(iconField, icon);
+	await user.clear(iconField);
+	await user.type(iconField, icon);
 
 	const allowCancelJobsField = screen.getByRole("checkbox", {
 		name: /allow users to cancel in-progress workspace jobs/i,
 	});
 	// checkbox is checked by default, so it must be clicked to get unchecked
 	if (!allow_user_cancel_workspace_jobs) {
-		await userEvent.click(allowCancelJobsField);
+		await user.click(allowCancelJobsField);
 	}
 
 	const submitButton = await screen.findByText(/save/i);
-	await userEvent.click(submitButton);
+	await user.click(submitButton);
 };
 
 describe("TemplateSettingsPage", () => {
 	it("succeeds", async () => {
 		await renderTemplateSettingsPage();
-		jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
+		vi.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
 			...MockTemplate,
 			...validFormValues,
 		});
-		await fillAndSubmitForm(validFormValues);
+		await act(async () => {
+			await fillAndSubmitForm(validFormValues);
+		});
 		await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
 	});
 
 	it("displays an error if the name is taken", async () => {
 		await renderTemplateSettingsPage();
-		jest.spyOn(API, "updateTemplateMeta").mockRejectedValueOnce(
+		vi.spyOn(API, "updateTemplateMeta").mockRejectedValueOnce(
 			mockApiError({
 				message: `Template with name "test-template" already exists`,
 				validations: [
@@ -129,7 +134,10 @@ describe("TemplateSettingsPage", () => {
 				],
 			}),
 		);
-		await fillAndSubmitForm(validFormValues);
+
+		await act(async () => {
+			await fillAndSubmitForm(validFormValues);
+		});
 		await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
 
 		const nameField = await screen.findByLabelText("Name");
@@ -178,11 +186,14 @@ describe("TemplateSettingsPage", () => {
 					});
 				}),
 			);
-			const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+			const updateTemplateMetaSpy = vi.spyOn(API, "updateTemplateMeta");
 			const deprecationMessage = "This template is deprecated";
 
 			await renderTemplateSettingsPage();
-			await deprecateTemplate(deprecationMessage);
+
+			await act(async () => {
+				await deprecateTemplate(deprecationMessage);
+			});
 
 			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
 
@@ -203,10 +214,15 @@ describe("TemplateSettingsPage", () => {
 					});
 				}),
 			);
-			const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
+			const updateTemplateMetaSpy = vi.spyOn(API, "updateTemplateMeta");
 
 			await renderTemplateSettingsPage();
-			await deprecateTemplate("This template should not be able to deprecate");
+
+			await act(async () => {
+				await deprecateTemplate(
+					"This template should not be able to deprecate",
+				);
+			});
 
 			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
 
@@ -219,8 +235,9 @@ describe("TemplateSettingsPage", () => {
 });
 
 async function deprecateTemplate(message: string) {
+	const user = userEvent.setup();
 	const deprecationField = screen.getByLabelText("Deprecation Message");
-	await userEvent.type(deprecationField, message);
+	await user.type(deprecationField, message);
 	const submitButton = await screen.findByRole("button", { name: /save/i });
-	await userEvent.click(submitButton);
+	await user.click(submitButton);
 }
