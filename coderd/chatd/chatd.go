@@ -1008,17 +1008,172 @@ func (p *Server) Subscribe(
 
 	// Subscribe to pubsub for durable events
 	var pubsubCancel func()
+	//nolint:nestif
 	if p.pubsub != nil {
-		pubsubCancel = p.startPubsubChatStream(
-			mergedCtx,
-			chatID,
-			localParts,
-			&relayParts,
-			&lastMessageID,
-			openRelay,
-			closeRelay,
-			mergedEvents,
+		notifications := make(chan coderdpubsub.ChatStreamNotifyMessage, 10)
+		errCh := make(chan error, 1)
+
+		listener := func(_ context.Context, message []byte, err error) {
+			if err != nil {
+				select {
+				case <-mergedCtx.Done():
+				case errCh <- err:
+				}
+				return
+			}
+			var notify coderdpubsub.ChatStreamNotifyMessage
+			if unmarshalErr := json.Unmarshal(message, &notify); unmarshalErr != nil {
+				select {
+				case <-mergedCtx.Done():
+				case errCh <- xerrors.Errorf("unmarshal chat stream notify: %w", unmarshalErr):
+				}
+				return
+			}
+			select {
+			case <-mergedCtx.Done():
+			case notifications <- notify:
+			}
+		}
+
+		pubsubCancel, err = p.pubsub.SubscribeWithErr(
+			coderdpubsub.ChatStreamNotifyChannel(chatID),
+			listener,
 		)
+		if err != nil {
+			p.logger.Warn(mergedCtx, "failed to subscribe to chat stream notifications",
+				slog.F("chat_id", chatID),
+				slog.Error(err),
+			)
+		}
+
+		// Handle pubsub notifications in a goroutine
+		go func() {
+			defer close(mergedEvents)
+			defer closeRelay()
+
+			for {
+				relayPartsCh := relayParts
+				select {
+				case <-mergedCtx.Done():
+					return
+				case err := <-errCh:
+					p.logger.Error(mergedCtx, "chat stream pubsub error",
+						slog.F("chat_id", chatID),
+						slog.Error(err),
+					)
+					mergedEvents <- codersdk.ChatStreamEvent{
+						Type:   codersdk.ChatStreamEventTypeError,
+						ChatID: chatID,
+						Error: &codersdk.ChatStreamError{
+							Message: err.Error(),
+						},
+					}
+					return
+				case notify := <-notifications:
+					// Handle different notification types
+					if notify.AfterMessageID > 0 {
+						// Read new messages from DB
+						//nolint:gocritic // System context needed to read chat messages for stream.
+						messages, err := p.db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(mergedCtx), chatID)
+						if err == nil {
+							for _, msg := range messages {
+								if msg.ID > lastMessageID {
+									sdkMsg := db2sdk.ChatMessage(msg)
+									select {
+									case <-mergedCtx.Done():
+										return
+									case mergedEvents <- codersdk.ChatStreamEvent{
+										Type:    codersdk.ChatStreamEventTypeMessage,
+										ChatID:  chatID,
+										Message: &sdkMsg,
+									}:
+									}
+									lastMessageID = msg.ID
+								}
+							}
+						}
+					}
+					if notify.Status != "" {
+						status := database.ChatStatus(notify.Status)
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- codersdk.ChatStreamEvent{
+							Type:   codersdk.ChatStreamEventTypeStatus,
+							ChatID: chatID,
+							Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
+						}:
+						}
+						// Manage relay lifecycle based on status
+						if status == database.ChatStatusRunning && notify.WorkerID != "" {
+							workerID, err := uuid.Parse(notify.WorkerID)
+							if err == nil && workerID != p.workerID {
+								openRelay(workerID)
+							} else if workerID == p.workerID {
+								closeRelay()
+							}
+						} else {
+							closeRelay()
+						}
+					}
+					if notify.Error != "" {
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- codersdk.ChatStreamEvent{
+							Type:   codersdk.ChatStreamEventTypeError,
+							ChatID: chatID,
+							Error: &codersdk.ChatStreamError{
+								Message: notify.Error,
+							},
+						}:
+						}
+					}
+					if notify.QueueUpdate {
+						//nolint:gocritic // System context needed to read queued messages for stream.
+						queued, err := p.db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(mergedCtx), chatID)
+						if err == nil {
+							select {
+							case <-mergedCtx.Done():
+								return
+							case mergedEvents <- codersdk.ChatStreamEvent{
+								Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+								ChatID:         chatID,
+								QueuedMessages: db2sdk.ChatQueuedMessages(queued),
+							}:
+							}
+						}
+					}
+				case event, ok := <-localParts:
+					if !ok {
+						// Local parts channel closed, but continue with pubsub
+						continue
+					}
+					// Only forward message_part events from local (durable events come via pubsub)
+					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- event:
+						}
+					}
+				case event, ok := <-relayPartsCh:
+					if !ok {
+						relayParts = nil
+						continue
+					}
+					// Only forward message_part events from relay (durable events come via pubsub)
+					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- event:
+						}
+					}
+				}
+			}
+		}()
+
 		if pubsubCancel != nil {
 			allCancels = append(allCancels, pubsubCancel)
 		}
@@ -1042,7 +1197,6 @@ func (p *Server) Subscribe(
 			}
 		}()
 	}
-
 	cancel := func() {
 		mergedCancel()
 		for _, cancelFn := range allCancels {
@@ -1053,183 +1207,6 @@ func (p *Server) Subscribe(
 	}
 
 	return initialSnapshot, mergedEvents, cancel, true
-}
-
-func (p *Server) startPubsubChatStream(
-	mergedCtx context.Context,
-	chatID uuid.UUID,
-	localParts <-chan codersdk.ChatStreamEvent,
-	relayParts *<-chan codersdk.ChatStreamEvent,
-	lastMessageID *int64,
-	openRelay func(uuid.UUID),
-	closeRelay func(),
-	mergedEvents chan<- codersdk.ChatStreamEvent,
-) func() {
-	notifications := make(chan coderdpubsub.ChatStreamNotifyMessage, 10)
-	errCh := make(chan error, 1)
-
-	listener := func(_ context.Context, message []byte, err error) {
-		if err != nil {
-			select {
-			case <-mergedCtx.Done():
-			case errCh <- err:
-			}
-			return
-		}
-		var notify coderdpubsub.ChatStreamNotifyMessage
-		if unmarshalErr := json.Unmarshal(message, &notify); unmarshalErr != nil {
-			select {
-			case <-mergedCtx.Done():
-			case errCh <- xerrors.Errorf("unmarshal chat stream notify: %w", unmarshalErr):
-			}
-			return
-		}
-		select {
-		case <-mergedCtx.Done():
-		case notifications <- notify:
-		}
-	}
-
-	pubsubCancel, err := p.pubsub.SubscribeWithErr(
-		coderdpubsub.ChatStreamNotifyChannel(chatID),
-		listener,
-	)
-	if err != nil {
-		p.logger.Warn(mergedCtx, "failed to subscribe to chat stream notifications",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-	}
-
-	// Handle pubsub notifications in a goroutine
-	go func() {
-		defer close(mergedEvents)
-		defer closeRelay()
-
-		for {
-			relayPartsCh := *relayParts
-			select {
-			case <-mergedCtx.Done():
-				return
-			case err := <-errCh:
-				p.logger.Error(mergedCtx, "chat stream pubsub error",
-					slog.F("chat_id", chatID),
-					slog.Error(err),
-				)
-				mergedEvents <- codersdk.ChatStreamEvent{
-					Type:   codersdk.ChatStreamEventTypeError,
-					ChatID: chatID,
-					Error: &codersdk.ChatStreamError{
-						Message: err.Error(),
-					},
-				}
-				return
-			case notify := <-notifications:
-				// Handle different notification types
-				if notify.AfterMessageID > 0 {
-					// Read new messages from DB
-					//nolint:gocritic // System context needed to read chat messages for stream.
-					messages, err := p.db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(mergedCtx), chatID)
-					if err == nil {
-						for _, msg := range messages {
-							if msg.ID > *lastMessageID {
-								sdkMsg := db2sdk.ChatMessage(msg)
-								select {
-								case <-mergedCtx.Done():
-									return
-								case mergedEvents <- codersdk.ChatStreamEvent{
-									Type:    codersdk.ChatStreamEventTypeMessage,
-									ChatID:  chatID,
-									Message: &sdkMsg,
-								}:
-								}
-								*lastMessageID = msg.ID
-							}
-						}
-					}
-				}
-				if notify.Status != "" {
-					status := database.ChatStatus(notify.Status)
-					select {
-					case <-mergedCtx.Done():
-						return
-					case mergedEvents <- codersdk.ChatStreamEvent{
-						Type:   codersdk.ChatStreamEventTypeStatus,
-						ChatID: chatID,
-						Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
-					}:
-					}
-					// Manage relay lifecycle based on status
-					if status == database.ChatStatusRunning && notify.WorkerID != "" {
-						workerID, err := uuid.Parse(notify.WorkerID)
-						if err == nil && workerID != p.workerID {
-							openRelay(workerID)
-						} else if workerID == p.workerID {
-							closeRelay()
-						}
-					} else {
-						closeRelay()
-					}
-				}
-				if notify.Error != "" {
-					select {
-					case <-mergedCtx.Done():
-						return
-					case mergedEvents <- codersdk.ChatStreamEvent{
-						Type:   codersdk.ChatStreamEventTypeError,
-						ChatID: chatID,
-						Error: &codersdk.ChatStreamError{
-							Message: notify.Error,
-						},
-					}:
-					}
-				}
-				if notify.QueueUpdate {
-					//nolint:gocritic // System context needed to read queued messages for stream.
-					queued, err := p.db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(mergedCtx), chatID)
-					if err == nil {
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- codersdk.ChatStreamEvent{
-							Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-							ChatID:         chatID,
-							QueuedMessages: db2sdk.ChatQueuedMessages(queued),
-						}:
-						}
-					}
-				}
-			case event, ok := <-localParts:
-				if !ok {
-					// Local parts channel closed, but continue with pubsub
-					continue
-				}
-				// Only forward message_part events from local (durable events come via pubsub)
-				if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-					select {
-					case <-mergedCtx.Done():
-						return
-					case mergedEvents <- event:
-					}
-				}
-			case event, ok := <-relayPartsCh:
-				if !ok {
-					*relayParts = nil
-					continue
-				}
-				// Only forward message_part events from relay (durable events come via pubsub)
-				if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-					select {
-					case <-mergedCtx.Done():
-						return
-					case mergedEvents <- event:
-					}
-				}
-			}
-		}
-	}()
-
-	return pubsubCancel
 }
 
 func (p *Server) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
