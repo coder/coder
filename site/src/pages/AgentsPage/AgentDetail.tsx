@@ -51,6 +51,7 @@ const noopSetRightPanelOpen: AgentsOutletContext["setRightPanelOpen"] =
 	() => {};
 const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
 	() => {};
+const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 export const AgentDetail: FC = () => {
 	const navigate = useNavigate();
@@ -128,8 +129,14 @@ export const AgentDetail: FC = () => {
 			if (!provider || !model) {
 				continue;
 			}
-			byModelID.set(`${provider}:${model}`, config.id);
-			byModelID.set(`${provider}/${model}`, config.id);
+			const colonRef = `${provider}:${model}`;
+			if (!byModelID.has(colonRef)) {
+				byModelID.set(colonRef, config.id);
+			}
+			const slashRef = `${provider}/${model}`;
+			if (!byModelID.has(slashRef)) {
+				byModelID.set(slashRef, config.id);
+			}
 		}
 		return byModelID;
 	}, [chatModelConfigsQuery.data]);
@@ -238,11 +245,12 @@ export const AgentDetail: FC = () => {
 		) {
 			return;
 		}
+		const selectedModelConfigID =
+			(selectedModel && modelConfigIDByModelID.get(selectedModel)) ||
+			undefined;
 		const request: TypesGen.CreateChatMessageRequest = {
 			content: [{ type: "text", text: message }],
-			model_config_id:
-				(selectedModel && modelConfigIDByModelID.get(selectedModel)) ||
-				undefined,
+			model_config_id: selectedModelConfigID,
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();
@@ -250,6 +258,13 @@ export const AgentDetail: FC = () => {
 			scrollContainerRef.current.scrollTop = 0;
 		}
 		await sendMutation.mutateAsync(request);
+		if (typeof window !== "undefined") {
+			if (selectedModelConfigID) {
+				localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
+			} else {
+				localStorage.removeItem(lastModelConfigIDStorageKey);
+			}
+		}
 	};
 
 	const handleInterrupt = () => {

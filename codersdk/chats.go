@@ -24,18 +24,18 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID               uuid.UUID       `json:"id" format:"uuid"`
-	OwnerID          uuid.UUID       `json:"owner_id" format:"uuid"`
-	WorkspaceID      *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	WorkspaceAgentID *uuid.UUID      `json:"workspace_agent_id,omitempty" format:"uuid"`
-	ParentChatID     *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID       *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID *uuid.UUID      `json:"last_model_config_id,omitempty" format:"uuid"`
-	Title            string          `json:"title"`
-	Status           ChatStatus      `json:"status"`
-	DiffStatus       *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt        time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time       `json:"updated_at" format:"date-time"`
+	ID                uuid.UUID       `json:"id" format:"uuid"`
+	OwnerID           uuid.UUID       `json:"owner_id" format:"uuid"`
+	WorkspaceID       *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
+	WorkspaceAgentID  *uuid.UUID      `json:"workspace_agent_id,omitempty" format:"uuid"`
+	ParentChatID      *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID        *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID uuid.UUID       `json:"last_model_config_id" format:"uuid"`
+	Title             string          `json:"title"`
+	Status            ChatStatus      `json:"status"`
+	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`
+	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
 }
 
 // ChatMessage represents a single message in a chat.
@@ -227,6 +227,7 @@ type ChatModelConfig struct {
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name"`
 	Enabled              bool                 `json:"enabled"`
+	IsDefault            bool                 `json:"is_default"`
 	ContextLimit         int64                `json:"context_limit"`
 	CompressionThreshold int32                `json:"compression_threshold"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
@@ -385,6 +386,7 @@ type CreateChatModelConfigRequest struct {
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
+	IsDefault            *bool                `json:"is_default,omitempty"`
 	ContextLimit         *int64               `json:"context_limit,omitempty"`
 	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
@@ -396,6 +398,7 @@ type UpdateChatModelConfigRequest struct {
 	Model                string               `json:"model,omitempty"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
+	IsDefault            *bool                `json:"is_default,omitempty"`
 	ContextLimit         *int64               `json:"context_limit,omitempty"`
 	CompressionThreshold *int32               `json:"compression_threshold,omitempty"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`

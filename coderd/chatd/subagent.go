@@ -237,6 +237,9 @@ func (p *Server) createChildSubagentChat(
 	if parent.RootChatID.Valid {
 		rootChatID = parent.RootChatID.UUID
 	}
+	if parent.LastModelConfigID == uuid.Nil {
+		return database.Chat{}, xerrors.New("parent chat model config id is required")
+	}
 
 	userContent, err := chatprompt.MarshalContent([]fantasy.Content{fantasy.TextContent{Text: prompt}})
 	if err != nil {
@@ -255,6 +258,7 @@ func (p *Server) createChildSubagentChat(
 			UUID:  rootChatID,
 			Valid: true,
 		},
+		ModelConfigID:      parent.LastModelConfigID,
 		Title:              title,
 		InitialUserContent: userContent.RawMessage,
 	})

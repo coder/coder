@@ -43,6 +43,7 @@ INSERT INTO chat_model_configs (
 INSERT INTO chats (
     id,
     owner_id,
+    last_model_config_id,
     title,
     status,
     created_at,
@@ -51,6 +52,7 @@ INSERT INTO chats (
 SELECT
     '72c0438a-18eb-4688-ab80-e4c6a126ef96',
     id,
+    '9af5f8d5-6a57-4505-8a69-3d6c787b95fd',
     'Fixture Chat',
     'completed',
     '2024-01-01 00:00:00+00',

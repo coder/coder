@@ -3647,6 +3647,14 @@ func (m queryMetricsStore) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID
 	return r0
 }
 
+func (m queryMetricsStore) UnsetDefaultChatModelConfigs(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.UnsetDefaultChatModelConfigs(ctx)
+	m.queryLatencies.WithLabelValues("UnsetDefaultChatModelConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnsetDefaultChatModelConfigs").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateAIBridgeInterceptionEnded(ctx, arg)

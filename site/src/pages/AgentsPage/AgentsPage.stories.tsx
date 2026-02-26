@@ -56,6 +56,8 @@ const meta: Meta<typeof AgentsEmptyStateWithPortal> = {
 		modelCatalog: null,
 		modelOptions: [...modelOptions],
 		isModelCatalogLoading: false,
+		modelConfigs: [],
+		isModelConfigsLoading: false,
 		modelCatalogError: undefined,
 		canSetSystemPrompt: true,
 		canManageChatModelConfigs: false,

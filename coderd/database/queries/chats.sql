@@ -138,7 +138,7 @@ INSERT INTO chats (
     sqlc.narg('workspace_agent_id')::uuid,
     sqlc.narg('parent_chat_id')::uuid,
     sqlc.narg('root_chat_id')::uuid,
-    sqlc.narg('last_model_config_id')::uuid,
+    @last_model_config_id::uuid,
     @title::text
 )
 RETURNING

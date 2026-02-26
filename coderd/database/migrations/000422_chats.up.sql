@@ -27,7 +27,7 @@ CREATE TABLE chats (
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     parent_chat_id      UUID        REFERENCES chats(id) ON DELETE SET NULL,
     root_chat_id        UUID        REFERENCES chats(id) ON DELETE SET NULL,
-    last_model_config_id UUID
+    last_model_config_id UUID        NOT NULL
 );
 
 CREATE INDEX idx_chats_owner ON chats(owner_id);
@@ -120,6 +120,7 @@ CREATE TABLE chat_model_configs (
     created_by              UUID        REFERENCES users(id),
     updated_by              UUID        REFERENCES users(id),
     enabled                 BOOLEAN     NOT NULL DEFAULT TRUE,
+    is_default              BOOLEAN     NOT NULL DEFAULT FALSE,
     deleted                 BOOLEAN     NOT NULL DEFAULT FALSE,
     deleted_at              TIMESTAMPTZ,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -137,6 +138,10 @@ CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs(enabled);
 CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs(provider);
 CREATE INDEX idx_chat_model_configs_provider_model
     ON chat_model_configs(provider, model);
+CREATE UNIQUE INDEX idx_chat_model_configs_single_default
+    ON chat_model_configs ((1))
+    WHERE is_default = TRUE
+        AND deleted = FALSE;
 
 ALTER TABLE chat_messages
     ADD CONSTRAINT chat_messages_model_config_id_fkey

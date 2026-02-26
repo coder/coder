@@ -3884,7 +3884,7 @@ type Chat struct {
 	UpdatedAt         time.Time     `db:"updated_at" json:"updated_at"`
 	ParentChatID      uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
 	RootChatID        uuid.NullUUID `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID uuid.NullUUID `db:"last_model_config_id" json:"last_model_config_id"`
+	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
 }
 
 type ChatDiffStatus struct {
@@ -3929,6 +3929,7 @@ type ChatModelConfig struct {
 	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`
 	UpdatedBy            uuid.NullUUID   `db:"updated_by" json:"updated_by"`
 	Enabled              bool            `db:"enabled" json:"enabled"`
+	IsDefault            bool            `db:"is_default" json:"is_default"`
 	Deleted              bool            `db:"deleted" json:"deleted"`
 	DeletedAt            sql.NullTime    `db:"deleted_at" json:"deleted_at"`
 	CreatedAt            time.Time       `db:"created_at" json:"created_at"`

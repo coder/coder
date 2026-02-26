@@ -2320,19 +2320,11 @@ func truncateRunes(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
-func modelConfigUUIDPtr(id uuid.NullUUID) *uuid.UUID {
-	if !id.Valid {
-		return nil
-	}
-	modelConfigID := id.UUID
-	return &modelConfigID
-}
-
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OwnerID:           c.OwnerID,
-		LastModelConfigID: modelConfigUUIDPtr(c.LastModelConfigID),
+		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
 		CreatedAt:         c.CreatedAt,
@@ -2806,6 +2798,10 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
+	isDefault := false
+	if req.IsDefault != nil {
+		isDefault = *req.IsDefault
+	}
 
 	if req.ContextLimit == nil || *req.ContextLimit <= 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2837,15 +2833,36 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inserted, err := api.Database.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	insertParams := database.InsertChatModelConfigParams{
 		Provider:             provider,
 		Model:                model,
 		DisplayName:          strings.TrimSpace(req.DisplayName),
 		Enabled:              enabled,
+		IsDefault:            isDefault,
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
-	})
+	}
+
+	var (
+		inserted database.ChatModelConfig
+		err      error
+	)
+	if isDefault {
+		err = api.Database.InTx(func(tx database.Store) error {
+			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
+				return xerrors.Errorf("unset default model configs: %w", err)
+			}
+			config, err := tx.InsertChatModelConfig(ctx, insertParams)
+			if err != nil {
+				return err
+			}
+			inserted = config
+			return nil
+		}, nil)
+	} else {
+		inserted, err = api.Database.InsertChatModelConfig(ctx, insertParams)
+	}
 	if err != nil {
 		switch {
 		case database.IsUniqueViolation(err):
@@ -2928,6 +2945,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
+	isDefault := existing.IsDefault
+	if req.IsDefault != nil {
+		isDefault = *req.IsDefault
+	}
 
 	contextLimit := existing.ContextLimit
 	if req.ContextLimit != nil {
@@ -2965,16 +2986,37 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		modelConfigRaw = encodedModelConfig
 	}
 
-	updated, err := api.Database.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
+	updateParams := database.UpdateChatModelConfigParams{
 		Provider:             provider,
 		Model:                model,
 		DisplayName:          displayName,
 		Enabled:              enabled,
+		IsDefault:            isDefault,
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
 		ID:                   existing.ID,
-	})
+	}
+
+	setAsDefault := req.IsDefault != nil && *req.IsDefault && !existing.IsDefault
+	var (
+		updated database.ChatModelConfig
+	)
+	if setAsDefault {
+		err = api.Database.InTx(func(tx database.Store) error {
+			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
+				return xerrors.Errorf("unset default model configs: %w", err)
+			}
+			config, err := tx.UpdateChatModelConfig(ctx, updateParams)
+			if err != nil {
+				return err
+			}
+			updated = config
+			return nil
+		}, nil)
+	} else {
+		updated, err = api.Database.UpdateChatModelConfig(ctx, updateParams)
+	}
 	if err != nil {
 		switch {
 		case database.IsUniqueViolation(err):
@@ -3090,6 +3132,7 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelC
 		Model:                config.Model,
 		DisplayName:          config.DisplayName,
 		Enabled:              config.Enabled,
+		IsDefault:            config.IsDefault,
 		ContextLimit:         config.ContextLimit,
 		CompressionThreshold: config.CompressionThreshold,
 		ModelConfig:          unmarshalChatModelCallConfig(config.Options),

@@ -265,7 +265,6 @@ type CreateOptions struct {
 	RootChatID         uuid.NullUUID
 	Title              string
 	ModelConfigID      uuid.UUID
-	ModelConfig        json.RawMessage
 	SystemPrompt       string
 	InitialUserContent json.RawMessage
 }
@@ -335,16 +334,15 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if len(opts.InitialUserContent) == 0 {
 		return database.Chat{}, xerrors.New("initial user content is required")
 	}
-	modelConfigID := resolveMessageModelConfigID(opts.ModelConfigID, opts.ModelConfig)
 
 	chat, err := p.db.InsertChat(ctx, database.InsertChatParams{
-		OwnerID:          opts.OwnerID,
-		WorkspaceID:      opts.WorkspaceID,
-		WorkspaceAgentID: opts.WorkspaceAgentID,
-		ParentChatID:     opts.ParentChatID,
-		RootChatID:       opts.RootChatID,
-		LastModelConfigID: modelConfigIDNullUUID(modelConfigID),
-		Title:            opts.Title,
+		OwnerID:           opts.OwnerID,
+		WorkspaceID:       opts.WorkspaceID,
+		WorkspaceAgentID:  opts.WorkspaceAgentID,
+		ParentChatID:      opts.ParentChatID,
+		RootChatID:        opts.RootChatID,
+		LastModelConfigID: opts.ModelConfigID,
+		Title:             opts.Title,
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("insert chat: %w", err)
@@ -357,9 +355,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return database.Chat{}, xerrors.Errorf("marshal system prompt: %w", err)
 		}
 		_, err = p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:        chat.ID,
-			ModelConfigID: modelConfigIDNullUUID(modelConfigID),
-			Role:          "system",
+			ChatID: chat.ID,
+			ModelConfigID: uuid.NullUUID{
+				UUID:  opts.ModelConfigID,
+				Valid: true,
+			},
+			Role: "system",
 			Content: pqtype.NullRawMessage{
 				RawMessage: systemContent,
 				Valid:      len(systemContent) > 0,
@@ -373,7 +374,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	sendResult, err := p.InsertMessage(ctx, InsertMessageOptions{
 		ChatID:        chat.ID,
-		ModelConfigID: modelConfigID,
+		ModelConfigID: &opts.ModelConfigID,
 		Role:          "user",
 		Content:       opts.InitialUserContent,
 		Hidden:        false,
@@ -2151,14 +2152,17 @@ func (p *Server) resolveLatestMessageModelConfig(
 	ctx context.Context,
 	chat database.Chat,
 ) (database.ChatModelConfig, bool, error) {
-	if !chat.LastModelConfigID.Valid {
-		return database.ChatModelConfig{}, false, nil
+	if chat.LastModelConfigID == uuid.Nil {
+		return database.ChatModelConfig{}, false, xerrors.New("chat model config id is required")
 	}
 
-	modelConfig, err := p.db.GetChatModelConfigByID(ctx, chat.LastModelConfigID.UUID)
+	modelConfig, err := p.db.GetChatModelConfigByID(ctx, chat.LastModelConfigID)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
-			return database.ChatModelConfig{}, false, nil
+			return database.ChatModelConfig{}, false, xerrors.Errorf(
+				"chat model config %q was not found",
+				chat.LastModelConfigID,
+			)
 		}
 		return database.ChatModelConfig{}, false, xerrors.Errorf("load chat model config by id: %w", err)
 	}
@@ -2622,10 +2626,7 @@ func resolveMessageModelConfigIDFromChat(
 	if explicitModelConfigID != nil {
 		return explicitModelConfigID
 	}
-	if !chat.LastModelConfigID.Valid {
-		return nil
-	}
-	return uuidPointer(chat.LastModelConfigID.UUID)
+	return uuidPointer(chat.LastModelConfigID)
 }
 
 func uuidPointer(id uuid.UUID) *uuid.UUID {

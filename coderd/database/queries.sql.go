@@ -2124,7 +2124,7 @@ func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID
 
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
 FROM
     chat_model_configs
 WHERE
@@ -2143,6 +2143,7 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.CreatedBy,
 		&i.UpdatedBy,
 		&i.Enabled,
+		&i.IsDefault,
 		&i.Deleted,
 		&i.DeletedAt,
 		&i.CreatedAt,
@@ -2156,7 +2157,7 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 
 const getChatModelConfigByProviderAndModel = `-- name: GetChatModelConfigByProviderAndModel :one
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
 FROM
     chat_model_configs
 WHERE
@@ -2186,6 +2187,7 @@ func (q *sqlQuerier) GetChatModelConfigByProviderAndModel(ctx context.Context, a
 		&i.CreatedBy,
 		&i.UpdatedBy,
 		&i.Enabled,
+		&i.IsDefault,
 		&i.Deleted,
 		&i.DeletedAt,
 		&i.CreatedAt,
@@ -2199,7 +2201,7 @@ func (q *sqlQuerier) GetChatModelConfigByProviderAndModel(ctx context.Context, a
 
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
 FROM
     chat_model_configs
 WHERE
@@ -2228,6 +2230,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 			&i.CreatedBy,
 			&i.UpdatedBy,
 			&i.Enabled,
+			&i.IsDefault,
 			&i.Deleted,
 			&i.DeletedAt,
 			&i.CreatedAt,
@@ -2251,7 +2254,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 
 const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
 SELECT
-    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options
+    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options
 FROM
     chat_model_configs cmc
 JOIN
@@ -2284,6 +2287,7 @@ func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatMode
 			&i.CreatedBy,
 			&i.UpdatedBy,
 			&i.Enabled,
+			&i.IsDefault,
 			&i.Deleted,
 			&i.DeletedAt,
 			&i.CreatedAt,
@@ -2313,6 +2317,7 @@ INSERT INTO chat_model_configs (
     created_by,
     updated_by,
     enabled,
+    is_default,
     context_limit,
     compression_threshold,
     options
@@ -2323,12 +2328,13 @@ INSERT INTO chat_model_configs (
     $4::uuid,
     $5::uuid,
     $6::boolean,
-    $7::bigint,
-    $8::integer,
-    $9::jsonb
+    $7::boolean,
+    $8::bigint,
+    $9::integer,
+    $10::jsonb
 )
 RETURNING
-    id, provider, model, display_name, created_by, updated_by, enabled, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
 `
 
 type InsertChatModelConfigParams struct {
@@ -2338,6 +2344,7 @@ type InsertChatModelConfigParams struct {
 	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`
 	UpdatedBy            uuid.NullUUID   `db:"updated_by" json:"updated_by"`
 	Enabled              bool            `db:"enabled" json:"enabled"`
+	IsDefault            bool            `db:"is_default" json:"is_default"`
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
@@ -2351,6 +2358,7 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		arg.CreatedBy,
 		arg.UpdatedBy,
 		arg.Enabled,
+		arg.IsDefault,
 		arg.ContextLimit,
 		arg.CompressionThreshold,
 		arg.Options,
@@ -2364,6 +2372,7 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		&i.CreatedBy,
 		&i.UpdatedBy,
 		&i.Enabled,
+		&i.IsDefault,
 		&i.Deleted,
 		&i.DeletedAt,
 		&i.CreatedAt,
@@ -2375,6 +2384,22 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 	return i, err
 }
 
+const unsetDefaultChatModelConfigs = `-- name: UnsetDefaultChatModelConfigs :exec
+UPDATE
+    chat_model_configs
+SET
+    is_default = FALSE,
+    updated_at = NOW()
+WHERE
+    is_default = TRUE
+    AND deleted = FALSE
+`
+
+func (q *sqlQuerier) UnsetDefaultChatModelConfigs(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, unsetDefaultChatModelConfigs)
+	return err
+}
+
 const updateChatModelConfig = `-- name: UpdateChatModelConfig :one
 UPDATE
     chat_model_configs
@@ -2384,15 +2409,16 @@ SET
     display_name = $3::text,
     updated_by = $4::uuid,
     enabled = $5::boolean,
-    context_limit = $6::bigint,
-    compression_threshold = $7::integer,
-    options = $8::jsonb,
+    is_default = $6::boolean,
+    context_limit = $7::bigint,
+    compression_threshold = $8::integer,
+    options = $9::jsonb,
     updated_at = NOW()
 WHERE
-    id = $9::uuid
+    id = $10::uuid
     AND deleted = FALSE
 RETURNING
-    id, provider, model, display_name, created_by, updated_by, enabled, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
 `
 
 type UpdateChatModelConfigParams struct {
@@ -2401,6 +2427,7 @@ type UpdateChatModelConfigParams struct {
 	DisplayName          string          `db:"display_name" json:"display_name"`
 	UpdatedBy            uuid.NullUUID   `db:"updated_by" json:"updated_by"`
 	Enabled              bool            `db:"enabled" json:"enabled"`
+	IsDefault            bool            `db:"is_default" json:"is_default"`
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
@@ -2414,6 +2441,7 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		arg.DisplayName,
 		arg.UpdatedBy,
 		arg.Enabled,
+		arg.IsDefault,
 		arg.ContextLimit,
 		arg.CompressionThreshold,
 		arg.Options,
@@ -2428,6 +2456,7 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		&i.CreatedBy,
 		&i.UpdatedBy,
 		&i.Enabled,
+		&i.IsDefault,
 		&i.Deleted,
 		&i.DeletedAt,
 		&i.CreatedAt,
@@ -3278,7 +3307,7 @@ type InsertChatParams struct {
 	WorkspaceAgentID  uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 	ParentChatID      uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
 	RootChatID        uuid.NullUUID `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID uuid.NullUUID `db:"last_model_config_id" json:"last_model_config_id"`
+	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
 	Title             string        `db:"title" json:"title"`
 }
 

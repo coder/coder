@@ -60,6 +60,7 @@ INSERT INTO chat_model_configs (
     created_by,
     updated_by,
     enabled,
+    is_default,
     context_limit,
     compression_threshold,
     options
@@ -70,6 +71,7 @@ INSERT INTO chat_model_configs (
     sqlc.narg('created_by')::uuid,
     sqlc.narg('updated_by')::uuid,
     @enabled::boolean,
+    @is_default::boolean,
     @context_limit::bigint,
     @compression_threshold::integer,
     @options::jsonb
@@ -86,6 +88,7 @@ SET
     display_name = @display_name::text,
     updated_by = sqlc.narg('updated_by')::uuid,
     enabled = @enabled::boolean,
+    is_default = @is_default::boolean,
     context_limit = @context_limit::bigint,
     compression_threshold = @compression_threshold::integer,
     options = @options::jsonb,
@@ -95,6 +98,16 @@ WHERE
     AND deleted = FALSE
 RETURNING
     *;
+
+-- name: UnsetDefaultChatModelConfigs :exec
+UPDATE
+    chat_model_configs
+SET
+    is_default = FALSE,
+    updated_at = NOW()
+WHERE
+    is_default = TRUE
+    AND deleted = FALSE;
 
 -- name: DeleteChatModelConfigByID :exec
 UPDATE

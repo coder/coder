@@ -1,6 +1,7 @@
 import { getErrorMessage } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Input } from "components/Input/Input";
 import {
@@ -68,6 +69,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const contextLimitErrorId = `${contextLimitInputId}-error`;
 	const compressionThresholdInputId = useId();
 	const compressionThresholdErrorId = `${compressionThresholdInputId}-error`;
+	const isDefaultInputId = useId();
 	const modelConfigInputId = useId();
 
 	const [model, setModel] = useState(editingModel?.model ?? "");
@@ -80,6 +82,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [compressionThreshold, setCompressionThreshold] = useState(
 		editingModel ? String(editingModel.compression_threshold) : "70",
 	);
+	const [isDefault, setIsDefault] = useState(editingModel?.is_default ?? false);
 	const [modelConfigForm, setModelConfigForm] = useState<ModelConfigFormState>(
 		() =>
 			editingModel
@@ -240,6 +243,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 						editingModel.compression_threshold && {
 						compression_threshold: parsedCompressionThreshold,
 					}),
+					...(isDefault !== editingModel.is_default && {
+						is_default: isDefault,
+					}),
 					// Always send model_config so it can be cleared or updated.
 					model_config: builtModelConfig,
 				};
@@ -255,6 +261,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 					compression_threshold: parsedCompressionThreshold,
 					...(trimmedDisplayName && {
 						display_name: trimmedDisplayName,
+					}),
+					...(isDefault && {
+						is_default: true,
 					}),
 					...(builtModelConfig && {
 						model_config: builtModelConfig,
@@ -435,6 +444,29 @@ export const ModelForm: FC<ModelFormProps> = ({
 								)}
 							</div>
 						</div>
+					</div>
+
+					<div className="space-y-3">
+						<div>
+							<p className="m-0 text-[13px] font-medium text-content-primary">
+								Default behavior
+							</p>
+							<p className="m-0 text-xs text-content-secondary">
+								Only one model can be the default for new prompts.
+							</p>
+						</div>
+						<label
+							htmlFor={isDefaultInputId}
+							className="flex items-start gap-2 text-[13px] text-content-primary"
+						>
+							<Checkbox
+								id={isDefaultInputId}
+								checked={isDefault}
+								onCheckedChange={(checked) => setIsDefault(checked === true)}
+								disabled={isSaving}
+							/>
+							<span>Use this as the default model for new prompts.</span>
+						</label>
 					</div>
 
 					{/* Model call config fields */}

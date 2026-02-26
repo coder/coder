@@ -1210,6 +1210,7 @@ CREATE TABLE chat_model_configs (
     created_by uuid,
     updated_by uuid,
     enabled boolean DEFAULT true NOT NULL,
+    is_default boolean DEFAULT false NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -1267,7 +1268,7 @@ CREATE TABLE chats (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     parent_chat_id uuid,
     root_chat_id uuid,
-    last_model_config_id uuid
+    last_model_config_id uuid NOT NULL
 );
 
 CREATE TABLE connection_logs (
@@ -3478,6 +3479,8 @@ CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (e
 CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (provider);
 
 CREATE INDEX idx_chat_model_configs_provider_model ON chat_model_configs USING btree (provider, model);
+
+CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
 
 CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 

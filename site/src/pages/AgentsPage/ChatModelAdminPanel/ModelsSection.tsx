@@ -156,6 +156,11 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										>
 											{modelConfig.display_name || modelConfig.model}
 										</span>
+										{modelConfig.is_default && (
+											<Badge size="sm" variant="info">
+												default
+											</Badge>
+										)}
 										{modelConfig.enabled === false && (
 											<Badge size="sm" variant="warning">
 												disabled

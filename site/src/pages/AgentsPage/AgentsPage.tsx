@@ -52,6 +52,7 @@ import {
 
 const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
+const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 const systemPromptStorageKey = "agents.system-prompt";
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 
@@ -121,8 +122,14 @@ export const AgentsPage: FC = () => {
 			if (!provider || !model) {
 				continue;
 			}
-			byModelID.set(`${provider}:${model}`, config.id);
-			byModelID.set(`${provider}/${model}`, config.id);
+			const colonRef = `${provider}:${model}`;
+			if (!byModelID.has(colonRef)) {
+				byModelID.set(colonRef, config.id);
+			}
+			const slashRef = `${provider}/${model}`;
+			if (!byModelID.has(slashRef)) {
+				byModelID.set(slashRef, config.id);
+			}
 		}
 		return byModelID;
 	}, [chatModelConfigsQuery.data]);
@@ -209,15 +216,21 @@ export const AgentsPage: FC = () => {
 	);
 	const handleCreateChat = async (options: CreateChatOptions) => {
 		const { message, workspaceId, model } = options;
+		const modelConfigID =
+			(model && modelConfigIDByModelID.get(model)) || nilUUID;
 		const createdChat = await createMutation.mutateAsync({
 			content: [{ type: "text", text: message }],
 			workspace_id: workspaceId,
-			model_config_id:
-				(model && modelConfigIDByModelID.get(model)) || nilUUID,
+			model_config_id: modelConfigID,
 		});
 
 		if (typeof window !== "undefined") {
 			localStorage.removeItem(emptyInputStorageKey);
+			if (modelConfigID !== nilUUID) {
+				localStorage.setItem(lastModelConfigIDStorageKey, modelConfigID);
+			} else {
+				localStorage.removeItem(lastModelConfigIDStorageKey);
+			}
 		}
 
 		navigate(`/agents/${createdChat.id}`);
@@ -370,7 +383,9 @@ export const AgentsPage: FC = () => {
 							createError={createMutation.error}
 							modelCatalog={chatModelsQuery.data}
 							modelOptions={catalogModelOptions}
+							modelConfigs={chatModelConfigsQuery.data ?? []}
 							isModelCatalogLoading={chatModelsQuery.isLoading}
+							isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 							modelCatalogError={chatModelsQuery.error}
 							canSetSystemPrompt={canSetSystemPrompt}
 							canManageChatModelConfigs={isAgentsAdmin}
@@ -397,6 +412,8 @@ interface AgentsEmptyStateProps {
 	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
 	modelOptions: readonly ChatModelOption[];
 	isModelCatalogLoading: boolean;
+	modelConfigs: readonly TypesGen.ChatModelConfig[];
+	isModelConfigsLoading: boolean;
 	modelCatalogError: unknown;
 	canSetSystemPrompt: boolean;
 	canManageChatModelConfigs: boolean;
@@ -409,7 +426,9 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	createError,
 	modelCatalog,
 	modelOptions,
+	modelConfigs,
 	isModelCatalogLoading,
+	isModelConfigsLoading,
 	modelCatalogError,
 	canSetSystemPrompt,
 	canManageChatModelConfigs,
@@ -427,14 +446,65 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 		return localStorage.getItem(systemPromptStorageKey) ?? "";
 	}, []);
-	const [userSelectedModel, setUserSelectedModel] = useState(
-		modelOptions[0]?.id ?? "",
-	);
-	// Derive the effective model — validated against current options
-	// every render so we never reference a stale model id.
-	const selectedModel = modelOptions.some((m) => m.id === userSelectedModel)
-		? userSelectedModel
-		: (modelOptions[0]?.id ?? "");
+	const initialLastModelConfigID = useMemo(() => {
+		if (typeof window === "undefined") {
+			return "";
+		}
+		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
+	}, []);
+	const modelIDByConfigID = useMemo(() => {
+		const optionIDByRef = new Map<string, string>();
+		for (const option of modelOptions) {
+			const provider = option.provider.trim().toLowerCase();
+			const model = option.model.trim();
+			if (!provider || !model) {
+				continue;
+			}
+			const key = `${provider}:${model}`;
+			if (!optionIDByRef.has(key)) {
+				optionIDByRef.set(key, option.id);
+			}
+		}
+
+		const byConfigID = new Map<string, string>();
+		for (const config of modelConfigs) {
+			const provider = config.provider.trim().toLowerCase();
+			const model = config.model.trim();
+			if (!provider || !model) {
+				continue;
+			}
+			const modelID = optionIDByRef.get(`${provider}:${model}`);
+			if (!modelID || byConfigID.has(config.id)) {
+				continue;
+			}
+			byConfigID.set(config.id, modelID);
+		}
+		return byConfigID;
+	}, [modelConfigs, modelOptions]);
+	const lastUsedModelID = useMemo(() => {
+		if (!initialLastModelConfigID) {
+			return "";
+		}
+		return modelIDByConfigID.get(initialLastModelConfigID) ?? "";
+	}, [initialLastModelConfigID, modelIDByConfigID]);
+	const defaultModelID = useMemo(() => {
+		const defaultModelConfig = modelConfigs.find((config) => config.is_default);
+		if (!defaultModelConfig) {
+			return "";
+		}
+		return modelIDByConfigID.get(defaultModelConfig.id) ?? "";
+	}, [modelConfigs, modelIDByConfigID]);
+	const preferredModelID =
+		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
+	const [userSelectedModel, setUserSelectedModel] = useState("");
+	const [hasUserSelectedModel, setHasUserSelectedModel] = useState(false);
+	// Derive the effective model every render so we never reference
+	// a stale model id and can honor fallback precedence.
+	const selectedModel =
+		hasUserSelectedModel &&
+		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
+			? userSelectedModel
+			: preferredModelID;
 	const [savedSystemPrompt, setSavedSystemPrompt] =
 		useState(initialSystemPrompt);
 	const [systemPromptDraft, setSystemPromptDraft] =
@@ -470,6 +540,27 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 			? "Models are configured but unavailable. Ask an admin."
 			: "No models configured. Ask an admin.";
 
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		if (!initialLastModelConfigID) {
+			return;
+		}
+		if (isModelCatalogLoading || isModelConfigsLoading) {
+			return;
+		}
+		if (lastUsedModelID) {
+			return;
+		}
+		localStorage.removeItem(lastModelConfigIDStorageKey);
+	}, [
+		initialLastModelConfigID,
+		isModelCatalogLoading,
+		isModelConfigsLoading,
+		lastUsedModelID,
+	]);
+
 	// Keep a mutable ref to selectedWorkspaceId and selectedModel so
 	// that the onSend callback always sees the latest values without
 	// the shared input component re-rendering on every change.
@@ -497,6 +588,10 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		if (typeof window !== "undefined") {
 			localStorage.setItem(emptyInputStorageKey, value);
 		}
+	}, []);
+	const handleModelChange = useCallback((value: string) => {
+		setHasUserSelectedModel(true);
+		setUserSelectedModel(value);
 	}, []);
 
 	const handleSaveSystemPrompt = useCallback(
@@ -563,7 +658,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					initialValue={initialInput}
 					onInputChange={handleInputChange}
 					selectedModel={selectedModel}
-					onModelChange={setUserSelectedModel}
+					onModelChange={handleModelChange}
 					modelOptions={modelOptions}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}
 					hasModelOptions={hasModelOptions}
