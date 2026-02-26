@@ -4,10 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 // ChatStatus represents the status of a chat.
@@ -486,6 +491,11 @@ type ChatStreamEvent struct {
 	QueuedMessages []ChatQueuedMessage    `json:"queued_messages,omitempty"`
 }
 
+type chatStreamEnvelope struct {
+	Type ServerSentEventType `json:"type"`
+	Data json.RawMessage     `json:"data,omitempty"`
+}
+
 // ListChats returns all chats for the authenticated user.
 func (c *Client) ListChats(ctx context.Context) ([]Chat, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats", nil)
@@ -645,6 +655,117 @@ func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, e
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
 
+// StreamChat streams chat updates in real time.
+//
+// The returned channel includes initial snapshot events first, followed by
+// live updates. Callers must close the returned io.Closer to release the
+// websocket connection when done.
+func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID) (<-chan ChatStreamEvent, io.Closer, error) {
+	conn, err := c.Dial(
+		ctx,
+		fmt.Sprintf("/api/v2/chats/%s/stream", chatID),
+		&websocket.DialOptions{CompressionMode: websocket.CompressionDisabled},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	streamCtx, streamCancel := context.WithCancel(ctx)
+	events := make(chan ChatStreamEvent, 128)
+
+	send := func(event ChatStreamEvent) bool {
+		if event.ChatID == uuid.Nil {
+			event.ChatID = chatID
+		}
+		select {
+		case <-streamCtx.Done():
+			return false
+		case events <- event:
+			return true
+		}
+	}
+
+	go func() {
+		defer close(events)
+		defer streamCancel()
+		defer func() {
+			_ = conn.Close(websocket.StatusNormalClosure, "")
+		}()
+
+		for {
+			var envelope chatStreamEnvelope
+			if err := wsjson.Read(streamCtx, conn, &envelope); err != nil {
+				if streamCtx.Err() != nil {
+					return
+				}
+				switch websocket.CloseStatus(err) {
+				case websocket.StatusNormalClosure, websocket.StatusGoingAway:
+					return
+				}
+				_ = send(ChatStreamEvent{
+					Type: ChatStreamEventTypeError,
+					Error: &ChatStreamError{
+						Message: fmt.Sprintf("read chat stream: %v", err),
+					},
+				})
+				return
+			}
+
+			switch envelope.Type {
+			case ServerSentEventTypePing:
+				continue
+			case ServerSentEventTypeData:
+				var event ChatStreamEvent
+				if err := json.Unmarshal(envelope.Data, &event); err != nil {
+					_ = send(ChatStreamEvent{
+						Type: ChatStreamEventTypeError,
+						Error: &ChatStreamError{
+							Message: fmt.Sprintf("decode chat stream event: %v", err),
+						},
+					})
+					return
+				}
+				if !send(event) {
+					return
+				}
+			case ServerSentEventTypeError:
+				message := "chat stream returned an error"
+				if len(envelope.Data) > 0 {
+					var response Response
+					if err := json.Unmarshal(envelope.Data, &response); err == nil {
+						message = formatChatStreamResponseError(response)
+					} else {
+						trimmed := strings.TrimSpace(string(envelope.Data))
+						if trimmed != "" {
+							message = trimmed
+						}
+					}
+				}
+				_ = send(ChatStreamEvent{
+					Type: ChatStreamEventTypeError,
+					Error: &ChatStreamError{
+						Message: message,
+					},
+				})
+				return
+			default:
+				_ = send(ChatStreamEvent{
+					Type: ChatStreamEventTypeError,
+					Error: &ChatStreamError{
+						Message: fmt.Sprintf("unknown chat stream event type %q", envelope.Type),
+					},
+				})
+				return
+			}
+		}
+	}()
+
+	return events, closeFunc(func() error {
+		streamCancel()
+		return conn.Close(websocket.StatusNormalClosure, "")
+	}), nil
+}
+
 // GetChat returns a chat by ID, including its messages.
 func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (ChatWithMessages, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s", chatID), nil)
@@ -740,4 +861,19 @@ func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (Cha
 	}
 	var diff ChatDiffContents
 	return diff, json.NewDecoder(res.Body).Decode(&diff)
+}
+
+func formatChatStreamResponseError(response Response) string {
+	message := strings.TrimSpace(response.Message)
+	detail := strings.TrimSpace(response.Detail)
+	switch {
+	case message == "" && detail == "":
+		return "chat stream returned an error"
+	case message == "":
+		return detail
+	case detail == "":
+		return message
+	default:
+		return fmt.Sprintf("%s: %s", message, detail)
+	}
 }

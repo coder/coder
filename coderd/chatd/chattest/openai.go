@@ -284,15 +284,26 @@ func (s *openAIServer) writeResponsesAPIStreaming(w http.ResponseWriter, chunks 
 		return
 	}
 
+	itemIDs := make(map[int]string)
+
 	for chunk := range chunks {
 		// Responses API sends one event per choice
 		for outputIndex, choice := range chunk.Choices {
+			if choice.Index != 0 {
+				outputIndex = choice.Index
+			}
+			itemID, found := itemIDs[outputIndex]
+			if !found {
+				itemID = fmt.Sprintf("msg_%s", uuid.New().String()[:8])
+				itemIDs[outputIndex] = itemID
+			}
+
 			chunkData := map[string]interface{}{
-				"id":            chunk.ID,
-				"object":        "response.output_text.delta",
+				"type":          "response.output_text.delta",
+				"item_id":       itemID,
+				"output_index":  outputIndex,
 				"created":       chunk.Created,
 				"model":         chunk.Model,
-				"output_index":  outputIndex,
 				"content_index": 0,
 				"delta":         choice.Delta,
 			}

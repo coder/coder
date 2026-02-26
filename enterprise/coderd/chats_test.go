@@ -1,6 +1,8 @@
 package coderd_test
 
 import (
+	"context"
+	"net/url"
 	"testing"
 
 	"github.com/google/uuid"
@@ -8,12 +10,12 @@ import (
 
 	"github.com/coder/coder/v2/coderd/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/websocket"
 )
 
 func TestChatStreamRelay(t *testing.T) {
@@ -50,11 +52,20 @@ func TestChatStreamRelay(t *testing.T) {
 		replicas, err := secondClient.Replicas(ctx)
 		require.NoError(t, err)
 		require.Len(t, replicas, 2)
+		firstReplicaID := replicaIDForClientURL(t, firstClient.URL, replicas)
+		secondReplicaID := replicaIDForClientURL(t, secondClient.URL, replicas)
 
+		streamingChunks := make(chan chattest.OpenAIChunk, 8)
+		chatStreamStarted := make(chan struct{}, 1)
 		openai := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("Hello!")...,
-			)
+			if req.Stream {
+				select {
+				case chatStreamStarted <- struct{}{}:
+				default:
+				}
+				return chattest.OpenAIResponse{StreamingChunks: streamingChunks}
+			}
+			return chattest.OpenAINonStreamingResponse("ok")
 		})
 
 		provider, err := firstClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
@@ -86,33 +97,150 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
-		// Subscribe to the stream from the second replica
-		streamURL := secondClient.URL.JoinPath("/api/v2/chats", chat.ID.String(), "stream")
-		if streamURL.Scheme == "https" {
-			streamURL.Scheme = "wss"
-		} else {
-			streamURL.Scheme = "ws"
+		var runningChat database.Chat
+		require.Eventually(t, func() bool {
+			current, getErr := db.GetChatByID(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			if current.Status != database.ChatStatusRunning || !current.WorkerID.Valid {
+				return false
+			}
+			runningChat = current
+			return true
+		}, testutil.WaitLong, testutil.IntervalFast)
+
+		var localClient *codersdk.Client
+		var relayClient *codersdk.Client
+		switch runningChat.WorkerID.UUID {
+		case firstReplicaID:
+			localClient = firstClient
+			relayClient = secondClient
+		case secondReplicaID:
+			localClient = secondClient
+			relayClient = firstClient
+		default:
+			require.FailNowf(
+				t,
+				"worker replica was not recognized",
+				"worker %s was not one of %s or %s",
+				runningChat.WorkerID.UUID,
+				firstReplicaID,
+				secondReplicaID,
+			)
 		}
 
-		conn, _, err := websocket.Dial(ctx, streamURL.String(), &websocket.DialOptions{
-			HTTPHeader: map[string][]string{
-				codersdk.SessionTokenHeader: {firstClient.SessionToken()},
-			},
-		})
+		firstEvents, firstStream, err := localClient.StreamChat(ctx, chat.ID)
 		require.NoError(t, err)
-		defer conn.Close(websocket.StatusNormalClosure, "")
+		defer firstStream.Close()
 
-		// Verify the connection was established successfully
-		// The key verification is that:
-		// 1. The stream connects successfully from replica 2 (verified by no error)
-		// 2. The relay mechanism is wired up correctly (connection succeeds)
-		// 3. If the chat is processed on replica 1, message parts would be relayed
-		//    to replica 2 via the RemotePartsProvider
-		//
-		// The connection being established without error is sufficient to verify
-		// the relay infrastructure is working. In a real scenario with an active
-		// chat processor, message parts would flow through the relay.
+		select {
+		case <-chatStreamStarted:
+		case <-ctx.Done():
+			require.FailNowf(
+				t,
+				"timed out waiting for OpenAI stream request",
+				"chat stream request did not start before context deadline: %v",
+				ctx.Err(),
+			)
+		}
+
+		firstChunkText := "relay-part-one"
+		streamingChunks <- chattest.OpenAITextChunks(firstChunkText)[0]
+		firstEvent := waitForStreamTextPart(t, ctx, firstEvents, firstChunkText)
+		require.Equal(t, "assistant", firstEvent.MessagePart.Role)
+
+		secondEvents, secondStream, err := relayClient.StreamChat(ctx, chat.ID)
+		require.NoError(t, err)
+		defer secondStream.Close()
+
+		secondSnapshotEvent := waitForStreamTextPart(t, ctx, secondEvents, firstChunkText)
+		require.Equal(t, "assistant", secondSnapshotEvent.MessagePart.Role)
+
+		secondChunkText := "relay-part-two"
+		streamingChunks <- chattest.OpenAITextChunks(secondChunkText)[0]
+		waitForStreamTextPart(t, ctx, firstEvents, secondChunkText)
+		waitForStreamTextPart(t, ctx, secondEvents, secondChunkText)
+
+		close(streamingChunks)
 	})
+}
+
+func waitForStreamTextPart(
+	t *testing.T,
+	ctx context.Context,
+	events <-chan codersdk.ChatStreamEvent,
+	expectedText string,
+) codersdk.ChatStreamEvent {
+	t.Helper()
+
+	for {
+		select {
+		case <-ctx.Done():
+			require.FailNowf(
+				t,
+				"timed out waiting for chat stream event",
+				"expected text part %q before context deadline: %v",
+				expectedText,
+				ctx.Err(),
+			)
+		case event, ok := <-events:
+			require.Truef(t, ok, "chat stream closed while waiting for %q", expectedText)
+
+			if event.Type == codersdk.ChatStreamEventTypeError {
+				errMessage := "unknown chat stream error"
+				if event.Error != nil && event.Error.Message != "" {
+					errMessage = event.Error.Message
+				}
+				require.FailNowf(
+					t,
+					"chat stream returned error event",
+					"while waiting for %q: %s",
+					expectedText,
+					errMessage,
+				)
+			}
+
+			if event.Type != codersdk.ChatStreamEventTypeMessagePart || event.MessagePart == nil {
+				continue
+			}
+			if event.MessagePart.Part.Type != codersdk.ChatMessagePartTypeText {
+				continue
+			}
+
+			require.Equal(t, expectedText, event.MessagePart.Part.Text)
+			return event
+		}
+	}
+}
+
+func replicaIDForClientURL(
+	t *testing.T,
+	clientURL *url.URL,
+	replicas []codersdk.Replica,
+) uuid.UUID {
+	t.Helper()
+
+	for _, replica := range replicas {
+		relayURL, err := url.Parse(replica.RelayAddress)
+		require.NoErrorf(
+			t,
+			err,
+			"parse replica relay address %q",
+			replica.RelayAddress,
+		)
+		if relayURL.Host == clientURL.Host {
+			return replica.ID
+		}
+	}
+
+	require.FailNowf(
+		t,
+		"missing replica for client URL",
+		"client host %q not present in replica list",
+		clientURL.Host,
+	)
+	return uuid.Nil
 }
 
 func TestChatModelConfigDefault(t *testing.T) {
