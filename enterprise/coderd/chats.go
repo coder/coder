@@ -61,7 +61,7 @@ func newRemotePartsProvider(
 		if err != nil {
 			return nil, nil, nil, xerrors.Errorf("parse relay address %q: %w", address, err)
 		}
-		target, err := base.Parse(fmt.Sprintf("/api/v2/chats/%s/stream", chatID))
+		target, err := base.Parse(fmt.Sprintf("/api/experimental/chats/%s/stream", chatID))
 		if err != nil {
 			return nil, nil, nil, xerrors.Errorf("build relay stream URL: %w", err)
 		}

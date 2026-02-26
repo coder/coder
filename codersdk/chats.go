@@ -482,7 +482,7 @@ type chatStreamEnvelope struct {
 
 // ListChats returns all chats for the authenticated user.
 func (c *Client) ListChats(ctx context.Context) ([]Chat, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -496,7 +496,7 @@ func (c *Client) ListChats(ctx context.Context) ([]Chat, error) {
 
 // ListChatModels returns the available chat model catalog.
 func (c *Client) ListChatModels(ctx context.Context) (ChatModelsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/models", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/models", nil)
 	if err != nil {
 		return ChatModelsResponse{}, err
 	}
@@ -511,7 +511,7 @@ func (c *Client) ListChatModels(ctx context.Context) (ChatModelsResponse, error)
 
 // ListChatProviders returns admin-managed chat provider configs.
 func (c *Client) ListChatProviders(ctx context.Context) ([]ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/providers", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/providers", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -526,7 +526,7 @@ func (c *Client) ListChatProviders(ctx context.Context) ([]ChatProviderConfig, e
 
 // CreateChatProvider creates an admin-managed chat provider config.
 func (c *Client) CreateChatProvider(ctx context.Context, req CreateChatProviderConfigRequest) (ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/chats/providers", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/providers", req)
 	if err != nil {
 		return ChatProviderConfig{}, err
 	}
@@ -541,7 +541,7 @@ func (c *Client) CreateChatProvider(ctx context.Context, req CreateChatProviderC
 
 // UpdateChatProvider updates an admin-managed chat provider config.
 func (c *Client) UpdateChatProvider(ctx context.Context, providerID uuid.UUID, req UpdateChatProviderConfigRequest) (ChatProviderConfig, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/chats/providers/%s", providerID), req)
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/providers/%s", providerID), req)
 	if err != nil {
 		return ChatProviderConfig{}, err
 	}
@@ -556,7 +556,7 @@ func (c *Client) UpdateChatProvider(ctx context.Context, providerID uuid.UUID, r
 
 // DeleteChatProvider deletes an admin-managed chat provider config.
 func (c *Client) DeleteChatProvider(ctx context.Context, providerID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/chats/providers/%s", providerID), nil)
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/providers/%s", providerID), nil)
 	if err != nil {
 		return err
 	}
@@ -569,7 +569,7 @@ func (c *Client) DeleteChatProvider(ctx context.Context, providerID uuid.UUID) e
 
 // ListChatModelConfigs returns admin-managed chat model configs.
 func (c *Client) ListChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/chats/model-configs", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/model-configs", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -584,7 +584,7 @@ func (c *Client) ListChatModelConfigs(ctx context.Context) ([]ChatModelConfig, e
 
 // CreateChatModelConfig creates an admin-managed chat model config.
 func (c *Client) CreateChatModelConfig(ctx context.Context, req CreateChatModelConfigRequest) (ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/chats/model-configs", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/model-configs", req)
 	if err != nil {
 		return ChatModelConfig{}, err
 	}
@@ -599,7 +599,7 @@ func (c *Client) CreateChatModelConfig(ctx context.Context, req CreateChatModelC
 
 // UpdateChatModelConfig updates an admin-managed chat model config.
 func (c *Client) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.UUID, req UpdateChatModelConfigRequest) (ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/chats/model-configs/%s", modelConfigID), req)
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), req)
 	if err != nil {
 		return ChatModelConfig{}, err
 	}
@@ -614,7 +614,7 @@ func (c *Client) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.U
 
 // DeleteChatModelConfig deletes an admin-managed chat model config.
 func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/chats/model-configs/%s", modelConfigID), nil)
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), nil)
 	if err != nil {
 		return err
 	}
@@ -627,7 +627,7 @@ func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.U
 
 // CreateChat creates a new chat.
 func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/chats", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats", req)
 	if err != nil {
 		return Chat{}, err
 	}
@@ -647,7 +647,7 @@ func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, e
 func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID) (<-chan ChatStreamEvent, io.Closer, error) {
 	conn, err := c.Dial(
 		ctx,
-		fmt.Sprintf("/api/v2/chats/%s/stream", chatID),
+		fmt.Sprintf("/api/experimental/chats/%s/stream", chatID),
 		&websocket.DialOptions{CompressionMode: websocket.CompressionDisabled},
 	)
 	if err != nil {
@@ -752,7 +752,7 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID) (<-chan ChatS
 
 // GetChat returns a chat by ID, including its messages.
 func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (ChatWithMessages, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s", chatID), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)
 	if err != nil {
 		return ChatWithMessages{}, err
 	}
@@ -766,7 +766,7 @@ func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (ChatWithMessage
 
 // DeleteChat deletes a chat by ID.
 func (c *Client) DeleteChat(ctx context.Context, chatID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/chats/%s", chatID), nil)
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)
 	if err != nil {
 		return err
 	}
@@ -779,7 +779,7 @@ func (c *Client) DeleteChat(ctx context.Context, chatID uuid.UUID) error {
 
 // CreateChatMessage adds a message to a chat.
 func (c *Client) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req CreateChatMessageRequest) (CreateChatMessageResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/messages", chatID), req)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/messages", chatID), req)
 	if err != nil {
 		return CreateChatMessageResponse{}, err
 	}
@@ -793,7 +793,7 @@ func (c *Client) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req Cr
 
 // InterruptChat cancels an in-flight chat run and leaves it waiting.
 func (c *Client) InterruptChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/interrupt", chatID), nil)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/interrupt", chatID), nil)
 	if err != nil {
 		return Chat{}, err
 	}
@@ -807,7 +807,7 @@ func (c *Client) InterruptChat(ctx context.Context, chatID uuid.UUID) (Chat, err
 
 // GetChatGitChanges returns git changes for a chat.
 func (c *Client) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/git-changes", chatID), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/git-changes", chatID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -821,7 +821,7 @@ func (c *Client) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]Cha
 
 // GetChatDiffStatus returns cached GitHub pull request diff status for a chat.
 func (c *Client) GetChatDiffStatus(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/diff-status", chatID), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/diff-status", chatID), nil)
 	if err != nil {
 		return ChatDiffStatus{}, err
 	}
@@ -835,7 +835,7 @@ func (c *Client) GetChatDiffStatus(ctx context.Context, chatID uuid.UUID) (ChatD
 
 // GetChatDiffContents returns resolved diff contents for a chat.
 func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (ChatDiffContents, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/diff", chatID), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/diff", chatID), nil)
 	if err != nil {
 		return ChatDiffContents{}, err
 	}

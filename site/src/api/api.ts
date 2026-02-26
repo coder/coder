@@ -142,13 +142,13 @@ export const watchChat = (
 	chatId: string,
 ): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 	return new OneWayWebSocket({
-		apiRoute: `/api/v2/chats/${chatId}/stream`,
+		apiRoute: `/api/experimental/chats/${chatId}/stream`,
 	});
 };
 
 export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 	return new OneWayWebSocket({
-		apiRoute: "/api/v2/chats/watch",
+		apiRoute: "/api/experimental/chats/watch",
 	});
 };
 
@@ -394,8 +394,8 @@ export type DeploymentConfig = Readonly<{
 	options: TypesGen.SerpentOption[];
 }>;
 
-const chatProviderConfigsPath = "/api/v2/chats/providers";
-const chatModelConfigsPath = "/api/v2/chats/model-configs";
+const chatProviderConfigsPath = "/api/experimental/chats/providers";
+const chatModelConfigsPath = "/api/experimental/chats/model-configs";
 
 type Claims = {
 	license_expires: number;
@@ -2907,13 +2907,13 @@ class ApiMethods {
 
 	// Chat API methods
 	getChats = async (): Promise<TypesGen.Chat[]> => {
-		const response = await this.axios.get<TypesGen.Chat[]>("/api/v2/chats");
+		const response = await this.axios.get<TypesGen.Chat[]>("/api/experimental/chats");
 		return response.data;
 	};
 
 	getChat = async (chatId: string): Promise<TypesGen.ChatWithMessages> => {
 		const response = await this.axios.get<TypesGen.ChatWithMessages>(
-			`/api/v2/chats/${chatId}`,
+			`/api/experimental/chats/${chatId}`,
 		);
 		return response.data;
 	};
@@ -2921,12 +2921,12 @@ class ApiMethods {
 	createChat = async (
 		req: TypesGen.CreateChatRequest,
 	): Promise<TypesGen.Chat> => {
-		const response = await this.axios.post<TypesGen.Chat>("/api/v2/chats", req);
+		const response = await this.axios.post<TypesGen.Chat>("/api/experimental/chats", req);
 		return response.data;
 	};
 
 	deleteChat = async (chatId: string): Promise<void> => {
-		await this.axios.delete(`/api/v2/chats/${chatId}`);
+		await this.axios.delete(`/api/experimental/chats/${chatId}`);
 	};
 
 	createChatMessage = async (
@@ -2934,7 +2934,7 @@ class ApiMethods {
 		req: TypesGen.CreateChatMessageRequest,
 	): Promise<TypesGen.CreateChatMessageResponse> => {
 		const response = await this.axios.post<TypesGen.CreateChatMessageResponse>(
-			`/api/v2/chats/${chatId}/messages`,
+			`/api/experimental/chats/${chatId}/messages`,
 			req,
 		);
 		return response.data;
@@ -2942,7 +2942,7 @@ class ApiMethods {
 
 	interruptChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(
-			`/api/v2/chats/${chatId}/interrupt`,
+			`/api/experimental/chats/${chatId}/interrupt`,
 		);
 		return response.data;
 	};
@@ -2951,7 +2951,7 @@ class ApiMethods {
 		chatId: string,
 		queuedMessageId: number,
 	): Promise<void> => {
-		await this.axios.delete(`/api/v2/chats/${chatId}/queue/${queuedMessageId}`);
+		await this.axios.delete(`/api/experimental/chats/${chatId}/queue/${queuedMessageId}`);
 	};
 
 	promoteChatQueuedMessage = async (
@@ -2959,7 +2959,7 @@ class ApiMethods {
 		queuedMessageId: number,
 	): Promise<TypesGen.ChatMessage> => {
 		const response = await this.axios.post<TypesGen.ChatMessage>(
-			`/api/v2/chats/${chatId}/queue/${queuedMessageId}/promote`,
+			`/api/experimental/chats/${chatId}/queue/${queuedMessageId}/promote`,
 		);
 		return response.data;
 	};
@@ -2968,7 +2968,7 @@ class ApiMethods {
 		chatId: string,
 	): Promise<ChatGitChangeResponse[]> => {
 		const response = await this.axios.get<ChatGitChangeResponse[]>(
-			`/api/v2/chats/${chatId}/git-changes`,
+			`/api/experimental/chats/${chatId}/git-changes`,
 		);
 		return response.data;
 	};
@@ -2977,7 +2977,7 @@ class ApiMethods {
 		chatId: string,
 	): Promise<ChatDiffStatusResponse> => {
 		const response = await this.axios.get<ChatDiffStatusResponse>(
-			`/api/v2/chats/${chatId}/diff-status`,
+			`/api/experimental/chats/${chatId}/diff-status`,
 		);
 		return response.data;
 	};
@@ -2986,14 +2986,14 @@ class ApiMethods {
 		chatId: string,
 	): Promise<TypesGen.ChatDiffContents> => {
 		const response = await this.axios.get<TypesGen.ChatDiffContents>(
-			`/api/v2/chats/${chatId}/diff`,
+			`/api/experimental/chats/${chatId}/diff`,
 		);
 		return response.data;
 	};
 
 	getChatModels = async (): Promise<TypesGen.ChatModelsResponse> => {
 		const response = await this.axios.get<TypesGen.ChatModelsResponse>(
-			"/api/v2/chats/models",
+			"/api/experimental/chats/models",
 		);
 		return response.data;
 	};
