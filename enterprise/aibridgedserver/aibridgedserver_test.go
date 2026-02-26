@@ -26,7 +26,9 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
@@ -1177,4 +1179,100 @@ func TestStructuredLogging(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestInferredThreadsByToolCalls verifies that a chain of interceptions linked via
+// tool call IDs correctly propagates thread_parent_id and thread_root_id.
+//
+// The chain is: A → B → C
+//   - A is the root (no parent, no root)
+//   - B correlates via a tool call recorded by A (parent=A, root=A)
+//   - C correlates via a tool call recorded by B (parent=B, root=A)
+func TestInferredThreadsByToolCalls(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	user := dbgen.User(t, db, database.User{})
+
+	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
+	require.NoError(t, err)
+
+	aID := uuid.New()
+	bID := uuid.New()
+	cID := uuid.New()
+
+	// Record interception A (root of the chain, no correlation).
+	_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:          aID.String(),
+		ApiKeyId:    uuid.NewString(),
+		InitiatorId: user.ID.String(),
+		Provider:    "anthropic",
+		Model:       "claude-4-opus",
+		StartedAt:   timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// No thread association yet.
+	intcA, err := db.GetAIBridgeInterceptionByID(ctx, aID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{}, intcA.ThreadParentID)
+	require.Equal(t, uuid.NullUUID{}, intcA.ThreadRootID)
+
+	// Record tool usage on A with a known tool call ID.
+	_, err = srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+		InterceptionId: aID.String(),
+		MsgId:          "resp_a",
+		ToolCallId:     "call_a",
+		Tool:           "bash",
+		Input:          "{}",
+		CreatedAt:      timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// Record interception B correlating to A's tool call.
+	_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:                    bID.String(),
+		ApiKeyId:              uuid.NewString(),
+		InitiatorId:           user.ID.String(),
+		Provider:              "anthropic",
+		Model:                 "claude-4-opus",
+		StartedAt:             timestamppb.Now(),
+		CorrelatingToolCallId: strPtr("call_a"),
+	})
+	require.NoError(t, err)
+
+	intcB, err := db.GetAIBridgeInterceptionByID(ctx, bID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcB.ThreadParentID)
+	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcB.ThreadRootID)
+
+	// Record tool usage on B.
+	_, err = srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+		InterceptionId: bID.String(),
+		MsgId:          "resp_b",
+		ToolCallId:     "call_b",
+		Tool:           "bash",
+		Input:          "{}",
+		CreatedAt:      timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// Record interception C correlating to B's tool call.
+	_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:                    cID.String(),
+		ApiKeyId:              uuid.NewString(),
+		InitiatorId:           user.ID.String(),
+		Provider:              "anthropic",
+		Model:                 "claude-4-opus",
+		StartedAt:             timestamppb.Now(),
+		CorrelatingToolCallId: strPtr("call_b"),
+	})
+	require.NoError(t, err)
+
+	intcC, err := db.GetAIBridgeInterceptionByID(ctx, cID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: bID, Valid: true}, intcC.ThreadParentID)
+	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcC.ThreadRootID)
 }
