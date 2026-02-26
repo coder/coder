@@ -82,6 +82,7 @@ export function useChatStream(
 	const [messagesById, setMessagesById] = useState<
 		Map<number, TypesGen.ChatMessage>
 	>(new Map());
+	const messagesByIdRef = useRef<Map<number, TypesGen.ChatMessage>>(new Map());
 	const [streamState, setStreamState] = useState<StreamState | null>(null);
 	const [streamError, setStreamError] = useState<string | null>(null);
 	const [queuedMessages, setQueuedMessages] = useState<
@@ -144,12 +145,15 @@ export function useChatStream(
 	// Sync chatMessages from query data into local messagesById map.
 	useEffect(() => {
 		if (!chatMessages) {
+			messagesByIdRef.current = new Map();
 			setMessagesById(new Map());
 			return;
 		}
-		setMessagesById(
-			new Map(chatMessages.map((message) => [message.id, message])),
+		const nextMessagesByID = new Map(
+			chatMessages.map((message) => [message.id, message]),
 		);
+		messagesByIdRef.current = nextMessagesByID;
+		setMessagesById(nextMessagesByID);
 	}, [chatMessages]);
 
 	// Sync chatRecord status into local chatStatus state.
@@ -204,12 +208,20 @@ export function useChatStream(
 					if (!message) {
 						return;
 					}
+
+					const isDuplicateMessage = messagesByIdRef.current.has(message.id);
 					setMessagesById((prev) => {
+						if (prev.get(message.id) === message) {
+							return prev;
+						}
 						const next = new Map(prev);
 						next.set(message.id, message);
+						messagesByIdRef.current = next;
 						return next;
 					});
-					scheduleStreamReset();
+					if (!isDuplicateMessage) {
+						scheduleStreamReset();
+					}
 					updateSidebarChat((chat) => ({
 						...chat,
 						updated_at: message.created_at ?? new Date().toISOString(),
