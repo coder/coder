@@ -107,13 +107,7 @@ type chatDiffReference struct {
 	RepositoryRef  *chatRepositoryRef
 }
 
-// @Summary Watch chat list updates
-// @ID watch-chats
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Success 200 {object} codersdk.ServerSentEvent
-// @Router /chats/watch [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -170,13 +164,7 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// @Summary List chats
-// @ID list-chats
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Success 200 {array} codersdk.Chat
-// @Router /chats [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -227,15 +215,7 @@ func (api *API) getChatDiffStatusesByChatID(
 	return statusesByChatID, nil
 }
 
-// @Summary Create a chat
-// @ID create-chat
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Chats
-// @Param request body codersdk.CreateChatRequest true "Create chat request"
-// @Success 201 {object} codersdk.Chat
-// @Router /chats [post]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -304,15 +284,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChat(chat, nil))
 }
 
-// @Summary List chat models
-// @ID list-chat-models
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Success 200 {object} codersdk.ChatModelsResponse
-// @Router /chats/models [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	//nolint:gocritic // System context required to read enabled chat models.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 
 	if api.chatDaemon == nil {
@@ -384,14 +359,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
-// @Summary Get a chat
-// @ID get-chat
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.ChatWithMessages
-// @Router /chats/{chat} [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
@@ -424,13 +392,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Delete a chat
-// @ID delete-chat
-// @Security CoderSessionToken
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 204
-// @Router /chats/{chat} [delete]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -496,16 +458,7 @@ func deleteChatTree(
 	}, nil)
 }
 
-// @Summary Create a chat message
-// @ID create-chat-message
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Param request body codersdk.CreateChatMessageRequest true "Create chat message request"
-// @Success 200 {object} codersdk.CreateChatMessageResponse
-// @Router /chats/{chat}/messages [post]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -570,14 +523,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
-// @Summary Delete a queued chat message
-// @ID delete-chat-queued-message
-// @Security CoderSessionToken
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Param queuedMessage path integer true "Queued message ID"
-// @Success 204
-// @Router /chats/{chat}/queue/{queuedMessage} [delete]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -612,15 +558,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Promote a queued message to send immediately
-// @ID promote-chat-queued-message
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Param queuedMessage path integer true "Queued message ID"
-// @Success 200 {object} codersdk.ChatMessage
-// @Router /chats/{chat}/queue/{queuedMessage}/promote [post]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -660,14 +598,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatMessage(promoteResult.PromotedMessage))
 }
 
-// @Summary Stream chat updates
-// @ID stream-chat
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.ServerSentEvent
-// @Router /chats/{chat}/stream [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -734,14 +665,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// @Summary Interrupt a chat
-// @ID interrupt-chat
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.Chat
-// @Router /chats/{chat}/interrupt [post]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -751,10 +675,11 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		chat = api.chatDaemon.InterruptChat(ctx, chat)
 	} else {
 		updatedChat, updateErr := api.Database.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-			ID:        chatID,
-			Status:    database.ChatStatusWaiting,
-			WorkerID:  uuid.NullUUID{},
-			StartedAt: sql.NullTime{},
+			ID:          chatID,
+			Status:      database.ChatStatusWaiting,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
 		})
 		if updateErr != nil {
 			api.Logger.Error(ctx, "failed to mark chat as waiting",
@@ -767,14 +692,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
 }
 
-// @Summary Get diff status for a chat
-// @ID get-chat-diff-status
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.ChatDiffStatus
-// @Router /chats/{chat}/diff-status [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffStatus(rw http.ResponseWriter, r *http.Request) {
@@ -794,14 +712,7 @@ func (api *API) getChatDiffStatus(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatDiffStatus(chatID, status))
 }
 
-// @Summary Get diff contents for a chat
-// @ID get-chat-diff
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.ChatDiffContents
-// @Router /chats/{chat}/diff [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
@@ -1893,160 +1804,6 @@ func normalizeChatCompressionThreshold(
 	return threshold, nil
 }
 
-func chatCompressionThresholdFromModelConfig(config map[string]any) (int32, bool) {
-	raw, ok := config[chatContextCompressionThresholdModelConfigKey]
-	if !ok {
-		return 0, false
-	}
-
-	switch typed := raw.(type) {
-	case float64:
-		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
-	case float32:
-		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
-	case int:
-		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
-	case int64:
-		return int32(typed), true // #nosec G115 -- Value is a small config threshold (0-100).
-	case int32:
-		return typed, true
-	case int16:
-		return int32(typed), true
-	case int8:
-		return int32(typed), true
-	case json.Number:
-		parsed, err := typed.Int64()
-		if err != nil {
-			return 0, false
-		}
-		return int32(parsed), true // #nosec G115 -- Value is a small config threshold (0-100).
-	default:
-		return 0, false
-	}
-}
-
-func chatModelConfigReference(config map[string]any) (providerName string, modelID string, found bool) {
-	model, _ := config["model"].(string)
-	model = strings.TrimSpace(model)
-	if model == "" {
-		return "", "", false
-	}
-
-	if provider, modelID, ok := parseCanonicalChatModelRef(model); ok {
-		return provider, modelID, true
-	}
-
-	providerHint, _ := config["provider"].(string)
-	providerHint = normalizeChatProvider(providerHint)
-	if providerHint == "" {
-		return "", "", false
-	}
-
-	return providerHint, model, true
-}
-
-func parseCanonicalChatModelRef(modelRef string) (providerName string, modelID string, ok bool) {
-	modelRef = strings.TrimSpace(modelRef)
-	if modelRef == "" {
-		return "", "", false
-	}
-
-	for _, separator := range []string{":", "/"} {
-		parts := strings.SplitN(modelRef, separator, 2)
-		if len(parts) != 2 {
-			continue
-		}
-		provider := normalizeChatProvider(parts[0])
-		model := strings.TrimSpace(parts[1])
-		if provider == "" || model == "" {
-			continue
-		}
-		return provider, model, true
-	}
-
-	return "", "", false
-}
-
-func (api *API) applyChatModelCompressionConfig(
-	ctx context.Context,
-	modelConfigRaw json.RawMessage,
-) (json.RawMessage, error) {
-	config := map[string]any{}
-	if len(modelConfigRaw) > 0 {
-		if err := json.Unmarshal(modelConfigRaw, &config); err != nil {
-			return modelConfigRaw, nil
-		}
-	}
-	if config == nil {
-		config = map[string]any{}
-	}
-
-	if provider, model, ok := chatModelConfigReference(config); ok {
-		modelConfig, err := api.Database.GetChatModelConfigByProviderAndModel(
-			//nolint:gocritic // All authenticated users need to read model configs for chat.
-			dbauthz.AsSystemRestricted(ctx),
-			database.GetChatModelConfigByProviderAndModelParams{
-				Provider: provider,
-				Model:    model,
-			},
-		)
-		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("load model compression config: %w", err)
-		}
-		if err == nil {
-			if defaults := decodeChatModelCallConfigJSONMap(modelConfig.Options); defaults != nil {
-				mergeMissingModelConfigValues(config, defaults)
-			}
-			config[chatContextLimitModelConfigKey] = modelConfig.ContextLimit
-			if _, ok := chatCompressionThresholdFromModelConfig(config); !ok {
-				config[chatContextCompressionThresholdModelConfigKey] = modelConfig.CompressionThreshold
-			}
-		}
-	}
-
-	if _, ok := chatCompressionThresholdFromModelConfig(config); !ok {
-		config[chatContextCompressionThresholdModelConfigKey] = defaultChatContextCompressionThreshold
-	}
-
-	encoded, err := json.Marshal(config)
-	if err != nil {
-		return nil, xerrors.Errorf("encode model config: %w", err)
-	}
-	return encoded, nil
-}
-
-func decodeChatModelCallConfigJSONMap(raw json.RawMessage) map[string]any {
-	if len(raw) == 0 {
-		return nil
-	}
-
-	decoded := make(map[string]any)
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return nil
-	}
-	if len(decoded) == 0 {
-		return nil
-	}
-	return decoded
-}
-
-func mergeMissingModelConfigValues(dst map[string]any, defaults map[string]any) {
-	for key, defaultValue := range defaults {
-		currentValue, exists := dst[key]
-		if !exists {
-			dst[key] = defaultValue
-			continue
-		}
-
-		currentMap, currentIsMap := currentValue.(map[string]any)
-		defaultMap, defaultIsMap := defaultValue.(map[string]any)
-		if !currentIsMap || !defaultIsMap {
-			continue
-		}
-		mergeMissingModelConfigValues(currentMap, defaultMap)
-	}
-}
-
 func defaultChatSystemPrompt() string {
 	return chatd.DefaultSystemPrompt
 }
@@ -2275,6 +2032,7 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 
 func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	//nolint:gocritic // System context required to read enabled chat providers.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
@@ -2385,6 +2143,7 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -2423,6 +2182,7 @@ func (api *API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
 		APIKey:      strings.TrimSpace(req.APIKey),
 		BaseUrl:     baseURL,
 		ApiKeyKeyID: sql.NullString{},
+		CreatedBy:   uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		Enabled:     enabled,
 	})
 	if err != nil {
@@ -2607,6 +2367,7 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -2682,6 +2443,8 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
+		CreatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 	}
 
 	var inserted database.ChatModelConfig
@@ -2751,6 +2514,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -2855,6 +2619,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
+		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		ID:                   existing.ID,
 	}
 
@@ -2946,10 +2711,7 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
 			return err
 		}
-		if err := ensureDefaultChatModelConfig(ctx, tx); err != nil {
-			return err
-		}
-		return nil
+		return ensureDefaultChatModelConfig(ctx, tx)
 	}, nil); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat model config.",
@@ -3017,12 +2779,12 @@ func chatModelConfigToUpdateParams(
 		Provider:             config.Provider,
 		Model:                config.Model,
 		DisplayName:          config.DisplayName,
-		UpdatedBy:            config.UpdatedBy,
 		Enabled:              config.Enabled,
 		IsDefault:            config.IsDefault,
 		ContextLimit:         config.ContextLimit,
 		CompressionThreshold: config.CompressionThreshold,
 		Options:              config.Options,
+		UpdatedBy:            uuid.NullUUID{},
 		ID:                   config.ID,
 	}
 }
@@ -3195,6 +2957,7 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 	if api.chatDaemon == nil {
 		return false
 	}
+	//nolint:gocritic // System context required to read enabled chat providers.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 
 	enabledProviders, err := api.Database.GetEnabledChatProviders(

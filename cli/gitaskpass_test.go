@@ -143,7 +143,10 @@ func TestGitAskpass(t *testing.T) {
 
 		err := inv.Run()
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "exit code")
+		require.Condition(t, func() bool {
+			message := err.Error()
+			return strings.Contains(message, "exit code") || strings.Contains(message, "exit status")
+		}, "expected exit status error, got %q", err.Error())
 		require.Zero(t, listenCalls.Load())
 
 		output := stderr.String()

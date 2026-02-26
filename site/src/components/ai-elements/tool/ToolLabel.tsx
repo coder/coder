@@ -81,7 +81,7 @@ export const ToolLabel: React.FC<{
 		}
 		case "list_templates": {
 			const count = parsedResult
-				? (parsedResult.count as number | undefined) ?? 0
+				? ((parsedResult.count as number | undefined) ?? 0)
 				: 0;
 			return (
 				<span className="truncate text-sm text-content-secondary">

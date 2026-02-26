@@ -1744,7 +1744,7 @@ export interface CreateChatProviderConfigRequest {
 export interface CreateChatRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly workspace_id?: string;
-	readonly model_config_id: string;
+	readonly model_config_id?: string;
 }
 
 // From codersdk/users.go
@@ -2515,6 +2515,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "agents"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -2524,6 +2525,7 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
+	"agents",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",

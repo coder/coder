@@ -214,7 +214,15 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 					RawMessage: systemContent,
 					Valid:      len(systemContent) > 0,
 				},
-				Visibility: database.ChatMessageVisibilityModel,
+				Visibility:          database.ChatMessageVisibilityModel,
+				InputTokens:         sql.NullInt64{},
+				OutputTokens:        sql.NullInt64{},
+				TotalTokens:         sql.NullInt64{},
+				ReasoningTokens:     sql.NullInt64{},
+				CacheCreationTokens: sql.NullInt64{},
+				CacheReadTokens:     sql.NullInt64{},
+				ContextLimit:        sql.NullInt64{},
+				Compressed:          sql.NullBool{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert system message: %w", err)
@@ -231,9 +239,17 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				UUID:  opts.ModelConfigID,
 				Valid: true,
 			},
-			Role:       "user",
-			Content:    userContent,
-			Visibility: database.ChatMessageVisibilityBoth,
+			Role:                "user",
+			Content:             userContent,
+			Visibility:          database.ChatMessageVisibilityBoth,
+			InputTokens:         sql.NullInt64{},
+			OutputTokens:        sql.NullInt64{},
+			TotalTokens:         sql.NullInt64{},
+			ReasoningTokens:     sql.NullInt64{},
+			CacheCreationTokens: sql.NullInt64{},
+			CacheReadTokens:     sql.NullInt64{},
+			ContextLimit:        sql.NullInt64{},
+			Compressed:          sql.NullBool{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert initial user message: %w", err)
@@ -582,10 +598,6 @@ func (p *Server) RefreshStatus(ctx context.Context, chatID uuid.UUID) error {
 	return nil
 }
 
-func (p *Server) setChatPending(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
-	return setChatPendingWithStore(ctx, p.db, chatID)
-}
-
 func setChatPendingWithStore(
 	ctx context.Context,
 	store database.Store,
@@ -600,10 +612,11 @@ func setChatPendingWithStore(
 	}
 
 	updatedChat, err := store.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:        chat.ID,
-		Status:    database.ChatStatusPending,
-		WorkerID:  uuid.NullUUID{},
-		StartedAt: sql.NullTime{},
+		ID:          chat.ID,
+		Status:      database.ChatStatusPending,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
@@ -613,10 +626,11 @@ func setChatPendingWithStore(
 
 func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
 	updatedChat, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:        chatID,
-		Status:    database.ChatStatusWaiting,
-		WorkerID:  uuid.NullUUID{},
-		StartedAt: sql.NullTime{},
+		ID:          chatID,
+		Status:      database.ChatStatusWaiting,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -646,11 +660,19 @@ func insertUserMessageAndSetPending(
 	content pqtype.NullRawMessage,
 ) (database.ChatMessage, database.Chat, error) {
 	message, err := insertChatMessageWithStore(ctx, store, database.InsertChatMessageParams{
-		ChatID:        lockedChat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:          "user",
-		Content:       content,
-		Visibility:    database.ChatMessageVisibilityBoth,
+		ChatID:              lockedChat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		Role:                "user",
+		Content:             content,
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
 		return database.ChatMessage{}, database.Chat{}, err
@@ -661,10 +683,11 @@ func insertUserMessageAndSetPending(
 	}
 
 	updatedChat, err := store.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:        lockedChat.ID,
-		Status:    database.ChatStatusPending,
-		WorkerID:  uuid.NullUUID{},
-		StartedAt: sql.NullTime{},
+		ID:          lockedChat.ID,
+		Status:      database.ChatStatusPending,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
 	})
 	if err != nil {
 		return database.ChatMessage{}, database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
@@ -983,17 +1006,16 @@ func (p *Server) Subscribe(
 		}
 	}
 
-	// Subscribe to pubsub for durable events
-	var pubsubCancel func()
+	//nolint:nestif
 	if p.pubsub != nil {
 		notifications := make(chan coderdpubsub.ChatStreamNotifyMessage, 10)
-		errors := make(chan error, 1)
+		errCh := make(chan error, 1)
 
 		listener := func(_ context.Context, message []byte, err error) {
 			if err != nil {
 				select {
 				case <-mergedCtx.Done():
-				case errors <- err:
+				case errCh <- err:
 				}
 				return
 			}
@@ -1001,7 +1023,7 @@ func (p *Server) Subscribe(
 			if unmarshalErr := json.Unmarshal(message, &notify); unmarshalErr != nil {
 				select {
 				case <-mergedCtx.Done():
-				case errors <- xerrors.Errorf("unmarshal chat stream notify: %w", unmarshalErr):
+				case errCh <- xerrors.Errorf("unmarshal chat stream notify: %w", unmarshalErr):
 				}
 				return
 			}
@@ -1011,18 +1033,17 @@ func (p *Server) Subscribe(
 			}
 		}
 
-		var err error
-		pubsubCancel, err = p.pubsub.SubscribeWithErr(
+		// Subscribe to pubsub for durable events
+		if pubsubCancel, err := p.pubsub.SubscribeWithErr(
 			coderdpubsub.ChatStreamNotifyChannel(chatID),
 			listener,
-		)
-		if err != nil {
+		); err == nil {
+			allCancels = append(allCancels, pubsubCancel)
+		} else {
 			p.logger.Warn(mergedCtx, "failed to subscribe to chat stream notifications",
 				slog.F("chat_id", chatID),
 				slog.Error(err),
 			)
-		} else {
-			allCancels = append(allCancels, pubsubCancel)
 		}
 
 		// Handle pubsub notifications in a goroutine
@@ -1031,10 +1052,11 @@ func (p *Server) Subscribe(
 			defer closeRelay()
 
 			for {
+				relayPartsCh := relayParts
 				select {
 				case <-mergedCtx.Done():
 					return
-				case err := <-errors:
+				case err := <-errCh:
 					p.logger.Error(mergedCtx, "chat stream pubsub error",
 						slog.F("chat_id", chatID),
 						slog.Error(err),
@@ -1135,7 +1157,7 @@ func (p *Server) Subscribe(
 						case mergedEvents <- event:
 						}
 					}
-				case event, ok := <-relayParts:
+				case event, ok := <-relayPartsCh:
 					if !ok {
 						relayParts = nil
 						continue
@@ -1171,7 +1193,6 @@ func (p *Server) Subscribe(
 			}
 		}()
 	}
-
 	cancel := func() {
 		mergedCancel()
 		for _, cancelFn := range allCancels {
@@ -1410,7 +1431,7 @@ func (p *Server) subscribeChatControl(
 
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
-	logger.Info(ctx, "processing chat")
+	logger.Info(ctx, "processing chat request")
 
 	chatCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
@@ -1541,10 +1562,11 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			}
 
 			_, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-				ID:        chat.ID,
-				Status:    status,
-				WorkerID:  uuid.NullUUID{},
-				StartedAt: sql.NullTime{},
+				ID:          chat.ID,
+				Status:      status,
+				WorkerID:    uuid.NullUUID{},
+				StartedAt:   sql.NullTime{},
+				HeartbeatAt: sql.NullTime{},
 			})
 			return updateErr
 		}, nil)
@@ -1625,6 +1647,7 @@ func (p *Server) runChat(
 		loadCtx context.Context,
 		chatID uuid.UUID,
 	) (database.Chat, error) {
+		//nolint:gocritic // System context required to load chat snapshots for the stream.
 		return p.db.GetChatByID(dbauthz.AsSystemRestricted(loadCtx), chatID)
 	}
 	var (
@@ -1766,11 +1789,19 @@ func (p *Server) runChat(
 			}
 
 			toolMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-				ChatID:        chat.ID,
-				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-				Role:          string(fantasy.MessageRoleTool),
-				Content:       resultContent,
-				Visibility:    database.ChatMessageVisibilityBoth,
+				ChatID:              chat.ID,
+				ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				Role:                string(fantasy.MessageRoleTool),
+				Content:             resultContent,
+				Visibility:          database.ChatMessageVisibilityBoth,
+				InputTokens:         sql.NullInt64{},
+				OutputTokens:        sql.NullInt64{},
+				TotalTokens:         sql.NullInt64{},
+				ReasoningTokens:     sql.NullInt64{},
+				CacheCreationTokens: sql.NullInt64{},
+				CacheReadTokens:     sql.NullInt64{},
+				ContextLimit:        sql.NullInt64{},
+				Compressed:          sql.NullBool{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert tool result: %w", err)
@@ -2204,10 +2235,11 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 
 		// Reset to pending so any replica can pick it up.
 		_, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-			ID:        chat.ID,
-			Status:    database.ChatStatusPending,
-			WorkerID:  uuid.NullUUID{},
-			StartedAt: sql.NullTime{},
+			ID:          chat.ID,
+			Status:      database.ChatStatusPending,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
 		})
 		if err != nil {
 			p.logger.Error(ctx, "failed to recover stale chat",

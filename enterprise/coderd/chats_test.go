@@ -68,6 +68,7 @@ func TestChatStreamRelay(t *testing.T) {
 			return chattest.OpenAINonStreamingResponse("ok")
 		})
 
+		//nolint:gocritic // Test uses owner client to configure chat providers.
 		provider, err := firstClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:    "openai",
 			DisplayName: "OpenAI",
@@ -147,28 +148,28 @@ func TestChatStreamRelay(t *testing.T) {
 
 		firstChunkText := "relay-part-one"
 		streamingChunks <- chattest.OpenAITextChunks(firstChunkText)[0]
-		firstEvent := waitForStreamTextPart(t, ctx, firstEvents, firstChunkText)
+		firstEvent := waitForStreamTextPart(ctx, t, firstEvents, firstChunkText)
 		require.Equal(t, "assistant", firstEvent.MessagePart.Role)
 
 		secondEvents, secondStream, err := relayClient.StreamChat(ctx, chat.ID)
 		require.NoError(t, err)
 		defer secondStream.Close()
 
-		secondSnapshotEvent := waitForStreamTextPart(t, ctx, secondEvents, firstChunkText)
+		secondSnapshotEvent := waitForStreamTextPart(ctx, t, secondEvents, firstChunkText)
 		require.Equal(t, "assistant", secondSnapshotEvent.MessagePart.Role)
 
 		secondChunkText := "relay-part-two"
 		streamingChunks <- chattest.OpenAITextChunks(secondChunkText)[0]
-		waitForStreamTextPart(t, ctx, firstEvents, secondChunkText)
-		waitForStreamTextPart(t, ctx, secondEvents, secondChunkText)
+		waitForStreamTextPart(ctx, t, firstEvents, secondChunkText)
+		waitForStreamTextPart(ctx, t, secondEvents, secondChunkText)
 
 		close(streamingChunks)
 	})
 }
 
 func waitForStreamTextPart(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	events <-chan codersdk.ChatStreamEvent,
 	expectedText string,
 ) codersdk.ChatStreamEvent {
@@ -249,6 +250,7 @@ func TestChatModelConfigDefault(t *testing.T) {
 
 	client, _ := coderdenttest.New(t, nil)
 
+	//nolint:gocritic // Test uses owner client to configure chat providers.
 	provider, err := client.CreateChatProvider(
 		ctx,
 		codersdk.CreateChatProviderConfigRequest{

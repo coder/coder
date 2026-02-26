@@ -14,8 +14,50 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func chatDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
+	t.Helper()
+
+	values := coderdtest.DeploymentValues(t)
+	values.Experiments = []string{string(codersdk.ExperimentAgents)}
+	return values
+}
+
+func newChatClient(t testing.TB) *codersdk.Client {
+	t.Helper()
+
+	return coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: chatDeploymentValues(t),
+	})
+}
+
+func newChatClientWithDatabase(t testing.TB) (*codersdk.Client, database.Store) {
+	t.Helper()
+
+	return coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: chatDeploymentValues(t),
+	})
+}
+
 func TestChats(t *testing.T) {
 	t.Parallel()
+
+	t.Run("RequiresExperiment", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello",
+				},
+			},
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
 
 	t.Run("PostChats", func(t *testing.T) {
 		t.Parallel()
@@ -24,7 +66,7 @@ func TestChats(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := coderdtest.New(t, nil)
+			client := newChatClient(t)
 			user := coderdtest.CreateFirstUser(t, client)
 			modelConfig := createChatModelConfig(t, client)
 
@@ -75,7 +117,7 @@ func TestChats(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := coderdtest.New(t, nil)
+			client := newChatClient(t)
 			_ = coderdtest.CreateFirstUser(t, client)
 			_ = createChatModelConfig(t, client)
 
@@ -100,7 +142,7 @@ func TestChats(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			adminClient, db := coderdtest.NewWithDatabase(t, nil)
+			adminClient, db := newChatClientWithDatabase(t)
 			firstUser := coderdtest.CreateFirstUser(t, adminClient)
 			memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
@@ -126,7 +168,7 @@ func TestChats(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := coderdtest.New(t, nil)
+			client := newChatClient(t)
 			_ = coderdtest.CreateFirstUser(t, client)
 
 			workspaceID := uuid.New()
@@ -147,7 +189,7 @@ func TestChats(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client, db := coderdtest.NewWithDatabase(t, nil)
+			client, db := newChatClientWithDatabase(t)
 			user := coderdtest.CreateFirstUser(t, client)
 			modelConfig := createChatModelConfig(t, client)
 
@@ -177,7 +219,7 @@ func TestChats(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := coderdtest.New(t, nil)
+			client := newChatClient(t)
 			_ = coderdtest.CreateFirstUser(t, client)
 
 			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -196,7 +238,7 @@ func TestChats(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := coderdtest.New(t, nil)
+			client := newChatClient(t)
 			_ = coderdtest.CreateFirstUser(t, client)
 
 			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -211,7 +253,7 @@ func TestChats(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := coderdtest.New(t, nil)
+			client := newChatClient(t)
 			_ = coderdtest.CreateFirstUser(t, client)
 
 			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -231,7 +273,7 @@ func TestChats(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := coderdtest.New(t, nil)
+			client := newChatClient(t)
 			_ = coderdtest.CreateFirstUser(t, client)
 
 			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -252,7 +294,7 @@ func TestChats(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := coderdtest.New(t, nil)
+		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client)
 		_ = createChatModelConfig(t, client)
 
@@ -283,7 +325,7 @@ func TestChats(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := coderdtest.New(t, nil)
+		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client)
 		_ = createChatModelConfig(t, client)
 

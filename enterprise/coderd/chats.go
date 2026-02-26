@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/websocket"
@@ -39,7 +38,6 @@ func newRemotePartsProvider(
 	resolveReplicaAddress func(context.Context, uuid.UUID) (string, bool),
 	replicaHTTPClient *http.Client,
 	replicaID uuid.UUID,
-	logger slog.Logger,
 ) chatd.RemotePartsProvider {
 	return func(
 		ctx context.Context,
@@ -61,7 +59,7 @@ func newRemotePartsProvider(
 		if err != nil {
 			return nil, nil, nil, xerrors.Errorf("parse relay address %q: %w", address, err)
 		}
-		target, err := base.Parse(fmt.Sprintf("/api/v2/chats/%s/stream", chatID))
+		target, err := base.Parse(fmt.Sprintf("/api/experimental/chats/%s/stream", chatID))
 		if err != nil {
 			return nil, nil, nil, xerrors.Errorf("build relay stream URL: %w", err)
 		}
@@ -78,6 +76,7 @@ func newRemotePartsProvider(
 		})
 		if err != nil {
 			if res != nil {
+				defer res.Body.Close()
 				if responseErr := codersdk.ReadBodyAsError(res); responseErr != nil {
 					err = responseErr
 				}

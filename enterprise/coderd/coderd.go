@@ -102,6 +102,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
+	defer func() {
+		if err != nil {
+			cancelFunc()
+		}
+	}()
 
 	if options.ExternalTokenEncryption == nil {
 		options.ExternalTokenEncryption = make([]dbcrypt.Cipher, 0)
@@ -219,7 +224,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			resolveReplicaAddress,
 			replicaHTTPClient,
 			replicaID,
-			options.Logger.Named("chat-relay"),
 		)
 		return provider(ctx, chatID, workerID, requestHeader)
 	}
@@ -727,7 +731,11 @@ func replicaRelayHTTPClient(base *http.Client, tlsConfig *tls.Config) *http.Clie
 	case *http.Transport:
 		transport = t.Clone()
 	default:
-		transport = http.DefaultTransport.(*http.Transport).Clone()
+		if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+			transport = defaultTransport.Clone()
+		} else {
+			transport = &http.Transport{}
+		}
 	}
 	transport.TLSClientConfig = tlsConfig
 	clone.Transport = transport

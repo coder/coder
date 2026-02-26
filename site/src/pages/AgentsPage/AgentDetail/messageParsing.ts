@@ -29,9 +29,7 @@ export const normalizeBlockType = (value: unknown): string =>
 	asString(value).toLowerCase().replace(/_/g, "-");
 
 const isSubagentToolName = (name: string): boolean =>
-	name === "spawn_agent" ||
-	name === "wait_agent" ||
-	name === "message_agent";
+	name === "spawn_agent" || name === "wait_agent" || name === "message_agent";
 
 const isCompletedSubagentResult = (
 	toolName: string,

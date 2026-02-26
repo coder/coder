@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -245,7 +244,7 @@ func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
 	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Len(t, messages, 2)
-	require.Equal(t, int64(messages[len(messages)-1].ID), result.Message.ID)
+	require.Equal(t, messages[len(messages)-1].ID, result.Message.ID)
 }
 
 func newTestServer(

@@ -90,7 +90,7 @@ export interface AgentsOutletContext {
 	requestArchiveAgent: (chatId: string) => void;
 }
 
-export const AgentsPage: FC = () => {
+const AgentsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { agentId } = useParams();
@@ -678,7 +678,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 									{selectedWorkspaceName ?? "Workspace"}
 								</SelectValue>
 							</SelectTrigger>
-							<SelectContent side="top" align="center" className="[&_[role=option]]:text-xs">
+							<SelectContent
+								side="top"
+								align="center"
+								className="[&_[role=option]]:text-xs"
+							>
 								<SelectItem value={autoCreateWorkspaceValue}>
 									Auto-create Workspace
 								</SelectItem>

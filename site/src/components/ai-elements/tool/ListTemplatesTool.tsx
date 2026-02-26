@@ -1,4 +1,3 @@
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
@@ -41,9 +40,7 @@ export const ListTemplatesTool: React.FC<{
 					<span
 						className={cn(
 							"text-sm",
-							isError
-								? "text-content-destructive"
-								: "text-content-secondary",
+							isError ? "text-content-destructive" : "text-content-secondary",
 						)}
 					>
 						{label}
