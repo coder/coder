@@ -293,6 +293,17 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		InitialUserContent: content,
 	})
 	if err != nil {
+		if database.IsForeignKeyViolation(
+			err,
+			database.ForeignKeyChatsLastModelConfigID,
+			database.ForeignKeyChatMessagesModelConfigID,
+		) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model config ID.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create chat.",
 			Detail:  err.Error(),
@@ -2846,9 +2857,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	setAsDefault := req.IsDefault != nil && *req.IsDefault && !existing.IsDefault
-	var (
-		updated database.ChatModelConfig
-	)
+	var updated database.ChatModelConfig
 	if setAsDefault {
 		err = api.Database.InTx(func(tx database.Store) error {
 			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {

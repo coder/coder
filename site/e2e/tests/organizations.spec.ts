@@ -27,7 +27,7 @@ test("create and delete organization", async ({ page }) => {
 
 	// Expect to be redirected to the new organization
 	await expectUrl(page).toHavePathName(`/organizations/${name}`);
-	await expect(page.getByText("Organization created.")).toBeVisible();
+	await expect(page.getByText(/created successfully/)).toBeVisible();
 
 	await page.goto(`/organizations/${name}/settings`, {
 		waitUntil: "domcontentloaded",
@@ -40,7 +40,7 @@ test("create and delete organization", async ({ page }) => {
 
 	// Expect to be redirected when renaming the organization
 	await expectUrl(page).toHavePathName(`/organizations/${newName}/settings`);
-	await expect(page.getByText("Organization settings updated.")).toBeVisible();
+	await expect(page.getByText(/settings updated successfully/)).toBeVisible();
 
 	await page.goto(`/organizations/${newName}/settings`, {
 		waitUntil: "domcontentloaded",
@@ -53,5 +53,5 @@ test("create and delete organization", async ({ page }) => {
 	await dialog.getByLabel("Name").fill(newName);
 	await dialog.getByRole("button", { name: "Delete" }).click();
 	await page.waitForTimeout(1000);
-	await expect(page.getByText("Organization deleted")).toBeVisible();
+	await expect(page.getByText(/deleted successfully/)).toBeVisible();
 });

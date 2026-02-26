@@ -3066,6 +3066,12 @@ class ApiMethods {
 			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
 		);
 	};
+	getAIBridgeModels = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";

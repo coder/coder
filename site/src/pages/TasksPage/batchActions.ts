@@ -1,7 +1,7 @@
 import { API } from "api/api";
 import type { Task } from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { useMutation } from "react-query";
+import { toast } from "sonner";
 
 interface UseBatchTaskActionsOptions {
 	onSuccess: () => Promise<void>;
@@ -25,7 +25,7 @@ export function useBatchTaskActions(
 		},
 		onSuccess,
 		onError: () => {
-			displayError("Failed to delete some tasks");
+			toast.error("Failed to delete some tasks.");
 		},
 	});
 

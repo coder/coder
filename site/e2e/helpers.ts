@@ -1251,7 +1251,7 @@ export async function createUser(
 	const passwordField = page.locator("input[name=password]");
 	await passwordField.fill(password);
 	await page.getByRole("button", { name: /save/i }).click();
-	await expect(page.getByText("Successfully created user.")).toBeVisible();
+	await expect(page.getByText(/created successfully/)).toBeVisible();
 
 	await expect(page).toHaveTitle("Users - Coder");
 	const addedRow = page.locator("tr", { hasText: email });
@@ -1285,7 +1285,7 @@ export async function createOrganization(page: Page): Promise<{
 	await page.getByRole("button", { name: /save/i }).click();
 
 	await expectUrl(page).toHavePathName(`/organizations/${name}`);
-	await expect(page.getByText("Organization created.")).toBeVisible();
+	await expect(page.getByText(/created successfully/)).toBeVisible();
 
 	return { name, displayName, description };
 }

@@ -1763,7 +1763,6 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		status = database.ChatStatusError
 		return
 	}
-
 }
 
 func (p *Server) runChat(

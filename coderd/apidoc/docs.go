@@ -135,6 +135,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/aibridge/models": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Bridge"
+                ],
+                "summary": "List AI Bridge models",
+                "operationId": "list-ai-bridge-models",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/appearance": {
             "get": {
                 "security": [
@@ -23907,19 +23935,19 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "forceQuery": {
-                    "description": "ForceQuery indicates whether the original URL contained a query ('?') character.\nWhen set, the String method will include a trailing '?', even when RawQuery is empty.",
+                    "description": "append a query ('?') even if RawQuery is empty",
                     "type": "boolean"
                 },
                 "fragment": {
-                    "description": "fragment for references (without '#')",
+                    "description": "fragment for references, without '#'",
                     "type": "string"
                 },
                 "host": {
-                    "description": "\"host\" or \"host:port\" (see Hostname and Port methods)",
+                    "description": "host or host:port (see Hostname and Port methods)",
                     "type": "string"
                 },
                 "omitHost": {
-                    "description": "OmitHost indicates the URL has an empty host (authority).\nWhen set, the String method will not include the host when it is empty.",
+                    "description": "do not emit empty host (authority)",
                     "type": "boolean"
                 },
                 "opaque": {
@@ -23931,15 +23959,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "rawFragment": {
-                    "description": "RawFragment is an optional field containing an encoded fragment hint.\nSee the EscapedFragment method for more details.\n\nIn general, code should call EscapedFragment instead of reading RawFragment.",
+                    "description": "encoded fragment hint (see EscapedFragment method)",
                     "type": "string"
                 },
                 "rawPath": {
-                    "description": "RawPath is an optional field containing an encoded path hint.\nSee the EscapedPath method for more details.\n\nIn general, code should call EscapedPath instead of reading RawPath.",
+                    "description": "encoded path hint (see EscapedPath method)",
                     "type": "string"
                 },
                 "rawQuery": {
-                    "description": "RawQuery contains the encoded query values, without the initial '?'.\nUse URL.Query to decode the query.",
+                    "description": "encoded query values, without '?'",
                     "type": "string"
                 },
                 "scheme": {
