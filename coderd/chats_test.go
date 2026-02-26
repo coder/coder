@@ -56,7 +56,7 @@ func TestChats(t *testing.T) {
 				},
 			},
 		})
-		requireSDKError(t, err, http.StatusNotFound)
+		requireSDKError(t, err, http.StatusForbidden)
 	})
 
 	t.Run("PostChats", func(t *testing.T) {
