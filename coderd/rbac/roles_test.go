@@ -1033,7 +1033,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "ChatUsage",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-			Resource: rbac.ResourceChat,
+			Resource: rbac.ResourceChat.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner, memberMe},
 				false: {
