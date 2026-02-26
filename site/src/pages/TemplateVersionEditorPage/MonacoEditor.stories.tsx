@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import * as monaco from "monaco-editor";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 import { MonacoEditor } from "./MonacoEditor";
 
 const meta: Meta<typeof MonacoEditor> = {
@@ -54,16 +54,24 @@ export const WithOnChangeHandler: Story = {
 	args: {
 		onChange: fn(),
 		value: "fnord",
+		path: "inmemory://model/with-on-change-handler.tf",
 	},
-	// Monaco's textarea does not receive or fire events directly. Instead, we
-	// have to interact with the editor's model and then assert that the
-	// onChange callback was called with the new value.
+	// Target a deterministic model URI so this story remains stable even when
+	// other Monaco stories have active models in the same Storybook session.
 	async play({ args, canvasElement }) {
 		const canvas = within(canvasElement);
 		const editor = canvas.getByRole("textbox");
+		const modelURI = monaco.Uri.parse(args.path as string);
+		let model = monaco.editor.getModel(modelURI);
 
-		// there's only one model in the story
-		const model = monaco.editor.getModels()[0];
+		await waitFor(() => {
+			model = monaco.editor.getModel(modelURI);
+			expect(model).not.toBeNull();
+		});
+
+		if (!model) {
+			throw new Error("Monaco model is unavailable for WithOnChangeHandler.");
+		}
 
 		model.setValue("");
 
