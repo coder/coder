@@ -1,4 +1,5 @@
 import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import {
 	Select,
 	SelectContent,
@@ -7,12 +8,13 @@ import {
 	SelectValue,
 } from "components/Select/Select";
 import { Textarea } from "components/Textarea/Textarea";
+import { type FormikContextType, getIn } from "formik";
 import type { FC } from "react";
 import { cn } from "utils/cn";
 import { normalizeProvider } from "./helpers";
 import type {
 	ModelConfigFormBuildResult,
-	ModelConfigFormState,
+	ModelFormValues,
 } from "./modelConfigFormLogic";
 
 export const modelConfigReasoningEffortOptions = [
@@ -43,50 +45,37 @@ const unsetSelectValue = "__unset__";
 // ── Generic field renderers ────────────────────────────────────
 
 type FieldRenderContext = {
-	inputIdPrefix: string;
-	form: ModelConfigFormState;
+	form: FormikContextType<ModelFormValues>;
 	fieldErrors: ModelConfigFormBuildResult["fieldErrors"];
-	onChange: (key: keyof ModelConfigFormState, value: string) => void;
 	disabled: boolean;
 };
 
 const InputField: FC<
 	FieldRenderContext & {
-		fieldKey: keyof ModelConfigFormState;
+		fieldKey: string;
 		label: string;
 		placeholder: string;
 	}
-> = ({
-	inputIdPrefix,
-	form,
-	fieldErrors,
-	onChange,
-	disabled,
-	fieldKey,
-	label,
-	placeholder,
-}) => {
-	const fieldID = `${inputIdPrefix}-${fieldKey}`;
-	const errorId = `${fieldID}-error`;
+> = ({ form, fieldErrors, disabled, fieldKey, label, placeholder }) => {
+	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[fieldKey];
+	const fieldProps = form.getFieldProps(fieldKey);
 	return (
 		<div className="grid gap-1.5">
-			<label
-				htmlFor={fieldID}
+			<Label
+				htmlFor={fieldKey}
 				className="text-[13px] font-medium text-content-primary"
 			>
-				{label}{" "}
-				<span className="font-normal text-content-secondary">(optional)</span>
-			</label>
+				{label}
+			</Label>
 			<Input
-				id={fieldID}
+				id={fieldKey}
 				className={cn(
-					"h-10 text-[13px]",
+					"h-10 text-[13px] placeholder:text-content-disabled",
 					fieldError && "border-content-destructive",
 				)}
 				placeholder={placeholder}
-				value={form[fieldKey]}
-				onChange={(e) => onChange(fieldKey, e.target.value)}
+				{...fieldProps}
 				disabled={disabled}
 				aria-invalid={!!fieldError}
 				aria-describedby={fieldError ? errorId : undefined}
@@ -102,41 +91,34 @@ const InputField: FC<
 
 const SelectField: FC<
 	FieldRenderContext & {
-		fieldKey: keyof ModelConfigFormState;
+		fieldKey: string;
 		label: string;
 		options: readonly string[];
 	}
-> = ({
-	inputIdPrefix,
-	form,
-	fieldErrors,
-	onChange,
-	disabled,
-	fieldKey,
-	label,
-	options,
-}) => {
-	const fieldID = `${inputIdPrefix}-${fieldKey}`;
-	const errorId = `${fieldID}-error`;
+> = ({ form, fieldErrors, disabled, fieldKey, label, options }) => {
+	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[fieldKey];
+	const currentValue = (getIn(form.values, fieldKey) as string) || "";
 	return (
 		<div className="grid gap-1.5">
-			<label
-				htmlFor={fieldID}
+			<Label
+				htmlFor={fieldKey}
 				className="text-[13px] font-medium text-content-primary"
 			>
-				{label}{" "}
-				<span className="font-normal text-content-secondary">(optional)</span>
-			</label>
+				{label}
+			</Label>
 			<Select
-				value={form[fieldKey] || unsetSelectValue}
+				value={currentValue || unsetSelectValue}
 				onValueChange={(value) =>
-					onChange(fieldKey, value === unsetSelectValue ? "" : value)
+					void form.setFieldValue(
+						fieldKey,
+						value === unsetSelectValue ? "" : value,
+					)
 				}
 				disabled={disabled}
 			>
 				<SelectTrigger
-					id={fieldID}
+					id={fieldKey}
 					className={cn(
 						"h-10 text-[13px]",
 						fieldError && "border-content-destructive",
@@ -166,41 +148,30 @@ const SelectField: FC<
 
 const JSONField: FC<
 	FieldRenderContext & {
-		fieldKey: keyof ModelConfigFormState;
+		fieldKey: string;
 		label: string;
 		placeholder: string;
 	}
-> = ({
-	inputIdPrefix,
-	form,
-	fieldErrors,
-	onChange,
-	disabled,
-	fieldKey,
-	label,
-	placeholder,
-}) => {
-	const fieldID = `${inputIdPrefix}-${fieldKey}`;
-	const errorId = `${fieldID}-error`;
+> = ({ form, fieldErrors, disabled, fieldKey, label, placeholder }) => {
+	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[fieldKey];
+	const fieldProps = form.getFieldProps(fieldKey);
 	return (
 		<div className="grid gap-1.5">
-			<label
-				htmlFor={fieldID}
+			<Label
+				htmlFor={fieldKey}
 				className="text-[13px] font-medium text-content-primary"
 			>
-				{label}{" "}
-				<span className="font-normal text-content-secondary">(optional)</span>
-			</label>
+				{label}
+			</Label>
 			<Textarea
-				id={fieldID}
+				id={fieldKey}
 				className={cn(
-					"min-h-[96px] font-mono text-xs",
+					"min-h-[96px] font-mono text-xs placeholder:text-content-disabled",
 					fieldError && "border-content-destructive",
 				)}
 				placeholder={placeholder}
-				value={form[fieldKey]}
-				onChange={(e) => onChange(fieldKey, e.target.value)}
+				{...fieldProps}
 				disabled={disabled}
 				aria-invalid={!!fieldError}
 				aria-describedby={fieldError ? errorId : undefined}
@@ -226,37 +197,37 @@ const OpenAIFields: FC<FieldRenderContext & { sectionTitle: string }> = (
 		<div className="grid gap-3 md:grid-cols-2">
 			<SelectField
 				{...props}
-				fieldKey="openaiReasoningEffort"
+				fieldKey="config.openai.reasoningEffort"
 				label="Reasoning effort"
 				options={modelConfigReasoningEffortOptions}
 			/>
 			<SelectField
 				{...props}
-				fieldKey="openaiParallelToolCalls"
+				fieldKey="config.openai.parallelToolCalls"
 				label="Parallel tool calls"
 				options={["true", "false"]}
 			/>
 			<SelectField
 				{...props}
-				fieldKey="openaiTextVerbosity"
+				fieldKey="config.openai.textVerbosity"
 				label="Text verbosity"
 				options={modelConfigTextVerbosityOptions}
 			/>
 			<InputField
 				{...props}
-				fieldKey="openaiServiceTier"
+				fieldKey="config.openai.serviceTier"
 				label="Service tier"
 				placeholder="auto"
 			/>
 			<InputField
 				{...props}
-				fieldKey="openaiReasoningSummary"
+				fieldKey="config.openai.reasoningSummary"
 				label="Reasoning summary"
 				placeholder="detailed"
 			/>
 			<InputField
 				{...props}
-				fieldKey="openaiUser"
+				fieldKey="config.openai.user"
 				label="User"
 				placeholder="end-user-id"
 			/>
@@ -274,25 +245,25 @@ const AnthropicFields: FC<FieldRenderContext & { sectionTitle: string }> = (
 		<div className="grid gap-3 md:grid-cols-2">
 			<SelectField
 				{...props}
-				fieldKey="anthropicEffort"
+				fieldKey="config.anthropic.effort"
 				label="Output effort"
 				options={modelConfigAnthropicEffortOptions}
 			/>
 			<InputField
 				{...props}
-				fieldKey="anthropicThinkingBudgetTokens"
+				fieldKey="config.anthropic.thinkingBudgetTokens"
 				label="Thinking budget tokens"
 				placeholder="4000"
 			/>
 			<SelectField
 				{...props}
-				fieldKey="anthropicSendReasoning"
+				fieldKey="config.anthropic.sendReasoning"
 				label="Send reasoning"
 				options={["true", "false"]}
 			/>
 			<SelectField
 				{...props}
-				fieldKey="anthropicDisableParallelToolUse"
+				fieldKey="config.anthropic.disableParallelToolUse"
 				label="Disable parallel tool use"
 				options={["true", "false"]}
 			/>
@@ -308,25 +279,25 @@ const GoogleFields: FC<FieldRenderContext> = (props) => (
 		<div className="grid gap-3 md:grid-cols-2">
 			<InputField
 				{...props}
-				fieldKey="googleThinkingBudget"
+				fieldKey="config.google.thinkingBudget"
 				label="Thinking budget"
 				placeholder="1024"
 			/>
 			<SelectField
 				{...props}
-				fieldKey="googleIncludeThoughts"
+				fieldKey="config.google.includeThoughts"
 				label="Include thoughts"
 				options={["true", "false"]}
 			/>
 			<InputField
 				{...props}
-				fieldKey="googleCachedContent"
+				fieldKey="config.google.cachedContent"
 				label="Cached content"
 				placeholder="cached-contents/abc123"
 			/>
 			<JSONField
 				{...props}
-				fieldKey="googleSafetySettingsJSON"
+				fieldKey="config.google.safetySettingsJSON"
 				label="Safety settings JSON"
 				placeholder={`[
   {"category":"HARM_CATEGORY_DANGEROUS_CONTENT","threshold":"BLOCK_ONLY_HIGH"}
@@ -344,13 +315,13 @@ const OpenAICompatFields: FC<FieldRenderContext> = (props) => (
 		<div className="grid gap-3 md:grid-cols-2">
 			<SelectField
 				{...props}
-				fieldKey="openAICompatReasoningEffort"
+				fieldKey="config.openaicompat.reasoningEffort"
 				label="Reasoning effort"
 				options={modelConfigReasoningEffortOptions}
 			/>
 			<InputField
 				{...props}
-				fieldKey="openAICompatUser"
+				fieldKey="config.openaicompat.user"
 				label="User"
 				placeholder="end-user-id"
 			/>
@@ -366,43 +337,43 @@ const OpenRouterFields: FC<FieldRenderContext> = (props) => (
 		<div className="grid gap-3 md:grid-cols-2">
 			<SelectField
 				{...props}
-				fieldKey="openrouterReasoningEnabled"
+				fieldKey="config.openrouter.reasoningEnabled"
 				label="Reasoning enabled"
 				options={["true", "false"]}
 			/>
 			<SelectField
 				{...props}
-				fieldKey="openrouterReasoningEffort"
+				fieldKey="config.openrouter.reasoningEffort"
 				label="Reasoning effort"
 				options={modelConfigReasoningEffortOptions}
 			/>
 			<InputField
 				{...props}
-				fieldKey="openrouterReasoningMaxTokens"
+				fieldKey="config.openrouter.reasoningMaxTokens"
 				label="Reasoning max tokens"
 				placeholder="2048"
 			/>
 			<SelectField
 				{...props}
-				fieldKey="openrouterReasoningExclude"
+				fieldKey="config.openrouter.reasoningExclude"
 				label="Reasoning exclude"
 				options={["true", "false"]}
 			/>
 			<SelectField
 				{...props}
-				fieldKey="openrouterParallelToolCalls"
+				fieldKey="config.openrouter.parallelToolCalls"
 				label="Parallel tool calls"
 				options={["true", "false"]}
 			/>
 			<SelectField
 				{...props}
-				fieldKey="openrouterIncludeUsage"
+				fieldKey="config.openrouter.includeUsage"
 				label="Include usage"
 				options={["true", "false"]}
 			/>
 			<InputField
 				{...props}
-				fieldKey="openrouterUser"
+				fieldKey="config.openrouter.user"
 				label="User"
 				placeholder="end-user-id"
 			/>
@@ -418,37 +389,37 @@ const VercelFields: FC<FieldRenderContext> = (props) => (
 		<div className="grid gap-3 md:grid-cols-2">
 			<SelectField
 				{...props}
-				fieldKey="vercelReasoningEnabled"
+				fieldKey="config.vercel.reasoningEnabled"
 				label="Reasoning enabled"
 				options={["true", "false"]}
 			/>
 			<SelectField
 				{...props}
-				fieldKey="vercelReasoningEffort"
+				fieldKey="config.vercel.reasoningEffort"
 				label="Reasoning effort"
 				options={modelConfigReasoningEffortOptions}
 			/>
 			<InputField
 				{...props}
-				fieldKey="vercelReasoningMaxTokens"
+				fieldKey="config.vercel.reasoningMaxTokens"
 				label="Reasoning max tokens"
 				placeholder="2048"
 			/>
 			<SelectField
 				{...props}
-				fieldKey="vercelReasoningExclude"
+				fieldKey="config.vercel.reasoningExclude"
 				label="Reasoning exclude"
 				options={["true", "false"]}
 			/>
 			<SelectField
 				{...props}
-				fieldKey="vercelParallelToolCalls"
+				fieldKey="config.vercel.parallelToolCalls"
 				label="Parallel tool calls"
 				options={["true", "false"]}
 			/>
 			<InputField
 				{...props}
-				fieldKey="vercelUser"
+				fieldKey="config.vercel.user"
 				label="User"
 				placeholder="end-user-id"
 			/>
@@ -460,26 +431,20 @@ const VercelFields: FC<FieldRenderContext> = (props) => (
 
 type ModelConfigFieldsProps = {
 	provider: string;
-	form: ModelConfigFormState;
+	form: FormikContextType<ModelFormValues>;
 	fieldErrors: ModelConfigFormBuildResult["fieldErrors"];
-	onChange: (key: keyof ModelConfigFormState, value: string) => void;
 	disabled: boolean;
-	inputIdPrefix: string;
 };
 
 export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	provider,
 	form,
 	fieldErrors,
-	onChange,
 	disabled,
-	inputIdPrefix,
 }) => {
 	const ctx: FieldRenderContext = {
-		inputIdPrefix,
 		form,
 		fieldErrors,
-		onChange,
 		disabled,
 	};
 	const normalized = normalizeProvider(provider);
@@ -519,9 +484,9 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	return (
 		<div className="space-y-2">
 			<p className="m-0 text-[13px] font-medium text-content-primary">
-				Model call config{" "}
-				<span className="font-normal text-content-secondary">(optional)</span>
+				Model call config
 			</p>
+
 			<div className="space-y-2">
 				<p className="m-0 text-xs font-medium uppercase tracking-wide text-content-secondary">
 					General options
@@ -529,32 +494,37 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 				<div className="grid gap-3 md:grid-cols-2">
 					<InputField
 						{...ctx}
-						fieldKey="maxOutputTokens"
+						fieldKey="config.maxOutputTokens"
 						label="Max output tokens"
 						placeholder="32000"
 					/>
 					<InputField
 						{...ctx}
-						fieldKey="temperature"
+						fieldKey="config.temperature"
 						label="Temperature"
 						placeholder="0.2"
 					/>
 					<InputField
 						{...ctx}
-						fieldKey="topP"
+						fieldKey="config.topP"
 						label="Top P"
 						placeholder="0.95"
 					/>
-					<InputField {...ctx} fieldKey="topK" label="Top K" placeholder="40" />
 					<InputField
 						{...ctx}
-						fieldKey="presencePenalty"
+						fieldKey="config.topK"
+						label="Top K"
+						placeholder="40"
+					/>
+					<InputField
+						{...ctx}
+						fieldKey="config.presencePenalty"
 						label="Presence penalty"
 						placeholder="0"
 					/>
 					<InputField
 						{...ctx}
-						fieldKey="frequencyPenalty"
+						fieldKey="config.frequencyPenalty"
 						label="Frequency penalty"
 						placeholder="0"
 					/>

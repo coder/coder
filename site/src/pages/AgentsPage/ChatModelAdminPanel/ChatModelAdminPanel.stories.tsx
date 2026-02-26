@@ -36,6 +36,7 @@ const createModelConfig = (
 	model: overrides.model,
 	display_name: overrides.display_name ?? overrides.model,
 	enabled: overrides.enabled ?? true,
+	is_default: overrides.is_default ?? false,
 	context_limit: overrides.context_limit ?? 200000,
 	compression_threshold: overrides.compression_threshold ?? 70,
 	created_at: overrides.created_at ?? now,
@@ -184,9 +185,7 @@ export const ProviderAccordionCards: Story = {
 		expect(body.queryByText("OpenAI")).not.toBeInTheDocument();
 
 		await userEvent.click(body.getByRole("button", { name: /OpenRouter/i }));
-		await expect(
-			body.getByLabelText("Base URL (optional)"),
-		).toBeInTheDocument();
+		await expect(body.getByLabelText("Base URL")).toBeInTheDocument();
 	},
 };
 
@@ -281,7 +280,7 @@ export const CreateAndUpdateProvider: Story = {
 			"sk-provider-key",
 		);
 		await userEvent.type(
-			body.getByLabelText("Base URL (optional)"),
+			body.getByLabelText("Base URL"),
 			"https://proxy.example.com/v1",
 		);
 		await userEvent.click(
@@ -313,11 +312,11 @@ export const CreateAndUpdateProvider: Story = {
 		);
 		await userEvent.clear(displayNameInput);
 		await userEvent.type(displayNameInput, "Primary OpenAI");
-		const baseURLInput = body.getByLabelText("Base URL (optional)");
+		const baseURLInput = body.getByLabelText("Base URL");
 		await userEvent.clear(baseURLInput);
 		await userEvent.type(baseURLInput, "https://internal-proxy.example.com/v2");
 		await userEvent.type(
-			body.getByLabelText("API key (optional)"),
+			body.getByLabelText("API key"),
 			"sk-updated-provider-key",
 		);
 		await userEvent.click(body.getByRole("button", { name: "Save changes" }));
@@ -420,9 +419,9 @@ export const NoModelConfigByDefault: Story = {
 		await userEvent.type(body.getByLabelText("Model ID"), "gpt-5-pro");
 		await userEvent.type(body.getByLabelText("Context limit"), "200000");
 
-		await expect(
-			await body.findByLabelText("Max output tokens (optional)"),
-		).toHaveValue("");
+		await expect(await body.findByLabelText("Max output tokens")).toHaveValue(
+			"",
+		);
 
 		await userEvent.click(body.getByRole("button", { name: "Add model" }));
 		await waitFor(() => {
@@ -468,12 +467,12 @@ export const SubmitModelConfigExplicitly: Story = {
 		await userEvent.type(body.getByLabelText("Model ID"), "gpt-5-pro-custom");
 		await userEvent.type(body.getByLabelText("Context limit"), "200000");
 		await userEvent.type(
-			await body.findByLabelText("Max output tokens (optional)"),
+			await body.findByLabelText("Max output tokens"),
 			"32000",
 		);
 		await userEvent.click(
 			body.getByRole("combobox", {
-				name: "Reasoning effort (optional)",
+				name: "Reasoning effort",
 			}),
 		);
 		await userEvent.click(await body.findByRole("option", { name: "high" }));
@@ -525,7 +524,7 @@ export const ValidatesModelConfigFields: Story = {
 		await userEvent.type(body.getByLabelText("Model ID"), "gpt-5-pro");
 		await userEvent.type(body.getByLabelText("Context limit"), "200000");
 		await userEvent.type(
-			await body.findByLabelText("Max output tokens (optional)"),
+			await body.findByLabelText("Max output tokens"),
 			"not-a-number",
 		);
 		expect(

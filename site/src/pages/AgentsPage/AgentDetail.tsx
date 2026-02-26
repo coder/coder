@@ -12,12 +12,12 @@ import {
 } from "api/queries/chats";
 import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
+import { toast } from "sonner";
 import { AgentChatInput } from "./AgentChatInput";
 import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import {
@@ -246,8 +246,7 @@ export const AgentDetail: FC = () => {
 			return;
 		}
 		const selectedModelConfigID =
-			(selectedModel && modelConfigIDByModelID.get(selectedModel)) ||
-			undefined;
+			(selectedModel && modelConfigIDByModelID.get(selectedModel)) || undefined;
 		const request: TypesGen.CreateChatMessageRequest = {
 			content: [{ type: "text", text: message }],
 			model_config_id: selectedModelConfigID,
@@ -260,7 +259,10 @@ export const AgentDetail: FC = () => {
 		await sendMutation.mutateAsync(request);
 		if (typeof window !== "undefined") {
 			if (selectedModelConfigID) {
-				localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
+				localStorage.setItem(
+					lastModelConfigIDStorageKey,
+					selectedModelConfigID,
+				);
 			} else {
 				localStorage.removeItem(lastModelConfigIDStorageKey);
 			}
@@ -355,7 +357,7 @@ export const AgentDetail: FC = () => {
 
 			window.location.assign(vscodeHref);
 		} catch {
-			displayError(
+			toast.error(
 				editor === "cursor"
 					? "Failed to open in Cursor."
 					: "Failed to open in VS Code.",

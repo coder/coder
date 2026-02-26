@@ -3,10 +3,10 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { CollapsibleContent } from "components/Collapsible/Collapsible";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Input } from "components/Input/Input";
 import { Loader2Icon } from "lucide-react";
 import { type FC, type FormEvent, useEffect, useId, useState } from "react";
+import { toast } from "sonner";
 import { readOptionalString } from "./helpers";
 
 type ProviderFormProps = {
@@ -111,7 +111,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			// Only clear the API key field on success.
 			setApiKey("");
 		} catch (error) {
-			displayError(
+			toast.error(
 				getErrorMessage(error, "Failed to save provider configuration."),
 			);
 		}
@@ -149,10 +149,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									htmlFor={displayNameInputId}
 									className="text-[13px] font-medium text-content-primary"
 								>
-									Display name{" "}
-									<span className="font-normal text-content-secondary">
-										(optional)
-									</span>
+									Display name
 								</label>
 								<Input
 									id={displayNameInputId}
@@ -171,9 +168,9 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									className="text-[13px] font-medium text-content-primary"
 								>
 									API key{" "}
-									{providerConfig && (
-										<span className="font-normal text-content-secondary">
-											(optional)
+									{!providerConfig && (
+										<span className="text-xs text-content-destructive font-bold">
+											*
 										</span>
 									)}
 								</label>
@@ -199,10 +196,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									htmlFor={baseURLInputId}
 									className="text-[13px] font-medium text-content-primary"
 								>
-									Base URL{" "}
-									<span className="font-normal text-content-secondary">
-										(optional)
-									</span>
+									Base URL
 								</label>
 								<Input
 									id={baseURLInputId}

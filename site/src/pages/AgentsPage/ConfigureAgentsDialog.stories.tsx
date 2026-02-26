@@ -35,6 +35,7 @@ const mockModelConfigs: ChatModelConfig[] = [
 		model: "gpt-4o",
 		display_name: "GPT-4o",
 		enabled: true,
+		is_default: false,
 		context_limit: 128000,
 		compression_threshold: 80000,
 		created_at: "2025-01-01T00:00:00Z",

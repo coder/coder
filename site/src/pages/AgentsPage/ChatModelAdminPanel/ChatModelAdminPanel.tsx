@@ -12,7 +12,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader2Icon } from "lucide-react";
-import { type FC, useEffect, useMemo, useState } from "react";
+import { type FC, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "../modelOptions";
@@ -208,7 +208,9 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	section = "providers",
 }) => {
 	const queryClient = useQueryClient();
-	const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+	const [requestedProvider, setRequestedProvider] = useState<string | null>(
+		null,
+	);
 
 	// ── Queries ────────────────────────────────────────────────
 	const providerConfigsQuery = useQuery(chatProviderConfigs());
@@ -249,15 +251,18 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 		modelCatalogQuery.data,
 	);
 
-	// Keep selectedProvider in sync with available providers.
-	useEffect(() => {
-		setSelectedProvider((current) => {
-			if (current && providerStates.some((ps) => ps.provider === current)) {
-				return current;
-			}
-			return providerStates[0]?.provider ?? null;
-		});
-	}, [providerStates]);
+	// Derive the effective selected provider from user intent + available
+	// providers. This avoids a useEffect + setState cycle that would cause
+	// an extra render with a stale value.
+	const selectedProvider = useMemo(() => {
+		if (
+			requestedProvider &&
+			providerStates.some((ps) => ps.provider === requestedProvider)
+		) {
+			return requestedProvider;
+		}
+		return providerStates[0]?.provider ?? null;
+	}, [requestedProvider, providerStates]);
 
 	const selectedProviderState = useMemo(
 		() =>
@@ -343,14 +348,14 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 							req,
 						})
 					}
-					onSelectedProviderChange={setSelectedProvider}
+					onSelectedProviderChange={setRequestedProvider}
 				/>
 			) : (
 				<ModelsSection
 					providerStates={providerStates}
 					selectedProvider={selectedProvider}
 					selectedProviderState={selectedProviderState}
-					onSelectedProviderChange={setSelectedProvider}
+					onSelectedProviderChange={setRequestedProvider}
 					modelConfigs={modelConfigs}
 					modelConfigsUnavailable={modelConfigsUnavailable}
 					isCreating={createModelMut.isPending}

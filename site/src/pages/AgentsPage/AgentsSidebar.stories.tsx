@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Chat } from "api/typesGenerated";
 import type * as TypesGen from "api/typesGenerated";
+import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -22,6 +22,7 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 		model: "gpt-4o",
 		display_name: "GPT-4o",
 		enabled: true,
+		is_default: false,
 		context_limit: 200000,
 		compression_threshold: 70,
 		created_at: "2026-02-18T00:00:00.000Z",
