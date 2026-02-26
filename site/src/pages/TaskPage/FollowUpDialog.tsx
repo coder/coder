@@ -52,8 +52,8 @@ export const FollowUpDialog: FC<FollowUpDialogProps> = ({
 				<DialogHeader>
 					<DialogTitle>Send Follow-up Message</DialogTitle>
 					<DialogDescription>
-						Add another message to this task. The task will
-						resume and send this follow-up automatically.
+						Add another message to this task. The task will resume and send this
+						follow-up automatically.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -79,9 +79,7 @@ export const FollowUpDialog: FC<FollowUpDialogProps> = ({
 
 				<DialogFooter>
 					<DialogClose asChild>
-						<Button variant="outline">
-							Cancel
-						</Button>
+						<Button variant="outline">Cancel</Button>
 					</DialogClose>
 					<Button
 						type="submit"

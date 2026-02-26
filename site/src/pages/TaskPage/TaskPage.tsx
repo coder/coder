@@ -63,7 +63,12 @@ import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskApps } from "./TaskApps";
 import { TaskTopbar } from "./TaskTopbar";
 
-type FollowUpStage = "idle" | "resuming" | "waitingForActive" | "sending" | "error";
+type FollowUpStage =
+	| "idle"
+	| "resuming"
+	| "waitingForActive"
+	| "sending"
+	| "error";
 
 const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 	return (
@@ -84,6 +89,8 @@ const TaskPage = () => {
 		taskId: string;
 		username: string;
 	};
+	const taskRouteKey = `${username}/${taskId}`;
+	const prevTaskRouteKeyRef = useRef(taskRouteKey);
 	const queryClient = useQueryClient();
 	const resumeFollowUpMutation = useMutation({
 		mutationFn: () => API.resumeTask(username, taskId),
@@ -116,11 +123,15 @@ const TaskPage = () => {
 	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
 
 	useEffect(() => {
-		// Reset in-memory follow-up state when navigating to another task.
+		if (prevTaskRouteKeyRef.current === taskRouteKey) {
+			return;
+		}
+		prevTaskRouteKeyRef.current = taskRouteKey;
+		// Reset in-memory follow-up state when navigating to another task route.
 		setFollowUpDraft("");
 		setFollowUpStage("idle");
 		setFollowUpError(undefined);
-	}, [taskId, username]);
+	}, [taskRouteKey]);
 
 	const startSendingFollowUp = useCallback(
 		async (message: string) => {
@@ -153,7 +164,10 @@ const TaskPage = () => {
 				return;
 			}
 
-			if (followUpStage === "resuming" || followUpStage === "waitingForActive") {
+			if (
+				followUpStage === "resuming" ||
+				followUpStage === "waitingForActive"
+			) {
 				return;
 			}
 
@@ -190,10 +204,7 @@ const TaskPage = () => {
 	}, []);
 
 	useEffect(() => {
-		if (
-			followUpStage !== "resuming" &&
-			followUpStage !== "waitingForActive"
-		) {
+		if (followUpStage !== "resuming" && followUpStage !== "waitingForActive") {
 			return;
 		}
 		if (
