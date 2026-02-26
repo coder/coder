@@ -7,9 +7,9 @@ import {
 	SelectValue,
 } from "components/Select/Select";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { PromptSelectTrigger } from "modules/prompts/PromptSelectTrigger";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { PromptSelectTrigger } from "./PromptSelectTrigger";
 
 type TemplateVersionSelectProps = {
 	value: string;

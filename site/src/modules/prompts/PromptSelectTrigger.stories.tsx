@@ -4,7 +4,7 @@ import { userEvent, within } from "storybook/test";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 
 const meta: Meta<typeof PromptSelectTrigger> = {
-	title: "modules/tasks/TaskPrompt/PromptSelectTrigger",
+	title: "modules/prompts/PromptSelectTrigger",
 	component: PromptSelectTrigger,
 	args: {
 		children: "Select a version",

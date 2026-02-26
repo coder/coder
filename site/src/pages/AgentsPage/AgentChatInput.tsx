@@ -9,8 +9,8 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { ArrowUpIcon, ListPlusIcon, Loader2Icon, Square } from "lucide-react";
+import { PromptControls, PromptShell, PromptTextarea } from "modules/prompts";
 import { memo, type ReactNode, useCallback, useRef, useState } from "react";
-import TextareaAutosize from "react-textarea-autosize";
 import { formatProviderLabel } from "./modelOptions";
 
 export interface AgentContextUsage {
@@ -257,13 +257,24 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			[handleSubmit],
 		);
 
-		const content = (
+		const sendIcon = isLoading ? (
+			<Loader2Icon className="animate-spin" />
+		) : isStreaming ? (
+			<ListPlusIcon />
+		) : (
+			<ArrowUpIcon />
+		);
+
+		return (
 			<div className="mx-auto w-full max-w-3xl pb-4">
-				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
-					<TextareaAutosize
+				<PromptShell
+					sticky={sticky}
+					disabled={isDisabled}
+					className="bg-surface-primary"
+				>
+					<PromptTextarea
 						ref={textareaRef}
 						aria-label="Chat message"
-						className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
 						value={input}
 						onChange={(e) => {
@@ -274,84 +285,78 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						disabled={isDisabled}
 						minRows={4}
 					/>
-					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-						<div className="flex min-w-0 items-center gap-2">
-							<ModelSelector
-								value={selectedModel}
-								onValueChange={onModelChange}
-								options={modelOptions}
-								disabled={isDisabled}
-								placeholder={modelSelectorPlaceholder}
-								formatProviderLabel={formatProviderLabel}
-								dropdownSide="top"
-								dropdownAlign="center"
-								className="[&>span]:!text-content-secondary"
-							/>
-							{leftActions}
-							{inputStatusText && (
-								<span className="hidden text-xs text-content-secondary sm:inline">
-									{inputStatusText}
-								</span>
-							)}
-						</div>
-						<div className="flex items-center gap-2">
-							{contextUsage !== undefined && (
-								<ContextUsageIndicator usage={contextUsage} />
-							)}
-							{isStreaming && onInterrupt && (
+					<PromptControls
+						leftActions={
+							<>
+								<ModelSelector
+									value={selectedModel}
+									onValueChange={onModelChange}
+									options={modelOptions}
+									disabled={isDisabled}
+									placeholder={modelSelectorPlaceholder}
+									formatProviderLabel={formatProviderLabel}
+									dropdownSide="top"
+									dropdownAlign="center"
+									className="[&>span]:!text-content-secondary"
+								/>
+								{leftActions}
+								{inputStatusText && (
+									<span className="hidden text-xs text-content-secondary sm:inline">
+										{inputStatusText}
+									</span>
+								)}
+							</>
+						}
+						rightActions={
+							<>
+								{contextUsage !== undefined && (
+									<ContextUsageIndicator usage={contextUsage} />
+								)}
+								{isStreaming && onInterrupt && (
+									<Button
+										size="icon"
+										variant="default"
+										className="size-7 rounded-full transition-colors"
+										onClick={onInterrupt}
+										disabled={isInterruptPending}
+									>
+										<Square className="h-3 w-3 fill-current" />
+										<span className="sr-only">Stop</span>
+									</Button>
+								)}
 								<Button
 									size="icon"
 									variant="default"
-									className="size-7 rounded-full transition-colors"
-									onClick={onInterrupt}
-									disabled={isInterruptPending}
+									className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
+									onClick={() => void handleSubmit()}
+									disabled={isDisabled || !hasModelOptions || !input.trim()}
+									title={isStreaming ? "Queue message" : "Send"}
 								>
-									<Square className="h-3 w-3 fill-current" />
-									<span className="sr-only">Stop</span>
+									{sendIcon}
+									<span className="sr-only">
+										{isStreaming ? "Queue message" : "Send"}
+									</span>
 								</Button>
-							)}
-							<Button
-								size="icon"
-								variant="default"
-								className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
-								onClick={() => void handleSubmit()}
-								disabled={isDisabled || !hasModelOptions || !input.trim()}
-								title={isStreaming ? "Queue message" : "Send"}
-							>
-								{isLoading ? (
-									<Loader2Icon className="animate-spin" />
-								) : isStreaming ? (
-									<ListPlusIcon />
-								) : (
-									<ArrowUpIcon />
+							</>
+						}
+						statusMessages={
+							<>
+								{inputStatusText && (
+									<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
+										{inputStatusText}
+									</div>
 								)}
-								<span className="sr-only">
-									{isStreaming ? "Queue message" : "Send"}
-								</span>
-							</Button>
-						</div>
-					</div>
-					{inputStatusText && (
-						<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
-							{inputStatusText}
-						</div>
-					)}
-					{modelCatalogStatusMessage && (
-						<div className="px-2.5 pb-1 text-2xs text-content-secondary">
-							{modelCatalogStatusMessage}
-						</div>
-					)}
-				</div>
+								{modelCatalogStatusMessage && (
+									<div className="px-2.5 pb-1 text-2xs text-content-secondary">
+										{modelCatalogStatusMessage}
+									</div>
+								)}
+							</>
+						}
+					/>
+				</PromptShell>
 			</div>
 		);
-
-		if (sticky) {
-			return (
-				<div className="sticky bottom-0 z-50 bg-surface-primary">{content}</div>
-			);
-		}
-
-		return content;
 	},
 );
 AgentChatInput.displayName = "AgentChatInput";

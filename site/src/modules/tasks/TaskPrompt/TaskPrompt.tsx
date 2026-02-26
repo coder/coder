@@ -28,17 +28,20 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { useExternalAuth } from "hooks/useExternalAuth";
-import { ArrowUpIcon, InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
+import { InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
+import {
+	PromptControls,
+	PromptSelectTrigger,
+	PromptShell,
+	PromptSubmitButton,
+	PromptTextarea,
+} from "modules/prompts";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
-import TextareaAutosize, {
-	type TextareaAutosizeProps,
-} from "react-textarea-autosize";
 import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { getOSKey } from "utils/platform";
-import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
 type TaskPromptProps = {
@@ -103,16 +106,13 @@ const TaskPromptLoadingError: FC<{
 
 const TaskPromptSkeleton: FC = () => {
 	return (
-		<div className="border border-border border-solid rounded-3xl p-3 bg-surface-secondary">
-			{/* Textarea skeleton */}
+		<PromptShell disabled>
 			<PromptTextarea disabled />
-
-			{/* Bottom controls skeleton */}
-			<div className="flex items-center justify-between pt-2">
-				<Skeleton className="w-[208px] h-8 rounded-full" />
-				<Skeleton className="size-8 rounded-full" />
-			</div>
-		</div>
+			<PromptControls
+				leftActions={<Skeleton className="w-[208px] h-8 rounded-full" />}
+				rightActions={<Skeleton className="size-8 rounded-full" />}
+			/>
+		</PromptShell>
 	);
 };
 
@@ -244,185 +244,177 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		>
 			{externalAuthError && <ErrorAlert error={externalAuthError} />}
 
-			<fieldset
-				className="border border-border border-solid rounded-3xl p-3 bg-surface-secondary min-w-0"
-				disabled={createTaskMutation.isPending}
-			>
+			<PromptShell disabled={createTaskMutation.isPending}>
 				<label htmlFor="prompt" className="sr-only">
 					Prompt
 				</label>
 				<PromptTextarea
 					required
+					id="prompt"
+					name="prompt"
+					placeholder="Prompt your AI agent to start a task..."
 					value={prompt}
 					onChange={(e) => setPrompt(e.target.value)}
 					isSubmitting={createTaskMutation.isPending}
 					onKeyDown={handleKeyDown}
 				/>
-				<div className="flex items-center justify-between pt-2 gap-2">
-					<div className="flex items-center gap-1 flex-1 min-w-0">
-						<div className="min-w-0 max-w-[33.3%]">
-							<label htmlFor="templateID" className="sr-only">
-								Select template
-							</label>
-							<Select
-								name="templateID"
-								onValueChange={(value) => {
-									setSelectedTemplateId(value);
-									if (value !== selectedTemplateId) {
-										setSelectedPresetId(undefined);
-									}
-								}}
-								defaultValue={templates[0].id}
-								required
-							>
-								<PromptSelectTrigger id="templateID" tooltip="Template">
-									<SelectValue placeholder="Select a template" />
-								</PromptSelectTrigger>
-								<SelectContent>
-									{templates.map((template) => {
-										return (
-											<SelectItem value={template.id} key={template.id}>
-												<div className="flex items-center gap-2">
-													{template.icon && (
-														<img
-															src={template.icon}
-															alt={template.name}
-															className="size-icon-sm flex-shrink-0"
-														/>
-													)}
-													<span className="overflow-hidden text-ellipsis block">
-														{template.display_name || template.name}
-													</span>
-												</div>
-											</SelectItem>
-										);
-									})}
-								</SelectContent>
-							</Select>
-						</div>
-
-						{permissions.updateTemplates && (
+				<PromptControls
+					leftActions={
+						<>
 							<div className="min-w-0 max-w-[33.3%]">
-								<label htmlFor="versionId" className="sr-only">
-									Template version
+								<label htmlFor="templateID" className="sr-only">
+									Select template
 								</label>
-								<TemplateVersionSelect
-									templateId={selectedTemplateId}
-									activeVersionId={selectedTemplate.active_version_id}
-									value={selectedVersionId}
-									onValueChange={setSelectedVersionId}
-								/>
-							</div>
-						)}
-
-						<div className="flex-1 min-w-0">
-							<label htmlFor="presetID" className="sr-only">
-								Preset
-							</label>
-							{isLoadingPresets ? (
-								<Skeleton className="w-[140px] h-8 rounded-full" />
-							) : (
-								presets &&
-								presets.length > 0 &&
-								selectedPresetId && (
-									<Select
-										key={`preset-select-${selectedTemplate.active_version_id}`}
-										name="presetID"
-										value={selectedPresetId}
-										onValueChange={setSelectedPresetId}
-									>
-										<PromptSelectTrigger
-											id="presetID"
-											tooltip="Preset"
-											className="max-w-full [&_[data-slot=preset-name]]:truncate [&_[data-slot=preset-name]]:min-w-0 [&_[data-slot=preset-description]]:hidden"
-										>
-											<SelectValue placeholder="Select a preset" />
-										</PromptSelectTrigger>
-										<SelectContent>
-											{presets?.toSorted(sortByDefault).map((preset) => (
-												<SelectItem value={preset.ID} key={preset.ID}>
+								<Select
+									name="templateID"
+									onValueChange={(value) => {
+										setSelectedTemplateId(value);
+										if (value !== selectedTemplateId) {
+											setSelectedPresetId(undefined);
+										}
+									}}
+									defaultValue={templates[0].id}
+									required
+								>
+									<PromptSelectTrigger id="templateID" tooltip="Template">
+										<SelectValue placeholder="Select a template" />
+									</PromptSelectTrigger>
+									<SelectContent>
+										{templates.map((template) => {
+											return (
+												<SelectItem value={template.id} key={template.id}>
 													<div className="flex items-center gap-2">
-														{preset.Icon && (
+														{template.icon && (
 															<img
-																data-slot="preset-icon"
-																src={preset.Icon}
-																alt={preset.Name}
-																className="size-icon-sm shrink-0"
+																src={template.icon}
+																alt={template.name}
+																className="size-icon-sm flex-shrink-0"
 															/>
 														)}
-														<span
-															data-slot="preset-name"
-															className="truncate min-w-0"
-														>
-															{preset.Name}
+														<span className="overflow-hidden text-ellipsis block">
+															{template.display_name || template.name}
 														</span>
-														{preset.Default && (
-															<Badge size="xs" className="shrink-0">
-																Default
-															</Badge>
-														)}
-														{preset.Description && (
-															<Tooltip>
-																<TooltipTrigger asChild>
-																	<InfoIcon
-																		className="size-4"
-																		data-slot="preset-description"
-																	/>
-																</TooltipTrigger>
-																<TooltipContent>
-																	{preset.Description}
-																</TooltipContent>
-															</Tooltip>
-														)}
 													</div>
 												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-								)
+											);
+										})}
+									</SelectContent>
+								</Select>
+							</div>
+
+							{permissions.updateTemplates && (
+								<div className="min-w-0 max-w-[33.3%]">
+									<label htmlFor="versionId" className="sr-only">
+										Template version
+									</label>
+									<TemplateVersionSelect
+										templateId={selectedTemplateId}
+										activeVersionId={selectedTemplate.active_version_id}
+										value={selectedVersionId}
+										onValueChange={setSelectedVersionId}
+									/>
+								</div>
 							)}
-						</div>
-					</div>
 
-					<div className="flex items-center gap-2">
-						{missedExternalAuth && (
-							<ExternalAuthButtons
-								versionId={selectedVersionId}
-								missedExternalAuth={missedExternalAuth}
+							<div className="flex-1 min-w-0">
+								<label htmlFor="presetID" className="sr-only">
+									Preset
+								</label>
+								{isLoadingPresets ? (
+									<Skeleton className="w-[140px] h-8 rounded-full" />
+								) : (
+									presets &&
+									presets.length > 0 &&
+									selectedPresetId && (
+										<Select
+											key={`preset-select-${selectedTemplate.active_version_id}`}
+											name="presetID"
+											value={selectedPresetId}
+											onValueChange={setSelectedPresetId}
+										>
+											<PromptSelectTrigger
+												id="presetID"
+												tooltip="Preset"
+												className="max-w-full [&_[data-slot=preset-name]]:truncate [&_[data-slot=preset-name]]:min-w-0 [&_[data-slot=preset-description]]:hidden"
+											>
+												<SelectValue placeholder="Select a preset" />
+											</PromptSelectTrigger>
+											<SelectContent>
+												{presets?.toSorted(sortByDefault).map((preset) => (
+													<SelectItem value={preset.ID} key={preset.ID}>
+														<div className="flex items-center gap-2">
+															{preset.Icon && (
+																<img
+																	data-slot="preset-icon"
+																	src={preset.Icon}
+																	alt={preset.Name}
+																	className="size-icon-sm shrink-0"
+																/>
+															)}
+															<span
+																data-slot="preset-name"
+																className="truncate min-w-0"
+															>
+																{preset.Name}
+															</span>
+															{preset.Default && (
+																<Badge size="xs" className="shrink-0">
+																	Default
+																</Badge>
+															)}
+															{preset.Description && (
+																<Tooltip>
+																	<TooltipTrigger asChild>
+																		<InfoIcon
+																			className="size-4"
+																			data-slot="preset-description"
+																		/>
+																	</TooltipTrigger>
+																	<TooltipContent>
+																		{preset.Description}
+																	</TooltipContent>
+																</Tooltip>
+															)}
+														</div>
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									)
+								)}
+							</div>
+						</>
+					}
+					rightActions={
+						<>
+							{missedExternalAuth && (
+								<ExternalAuthButtons
+									versionId={selectedVersionId}
+									missedExternalAuth={missedExternalAuth}
+								/>
+							)}
+
+							<PromptSubmitButton
+								type="submit"
+								disabled={prompt.trim().length === 0 || isMissingExternalAuth}
+								isLoading={
+									isLoadingExternalAuth ||
+									isPollingExternalAuth ||
+									createTaskMutation.isPending
+								}
+								label="Run task"
+								tooltip={
+									<KbdGroup>
+										<Kbd>{getOSKey()}</Kbd>
+										<span>+</span>
+										<Kbd>Enter</Kbd>
+									</KbdGroup>
+								}
 							/>
-						)}
-
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									size="icon"
-									type="submit"
-									disabled={prompt.trim().length === 0 || isMissingExternalAuth}
-									className="rounded-full disabled:bg-surface-invert-primary disabled:opacity-70"
-								>
-									<Spinner
-										loading={
-											isLoadingExternalAuth ||
-											isPollingExternalAuth ||
-											createTaskMutation.isPending
-										}
-									>
-										<ArrowUpIcon />
-									</Spinner>
-									<span className="sr-only">Run task</span>
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent align="end">
-								<KbdGroup>
-									<Kbd>{getOSKey()}</Kbd>
-									<span>+</span>
-									<Kbd>Enter</Kbd>
-								</KbdGroup>
-							</TooltipContent>
-						</Tooltip>
-					</div>
-				</div>
-			</fieldset>
+						</>
+					}
+				/>
+			</PromptShell>
 		</form>
 	);
 };
@@ -512,36 +504,3 @@ async function createTaskWithLatestTemplateVersion(
 		template_version_preset_id: presetId,
 	});
 }
-
-type PromptTextareaProps = TextareaAutosizeProps & {
-	isSubmitting?: boolean;
-};
-
-const PromptTextarea: FC<PromptTextareaProps> = ({
-	isSubmitting,
-	...props
-}) => {
-	return (
-		<div className="relative">
-			<TextareaAutosize
-				{...props}
-				required
-				id="prompt"
-				name="prompt"
-				placeholder="Prompt your AI agent to start a task..."
-				className={`border-0 px-3 py-2 resize-none w-full h-full bg-transparent rounded-lg
-							outline-none flex min-h-24 text-sm shadow-sm text-content-primary
-							placeholder:text-content-secondary md:text-sm ${props.readOnly || isSubmitting ? "opacity-60 cursor-not-allowed" : ""}`}
-			/>
-			{isSubmitting && (
-				<div className="absolute inset-0 pointer-events-none overflow-hidden">
-					<div
-						className={`absolute top-0 w-0.5 h-full
-						bg-green-400/90 animate-caret-scan rounded-sm
-						shadow-[-15px_0_15px_rgba(0,255,0,0.9),-30px_0_30px_rgba(0,255,0,0.7),-45px_0_45px_rgba(0,255,0,0.5),-60px_0_60px_rgba(0,255,0,0.3)]`}
-					/>
-				</div>
-			)}
-		</div>
-	);
-};
