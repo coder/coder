@@ -129,7 +129,7 @@ type CreateChatMessageRequest struct {
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
 type CreateChatMessageResponse struct {
-	Messages      []ChatMessage      `json:"messages,omitempty"`
+	Message       *ChatMessage       `json:"message,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
 }

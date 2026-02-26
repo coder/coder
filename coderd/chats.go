@@ -17,7 +17,6 @@ import (
 	"charm.land/fantasy"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -513,20 +512,8 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			response.QueuedMessage = convertChatQueuedMessagePtr(*sendResult.QueuedMessage)
 		}
 	} else {
-		messages, err := loadChatMessagesThroughID(
-			ctx,
-			api.Database,
-			chatID,
-			sendResult.Message.ID,
-		)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to load chat messages.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		response.Messages = convertChatMessages(messages)
+		message := convertChatMessage(sendResult.Message)
+		response.Message = &message
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -581,7 +568,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 // @Tags Chats
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param queuedMessage path integer true "Queued message ID"
-// @Success 200 {object} codersdk.CreateChatMessageResponse
+// @Success 200 {object} codersdk.ChatMessage
 // @Router /chats/{chat}/queue/{queuedMessage}/promote [post]
 func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -598,26 +585,18 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	var (
-		promotedMessageID int64
-		txErr             error
-	)
-
-	if api.chatDaemon != nil {
-		var promoteResult chatd.PromoteQueuedResult
-		promoteResult, txErr = api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-			ChatID:          chatID,
-			QueuedMessageID: queuedMessageID,
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
 		})
-		promotedMessageID = promoteResult.PromotedMessage.ID
-	} else {
-		promotedMessageID, txErr = promoteQueuedWithoutServer(
-			ctx,
-			api.Database,
-			chatID,
-			queuedMessageID,
-		)
+		return
 	}
+
+	promoteResult, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		ChatID:          chatID,
+		QueuedMessageID: queuedMessageID,
+	})
 
 	if txErr != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -627,128 +606,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	messages, err := loadChatMessagesThroughID(
-		ctx,
-		api.Database,
-		chatID,
-		promotedMessageID,
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load chat messages.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	response := codersdk.CreateChatMessageResponse{
-		Queued:   false,
-		Messages: convertChatMessages(messages),
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, response)
-}
-
-func promoteQueuedWithoutServer(
-	ctx context.Context,
-	store database.Store,
-	chatID uuid.UUID,
-	queuedMessageID int64,
-) (int64, error) {
-	var promotedMessageID int64
-	err := store.InTx(func(tx database.Store) error {
-		_, err := tx.GetChatByIDForUpdate(ctx, chatID)
-		if err != nil {
-			return xerrors.Errorf("lock chat: %w", err)
-		}
-
-		queuedMessages, err := tx.GetChatQueuedMessages(ctx, chatID)
-		if err != nil {
-			return xerrors.Errorf("get queued messages: %w", err)
-		}
-
-		var (
-			targetContent json.RawMessage
-			found         bool
-		)
-		for _, qm := range queuedMessages {
-			if qm.ID == queuedMessageID {
-				targetContent = qm.Content
-				found = true
-				break
-			}
-		}
-		if !found {
-			return xerrors.New("queued message not found")
-		}
-
-		err = tx.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
-			ID:     queuedMessageID,
-			ChatID: chatID,
-		})
-		if err != nil {
-			return xerrors.Errorf("delete queued message: %w", err)
-		}
-
-		message, err := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID: chatID,
-			Role:   "user",
-			Content: pqtype.NullRawMessage{
-				RawMessage: targetContent,
-				Valid:      len(targetContent) > 0,
-			},
-			Visibility:          database.ChatMessageVisibilityBoth,
-			InputTokens:         sql.NullInt64{},
-			OutputTokens:        sql.NullInt64{},
-			TotalTokens:         sql.NullInt64{},
-			ReasoningTokens:     sql.NullInt64{},
-			CacheCreationTokens: sql.NullInt64{},
-			CacheReadTokens:     sql.NullInt64{},
-			ContextLimit:        sql.NullInt64{},
-			Compressed:          sql.NullBool{},
-		})
-		if err != nil {
-			return xerrors.Errorf("insert message: %w", err)
-		}
-		promotedMessageID = message.ID
-
-		_, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-			ID:        chatID,
-			Status:    database.ChatStatusPending,
-			WorkerID:  uuid.NullUUID{},
-			StartedAt: sql.NullTime{},
-		})
-		if err != nil {
-			return xerrors.Errorf("update status: %w", err)
-		}
-		return nil
-	}, nil)
-	if err != nil {
-		return 0, err
-	}
-	return promotedMessageID, nil
-}
-
-func loadChatMessagesThroughID(
-	ctx context.Context,
-	store database.Store,
-	chatID uuid.UUID,
-	maxMessageID int64,
-) ([]database.ChatMessage, error) {
-	messages, err := store.GetChatMessagesByChatID(ctx, chatID)
-	if err != nil {
-		return nil, xerrors.Errorf("get chat messages: %w", err)
-	}
-	if maxMessageID <= 0 {
-		return messages, nil
-	}
-
-	bounded := make([]database.ChatMessage, 0, len(messages))
-	for _, message := range messages {
-		if message.ID <= maxMessageID {
-			bounded = append(bounded, message)
-		}
-	}
-	return bounded, nil
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatMessage(promoteResult.PromotedMessage))
 }
 
 // @Summary Stream chat updates

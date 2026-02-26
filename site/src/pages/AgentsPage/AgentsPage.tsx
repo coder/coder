@@ -43,6 +43,7 @@ import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
+import { DiffRightPanel } from "./DiffRightPanel";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -393,13 +394,10 @@ export const AgentsPage: FC = () => {
 						/>
 					)}
 				</div>
-				{agentId && isRightPanelOpen && (
-					<div
-						ref={rightPanelRef}
-						data-testid="agents-detail-right-panel"
-						className="min-h-0 min-w-0 border-t border-border-default bg-surface-primary h-[42dvh] min-h-[260px] max-h-[56dvh] xl:h-auto xl:max-h-none xl:w-[40%] xl:min-w-[360px] xl:max-w-[720px] xl:border-l xl:border-t-0"
-					/>
-				)}
+				<DiffRightPanel
+					ref={rightPanelRef}
+					isOpen={Boolean(agentId && isRightPanelOpen)}
+				/>
 			</div>
 		</div>
 	);

@@ -58,9 +58,12 @@ const AgentDetailLayout: FC = () => {
 					/>
 				</div>
 			</div>
-			{rightPanelOpen && (
-				<div ref={rightPanelRef} className="w-[400px] border-l border-border" />
-			)}
+			<div
+				ref={rightPanelRef}
+				className={
+					rightPanelOpen ? "w-[400px] border-l border-border" : "hidden"
+				}
+			/>
 		</div>
 	);
 };
@@ -317,7 +320,7 @@ export const WithReasoningCollapsed: Story = {
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:00:01.000Z",
 						role: "assistant",
-					content: [
+						content: [
 							{
 								type: "reasoning",
 								title: "Plan migration",

@@ -1705,7 +1705,7 @@ export interface CreateChatMessageRequest {
  * CreateChatMessageResponse is the response from adding a message to a chat.
  */
 export interface CreateChatMessageResponse {
-	readonly messages?: readonly ChatMessage[];
+	readonly message?: ChatMessage;
 	readonly queued_message?: ChatQueuedMessage;
 	readonly queued: boolean;
 }

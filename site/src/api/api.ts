@@ -2957,8 +2957,8 @@ class ApiMethods {
 	promoteChatQueuedMessage = async (
 		chatId: string,
 		queuedMessageId: number,
-	): Promise<TypesGen.CreateChatMessageResponse> => {
-		const response = await this.axios.post<TypesGen.CreateChatMessageResponse>(
+	): Promise<TypesGen.ChatMessage> => {
+		const response = await this.axios.post<TypesGen.ChatMessage>(
 			`/api/v2/chats/${chatId}/queue/${queuedMessageId}/promote`,
 		);
 		return response.data;
