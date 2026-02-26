@@ -3010,9 +3010,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	setAsDefault := req.IsDefault != nil && *req.IsDefault && !existing.IsDefault
-	var (
-		updated database.ChatModelConfig
-	)
+	var updated database.ChatModelConfig
 	if setAsDefault {
 		err = api.Database.InTx(func(tx database.Store) error {
 			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {

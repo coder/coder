@@ -3396,40 +3396,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 }
 
 const insertChatMessage = `-- name: InsertChatMessage :one
-WITH inserted AS (
-    INSERT INTO chat_messages (
-        chat_id,
-        model_config_id,
-        role,
-        content,
-        visibility,
-        input_tokens,
-        output_tokens,
-        total_tokens,
-        reasoning_tokens,
-        cache_creation_tokens,
-        cache_read_tokens,
-        context_limit,
-        compressed
-    ) VALUES (
-        $1::uuid,
-        $2::uuid,
-        $3::text,
-        $4::jsonb,
-        COALESCE($5::chat_message_visibility, 'both'),
-        $6::bigint,
-        $7::bigint,
-        $8::bigint,
-        $9::bigint,
-        $10::bigint,
-        $11::bigint,
-        $12::bigint,
-        COALESCE($13::boolean, FALSE)
-    )
-    RETURNING
-        id
-),
-updated_chat AS (
+WITH updated_chat AS (
     UPDATE
         chats
     SET
@@ -3438,12 +3405,37 @@ updated_chat AS (
         id = $1::uuid
         AND $2::uuid IS NOT NULL
 )
-SELECT
-    cm.id, cm.chat_id, cm.model_config_id, cm.created_at, cm.role, cm.content, cm.visibility, cm.input_tokens, cm.output_tokens, cm.total_tokens, cm.reasoning_tokens, cm.cache_creation_tokens, cm.cache_read_tokens, cm.context_limit, cm.compressed
-FROM
-    chat_messages cm
-JOIN
-    inserted i ON i.id = cm.id
+INSERT INTO chat_messages (
+    chat_id,
+    model_config_id,
+    role,
+    content,
+    visibility,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit,
+    compressed
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::jsonb,
+    COALESCE($5::chat_message_visibility, 'both'),
+    $6::bigint,
+    $7::bigint,
+    $8::bigint,
+    $9::bigint,
+    $10::bigint,
+    $11::bigint,
+    $12::bigint,
+    COALESCE($13::boolean, FALSE)
+)
+RETURNING
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
 `
 
 type InsertChatMessageParams struct {

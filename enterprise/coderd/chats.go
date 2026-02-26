@@ -12,12 +12,11 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
-
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 // RelaySourceHeader marks replica-relayed stream requests.
