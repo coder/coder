@@ -281,7 +281,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 
 const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 	status,
-	args,
 	result,
 	isError,
 }) => {

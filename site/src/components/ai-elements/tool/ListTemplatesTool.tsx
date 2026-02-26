@@ -1,4 +1,3 @@
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
