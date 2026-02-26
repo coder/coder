@@ -268,7 +268,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						className="h-8 w-8 shrink-0"
 						onClick={onCancel}
 					>
-						<ArrowLeftIcon className="h-4 w-4" />
+						<ArrowLeftIcon />
 						<span className="sr-only">Back</span>
 					</Button>
 					<h3 className="m-0 text-base font-semibold text-content-primary">
@@ -291,7 +291,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						className="h-8 w-8 shrink-0"
 						onClick={onCancel}
 					>
-						<ArrowLeftIcon className="h-4 w-4" />
+						<ArrowLeftIcon />
 						<span className="sr-only">Back</span>
 					</Button>
 					<h3 className="m-0 text-base font-semibold text-content-primary">
@@ -328,7 +328,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						className="h-8 w-8 shrink-0"
 						onClick={onCancel}
 					>
-						<ArrowLeftIcon className="h-4 w-4" />
+						<ArrowLeftIcon />
 						<span className="sr-only">Back</span>
 					</Button>
 					<h3 className="m-0 text-base font-semibold text-content-primary">
@@ -589,11 +589,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 						disabled={isSaving || !form.isValid || hasFieldErrors}
 					>
 						{isSaving ? (
-							<Loader2Icon className="h-4 w-4 animate-spin" />
+							<Loader2Icon className="animate-spin" />
 						) : isEditing ? (
-							<SaveIcon className="h-4 w-4" />
+							<SaveIcon />
 						) : (
-							<PlusIcon className="h-4 w-4" />
+							<PlusIcon />
 						)}
 						{isEditing ? "Save changes" : "Add model"}
 					</Button>

@@ -97,12 +97,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 			<div className="space-y-4">
 				{/* Add model button */}
 				<div className="flex items-center justify-end">
-					<Button
-						size="sm"
-						className="gap-1.5"
-						onClick={() => setView({ mode: "add" })}
-					>
-						<PlusIcon className="h-4 w-4" />
+					<Button size="sm" onClick={() => setView({ mode: "add" })}>
+						<PlusIcon />
 						Add model
 					</Button>
 				</div>
@@ -124,10 +120,10 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 						<Button
 							size="sm"
 							variant="outline"
-							className="mt-1 gap-1.5"
+							className="mt-1"
 							onClick={() => setView({ mode: "add" })}
 						>
-							<PlusIcon className="h-3.5 w-3.5" />
+							<PlusIcon />
 							Add your first model
 						</Button>
 					</div>
@@ -191,7 +187,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 											})
 										}
 									>
-										<PencilIcon className="h-4 w-4" />
+										<PencilIcon />
 										<span className="sr-only">Edit model</span>
 									</Button>
 									<Button
@@ -201,7 +197,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										onClick={() => setModelToDelete(modelConfig)}
 										disabled={isDeleting}
 									>
-										<Trash2Icon className="h-4 w-4" />
+										<Trash2Icon />
 										<span className="sr-only">Delete model</span>
 									</Button>
 								</div>

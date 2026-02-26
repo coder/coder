@@ -35,16 +35,10 @@ const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
 	const deletions = status.deletions ?? 0;
 
 	return (
-		<div
-			role="button"
-			tabIndex={0}
+		<Button
+			variant="subtle"
 			onClick={onToggle}
-			onKeyDown={(event) => {
-				if (event.key === "Enter" || event.key === " ") {
-					onToggle();
-				}
-			}}
-			className="flex cursor-pointer items-center gap-3 px-2 py-1 text-content-secondary transition-colors hover:text-content-primary"
+			className="h-auto min-w-0 gap-3 px-2 py-1 shadow-none hover:bg-transparent"
 		>
 			<span className="font-mono text-sm font-semibold text-content-success">
 				+{additions}
@@ -52,12 +46,8 @@ const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
 			<span className="font-mono text-sm font-semibold text-content-destructive">
 				−{deletions}
 			</span>
-			{isOpen ? (
-				<PanelRightCloseIcon className="h-4 w-4" />
-			) : (
-				<PanelRightOpenIcon className="h-4 w-4" />
-			)}
-		</div>
+			{isOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
+		</Button>
 	);
 };
 
@@ -148,7 +138,7 @@ export const AgentDetailTopBarPortals: FC<AgentDetailTopBarPortalsProps> = ({
 								className="h-7 w-7 text-content-secondary hover:text-content-primary"
 								aria-label="Open agent actions"
 							>
-								<EllipsisIcon className="h-4 w-4" />
+								<EllipsisIcon />
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">

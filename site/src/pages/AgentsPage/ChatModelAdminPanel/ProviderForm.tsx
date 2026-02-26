@@ -213,7 +213,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						<div className="flex items-center justify-end gap-3 border-t border-border pt-3">
 							<Button size="sm" type="submit" disabled={!canSave}>
 								{isProviderMutationPending && (
-									<Loader2Icon className="h-4 w-4 animate-spin" />
+									<Loader2Icon className="animate-spin" />
 								)}
 								{providerConfig ? "Save changes" : "Create provider config"}
 							</Button>
