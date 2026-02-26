@@ -1099,6 +1099,44 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/chats", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.listChats)
+			r.Post("/", api.postChats)
+			r.Get("/models", api.listChatModels)
+			r.Get("/watch", api.watchChats)
+			r.Route("/providers", func(r chi.Router) {
+				r.Get("/", api.listChatProviders)
+				r.Post("/", api.createChatProvider)
+				r.Route("/{providerConfig}", func(r chi.Router) {
+					r.Patch("/", api.updateChatProvider)
+					r.Delete("/", api.deleteChatProvider)
+				})
+			})
+			r.Route("/model-configs", func(r chi.Router) {
+				r.Get("/", api.listChatModelConfigs)
+				r.Post("/", api.createChatModelConfig)
+				r.Route("/{modelConfig}", func(r chi.Router) {
+					r.Patch("/", api.updateChatModelConfig)
+					r.Delete("/", api.deleteChatModelConfig)
+				})
+			})
+			r.Route("/{chat}", func(r chi.Router) {
+				r.Use(httpmw.ExtractChatParam(options.Database))
+				r.Get("/", api.getChat)
+				r.Delete("/", api.deleteChat)
+				r.Post("/messages", api.postChatMessages)
+				r.Get("/stream", api.streamChat)
+				r.Post("/interrupt", api.interruptChat)
+				r.Get("/diff-status", api.getChatDiffStatus)
+				r.Get("/diff", api.getChatDiffContents)
+				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
+					r.Delete("/", api.deleteChatQueuedMessage)
+					r.Post("/promote", api.promoteChatQueuedMessage)
+				})
+			})
+		})
+
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1173,43 +1211,6 @@ func New(options *Options) *API {
 
 			r.Get("/", api.auditLogs)
 			r.Post("/testgenerate", api.generateFakeAuditLog)
-		})
-		r.Route("/chats", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Get("/", api.listChats)
-			r.Post("/", api.postChats)
-			r.Get("/models", api.listChatModels)
-			r.Get("/watch", api.watchChats)
-			r.Route("/providers", func(r chi.Router) {
-				r.Get("/", api.listChatProviders)
-				r.Post("/", api.createChatProvider)
-				r.Route("/{providerConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatProvider)
-					r.Delete("/", api.deleteChatProvider)
-				})
-			})
-			r.Route("/model-configs", func(r chi.Router) {
-				r.Get("/", api.listChatModelConfigs)
-				r.Post("/", api.createChatModelConfig)
-				r.Route("/{modelConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatModelConfig)
-					r.Delete("/", api.deleteChatModelConfig)
-				})
-			})
-			r.Route("/{chat}", func(r chi.Router) {
-				r.Use(httpmw.ExtractChatParam(options.Database))
-				r.Get("/", api.getChat)
-				r.Delete("/", api.deleteChat)
-				r.Post("/messages", api.postChatMessages)
-				r.Get("/stream", api.streamChat)
-				r.Post("/interrupt", api.interruptChat)
-				r.Get("/diff-status", api.getChatDiffStatus)
-				r.Get("/diff", api.getChatDiffContents)
-				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
-					r.Delete("/", api.deleteChatQueuedMessage)
-					r.Post("/promote", api.promoteChatQueuedMessage)
-				})
-			})
 		})
 		r.Route("/files", func(r chi.Router) {
 			r.Use(

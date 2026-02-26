@@ -107,13 +107,7 @@ type chatDiffReference struct {
 	RepositoryRef  *chatRepositoryRef
 }
 
-// @Summary Watch chat list updates
-// @ID watch-chats
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Success 200 {object} codersdk.ServerSentEvent
-// @Router /chats/watch [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -170,13 +164,7 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// @Summary List chats
-// @ID list-chats
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Success 200 {array} codersdk.Chat
-// @Router /chats [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -227,15 +215,7 @@ func (api *API) getChatDiffStatusesByChatID(
 	return statusesByChatID, nil
 }
 
-// @Summary Create a chat
-// @ID create-chat
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Chats
-// @Param request body codersdk.CreateChatRequest true "Create chat request"
-// @Success 201 {object} codersdk.Chat
-// @Router /chats [post]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -304,13 +284,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, convertChat(chat, nil))
 }
 
-// @Summary List chat models
-// @ID list-chat-models
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Success 200 {object} codersdk.ChatModelsResponse
-// @Router /chats/models [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
@@ -384,14 +358,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
-// @Summary Get a chat
-// @ID get-chat
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.ChatWithMessages
-// @Router /chats/{chat} [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
@@ -424,13 +391,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Delete a chat
-// @ID delete-chat
-// @Security CoderSessionToken
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 204
-// @Router /chats/{chat} [delete]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -496,16 +457,7 @@ func deleteChatTree(
 	}, nil)
 }
 
-// @Summary Create a chat message
-// @ID create-chat-message
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Param request body codersdk.CreateChatMessageRequest true "Create chat message request"
-// @Success 200 {object} codersdk.CreateChatMessageResponse
-// @Router /chats/{chat}/messages [post]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -570,14 +522,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
-// @Summary Delete a queued chat message
-// @ID delete-chat-queued-message
-// @Security CoderSessionToken
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Param queuedMessage path integer true "Queued message ID"
-// @Success 204
-// @Router /chats/{chat}/queue/{queuedMessage} [delete]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -612,15 +557,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Promote a queued message to send immediately
-// @ID promote-chat-queued-message
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Param queuedMessage path integer true "Queued message ID"
-// @Success 200 {object} codersdk.ChatMessage
-// @Router /chats/{chat}/queue/{queuedMessage}/promote [post]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -660,14 +597,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatMessage(promoteResult.PromotedMessage))
 }
 
-// @Summary Stream chat updates
-// @ID stream-chat
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.ServerSentEvent
-// @Router /chats/{chat}/stream [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -734,14 +664,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// @Summary Interrupt a chat
-// @ID interrupt-chat
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.Chat
-// @Router /chats/{chat}/interrupt [post]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -767,14 +690,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
 }
 
-// @Summary Get diff status for a chat
-// @ID get-chat-diff-status
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.ChatDiffStatus
-// @Router /chats/{chat}/diff-status [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffStatus(rw http.ResponseWriter, r *http.Request) {
@@ -794,14 +710,7 @@ func (api *API) getChatDiffStatus(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertChatDiffStatus(chatID, status))
 }
 
-// @Summary Get diff contents for a chat
-// @ID get-chat-diff
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.ChatDiffContents
-// @Router /chats/{chat}/diff [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
