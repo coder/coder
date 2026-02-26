@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -47,10 +46,7 @@ const (
 
 	defaultContextCompressionThresholdPercent = int32(70)
 
-	maxReadFileBytes int64 = 1 << 20 // 1 MiB
-
-	defaultNoWorkspaceInstruction = "No workspace is selected yet. Call the create_workspace tool first before using read_file, write_file, or execute. If create_workspace fails, ask the user to clarify the template or workspace request."
-	defaultSubagentInstruction    = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
+	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 
 	externalAuthWaitPollInterval    = time.Second
 	externalAuthWaitTimedOutStatus  = "timed_out"
@@ -71,13 +67,16 @@ type Server struct {
 
 	agentConnFn              AgentConnFunc
 	createWorkspaceFn        chattool.CreateWorkspaceFn
-	testing                  *TestingConfig
-	streamManager            *StreamManager
 	pubsub                   pubsub.Pubsub
 	resolveProviderAPIKeysFn ProviderAPIKeysResolver
 
 	activeMu      sync.Mutex
 	activeCancels map[uuid.UUID]context.CancelCauseFunc
+
+	// streamMu guards chatStreams which tracks in-flight chat
+	// stream state for broadcasting ephemeral events.
+	streamMu    sync.Mutex
+	chatStreams map[uuid.UUID]*chatStreamState
 
 	// instructionCache caches home instruction file contents by
 	// workspace agent ID so we don't re-dial on every chat turn.
@@ -96,9 +95,6 @@ type cachedInstruction struct {
 
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
-
-// CreateWorkspaceFn creates a workspace for the given owner.
-type CreateWorkspaceFn = chattool.CreateWorkspaceFn
 
 // ProviderAPIKeysResolver resolves provider API keys for chat model calls.
 type ProviderAPIKeysResolver func(context.Context) (chatprovider.ProviderAPIKeys, error)
@@ -122,132 +118,10 @@ type RemotePartsProvider func(
 	err error,
 )
 
-// TestingConfig contains hooks intended only for tests.
-type TestingConfig struct {
-	ResolveChatModel func(chat database.Chat) (fantasy.LanguageModel, error)
-}
-
-// StreamManager broadcasts in-flight chat stream events.
-type StreamManager struct {
-	logger slog.Logger
-	mu     sync.Mutex
-	chats  map[uuid.UUID]*chatStreamState
-}
-
 type chatStreamState struct {
 	buffer      []codersdk.ChatStreamEvent
 	buffering   bool
 	subscribers map[uuid.UUID]chan codersdk.ChatStreamEvent
-}
-
-func NewStreamManager(logger slog.Logger) *StreamManager {
-	return &StreamManager{
-		logger: logger.Named("chat-stream"),
-		chats:  make(map[uuid.UUID]*chatStreamState),
-	}
-}
-
-func (m *StreamManager) StartStream(chatID uuid.UUID) {
-	m.mu.Lock()
-	state := m.stateLocked(chatID)
-	state.buffer = nil
-	state.buffering = true
-	m.mu.Unlock()
-}
-
-// StopStream marks the stream as no longer buffering. If
-// subscribers remain, the entry stays in the map until the
-// last subscriber cancels.
-func (m *StreamManager) StopStream(chatID uuid.UUID) {
-	m.mu.Lock()
-	state, ok := m.chats[chatID]
-	if ok {
-		state.buffer = nil
-		state.buffering = false
-		m.cleanupIfIdleLocked(chatID, state)
-	}
-	m.mu.Unlock()
-}
-
-// Len returns the number of tracked chat streams. This is intended
-// for use in tests.
-func (m *StreamManager) Len() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return len(m.chats)
-}
-
-func (m *StreamManager) Publish(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
-	m.mu.Lock()
-	state := m.stateLocked(chatID)
-	if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-		if !state.buffering {
-			m.mu.Unlock()
-			return
-		}
-		state.buffer = append(state.buffer, event)
-	}
-	subscribers := make([]chan codersdk.ChatStreamEvent, 0, len(state.subscribers))
-	for _, ch := range state.subscribers {
-		subscribers = append(subscribers, ch)
-	}
-	m.mu.Unlock()
-
-	for _, ch := range subscribers {
-		select {
-		case ch <- event:
-		default:
-			m.logger.Warn(context.Background(), "dropping chat stream event",
-				slog.F("chat_id", chatID), slog.F("type", event.Type))
-		}
-	}
-}
-
-func (m *StreamManager) Subscribe(chatID uuid.UUID) (
-	[]codersdk.ChatStreamEvent,
-	<-chan codersdk.ChatStreamEvent,
-	func(),
-) {
-	m.mu.Lock()
-	state := m.stateLocked(chatID)
-	snapshot := append([]codersdk.ChatStreamEvent(nil), state.buffer...)
-	id := uuid.New()
-	ch := make(chan codersdk.ChatStreamEvent, 128)
-	state.subscribers[id] = ch
-	m.mu.Unlock()
-
-	cancel := func() {
-		m.mu.Lock()
-		state, ok := m.chats[chatID]
-		if ok {
-			if subscriber, exists := state.subscribers[id]; exists {
-				delete(state.subscribers, id)
-				close(subscriber)
-			}
-			m.cleanupIfIdleLocked(chatID, state)
-		}
-		m.mu.Unlock()
-	}
-
-	return snapshot, ch, cancel
-}
-
-// cleanupIfIdleLocked removes the chat entry when there are no
-// subscribers and the stream is not buffering. The caller must
-// hold m.mu.
-func (m *StreamManager) cleanupIfIdleLocked(chatID uuid.UUID, state *chatStreamState) {
-	if !state.buffering && len(state.subscribers) == 0 {
-		delete(m.chats, chatID)
-	}
-}
-
-func (m *StreamManager) stateLocked(chatID uuid.UUID) *chatStreamState {
-	state, ok := m.chats[chatID]
-	if !ok {
-		state = &chatStreamState{subscribers: make(map[uuid.UUID]chan codersdk.ChatStreamEvent)}
-		m.chats[chatID] = state
-	}
-	return state
 }
 
 // MaxQueueSize is the maximum number of queued user messages per chat.
@@ -275,9 +149,6 @@ type InsertMessageOptions struct {
 	ModelConfigID *uuid.UUID
 	Role          string
 	Content       json.RawMessage
-	ToolCallID    *string
-	Thinking      *string
-	Hidden        bool
 	Interrupt     bool
 	SetPending    bool
 }
@@ -293,9 +164,6 @@ type PostMessagesOptions struct {
 	ChatID          uuid.UUID
 	Content         json.RawMessage
 	ModelConfigID   *uuid.UUID
-	ToolCallID      *string
-	Thinking        *string
-	Hidden          bool
 	Interrupt       bool
 	QueueIfBusy     bool
 	IncludeMessages bool
@@ -377,7 +245,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		ModelConfigID: &opts.ModelConfigID,
 		Role:          "user",
 		Content:       opts.InitialUserContent,
-		Hidden:        false,
 		SetPending:    true,
 	})
 	if err != nil {
@@ -420,7 +287,7 @@ func (p *Server) PostMessages(
 		modelConfigID := resolveMessageModelConfigIDFromChat(opts.ModelConfigID, lockedChat)
 
 		isChatActive := p.IsActive(opts.ChatID)
-		if opts.QueueIfBusy && ShouldQueueUserMessage(lockedChat.Status, isChatActive) {
+		if opts.QueueIfBusy && shouldQueueUserMessage(lockedChat.Status, isChatActive) {
 			existingQueued, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
 			if err != nil {
 				return xerrors.Errorf("get queued messages: %w", err)
@@ -445,7 +312,7 @@ func (p *Server) PostMessages(
 			result.Queued = true
 			result.QueuedMessage = &queued
 			result.Chat = lockedChat
-			queuedMessagesSDK = toSDKQueuedMessages(queuedMessages)
+			queuedMessagesSDK = db2sdk.ChatQueuedMessages(queuedMessages)
 			return nil
 		}
 
@@ -457,7 +324,7 @@ func (p *Server) PostMessages(
 				RawMessage: opts.Content,
 				Valid:      len(opts.Content) > 0,
 			},
-			Visibility: visibilityFromLegacyHidden(opts.Hidden),
+			Visibility: bothChatMessageVisibility(),
 		})
 		if err != nil {
 			return err
@@ -590,7 +457,7 @@ func (p *Server) DeleteQueued(
 
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-		QueuedMessages: toSDKQueuedMessages(queuedMessages),
+		QueuedMessages: db2sdk.ChatQueuedMessages(queuedMessages),
 	})
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		QueueUpdate: true,
@@ -700,7 +567,7 @@ func (p *Server) PromoteQueued(
 
 	p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
 		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-		QueuedMessages: toSDKQueuedMessages(remainingQueue),
+		QueuedMessages: db2sdk.ChatQueuedMessages(remainingQueue),
 	})
 	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 		QueueUpdate: true,
@@ -784,7 +651,7 @@ func (p *Server) InsertMessage(
 			RawMessage: opts.Content,
 			Valid:      len(opts.Content) > 0,
 		},
-		Visibility: visibilityFromLegacyHidden(opts.Hidden),
+		Visibility: bothChatMessageVisibility(),
 	})
 	if err != nil {
 		return InsertMessageResult{}, err
@@ -857,16 +724,9 @@ func modelChatMessageVisibility() database.NullChatMessageVisibility {
 	return chatMessageVisibility(database.ChatMessageVisibilityModel)
 }
 
-func visibilityFromLegacyHidden(hidden bool) database.NullChatMessageVisibility {
-	if hidden {
-		return modelChatMessageVisibility()
-	}
-	return bothChatMessageVisibility()
-}
-
-// ShouldQueueUserMessage reports whether a user message should be queued while
-// a chat is active.
-func ShouldQueueUserMessage(status database.ChatStatus, isChatActive bool) bool {
+// shouldQueueUserMessage reports whether a user message should be
+// queued while a chat is active.
+func shouldQueueUserMessage(status database.ChatStatus, isChatActive bool) bool {
 	switch status {
 	case database.ChatStatusRunning, database.ChatStatusPending:
 		return true
@@ -875,19 +735,6 @@ func ShouldQueueUserMessage(status database.ChatStatus, isChatActive bool) bool 
 	default:
 		return false
 	}
-}
-
-func toSDKQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
-	out := make([]codersdk.ChatQueuedMessage, 0, len(messages))
-	for _, message := range messages {
-		out = append(out, codersdk.ChatQueuedMessage{
-			ID:        message.ID,
-			ChatID:    message.ChatID,
-			Content:   message.Content,
-			CreatedAt: message.CreatedAt,
-		})
-	}
-	return out
 }
 
 // Config configures a chat processor.
@@ -899,11 +746,9 @@ type Config struct {
 	PendingChatAcquireInterval time.Duration
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
-	CreateWorkspace            CreateWorkspaceFn
-	StreamManager              *StreamManager
+	CreateWorkspace            chattool.CreateWorkspaceFn
 	Pubsub                     pubsub.Pubsub
 	ResolveProviderAPIKeys     ProviderAPIKeysResolver
-	Testing                    *TestingConfig
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -928,11 +773,6 @@ func New(cfg Config) *Server {
 			return chatprovider.ProviderAPIKeys{}, nil
 		}
 	}
-	streamManager := cfg.StreamManager
-	if streamManager == nil {
-		streamManager = NewStreamManager(cfg.Logger.Named("chat-streams"))
-	}
-
 	workerID := cfg.ReplicaID
 	if workerID == uuid.Nil {
 		workerID = uuid.New()
@@ -947,10 +787,9 @@ func New(cfg Config) *Server {
 		remotePartsProvider:        cfg.RemotePartsProvider,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
-		testing:                    cfg.Testing,
-		streamManager:              streamManager,
 		pubsub:                     cfg.Pubsub,
 		resolveProviderAPIKeysFn:   resolveProviderAPIKeys,
+		chatStreams:                make(map[uuid.UUID]*chatStreamState),
 		instructionCache:           make(map[uuid.UUID]cachedInstruction),
 		activeCancels:              make(map[uuid.UUID]context.CancelCauseFunc),
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
@@ -1025,9 +864,7 @@ func (p *Server) Interrupt(chatID uuid.UUID) bool {
 		return false
 	}
 	cancel(chatloop.ErrInterrupted)
-	if p.streamManager != nil {
-		p.streamManager.StopStream(chatID)
-	}
+	p.stopStream(chatID)
 	return true
 }
 
@@ -1041,6 +878,101 @@ func (p *Server) IsActive(chatID uuid.UUID) bool {
 	_, ok := p.activeCancels[chatID]
 	p.activeMu.Unlock()
 	return ok
+}
+
+func (p *Server) startStream(chatID uuid.UUID) {
+	p.streamMu.Lock()
+	state := p.streamStateLocked(chatID)
+	state.buffer = nil
+	state.buffering = true
+	p.streamMu.Unlock()
+}
+
+// stopStream marks the stream as no longer buffering. If
+// subscribers remain, the entry stays in the map until the
+// last subscriber cancels.
+func (p *Server) stopStream(chatID uuid.UUID) {
+	p.streamMu.Lock()
+	state, ok := p.chatStreams[chatID]
+	if ok {
+		state.buffer = nil
+		state.buffering = false
+		p.cleanupStreamIfIdleLocked(chatID, state)
+	}
+	p.streamMu.Unlock()
+}
+
+func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
+	p.streamMu.Lock()
+	state := p.streamStateLocked(chatID)
+	if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+		if !state.buffering {
+			p.streamMu.Unlock()
+			return
+		}
+		state.buffer = append(state.buffer, event)
+	}
+	subscribers := make([]chan codersdk.ChatStreamEvent, 0, len(state.subscribers))
+	for _, ch := range state.subscribers {
+		subscribers = append(subscribers, ch)
+	}
+	p.streamMu.Unlock()
+
+	for _, ch := range subscribers {
+		select {
+		case ch <- event:
+		default:
+			p.logger.Warn(context.Background(), "dropping chat stream event",
+				slog.F("chat_id", chatID), slog.F("type", event.Type))
+		}
+	}
+}
+
+func (p *Server) subscribeToStream(chatID uuid.UUID) (
+	[]codersdk.ChatStreamEvent,
+	<-chan codersdk.ChatStreamEvent,
+	func(),
+) {
+	p.streamMu.Lock()
+	state := p.streamStateLocked(chatID)
+	snapshot := append([]codersdk.ChatStreamEvent(nil), state.buffer...)
+	id := uuid.New()
+	ch := make(chan codersdk.ChatStreamEvent, 128)
+	state.subscribers[id] = ch
+	p.streamMu.Unlock()
+
+	cancel := func() {
+		p.streamMu.Lock()
+		state, ok := p.chatStreams[chatID]
+		if ok {
+			if subscriber, exists := state.subscribers[id]; exists {
+				delete(state.subscribers, id)
+				close(subscriber)
+			}
+			p.cleanupStreamIfIdleLocked(chatID, state)
+		}
+		p.streamMu.Unlock()
+	}
+
+	return snapshot, ch, cancel
+}
+
+// cleanupStreamIfIdleLocked removes the chat entry when there
+// are no subscribers and the stream is not buffering. The
+// caller must hold p.streamMu.
+func (p *Server) cleanupStreamIfIdleLocked(chatID uuid.UUID, state *chatStreamState) {
+	if !state.buffering && len(state.subscribers) == 0 {
+		delete(p.chatStreams, chatID)
+	}
+}
+
+func (p *Server) streamStateLocked(chatID uuid.UUID) *chatStreamState {
+	state, ok := p.chatStreams[chatID]
+	if !ok {
+		state = &chatStreamState{subscribers: make(map[uuid.UUID]chan codersdk.ChatStreamEvent)}
+		p.chatStreams[chatID] = state
+	}
+	return state
 }
 
 // Models returns the currently available chat model catalog.
@@ -1105,13 +1037,6 @@ func (p *Server) ProviderKeys(
 	return chatprovider.MergeProviderAPIKeys(keys, configuredProviders), nil
 }
 
-func (p *Server) publishStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
-	if p == nil || p.streamManager == nil {
-		return
-	}
-	p.streamManager.Publish(chatID, event)
-}
-
 func (p *Server) Subscribe(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -1122,15 +1047,15 @@ func (p *Server) Subscribe(
 	func(),
 	bool,
 ) {
-	if p == nil || p.streamManager == nil {
+	if p == nil {
 		return nil, nil, nil, false
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	// Subscribe to local StreamManager for message_parts (ephemeral)
-	localSnapshot, localParts, localCancel := p.streamManager.Subscribe(chatID)
+	// Subscribe to local stream for message_parts (ephemeral).
+	localSnapshot, localParts, localCancel := p.subscribeToStream(chatID)
 
 	// Build initial snapshot synchronously
 	initialSnapshot := make([]codersdk.ChatStreamEvent, 0)
@@ -1162,7 +1087,7 @@ func (p *Server) Subscribe(
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
 			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 			ChatID:         chatID,
-			QueuedMessages: toSDKQueuedMessages(queued),
+			QueuedMessages: db2sdk.ChatQueuedMessages(queued),
 		})
 	}
 
@@ -1373,7 +1298,7 @@ func (p *Server) Subscribe(
 							case mergedEvents <- codersdk.ChatStreamEvent{
 								Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 								ChatID:         chatID,
-								QueuedMessages: toSDKQueuedMessages(queued),
+								QueuedMessages: db2sdk.ChatQueuedMessages(queued),
 							}:
 							}
 						}
@@ -1442,20 +1367,17 @@ func (p *Server) Subscribe(
 }
 
 func (p *Server) Stop(chatID uuid.UUID) {
-	if p == nil || p.streamManager == nil {
+	if p == nil {
 		return
 	}
-	p.streamManager.StopStream(chatID)
+	p.stopStream(chatID)
 }
 
 func (p *Server) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
-	if p.streamManager == nil {
-		return
-	}
 	if event.ChatID == uuid.Nil {
 		event.ChatID = chatID
 	}
-	p.streamManager.Publish(chatID, event)
+	p.publishToStream(chatID, event)
 }
 
 func (p *Server) publishStatus(chatID uuid.UUID, status database.ChatStatus) {
@@ -1789,10 +1711,8 @@ func (p *Server) runChat(
 		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
 	}
 
-	if p.streamManager != nil {
-		p.streamManager.StartStream(chat.ID)
-		defer p.streamManager.StopStream(chat.ID)
-	}
+	p.startStream(chat.ID)
+	defer p.stopStream(chat.ID)
 
 	_, err = p.runChatWithAgent(
 		ctx,
@@ -2034,14 +1954,6 @@ func (p *Server) resolveChatModel(
 	}
 	if found {
 		config = applyFallbackChatModelConfig(config, latestConfig)
-	}
-
-	if p.testing != nil && p.testing.ResolveChatModel != nil {
-		model, err := p.testing.ResolveChatModel(chat)
-		if err != nil {
-			return nil, chatModelConfig{}, xerrors.Errorf("resolve model: %w", err)
-		}
-		return model, config, nil
 	}
 
 	keys, err := p.resolveProviderAPIKeys(ctx)
@@ -2736,99 +2648,11 @@ func (p *Server) agentTools(
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
-		fantasy.NewAgentTool(
-			"wait_for_external_auth",
-			"Wait for external authentication to complete after execute reports auth_required=true. "+
-				"Use this before retrying git commands, and do not rerun commands automatically.",
-			func(ctx context.Context, args waitForExternalAuthArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				providerID := strings.TrimSpace(args.ProviderID)
-				if providerID == "" {
-					return fantasy.NewTextErrorResponse("provider_id is required"), nil
-				}
-
-				timeout := defaultExternalAuthWait
-				if args.TimeoutSeconds != nil {
-					timeout = time.Duration(*args.TimeoutSeconds) * time.Second
-				}
-				timeout = time.Duration(math.Min(float64(timeout), float64(defaultExternalAuthWait)))
-
-				chatStateMu.Lock()
-				chatSnapshot := *chatState
-				chatStateMu.Unlock()
-
-				authenticated, timedOut, err := p.waitForExternalAuth(
-					ctx,
-					chatSnapshot.OwnerID,
-					providerID,
-					timeout,
-				)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
-				}
-
-				status := externalAuthWaitCompletedStatus
-				if timedOut {
-					status = externalAuthWaitTimedOutStatus
-				}
-
-				return toolJSONResponse(map[string]any{
-					"provider_id":   providerID,
-					"authenticated": authenticated,
-					"timed_out":     timedOut,
-					"status":        status,
-				}), nil
-			},
-		),
 	}
 
 	tools = append(tools, p.subagentTools(currentChat)...)
 
 	return tools
-}
-
-func (p *Server) waitForExternalAuth(
-	ctx context.Context,
-	ownerID uuid.UUID,
-	providerID string,
-	timeout time.Duration,
-) (authenticated bool, timedOut bool, err error) {
-	if timeout <= 0 {
-		timeout = defaultExternalAuthWait
-	}
-
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	ticker := time.NewTicker(externalAuthWaitPollInterval)
-	defer ticker.Stop()
-
-	for {
-		link, linkErr := p.db.GetExternalAuthLink(
-			//nolint:gocritic // Background wait for external auth has no user context.
-			dbauthz.AsSystemRestricted(waitCtx),
-			database.GetExternalAuthLinkParams{
-				ProviderID: providerID,
-				UserID:     ownerID,
-			},
-		)
-		if linkErr == nil {
-			unexpired := link.OAuthExpiry.IsZero() || link.OAuthExpiry.After(time.Now())
-			if strings.TrimSpace(link.OAuthAccessToken) != "" && unexpired {
-				return true, false, nil
-			}
-		} else if !errors.Is(linkErr, sql.ErrNoRows) {
-			return false, false, xerrors.Errorf("get external auth link: %w", linkErr)
-		}
-
-		select {
-		case <-waitCtx.Done():
-			if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
-				return false, true, nil
-			}
-			return false, false, waitCtx.Err()
-		case <-ticker.C:
-		}
-	}
 }
 
 func toolJSONResponse(result map[string]any) fantasy.ToolResponse {

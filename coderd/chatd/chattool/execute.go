@@ -2,8 +2,6 @@ package chattool
 
 import (
 	"context"
-	"encoding/json"
-	"strings"
 	"time"
 
 	"charm.land/fantasy"
@@ -68,39 +66,13 @@ func executeTool(
 	defer cancel()
 
 	output, exitCode, err := runCommand(cmdCtx, conn, args.Command)
-	authRequired, cleanedOutput := extractGitAuthRequiredMarker(output)
-	resultPayload := map[string]any{
-		"output":    cleanedOutput,
-		"exit_code": exitCode,
-	}
-	if authRequired != nil {
-		resultPayload["auth_required"] = true
-		resultPayload["authenticate_url"] = authRequired.AuthenticateURL
-		resultPayload["reason"] = authRequiredResultReason
-		if strings.TrimSpace(authRequired.ProviderID) != "" {
-			resultPayload["provider_id"] = authRequired.ProviderID
-		}
-		if strings.TrimSpace(authRequired.ProviderType) != "" {
-			resultPayload["provider_type"] = authRequired.ProviderType
-		}
-		if strings.TrimSpace(authRequired.ProviderDisplayName) != "" {
-			resultPayload["provider_display_name"] = authRequired.ProviderDisplayName
-		}
-		if err != nil {
-			resultPayload["error"] = err.Error()
-		}
-		return toolResponse(resultPayload)
-	}
 	if err != nil {
-		resultPayload["error"] = err.Error()
-		data, _ := json.Marshal(resultPayload)
-		return fantasy.ToolResponse{
-			Type:    "text",
-			Content: string(data),
-			IsError: true,
-		}
+		return fantasy.NewTextErrorResponse(err.Error())
 	}
-	return toolResponse(resultPayload)
+	return toolResponse(map[string]any{
+		"output":    output,
+		"exit_code": exitCode,
+	})
 }
 
 func runCommand(
@@ -158,44 +130,4 @@ func runCommand(
 	case result := <-resultCh:
 		return result.output, result.exitCode, result.err
 	}
-}
-
-type gitAuthRequiredMarker struct {
-	ProviderID          string `json:"provider_id"`
-	ProviderType        string `json:"provider_type,omitempty"`
-	ProviderDisplayName string `json:"provider_display_name,omitempty"`
-	AuthenticateURL     string `json:"authenticate_url"`
-}
-
-func extractGitAuthRequiredMarker(output string) (*gitAuthRequiredMarker, string) {
-	if output == "" {
-		return nil, output
-	}
-
-	var marker *gitAuthRequiredMarker
-	lines := strings.Split(output, "\n")
-	filteredLines := make([]string, 0, len(lines))
-	for _, line := range lines {
-		idx := strings.Index(line, gitAuthRequiredPrefix)
-		if idx == -1 {
-			filteredLines = append(filteredLines, line)
-			continue
-		}
-
-		rawPayload := strings.TrimSpace(line[idx+len(gitAuthRequiredPrefix):])
-		candidate := gitAuthRequiredMarker{}
-		if rawPayload == "" || json.Unmarshal([]byte(rawPayload), &candidate) != nil || strings.TrimSpace(candidate.AuthenticateURL) == "" {
-			filteredLines = append(filteredLines, line)
-			continue
-		}
-		if marker == nil {
-			marker = &candidate
-		}
-
-		prefix := strings.TrimSpace(line[:idx])
-		if prefix != "" {
-			filteredLines = append(filteredLines, prefix)
-		}
-	}
-	return marker, strings.Join(filteredLines, "\n")
 }

@@ -1080,6 +1080,21 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 	return msg
 }
 
+// ChatQueuedMessages converts a slice of database queued messages
+// to their SDK representation.
+func ChatQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
+	out := make([]codersdk.ChatQueuedMessage, 0, len(messages))
+	for _, message := range messages {
+		out = append(out, codersdk.ChatQueuedMessage{
+			ID:        message.ID,
+			ChatID:    message.ChatID,
+			Content:   message.Content,
+			CreatedAt: message.CreatedAt,
+		})
+	}
+	return out
+}
+
 func modelConfigUUIDPtr(id uuid.NullUUID) *uuid.UUID {
 	if !id.Valid {
 		return nil

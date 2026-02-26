@@ -501,7 +501,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			ChatID:          chatID,
 			Content:         content,
 			ModelConfigID:   req.ModelConfigID,
-			Hidden:          false,
 			QueueIfBusy:     true,
 			IncludeMessages: true,
 		},
@@ -2252,10 +2251,6 @@ func convertChatQueuedMessages(msgs []database.ChatQueuedMessage) []codersdk.Cha
 		result = append(result, convertChatQueuedMessage(m))
 	}
 	return result
-}
-
-func shouldQueueUserMessage(status database.ChatStatus, isChatActive bool) bool {
-	return chatd.ShouldQueueUserMessage(status, isChatActive)
 }
 
 func convertChatMessage(m database.ChatMessage) codersdk.ChatMessage {

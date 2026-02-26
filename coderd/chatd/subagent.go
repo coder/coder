@@ -274,7 +274,6 @@ func (p *Server) sendSubagentMessage(
 	sendResult, err := p.PostMessages(ctx, PostMessagesOptions{
 		ChatID:      targetChatID,
 		Content:     userContent.RawMessage,
-		Hidden:      false,
 		Interrupt:   interrupt,
 		QueueIfBusy: !interrupt,
 	})
@@ -352,9 +351,7 @@ func (p *Server) closeSubagent(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	if p.streamManager != nil {
-		p.streamManager.StopStream(targetChatID)
-	}
+	p.stopStream(targetChatID)
 	p.Interrupt(targetChatID)
 
 	if targetChat.Status == database.ChatStatusWaiting {
