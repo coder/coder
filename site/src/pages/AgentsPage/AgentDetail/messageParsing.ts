@@ -247,10 +247,6 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 		};
 	}
 
-	if (Array.isArray(typedContent.parts)) {
-		return parseMessageContent(typedContent.parts);
-	}
-
 	if (typedContent.type) {
 		return parseMessageContent([typedContent]);
 	}
@@ -269,10 +265,7 @@ export const parseMessagesWithMergedTools = (
 ): ParsedMessageEntry[] => {
 	const rawParsed = messages.map((message) => ({
 		message,
-		parsed:
-			Array.isArray(message.parts) && message.parts.length > 0
-				? parseMessageContent(message.parts)
-				: parseMessageContent(message.content),
+		parsed: parseMessageContent(message.content),
 	}));
 
 	const globalToolResults = new Map<string, ParsedToolResult>();

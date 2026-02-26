@@ -114,7 +114,6 @@ curl -X POST http://coder-server:8080/api/v2/chats \
     }
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-  "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
@@ -292,20 +291,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   },
   "messages": [
     {
-      "cache_creation_tokens": 0,
-      "cache_read_tokens": 0,
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
-        0
-      ],
-      "context_limit": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "hidden": true,
-      "id": 0,
-      "input_tokens": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-      "output_tokens": 0,
-      "parts": [
         {
           "args": [
             0
@@ -320,19 +307,6 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
             0
           ],
           "result_delta": "string",
-          "result_meta": {
-            "content": "string",
-            "created": true,
-            "error": "string",
-            "exit_code": 0,
-            "mime_type": "string",
-            "output": "string",
-            "reason": "string",
-            "workspace_agent_id": "string",
-            "workspace_id": "string",
-            "workspace_name": "string",
-            "workspace_url": "string"
-          },
           "signature": "string",
           "source_id": "string",
           "text": "string",
@@ -343,11 +317,19 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
           "url": "string"
         }
       ],
-      "reasoning_tokens": 0,
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "role": "string",
-      "thinking": "string",
-      "tool_call_id": "string",
-      "total_tokens": 0
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
     }
   ],
   "queued_messages": [
@@ -585,20 +567,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 {
   "messages": [
     {
-      "cache_creation_tokens": 0,
-      "cache_read_tokens": 0,
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
-        0
-      ],
-      "context_limit": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "hidden": true,
-      "id": 0,
-      "input_tokens": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-      "output_tokens": 0,
-      "parts": [
         {
           "args": [
             0
@@ -613,19 +583,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
             0
           ],
           "result_delta": "string",
-          "result_meta": {
-            "content": "string",
-            "created": true,
-            "error": "string",
-            "exit_code": 0,
-            "mime_type": "string",
-            "output": "string",
-            "reason": "string",
-            "workspace_agent_id": "string",
-            "workspace_id": "string",
-            "workspace_name": "string",
-            "workspace_url": "string"
-          },
           "signature": "string",
           "source_id": "string",
           "text": "string",
@@ -636,11 +593,19 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "url": "string"
         }
       ],
-      "reasoning_tokens": 0,
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "role": "string",
-      "thinking": "string",
-      "tool_call_id": "string",
-      "total_tokens": 0
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
     }
   ],
   "queued": true,
@@ -718,20 +683,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}/
 {
   "messages": [
     {
-      "cache_creation_tokens": 0,
-      "cache_read_tokens": 0,
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
-        0
-      ],
-      "context_limit": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "hidden": true,
-      "id": 0,
-      "input_tokens": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-      "output_tokens": 0,
-      "parts": [
         {
           "args": [
             0
@@ -746,19 +699,6 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}/
             0
           ],
           "result_delta": "string",
-          "result_meta": {
-            "content": "string",
-            "created": true,
-            "error": "string",
-            "exit_code": 0,
-            "mime_type": "string",
-            "output": "string",
-            "reason": "string",
-            "workspace_agent_id": "string",
-            "workspace_id": "string",
-            "workspace_name": "string",
-            "workspace_url": "string"
-          },
           "signature": "string",
           "source_id": "string",
           "text": "string",
@@ -769,11 +709,19 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}/
           "url": "string"
         }
       ],
-      "reasoning_tokens": 0,
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "role": "string",
-      "thinking": "string",
-      "tool_call_id": "string",
-      "total_tokens": 0
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
     }
   ],
   "queued": true,

@@ -1134,18 +1134,8 @@ export interface ChatMessage {
 	readonly model_config_id?: string;
 	readonly created_at: string;
 	readonly role: string;
-	readonly content?: Record<string, string>;
-	readonly parts?: readonly ChatMessagePart[];
-	readonly tool_call_id?: string;
-	readonly thinking?: string;
-	readonly hidden: boolean;
-	readonly input_tokens?: number;
-	readonly output_tokens?: number;
-	readonly total_tokens?: number;
-	readonly reasoning_tokens?: number;
-	readonly cache_creation_tokens?: number;
-	readonly cache_read_tokens?: number;
-	readonly context_limit?: number;
+	readonly content?: readonly ChatMessagePart[];
+	readonly usage?: ChatMessageUsage;
 }
 
 // From codersdk/chats.go
@@ -1163,7 +1153,6 @@ export interface ChatMessagePart {
 	readonly result?: Record<string, string>;
 	readonly result_delta?: string;
 	readonly is_error?: boolean;
-	readonly result_meta?: ChatToolResultMetadata;
 	readonly source_id?: string;
 	readonly url?: string;
 	readonly title?: string;
@@ -1188,6 +1177,20 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"tool-call",
 	"tool-result",
 ];
+
+// From codersdk/chats.go
+/**
+ * ChatMessageUsage contains token usage information for a chat message.
+ */
+export interface ChatMessageUsage {
+	readonly input_tokens?: number;
+	readonly output_tokens?: number;
+	readonly total_tokens?: number;
+	readonly reasoning_tokens?: number;
+	readonly cache_creation_tokens?: number;
+	readonly cache_read_tokens?: number;
+	readonly context_limit?: number;
+}
 
 // From codersdk/chats.go
 /**
@@ -1546,24 +1549,6 @@ export interface ChatStreamMessagePart {
  */
 export interface ChatStreamStatus {
 	readonly status: ChatStatus;
-}
-
-// From codersdk/chats.go
-/**
- * ChatToolResultMetadata exposes commonly used tool-result fields for rendering.
- */
-export interface ChatToolResultMetadata {
-	readonly error?: string;
-	readonly output?: string;
-	readonly exit_code?: number;
-	readonly content?: string;
-	readonly mime_type?: string;
-	readonly created?: boolean;
-	readonly workspace_id?: string;
-	readonly workspace_agent_id?: string;
-	readonly workspace_name?: string;
-	readonly workspace_url?: string;
-	readonly reason?: string;
 }
 
 // From codersdk/chats.go

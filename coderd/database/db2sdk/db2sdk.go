@@ -1060,28 +1060,51 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		modelConfigID = nil
 	}
 	msg := codersdk.ChatMessage{
-		ID:                  m.ID,
-		ChatID:              m.ChatID,
-		ModelConfigID:       modelConfigID,
-		CreatedAt:           m.CreatedAt,
-		Role:                m.Role,
-		Hidden:              m.Visibility == database.ChatMessageVisibilityModel,
-		InputTokens:         nullInt64Ptr(m.InputTokens),
-		OutputTokens:        nullInt64Ptr(m.OutputTokens),
-		TotalTokens:         nullInt64Ptr(m.TotalTokens),
-		ReasoningTokens:     nullInt64Ptr(m.ReasoningTokens),
-		CacheCreationTokens: nullInt64Ptr(m.CacheCreationTokens),
-		CacheReadTokens:     nullInt64Ptr(m.CacheReadTokens),
-		ContextLimit:        nullInt64Ptr(m.ContextLimit),
+		ID:            m.ID,
+		ChatID:        m.ChatID,
+		ModelConfigID: modelConfigID,
+		CreatedAt:     m.CreatedAt,
+		Role:          m.Role,
 	}
 	if m.Content.Valid {
-		msg.Content = m.Content.RawMessage
 		parts, err := chatMessageParts(m.Role, m.Content)
 		if err == nil {
-			msg.Parts = parts
+			msg.Content = parts
 		}
 	}
+	usage := chatMessageUsage(m)
+	if usage != nil {
+		msg.Usage = usage
+	}
 	return msg
+}
+
+// chatMessageUsage builds a ChatMessageUsage from the database row,
+// returning nil when no token fields are populated.
+func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
+	inputTokens := nullInt64Ptr(m.InputTokens)
+	outputTokens := nullInt64Ptr(m.OutputTokens)
+	totalTokens := nullInt64Ptr(m.TotalTokens)
+	reasoningTokens := nullInt64Ptr(m.ReasoningTokens)
+	cacheCreationTokens := nullInt64Ptr(m.CacheCreationTokens)
+	cacheReadTokens := nullInt64Ptr(m.CacheReadTokens)
+	contextLimit := nullInt64Ptr(m.ContextLimit)
+
+	if inputTokens == nil && outputTokens == nil && totalTokens == nil &&
+		reasoningTokens == nil && cacheCreationTokens == nil &&
+		cacheReadTokens == nil && contextLimit == nil {
+		return nil
+	}
+
+	return &codersdk.ChatMessageUsage{
+		InputTokens:         inputTokens,
+		OutputTokens:        outputTokens,
+		TotalTokens:         totalTokens,
+		ReasoningTokens:     reasoningTokens,
+		CacheCreationTokens: cacheCreationTokens,
+		CacheReadTokens:     cacheReadTokens,
+		ContextLimit:        contextLimit,
+	}
 }
 
 // ChatQueuedMessages converts a slice of database queued messages

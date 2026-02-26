@@ -1681,20 +1681,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "cache_creation_tokens": 0,
-  "cache_read_tokens": 0,
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "content": [
-    0
-  ],
-  "context_limit": 0,
-  "created_at": "2019-08-24T14:15:22Z",
-  "hidden": true,
-  "id": 0,
-  "input_tokens": 0,
-  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-  "output_tokens": 0,
-  "parts": [
     {
       "args": [
         0
@@ -1709,19 +1697,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         0
       ],
       "result_delta": "string",
-      "result_meta": {
-        "content": "string",
-        "created": true,
-        "error": "string",
-        "exit_code": 0,
-        "mime_type": "string",
-        "output": "string",
-        "reason": "string",
-        "workspace_agent_id": "string",
-        "workspace_id": "string",
-        "workspace_name": "string",
-        "workspace_url": "string"
-      },
       "signature": "string",
       "source_id": "string",
       "text": "string",
@@ -1732,35 +1707,33 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "url": "string"
     }
   ],
-  "reasoning_tokens": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": 0,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "role": "string",
-  "thinking": "string",
-  "tool_call_id": "string",
-  "total_tokens": 0
+  "usage": {
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "context_limit": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0
+  }
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                          | Required | Restrictions | Description |
-|-------------------------|---------------------------------------------------------------|----------|--------------|-------------|
-| `cache_creation_tokens` | integer                                                       | false    |              |             |
-| `cache_read_tokens`     | integer                                                       | false    |              |             |
-| `chat_id`               | string                                                        | false    |              |             |
-| `content`               | array of integer                                              | false    |              |             |
-| `context_limit`         | integer                                                       | false    |              |             |
-| `created_at`            | string                                                        | false    |              |             |
-| `hidden`                | boolean                                                       | false    |              |             |
-| `id`                    | integer                                                       | false    |              |             |
-| `input_tokens`          | integer                                                       | false    |              |             |
-| `model_config_id`       | string                                                        | false    |              |             |
-| `output_tokens`         | integer                                                       | false    |              |             |
-| `parts`                 | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `reasoning_tokens`      | integer                                                       | false    |              |             |
-| `role`                  | string                                                        | false    |              |             |
-| `thinking`              | string                                                        | false    |              |             |
-| `tool_call_id`          | string                                                        | false    |              |             |
-| `total_tokens`          | integer                                                       | false    |              |             |
+| Name              | Type                                                          | Required | Restrictions | Description |
+|-------------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `chat_id`         | string                                                        | false    |              |             |
+| `content`         | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
+| `created_at`      | string                                                        | false    |              |             |
+| `id`              | integer                                                       | false    |              |             |
+| `model_config_id` | string                                                        | false    |              |             |
+| `role`            | string                                                        | false    |              |             |
+| `usage`           | [codersdk.ChatMessageUsage](#codersdkchatmessageusage)        | false    |              |             |
 
 ## codersdk.ChatMessagePart
 
@@ -1779,19 +1752,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     0
   ],
   "result_delta": "string",
-  "result_meta": {
-    "content": "string",
-    "created": true,
-    "error": "string",
-    "exit_code": 0,
-    "mime_type": "string",
-    "output": "string",
-    "reason": "string",
-    "workspace_agent_id": "string",
-    "workspace_id": "string",
-    "workspace_name": "string",
-    "workspace_url": "string"
-  },
   "signature": "string",
   "source_id": "string",
   "text": "string",
@@ -1805,24 +1765,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type                                                               | Required | Restrictions | Description |
-|----------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `args`         | array of integer                                                   | false    |              |             |
-| `args_delta`   | string                                                             | false    |              |             |
-| `data`         | array of integer                                                   | false    |              |             |
-| `is_error`     | boolean                                                            | false    |              |             |
-| `media_type`   | string                                                             | false    |              |             |
-| `result`       | array of integer                                                   | false    |              |             |
-| `result_delta` | string                                                             | false    |              |             |
-| `result_meta`  | [codersdk.ChatToolResultMetadata](#codersdkchattoolresultmetadata) | false    |              |             |
-| `signature`    | string                                                             | false    |              |             |
-| `source_id`    | string                                                             | false    |              |             |
-| `text`         | string                                                             | false    |              |             |
-| `title`        | string                                                             | false    |              |             |
-| `tool_call_id` | string                                                             | false    |              |             |
-| `tool_name`    | string                                                             | false    |              |             |
-| `type`         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype)       | false    |              |             |
-| `url`          | string                                                             | false    |              |             |
+| Name           | Type                                                         | Required | Restrictions | Description |
+|----------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `args`         | array of integer                                             | false    |              |             |
+| `args_delta`   | string                                                       | false    |              |             |
+| `data`         | array of integer                                             | false    |              |             |
+| `is_error`     | boolean                                                      | false    |              |             |
+| `media_type`   | string                                                       | false    |              |             |
+| `result`       | array of integer                                             | false    |              |             |
+| `result_delta` | string                                                       | false    |              |             |
+| `signature`    | string                                                       | false    |              |             |
+| `source_id`    | string                                                       | false    |              |             |
+| `text`         | string                                                       | false    |              |             |
+| `title`        | string                                                       | false    |              |             |
+| `tool_call_id` | string                                                       | false    |              |             |
+| `tool_name`    | string                                                       | false    |              |             |
+| `type`         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype) | false    |              |             |
+| `url`          | string                                                       | false    |              |             |
 
 ## codersdk.ChatMessagePartType
 
@@ -1837,6 +1796,32 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                                          |
 |-------------------------------------------------------------------|
 | `file`, `reasoning`, `source`, `text`, `tool-call`, `tool-result` |
+
+## codersdk.ChatMessageUsage
+
+```json
+{
+  "cache_creation_tokens": 0,
+  "cache_read_tokens": 0,
+  "context_limit": 0,
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "reasoning_tokens": 0,
+  "total_tokens": 0
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `cache_creation_tokens` | integer | false    |              |             |
+| `cache_read_tokens`     | integer | false    |              |             |
+| `context_limit`         | integer | false    |              |             |
+| `input_tokens`          | integer | false    |              |             |
+| `output_tokens`         | integer | false    |              |             |
+| `reasoning_tokens`      | integer | false    |              |             |
+| `total_tokens`          | integer | false    |              |             |
 
 ## codersdk.ChatModel
 
@@ -1963,40 +1948,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-----------------------------------------------------------------|
 | `completed`, `error`, `paused`, `pending`, `running`, `waiting` |
 
-## codersdk.ChatToolResultMetadata
-
-```json
-{
-  "content": "string",
-  "created": true,
-  "error": "string",
-  "exit_code": 0,
-  "mime_type": "string",
-  "output": "string",
-  "reason": "string",
-  "workspace_agent_id": "string",
-  "workspace_id": "string",
-  "workspace_name": "string",
-  "workspace_url": "string"
-}
-```
-
-### Properties
-
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `content`            | string  | false    |              |             |
-| `created`            | boolean | false    |              |             |
-| `error`              | string  | false    |              |             |
-| `exit_code`          | integer | false    |              |             |
-| `mime_type`          | string  | false    |              |             |
-| `output`             | string  | false    |              |             |
-| `reason`             | string  | false    |              |             |
-| `workspace_agent_id` | string  | false    |              |             |
-| `workspace_id`       | string  | false    |              |             |
-| `workspace_name`     | string  | false    |              |             |
-| `workspace_url`      | string  | false    |              |             |
-
 ## codersdk.ChatWithMessages
 
 ```json
@@ -2027,20 +1978,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "messages": [
     {
-      "cache_creation_tokens": 0,
-      "cache_read_tokens": 0,
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
-        0
-      ],
-      "context_limit": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "hidden": true,
-      "id": 0,
-      "input_tokens": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-      "output_tokens": 0,
-      "parts": [
         {
           "args": [
             0
@@ -2055,19 +1994,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "result_delta": "string",
-          "result_meta": {
-            "content": "string",
-            "created": true,
-            "error": "string",
-            "exit_code": 0,
-            "mime_type": "string",
-            "output": "string",
-            "reason": "string",
-            "workspace_agent_id": "string",
-            "workspace_id": "string",
-            "workspace_name": "string",
-            "workspace_url": "string"
-          },
           "signature": "string",
           "source_id": "string",
           "text": "string",
@@ -2078,11 +2004,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "url": "string"
         }
       ],
-      "reasoning_tokens": 0,
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "role": "string",
-      "thinking": "string",
-      "tool_call_id": "string",
-      "total_tokens": 0
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
     }
   ],
   "queued_messages": [
@@ -2382,20 +2316,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "messages": [
     {
-      "cache_creation_tokens": 0,
-      "cache_read_tokens": 0,
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
-        0
-      ],
-      "context_limit": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "hidden": true,
-      "id": 0,
-      "input_tokens": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-      "output_tokens": 0,
-      "parts": [
         {
           "args": [
             0
@@ -2410,19 +2332,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "result_delta": "string",
-          "result_meta": {
-            "content": "string",
-            "created": true,
-            "error": "string",
-            "exit_code": 0,
-            "mime_type": "string",
-            "output": "string",
-            "reason": "string",
-            "workspace_agent_id": "string",
-            "workspace_id": "string",
-            "workspace_name": "string",
-            "workspace_url": "string"
-          },
           "signature": "string",
           "source_id": "string",
           "text": "string",
@@ -2433,11 +2342,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "url": "string"
         }
       ],
-      "reasoning_tokens": 0,
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": 0,
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
       "role": "string",
-      "thinking": "string",
-      "tool_call_id": "string",
-      "total_tokens": 0
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
     }
   ],
   "queued": true,
@@ -2471,19 +2388,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-  "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
 ### Properties
 
-| Name                 | Type                                                      | Required | Restrictions | Description |
-|----------------------|-----------------------------------------------------------|----------|--------------|-------------|
-| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |             |
-| `model_config_id`    | string                                                    | false    |              |             |
-| `workspace_agent_id` | string                                                    | false    |              |             |
-| `workspace_id`       | string                                                    | false    |              |             |
+| Name              | Type                                                      | Required | Restrictions | Description |
+|-------------------|-----------------------------------------------------------|----------|--------------|-------------|
+| `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |             |
+| `model_config_id` | string                                                    | false    |              |             |
+| `workspace_id`    | string                                                    | false    |              |             |
 
 ## codersdk.CreateFirstUserRequest
 
@@ -14921,19 +14836,21 @@ None
 
 ### Properties
 
-| Name          | Type                         | Required | Restrictions | Description                                        |
-|---------------|------------------------------|----------|--------------|----------------------------------------------------|
-| `forceQuery`  | boolean                      | false    |              | append a query ('?') even if RawQuery is empty     |
-| `fragment`    | string                       | false    |              | fragment for references, without '#'               |
-| `host`        | string                       | false    |              | host or host:port (see Hostname and Port methods)  |
-| `omitHost`    | boolean                      | false    |              | do not emit empty host (authority)                 |
-| `opaque`      | string                       | false    |              | encoded opaque data                                |
-| `path`        | string                       | false    |              | path (relative paths may omit leading slash)       |
-| `rawFragment` | string                       | false    |              | encoded fragment hint (see EscapedFragment method) |
-| `rawPath`     | string                       | false    |              | encoded path hint (see EscapedPath method)         |
-| `rawQuery`    | string                       | false    |              | encoded query values, without '?'                  |
-| `scheme`      | string                       | false    |              |                                                    |
-| `user`        | [url.Userinfo](#urluserinfo) | false    |              | username and password information                  |
+| Name         | Type    | Required | Restrictions | Description                                                                                                                                                            |
+|--------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `forceQuery` | boolean | false    |              | Forcequery indicates whether the original URL contained a query ('?') character. When set, the String method will include a trailing '?', even when RawQuery is empty. |
+| `fragment`   | string  | false    |              | fragment for references (without '#')                                                                                                                                  |
+| `host`       | string  | false    |              | "host" or "host:port" (see Hostname and Port methods)                                                                                                                  |
+| `omitHost`   | boolean | false    |              | Omithost indicates the URL has an empty host (authority). When set, the String method will not include the host when it is empty.                                      |
+| `opaque`     | string  | false    |              | encoded opaque data                                                                                                                                                    |
+| `path`       | string  | false    |              | path (relative paths may omit leading slash)                                                                                                                           |
+|`rawFragment`|string|false||Rawfragment is an optional field containing an encoded fragment hint. See the EscapedFragment method for more details.
+In general, code should call EscapedFragment instead of reading RawFragment.|
+|`rawPath`|string|false||Rawpath is an optional field containing an encoded path hint. See the EscapedPath method for more details.
+In general, code should call EscapedPath instead of reading RawPath.|
+|`rawQuery`|string|false||Rawquery contains the encoded query values, without the initial '?'. Use URL.Query to decode the query.|
+|`scheme`|string|false|||
+|`user`|[url.Userinfo](#urluserinfo)|false||username and password information|
 
 ## serpent.ValueSource
 

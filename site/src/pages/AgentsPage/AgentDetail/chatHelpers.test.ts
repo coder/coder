@@ -15,14 +15,13 @@ import {
 
 /** Minimal ChatMessage factory – only required fields. */
 const makeMessage = (
-	overrides: Partial<TypesGen.ChatMessage> & Record<string, unknown> = {},
+	overrides: Partial<TypesGen.ChatMessage> = {},
 ): TypesGen.ChatMessage =>
 	({
 		id: 1,
 		chat_id: "chat-1",
 		created_at: "2025-01-01T00:00:00Z",
 		role: "assistant",
-		hidden: false,
 		...overrides,
 	}) as TypesGen.ChatMessage;
 
@@ -47,7 +46,7 @@ describe("extractContextUsageFromMessage", () => {
 	});
 
 	it("returns usage when input_tokens is present", () => {
-		const msg = makeMessage({ input_tokens: 100 });
+		const msg = makeMessage({ usage: { input_tokens: 100 } });
 		const result = extractContextUsageFromMessage(msg);
 		expect(result).not.toBeNull();
 		expect(result!.inputTokens).toBe(100);
@@ -55,7 +54,7 @@ describe("extractContextUsageFromMessage", () => {
 	});
 
 	it("returns usage when output_tokens is present", () => {
-		const msg = makeMessage({ output_tokens: 50 });
+		const msg = makeMessage({ usage: { output_tokens: 50 } });
 		const result = extractContextUsageFromMessage(msg);
 		expect(result).not.toBeNull();
 		expect(result!.outputTokens).toBe(50);
@@ -64,11 +63,13 @@ describe("extractContextUsageFromMessage", () => {
 
 	it("sums all token components into usedTokens", () => {
 		const msg = makeMessage({
-			input_tokens: 10,
-			output_tokens: 20,
-			reasoning_tokens: 5,
-			cache_creation_tokens: 3,
-			cache_read_tokens: 2,
+			usage: {
+				input_tokens: 10,
+				output_tokens: 20,
+				reasoning_tokens: 5,
+				cache_creation_tokens: 3,
+				cache_read_tokens: 2,
+			},
 		});
 		const result = extractContextUsageFromMessage(msg);
 		expect(result).not.toBeNull();
@@ -81,19 +82,14 @@ describe("extractContextUsageFromMessage", () => {
 	});
 
 	it("includes contextLimitTokens when context_limit is set", () => {
-		const msg = makeMessage({ context_limit: 128000 });
+		const msg = makeMessage({ usage: { context_limit: 128000 } });
 		const result = extractContextUsageFromMessage(msg);
 		expect(result).not.toBeNull();
 		expect(result!.contextLimitTokens).toBe(128000);
 	});
 
-	it("ignores negative token values", () => {
-		const msg = makeMessage({ input_tokens: -5 });
-		expect(extractContextUsageFromMessage(msg)).toBeNull();
-	});
-
 	it("returns usage with only contextLimitTokens and no usedTokens", () => {
-		const msg = makeMessage({ context_limit: 4096 });
+		const msg = makeMessage({ usage: { context_limit: 4096 } });
 		const result = extractContextUsageFromMessage(msg);
 		expect(result).not.toBeNull();
 		expect(result!.usedTokens).toBeUndefined();
@@ -117,9 +113,9 @@ describe("getLatestContextUsage", () => {
 
 	it("returns usage from the last message with usage data", () => {
 		const messages = [
-			makeMessage({ id: 1, input_tokens: 100 }),
+			makeMessage({ id: 1, usage: { input_tokens: 100 } }),
 			makeMessage({ id: 2 }),
-			makeMessage({ id: 3, input_tokens: 300 }),
+			makeMessage({ id: 3, usage: { input_tokens: 300 } }),
 		];
 		const result = getLatestContextUsage(messages);
 		expect(result).not.toBeNull();
@@ -128,8 +124,8 @@ describe("getLatestContextUsage", () => {
 
 	it("skips trailing messages without usage and finds the latest one", () => {
 		const messages = [
-			makeMessage({ id: 1, input_tokens: 50 }),
-			makeMessage({ id: 2, input_tokens: 200 }),
+			makeMessage({ id: 1, usage: { input_tokens: 50 } }),
+			makeMessage({ id: 2, usage: { input_tokens: 200 } }),
 			makeMessage({ id: 3 }),
 		];
 		const result = getLatestContextUsage(messages);

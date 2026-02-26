@@ -465,10 +465,10 @@ func TestChatMessage_ReasoningPartWithoutPersistedTitleIsEmpty(t *testing.T) {
 		},
 	})
 
-	require.Len(t, message.Parts, 1)
-	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Parts[0].Type)
-	require.Equal(t, "Plan migration", message.Parts[0].Text)
-	require.Empty(t, message.Parts[0].Title)
+	require.Len(t, message.Content, 1)
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
+	require.Equal(t, "Plan migration", message.Content[0].Text)
+	require.Empty(t, message.Content[0].Title)
 }
 
 func TestChatMessage_ReasoningPartPrefersPersistedTitle(t *testing.T) {
@@ -509,7 +509,7 @@ func TestChatMessage_ReasoningPartPrefersPersistedTitle(t *testing.T) {
 		},
 	})
 
-	require.Len(t, message.Parts, 1)
-	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Parts[0].Type)
-	require.Equal(t, "Persisted stream title", message.Parts[0].Title)
+	require.Len(t, message.Content, 1)
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
+	require.Equal(t, "Persisted stream title", message.Content[0].Title)
 }

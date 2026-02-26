@@ -1714,14 +1714,238 @@ func (p *Server) runChat(
 	p.startStream(chat.ID)
 	defer p.stopStream(chat.ID)
 
-	_, err = p.runChatWithAgent(
+	currentChat := chat
+	var (
+		chatStateMu sync.Mutex
+		workspaceMu sync.Mutex
+		conn        workspacesdk.AgentConn
+		releaseConn func()
+	)
+	closeConn := func() {
+		if releaseConn != nil {
+			releaseConn()
+			releaseConn = nil
+		}
+	}
+	defer closeConn()
+
+	getWorkspaceConn := func(ctx context.Context) (workspacesdk.AgentConn, error) {
+		chatStateMu.Lock()
+		if conn != nil {
+			currentConn := conn
+			chatStateMu.Unlock()
+			return currentConn, nil
+		}
+		chatSnapshot := currentChat
+		chatStateMu.Unlock()
+
+		if p.agentConnFn == nil {
+			return nil, xerrors.New("workspace agent connector is not configured")
+		}
+
+		if !chatSnapshot.WorkspaceAgentID.Valid {
+			return nil, xerrors.New("chat has no workspace agent")
+		}
+
+		agentConn, agentRelease, err := p.agentConnFn(ctx, chatSnapshot.WorkspaceAgentID.UUID)
+		if err != nil {
+			return nil, xerrors.Errorf("connect to workspace agent: %w", err)
+		}
+
+		chatStateMu.Lock()
+		if conn == nil {
+			conn = agentConn
+			releaseConn = agentRelease
+			chatStateMu.Unlock()
+			return agentConn, nil
+		}
+		currentConn := conn
+		chatStateMu.Unlock()
+
+		agentRelease()
+		return currentConn, nil
+	}
+
+	prompt = p.appendHomeInstructionToPrompt(
 		ctx,
 		chat,
-		logger,
-		model,
-		modelConfig,
 		prompt,
+		getWorkspaceConn,
 	)
+
+	// Resolve the model config's context_limit so we can use it as a
+	// fallback when the LLM provider doesn't include context_limit in
+	// its response metadata (which is the common case).
+	compressionConfig := chatContextCompressionConfig{
+		ThresholdPercent: defaultContextCompressionThresholdPercent,
+	}
+	if resolvedCompressionConfig, err := p.resolveChatContextCompressionConfig(ctx, chat); err != nil {
+		logger.Warn(ctx, "failed to resolve chat compaction config", slog.Error(err))
+	} else {
+		compressionConfig = resolvedCompressionConfig
+	}
+	modelConfigContextLimit := compressionConfig.ContextLimit
+
+	persistStep := func(persistCtx context.Context, step chatloop.PersistedStep) error {
+		// Split the step content into assistant blocks and tool
+		// result blocks so they can be stored as separate messages
+		// with the appropriate roles.
+		var assistantBlocks []fantasy.Content
+		var toolResults []fantasy.ToolResultContent
+		for _, block := range step.Content {
+			if tr, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok {
+				toolResults = append(toolResults, tr)
+				continue
+			}
+			if trPtr, ok := fantasy.AsContentType[*fantasy.ToolResultContent](block); ok && trPtr != nil {
+				toolResults = append(toolResults, *trPtr)
+				continue
+			}
+			assistantBlocks = append(assistantBlocks, block)
+		}
+
+		if len(assistantBlocks) > 0 {
+			assistantContent, err := chatprompt.MarshalContent(assistantBlocks)
+			if err != nil {
+				return err
+			}
+
+			hasUsage := step.Usage != (fantasy.Usage{})
+			assistantMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
+				ChatID:        chat.ID,
+				ModelConfigID: modelConfigIDNullUUID(modelConfig.ModelConfigID),
+				Role:          string(fantasy.MessageRoleAssistant),
+				Content:       assistantContent,
+				Visibility:    bothChatMessageVisibility(),
+				InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
+				OutputTokens:  usageNullInt64(step.Usage.OutputTokens, hasUsage),
+				TotalTokens:   usageNullInt64(step.Usage.TotalTokens, hasUsage),
+				ReasoningTokens: usageNullInt64(
+					step.Usage.ReasoningTokens,
+					hasUsage,
+				),
+				CacheCreationTokens: usageNullInt64(
+					step.Usage.CacheCreationTokens,
+					hasUsage,
+				),
+				CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
+				ContextLimit:    step.ContextLimit,
+				Compressed:      sql.NullBool{},
+			})
+			if err != nil {
+				return xerrors.Errorf("insert assistant message: %w", err)
+			}
+			p.publishMessage(chat.ID, assistantMessage)
+		}
+
+		for _, tr := range toolResults {
+			resultContent, err := chatprompt.MarshalToolResultContent(tr)
+			if err != nil {
+				return err
+			}
+
+			toolMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
+				ChatID:        chat.ID,
+				ModelConfigID: modelConfigIDNullUUID(modelConfig.ModelConfigID),
+				Role:          string(fantasy.MessageRoleTool),
+				Content:       resultContent,
+				Visibility:    bothChatMessageVisibility(),
+			})
+			if err != nil {
+				return xerrors.Errorf("insert tool result: %w", err)
+			}
+
+			p.publishMessage(chat.ID, toolMessage)
+		}
+		return nil
+	}
+	streamCall := streamCallOptionsFromChatModelConfig(model, modelConfig)
+	compactionOptions := &chatloop.CompactionOptions{
+		ThresholdPercent: compressionConfig.ThresholdPercent,
+		ContextLimit:     compressionConfig.ContextLimit,
+		Persist: func(
+			persistCtx context.Context,
+			result chatloop.CompactionResult,
+		) error {
+			if err := p.persistChatContextSummary(
+				persistCtx,
+				chat.ID,
+				modelConfig.ModelConfigID,
+				result,
+			); err != nil {
+				return xerrors.Errorf("persist context summary: %w", err)
+			}
+			logger.Info(persistCtx, "chat context summarized",
+				slog.F("chat_id", chat.ID),
+				slog.F("threshold_percent", result.ThresholdPercent),
+				slog.F("usage_percent", result.UsagePercent),
+				slog.F("context_tokens", result.ContextTokens),
+				slog.F("context_limit", result.ContextLimit),
+			)
+			return nil
+		},
+		OnError: func(err error) {
+			logger.Warn(ctx, "failed to compact chat context", slog.Error(err))
+		},
+	}
+
+	// Here are all the tools we have for the chat.
+	tools := []fantasy.AgentTool{
+		chattool.ListTemplates(chattool.ListTemplatesOptions{
+			DB:      p.db,
+			OwnerID: chat.OwnerID,
+		}),
+		chattool.ReadTemplate(chattool.ReadTemplateOptions{
+			DB:      p.db,
+			OwnerID: chat.OwnerID,
+		}),
+		chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
+			DB:          p.db,
+			OwnerID:     chat.OwnerID,
+			ChatID:      chat.ID,
+			CreateFn:    p.createWorkspaceFn,
+			AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
+			WorkspaceMu: &workspaceMu,
+		}),
+		chattool.ReadFile(chattool.ReadFileOptions{
+			GetWorkspaceConn: getWorkspaceConn,
+		}),
+		chattool.WriteFile(chattool.WriteFileOptions{
+			GetWorkspaceConn: getWorkspaceConn,
+		}),
+		chattool.EditFiles(chattool.EditFilesOptions{
+			GetWorkspaceConn: getWorkspaceConn,
+		}),
+		chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: getWorkspaceConn,
+		}),
+	}
+	tools = append(tools, p.subagentTools(func() database.Chat {
+		return chat
+	})...)
+
+	_, err = chatloop.Run(ctx, chatloop.RunOptions{
+		Model:      model,
+		Messages:   prompt,
+		Tools:      tools,
+		StreamCall: streamCall,
+		MaxSteps:   maxChatSteps,
+
+		ContextLimitFallback: modelConfigContextLimit,
+
+		PersistStep: persistStep,
+		PublishMessagePart: func(
+			role fantasy.MessageRole,
+			part codersdk.ChatMessagePart,
+		) {
+			p.publishMessagePart(chat.ID, string(role), part)
+		},
+		Compaction: compactionOptions,
+
+		OnInterruptedPersistError: func(err error) {
+			p.logger.Warn(ctx, "failed to persist interrupted chat step", slog.Error(err))
+		},
+	})
 	return err
 }
 
@@ -1955,213 +2179,6 @@ func chatModelConfigFromDB(dbConfig database.ChatModelConfig) chatModelConfig {
 	config.ContextLimit = dbConfig.ContextLimit
 	config.ModelConfigID = uuidPointer(dbConfig.ID)
 	return config
-}
-
-func (p *Server) runChatWithAgent(
-	ctx context.Context,
-	chat database.Chat,
-	logger slog.Logger,
-	model fantasy.LanguageModel,
-	modelConfig chatModelConfig,
-	prompt []fantasy.Message,
-) (*fantasy.AgentResult, error) {
-	currentChat := chat
-	var (
-		chatStateMu sync.Mutex
-		workspaceMu sync.Mutex
-		conn        workspacesdk.AgentConn
-		releaseConn func()
-	)
-	closeConn := func() {
-		if releaseConn != nil {
-			releaseConn()
-			releaseConn = nil
-		}
-	}
-	defer closeConn()
-
-	getWorkspaceConn := func(ctx context.Context) (workspacesdk.AgentConn, error) {
-		chatStateMu.Lock()
-		if conn != nil {
-			currentConn := conn
-			chatStateMu.Unlock()
-			return currentConn, nil
-		}
-		chatSnapshot := currentChat
-		chatStateMu.Unlock()
-
-		if p.agentConnFn == nil {
-			return nil, xerrors.New("workspace agent connector is not configured")
-		}
-
-		if !chatSnapshot.WorkspaceAgentID.Valid {
-			return nil, xerrors.New("chat has no workspace agent")
-		}
-
-		agentConn, agentRelease, err := p.agentConnFn(ctx, chatSnapshot.WorkspaceAgentID.UUID)
-		if err != nil {
-			return nil, xerrors.Errorf("connect to workspace agent: %w", err)
-		}
-
-		chatStateMu.Lock()
-		if conn == nil {
-			conn = agentConn
-			releaseConn = agentRelease
-			chatStateMu.Unlock()
-			return agentConn, nil
-		}
-		currentConn := conn
-		chatStateMu.Unlock()
-
-		agentRelease()
-		return currentConn, nil
-	}
-
-	prompt = p.appendHomeInstructionToPrompt(
-		ctx,
-		chat,
-		prompt,
-		getWorkspaceConn,
-	)
-
-	// Resolve the model config's context_limit so we can use it as a
-	// fallback when the LLM provider doesn't include context_limit in
-	// its response metadata (which is the common case).
-	compressionConfig := chatContextCompressionConfig{
-		ThresholdPercent: defaultContextCompressionThresholdPercent,
-	}
-	if resolvedCompressionConfig, err := p.resolveChatContextCompressionConfig(ctx, chat); err != nil {
-		logger.Warn(ctx, "failed to resolve chat compaction config", slog.Error(err))
-	} else {
-		compressionConfig = resolvedCompressionConfig
-	}
-	modelConfigContextLimit := compressionConfig.ContextLimit
-
-	persistStep := func(persistCtx context.Context, step chatloop.PersistedStep) error {
-		// Split the step content into assistant blocks and tool
-		// result blocks so they can be stored as separate messages
-		// with the appropriate roles.
-		var assistantBlocks []fantasy.Content
-		var toolResults []fantasy.ToolResultContent
-		for _, block := range step.Content {
-			if tr, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok {
-				toolResults = append(toolResults, tr)
-				continue
-			}
-			if trPtr, ok := fantasy.AsContentType[*fantasy.ToolResultContent](block); ok && trPtr != nil {
-				toolResults = append(toolResults, *trPtr)
-				continue
-			}
-			assistantBlocks = append(assistantBlocks, block)
-		}
-
-		if len(assistantBlocks) > 0 {
-			assistantContent, err := chatprompt.MarshalContent(assistantBlocks)
-			if err != nil {
-				return err
-			}
-
-			hasUsage := step.Usage != (fantasy.Usage{})
-			assistantMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-				ChatID:        chat.ID,
-				ModelConfigID: modelConfigIDNullUUID(modelConfig.ModelConfigID),
-				Role:          string(fantasy.MessageRoleAssistant),
-				Content:       assistantContent,
-				Visibility:    bothChatMessageVisibility(),
-				InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
-				OutputTokens:  usageNullInt64(step.Usage.OutputTokens, hasUsage),
-				TotalTokens:   usageNullInt64(step.Usage.TotalTokens, hasUsage),
-				ReasoningTokens: usageNullInt64(
-					step.Usage.ReasoningTokens,
-					hasUsage,
-				),
-				CacheCreationTokens: usageNullInt64(
-					step.Usage.CacheCreationTokens,
-					hasUsage,
-				),
-				CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
-				ContextLimit:    step.ContextLimit,
-				Compressed:      sql.NullBool{},
-			})
-			if err != nil {
-				return xerrors.Errorf("insert assistant message: %w", err)
-			}
-			p.publishMessage(chat.ID, assistantMessage)
-		}
-
-		for _, tr := range toolResults {
-			resultContent, err := chatprompt.MarshalToolResultContent(tr)
-			if err != nil {
-				return err
-			}
-
-			toolMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-				ChatID:        chat.ID,
-				ModelConfigID: modelConfigIDNullUUID(modelConfig.ModelConfigID),
-				Role:          string(fantasy.MessageRoleTool),
-				Content:       resultContent,
-				Visibility:    bothChatMessageVisibility(),
-			})
-			if err != nil {
-				return xerrors.Errorf("insert tool result: %w", err)
-			}
-
-			p.publishMessage(chat.ID, toolMessage)
-		}
-		return nil
-	}
-	streamCall := streamCallOptionsFromChatModelConfig(model, modelConfig)
-	compactionOptions := &chatloop.CompactionOptions{
-		ThresholdPercent: compressionConfig.ThresholdPercent,
-		ContextLimit:     compressionConfig.ContextLimit,
-		Persist: func(
-			persistCtx context.Context,
-			result chatloop.CompactionResult,
-		) error {
-			if err := p.persistChatContextSummary(
-				persistCtx,
-				chat.ID,
-				modelConfig.ModelConfigID,
-				result,
-			); err != nil {
-				return xerrors.Errorf("persist context summary: %w", err)
-			}
-			logger.Info(persistCtx, "chat context summarized",
-				slog.F("chat_id", chat.ID),
-				slog.F("threshold_percent", result.ThresholdPercent),
-				slog.F("usage_percent", result.UsagePercent),
-				slog.F("context_tokens", result.ContextTokens),
-				slog.F("context_limit", result.ContextLimit),
-			)
-			return nil
-		},
-		OnError: func(err error) {
-			logger.Warn(ctx, "failed to compact chat context", slog.Error(err))
-		},
-	}
-
-	return chatloop.Run(ctx, chatloop.RunOptions{
-		Model:      model,
-		Messages:   prompt,
-		Tools:      p.agentTools(model, &currentChat, &chatStateMu, &workspaceMu, getWorkspaceConn),
-		StreamCall: streamCall,
-		MaxSteps:   maxChatSteps,
-
-		ContextLimitFallback: modelConfigContextLimit,
-
-		PersistStep: persistStep,
-		PublishMessagePart: func(
-			role fantasy.MessageRole,
-			part codersdk.ChatMessagePart,
-		) {
-			p.publishMessagePart(chat.ID, string(role), part)
-		},
-		Compaction: compactionOptions,
-
-		OnInterruptedPersistError: func(err error) {
-			p.logger.Warn(ctx, "failed to persist interrupted chat step", slog.Error(err))
-		},
-	})
 }
 
 //nolint:revive // Boolean controls SQL NULL validity.
@@ -2403,63 +2420,6 @@ func modelFromConfig(
 	providerKeys chatprovider.ProviderAPIKeys,
 ) (fantasy.LanguageModel, error) {
 	return chatprovider.ModelFromConfig(config.Provider, config.Model, providerKeys)
-}
-
-type waitForExternalAuthArgs struct {
-	ProviderID     string `json:"provider_id"`
-	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
-}
-
-func (p *Server) agentTools(
-	model fantasy.LanguageModel,
-	chatState *database.Chat,
-	chatStateMu *sync.Mutex,
-	workspaceMu *sync.Mutex,
-	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) []fantasy.AgentTool {
-	currentChat := func() database.Chat {
-		chatStateMu.Lock()
-		snapshot := *chatState
-		chatStateMu.Unlock()
-		return snapshot
-	}
-
-	ownerID := chatState.OwnerID
-
-	tools := []fantasy.AgentTool{
-		chattool.ListTemplates(chattool.ListTemplatesOptions{
-			DB:      p.db,
-			OwnerID: ownerID,
-		}),
-		chattool.ReadTemplate(chattool.ReadTemplateOptions{
-			DB:      p.db,
-			OwnerID: ownerID,
-		}),
-		chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
-			DB:          p.db,
-			OwnerID:     ownerID,
-			ChatID:      chatState.ID,
-			CreateFn:    p.createWorkspaceFn,
-			AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
-			WorkspaceMu: workspaceMu,
-		}),
-		chattool.ReadFile(chattool.ReadFileOptions{
-			GetWorkspaceConn: getWorkspaceConn,
-		}),
-		chattool.WriteFile(chattool.WriteFileOptions{
-			GetWorkspaceConn: getWorkspaceConn,
-		}),
-		chattool.EditFiles(chattool.EditFilesOptions{
-			GetWorkspaceConn: getWorkspaceConn,
-		}),
-		chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn: getWorkspaceConn,
-		}),
-	}
-
-	tools = append(tools, p.subagentTools(currentChat)...)
-
-	return tools
 }
 
 func toolJSONResponse(result map[string]any) fantasy.ToolResponse {

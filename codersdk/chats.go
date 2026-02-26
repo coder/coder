@@ -45,23 +45,24 @@ type Chat struct {
 
 // ChatMessage represents a single message in a chat.
 type ChatMessage struct {
-	ID                  int64             `json:"id"`
-	ChatID              uuid.UUID         `json:"chat_id" format:"uuid"`
-	ModelConfigID       *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	CreatedAt           time.Time         `json:"created_at" format:"date-time"`
-	Role                string            `json:"role"`
-	Content             json.RawMessage   `json:"content,omitempty"`
-	Parts               []ChatMessagePart `json:"parts,omitempty"`
-	ToolCallID          *string           `json:"tool_call_id,omitempty"`
-	Thinking            *string           `json:"thinking,omitempty"`
-	Hidden              bool              `json:"hidden"`
-	InputTokens         *int64            `json:"input_tokens,omitempty"`
-	OutputTokens        *int64            `json:"output_tokens,omitempty"`
-	TotalTokens         *int64            `json:"total_tokens,omitempty"`
-	ReasoningTokens     *int64            `json:"reasoning_tokens,omitempty"`
-	CacheCreationTokens *int64            `json:"cache_creation_tokens,omitempty"`
-	CacheReadTokens     *int64            `json:"cache_read_tokens,omitempty"`
-	ContextLimit        *int64            `json:"context_limit,omitempty"`
+	ID            int64              `json:"id"`
+	ChatID        uuid.UUID          `json:"chat_id" format:"uuid"`
+	ModelConfigID *uuid.UUID         `json:"model_config_id,omitempty" format:"uuid"`
+	CreatedAt     time.Time          `json:"created_at" format:"date-time"`
+	Role          string             `json:"role"`
+	Content       []ChatMessagePart  `json:"content,omitempty"`
+	Usage         *ChatMessageUsage  `json:"usage,omitempty"`
+}
+
+// ChatMessageUsage contains token usage information for a chat message.
+type ChatMessageUsage struct {
+	InputTokens         *int64 `json:"input_tokens,omitempty"`
+	OutputTokens        *int64 `json:"output_tokens,omitempty"`
+	TotalTokens         *int64 `json:"total_tokens,omitempty"`
+	ReasoningTokens     *int64 `json:"reasoning_tokens,omitempty"`
+	CacheCreationTokens *int64 `json:"cache_creation_tokens,omitempty"`
+	CacheReadTokens     *int64 `json:"cache_read_tokens,omitempty"`
+	ContextLimit        *int64 `json:"context_limit,omitempty"`
 }
 
 // ChatMessagePartType represents a structured message part type.

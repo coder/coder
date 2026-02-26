@@ -1,37 +1,23 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { asNumber, asString } from "components/ai-elements/runtimeTypeUtils";
+import { asString } from "components/ai-elements/runtimeTypeUtils";
 import type { AgentContextUsage } from "../AgentChatInput";
 import { asNonEmptyString } from "./blockUtils";
-
-const asTokenCount = (value: unknown): number | undefined => {
-	const parsed = asNumber(value);
-	if (parsed === undefined || parsed < 0) {
-		return undefined;
-	}
-	return parsed;
-};
-
-type ChatMessageWithUsage = TypesGen.ChatMessage & {
-	readonly input_tokens?: unknown;
-	readonly output_tokens?: unknown;
-	readonly total_tokens?: unknown;
-	readonly reasoning_tokens?: unknown;
-	readonly cache_creation_tokens?: unknown;
-	readonly cache_read_tokens?: unknown;
-	readonly context_limit?: unknown;
-};
 
 export const extractContextUsageFromMessage = (
 	message: TypesGen.ChatMessage,
 ): AgentContextUsage | null => {
-	const withUsage = message as ChatMessageWithUsage;
-	const inputTokens = asTokenCount(withUsage.input_tokens);
-	const outputTokens = asTokenCount(withUsage.output_tokens);
-	const reasoningTokens = asTokenCount(withUsage.reasoning_tokens);
-	const cacheCreationTokens = asTokenCount(withUsage.cache_creation_tokens);
-	const cacheReadTokens = asTokenCount(withUsage.cache_read_tokens);
-	const contextLimitTokens = asTokenCount(withUsage.context_limit);
+	const usage = message.usage;
+	if (!usage) {
+		return null;
+	}
+
+	const inputTokens = usage.input_tokens;
+	const outputTokens = usage.output_tokens;
+	const reasoningTokens = usage.reasoning_tokens;
+	const cacheCreationTokens = usage.cache_creation_tokens;
+	const cacheReadTokens = usage.cache_read_tokens;
+	const contextLimitTokens = usage.context_limit;
 
 	const components = [
 		inputTokens,
@@ -44,18 +30,6 @@ export const extractContextUsageFromMessage = (
 		components.length > 0
 			? components.reduce((total, value) => total + value, 0)
 			: undefined;
-
-	const hasUsage =
-		usedTokens !== undefined ||
-		contextLimitTokens !== undefined ||
-		inputTokens !== undefined ||
-		outputTokens !== undefined ||
-		cacheReadTokens !== undefined ||
-		cacheCreationTokens !== undefined ||
-		reasoningTokens !== undefined;
-	if (!hasUsage) {
-		return null;
-	}
 
 	return {
 		usedTokens,

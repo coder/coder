@@ -280,13 +280,9 @@ export const AgentDetail: FC = () => {
 		() => buildStreamTools(streamState),
 		[streamState],
 	);
-	const visibleMessages = useMemo(
-		() => messages.filter((message) => !message.hidden),
-		[messages],
-	);
 	const { hasMoreMessages, windowedMessages, loadMoreSentinelRef } =
 		useMessageWindow({
-			messages: visibleMessages,
+			messages,
 			resetKey: agentId,
 		});
 
@@ -438,7 +434,7 @@ export const AgentDetail: FC = () => {
 			>
 				<div>
 					<ConversationTimeline
-						isEmpty={visibleMessages.length === 0}
+						isEmpty={messages.length === 0}
 						hasMoreMessages={hasMoreMessages}
 						loadMoreSentinelRef={loadMoreSentinelRef}
 						parsedSections={parsedSections}

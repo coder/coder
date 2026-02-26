@@ -265,8 +265,7 @@ export const WithSubagentCards: Story = {
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:00:01.000Z",
 						role: "assistant",
-						hidden: false,
-						parts: [
+						content: [
 							{
 								type: "tool-call",
 								tool_call_id: "tool-subagent-1",
@@ -318,8 +317,7 @@ export const WithReasoningCollapsed: Story = {
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:00:01.000Z",
 						role: "assistant",
-						hidden: false,
-						parts: [
+					content: [
 							{
 								type: "reasoning",
 								title: "Plan migration",

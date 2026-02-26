@@ -61,7 +61,7 @@ func TestChats(t *testing.T) {
 				if message.Role != "user" {
 					continue
 				}
-				for _, part := range message.Parts {
+				for _, part := range message.Content {
 					if part.Type == codersdk.ChatMessagePartTypeText &&
 						part.Text == "hello from chats route tests" {
 						foundUserMessage = true
