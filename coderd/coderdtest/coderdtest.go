@@ -106,6 +106,8 @@ import (
 	"github.com/coder/quartz"
 )
 
+const DefaultDERPMeshKey = "test-key"
+
 const defaultTestDaemonName = "test-daemon"
 
 type Options struct {
@@ -512,8 +514,18 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		stunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
 	}
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp").Leveled(slog.LevelDebug)))
-	derpServer.SetMeshKey("test-key")
+	const derpMeshKey = "test-key"
+	// Technically AGPL coderd servers don't set this value, but it doesn't
+	// change any behavior. It's useful for enterprise tests.
+	err = options.Database.InsertDERPMeshKey(dbauthz.AsSystemRestricted(ctx), derpMeshKey) //nolint:gocritic // test
+	if !database.IsUniqueViolation(err, database.UniqueSiteConfigsKeyKey) {
+		require.NoError(t, err, "insert DERP mesh key")
+	}
+	var derpServer *derp.Server
+	if options.DeploymentValues.DERP.Server.Enable.Value() {
+		derpServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp").Leveled(slog.LevelDebug)))
+		derpServer.SetMeshKey(derpMeshKey)
+	}
 
 	// match default with cli default
 	if options.SSHKeygenAlgorithm == "" {
