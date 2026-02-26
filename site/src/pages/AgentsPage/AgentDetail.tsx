@@ -53,7 +53,7 @@ const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
 	() => {};
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
-export const AgentDetail: FC = () => {
+const AgentDetail: FC = () => {
 	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
 	const outletContext = useOutletContext<AgentsOutletContext | undefined>();
