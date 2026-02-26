@@ -90,11 +90,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	const isDisabled = disabled || options.length === 0;
 
 	return (
-		<Select
-			value={value}
-			onValueChange={onValueChange}
-			disabled={isDisabled}
-		>
+		<Select value={value} onValueChange={onValueChange} disabled={isDisabled}>
 			<SelectTrigger
 				className={cn(
 					"h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent",

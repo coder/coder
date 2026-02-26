@@ -125,19 +125,6 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 		const dashOffset =
 			RING_CIRCUMFERENCE - (clampedPercent / 100) * RING_CIRCUMFERENCE;
 		const toneClassName = getIndicatorToneClassName(percentUsed);
-		const breakdown = [
-			{ key: "input", label: "Input", value: usage?.inputTokens },
-			{ key: "output", label: "Output", value: usage?.outputTokens },
-			{ key: "cache-read", label: "Cache read", value: usage?.cacheReadTokens },
-			{
-				key: "cache-create",
-				label: "Cache creation",
-				value: usage?.cacheCreationTokens,
-			},
-			{ key: "reasoning", label: "Reasoning", value: usage?.reasoningTokens },
-		].filter((entry): entry is { key: string; label: string; value: number } =>
-			hasFiniteTokenValue(entry.value),
-		);
 		const ariaLabel = hasPercent
 			? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
 			: "Context usage";

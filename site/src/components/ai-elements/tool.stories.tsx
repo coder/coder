@@ -4,13 +4,6 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { Tool } from "./tool";
 
 const executeCommand = "git fetch origin";
-const subagentReport = `
-## Workspace startup report
-
-1. Agent connected after network retries.
-2. \`docker pull\` failed due to expired auth token.
-3. Re-authentication fixed image pulls and startup completed.
-`;
 
 const meta: Meta<typeof Tool> = {
 	title: "components/ai-elements/Tool",
@@ -379,7 +372,9 @@ export const ListTemplatesSuccess: Story = {
 		const toggle = canvas.getByRole("button");
 		await userEvent.click(toggle);
 		expect(canvas.getByText("Go Development")).toBeInTheDocument();
-		expect(canvas.getByText("A template for Go development with VS Code")).toBeInTheDocument();
+		expect(
+			canvas.getByText("A template for Go development with VS Code"),
+		).toBeInTheDocument();
 		expect(canvas.getByText("python-template")).toBeInTheDocument();
 	},
 };
