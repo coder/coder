@@ -147,12 +147,8 @@ func waitForTaskIdle(ctx context.Context, client *codersdk.Client, task codersdk
 			}
 
 			switch task.CurrentState.State {
-			case codersdk.TaskStateIdle:
+			case codersdk.TaskStateIdle, codersdk.TaskStateComplete, codersdk.TaskStateFailed:
 				return nil
-			case codersdk.TaskStateComplete:
-				return xerrors.Errorf("task has completed and cannot be sent input")
-			case codersdk.TaskStateFailed:
-				return xerrors.Errorf("task has failed and cannot be sent input")
 			case codersdk.TaskStateWorking:
 				// Still busy, keep polling.
 			}
