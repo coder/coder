@@ -218,11 +218,6 @@ func (p *Server) createChildSubagentChat(
 		return database.Chat{}, xerrors.New("parent chat model config id is required")
 	}
 
-	userContent, err := chatprompt.MarshalContent([]fantasy.Content{fantasy.TextContent{Text: prompt}})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("marshal subagent prompt: %w", err)
-	}
-
 	child, err := p.CreateChat(ctx, CreateOptions{
 		OwnerID:          parent.OwnerID,
 		WorkspaceID:      parent.WorkspaceID,
@@ -237,7 +232,7 @@ func (p *Server) createChildSubagentChat(
 		},
 		ModelConfigID:      parent.LastModelConfigID,
 		Title:              title,
-		InitialUserContent: userContent.RawMessage,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: prompt}},
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
@@ -266,16 +261,15 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, ErrSubagentNotDescendant
 	}
 
-	userContent, err := chatprompt.MarshalContent([]fantasy.Content{fantasy.TextContent{Text: message}})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("marshal subagent request message: %w", err)
+	busyBehavior := SendMessageBusyBehaviorQueue
+	if interrupt {
+		busyBehavior = SendMessageBusyBehaviorInterrupt
 	}
 
-	sendResult, err := p.PostMessages(ctx, PostMessagesOptions{
-		ChatID:      targetChatID,
-		Content:     userContent.RawMessage,
-		Interrupt:   interrupt,
-		QueueIfBusy: !interrupt,
+	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
+		ChatID:       targetChatID,
+		Content:      []fantasy.Content{fantasy.TextContent{Text: message}},
+		BusyBehavior: busyBehavior,
 	})
 	if err != nil {
 		return database.Chat{}, err

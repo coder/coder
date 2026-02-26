@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -35,7 +36,7 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "interrupt-me",
 		ModelConfigID:      model.ID,
-		InitialUserContent: mustJSON(t, []codersdk.ChatMessagePart{{Type: codersdk.ChatMessagePartTypeText, Text: "hello"}}),
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
 	require.NoError(t, err)
 
@@ -83,7 +84,7 @@ func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "db-transition",
 		ModelConfigID:      model.ID,
-		InitialUserContent: mustJSON(t, []codersdk.ChatMessagePart{{Type: codersdk.ChatMessagePartTypeText, Text: "hello"}}),
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
 	require.NoError(t, err)
 
@@ -119,7 +120,7 @@ func TestUpdateChatHeartbeatRequiresOwnership(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "heartbeat-ownership",
 		ModelConfigID:      model.ID,
-		InitialUserContent: mustJSON(t, []codersdk.ChatMessagePart{{Type: codersdk.ChatMessagePartTypeText, Text: "hello"}}),
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
 	require.NoError(t, err)
 
@@ -146,6 +147,105 @@ func TestUpdateChatHeartbeatRequiresOwnership(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, int64(1), rows)
+}
+
+func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "queue-when-busy",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	workerID := uuid.New()
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []fantasy.Content{fantasy.TextContent{Text: "queued"}},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, result.Queued)
+	require.NotNil(t, result.QueuedMessage)
+	require.Equal(t, database.ChatStatusRunning, result.Chat.Status)
+	require.Equal(t, workerID, result.Chat.WorkerID.UUID)
+	require.True(t, result.Chat.WorkerID.Valid)
+
+	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queued, 1)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+}
+
+func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "interrupt-when-busy",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []fantasy.Content{fantasy.TextContent{Text: "interrupt"}},
+		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
+	})
+	require.NoError(t, err)
+	require.False(t, result.Queued)
+	require.Equal(t, database.ChatStatusPending, result.Chat.Status)
+	require.False(t, result.Chat.WorkerID.Valid)
+
+	fromDB, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusPending, fromDB.Status)
+	require.False(t, fromDB.WorkerID.Valid)
+
+	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queued, 0)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+	require.Equal(t, int64(messages[len(messages)-1].ID), result.Message.ID)
 }
 
 func newTestServer(
@@ -202,12 +302,4 @@ func seedChatDependencies(
 	})
 	require.NoError(t, err)
 	return user, model
-}
-
-func mustJSON(t *testing.T, value any) json.RawMessage {
-	t.Helper()
-
-	raw, err := json.Marshal(value)
-	require.NoError(t, err)
-	return raw
 }

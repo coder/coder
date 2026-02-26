@@ -127,42 +127,34 @@ type CreateOptions struct {
 	Title              string
 	ModelConfigID      uuid.UUID
 	SystemPrompt       string
-	InitialUserContent json.RawMessage
+	InitialUserContent []fantasy.Content
 }
 
-// InsertMessageOptions controls direct chat message insertion.
-type InsertMessageOptions struct {
+// SendMessageBusyBehavior controls what happens when a chat is already active.
+type SendMessageBusyBehavior string
+
+const (
+	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
+	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
+	// SendMessageBusyBehaviorInterrupt inserts the message immediately and
+	// transitions the chat to pending, which interrupts the active run.
+	SendMessageBusyBehaviorInterrupt SendMessageBusyBehavior = "interrupt"
+)
+
+// SendMessageOptions controls user message insertion with busy-state behavior.
+type SendMessageOptions struct {
 	ChatID        uuid.UUID
+	Content       []fantasy.Content
 	ModelConfigID *uuid.UUID
-	Role          string
-	Content       json.RawMessage
-	Interrupt     bool
-	SetPending    bool
+	BusyBehavior  SendMessageBusyBehavior
 }
 
-// InsertMessageResult contains persisted message metadata and optional chat status.
-type InsertMessageResult struct {
-	Message database.ChatMessage
-	Chat    database.Chat
-}
-
-// PostMessagesOptions controls user message insertion with optional queueing.
-type PostMessagesOptions struct {
-	ChatID          uuid.UUID
-	Content         json.RawMessage
-	ModelConfigID   *uuid.UUID
-	Interrupt       bool
-	QueueIfBusy     bool
-	IncludeMessages bool
-}
-
-// PostMessagesResult contains the outcome of user message processing.
-type PostMessagesResult struct {
+// SendMessageResult contains the outcome of user message processing.
+type SendMessageResult struct {
 	Queued        bool
 	QueuedMessage *database.ChatQueuedMessage
 	Message       database.ChatMessage
 	Chat          database.Chat
-	Messages      []database.ChatMessage
 }
 
 // PromoteQueuedOptions controls queued-message promotion.
@@ -172,9 +164,9 @@ type PromoteQueuedOptions struct {
 	ModelConfigID   *uuid.UUID
 }
 
-// PromoteQueuedResult contains the post-promotion message list.
+// PromoteQueuedResult contains post-promotion message metadata.
 type PromoteQueuedResult struct {
-	Messages []database.ChatMessage
+	PromotedMessage database.ChatMessage
 }
 
 // CreateChat creates a chat, inserts optional system prompt and initial user
@@ -190,75 +182,111 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, xerrors.New("initial user content is required")
 	}
 
-	chat, err := p.db.InsertChat(ctx, database.InsertChatParams{
-		OwnerID:           opts.OwnerID,
-		WorkspaceID:       opts.WorkspaceID,
-		WorkspaceAgentID:  opts.WorkspaceAgentID,
-		ParentChatID:      opts.ParentChatID,
-		RootChatID:        opts.RootChatID,
-		LastModelConfigID: opts.ModelConfigID,
-		Title:             opts.Title,
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("insert chat: %w", err)
-	}
-
-	systemPrompt := strings.TrimSpace(opts.SystemPrompt)
-	if systemPrompt != "" {
-		systemContent, err := json.Marshal(systemPrompt)
+	var chat database.Chat
+	txErr := p.db.InTx(func(tx database.Store) error {
+		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           opts.OwnerID,
+			WorkspaceID:       opts.WorkspaceID,
+			WorkspaceAgentID:  opts.WorkspaceAgentID,
+			ParentChatID:      opts.ParentChatID,
+			RootChatID:        opts.RootChatID,
+			LastModelConfigID: opts.ModelConfigID,
+			Title:             opts.Title,
+		})
 		if err != nil {
-			return database.Chat{}, xerrors.Errorf("marshal system prompt: %w", err)
+			return xerrors.Errorf("insert chat: %w", err)
 		}
-		_, err = p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID: chat.ID,
+
+		systemPrompt := strings.TrimSpace(opts.SystemPrompt)
+		if systemPrompt != "" {
+			systemContent, err := json.Marshal(systemPrompt)
+			if err != nil {
+				return xerrors.Errorf("marshal system prompt: %w", err)
+			}
+			_, err = tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
+				ChatID: insertedChat.ID,
+				ModelConfigID: uuid.NullUUID{
+					UUID:  opts.ModelConfigID,
+					Valid: true,
+				},
+				Role: "system",
+				Content: pqtype.NullRawMessage{
+					RawMessage: systemContent,
+					Valid:      len(systemContent) > 0,
+				},
+				Visibility: database.ChatMessageVisibilityModel,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert system message: %w", err)
+			}
+		}
+
+		userContent, err := chatprompt.MarshalContent(opts.InitialUserContent)
+		if err != nil {
+			return xerrors.Errorf("marshal initial user content: %w", err)
+		}
+		_, err = insertChatMessageWithStore(ctx, tx, database.InsertChatMessageParams{
+			ChatID: insertedChat.ID,
 			ModelConfigID: uuid.NullUUID{
 				UUID:  opts.ModelConfigID,
 				Valid: true,
 			},
-			Role: "system",
-			Content: pqtype.NullRawMessage{
-				RawMessage: systemContent,
-				Valid:      len(systemContent) > 0,
-			},
-			Visibility: database.ChatMessageVisibilityModel,
+			Role:       "user",
+			Content:    userContent,
+			Visibility: database.ChatMessageVisibilityBoth,
 		})
 		if err != nil {
-			return database.Chat{}, xerrors.Errorf("insert system message: %w", err)
+			return xerrors.Errorf("insert initial user message: %w", err)
 		}
-	}
 
-	sendResult, err := p.InsertMessage(ctx, InsertMessageOptions{
-		ChatID:        chat.ID,
-		ModelConfigID: &opts.ModelConfigID,
-		Role:          "user",
-		Content:       opts.InitialUserContent,
-		SetPending:    true,
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("insert initial user message: %w", err)
-	}
-	chat = sendResult.Chat
+		chat, err = setChatPendingWithStore(ctx, tx, insertedChat.ID)
+		if err != nil {
+			return xerrors.Errorf("set chat pending: %w", err)
+		}
 
-	if !chat.RootChatID.Valid && !chat.ParentChatID.Valid {
-		chat.RootChatID = uuid.NullUUID{UUID: chat.ID, Valid: true}
+		if !chat.RootChatID.Valid && !chat.ParentChatID.Valid {
+			chat.RootChatID = uuid.NullUUID{UUID: chat.ID, Valid: true}
+		}
+		return nil
+	}, nil)
+	if txErr != nil {
+		return database.Chat{}, txErr
 	}
 
 	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated)
 	return chat, nil
 }
 
-// PostMessages inserts a user message, optionally queues while a chat is
-// busy, and publishes stream + pubsub updates.
-func (p *Server) PostMessages(
+// SendMessage inserts a user message and optionally queues it while the chat
+// is busy, then publishes stream + pubsub updates.
+func (p *Server) SendMessage(
 	ctx context.Context,
-	opts PostMessagesOptions,
-) (PostMessagesResult, error) {
+	opts SendMessageOptions,
+) (SendMessageResult, error) {
 	if opts.ChatID == uuid.Nil {
-		return PostMessagesResult{}, xerrors.New("chat_id is required")
+		return SendMessageResult{}, xerrors.New("chat_id is required")
+	}
+	if len(opts.Content) == 0 {
+		return SendMessageResult{}, xerrors.New("content is required")
+	}
+
+	busyBehavior := opts.BusyBehavior
+	if busyBehavior == "" {
+		busyBehavior = SendMessageBusyBehaviorQueue
+	}
+	switch busyBehavior {
+	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorInterrupt:
+	default:
+		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
+	}
+
+	content, err := chatprompt.MarshalContent(opts.Content)
+	if err != nil {
+		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
 
 	var (
-		result            PostMessagesResult
+		result            SendMessageResult
 		queuedMessagesSDK []codersdk.ChatQueuedMessage
 	)
 
@@ -272,7 +300,8 @@ func (p *Server) PostMessages(
 			modelConfigID = *opts.ModelConfigID
 		}
 
-		if opts.QueueIfBusy && shouldQueueUserMessage(lockedChat.Status) {
+		if busyBehavior == SendMessageBusyBehaviorQueue &&
+			shouldQueueUserMessage(lockedChat.Status) {
 			existingQueued, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
 			if err != nil {
 				return xerrors.Errorf("get queued messages: %w", err)
@@ -283,7 +312,7 @@ func (p *Server) PostMessages(
 
 			queued, err := tx.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
 				ChatID:  opts.ChatID,
-				Content: opts.Content,
+				Content: content.RawMessage,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert queued message: %w", err)
@@ -301,48 +330,23 @@ func (p *Server) PostMessages(
 			return nil
 		}
 
-		message, err := insertChatMessageWithStore(ctx, tx, database.InsertChatMessageParams{
-			ChatID:        opts.ChatID,
-			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:          "user",
-			Content: pqtype.NullRawMessage{
-				RawMessage: opts.Content,
-				Valid:      len(opts.Content) > 0,
-			},
-			Visibility: database.ChatMessageVisibilityBoth,
-		})
+		message, updatedChat, err := insertUserMessageAndSetPending(
+			ctx,
+			tx,
+			lockedChat,
+			modelConfigID,
+			content,
+		)
 		if err != nil {
 			return err
 		}
 		result.Message = message
-
-		if lockedChat.Status == database.ChatStatusPending {
-			result.Chat = lockedChat
-		} else {
-			updatedChat, err := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-				ID:        opts.ChatID,
-				Status:    database.ChatStatusPending,
-				WorkerID:  uuid.NullUUID{},
-				StartedAt: sql.NullTime{},
-			})
-			if err != nil {
-				return xerrors.Errorf("set chat pending: %w", err)
-			}
-			result.Chat = updatedChat
-		}
-
-		if opts.IncludeMessages {
-			messages, err := tx.GetChatMessagesByChatID(ctx, opts.ChatID)
-			if err != nil {
-				return xerrors.Errorf("get chat messages: %w", err)
-			}
-			result.Messages = messages
-		}
+		result.Chat = updatedChat
 
 		return nil
 	}, nil)
 	if txErr != nil {
-		return PostMessagesResult{}, txErr
+		return SendMessageResult{}, txErr
 	}
 
 	if result.Queued {
@@ -504,39 +508,25 @@ func (p *Server) PromoteQueued(
 			return xerrors.Errorf("delete queued message: %w", err)
 		}
 
-		promoted, err = tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:        opts.ChatID,
-			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:          "user",
-			Content: pqtype.NullRawMessage{
+		promoted, updatedChat, err = insertUserMessageAndSetPending(
+			ctx,
+			tx,
+			lockedChat,
+			modelConfigID,
+			pqtype.NullRawMessage{
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
 			},
-			Visibility: database.ChatMessageVisibilityBoth,
-		})
+		)
 		if err != nil {
-			return xerrors.Errorf("insert message: %w", err)
-		}
-
-		updatedChat, err = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-			ID:        opts.ChatID,
-			Status:    database.ChatStatusPending,
-			WorkerID:  uuid.NullUUID{},
-			StartedAt: sql.NullTime{},
-		})
-		if err != nil {
-			return xerrors.Errorf("update status: %w", err)
+			return err
 		}
 
 		remainingQueue, err = tx.GetChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("get remaining queue: %w", err)
 		}
-
-		result.Messages, err = tx.GetChatMessagesByChatID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("get messages: %w", err)
-		}
+		result.PromotedMessage = promoted
 
 		return nil
 	}, nil)
@@ -592,58 +582,16 @@ func (p *Server) RefreshStatus(ctx context.Context, chatID uuid.UUID) error {
 	return nil
 }
 
-// InsertMessage inserts a message and optionally marks the chat pending.
-func (p *Server) InsertMessage(
-	ctx context.Context,
-	opts InsertMessageOptions,
-) (InsertMessageResult, error) {
-	if opts.ChatID == uuid.Nil {
-		return InsertMessageResult{}, xerrors.New("chat_id is required")
-	}
-	if opts.Role == "" {
-		return InsertMessageResult{}, xerrors.New("role is required")
-	}
-
-	switch opts.Role {
-	case "user", "assistant", "system", "tool":
-	default:
-		return InsertMessageResult{}, xerrors.Errorf("invalid role %q", opts.Role)
-	}
-
-	var modelConfigID uuid.NullUUID
-	if opts.ModelConfigID != nil {
-		modelConfigID = uuid.NullUUID{UUID: *opts.ModelConfigID, Valid: true}
-	}
-
-	message, err := insertChatMessageWithStore(ctx, p.db, database.InsertChatMessageParams{
-		ChatID:        opts.ChatID,
-		ModelConfigID: modelConfigID,
-		Role:          opts.Role,
-		Content: pqtype.NullRawMessage{
-			RawMessage: opts.Content,
-			Valid:      len(opts.Content) > 0,
-		},
-		Visibility: database.ChatMessageVisibilityBoth,
-	})
-	if err != nil {
-		return InsertMessageResult{}, err
-	}
-
-	result := InsertMessageResult{Message: message}
-	if !opts.SetPending {
-		return result, nil
-	}
-
-	updatedChat, err := p.setChatPending(ctx, opts.ChatID)
-	if err != nil {
-		return InsertMessageResult{}, err
-	}
-	result.Chat = updatedChat
-	return result, nil
+func (p *Server) setChatPending(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
+	return setChatPendingWithStore(ctx, p.db, chatID)
 }
 
-func (p *Server) setChatPending(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
-	chat, err := p.db.GetChatByID(ctx, chatID)
+func setChatPendingWithStore(
+	ctx context.Context,
+	store database.Store,
+	chatID uuid.UUID,
+) (database.Chat, error) {
+	chat, err := store.GetChatByID(ctx, chatID)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("get chat: %w", err)
 	}
@@ -651,7 +599,7 @@ func (p *Server) setChatPending(ctx context.Context, chatID uuid.UUID) (database
 		return chat, nil
 	}
 
-	updatedChat, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+	updatedChat, err := store.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:        chat.ID,
 		Status:    database.ChatStatusPending,
 		WorkerID:  uuid.NullUUID{},
@@ -688,6 +636,40 @@ func insertChatMessageWithStore(
 		return database.ChatMessage{}, xerrors.Errorf("insert chat message: %w", err)
 	}
 	return message, nil
+}
+
+func insertUserMessageAndSetPending(
+	ctx context.Context,
+	store database.Store,
+	lockedChat database.Chat,
+	modelConfigID uuid.UUID,
+	content pqtype.NullRawMessage,
+) (database.ChatMessage, database.Chat, error) {
+	message, err := insertChatMessageWithStore(ctx, store, database.InsertChatMessageParams{
+		ChatID:        lockedChat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		Role:          "user",
+		Content:       content,
+		Visibility:    database.ChatMessageVisibilityBoth,
+	})
+	if err != nil {
+		return database.ChatMessage{}, database.Chat{}, err
+	}
+
+	if lockedChat.Status == database.ChatStatusPending {
+		return message, lockedChat, nil
+	}
+
+	updatedChat, err := store.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:        lockedChat.ID,
+		Status:    database.ChatStatusPending,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	if err != nil {
+		return database.ChatMessage{}, database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
+	}
+	return message, updatedChat, nil
 }
 
 // shouldQueueUserMessage reports whether a user message should be
