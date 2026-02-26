@@ -41,7 +41,7 @@ replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20250829055706-6eaf
 // This is replaced to include
 // 1. a fix for a data race: c.f. https://github.com/tailscale/wireguard-go/pull/25
 // 2. update to the latest gVisor
-replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.0-20260113101225-9b7a56210e49
+replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.0-20260226020817-f5de07a32698
 
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
@@ -212,7 +212,7 @@ require (
 	gopkg.in/DataDog/dd-trace-go.v1 v1.74.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20240509041132-65b30f7869dc
+	gvisor.dev/gvisor v0.0.0-20250415193400-eae549dc581a
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.73
 	storj.io/drpc v0.0.34
 	tailscale.com v1.80.3
