@@ -38,7 +38,6 @@ const (
 	// chat is considered stale and should be recovered.
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
-	defaultExternalAuthWait      = 5 * time.Minute
 	homeInstructionLookupTimeout = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
 	chatHeartbeatInterval        = 30 * time.Second
@@ -61,10 +60,10 @@ type Server struct {
 
 	remotePartsProvider RemotePartsProvider
 
-	agentConnFn              AgentConnFunc
-	createWorkspaceFn        chattool.CreateWorkspaceFn
-	pubsub                   pubsub.Pubsub
-	resolveProviderAPIKeysFn ProviderAPIKeysResolver
+	agentConnFn       AgentConnFunc
+	createWorkspaceFn chattool.CreateWorkspaceFn
+	pubsub            pubsub.Pubsub
+	providerAPIKeys   chatprovider.ProviderAPIKeys
 
 	activeMu      sync.Mutex
 	activeCancels map[uuid.UUID]context.CancelCauseFunc
@@ -91,9 +90,6 @@ type cachedInstruction struct {
 
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
-
-// ProviderAPIKeysResolver resolves provider API keys for chat model calls.
-type ProviderAPIKeysResolver func(context.Context) (chatprovider.ProviderAPIKeys, error)
 
 // ReplicaAddressResolver maps a replica ID to its relay address.
 type ReplicaAddressResolver func(context.Context, uuid.UUID) (string, bool)
@@ -374,8 +370,8 @@ func (p *Server) PostMessages(
 	return result, nil
 }
 
-// Delete removes a chat and all descendants, then broadcasts a deleted event.
-func (p *Server) Delete(ctx context.Context, chatID uuid.UUID) error {
+// DeleteChat removes a chat and all descendants, then broadcasts a deleted event.
+func (p *Server) DeleteChat(ctx context.Context, chatID uuid.UUID) error {
 	if chatID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
@@ -574,8 +570,8 @@ func (p *Server) PromoteQueued(
 	return result, nil
 }
 
-// InterruptAndSetWaiting interrupts execution, sets waiting status, and broadcasts status updates.
-func (p *Server) InterruptAndSetWaiting(
+// InterruptChat interrupts execution, sets waiting status, and broadcasts status updates.
+func (p *Server) InterruptChat(
 	ctx context.Context,
 	chat database.Chat,
 ) database.Chat {
@@ -727,7 +723,7 @@ type Config struct {
 	AgentConn                  AgentConnFunc
 	CreateWorkspace            chattool.CreateWorkspaceFn
 	Pubsub                     pubsub.Pubsub
-	ResolveProviderAPIKeys     ProviderAPIKeysResolver
+	ProviderAPIKeys            chatprovider.ProviderAPIKeys
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -746,12 +742,6 @@ func New(cfg Config) *Server {
 		inFlightChatStaleAfter = DefaultInFlightChatStaleAfter
 	}
 
-	resolveProviderAPIKeys := cfg.ResolveProviderAPIKeys
-	if resolveProviderAPIKeys == nil {
-		resolveProviderAPIKeys = func(context.Context) (chatprovider.ProviderAPIKeys, error) {
-			return chatprovider.ProviderAPIKeys{}, nil
-		}
-	}
 	workerID := cfg.ReplicaID
 	if workerID == uuid.Nil {
 		workerID = uuid.New()
@@ -767,7 +757,7 @@ func New(cfg Config) *Server {
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
 		pubsub:                     cfg.Pubsub,
-		resolveProviderAPIKeysFn:   resolveProviderAPIKeys,
+		providerAPIKeys:            cfg.ProviderAPIKeys,
 		chatStreams:                make(map[uuid.UUID]*chatStreamState),
 		instructionCache:           make(map[uuid.UUID]cachedInstruction),
 		activeCancels:              make(map[uuid.UUID]context.CancelCauseFunc),
@@ -988,10 +978,10 @@ func (p *Server) Models(ctx context.Context) (codersdk.ChatModelsResponse, error
 		})
 	}
 
-	keys, err := p.resolveProviderAPIKeys(ctx)
-	if err != nil {
-		return codersdk.ChatModelsResponse{}, err
-	}
+	keys := chatprovider.MergeProviderAPIKeys(
+		p.providerAPIKeys,
+		configuredProviders,
+	)
 	catalog := chatprovider.NewModelCatalog(keys)
 	if response, ok := catalog.ListConfiguredModels(configuredProviders, configuredModels); ok {
 		return response, nil
@@ -999,7 +989,7 @@ func (p *Server) Models(ctx context.Context) (codersdk.ChatModelsResponse, error
 	return catalog.ListConfiguredProviderAvailability(configuredProviders), nil
 }
 
-// ProviderKeys merges configured provider keys over resolver keys.
+// ProviderKeys merges configured provider keys over deployment keys.
 func (p *Server) ProviderKeys(
 	ctx context.Context,
 	configuredProviders []chatprovider.ConfiguredProvider,
@@ -2239,10 +2229,31 @@ func (p *Server) resolveHomeInstruction(
 func (p *Server) resolveProviderAPIKeys(
 	ctx context.Context,
 ) (chatprovider.ProviderAPIKeys, error) {
-	if p.resolveProviderAPIKeysFn == nil {
-		return chatprovider.ProviderAPIKeys{}, nil
+	providers, err := p.db.GetEnabledChatProviders(ctx)
+	if err != nil {
+		return chatprovider.ProviderAPIKeys{}, err
 	}
-	return p.resolveProviderAPIKeysFn(ctx)
+
+	configuredProviders := make(
+		[]chatprovider.ConfiguredProvider,
+		0,
+		len(providers),
+	)
+	for _, provider := range providers {
+		configuredProviders = append(
+			configuredProviders,
+			chatprovider.ConfiguredProvider{
+				Provider: provider.Provider,
+				APIKey:   provider.APIKey,
+				BaseURL:  provider.BaseUrl,
+			},
+		)
+	}
+
+	return chatprovider.MergeProviderAPIKeys(
+		p.providerAPIKeys,
+		configuredProviders,
+	), nil
 }
 
 func userMessageText(raw pqtype.NullRawMessage) (string, error) {

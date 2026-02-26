@@ -186,8 +186,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// This must happen before coderd initialization!
 	options.PostAuthAdditionalHeadersFunc = api.writeEntitlementWarningsHeader
 
-	// Wire up enterprise chat relay for cross-replica message_part streaming
-	// Must be set before coderd.New so ChatProcessor gets it
+	// Wire up enterprise chat relay for cross-replica message_part streaming.
+	// Must be set before coderd.New so the chat processor gets it.
 	replicaHTTPClient := replicaRelayHTTPClient(options.HTTPClient, meshTLSConfig)
 	if replicaHTTPClient == nil {
 		replicaHTTPClient = options.Options.HTTPClient

@@ -269,7 +269,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if api.chatProcessor == nil {
+	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat processor is unavailable.",
 			Detail:  "Chat processor is not configured.",
@@ -283,7 +283,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chat, err := api.chatProcessor.CreateChat(ctx, chatd.CreateOptions{
+	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		WorkspaceAgentID:   workspaceSelection.WorkspaceAgentID,
@@ -324,14 +324,14 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if api.chatProcessor == nil {
+	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat processor is unavailable.",
 			Detail:  "Chat processor is not configured.",
 		})
 		return
 	}
-	response, err := api.chatProcessor.Models(ctx)
+	response, err := api.chatDaemon.Models(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to load chat model configuration.",
@@ -396,8 +396,8 @@ func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 	chatID := chat.ID
 
 	var err error
-	if api.chatProcessor != nil {
-		err = api.chatProcessor.Delete(ctx, chatID)
+	if api.chatDaemon != nil {
+		err = api.chatDaemon.DeleteChat(ctx, chatID)
 	} else {
 		err = deleteChatTree(ctx, api.Database, chatID)
 	}
@@ -470,7 +470,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	if api.chatProcessor == nil {
+	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat processor is unavailable.",
 			Detail:  "Chat processor is not configured.",
@@ -501,7 +501,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sendResult, sendErr := api.chatProcessor.PostMessages(
+	sendResult, sendErr := api.chatDaemon.PostMessages(
 		ctx,
 		chatd.PostMessagesOptions{
 			ChatID:          chatID,
@@ -561,8 +561,8 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if api.chatProcessor != nil {
-		err = api.chatProcessor.DeleteQueued(ctx, chatID, queuedMessageID)
+	if api.chatDaemon != nil {
+		err = api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
 	} else {
 		err = api.Database.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
 			ID:     queuedMessageID,
@@ -609,9 +609,9 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		txErr    error
 	)
 
-	if api.chatProcessor != nil {
+	if api.chatDaemon != nil {
 		var promoteResult chatd.PromoteQueuedResult
-		promoteResult, txErr = api.chatProcessor.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		promoteResult, txErr = api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 			ChatID:          chatID,
 			QueuedMessageID: queuedMessageID,
 		})
@@ -740,7 +740,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	if api.chatProcessor == nil {
+	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat streaming is not available.",
 			Detail:  "Chat processor is not configured.",
@@ -760,7 +760,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		<-senderClosed
 	}()
 
-	snapshot, events, cancel, ok := api.chatProcessor.Subscribe(ctx, chatID, r.Header)
+	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat streaming is not available.",
@@ -814,8 +814,8 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	if api.chatProcessor != nil {
-		chat = api.chatProcessor.InterruptAndSetWaiting(ctx, chat)
+	if api.chatDaemon != nil {
+		chat = api.chatDaemon.InterruptChat(ctx, chat)
 	} else {
 		updatedChat, updateErr := api.Database.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 			ID:        chatID,
@@ -887,25 +887,21 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, diff)
 }
 
-// chatWorkspaceCreator provides workspace creation for the chat
+// chatCreateWorkspace provides workspace creation for the chat
 // processor. RBAC authorization uses context-based checks via
 // dbauthz.As rather than fake *http.Request objects.
-type chatWorkspaceCreator struct {
-	api *API
-}
-
-func (c *chatWorkspaceCreator) CreateWorkspace(
+func (api *API) chatCreateWorkspace(
 	ctx context.Context,
 	ownerID uuid.UUID,
 	req codersdk.CreateWorkspaceRequest,
 ) (codersdk.Workspace, error) {
-	actor, _, err := httpmw.UserRBACSubject(ctx, c.api.Database, ownerID, rbac.ScopeAll)
+	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
 	if err != nil {
 		return codersdk.Workspace{}, xerrors.Errorf("load user authorization: %w", err)
 	}
 	ctx = dbauthz.As(ctx, actor)
 
-	ownerUser, err := c.api.Database.GetUserByID(ctx, ownerID)
+	ownerUser, err := api.Database.GetUserByID(ctx, ownerID)
 	if err != nil {
 		return codersdk.Workspace{}, xerrors.Errorf("get workspace owner: %w", err)
 	}
@@ -915,7 +911,7 @@ func (c *chatWorkspaceCreator) CreateWorkspace(
 		AvatarURL: ownerUser.AvatarURL,
 	}
 
-	auditor := c.api.Auditor.Load()
+	auditor := api.Auditor.Load()
 	if auditor == nil {
 		return codersdk.Workspace{}, xerrors.New("auditor is not configured")
 	}
@@ -942,7 +938,7 @@ func (c *chatWorkspaceCreator) CreateWorkspace(
 
 	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](sw, &audit.RequestParams{
 		Audit:   *auditor,
-		Log:     c.api.Logger,
+		Log:     api.Logger,
 		Request: auditReq,
 		Action:  database.AuditActionCreate,
 		AdditionalFields: audit.AdditionalFields{
@@ -952,7 +948,7 @@ func (c *chatWorkspaceCreator) CreateWorkspace(
 	aReq.UserID = ownerID
 	defer commitAudit()
 
-	workspace, err := createWorkspace(ctx, aReq, ownerID, c.api, owner, req, nil)
+	workspace, err := createWorkspace(ctx, aReq, ownerID, api, owner, req, nil)
 	if err != nil {
 		sw.WriteHeader(chatWorkspaceAuditStatus(err))
 		return codersdk.Workspace{}, err
@@ -1171,11 +1167,11 @@ func filterChatsByWorkspaceID(chats []database.Chat, workspaceID uuid.UUID) []da
 }
 
 func (api *API) publishChatStatusEvent(ctx context.Context, chatID uuid.UUID) {
-	if api.chatProcessor == nil {
+	if api.chatDaemon == nil {
 		return
 	}
 
-	if err := api.chatProcessor.RefreshStatus(ctx, chatID); err != nil {
+	if err := api.chatDaemon.RefreshStatus(ctx, chatID); err != nil {
 		api.Logger.Debug(ctx, "failed to refresh published chat status",
 			slog.F("chat_id", chatID),
 			slog.Error(err),
@@ -2375,14 +2371,14 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 			BaseURL:  provider.BaseUrl,
 		})
 	}
-	if api.chatProcessor == nil {
+	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat processor is unavailable.",
 			Detail:  "Chat processor is not configured.",
 		})
 		return
 	}
-	effectiveKeys, err := api.chatProcessor.ProviderKeys(ctx, configuredProviders)
+	effectiveKeys, err := api.chatDaemon.ProviderKeys(ctx, configuredProviders)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to resolve provider API keys.",
@@ -3225,10 +3221,10 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 	if strings.TrimSpace(provider.APIKey) != "" {
 		return true
 	}
-	if api.chatProcessor == nil {
+	if api.chatDaemon == nil {
 		return false
 	}
-	effectiveKeys, err := api.chatProcessor.ProviderKeys(ctx, nil)
+	effectiveKeys, err := api.chatDaemon.ProviderKeys(ctx, nil)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to resolve provider API keys",
 			slog.F("provider", provider.Provider),

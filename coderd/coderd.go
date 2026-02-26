@@ -270,8 +270,6 @@ type Options struct {
 	// DatabaseRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	DatabaseRolluper *dbrollup.Rolluper
-	// ChatProcessor handles background processing of pending chats.
-	ChatProcessor *chatd.Server
 	// WorkspaceUsageTracker tracks workspace usage by the CLI.
 	WorkspaceUsageTracker *workspacestats.UsageTracker
 	// BoundaryUsageTracker tracks boundary usage for telemetry.
@@ -605,33 +603,6 @@ func New(options *Options) *API {
 		},
 	}
 
-	chatProviderAPIKeysResolver := func(
-		ctx context.Context,
-	) (chatprovider.ProviderAPIKeys, error) {
-		providers, err := options.Database.GetEnabledChatProviders(ctx)
-		if err != nil {
-			return chatprovider.ProviderAPIKeys{}, err
-		}
-
-		configuredProviders := make(
-			[]chatprovider.ConfiguredProvider,
-			0,
-			len(providers),
-		)
-		for _, provider := range providers {
-			configuredProviders = append(configuredProviders, chatprovider.ConfiguredProvider{
-				Provider: provider.Provider,
-				APIKey:   provider.APIKey,
-				BaseURL:  provider.BaseUrl,
-			})
-		}
-
-		return chatprovider.MergeProviderAPIKeys(
-			chatProviderAPIKeys,
-			configuredProviders,
-		), nil
-	}
-
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -664,8 +635,7 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper:    options.DatabaseRolluper,
-		chatProcessor: options.ChatProcessor,
+		dbRolluper: options.DatabaseRolluper,
 	}
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
@@ -799,20 +769,16 @@ func New(options *Options) *API {
 	}
 	api.agentProvider = stn
 
-	if options.ChatProcessor == nil {
-		creator := &chatWorkspaceCreator{api: api}
-		options.ChatProcessor = chatd.New(chatd.Config{
-			Logger:                 options.Logger.Named("chats"),
-			Database:               options.Database,
-			ReplicaID:              api.ID,
-			RemotePartsProvider:    options.ChatRemotePartsProvider,
-			ResolveProviderAPIKeys: chatProviderAPIKeysResolver,
-			AgentConn:              api.agentProvider.AgentConn,
-			CreateWorkspace:        creator.CreateWorkspace,
-			Pubsub:                 options.Pubsub,
-		})
-	}
-	api.chatProcessor = options.ChatProcessor
+	api.chatDaemon = chatd.New(chatd.Config{
+		Logger:              options.Logger.Named("chats"),
+		Database:            options.Database,
+		ReplicaID:           api.ID,
+		RemotePartsProvider: options.ChatRemotePartsProvider,
+		ProviderAPIKeys:     chatProviderAPIKeys,
+		AgentConn:           api.agentProvider.AgentConn,
+		CreateWorkspace:     api.chatCreateWorkspace,
+		Pubsub:              options.Pubsub,
+	})
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
@@ -1998,8 +1964,8 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
-	// chatProcessor handles background processing of pending chats.
-	chatProcessor *chatd.Server
+	// chatDaemon handles background processing of pending chats.
+	chatDaemon *chatd.Server
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2029,7 +1995,7 @@ func (api *API) Close() error {
 		api.Logger.Warn(api.ctx, "websocket shutdown timed out after 10 seconds")
 	}
 	api.dbRolluper.Close()
-	if err := api.chatProcessor.Close(); err != nil {
+	if err := api.chatDaemon.Close(); err != nil {
 		api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
 	}
 	api.metricsCache.Close()
