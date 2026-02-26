@@ -277,7 +277,7 @@ require (
 	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
-	github.com/cloudflare/circl v1.6.1 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/containerd/continuity v0.4.5 // indirect
 	github.com/coreos/go-iptables v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
