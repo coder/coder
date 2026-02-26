@@ -90,7 +90,7 @@ export interface AgentsOutletContext {
 	requestArchiveAgent: (chatId: string) => void;
 }
 
-export const AgentsPage: FC = () => {
+const AgentsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { agentId } = useParams();
