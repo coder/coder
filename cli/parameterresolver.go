@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -231,7 +232,7 @@ next:
 			continue // immutables should not be passed to consecutive builds
 		}
 
-		if len(tvp.Options) > 0 && !isValidTemplateParameterOption(buildParameter, tvp.Options) {
+		if len(tvp.Options) > 0 && !isValidTemplateParameterOption(buildParameter, *tvp) {
 			continue // do not propagate invalid options
 		}
 
@@ -365,7 +366,7 @@ func (pr *ParameterResolver) isLastBuildParameterInvalidOption(templateVersionPa
 
 	for _, buildParameter := range pr.lastBuildParameters {
 		if buildParameter.Name == templateVersionParameter.Name {
-			return !isValidTemplateParameterOption(buildParameter, templateVersionParameter.Options)
+			return !isValidTemplateParameterOption(buildParameter, templateVersionParameter)
 		}
 	}
 	return false
@@ -389,8 +390,31 @@ func findWorkspaceBuildParameter(parameterName string, params []codersdk.Workspa
 	return nil
 }
 
-func isValidTemplateParameterOption(buildParameter codersdk.WorkspaceBuildParameter, options []codersdk.TemplateVersionParameterOption) bool {
-	for _, opt := range options {
+func isValidTemplateParameterOption(buildParameter codersdk.WorkspaceBuildParameter, templateVersionParameter codersdk.TemplateVersionParameter) bool {
+	// Multi-select parameters store values as a JSON array (e.g.
+	// '["vim","emacs"]'), so we need to parse the array and validate
+	// each element individually against the allowed options.
+	if templateVersionParameter.Type == "list(string)" {
+		var values []string
+		if err := json.Unmarshal([]byte(buildParameter.Value), &values); err != nil {
+			return false
+		}
+		for _, v := range values {
+			found := false
+			for _, opt := range templateVersionParameter.Options {
+				if opt.Value == v {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+		return true
+	}
+
+	for _, opt := range templateVersionParameter.Options {
 		if opt.Value == buildParameter.Value {
 			return true
 		}

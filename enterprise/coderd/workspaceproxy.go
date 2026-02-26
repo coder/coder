@@ -604,6 +604,25 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Load the mesh key directly from the database. We don't retrieve the mesh
+	// key from the built-in DERP server because it may not be enabled.
+	//
+	// The mesh key is always generated at startup by an enterprise coderd
+	// server.
+	var meshKey string
+	if req.DerpEnabled {
+		var err error
+		meshKey, err = api.Database.GetDERPMeshKey(ctx)
+		if err != nil {
+			httpapi.InternalServerError(rw, xerrors.Errorf("get DERP mesh key: %w", err))
+			return
+		}
+		if meshKey == "" {
+			httpapi.InternalServerError(rw, xerrors.New("mesh key is empty"))
+			return
+		}
+	}
+
 	startingRegionID, _ := getProxyDERPStartingRegionID(api.Options.BaseDERPMap)
 	// #nosec G115 - Safe conversion as DERP region IDs are small integers expected to be within int32 range
 	regionID := int32(startingRegionID) + proxy.RegionID
@@ -710,7 +729,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
-		DERPMeshKey:         api.DERPServer.MeshKey(),
+		DERPMeshKey:         meshKey,
 		DERPRegionID:        regionID,
 		DERPMap:             api.AGPL.DERPMap(),
 		DERPForceWebSockets: api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
