@@ -1006,8 +1006,6 @@ func (p *Server) Subscribe(
 		}
 	}
 
-	// Subscribe to pubsub for durable events
-	var pubsubCancel func()
 	//nolint:nestif
 	if p.pubsub != nil {
 		notifications := make(chan coderdpubsub.ChatStreamNotifyMessage, 10)
@@ -1035,11 +1033,13 @@ func (p *Server) Subscribe(
 			}
 		}
 
-		pubsubCancel, err = p.pubsub.SubscribeWithErr(
+		// Subscribe to pubsub for durable events
+		if pubsubCancel, err := p.pubsub.SubscribeWithErr(
 			coderdpubsub.ChatStreamNotifyChannel(chatID),
 			listener,
-		)
-		if err != nil {
+		); err == nil {
+			allCancels = append(allCancels, pubsubCancel)
+		} else {
 			p.logger.Warn(mergedCtx, "failed to subscribe to chat stream notifications",
 				slog.F("chat_id", chatID),
 				slog.Error(err),
@@ -1173,10 +1173,6 @@ func (p *Server) Subscribe(
 				}
 			}
 		}()
-
-		if pubsubCancel != nil {
-			allCancels = append(allCancels, pubsubCancel)
-		}
 	} else {
 		// No pubsub, just merge local parts
 		go func() {
