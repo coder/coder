@@ -23,16 +23,13 @@ type ConfigureAgentsSectionOption = {
 	icon: LucideIcon;
 };
 
+const systemPromptStorageKey = "agents.system-prompt";
+
 interface ConfigureAgentsDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	canManageChatModelConfigs: boolean;
 	canSetSystemPrompt: boolean;
-	systemPromptDraft: string;
-	onSystemPromptDraftChange: (value: string) => void;
-	onSaveSystemPrompt: (event: FormEvent) => void;
-	isSystemPromptDirty: boolean;
-	isDisabled: boolean;
 }
 
 export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
@@ -40,12 +37,33 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	onOpenChange,
 	canManageChatModelConfigs,
 	canSetSystemPrompt,
-	systemPromptDraft,
-	onSystemPromptDraftChange,
-	onSaveSystemPrompt,
-	isSystemPromptDirty,
-	isDisabled,
 }) => {
+	const initialSystemPrompt = useMemo(() => {
+		if (typeof window === "undefined") {
+			return "";
+		}
+		return localStorage.getItem(systemPromptStorageKey) ?? "";
+	}, []);
+	const [savedSystemPrompt, setSavedSystemPrompt] =
+		useState(initialSystemPrompt);
+	const [systemPromptDraft, setSystemPromptDraft] =
+		useState(initialSystemPrompt);
+	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
+
+	const handleSaveSystemPrompt = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isSystemPromptDirty) {
+			return;
+		}
+		setSavedSystemPrompt(systemPromptDraft);
+		if (typeof window !== "undefined") {
+			if (systemPromptDraft) {
+				localStorage.setItem(systemPromptStorageKey, systemPromptDraft);
+			} else {
+				localStorage.removeItem(systemPromptStorageKey);
+			}
+		}
+	};
 	const configureSectionOptions = useMemo<
 		readonly ConfigureAgentsSectionOption[]
 	>(() => {
@@ -149,7 +167,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 						{activeSection === "system-prompt" && canSetSystemPrompt && (
 							<form
 								className="space-y-4"
-								onSubmit={(event) => void onSaveSystemPrompt(event)}
+								onSubmit={(event) => void handleSaveSystemPrompt(event)}
 							>
 								<p className="m-0 text-[13px] leading-relaxed text-content-secondary">
 									Configure how the AI agent behaves across this deployment.
@@ -166,9 +184,8 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 										placeholder="Optional. Set deployment-wide instructions for all new chats."
 										value={systemPromptDraft}
 										onChange={(event) =>
-											onSystemPromptDraftChange(event.target.value)
+											setSystemPromptDraft(event.target.value)
 										}
-										disabled={isDisabled}
 										minRows={7}
 									/>
 									<div className="flex justify-end gap-2">
@@ -176,15 +193,15 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 											size="sm"
 											variant="outline"
 											type="button"
-											onClick={() => onSystemPromptDraftChange("")}
-											disabled={isDisabled || !systemPromptDraft}
+											onClick={() => setSystemPromptDraft("")}
+											disabled={!systemPromptDraft}
 										>
 											Clear
 										</Button>
 										<Button
 											size="sm"
 											type="submit"
-											disabled={isDisabled || !isSystemPromptDirty}
+											disabled={!isSystemPromptDirty}
 										>
 											Save
 										</Button>

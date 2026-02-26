@@ -74,11 +74,6 @@ const meta: Meta<typeof ConfigureAgentsDialog> = {
 		onOpenChange: fn(),
 		canManageChatModelConfigs: false,
 		canSetSystemPrompt: false,
-		systemPromptDraft: "",
-		onSystemPromptDraftChange: fn(),
-		onSaveSystemPrompt: fn(),
-		isSystemPromptDirty: false,
-		isDisabled: false,
 	},
 };
 
@@ -89,7 +84,6 @@ export const SystemPromptOnly: Story = {
 	args: {
 		canSetSystemPrompt: true,
 		canManageChatModelConfigs: false,
-		systemPromptDraft: "You are a helpful coding assistant.",
 	},
 };
 
@@ -105,7 +99,6 @@ export const BothEnabled: Story = {
 	args: {
 		canSetSystemPrompt: true,
 		canManageChatModelConfigs: true,
-		systemPromptDraft: "Follow company coding standards.",
 	},
 	parameters: { queries: chatQueries },
 };
