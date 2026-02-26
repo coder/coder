@@ -363,28 +363,20 @@ func (s *Server) findParentInterceptionID(ctx context.Context, selfID uuid.UUID,
 		return uuid.NullUUID{}
 	}
 
-	// Filter out self-references.
-	var candidates []uuid.UUID
-	for _, id := range interceptionIDs {
-		if id != selfID {
-			candidates = append(candidates, id)
-		}
-	}
-
-	if len(candidates) == 0 {
+	if len(interceptionIDs) == 0 {
 		return uuid.NullUUID{}
 	}
 
-	if len(candidates) > 1 {
+	if len(interceptionIDs) > 1 {
 		// Ambiguous match — log a warning but use the first (most
 		// recent) candidate, since the query orders by created_at DESC.
 		s.logger.Warn(ctx, "ambiguous parent interception candidates",
 			slog.F("tool_call_id", toolCallID),
-			slog.F("candidates", candidates),
+			slog.F("candidates", interceptionIDs),
 		)
 	}
 
-	return uuid.NullUUID{UUID: candidates[0], Valid: true}
+	return uuid.NullUUID{UUID: interceptionIDs[0], Valid: true}
 }
 
 func (s *Server) GetMCPServerConfigs(_ context.Context, _ *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {

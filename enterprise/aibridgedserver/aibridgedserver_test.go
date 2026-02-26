@@ -475,12 +475,10 @@ func TestRecordInterception(t *testing.T) {
 					assert.NoError(t, err, "parse self UUID")
 					parentID := uuid.UUID{4}
 
-					// The lookup returns both the parent and self;
-					// findParentInterceptionID filters out self.
 					db.EXPECT().GetAIBridgeInterceptionByToolCallID(
 						gomock.Any(),
 						sql.NullString{String: "call_abc", Valid: true},
-					).Return([]uuid.UUID{parentID, selfID}, nil)
+					).Return([]uuid.UUID{parentID, uuid.New()}, nil) // If multiple entries are returned (unexpectedly), we pick the first one.
 
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
 						return assert.Equal(t, selfID, p.ID, "ID") &&
