@@ -11,7 +11,7 @@ import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
 
 const WorkspaceSharingPage: FC = () => {
-	const workspace = useWorkspaceSettings();
+	const { workspace } = useWorkspaceSettings();
 	const sharing = useWorkspaceSharing(workspace);
 
 	const checks = workspaceChecks(workspace);

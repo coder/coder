@@ -15,7 +15,7 @@ const WorkspaceSettingsPage: FC = () => {
 	};
 	const workspaceName = params.workspace;
 	const username = params.username.replace("@", "");
-	const workspace = useWorkspaceSettings();
+	const { workspace } = useWorkspaceSettings();
 	const navigate = useNavigate();
 
 	const mutation = useMutation({

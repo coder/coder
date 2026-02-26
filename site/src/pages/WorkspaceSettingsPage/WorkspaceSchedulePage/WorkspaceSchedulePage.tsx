@@ -47,7 +47,7 @@ const WorkspaceSchedulePage: FC = () => {
 	const username = params.username.replace("@", "");
 	const workspaceName = params.workspace;
 	const queryClient = useQueryClient();
-	const workspace = useWorkspaceSettings();
+	const { workspace } = useWorkspaceSettings();
 	const { data: permissions, error: checkPermissionsError } = useQuery(
 		checkAuthorization({ checks: permissionsToCheck(workspace) }),
 	);
