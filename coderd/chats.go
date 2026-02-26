@@ -252,7 +252,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, req)
+	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, req)
 	if validationError != nil {
 		httpapi.Write(ctx, rw, validationStatus, *validationError)
 		return
@@ -278,15 +278,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chat, err := api.chatProcessor.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID: apiKey.UserID,
-		WorkspaceID: uuid.NullUUID{
-			UUID:  uuidOrNil(req.WorkspaceID),
-			Valid: req.WorkspaceID != nil,
-		},
-		WorkspaceAgentID: uuid.NullUUID{
-			UUID:  uuidOrNil(req.WorkspaceAgentID),
-			Valid: req.WorkspaceAgentID != nil,
-		},
+		OwnerID:            apiKey.UserID,
+		WorkspaceID:        workspaceSelection.WorkspaceID,
+		WorkspaceAgentID:   workspaceSelection.WorkspaceAgentID,
 		Title:              title,
 		ModelConfigID:      req.ModelConfigID,
 		SystemPrompt:       defaultChatSystemPrompt(),
@@ -1860,55 +1854,59 @@ func parseGitHubPullRequestURL(raw string) (githubPullRequestRef, bool) {
 	}, true
 }
 
-func uuidOrNil(u *uuid.UUID) uuid.UUID {
-	if u == nil {
-		return uuid.Nil
-	}
-	return *u
+type createChatWorkspaceSelection struct {
+	WorkspaceID      uuid.NullUUID
+	WorkspaceAgentID uuid.NullUUID
 }
 
 func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
 	req codersdk.CreateChatRequest,
-) (int, *codersdk.Response) {
-	var workspaceID uuid.UUID
-	if req.WorkspaceID != nil {
-		workspace, err := api.Database.GetWorkspaceByID(ctx, *req.WorkspaceID)
-		if err != nil {
-			if httpapi.Is404Error(err) {
-				return http.StatusBadRequest, &codersdk.Response{
-					Message: "Workspace not found or you do not have access to this resource",
-				}
-			}
-			return http.StatusInternalServerError, &codersdk.Response{
-				Message: "Failed to get workspace.",
-				Detail:  err.Error(),
-			}
-		}
-		workspaceID = workspace.ID
+) (
+	createChatWorkspaceSelection,
+	int,
+	*codersdk.Response,
+) {
+	selection := createChatWorkspaceSelection{}
+	if req.WorkspaceID == nil {
+		return selection, 0, nil
 	}
 
-	if req.WorkspaceAgentID != nil {
-		workspaceAgent, err := api.Database.GetWorkspaceAgentAndWorkspaceByID(ctx, *req.WorkspaceAgentID)
-		if err != nil {
-			if httpapi.Is404Error(err) {
-				return http.StatusBadRequest, &codersdk.Response{
-					Message: "Workspace agent not found or you do not have access to this resource",
-				}
-			}
-			return http.StatusInternalServerError, &codersdk.Response{
-				Message: "Failed to get workspace agent.",
-				Detail:  err.Error(),
+	workspace, err := api.Database.GetWorkspaceByID(ctx, *req.WorkspaceID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			return selection, http.StatusBadRequest, &codersdk.Response{
+				Message: "Workspace not found or you do not have access to this resource",
 			}
 		}
-		if req.WorkspaceID != nil && workspaceAgent.WorkspaceTable.ID != workspaceID {
-			return http.StatusBadRequest, &codersdk.Response{
-				Message: "Workspace agent does not belong to the selected workspace.",
-			}
+		return selection, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to get workspace.",
+			Detail:  err.Error(),
+		}
+	}
+	selection.WorkspaceID = uuid.NullUUID{
+		UUID:  workspace.ID,
+		Valid: true,
+	}
+
+	workspaceAgents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+		ctx,
+		workspace.ID,
+	)
+	if err != nil {
+		return selection, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to get workspace agents.",
+			Detail:  err.Error(),
+		}
+	}
+	if len(workspaceAgents) > 0 {
+		selection.WorkspaceAgentID = uuid.NullUUID{
+			UUID:  workspaceAgents[0].ID,
+			Valid: true,
 		}
 	}
 
-	return 0, nil
+	return selection, 0, nil
 }
 
 func normalizeChatCompressionThreshold(

@@ -14798,10 +14798,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "workspace_agent_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"

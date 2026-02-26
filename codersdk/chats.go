@@ -126,10 +126,9 @@ type ChatInputPart struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
-	Content          []ChatInputPart `json:"content"`
-	WorkspaceID      *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	WorkspaceAgentID *uuid.UUID      `json:"workspace_agent_id,omitempty" format:"uuid"`
-	ModelConfigID    uuid.UUID       `json:"model_config_id" format:"uuid"`
+	Content       []ChatInputPart `json:"content"`
+	WorkspaceID   *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
+	ModelConfigID uuid.UUID       `json:"model_config_id" format:"uuid"`
 }
 
 // UpdateChatRequest is the request to update a chat.
