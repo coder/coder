@@ -118,8 +118,12 @@ export const AgentDetail: FC = () => {
 	}, [hasDiffStatus, setRightPanelOpen, showDiffPanel]);
 
 	const modelOptions = useMemo(
-		() => getModelOptionsFromCatalog(chatModelsQuery.data),
-		[chatModelsQuery.data],
+		() =>
+			getModelOptionsFromCatalog(
+				chatModelsQuery.data,
+				chatModelConfigsQuery.data,
+			),
+		[chatModelsQuery.data, chatModelConfigsQuery.data],
 	);
 	const modelConfigIDByModelID = useMemo(() => {
 		const byModelID = new Map<string, string>();

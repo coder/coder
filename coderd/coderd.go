@@ -50,7 +50,6 @@ import (
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/chatd"
-	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -593,16 +592,6 @@ func New(options *Options) *API {
 	var buildUsageChecker atomic.Pointer[wsbuilder.UsageChecker]
 	var noopUsageChecker wsbuilder.UsageChecker = wsbuilder.NoopUsageChecker{}
 	buildUsageChecker.Store(&noopUsageChecker)
-
-	chatProviderAPIKeys := chatprovider.ProviderAPIKeys{
-		OpenAI:    options.DeploymentValues.AI.BridgeConfig.OpenAI.Key.Value(),
-		Anthropic: options.DeploymentValues.AI.BridgeConfig.Anthropic.Key.Value(),
-		BaseURLByProvider: map[string]string{
-			"openai":    options.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.Value(),
-			"anthropic": options.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.Value(),
-		},
-	}
-
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -774,7 +763,7 @@ func New(options *Options) *API {
 		Database:            options.Database,
 		ReplicaID:           api.ID,
 		RemotePartsProvider: options.ChatRemotePartsProvider,
-		ProviderAPIKeys:     chatProviderAPIKeys,
+		ProviderAPIKeys:     chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
 		AgentConn:           api.agentProvider.AgentConn,
 		CreateWorkspace:     api.chatCreateWorkspace,
 		Pubsub:              options.Pubsub,

@@ -313,6 +313,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 // @Router /chats/models [get]
 func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
 
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -321,13 +322,63 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	response, err := api.chatDaemon.Models(ctx)
+
+	enabledProviders, err := api.Database.GetEnabledChatProviders(
+		systemCtx,
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to load chat model configuration.",
 			Detail:  err.Error(),
 		})
 		return
+	}
+	enabledModels, err := api.Database.GetEnabledChatModelConfigs(
+		systemCtx,
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load chat model configuration.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	configuredProviders := make(
+		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
+	)
+	for _, provider := range enabledProviders {
+		configuredProviders = append(
+			configuredProviders, chatprovider.ConfiguredProvider{
+				Provider: provider.Provider,
+				APIKey:   provider.APIKey,
+				BaseURL:  provider.BaseUrl,
+			},
+		)
+	}
+	configuredModels := make(
+		[]chatprovider.ConfiguredModel, 0, len(enabledModels),
+	)
+	for _, model := range enabledModels {
+		configuredModels = append(configuredModels, chatprovider.ConfiguredModel{
+			Provider:    model.Provider,
+			Model:       model.Model,
+			DisplayName: model.DisplayName,
+		})
+	}
+
+	keys := chatprovider.MergeProviderAPIKeys(
+		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		configuredProviders,
+	)
+	catalog := chatprovider.NewModelCatalog(keys)
+	var response codersdk.ChatModelsResponse
+	if configured, ok := catalog.ListConfiguredModels(
+		configuredProviders, configuredModels,
+	); ok {
+		response = configured
+	} else {
+		response = catalog.ListConfiguredProviderAvailability(configuredProviders)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -2224,6 +2275,7 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 
 func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -2260,7 +2312,10 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	effectiveKeys, err := api.chatDaemon.ProviderKeys(ctx, configuredProviders)
+
+	enabledProviders, err := api.Database.GetEnabledChatProviders(
+		systemCtx,
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to resolve provider API keys.",
@@ -2268,6 +2323,27 @@ func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	enabledConfiguredProviders := make(
+		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
+	)
+	for _, provider := range enabledProviders {
+		enabledConfiguredProviders = append(
+			enabledConfiguredProviders, chatprovider.ConfiguredProvider{
+				Provider: provider.Provider,
+				APIKey:   provider.APIKey,
+				BaseURL:  provider.BaseUrl,
+			},
+		)
+	}
+
+	effectiveKeys := chatprovider.MergeProviderAPIKeys(
+		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		enabledConfiguredProviders,
+	)
+	effectiveKeys = chatprovider.MergeProviderAPIKeys(
+		effectiveKeys, configuredProviders,
+	)
 
 	supportedProviders := chatprovider.SupportedProviders()
 	resp := make([]codersdk.ChatProviderConfig, 0, len(supportedProviders))
@@ -3099,6 +3175,19 @@ func chatProviderValidationDetail() string {
 	return "Provider must be one of: " + strings.Join(chatprovider.SupportedProviders(), ", ") + "."
 }
 
+func chatProviderAPIKeysFromDeploymentValues(
+	deploymentValues *codersdk.DeploymentValues,
+) chatprovider.ProviderAPIKeys {
+	return chatprovider.ProviderAPIKeys{
+		OpenAI:    deploymentValues.AI.BridgeConfig.OpenAI.Key.Value(),
+		Anthropic: deploymentValues.AI.BridgeConfig.Anthropic.Key.Value(),
+		BaseURLByProvider: map[string]string{
+			"openai":    deploymentValues.AI.BridgeConfig.OpenAI.BaseURL.Value(),
+			"anthropic": deploymentValues.AI.BridgeConfig.Anthropic.BaseURL.Value(),
+		},
+	}
+}
+
 func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider database.ChatProvider) bool {
 	if strings.TrimSpace(provider.APIKey) != "" {
 		return true
@@ -3106,7 +3195,11 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 	if api.chatDaemon == nil {
 		return false
 	}
-	effectiveKeys, err := api.chatDaemon.ProviderKeys(ctx, nil)
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+
+	enabledProviders, err := api.Database.GetEnabledChatProviders(
+		systemCtx,
+	)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to resolve provider API keys",
 			slog.F("provider", provider.Provider),
@@ -3114,5 +3207,23 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 		)
 		return false
 	}
+
+	enabledConfiguredProviders := make(
+		[]chatprovider.ConfiguredProvider, 0, len(enabledProviders),
+	)
+	for _, configured := range enabledProviders {
+		enabledConfiguredProviders = append(
+			enabledConfiguredProviders, chatprovider.ConfiguredProvider{
+				Provider: configured.Provider,
+				APIKey:   configured.APIKey,
+				BaseURL:  configured.BaseUrl,
+			},
+		)
+	}
+
+	effectiveKeys := chatprovider.MergeProviderAPIKeys(
+		chatProviderAPIKeysFromDeploymentValues(api.DeploymentValues),
+		enabledConfiguredProviders,
+	)
 	return effectiveKeys.APIKey(provider.Provider) != ""
 }

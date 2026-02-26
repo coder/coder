@@ -38,8 +38,23 @@ export const hasConfiguredModelsInCatalog = (
 
 export const getModelOptionsFromCatalog = (
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	configs?: readonly TypesGen.ChatModelConfig[],
 ): readonly ModelSelectorOption[] => {
 	const optionsByID = new Map<string, ModelSelectorOption>();
+
+	// Build a lookup of context limits from admin model configs so
+	// we can surface this in the model selector tooltip.
+	const contextLimitByKey = new Map<string, number>();
+	if (configs) {
+		for (const config of configs) {
+			if (config.context_limit > 0) {
+				const key = `${config.provider.trim().toLowerCase()}:${config.model.trim()}`;
+				if (!contextLimitByKey.has(key)) {
+					contextLimitByKey.set(key, config.context_limit);
+				}
+			}
+		}
+	}
 
 	for (const provider of getCatalogProviders(catalog)) {
 		const models = getProviderModels(provider);
@@ -61,6 +76,8 @@ export const getModelOptionsFromCatalog = (
 				continue;
 			}
 
+			const configKey = `${modelProvider.toLowerCase()}:${modelRef}`;
+
 			optionsByID.set(modelID, {
 				id: modelID,
 				provider: modelProvider,
@@ -69,6 +86,7 @@ export const getModelOptionsFromCatalog = (
 					(typeof model.display_name === "string" &&
 						model.display_name.trim()) ||
 					modelRef,
+				contextLimit: contextLimitByKey.get(configKey),
 			});
 		}
 	}

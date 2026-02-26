@@ -247,6 +247,61 @@ func TestChats(t *testing.T) {
 			require.Equal(t, `content[0].type "image" is not supported.`, sdkErr.Detail)
 		})
 	})
+
+	t.Run("ListChatModels", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+
+		var openAIProvider *codersdk.ChatModelProvider
+		for i := range models.Providers {
+			if models.Providers[i].Provider == "openai" {
+				openAIProvider = &models.Providers[i]
+				break
+			}
+		}
+		require.NotNil(t, openAIProvider)
+		require.True(t, openAIProvider.Available)
+
+		foundModel := false
+		for _, model := range openAIProvider.Models {
+			if model.Provider == "openai" && model.Model == "gpt-4o-mini" {
+				foundModel = true
+				break
+			}
+		}
+		require.True(t, foundModel)
+	})
+
+	t.Run("ListChatProviders", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		providers, err := client.ListChatProviders(ctx)
+		require.NoError(t, err)
+
+		var openAIProvider *codersdk.ChatProviderConfig
+		for i := range providers {
+			if providers[i].Provider == "openai" {
+				openAIProvider = &providers[i]
+				break
+			}
+		}
+		require.NotNil(t, openAIProvider)
+		require.Equal(t, codersdk.ChatProviderConfigSourceDatabase, openAIProvider.Source)
+		require.True(t, openAIProvider.Enabled)
+		require.True(t, openAIProvider.HasAPIKey)
+	})
 }
 
 func createChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.ChatModelConfig {

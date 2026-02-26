@@ -112,8 +112,12 @@ export const AgentsPage: FC = () => {
 		Record<string, string>
 	>({});
 	const catalogModelOptions = useMemo(
-		() => getModelOptionsFromCatalog(chatModelsQuery.data),
-		[chatModelsQuery.data],
+		() =>
+			getModelOptionsFromCatalog(
+				chatModelsQuery.data,
+				chatModelConfigsQuery.data,
+			),
+		[chatModelsQuery.data, chatModelConfigsQuery.data],
 	);
 	const modelConfigIDByModelID = useMemo(() => {
 		const byModelID = new Map<string, string>();
@@ -674,7 +678,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 									{selectedWorkspaceName ?? "Workspace"}
 								</SelectValue>
 							</SelectTrigger>
-							<SelectContent side="top">
+							<SelectContent side="top" align="center" className="[&_[role=option]]:text-xs">
 								<SelectItem value={autoCreateWorkspaceValue}>
 									Auto-create Workspace
 								</SelectItem>

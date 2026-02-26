@@ -259,7 +259,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 
 		const content = (
 			<div className="mx-auto w-full max-w-3xl pb-4">
-				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm focus-within:ring-2 focus-within:ring-content-link/40">
+				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
 					<TextareaAutosize
 						ref={textareaRef}
 						aria-label="Chat message"
@@ -284,8 +284,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								placeholder={modelSelectorPlaceholder}
 								formatProviderLabel={formatProviderLabel}
 								dropdownSide="top"
-								dropdownAlign="start"
-								className="h-8 w-auto justify-start border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent [&>span]:!text-content-secondary"
+								dropdownAlign="center"
+								className="[&>span]:!text-content-secondary"
 							/>
 							{leftActions}
 							{inputStatusText && (
