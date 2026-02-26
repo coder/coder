@@ -14,6 +14,7 @@ import {
 } from "./ExecuteTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ReadFileTool } from "./ReadFileTool";
+import { ReadTemplateTool } from "./ReadTemplateTool";
 import { SubagentTool } from "./SubagentTool";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
@@ -299,6 +300,25 @@ const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const ReadTemplateRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const templateRec = rec ? asRecord(rec.template) : undefined;
+	const name = templateRec ? asString(templateRec.display_name) || asString(templateRec.name) : "";
+
+	return (
+		<ReadTemplateTool
+			templateName={name}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
 const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
@@ -407,6 +427,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	edit_files: EditFilesRenderer,
 	create_workspace: CreateWorkspaceRenderer,
 	list_templates: ListTemplatesRenderer,
+	read_template: ReadTemplateRenderer,
 	spawn_agent: SubagentRenderer,
 	wait_agent: SubagentRenderer,
 	message_agent: SubagentRenderer,

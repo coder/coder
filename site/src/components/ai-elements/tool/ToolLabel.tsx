@@ -93,6 +93,19 @@ export const ToolLabel: React.FC<{
 				</span>
 			);
 		}
+		case "read_template": {
+			const templateRec = parsedResult
+				? asRecord(parsedResult.template)
+				: undefined;
+			const tmplName = templateRec
+				? asString(templateRec.display_name) || asString(templateRec.name)
+				: "";
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{tmplName ? `Read template ${tmplName}` : "Reading template…"}
+				</span>
+			);
+		}
 		case "spawn_agent": {
 			const spawnTitle =
 				(parsedResult ? asString(parsedResult.title) : "") ||

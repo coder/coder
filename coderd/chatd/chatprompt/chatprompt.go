@@ -60,7 +60,7 @@ func ConvertMessages(
 			if err != nil {
 				return nil, err
 			}
-			parts := ToMessageParts(content)
+			parts := normalizeAssistantToolCallInputs(ToMessageParts(content))
 			for _, toolCall := range ExtractToolCalls(parts) {
 				if toolCall.ToolCallID == "" || strings.TrimSpace(toolCall.ToolName) == "" {
 					continue
@@ -345,6 +345,40 @@ func ToMessageParts(content []fantasy.Content) []fantasy.MessagePart {
 		}
 	}
 	return parts
+}
+
+func normalizeAssistantToolCallInputs(
+	parts []fantasy.MessagePart,
+) []fantasy.MessagePart {
+	normalized := make([]fantasy.MessagePart, 0, len(parts))
+	for _, part := range parts {
+		toolCall, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part)
+		if !ok {
+			normalized = append(normalized, part)
+			continue
+		}
+
+		toolCall.Input = normalizeToolCallInput(toolCall.Input)
+		normalized = append(normalized, toolCall)
+	}
+	return normalized
+}
+
+// normalizeToolCallInput guarantees tool call input is a JSON object string.
+// Anthropic drops assistant tool calls with malformed input, which can leave
+// following tool results orphaned.
+func normalizeToolCallInput(input string) string {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "{}"
+	}
+
+	var object map[string]any
+	if err := json.Unmarshal([]byte(input), &object); err != nil || object == nil {
+		return "{}"
+	}
+
+	return input
 }
 
 // ExtractToolCalls returns all tool call parts as content blocks.
