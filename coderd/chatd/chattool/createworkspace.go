@@ -135,9 +135,10 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			// Set up dbauthz context for DB lookups.
 			if options.DB != nil {
 				ownerCtx, ownerErr := asOwner(ctx, options.DB, ownerID)
-				if ownerErr == nil {
-					ctx = ownerCtx
+				if ownerErr != nil {
+					return toolResultBlockToAgentResponse(toolError(base, ownerErr)), nil
 				}
+				ctx = ownerCtx
 			}
 
 			createReq := codersdk.CreateWorkspaceRequest{
