@@ -14,7 +14,6 @@ import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
 	Select,
 	SelectContent,
@@ -38,6 +37,7 @@ import {
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Outlet, useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
@@ -181,7 +181,7 @@ export const AgentsPage: FC = () => {
 			try {
 				await archiveMutation.mutateAsync(chatId);
 				clearChatErrorReason(chatId);
-				displaySuccess("Agent archived.");
+				toast.success("Agent archived.");
 
 				if (chatId === agentId) {
 					navigate(nextChatId ? `/agents/${nextChatId}` : "/agents", {
@@ -189,7 +189,7 @@ export const AgentsPage: FC = () => {
 					});
 				}
 			} catch (error) {
-				displayError(getErrorMessage(error, "Failed to archive agent."));
+				toast.error(getErrorMessage(error, "Failed to archive agent."));
 			} finally {
 				setArchivingChatId(null);
 			}
@@ -331,13 +331,13 @@ export const AgentsPage: FC = () => {
 					agentId && "hidden md:block",
 				)}
 			>
-					<AgentsSidebar
-						chats={chatList}
-						chatErrorReasons={chatErrorReasons}
-						modelOptions={catalogModelOptions}
-						modelConfigs={chatModelConfigsQuery.data ?? []}
-						logoUrl={appearance.logo_url}
-						onArchiveAgent={requestArchiveAgent}
+				<AgentsSidebar
+					chats={chatList}
+					chatErrorReasons={chatErrorReasons}
+					modelOptions={catalogModelOptions}
+					modelConfigs={chatModelConfigsQuery.data ?? []}
+					logoUrl={appearance.logo_url}
+					onArchiveAgent={requestArchiveAgent}
 					onNewAgent={handleNewAgent}
 					isCreating={createMutation.isPending}
 					isArchiving={archiveMutation.isPending}

@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import * as Yup from "yup";
 import { normalizeProvider } from "./helpers";
 import {
 	modelConfigAnthropicEffortOptions,
@@ -6,7 +7,56 @@ import {
 	modelConfigTextVerbosityOptions,
 } from "./ModelConfigFields";
 
-// ── Form state types ───────────────────────────────────────────
+// ── Per-provider form state types ──────────────────────────────
+
+export type OpenAIFormState = {
+	reasoningEffort: string;
+	parallelToolCalls: string;
+	textVerbosity: string;
+	serviceTier: string;
+	reasoningSummary: string;
+	user: string;
+};
+
+export type AnthropicFormState = {
+	effort: string;
+	thinkingBudgetTokens: string;
+	sendReasoning: string;
+	disableParallelToolUse: string;
+};
+
+export type GoogleFormState = {
+	thinkingBudget: string;
+	includeThoughts: string;
+	cachedContent: string;
+	safetySettingsJSON: string;
+};
+
+export type OpenAICompatFormState = {
+	reasoningEffort: string;
+	user: string;
+};
+
+export type OpenRouterFormState = {
+	reasoningEnabled: string;
+	reasoningEffort: string;
+	reasoningMaxTokens: string;
+	reasoningExclude: string;
+	parallelToolCalls: string;
+	includeUsage: string;
+	user: string;
+};
+
+export type VercelFormState = {
+	reasoningEnabled: string;
+	reasoningEffort: string;
+	reasoningMaxTokens: string;
+	reasoningExclude: string;
+	parallelToolCalls: string;
+	user: string;
+};
+
+// ── Main form state type ───────────────────────────────────────
 
 export type ModelConfigFormState = {
 	maxOutputTokens: string;
@@ -15,46 +65,66 @@ export type ModelConfigFormState = {
 	topK: string;
 	presencePenalty: string;
 	frequencyPenalty: string;
-
-	openaiReasoningEffort: string;
-	openaiParallelToolCalls: string;
-	openaiTextVerbosity: string;
-	openaiServiceTier: string;
-	openaiReasoningSummary: string;
-	openaiUser: string;
-
-	anthropicEffort: string;
-	anthropicThinkingBudgetTokens: string;
-	anthropicSendReasoning: string;
-	anthropicDisableParallelToolUse: string;
-
-	googleThinkingBudget: string;
-	googleIncludeThoughts: string;
-	googleCachedContent: string;
-	googleSafetySettingsJSON: string;
-
-	openAICompatReasoningEffort: string;
-	openAICompatUser: string;
-
-	openrouterReasoningEnabled: string;
-	openrouterReasoningEffort: string;
-	openrouterReasoningMaxTokens: string;
-	openrouterReasoningExclude: string;
-	openrouterParallelToolCalls: string;
-	openrouterIncludeUsage: string;
-	openrouterUser: string;
-
-	vercelReasoningEnabled: string;
-	vercelReasoningEffort: string;
-	vercelReasoningMaxTokens: string;
-	vercelReasoningExclude: string;
-	vercelParallelToolCalls: string;
-	vercelUser: string;
+	openai: OpenAIFormState;
+	anthropic: AnthropicFormState;
+	google: GoogleFormState;
+	openaicompat: OpenAICompatFormState;
+	openrouter: OpenRouterFormState;
+	vercel: VercelFormState;
 };
 
 export type ModelConfigFormBuildResult = {
 	modelConfig?: TypesGen.ChatModelCallConfig;
-	fieldErrors: Partial<Record<keyof ModelConfigFormState, string>>;
+	fieldErrors: Record<string, string>;
+};
+
+// ── Empty defaults ─────────────────────────────────────────────
+
+export const emptyOpenAIFormState: OpenAIFormState = {
+	reasoningEffort: "",
+	parallelToolCalls: "",
+	textVerbosity: "",
+	serviceTier: "",
+	reasoningSummary: "",
+	user: "",
+};
+
+export const emptyAnthropicFormState: AnthropicFormState = {
+	effort: "",
+	thinkingBudgetTokens: "",
+	sendReasoning: "",
+	disableParallelToolUse: "",
+};
+
+export const emptyGoogleFormState: GoogleFormState = {
+	thinkingBudget: "",
+	includeThoughts: "",
+	cachedContent: "",
+	safetySettingsJSON: "",
+};
+
+export const emptyOpenAICompatFormState: OpenAICompatFormState = {
+	reasoningEffort: "",
+	user: "",
+};
+
+export const emptyOpenRouterFormState: OpenRouterFormState = {
+	reasoningEnabled: "",
+	reasoningEffort: "",
+	reasoningMaxTokens: "",
+	reasoningExclude: "",
+	parallelToolCalls: "",
+	includeUsage: "",
+	user: "",
+};
+
+export const emptyVercelFormState: VercelFormState = {
+	reasoningEnabled: "",
+	reasoningEffort: "",
+	reasoningMaxTokens: "",
+	reasoningExclude: "",
+	parallelToolCalls: "",
+	user: "",
 };
 
 export const emptyModelConfigFormState: ModelConfigFormState = {
@@ -64,41 +134,12 @@ export const emptyModelConfigFormState: ModelConfigFormState = {
 	topK: "",
 	presencePenalty: "",
 	frequencyPenalty: "",
-
-	openaiReasoningEffort: "",
-	openaiParallelToolCalls: "",
-	openaiTextVerbosity: "",
-	openaiServiceTier: "",
-	openaiReasoningSummary: "",
-	openaiUser: "",
-
-	anthropicEffort: "",
-	anthropicThinkingBudgetTokens: "",
-	anthropicSendReasoning: "",
-	anthropicDisableParallelToolUse: "",
-
-	googleThinkingBudget: "",
-	googleIncludeThoughts: "",
-	googleCachedContent: "",
-	googleSafetySettingsJSON: "",
-
-	openAICompatReasoningEffort: "",
-	openAICompatUser: "",
-
-	openrouterReasoningEnabled: "",
-	openrouterReasoningEffort: "",
-	openrouterReasoningMaxTokens: "",
-	openrouterReasoningExclude: "",
-	openrouterParallelToolCalls: "",
-	openrouterIncludeUsage: "",
-	openrouterUser: "",
-
-	vercelReasoningEnabled: "",
-	vercelReasoningEffort: "",
-	vercelReasoningMaxTokens: "",
-	vercelReasoningExclude: "",
-	vercelParallelToolCalls: "",
-	vercelUser: "",
+	openai: { ...emptyOpenAIFormState },
+	anthropic: { ...emptyAnthropicFormState },
+	google: { ...emptyGoogleFormState },
+	openaicompat: { ...emptyOpenAICompatFormState },
+	openrouter: { ...emptyOpenRouterFormState },
+	vercel: { ...emptyVercelFormState },
 };
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -129,143 +170,405 @@ export const extractModelConfigFormState = (
 ): ModelConfigFormState => {
 	const config = model.model_config;
 	if (!config) {
-		return { ...emptyModelConfigFormState };
+		return structuredClone(emptyModelConfigFormState);
 	}
 
-	const str = (v: unknown): string =>
+	const toFormString = (v: unknown): string =>
 		v !== undefined && v !== null ? String(v) : "";
-	const po = config.provider_options ?? {};
 
-	// OpenAI / Azure options.
-	const openai = (po.openai ?? {}) as Record<string, unknown>;
-	// Anthropic / Bedrock options.
-	const anthropic = (po.anthropic ?? {}) as Record<string, unknown>;
-	const anthropicThinking = (anthropic.thinking ?? {}) as Record<
-		string,
-		unknown
-	>;
-	// Google options.
-	const google = (po.google ?? {}) as Record<string, unknown>;
-	const googleThinking = (google.thinking_config ?? {}) as Record<
-		string,
-		unknown
-	>;
-	// OpenAI-compatible options.
-	const openaicompat = (po.openaicompat ?? {}) as Record<string, unknown>;
-	// OpenRouter options.
-	const openrouter = (po.openrouter ?? {}) as Record<string, unknown>;
-	const openrouterReasoning = (openrouter.reasoning ?? {}) as Record<
-		string,
-		unknown
-	>;
-	// Vercel options.
-	const vercel = (po.vercel ?? {}) as Record<string, unknown>;
-	const vercelReasoning = (vercel.reasoning ?? {}) as Record<string, unknown>;
+	const po = config.provider_options;
+	const openai = po?.openai;
+	const anthropic = po?.anthropic;
+	const google = po?.google;
+	const openaicompat = po?.openaicompat;
+	const openrouter = po?.openrouter;
+	const vercel = po?.vercel;
 
 	return {
-		maxOutputTokens: str(config.max_output_tokens),
-		temperature: str(config.temperature),
-		topP: str(config.top_p),
-		topK: str(config.top_k),
-		presencePenalty: str(config.presence_penalty),
-		frequencyPenalty: str(config.frequency_penalty),
-
-		openaiReasoningEffort: str(openai.reasoning_effort),
-		openaiParallelToolCalls: str(openai.parallel_tool_calls),
-		openaiTextVerbosity: str(openai.text_verbosity),
-		openaiServiceTier: str(openai.service_tier),
-		openaiReasoningSummary: str(openai.reasoning_summary),
-		openaiUser: str(openai.user),
-
-		anthropicEffort: str(anthropic.effort),
-		anthropicThinkingBudgetTokens: str(anthropicThinking.budget_tokens),
-		anthropicSendReasoning: str(anthropic.send_reasoning),
-		anthropicDisableParallelToolUse: str(anthropic.disable_parallel_tool_use),
-
-		googleThinkingBudget: str(googleThinking.thinking_budget),
-		googleIncludeThoughts: str(googleThinking.include_thoughts),
-		googleCachedContent: str(google.cached_content),
-		googleSafetySettingsJSON: google.safety_settings
-			? JSON.stringify(google.safety_settings, null, 2)
-			: "",
-
-		openAICompatReasoningEffort: str(openaicompat.reasoning_effort),
-		openAICompatUser: str(openaicompat.user),
-
-		openrouterReasoningEnabled: str(openrouterReasoning.enabled),
-		openrouterReasoningEffort: str(openrouterReasoning.effort),
-		openrouterReasoningMaxTokens: str(openrouterReasoning.max_tokens),
-		openrouterReasoningExclude: str(openrouterReasoning.exclude),
-		openrouterParallelToolCalls: str(openrouter.parallel_tool_calls),
-		openrouterIncludeUsage: str(openrouter.include_usage),
-		openrouterUser: str(openrouter.user),
-
-		vercelReasoningEnabled: str(vercelReasoning.enabled),
-		vercelReasoningEffort: str(vercelReasoning.effort),
-		vercelReasoningMaxTokens: str(vercelReasoning.max_tokens),
-		vercelReasoningExclude: str(vercelReasoning.exclude),
-		vercelParallelToolCalls: str(vercel.parallel_tool_calls),
-		vercelUser: str(vercel.user),
+		maxOutputTokens: toFormString(config.max_output_tokens),
+		temperature: toFormString(config.temperature),
+		topP: toFormString(config.top_p),
+		topK: toFormString(config.top_k),
+		presencePenalty: toFormString(config.presence_penalty),
+		frequencyPenalty: toFormString(config.frequency_penalty),
+		openai: {
+			reasoningEffort: toFormString(openai?.reasoning_effort),
+			parallelToolCalls: toFormString(openai?.parallel_tool_calls),
+			textVerbosity: toFormString(openai?.text_verbosity),
+			serviceTier: toFormString(openai?.service_tier),
+			reasoningSummary: toFormString(openai?.reasoning_summary),
+			user: toFormString(openai?.user),
+		},
+		anthropic: {
+			effort: toFormString(anthropic?.effort),
+			thinkingBudgetTokens: toFormString(anthropic?.thinking?.budget_tokens),
+			sendReasoning: toFormString(anthropic?.send_reasoning),
+			disableParallelToolUse: toFormString(
+				anthropic?.disable_parallel_tool_use,
+			),
+		},
+		google: {
+			thinkingBudget: toFormString(google?.thinking_config?.thinking_budget),
+			includeThoughts: toFormString(google?.thinking_config?.include_thoughts),
+			cachedContent: toFormString(google?.cached_content),
+			safetySettingsJSON: google?.safety_settings
+				? JSON.stringify(google.safety_settings, null, 2)
+				: "",
+		},
+		openaicompat: {
+			reasoningEffort: toFormString(openaicompat?.reasoning_effort),
+			user: toFormString(openaicompat?.user),
+		},
+		openrouter: {
+			reasoningEnabled: toFormString(openrouter?.reasoning?.enabled),
+			reasoningEffort: toFormString(openrouter?.reasoning?.effort),
+			reasoningMaxTokens: toFormString(openrouter?.reasoning?.max_tokens),
+			reasoningExclude: toFormString(openrouter?.reasoning?.exclude),
+			parallelToolCalls: toFormString(openrouter?.parallel_tool_calls),
+			includeUsage: toFormString(openrouter?.include_usage),
+			user: toFormString(openrouter?.user),
+		},
+		vercel: {
+			reasoningEnabled: toFormString(vercel?.reasoning?.enabled),
+			reasoningEffort: toFormString(vercel?.reasoning?.effort),
+			reasoningMaxTokens: toFormString(vercel?.reasoning?.max_tokens),
+			reasoningExclude: toFormString(vercel?.reasoning?.exclude),
+			parallelToolCalls: toFormString(vercel?.parallel_tool_calls),
+			user: toFormString(vercel?.user),
+		},
 	};
 };
 
-// ── Form → model config builder ──────────────────────────────
+// ── Unified form values type ─────────────────────────────────
+
+export type ModelFormValues = {
+	model: string;
+	displayName: string;
+	contextLimit: string;
+	compressionThreshold: string;
+	isDefault: boolean;
+	config: ModelConfigFormState;
+};
 
 /**
- * Shared builder for openrouter/vercel provider options. Both
- * providers use an identical reasoning + parallel_tool_calls + user
- * structure; only the field-name prefix differs.
+ * Build initial form values from an editing model or defaults.
  */
-function buildReasoningProviderOptions(
-	form: ModelConfigFormState,
-	prefix: "openrouter" | "vercel",
-	parseOptionalBoolean: (
-		k: keyof ModelConfigFormState,
-		l: string,
-		v: string,
-	) => boolean | undefined,
-	parseOptionalSelect: (
-		k: keyof ModelConfigFormState,
-		l: string,
-		v: string,
-		o: readonly string[],
-	) => string | undefined,
-	parseOptionalInteger: (
-		k: keyof ModelConfigFormState,
-		l: string,
-		v: string,
-	) => number | undefined,
-): Record<string, unknown> {
-	const key = <K extends string>(suffix: K): keyof ModelConfigFormState =>
-		`${prefix}${suffix}` as keyof ModelConfigFormState;
+export const buildInitialModelFormValues = (
+	editingModel?: TypesGen.ChatModelConfig,
+): ModelFormValues => ({
+	model: editingModel?.model ?? "",
+	displayName: editingModel?.display_name ?? "",
+	contextLimit: editingModel ? String(editingModel.context_limit) : "",
+	compressionThreshold: editingModel
+		? String(editingModel.compression_threshold)
+		: "",
+	isDefault: editingModel?.is_default ?? false,
+	config: editingModel
+		? extractModelConfigFormState(editingModel)
+		: structuredClone(emptyModelConfigFormState),
+});
 
-	const reasoningEnabled = parseOptionalBoolean(
-		key("ReasoningEnabled"),
-		"Reasoning enabled",
-		form[key("ReasoningEnabled")],
+// ── Parsing utilities ─────────────────────────────────────────
+
+type FieldErrors = Record<string, string>;
+
+// ── Yup transforms ──────────────────────────────────────────
+
+function yupOptionalInteger(label: string) {
+	return Yup.string().test(
+		"optional-integer",
+		`${label} must be a valid number.`,
+		(value) => {
+			const trimmed = value?.trim();
+			if (!trimmed) return true;
+			return Number.isFinite(Number.parseInt(trimmed, 10));
+		},
 	);
-	const reasoningEffort = parseOptionalSelect(
-		key("ReasoningEffort"),
+}
+
+function yupOptionalNumber(label: string) {
+	return Yup.string().test(
+		"optional-number",
+		`${label} must be a valid number.`,
+		(value) => {
+			const trimmed = value?.trim();
+			if (!trimmed) return true;
+			return Number.isFinite(Number(trimmed));
+		},
+	);
+}
+
+function yupOptionalBoolean(label: string) {
+	return Yup.string().test(
+		"optional-boolean",
+		`${label} must be true or false.`,
+		(value) => {
+			const trimmed = value?.trim();
+			if (!trimmed) return true;
+			return trimmed === "true" || trimmed === "false";
+		},
+	);
+}
+
+function yupOptionalSelect(label: string, options: readonly string[]) {
+	return Yup.string().test(
+		"optional-select",
+		`${label} has an invalid value.`,
+		(value) => {
+			const trimmed = value?.trim();
+			if (!trimmed) return true;
+			return options.includes(trimmed);
+		},
+	);
+}
+
+function yupOptionalJSONArray(label: string) {
+	return Yup.string().test("optional-json-array", "", function validate(value) {
+		const trimmed = value?.trim();
+		if (!trimmed) return true;
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(trimmed);
+		} catch {
+			return this.createError({
+				message: `${label} must be valid JSON.`,
+			});
+		}
+		if (!Array.isArray(parsed)) {
+			return this.createError({
+				message: `${label} must be an array.`,
+			});
+		}
+		return true;
+	});
+}
+
+// ── Per-provider Yup schemas ─────────────────────────────────
+
+const topLevelSchema = Yup.object({
+	maxOutputTokens: yupOptionalInteger("Max output tokens"),
+	temperature: yupOptionalNumber("Temperature"),
+	topP: yupOptionalNumber("Top P"),
+	topK: yupOptionalInteger("Top K"),
+	presencePenalty: yupOptionalNumber("Presence penalty"),
+	frequencyPenalty: yupOptionalNumber("Frequency penalty"),
+});
+
+const openaiSchema = Yup.object({
+	reasoningEffort: yupOptionalSelect(
 		"Reasoning effort",
-		form[key("ReasoningEffort")],
 		modelConfigReasoningEffortOptions,
-	);
-	const reasoningMaxTokens = parseOptionalInteger(
-		key("ReasoningMaxTokens"),
-		"Reasoning max tokens",
-		form[key("ReasoningMaxTokens")],
-	);
-	const reasoningExclude = parseOptionalBoolean(
-		key("ReasoningExclude"),
-		"Reasoning exclude",
-		form[key("ReasoningExclude")],
-	);
-	const parallelToolCalls = parseOptionalBoolean(
-		key("ParallelToolCalls"),
-		"Parallel tool calls",
-		form[key("ParallelToolCalls")],
-	);
-	const user = form[key("User")].trim();
+	),
+	parallelToolCalls: yupOptionalBoolean("Parallel tool calls"),
+	textVerbosity: yupOptionalSelect(
+		"Text verbosity",
+		modelConfigTextVerbosityOptions,
+	),
+});
+
+const anthropicSchema = Yup.object({
+	effort: yupOptionalSelect("Output effort", modelConfigAnthropicEffortOptions),
+	thinkingBudgetTokens: yupOptionalInteger("Thinking budget tokens"),
+	sendReasoning: yupOptionalBoolean("Send reasoning"),
+	disableParallelToolUse: yupOptionalBoolean("Disable parallel tool use"),
+});
+
+const googleSchema = Yup.object({
+	thinkingBudget: yupOptionalInteger("Thinking budget"),
+	includeThoughts: yupOptionalBoolean("Include thoughts"),
+	safetySettingsJSON: yupOptionalJSONArray("Safety settings JSON"),
+});
+
+const openaiCompatSchema = Yup.object({
+	reasoningEffort: yupOptionalSelect(
+		"Reasoning effort",
+		modelConfigReasoningEffortOptions,
+	),
+});
+
+const reasoningProviderSchema = Yup.object({
+	reasoningEnabled: yupOptionalBoolean("Reasoning enabled"),
+	reasoningEffort: yupOptionalSelect(
+		"Reasoning effort",
+		modelConfigReasoningEffortOptions,
+	),
+	reasoningMaxTokens: yupOptionalInteger("Reasoning max tokens"),
+	reasoningExclude: yupOptionalBoolean("Reasoning exclude"),
+	parallelToolCalls: yupOptionalBoolean("Parallel tool calls"),
+});
+
+const openrouterExtraSchema = Yup.object({
+	includeUsage: yupOptionalBoolean("Include usage"),
+});
+
+// ── Yup error collection ─────────────────────────────────────
+
+function collectYupErrors(
+	schema: Yup.ObjectSchema<Record<string, unknown>>,
+	data: Record<string, unknown>,
+	fieldErrors: FieldErrors,
+	prefix?: string,
+): void {
+	try {
+		schema.validateSync(data, { abortEarly: false });
+	} catch (err) {
+		if (err instanceof Yup.ValidationError) {
+			for (const inner of err.inner) {
+				const key = prefix ? `${prefix}.${inner.path}` : (inner.path ?? "");
+				fieldErrors[key] = inner.message;
+			}
+		}
+	}
+}
+
+// ── Post-validation transform helpers ────────────────────────
+// These assume validation has already passed. Empty strings
+// yield undefined so callers can conditionally include fields.
+
+function toInt(s: string): number | undefined {
+	const trimmed = s.trim();
+	if (!trimmed) return undefined;
+	return Number.parseInt(trimmed, 10);
+}
+
+function toNum(s: string): number | undefined {
+	const trimmed = s.trim();
+	if (!trimmed) return undefined;
+	return Number(trimmed);
+}
+
+function toBool(s: string): boolean | undefined {
+	const trimmed = s.trim();
+	if (!trimmed) return undefined;
+	return trimmed === "true";
+}
+
+function toTrimmedString(s: string): string | undefined {
+	const trimmed = s.trim();
+	return trimmed || undefined;
+}
+
+function toJSON(s: string): unknown | undefined {
+	const trimmed = s.trim();
+	if (!trimmed) return undefined;
+	return JSON.parse(trimmed);
+}
+
+// ── Per-provider option builders ──────────────────────────────
+
+/**
+ * Build OpenAI/Azure provider options from form state.
+ * Validation has already passed; uses transform helpers only.
+ */
+function buildOpenAIOptions(form: OpenAIFormState): Record<string, unknown> {
+	const reasoningEffort = toTrimmedString(form.reasoningEffort);
+	const parallelToolCalls = toBool(form.parallelToolCalls);
+	const textVerbosity = toTrimmedString(form.textVerbosity);
+	const serviceTier = toTrimmedString(form.serviceTier);
+	const reasoningSummary = toTrimmedString(form.reasoningSummary);
+	const user = toTrimmedString(form.user);
+
+	return {
+		...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+		...(parallelToolCalls !== undefined
+			? { parallel_tool_calls: parallelToolCalls }
+			: {}),
+		...(textVerbosity ? { text_verbosity: textVerbosity } : {}),
+		...(serviceTier ? { service_tier: serviceTier } : {}),
+		...(reasoningSummary ? { reasoning_summary: reasoningSummary } : {}),
+		...(user ? { user } : {}),
+	};
+}
+
+/**
+ * Build Anthropic/Bedrock provider options from form state.
+ * Validation has already passed; uses transform helpers only.
+ */
+function buildAnthropicOptions(
+	form: AnthropicFormState,
+): Record<string, unknown> {
+	const effort = toTrimmedString(form.effort);
+	const budgetTokens = toInt(form.thinkingBudgetTokens);
+	const sendReasoning = toBool(form.sendReasoning);
+	const disableParallelToolUse = toBool(form.disableParallelToolUse);
+
+	return {
+		...(effort ? { effort } : {}),
+		...(budgetTokens !== undefined
+			? { thinking: { budget_tokens: budgetTokens } }
+			: {}),
+		...(sendReasoning !== undefined ? { send_reasoning: sendReasoning } : {}),
+		...(disableParallelToolUse !== undefined
+			? { disable_parallel_tool_use: disableParallelToolUse }
+			: {}),
+	};
+}
+
+/**
+ * Build Google provider options from form state.
+ * Validation has already passed; uses transform helpers only.
+ */
+function buildGoogleOptions(form: GoogleFormState): Record<string, unknown> {
+	const thinkingBudget = toInt(form.thinkingBudget);
+	const includeThoughts = toBool(form.includeThoughts);
+	const cachedContent = toTrimmedString(form.cachedContent);
+	const safetySettings = toJSON(form.safetySettingsJSON) as
+		| unknown[]
+		| undefined;
+
+	return {
+		...(thinkingBudget !== undefined || includeThoughts !== undefined
+			? {
+					thinking_config: {
+						...(thinkingBudget !== undefined
+							? { thinking_budget: thinkingBudget }
+							: {}),
+						...(includeThoughts !== undefined
+							? { include_thoughts: includeThoughts }
+							: {}),
+					},
+				}
+			: {}),
+		...(cachedContent ? { cached_content: cachedContent } : {}),
+		...(safetySettings ? { safety_settings: safetySettings } : {}),
+	};
+}
+
+/**
+ * Build OpenAI-compatible provider options from form state.
+ * Validation has already passed; uses transform helpers only.
+ */
+function buildOpenAICompatOptions(
+	form: OpenAICompatFormState,
+): Record<string, unknown> {
+	const reasoningEffort = toTrimmedString(form.reasoningEffort);
+	const user = toTrimmedString(form.user);
+
+	return {
+		...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+		...(user ? { user } : {}),
+	};
+}
+
+/**
+ * Shared builder for OpenRouter/Vercel provider options. Both
+ * providers use an identical reasoning + parallel_tool_calls + user
+ * structure. Validation has already passed.
+ */
+function buildReasoningProviderOptions(form: {
+	reasoningEnabled: string;
+	reasoningEffort: string;
+	reasoningMaxTokens: string;
+	reasoningExclude: string;
+	parallelToolCalls: string;
+	user: string;
+}): Record<string, unknown> {
+	const reasoningEnabled = toBool(form.reasoningEnabled);
+	const reasoningEffort = toTrimmedString(form.reasoningEffort);
+	const reasoningMaxTokens = toInt(form.reasoningMaxTokens);
+	const reasoningExclude = toBool(form.reasoningExclude);
+	const parallelToolCalls = toBool(form.parallelToolCalls);
+	const user = toTrimmedString(form.user);
 
 	const reasoning: Record<string, unknown> = {
 		...(reasoningEnabled !== undefined ? { enabled: reasoningEnabled } : {}),
@@ -275,10 +578,9 @@ function buildReasoningProviderOptions(
 			: {}),
 		...(reasoningExclude !== undefined ? { exclude: reasoningExclude } : {}),
 	};
+
 	return {
-		...(hasObjectKeys(reasoning as Record<string, unknown>)
-			? { reasoning }
-			: {}),
+		...(hasObjectKeys(reasoning) ? { reasoning } : {}),
 		...(parallelToolCalls !== undefined
 			? { parallel_tool_calls: parallelToolCalls }
 			: {}),
@@ -286,296 +588,135 @@ function buildReasoningProviderOptions(
 	};
 }
 
+// ── Form → model config builder ──────────────────────────────
+
 export const buildModelConfigFromForm = (
 	provider: string | null | undefined,
 	form: ModelConfigFormState,
 ): ModelConfigFormBuildResult => {
-	const fieldErrors: Partial<Record<keyof ModelConfigFormState, string>> = {};
+	const fieldErrors: FieldErrors = {};
 
-	const parseOptionalInteger = (
-		fieldKey: keyof ModelConfigFormState,
-		label: string,
-		value: string,
-	): number | undefined => {
-		const trimmed = value.trim();
-		if (!trimmed) return undefined;
-		const parsed = Number.parseInt(trimmed, 10);
-		if (!Number.isFinite(parsed)) {
-			fieldErrors[fieldKey] = `${label} must be a valid number.`;
-			return undefined;
-		}
-		return parsed;
-	};
+	// Validate top-level fields.
+	collectYupErrors(topLevelSchema, form, fieldErrors);
 
-	const parseOptionalNumber = (
-		fieldKey: keyof ModelConfigFormState,
-		label: string,
-		value: string,
-	): number | undefined => {
-		const trimmed = value.trim();
-		if (!trimmed) return undefined;
-		const parsed = Number(trimmed);
-		if (!Number.isFinite(parsed)) {
-			fieldErrors[fieldKey] = `${label} must be a valid number.`;
-			return undefined;
-		}
-		return parsed;
-	};
-
-	const parseOptionalBoolean = (
-		fieldKey: keyof ModelConfigFormState,
-		label: string,
-		value: string,
-	): boolean | undefined => {
-		const trimmed = value.trim();
-		if (!trimmed) return undefined;
-		if (trimmed !== "true" && trimmed !== "false") {
-			fieldErrors[fieldKey] = `${label} must be true or false.`;
-			return undefined;
-		}
-		return trimmed === "true";
-	};
-
-	const parseOptionalJSON = (
-		fieldKey: keyof ModelConfigFormState,
-		label: string,
-		value: string,
-	): unknown | undefined => {
-		const trimmed = value.trim();
-		if (!trimmed) return undefined;
-		try {
-			return JSON.parse(trimmed);
-		} catch {
-			fieldErrors[fieldKey] = `${label} must be valid JSON.`;
-			return undefined;
-		}
-	};
-
-	const parseOptionalSelect = (
-		fieldKey: keyof ModelConfigFormState,
-		label: string,
-		value: string,
-		options: readonly string[],
-	): string | undefined => {
-		const trimmed = value.trim();
-		if (!trimmed) return undefined;
-		if (!options.includes(trimmed)) {
-			fieldErrors[fieldKey] = `${label} has an invalid value.`;
-			return undefined;
-		}
-		return trimmed;
-	};
-
-	const maxOutputTokens = parseOptionalInteger(
-		"maxOutputTokens",
-		"Max output tokens",
-		form.maxOutputTokens,
-	);
-	const temperature = parseOptionalNumber(
-		"temperature",
-		"Temperature",
-		form.temperature,
-	);
-	const topP = parseOptionalNumber("topP", "Top P", form.topP);
-	const topK = parseOptionalInteger("topK", "Top K", form.topK);
-	const presencePenalty = parseOptionalNumber(
-		"presencePenalty",
-		"Presence penalty",
-		form.presencePenalty,
-	);
-	const frequencyPenalty = parseOptionalNumber(
-		"frequencyPenalty",
-		"Frequency penalty",
-		form.frequencyPenalty,
-	);
-
-	let providerOptions: TypesGen.ChatModelProviderOptions | undefined;
+	// Validate provider-specific fields.
 	const normalizedProvider = normalizeProvider(provider ?? "");
 
 	switch (normalizedProvider) {
 		case "openai":
+		case "azure":
+			collectYupErrors(openaiSchema, form.openai, fieldErrors, "openai");
+			break;
+		case "anthropic":
+		case "bedrock":
+			collectYupErrors(
+				anthropicSchema,
+				form.anthropic,
+				fieldErrors,
+				"anthropic",
+			);
+			break;
+		case "google":
+			collectYupErrors(googleSchema, form.google, fieldErrors, "google");
+			break;
+		case "openaicompat":
+			collectYupErrors(
+				openaiCompatSchema,
+				form.openaicompat,
+				fieldErrors,
+				"openaicompat",
+			);
+			break;
+		case "openrouter":
+			collectYupErrors(
+				reasoningProviderSchema,
+				form.openrouter,
+				fieldErrors,
+				"openrouter",
+			);
+			collectYupErrors(
+				openrouterExtraSchema,
+				form.openrouter,
+				fieldErrors,
+				"openrouter",
+			);
+			break;
+		case "vercel":
+			collectYupErrors(
+				reasoningProviderSchema,
+				form.vercel,
+				fieldErrors,
+				"vercel",
+			);
+			break;
+	}
+
+	if (Object.keys(fieldErrors).length > 0) {
+		return { fieldErrors };
+	}
+
+	// Transform top-level fields.
+	const maxOutputTokens = toInt(form.maxOutputTokens);
+	const temperature = toNum(form.temperature);
+	const topP = toNum(form.topP);
+	const topK = toInt(form.topK);
+	const presencePenalty = toNum(form.presencePenalty);
+	const frequencyPenalty = toNum(form.frequencyPenalty);
+
+	// Build provider-specific options.
+	let providerOptions: TypesGen.ChatModelProviderOptions | undefined;
+
+	switch (normalizedProvider) {
+		case "openai":
 		case "azure": {
-			const reasoningEffort = parseOptionalSelect(
-				"openaiReasoningEffort",
-				"Reasoning effort",
-				form.openaiReasoningEffort,
-				modelConfigReasoningEffortOptions,
-			);
-			const parallelToolCalls = parseOptionalBoolean(
-				"openaiParallelToolCalls",
-				"Parallel tool calls",
-				form.openaiParallelToolCalls,
-			);
-			const textVerbosity = parseOptionalSelect(
-				"openaiTextVerbosity",
-				"Text verbosity",
-				form.openaiTextVerbosity,
-				modelConfigTextVerbosityOptions,
-			);
-			const serviceTier = form.openaiServiceTier.trim();
-			const reasoningSummary = form.openaiReasoningSummary.trim();
-			const user = form.openaiUser.trim();
-			const openaiOptions: Record<string, unknown> = {
-				...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-				...(parallelToolCalls !== undefined
-					? { parallel_tool_calls: parallelToolCalls }
-					: {}),
-				...(textVerbosity ? { text_verbosity: textVerbosity } : {}),
-				...(serviceTier ? { service_tier: serviceTier } : {}),
-				...(reasoningSummary ? { reasoning_summary: reasoningSummary } : {}),
-				...(user ? { user } : {}),
-			};
-			if (hasObjectKeys(openaiOptions as Record<string, unknown>)) {
-				providerOptions = { openai: openaiOptions };
+			const opts = buildOpenAIOptions(form.openai);
+			if (hasObjectKeys(opts)) {
+				providerOptions = { openai: opts };
 			}
 			break;
 		}
 		case "anthropic":
 		case "bedrock": {
-			const budgetTokens = parseOptionalInteger(
-				"anthropicThinkingBudgetTokens",
-				"Thinking budget tokens",
-				form.anthropicThinkingBudgetTokens,
-			);
-			const sendReasoning = parseOptionalBoolean(
-				"anthropicSendReasoning",
-				"Send reasoning",
-				form.anthropicSendReasoning,
-			);
-			const effort = parseOptionalSelect(
-				"anthropicEffort",
-				"Output effort",
-				form.anthropicEffort,
-				modelConfigAnthropicEffortOptions,
-			);
-			const disableParallelToolUse = parseOptionalBoolean(
-				"anthropicDisableParallelToolUse",
-				"Disable parallel tool use",
-				form.anthropicDisableParallelToolUse,
-			);
-			const anthropicOptions: Record<string, unknown> = {
-				...(effort ? { effort } : {}),
-				...(budgetTokens !== undefined
-					? { thinking: { budget_tokens: budgetTokens } }
-					: {}),
-				...(sendReasoning !== undefined
-					? { send_reasoning: sendReasoning }
-					: {}),
-				...(disableParallelToolUse !== undefined
-					? { disable_parallel_tool_use: disableParallelToolUse }
-					: {}),
-			};
-			if (hasObjectKeys(anthropicOptions as Record<string, unknown>)) {
-				providerOptions = { anthropic: anthropicOptions };
+			const opts = buildAnthropicOptions(form.anthropic);
+			if (hasObjectKeys(opts)) {
+				providerOptions = { anthropic: opts };
 			}
 			break;
 		}
 		case "google": {
-			const thinkingBudget = parseOptionalInteger(
-				"googleThinkingBudget",
-				"Thinking budget",
-				form.googleThinkingBudget,
-			);
-			const includeThoughts = parseOptionalBoolean(
-				"googleIncludeThoughts",
-				"Include thoughts",
-				form.googleIncludeThoughts,
-			);
-			const cachedContent = form.googleCachedContent.trim();
-			const safetySettings = parseOptionalJSON(
-				"googleSafetySettingsJSON",
-				"Safety settings JSON",
-				form.googleSafetySettingsJSON,
-			);
-			let typedSafetySettings: unknown[] | undefined;
-			if (safetySettings !== undefined) {
-				if (Array.isArray(safetySettings)) {
-					typedSafetySettings = safetySettings;
-				} else {
-					fieldErrors.googleSafetySettingsJSON =
-						"Safety settings JSON must be an array.";
-				}
-			}
-			const googleOptions: Record<string, unknown> = {
-				...(thinkingBudget !== undefined || includeThoughts !== undefined
-					? {
-							thinking_config: {
-								...(thinkingBudget !== undefined
-									? { thinking_budget: thinkingBudget }
-									: {}),
-								...(includeThoughts !== undefined
-									? { include_thoughts: includeThoughts }
-									: {}),
-							},
-						}
-					: {}),
-				...(cachedContent ? { cached_content: cachedContent } : {}),
-				...(typedSafetySettings
-					? { safety_settings: typedSafetySettings }
-					: {}),
-			};
-			if (hasObjectKeys(googleOptions as Record<string, unknown>)) {
-				providerOptions = { google: googleOptions };
+			const opts = buildGoogleOptions(form.google);
+			if (hasObjectKeys(opts)) {
+				providerOptions = { google: opts };
 			}
 			break;
 		}
 		case "openaicompat": {
-			const reasoningEffort = parseOptionalSelect(
-				"openAICompatReasoningEffort",
-				"Reasoning effort",
-				form.openAICompatReasoningEffort,
-				modelConfigReasoningEffortOptions,
-			);
-			const user = form.openAICompatUser.trim();
-			const opts: Record<string, unknown> = {
-				...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-				...(user ? { user } : {}),
-			};
-			if (hasObjectKeys(opts as Record<string, unknown>)) {
+			const opts = buildOpenAICompatOptions(form.openaicompat);
+			if (hasObjectKeys(opts)) {
 				providerOptions = { openaicompat: opts };
 			}
 			break;
 		}
 		case "openrouter": {
-			const opts = buildReasoningProviderOptions(
-				form,
-				"openrouter",
-				parseOptionalBoolean,
-				parseOptionalSelect,
-				parseOptionalInteger,
-			);
-			// OpenRouter additionally supports include_usage.
-			const includeUsage = parseOptionalBoolean(
-				"openrouterIncludeUsage",
-				"Include usage",
-				form.openrouterIncludeUsage,
-			);
+			const opts = buildReasoningProviderOptions(form.openrouter);
+			const includeUsage = toBool(form.openrouter.includeUsage);
 			if (includeUsage !== undefined) {
 				opts.include_usage = includeUsage;
 			}
-			if (hasObjectKeys(opts as Record<string, unknown>)) {
+			if (hasObjectKeys(opts)) {
 				providerOptions = { openrouter: opts };
 			}
 			break;
 		}
 		case "vercel": {
-			const opts = buildReasoningProviderOptions(
-				form,
-				"vercel",
-				parseOptionalBoolean,
-				parseOptionalSelect,
-				parseOptionalInteger,
-			);
-			if (hasObjectKeys(opts as Record<string, unknown>)) {
+			const opts = buildReasoningProviderOptions(form.vercel);
+			if (hasObjectKeys(opts)) {
 				providerOptions = { vercel: opts };
 			}
 			break;
 		}
 	}
 
-	if (Object.keys(fieldErrors).length > 0) {
-		return { fieldErrors };
-	}
 	const modelConfig: TypesGen.ChatModelCallConfig = {
 		...(maxOutputTokens !== undefined
 			? { max_output_tokens: maxOutputTokens }
@@ -591,8 +732,10 @@ export const buildModelConfigFromForm = (
 			: {}),
 		...(providerOptions ? { provider_options: providerOptions } : {}),
 	};
+
 	if (!hasObjectKeys(modelConfig as Record<string, unknown>)) {
 		return { fieldErrors: {} };
 	}
+
 	return { modelConfig, fieldErrors: {} };
 };

@@ -112,7 +112,9 @@ const getModelDisplayName = (
 	if (!lastModelConfigID) {
 		return "Default model";
 	}
-	const modelConfig = modelConfigs.find((config) => config.id === lastModelConfigID);
+	const modelConfig = modelConfigs.find(
+		(config) => config.id === lastModelConfigID,
+	);
 	if (!modelConfig) {
 		return "Default model";
 	}

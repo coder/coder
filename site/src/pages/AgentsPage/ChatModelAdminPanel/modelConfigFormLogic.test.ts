@@ -1,23 +1,73 @@
 import type * as TypesGen from "api/typesGenerated";
 import { describe, expect, it } from "vitest";
 import {
+	type AnthropicFormState,
 	buildModelConfigFromForm,
+	emptyAnthropicFormState,
+	emptyGoogleFormState,
 	emptyModelConfigFormState,
+	emptyOpenAICompatFormState,
+	emptyOpenAIFormState,
+	emptyOpenRouterFormState,
+	emptyVercelFormState,
 	extractModelConfigFormState,
+	type GoogleFormState,
 	type ModelConfigFormState,
+	type OpenAICompatFormState,
+	type OpenAIFormState,
+	type OpenRouterFormState,
 	parsePositiveInteger,
 	parseThresholdInteger,
+	type VercelFormState,
 } from "./modelConfigFormLogic";
 
 // ── Helpers ────────────────────────────────────────────────────
 
-/** Return an empty form with the given overrides applied. */
+/**
+ * Return an empty form state with the given top-level overrides
+ * applied. Provider sub-objects can be partially overridden.
+ */
 const formWith = (
-	overrides: Partial<ModelConfigFormState>,
-): ModelConfigFormState => ({
-	...emptyModelConfigFormState,
-	...overrides,
-});
+	overrides: Partial<
+		Omit<
+			ModelConfigFormState,
+			| "openai"
+			| "anthropic"
+			| "google"
+			| "openaicompat"
+			| "openrouter"
+			| "vercel"
+		> & {
+			openai: Partial<OpenAIFormState>;
+			anthropic: Partial<AnthropicFormState>;
+			google: Partial<GoogleFormState>;
+			openaicompat: Partial<OpenAICompatFormState>;
+			openrouter: Partial<OpenRouterFormState>;
+			vercel: Partial<VercelFormState>;
+		}
+	>,
+): ModelConfigFormState => {
+	const base = structuredClone(emptyModelConfigFormState);
+	const {
+		openai,
+		anthropic,
+		google,
+		openaicompat,
+		openrouter,
+		vercel,
+		...topLevel
+	} = overrides;
+	return {
+		...base,
+		...topLevel,
+		openai: { ...base.openai, ...openai },
+		anthropic: { ...base.anthropic, ...anthropic },
+		google: { ...base.google, ...google },
+		openaicompat: { ...base.openaicompat, ...openaicompat },
+		openrouter: { ...base.openrouter, ...openrouter },
+		vercel: { ...base.vercel, ...vercel },
+	};
+};
 
 /** Minimal ChatModelConfig with no model_config. */
 const baseChatModelConfig: TypesGen.ChatModelConfig = {
@@ -26,6 +76,7 @@ const baseChatModelConfig: TypesGen.ChatModelConfig = {
 	model: "gpt-4",
 	display_name: "GPT-4",
 	enabled: true,
+	is_default: false,
 	context_limit: 128000,
 	compression_threshold: 80,
 	created_at: "2025-01-01T00:00:00Z",
@@ -48,7 +99,7 @@ describe("parsePositiveInteger", () => {
 	});
 
 	it("parses a string with surrounding whitespace", () => {
-		expect(parsePositiveInteger("  100  ")).toBe(100);
+		expect(parsePositiveInteger("  42  ")).toBe(42);
 	});
 
 	it("returns null for zero", () => {
@@ -68,8 +119,8 @@ describe("parsePositiveInteger", () => {
 	});
 
 	it("truncates floating point values to integer", () => {
-		// parseInt("3.7", 10) → 3 which is > 0.
-		expect(parsePositiveInteger("3.7")).toBe(3);
+		expect(parsePositiveInteger("3.9")).toBe(3);
+		expect(parsePositiveInteger("1.1")).toBe(1);
 	});
 });
 
@@ -109,7 +160,7 @@ describe("parseThresholdInteger", () => {
 	});
 
 	it("trims whitespace before parsing", () => {
-		expect(parseThresholdInteger("  75  ")).toBe(75);
+		expect(parseThresholdInteger("  70  ")).toBe(70);
 	});
 });
 
@@ -164,12 +215,12 @@ describe("extractModelConfigFormState", () => {
 			},
 		};
 		const result = extractModelConfigFormState(model);
-		expect(result.openaiReasoningEffort).toBe("high");
-		expect(result.openaiParallelToolCalls).toBe("true");
-		expect(result.openaiTextVerbosity).toBe("medium");
-		expect(result.openaiServiceTier).toBe("auto");
-		expect(result.openaiReasoningSummary).toBe("concise");
-		expect(result.openaiUser).toBe("test-user");
+		expect(result.openai.reasoningEffort).toBe("high");
+		expect(result.openai.parallelToolCalls).toBe("true");
+		expect(result.openai.textVerbosity).toBe("medium");
+		expect(result.openai.serviceTier).toBe("auto");
+		expect(result.openai.reasoningSummary).toBe("concise");
+		expect(result.openai.user).toBe("test-user");
 	});
 
 	it("extracts Anthropic provider options with thinking", () => {
@@ -187,10 +238,10 @@ describe("extractModelConfigFormState", () => {
 			},
 		};
 		const result = extractModelConfigFormState(model);
-		expect(result.anthropicEffort).toBe("high");
-		expect(result.anthropicThinkingBudgetTokens).toBe("1024");
-		expect(result.anthropicSendReasoning).toBe("true");
-		expect(result.anthropicDisableParallelToolUse).toBe("false");
+		expect(result.anthropic.effort).toBe("high");
+		expect(result.anthropic.thinkingBudgetTokens).toBe("1024");
+		expect(result.anthropic.sendReasoning).toBe("true");
+		expect(result.anthropic.disableParallelToolUse).toBe("false");
 	});
 
 	it("extracts Google provider options with safety settings", () => {
@@ -211,10 +262,10 @@ describe("extractModelConfigFormState", () => {
 			},
 		};
 		const result = extractModelConfigFormState(model);
-		expect(result.googleThinkingBudget).toBe("2048");
-		expect(result.googleIncludeThoughts).toBe("true");
-		expect(result.googleCachedContent).toBe("cache-123");
-		expect(result.googleSafetySettingsJSON).toBe(
+		expect(result.google.thinkingBudget).toBe("2048");
+		expect(result.google.includeThoughts).toBe("true");
+		expect(result.google.cachedContent).toBe("cache-123");
+		expect(result.google.safetySettingsJSON).toBe(
 			JSON.stringify(safetySettings, null, 2),
 		);
 	});
@@ -229,7 +280,7 @@ describe("extractModelConfigFormState", () => {
 			},
 		};
 		const result = extractModelConfigFormState(model);
-		expect(result.googleSafetySettingsJSON).toBe("");
+		expect(result.google.safetySettingsJSON).toBe("");
 	});
 
 	it("extracts OpenAI-compatible provider options", () => {
@@ -245,8 +296,8 @@ describe("extractModelConfigFormState", () => {
 			},
 		};
 		const result = extractModelConfigFormState(model);
-		expect(result.openAICompatReasoningEffort).toBe("low");
-		expect(result.openAICompatUser).toBe("compat-user");
+		expect(result.openaicompat.reasoningEffort).toBe("low");
+		expect(result.openaicompat.user).toBe("compat-user");
 	});
 
 	it("extracts OpenRouter provider options", () => {
@@ -269,13 +320,13 @@ describe("extractModelConfigFormState", () => {
 			},
 		};
 		const result = extractModelConfigFormState(model);
-		expect(result.openrouterReasoningEnabled).toBe("true");
-		expect(result.openrouterReasoningEffort).toBe("medium");
-		expect(result.openrouterReasoningMaxTokens).toBe("500");
-		expect(result.openrouterReasoningExclude).toBe("false");
-		expect(result.openrouterParallelToolCalls).toBe("true");
-		expect(result.openrouterIncludeUsage).toBe("true");
-		expect(result.openrouterUser).toBe("router-user");
+		expect(result.openrouter.reasoningEnabled).toBe("true");
+		expect(result.openrouter.reasoningEffort).toBe("medium");
+		expect(result.openrouter.reasoningMaxTokens).toBe("500");
+		expect(result.openrouter.reasoningExclude).toBe("false");
+		expect(result.openrouter.parallelToolCalls).toBe("true");
+		expect(result.openrouter.includeUsage).toBe("true");
+		expect(result.openrouter.user).toBe("router-user");
 	});
 
 	it("extracts Vercel provider options", () => {
@@ -297,12 +348,12 @@ describe("extractModelConfigFormState", () => {
 			},
 		};
 		const result = extractModelConfigFormState(model);
-		expect(result.vercelReasoningEnabled).toBe("false");
-		expect(result.vercelReasoningEffort).toBe("high");
-		expect(result.vercelReasoningMaxTokens).toBe("1000");
-		expect(result.vercelReasoningExclude).toBe("true");
-		expect(result.vercelParallelToolCalls).toBe("false");
-		expect(result.vercelUser).toBe("vercel-user");
+		expect(result.vercel.reasoningEnabled).toBe("false");
+		expect(result.vercel.reasoningEffort).toBe("high");
+		expect(result.vercel.reasoningMaxTokens).toBe("1000");
+		expect(result.vercel.reasoningExclude).toBe("true");
+		expect(result.vercel.parallelToolCalls).toBe("false");
+		expect(result.vercel.user).toBe("vercel-user");
 	});
 
 	it("handles missing provider_options gracefully", () => {
@@ -315,9 +366,19 @@ describe("extractModelConfigFormState", () => {
 		const result = extractModelConfigFormState(model);
 		expect(result.temperature).toBe("0.5");
 		// All provider-specific fields should be empty.
-		expect(result.openaiReasoningEffort).toBe("");
-		expect(result.anthropicEffort).toBe("");
-		expect(result.googleThinkingBudget).toBe("");
+		expect(result.openai.reasoningEffort).toBe("");
+		expect(result.anthropic.effort).toBe("");
+		expect(result.google.thinkingBudget).toBe("");
+	});
+
+	it("returns deep copies of provider sub-objects", () => {
+		const result = extractModelConfigFormState(baseChatModelConfig);
+		expect(result.openai).not.toBe(emptyOpenAIFormState);
+		expect(result.anthropic).not.toBe(emptyAnthropicFormState);
+		expect(result.google).not.toBe(emptyGoogleFormState);
+		expect(result.openaicompat).not.toBe(emptyOpenAICompatFormState);
+		expect(result.openrouter).not.toBe(emptyOpenRouterFormState);
+		expect(result.vercel).not.toBe(emptyVercelFormState);
 	});
 });
 
@@ -438,7 +499,7 @@ describe("buildModelConfigFromForm", () => {
 		it("builds OpenAI provider options with reasoning effort", () => {
 			const result = buildModelConfigFromForm(
 				"openai",
-				formWith({ openaiReasoningEffort: "high" }),
+				formWith({ openai: { reasoningEffort: "high" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.openai).toEqual({
@@ -449,7 +510,7 @@ describe("buildModelConfigFromForm", () => {
 		it("builds Azure provider options (same as OpenAI)", () => {
 			const result = buildModelConfigFromForm(
 				"azure",
-				formWith({ openaiParallelToolCalls: "true" }),
+				formWith({ openai: { parallelToolCalls: "true" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.openai).toEqual({
@@ -461,12 +522,14 @@ describe("buildModelConfigFromForm", () => {
 			const result = buildModelConfigFromForm(
 				"openai",
 				formWith({
-					openaiReasoningEffort: "medium",
-					openaiParallelToolCalls: "false",
-					openaiTextVerbosity: "low",
-					openaiServiceTier: "auto",
-					openaiReasoningSummary: "concise",
-					openaiUser: "user-123",
+					openai: {
+						reasoningEffort: "medium",
+						parallelToolCalls: "false",
+						textVerbosity: "low",
+						serviceTier: "auto",
+						reasoningSummary: "concise",
+						user: "user-123",
+					},
 				}),
 			);
 			expect(result.fieldErrors).toEqual({});
@@ -485,9 +548,9 @@ describe("buildModelConfigFromForm", () => {
 		it("reports error for invalid reasoning effort option", () => {
 			const result = buildModelConfigFromForm(
 				"openai",
-				formWith({ openaiReasoningEffort: "invalid_value" }),
+				formWith({ openai: { reasoningEffort: "invalid_value" } }),
 			);
-			expect(result.fieldErrors.openaiReasoningEffort).toBe(
+			expect(result.fieldErrors["openai.reasoningEffort"]).toBe(
 				"Reasoning effort has an invalid value.",
 			);
 		});
@@ -495,9 +558,9 @@ describe("buildModelConfigFromForm", () => {
 		it("reports error for invalid parallel tool calls boolean", () => {
 			const result = buildModelConfigFromForm(
 				"openai",
-				formWith({ openaiParallelToolCalls: "maybe" }),
+				formWith({ openai: { parallelToolCalls: "maybe" } }),
 			);
-			expect(result.fieldErrors.openaiParallelToolCalls).toBe(
+			expect(result.fieldErrors["openai.parallelToolCalls"]).toBe(
 				"Parallel tool calls must be true or false.",
 			);
 		});
@@ -505,9 +568,9 @@ describe("buildModelConfigFromForm", () => {
 		it("reports error for invalid text verbosity option", () => {
 			const result = buildModelConfigFromForm(
 				"openai",
-				formWith({ openaiTextVerbosity: "invalid" }),
+				formWith({ openai: { textVerbosity: "invalid" } }),
 			);
-			expect(result.fieldErrors.openaiTextVerbosity).toBe(
+			expect(result.fieldErrors["openai.textVerbosity"]).toBe(
 				"Text verbosity has an invalid value.",
 			);
 		});
@@ -526,7 +589,7 @@ describe("buildModelConfigFromForm", () => {
 		it("builds Anthropic provider options with effort", () => {
 			const result = buildModelConfigFromForm(
 				"anthropic",
-				formWith({ anthropicEffort: "high" }),
+				formWith({ anthropic: { effort: "high" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.anthropic).toEqual({
@@ -537,7 +600,7 @@ describe("buildModelConfigFromForm", () => {
 		it("builds Bedrock provider options (same as Anthropic)", () => {
 			const result = buildModelConfigFromForm(
 				"bedrock",
-				formWith({ anthropicSendReasoning: "true" }),
+				formWith({ anthropic: { sendReasoning: "true" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.anthropic).toEqual({
@@ -548,7 +611,7 @@ describe("buildModelConfigFromForm", () => {
 		it("builds Anthropic options with thinking budget", () => {
 			const result = buildModelConfigFromForm(
 				"anthropic",
-				formWith({ anthropicThinkingBudgetTokens: "2048" }),
+				formWith({ anthropic: { thinkingBudgetTokens: "2048" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.anthropic).toEqual({
@@ -560,10 +623,12 @@ describe("buildModelConfigFromForm", () => {
 			const result = buildModelConfigFromForm(
 				"anthropic",
 				formWith({
-					anthropicEffort: "max",
-					anthropicThinkingBudgetTokens: "1024",
-					anthropicSendReasoning: "false",
-					anthropicDisableParallelToolUse: "true",
+					anthropic: {
+						effort: "max",
+						thinkingBudgetTokens: "1024",
+						sendReasoning: "false",
+						disableParallelToolUse: "true",
+					},
 				}),
 			);
 			expect(result.fieldErrors).toEqual({});
@@ -578,9 +643,9 @@ describe("buildModelConfigFromForm", () => {
 		it("reports error for invalid Anthropic effort option", () => {
 			const result = buildModelConfigFromForm(
 				"anthropic",
-				formWith({ anthropicEffort: "ultra" }),
+				formWith({ anthropic: { effort: "ultra" } }),
 			);
-			expect(result.fieldErrors.anthropicEffort).toBe(
+			expect(result.fieldErrors["anthropic.effort"]).toBe(
 				"Output effort has an invalid value.",
 			);
 		});
@@ -588,9 +653,9 @@ describe("buildModelConfigFromForm", () => {
 		it("reports error for non-numeric thinking budget tokens", () => {
 			const result = buildModelConfigFromForm(
 				"anthropic",
-				formWith({ anthropicThinkingBudgetTokens: "lots" }),
+				formWith({ anthropic: { thinkingBudgetTokens: "lots" } }),
 			);
-			expect(result.fieldErrors.anthropicThinkingBudgetTokens).toBe(
+			expect(result.fieldErrors["anthropic.thinkingBudgetTokens"]).toBe(
 				"Thinking budget tokens must be a valid number.",
 			);
 		});
@@ -600,7 +665,7 @@ describe("buildModelConfigFromForm", () => {
 		it("builds Google provider options with thinking budget", () => {
 			const result = buildModelConfigFromForm(
 				"google",
-				formWith({ googleThinkingBudget: "4096" }),
+				formWith({ google: { thinkingBudget: "4096" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.google).toEqual({
@@ -611,7 +676,7 @@ describe("buildModelConfigFromForm", () => {
 		it("builds Google options with include_thoughts", () => {
 			const result = buildModelConfigFromForm(
 				"google",
-				formWith({ googleIncludeThoughts: "true" }),
+				formWith({ google: { includeThoughts: "true" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			const google = result.modelConfig?.provider_options?.google as Record<
@@ -625,8 +690,10 @@ describe("buildModelConfigFromForm", () => {
 			const result = buildModelConfigFromForm(
 				"google",
 				formWith({
-					googleThinkingBudget: "2048",
-					googleIncludeThoughts: "false",
+					google: {
+						thinkingBudget: "2048",
+						includeThoughts: "false",
+					},
 				}),
 			);
 			expect(result.fieldErrors).toEqual({});
@@ -643,7 +710,7 @@ describe("buildModelConfigFromForm", () => {
 		it("builds Google options with cached_content", () => {
 			const result = buildModelConfigFromForm(
 				"google",
-				formWith({ googleCachedContent: "cache-abc" }),
+				formWith({ google: { cachedContent: "cache-abc" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.google).toEqual({
@@ -655,7 +722,7 @@ describe("buildModelConfigFromForm", () => {
 			const settings = [{ category: "harm", threshold: "block" }];
 			const result = buildModelConfigFromForm(
 				"google",
-				formWith({ googleSafetySettingsJSON: JSON.stringify(settings) }),
+				formWith({ google: { safetySettingsJSON: JSON.stringify(settings) } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			const google = result.modelConfig?.provider_options?.google as Record<
@@ -668,9 +735,9 @@ describe("buildModelConfigFromForm", () => {
 		it("reports error for invalid JSON in safety settings", () => {
 			const result = buildModelConfigFromForm(
 				"google",
-				formWith({ googleSafetySettingsJSON: "not-json" }),
+				formWith({ google: { safetySettingsJSON: "not-json" } }),
 			);
-			expect(result.fieldErrors.googleSafetySettingsJSON).toBe(
+			expect(result.fieldErrors["google.safetySettingsJSON"]).toBe(
 				"Safety settings JSON must be valid JSON.",
 			);
 		});
@@ -678,9 +745,9 @@ describe("buildModelConfigFromForm", () => {
 		it("reports error when safety settings JSON is an object (not array)", () => {
 			const result = buildModelConfigFromForm(
 				"google",
-				formWith({ googleSafetySettingsJSON: '{"key":"value"}' }),
+				formWith({ google: { safetySettingsJSON: '{"key":"value"}' } }),
 			);
-			expect(result.fieldErrors.googleSafetySettingsJSON).toBe(
+			expect(result.fieldErrors["google.safetySettingsJSON"]).toBe(
 				"Safety settings JSON must be an array.",
 			);
 		});
@@ -688,9 +755,9 @@ describe("buildModelConfigFromForm", () => {
 		it("reports error for non-numeric thinking budget", () => {
 			const result = buildModelConfigFromForm(
 				"google",
-				formWith({ googleThinkingBudget: "abc" }),
+				formWith({ google: { thinkingBudget: "abc" } }),
 			);
-			expect(result.fieldErrors.googleThinkingBudget).toBe(
+			expect(result.fieldErrors["google.thinkingBudget"]).toBe(
 				"Thinking budget must be a valid number.",
 			);
 		});
@@ -701,8 +768,10 @@ describe("buildModelConfigFromForm", () => {
 			const result = buildModelConfigFromForm(
 				"openaicompat",
 				formWith({
-					openAICompatReasoningEffort: "low",
-					openAICompatUser: "compat-user",
+					openaicompat: {
+						reasoningEffort: "low",
+						user: "compat-user",
+					},
 				}),
 			);
 			expect(result.fieldErrors).toEqual({});
@@ -715,9 +784,9 @@ describe("buildModelConfigFromForm", () => {
 		it("reports error for invalid reasoning effort", () => {
 			const result = buildModelConfigFromForm(
 				"openaicompat",
-				formWith({ openAICompatReasoningEffort: "super" }),
+				formWith({ openaicompat: { reasoningEffort: "super" } }),
 			);
-			expect(result.fieldErrors.openAICompatReasoningEffort).toBe(
+			expect(result.fieldErrors["openaicompat.reasoningEffort"]).toBe(
 				"Reasoning effort has an invalid value.",
 			);
 		});
@@ -736,10 +805,12 @@ describe("buildModelConfigFromForm", () => {
 			const result = buildModelConfigFromForm(
 				"openrouter",
 				formWith({
-					openrouterReasoningEnabled: "true",
-					openrouterReasoningEffort: "high",
-					openrouterReasoningMaxTokens: "500",
-					openrouterReasoningExclude: "false",
+					openrouter: {
+						reasoningEnabled: "true",
+						reasoningEffort: "high",
+						reasoningMaxTokens: "500",
+						reasoningExclude: "false",
+					},
 				}),
 			);
 			expect(result.fieldErrors).toEqual({});
@@ -757,8 +828,10 @@ describe("buildModelConfigFromForm", () => {
 			const result = buildModelConfigFromForm(
 				"openrouter",
 				formWith({
-					openrouterParallelToolCalls: "true",
-					openrouterUser: "router-user",
+					openrouter: {
+						parallelToolCalls: "true",
+						user: "router-user",
+					},
 				}),
 			);
 			expect(result.fieldErrors).toEqual({});
@@ -771,7 +844,7 @@ describe("buildModelConfigFromForm", () => {
 		it("builds OpenRouter options with include_usage", () => {
 			const result = buildModelConfigFromForm(
 				"openrouter",
-				formWith({ openrouterIncludeUsage: "true" }),
+				formWith({ openrouter: { includeUsage: "true" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			const openrouter = result.modelConfig?.provider_options
@@ -782,9 +855,9 @@ describe("buildModelConfigFromForm", () => {
 		it("reports error for invalid reasoning effort", () => {
 			const result = buildModelConfigFromForm(
 				"openrouter",
-				formWith({ openrouterReasoningEffort: "turbo" }),
+				formWith({ openrouter: { reasoningEffort: "turbo" } }),
 			);
-			expect(result.fieldErrors.openrouterReasoningEffort).toBe(
+			expect(result.fieldErrors["openrouter.reasoningEffort"]).toBe(
 				"Reasoning effort has an invalid value.",
 			);
 		});
@@ -792,9 +865,9 @@ describe("buildModelConfigFromForm", () => {
 		it("reports error for invalid boolean in reasoning enabled", () => {
 			const result = buildModelConfigFromForm(
 				"openrouter",
-				formWith({ openrouterReasoningEnabled: "yes" }),
+				formWith({ openrouter: { reasoningEnabled: "yes" } }),
 			);
-			expect(result.fieldErrors.openrouterReasoningEnabled).toBe(
+			expect(result.fieldErrors["openrouter.reasoningEnabled"]).toBe(
 				"Reasoning enabled must be true or false.",
 			);
 		});
@@ -805,10 +878,12 @@ describe("buildModelConfigFromForm", () => {
 			const result = buildModelConfigFromForm(
 				"vercel",
 				formWith({
-					vercelReasoningEnabled: "true",
-					vercelReasoningEffort: "medium",
-					vercelReasoningMaxTokens: "1000",
-					vercelReasoningExclude: "true",
+					vercel: {
+						reasoningEnabled: "true",
+						reasoningEffort: "medium",
+						reasoningMaxTokens: "1000",
+						reasoningExclude: "true",
+					},
 				}),
 			);
 			expect(result.fieldErrors).toEqual({});
@@ -828,8 +903,10 @@ describe("buildModelConfigFromForm", () => {
 			const result = buildModelConfigFromForm(
 				"vercel",
 				formWith({
-					vercelParallelToolCalls: "false",
-					vercelUser: "vercel-user",
+					vercel: {
+						parallelToolCalls: "false",
+						user: "vercel-user",
+					},
 				}),
 			);
 			expect(result.fieldErrors).toEqual({});
@@ -873,7 +950,7 @@ describe("buildModelConfigFromForm", () => {
 		it("normalizes provider case (e.g. 'OpenAI' → 'openai')", () => {
 			const result = buildModelConfigFromForm(
 				"OpenAI",
-				formWith({ openaiReasoningEffort: "high" }),
+				formWith({ openai: { reasoningEffort: "high" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.openai).toBeDefined();
@@ -882,7 +959,7 @@ describe("buildModelConfigFromForm", () => {
 		it("trims provider whitespace", () => {
 			const result = buildModelConfigFromForm(
 				"  anthropic  ",
-				formWith({ anthropicEffort: "low" }),
+				formWith({ anthropic: { effort: "low" } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.anthropic).toBeDefined();
@@ -893,7 +970,7 @@ describe("buildModelConfigFromForm", () => {
 				"unknown-provider",
 				formWith({
 					temperature: "0.5",
-					openaiReasoningEffort: "high",
+					openai: { reasoningEffort: "high" },
 				}),
 			);
 			expect(result.fieldErrors).toEqual({});
@@ -942,7 +1019,7 @@ describe("buildModelConfigFromForm", () => {
 		it("trims whitespace from string fields", () => {
 			const result = buildModelConfigFromForm(
 				"openai",
-				formWith({ openaiUser: "  user-123  " }),
+				formWith({ openai: { user: "  user-123  " } }),
 			);
 			expect(result.fieldErrors).toEqual({});
 			const openai = result.modelConfig?.provider_options?.openai as Record<
