@@ -31,6 +31,9 @@ const (
 	// agentRetryInterval is how often we retry connecting to the
 	// workspace agent.
 	agentRetryInterval = 2 * time.Second
+	// agentAttemptTimeout is the timeout for a single connection
+	// attempt to the workspace agent during the retry loop.
+	agentAttemptTimeout = 5 * time.Second
 	// agentPingTimeout is the timeout for a single agent ping
 	// when checking whether an existing workspace is alive.
 	agentPingTimeout = 5 * time.Second
@@ -380,7 +383,9 @@ func waitForAgent(
 
 	var lastErr error
 	for {
-		conn, release, err := agentConnFn(agentCtx, agentID)
+		attemptCtx, attemptCancel := context.WithTimeout(agentCtx, agentAttemptTimeout)
+		conn, release, err := agentConnFn(attemptCtx, agentID)
+		attemptCancel()
 		if err == nil {
 			release()
 			_ = conn
