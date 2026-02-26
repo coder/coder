@@ -29,9 +29,9 @@ export const normalizeBlockType = (value: unknown): string =>
 	asString(value).toLowerCase().replace(/_/g, "-");
 
 const isSubagentToolName = (name: string): boolean =>
-	name === "subagent" ||
-	name === "subagent_await" ||
-	name === "subagent_message";
+	name === "spawn_agent" ||
+	name === "wait_agent" ||
+	name === "message_agent";
 
 const isCompletedSubagentResult = (
 	toolName: string,
@@ -303,7 +303,7 @@ export const buildSubagentTitles = (
 	const map = new Map<string, string>();
 	for (const { parsed } of parsedMessages) {
 		for (const tool of parsed.tools) {
-			if (tool.name !== "subagent") {
+			if (tool.name !== "spawn_agent") {
 				continue;
 			}
 			const rec = asRecord(tool.result);

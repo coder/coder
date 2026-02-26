@@ -5302,11 +5302,15 @@ func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByI
 	return q.db.UpdateChatByID(ctx, arg)
 }
 
-func (q *querier) UpdateChatHeartbeat(ctx context.Context, id uuid.UUID) error {
-	fetch := func(ctx context.Context, arg uuid.UUID) (database.Chat, error) {
-		return q.db.GetChatByID(ctx, arg)
+func (q *querier) UpdateChatHeartbeat(ctx context.Context, arg database.UpdateChatHeartbeatParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
 	}
-	return update(q.log, q.auth, fetch, q.db.UpdateChatHeartbeat)(ctx, id)
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateChatHeartbeat(ctx, arg)
 }
 
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {

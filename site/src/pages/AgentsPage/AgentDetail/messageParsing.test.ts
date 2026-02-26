@@ -39,7 +39,21 @@ describe("parseToolResultIsError", () => {
 	it("returns false for completed subagent even with error field", () => {
 		expect(
 			parseToolResultIsError(
-				"subagent",
+				"spawn_agent",
+				{ error: "metadata" },
+				{ status: "completed" },
+			),
+		).toBe(false);
+		expect(
+			parseToolResultIsError(
+				"wait_agent",
+				{ error: "metadata" },
+				{ status: "completed" },
+			),
+		).toBe(false);
+		expect(
+			parseToolResultIsError(
+				"message_agent",
 				{ error: "metadata" },
 				{ status: "completed" },
 			),

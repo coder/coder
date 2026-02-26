@@ -63,9 +63,6 @@ type Server struct {
 	pubsub            pubsub.Pubsub
 	providerAPIKeys   chatprovider.ProviderAPIKeys
 
-	activeMu      sync.Mutex
-	activeCancels map[uuid.UUID]context.CancelCauseFunc
-
 	// streamMu guards chatStreams which tracks in-flight chat
 	// stream state for broadcasting ephemeral events.
 	streamMu    sync.Mutex
@@ -260,10 +257,6 @@ func (p *Server) PostMessages(
 		return PostMessagesResult{}, xerrors.New("chat_id is required")
 	}
 
-	if opts.Interrupt {
-		p.Interrupt(opts.ChatID)
-	}
-
 	var (
 		result            PostMessagesResult
 		queuedMessagesSDK []codersdk.ChatQueuedMessage
@@ -279,8 +272,7 @@ func (p *Server) PostMessages(
 			modelConfigID = *opts.ModelConfigID
 		}
 
-		isChatActive := p.IsActive(opts.ChatID)
-		if opts.QueueIfBusy && shouldQueueUserMessage(lockedChat.Status, isChatActive) {
+		if opts.QueueIfBusy && shouldQueueUserMessage(lockedChat.Status) {
 			existingQueued, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
 			if err != nil {
 				return xerrors.Errorf("get queued messages: %w", err)
@@ -366,7 +358,7 @@ func (p *Server) PostMessages(
 	}
 
 	p.publishMessage(opts.ChatID, result.Message)
-	p.publishStatus(opts.ChatID, result.Chat.Status)
+	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange)
 	return result, nil
 }
@@ -467,15 +459,6 @@ func (p *Server) PromoteQueued(
 		return PromoteQueuedResult{}, xerrors.New("chat_id is required")
 	}
 
-	chat, err := p.db.GetChatByID(ctx, opts.ChatID)
-	if err != nil {
-		return PromoteQueuedResult{}, xerrors.Errorf("get chat: %w", err)
-	}
-	if chat.Status == database.ChatStatusRunning ||
-		chat.Status == database.ChatStatusPending {
-		p.Interrupt(opts.ChatID)
-	}
-
 	var (
 		result         PromoteQueuedResult
 		promoted       database.ChatMessage
@@ -569,7 +552,7 @@ func (p *Server) PromoteQueued(
 		QueueUpdate: true,
 	})
 	p.publishMessage(opts.ChatID, promoted)
-	p.publishStatus(opts.ChatID, updatedChat.Status)
+	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
 
 	return result, nil
 }
@@ -583,27 +566,15 @@ func (p *Server) InterruptChat(
 		return chat
 	}
 
-	p.Interrupt(chat.ID)
-	p.Stop(chat.ID)
-
-	updatedChat, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:        chat.ID,
-		Status:    database.ChatStatusWaiting,
-		WorkerID:  uuid.NullUUID{},
-		StartedAt: sql.NullTime{},
-	})
+	updatedChat, err := p.setChatWaiting(ctx, chat.ID)
 	if err != nil {
 		p.logger.Error(ctx, "failed to mark chat as waiting",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
-	} else {
-		chat = updatedChat
+		return chat
 	}
-
-	p.publishStatus(chat.ID, chat.Status)
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
-	return chat
+	return updatedChat
 }
 
 // RefreshStatus loads the latest chat status and publishes it to stream subscribers.
@@ -617,7 +588,7 @@ func (p *Server) RefreshStatus(ctx context.Context, chatID uuid.UUID) error {
 		return xerrors.Errorf("get chat: %w", err)
 	}
 
-	p.publishStatus(chat.ID, chat.Status)
+	p.publishStatus(chat.ID, chat.Status, chat.WorkerID)
 	return nil
 }
 
@@ -658,10 +629,6 @@ func (p *Server) InsertMessage(
 		return InsertMessageResult{}, err
 	}
 
-	if opts.Interrupt {
-		p.Interrupt(opts.ChatID)
-	}
-
 	result := InsertMessageResult{Message: message}
 	if !opts.SetPending {
 		return result, nil
@@ -696,6 +663,21 @@ func (p *Server) setChatPending(ctx context.Context, chatID uuid.UUID) (database
 	return updatedChat, nil
 }
 
+func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
+	updatedChat, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:        chatID,
+		Status:    database.ChatStatusWaiting,
+		WorkerID:  uuid.NullUUID{},
+		StartedAt: sql.NullTime{},
+	})
+	if err != nil {
+		return database.Chat{}, err
+	}
+	p.publishStatus(chatID, updatedChat.Status, updatedChat.WorkerID)
+	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange)
+	return updatedChat, nil
+}
+
 func insertChatMessageWithStore(
 	ctx context.Context,
 	store database.Store,
@@ -710,12 +692,10 @@ func insertChatMessageWithStore(
 
 // shouldQueueUserMessage reports whether a user message should be
 // queued while a chat is active.
-func shouldQueueUserMessage(status database.ChatStatus, isChatActive bool) bool {
+func shouldQueueUserMessage(status database.ChatStatus) bool {
 	switch status {
 	case database.ChatStatusRunning, database.ChatStatusPending:
 		return true
-	case database.ChatStatusWaiting:
-		return isChatActive
 	default:
 		return false
 	}
@@ -769,7 +749,6 @@ func New(cfg Config) *Server {
 		providerAPIKeys:            cfg.ProviderAPIKeys,
 		chatStreams:                make(map[uuid.UUID]*chatStreamState),
 		instructionCache:           make(map[uuid.UUID]cachedInstruction),
-		activeCancels:              make(map[uuid.UUID]context.CancelCauseFunc),
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
 	}
@@ -820,42 +799,6 @@ func (p *Server) processOnce(ctx context.Context) {
 		defer p.inflight.Done()
 		p.processChat(ctx, chat)
 	}()
-}
-
-func (p *Server) registerChat(chatID uuid.UUID, cancel context.CancelCauseFunc) {
-	p.activeMu.Lock()
-	p.activeCancels[chatID] = cancel
-	p.activeMu.Unlock()
-}
-
-func (p *Server) unregisterChat(chatID uuid.UUID) {
-	p.activeMu.Lock()
-	delete(p.activeCancels, chatID)
-	p.activeMu.Unlock()
-}
-
-func (p *Server) Interrupt(chatID uuid.UUID) bool {
-	p.activeMu.Lock()
-	cancel, ok := p.activeCancels[chatID]
-	p.activeMu.Unlock()
-	if !ok {
-		return false
-	}
-	cancel(chatloop.ErrInterrupted)
-	p.stopStream(chatID)
-	return true
-}
-
-// IsActive reports whether the processor currently has an in-flight
-// worker for the chat.
-func (p *Server) IsActive(chatID uuid.UUID) bool {
-	if p == nil {
-		return false
-	}
-	p.activeMu.Lock()
-	_, ok := p.activeCancels[chatID]
-	p.activeMu.Unlock()
-	return ok
 }
 
 func (p *Server) startStream(chatID uuid.UUID) {
@@ -1371,15 +1314,18 @@ func (p *Server) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) 
 	p.publishToStream(chatID, event)
 }
 
-func (p *Server) publishStatus(chatID uuid.UUID, status database.ChatStatus) {
+func (p *Server) publishStatus(chatID uuid.UUID, status database.ChatStatus, workerID uuid.NullUUID) {
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:   codersdk.ChatStreamEventTypeStatus,
 		Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
 	})
-	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-		Status:   string(status),
-		WorkerID: p.workerID.String(),
-	})
+	notify := coderdpubsub.ChatStreamNotifyMessage{
+		Status: string(status),
+	}
+	if workerID.Valid {
+		notify.WorkerID = workerID.UUID.String()
+	}
+	p.publishChatStreamNotify(chatID, notify)
 }
 
 // publishChatStreamNotify broadcasts a per-chat stream notification via
@@ -1530,14 +1476,80 @@ func (p *Server) publishMessagePart(chatID uuid.UUID, role string, part codersdk
 	})
 }
 
+func shouldCancelChatFromControlNotification(
+	notify coderdpubsub.ChatStreamNotifyMessage,
+	workerID uuid.UUID,
+) bool {
+	status := database.ChatStatus(strings.TrimSpace(notify.Status))
+	switch status {
+	case database.ChatStatusWaiting, database.ChatStatusPending, database.ChatStatusError:
+		return true
+	case database.ChatStatusRunning:
+		worker := strings.TrimSpace(notify.WorkerID)
+		if worker == "" {
+			return false
+		}
+		notifyWorkerID, err := uuid.Parse(worker)
+		if err != nil {
+			return false
+		}
+		return notifyWorkerID != workerID
+	default:
+		return false
+	}
+}
+
+func (p *Server) subscribeChatControl(
+	ctx context.Context,
+	chatID uuid.UUID,
+	cancel context.CancelCauseFunc,
+	logger slog.Logger,
+) func() {
+	if p.pubsub == nil {
+		return nil
+	}
+
+	listener := func(_ context.Context, message []byte, err error) {
+		if err != nil {
+			logger.Warn(ctx, "chat control pubsub error", slog.Error(err))
+			return
+		}
+
+		var notify coderdpubsub.ChatStreamNotifyMessage
+		if unmarshalErr := json.Unmarshal(message, &notify); unmarshalErr != nil {
+			logger.Warn(ctx, "failed to unmarshal chat control notify", slog.Error(unmarshalErr))
+			return
+		}
+
+		if shouldCancelChatFromControlNotification(notify, p.workerID) {
+			cancel(chatloop.ErrInterrupted)
+		}
+	}
+
+	controlCancel, err := p.pubsub.SubscribeWithErr(
+		coderdpubsub.ChatStreamNotifyChannel(chatID),
+		listener,
+	)
+	if err != nil {
+		logger.Warn(ctx, "failed to subscribe to chat control notifications", slog.Error(err))
+		return nil
+	}
+	return controlCancel
+}
+
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat")
 
 	chatCtx, cancel := context.WithCancelCause(ctx)
-	p.registerChat(chat.ID, cancel)
-	defer p.unregisterChat(chat.ID)
 	defer cancel(nil)
+
+	controlCancel := p.subscribeChatControl(chatCtx, chat.ID, cancel, logger)
+	defer func() {
+		if controlCancel != nil {
+			controlCancel()
+		}
+	}()
 
 	// Periodically update the heartbeat so other replicas know this
 	// worker is still alive. The goroutine stops when chatCtx is
@@ -1550,14 +1562,26 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			case <-chatCtx.Done():
 				return
 			case <-ticker.C:
-				if err := p.db.UpdateChatHeartbeat(chatCtx, chat.ID); err != nil {
-					logger.Warn(ctx, "failed to update chat heartbeat", slog.Error(err))
+				rows, err := p.db.UpdateChatHeartbeat(chatCtx, database.UpdateChatHeartbeatParams{
+					ID:       chat.ID,
+					WorkerID: p.workerID,
+				})
+				if err != nil {
+					logger.Warn(chatCtx, "failed to update chat heartbeat", slog.Error(err))
+					continue
+				}
+				if rows == 0 {
+					cancel(chatloop.ErrInterrupted)
+					return
 				}
 			}
 		}
 	}()
 
-	p.publishStatus(chat.ID, database.ChatStatusRunning)
+	p.publishStatus(chat.ID, database.ChatStatusRunning, uuid.NullUUID{
+		UUID:  p.workerID,
+		Valid: true,
+	})
 
 	// Determine the final status to set when we're done.
 	status := database.ChatStatusWaiting
@@ -1657,7 +1681,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			logger.Error(ctx, "failed to release chat", slog.Error(err))
 		}
 
-		p.publishStatus(chat.ID, status)
+		p.publishStatus(chat.ID, status, uuid.NullUUID{})
 		chat.Status = status
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
 	}()

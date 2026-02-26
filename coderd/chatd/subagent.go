@@ -2,7 +2,6 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"sort"
 	"strings"
@@ -352,21 +351,13 @@ func (p *Server) closeSubagent(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	p.stopStream(targetChatID)
-	p.Interrupt(targetChatID)
-
 	if targetChat.Status == database.ChatStatusWaiting {
 		return targetChat, nil
 	}
 
-	updatedChat, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:        targetChatID,
-		Status:    database.ChatStatusWaiting,
-		WorkerID:  uuid.NullUUID{},
-		StartedAt: sql.NullTime{},
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("set target chat waiting: %w", err)
+	updatedChat := p.InterruptChat(ctx, targetChat)
+	if updatedChat.Status != database.ChatStatusWaiting {
+		return database.Chat{}, xerrors.New("set target chat waiting")
 	}
 	return updatedChat, nil
 }

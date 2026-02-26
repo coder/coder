@@ -79,13 +79,21 @@ export const ToolLabel: React.FC<{
 				</span>
 			);
 		}
-		case "subagent_terminate":
+		case "list_templates": {
+			const count = parsedResult
+				? (parsedResult.count as number | undefined) ?? 0
+				: 0;
 			return (
 				<span className="truncate text-sm text-content-secondary">
-					Terminating sub-agent
+					{count === 0
+						? "Listing templates…"
+						: count === 1
+							? "Listed 1 template"
+							: `Listed ${count} templates`}
 				</span>
 			);
-		case "subagent": {
+		}
+		case "spawn_agent": {
 			const spawnTitle =
 				(parsedResult ? asString(parsedResult.title) : "") ||
 				(parsed ? asString(parsed.title) : "");
@@ -95,7 +103,7 @@ export const ToolLabel: React.FC<{
 				</span>
 			);
 		}
-		case "subagent_await": {
+		case "wait_agent": {
 			const awaitTitle =
 				(parsedResult ? asString(parsedResult.title) : "") ||
 				(parsed ? asString(parsed.title) : "");
@@ -105,7 +113,7 @@ export const ToolLabel: React.FC<{
 				</span>
 			);
 		}
-		case "subagent_message": {
+		case "message_agent": {
 			const msgTitle =
 				(parsedResult ? asString(parsedResult.title) : "") ||
 				(parsed ? asString(parsed.title) : "");
@@ -115,10 +123,10 @@ export const ToolLabel: React.FC<{
 				</span>
 			);
 		}
-		case "subagent_report":
+		case "close_agent":
 			return (
 				<span className="truncate text-sm text-content-secondary">
-					Reporting to parent
+					Terminating sub-agent
 				</span>
 			);
 		case "chat_summarized":

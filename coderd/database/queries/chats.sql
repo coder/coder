@@ -264,7 +264,7 @@ WHERE
     status = 'running'::chat_status
     AND heartbeat_at < @stale_threshold::timestamptz;
 
--- name: UpdateChatHeartbeat :exec
+-- name: UpdateChatHeartbeat :execrows
 -- Bumps the heartbeat timestamp for a running chat so that other
 -- replicas know the worker is still alive.
 UPDATE
@@ -273,6 +273,7 @@ SET
     heartbeat_at = NOW()
 WHERE
     id = @id::uuid
+    AND worker_id = @worker_id::uuid
     AND status = 'running'::chat_status;
 
 -- name: GetChatDiffStatusByChatID :one

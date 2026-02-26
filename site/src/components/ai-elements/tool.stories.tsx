@@ -155,7 +155,7 @@ export const WaitForExternalAuthError: Story = {
 
 export const SubagentRunning: Story = {
 	args: {
-		name: "subagent",
+		name: "spawn_agent",
 		status: "running",
 		args: {
 			title: "Workspace diagnostics",
@@ -178,7 +178,7 @@ export const SubagentRunning: Story = {
 
 export const SubagentAwaitLinkCard: Story = {
 	args: {
-		name: "subagent_await",
+		name: "wait_agent",
 		args: { title: "Sub-agent" },
 		result: { chat_id: "child-chat-id", status: "pending" },
 	},
@@ -193,7 +193,7 @@ export const SubagentAwaitLinkCard: Story = {
 
 export const SubagentMessageLinkCard: Story = {
 	args: {
-		name: "subagent_message",
+		name: "message_agent",
 		args: { title: "Sub-agent" },
 		result: { chat_id: "child-chat-id", status: "pending" },
 	},
@@ -208,7 +208,7 @@ export const SubagentMessageLinkCard: Story = {
 
 export const SubagentCompletedDelegatedPending: Story = {
 	args: {
-		name: "subagent",
+		name: "spawn_agent",
 		args: undefined,
 		result: { chat_id: "child-chat-id", status: "pending" },
 		status: "completed",
@@ -228,7 +228,7 @@ export const SubagentCompletedDelegatedPending: Story = {
 
 export const SubagentStreamOverrideStatus: Story = {
 	args: {
-		name: "subagent",
+		name: "spawn_agent",
 		args: undefined,
 		result: { chat_id: "child-chat-id", status: "pending" },
 		status: "completed",
@@ -245,7 +245,7 @@ export const SubagentStreamOverrideStatus: Story = {
 
 export const SubagentNoErrorWhenCompleted: Story = {
 	args: {
-		name: "subagent",
+		name: "spawn_agent",
 		args: undefined,
 		result: {
 			chat_id: "child-chat-id",
@@ -267,7 +267,7 @@ export const SubagentNoErrorWhenCompleted: Story = {
 
 export const SubagentAwaitPreferredTitle: Story = {
 	args: {
-		name: "subagent_await",
+		name: "wait_agent",
 		args: { title: "Fallback title" },
 		result: {
 			chat_id: "child-chat-id",
@@ -288,7 +288,7 @@ export const SubagentAwaitPreferredTitle: Story = {
 
 export const SubagentRequestMetadata: Story = {
 	args: {
-		name: "subagent",
+		name: "spawn_agent",
 		args: undefined,
 		result: {
 			chat_id: "child-chat-id",
@@ -305,7 +305,7 @@ export const SubagentRequestMetadata: Story = {
 
 export const SubagentAwaitRequestMetadata: Story = {
 	args: {
-		name: "subagent_await",
+		name: "wait_agent",
 		args: undefined,
 		result: {
 			chat_id: "child-chat-id",
@@ -322,7 +322,7 @@ export const SubagentAwaitRequestMetadata: Story = {
 
 export const SubagentMessageRequestMetadata: Story = {
 	args: {
-		name: "subagent_message",
+		name: "message_agent",
 		args: undefined,
 		result: {
 			chat_id: "child-chat-id",
@@ -338,36 +338,85 @@ export const SubagentMessageRequestMetadata: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// SubagentReport stories
+// ListTemplates stories
 // ---------------------------------------------------------------------------
 
-export const SubagentReport: Story = {
+export const ListTemplatesRunning: Story = {
 	args: {
-		name: "subagent_report",
-		status: "completed",
-		args: {
-			report: subagentReport,
-		},
-		result: {
-			title: "Sub-agent report",
-		},
+		name: "list_templates",
+		status: "running",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Sub-agent report")).toBeInTheDocument();
+		expect(canvas.getByText("Listing templates…")).toBeInTheDocument();
 	},
 };
 
-export const SubagentReportSimple: Story = {
+export const ListTemplatesSuccess: Story = {
 	args: {
-		name: "subagent_report",
-		args: { report: "Done." },
-		result: { title: "Sub-agent report" },
+		name: "list_templates",
+		status: "completed",
+		result: {
+			templates: [
+				{
+					id: "template-1",
+					name: "go-template",
+					display_name: "Go Development",
+					description: "A template for Go development with VS Code",
+				},
+				{
+					id: "template-2",
+					name: "python-template",
+					description: "Python development environment",
+				},
+			],
+			count: 2,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Sub-agent report")).toBeInTheDocument();
-		expect(canvas.getByText("Done.")).toBeInTheDocument();
+		expect(canvas.getByText("Listed 2 templates")).toBeInTheDocument();
+		const toggle = canvas.getByRole("button");
+		await userEvent.click(toggle);
+		expect(canvas.getByText("Go Development")).toBeInTheDocument();
+		expect(canvas.getByText("A template for Go development with VS Code")).toBeInTheDocument();
+		expect(canvas.getByText("python-template")).toBeInTheDocument();
+	},
+};
+
+export const ListTemplatesSingle: Story = {
+	args: {
+		name: "list_templates",
+		status: "completed",
+		result: {
+			templates: [
+				{
+					id: "template-1",
+					name: "go-template",
+					description: "Go development template",
+				},
+			],
+			count: 1,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Listed 1 template")).toBeInTheDocument();
+	},
+};
+
+export const ListTemplatesEmpty: Story = {
+	args: {
+		name: "list_templates",
+		status: "completed",
+		result: {
+			templates: [],
+			count: 0,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Listing templates…")).toBeInTheDocument();
 	},
 };
 
@@ -403,7 +452,7 @@ export const ChatSummarized: Story = {
 
 export const SubagentTerminate: Story = {
 	args: {
-		name: "subagent_terminate",
+		name: "close_agent",
 		args: undefined,
 	},
 	play: async ({ canvasElement }) => {

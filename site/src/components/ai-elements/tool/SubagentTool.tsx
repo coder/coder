@@ -18,10 +18,10 @@ import {
 } from "./utils";
 
 const SUBAGENT_VERBS: Record<string, { completed: string; running: string }> = {
-	subagent: { completed: "Spawned ", running: "Spawning " },
-	subagent_await: { completed: "Waited for ", running: "Waiting for " },
-	subagent_message: { completed: "Messaged ", running: "Messaging " },
-	subagent_terminate: { completed: "Terminated ", running: "Terminating " },
+	spawn_agent: { completed: "Spawned ", running: "Spawning " },
+	wait_agent: { completed: "Waited for ", running: "Waiting for " },
+	message_agent: { completed: "Messaged ", running: "Messaging " },
+	close_agent: { completed: "Terminated ", running: "Terminating " },
 };
 
 /**

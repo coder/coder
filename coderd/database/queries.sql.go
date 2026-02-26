@@ -3708,21 +3708,30 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 	return i, err
 }
 
-const updateChatHeartbeat = `-- name: UpdateChatHeartbeat :exec
+const updateChatHeartbeat = `-- name: UpdateChatHeartbeat :execrows
 UPDATE
     chats
 SET
     heartbeat_at = NOW()
 WHERE
     id = $1::uuid
+    AND worker_id = $2::uuid
     AND status = 'running'::chat_status
 `
 
+type UpdateChatHeartbeatParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	WorkerID uuid.UUID `db:"worker_id" json:"worker_id"`
+}
+
 // Bumps the heartbeat timestamp for a running chat so that other
 // replicas know the worker is still alive.
-func (q *sqlQuerier) UpdateChatHeartbeat(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, updateChatHeartbeat, id)
-	return err
+func (q *sqlQuerier) UpdateChatHeartbeat(ctx context.Context, arg UpdateChatHeartbeatParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatHeartbeat, arg.ID, arg.WorkerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateChatStatus = `-- name: UpdateChatStatus :one

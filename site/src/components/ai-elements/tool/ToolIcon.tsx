@@ -19,6 +19,7 @@ export const ToolIcon: React.FC<{ name: string; isError: boolean }> = ({
 		case "execute":
 			return <TerminalIcon className={base} />;
 		case "read_file":
+		case "list_templates":
 			return <FileIcon className={base} />;
 		case "write_file":
 		case "edit_files":

@@ -4,7 +4,6 @@ import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import type { ComponentPropsWithRef, FC } from "react";
 import { memo } from "react";
 import { cn } from "utils/cn";
-import { AgentReportTool } from "./AgentReportTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { EditFilesTool } from "./EditFilesTool";
@@ -13,6 +12,7 @@ import {
 	ExecuteTool as ExecuteToolComponent,
 	WaitForExternalAuthTool,
 } from "./ExecuteTool";
+import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ReadFileTool } from "./ReadFileTool";
 import { SubagentTool } from "./SubagentTool";
 import { ToolIcon } from "./ToolIcon";
@@ -198,8 +198,7 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-// During workspace creation, build logs stream as result_delta
-// strings. Once the tool finishes, the result becomes a JSON object
+// Once the tool finishes, the result becomes a JSON object
 // with workspace metadata.
 const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 	status,
@@ -207,7 +206,6 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 	isError,
 }) => {
 	const rec = asRecord(result);
-	const buildLogs = typeof result === "string" ? result.trim() : "";
 	const wsName = rec ? asString(rec.workspace_name) : "";
 	const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
 
@@ -215,7 +213,6 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 		<CreateWorkspaceTool
 			workspaceName={wsName}
 			resultJson={resultJson}
-			buildLogs={buildLogs}
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
@@ -234,7 +231,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const parsedArgs = parseArgs(args);
 	const rec = asRecord(result);
-	// subagent_await and subagent_message have chat_id in args, so
+	// wait_agent and message_agent have chat_id in args, so
 	// check both result and args.
 	const chatId =
 		(rec ? asString(rec.chat_id) : "") ||
@@ -281,25 +278,23 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-const SubagentReportRenderer: FC<ToolRendererProps> = ({
+const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
 	result,
 	isError,
 }) => {
-	const parsedArgs = parseArgs(args);
 	const rec = asRecord(result);
-	const report =
-		(parsedArgs ? asString(parsedArgs.report) : "") ||
-		(rec ? asString(rec.report) : "");
-	const title = (rec ? asString(rec.title) : "") || "Sub-agent report";
+	const templates = rec && Array.isArray(rec.templates) ? rec.templates : [];
+	const count = rec ? (asNumber(rec.count, { parseString: true }) ?? templates.length) : 0;
 
 	return (
-		<AgentReportTool
-			title={title}
-			report={report}
-			toolStatus={status}
+		<ListTemplatesTool
+			templates={templates}
+			count={count}
+			status={status}
 			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
 		/>
 	);
 };
@@ -411,11 +406,11 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	write_file: WriteFileRenderer,
 	edit_files: EditFilesRenderer,
 	create_workspace: CreateWorkspaceRenderer,
-	subagent: SubagentRenderer,
-	subagent_await: SubagentRenderer,
-	subagent_message: SubagentRenderer,
-	subagent_terminate: SubagentRenderer,
-	subagent_report: SubagentReportRenderer,
+	list_templates: ListTemplatesRenderer,
+	spawn_agent: SubagentRenderer,
+	wait_agent: SubagentRenderer,
+	message_agent: SubagentRenderer,
+	close_agent: SubagentRenderer,
 	chat_summarized: ChatSummarizedRenderer,
 };
 
