@@ -424,15 +424,16 @@ export const TaskFollowUpAutoResumeSuccess: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
 		await userEvent.type(
-			await canvas.findByLabelText(/follow-up message/i),
+			await body.findByLabelText(/follow-up message/i),
 			"Continue from where you left off",
 		);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: /resume and send message/i }),
+			await body.findByRole("button", { name: /resume and send message/i }),
 		);
 
 		await waitFor(() => {
@@ -457,15 +458,16 @@ export const TaskFollowUpActiveTaskDirectSend: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
 		await userEvent.type(
-			await canvas.findByLabelText(/follow-up message/i),
+			await body.findByLabelText(/follow-up message/i),
 			"Please continue with the next step",
 		);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: /resume and send message/i }),
+			await body.findByRole("button", { name: /resume and send message/i }),
 		);
 
 		await waitFor(() => {
@@ -519,13 +521,14 @@ export const TaskFollowUpShowsResumingProgress: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
-		const messageInput = await canvas.findByLabelText(/follow-up message/i);
+		const messageInput = await body.findByLabelText(/follow-up message/i);
 		await userEvent.type(messageInput, "Continue task");
 		await userEvent.click(
-			await canvas.findByRole("button", { name: /resume and send message/i }),
+			await body.findByRole("button", { name: /resume and send message/i }),
 		);
 
 		await waitFor(async () => {
@@ -560,13 +563,14 @@ export const TaskFollowUpRetrySendFailure: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
-		const messageInput = await canvas.findByLabelText(/follow-up message/i);
+		const messageInput = await body.findByLabelText(/follow-up message/i);
 		await userEvent.type(messageInput, "Please continue");
 		await userEvent.click(
-			await canvas.findByRole("button", { name: /resume and send message/i }),
+			await body.findByRole("button", { name: /resume and send message/i }),
 		);
 
 		await waitFor(async () => {
@@ -613,13 +617,14 @@ export const TaskFollowUpResumeBuildFailure: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
-		const messageInput = await canvas.findByLabelText(/follow-up message/i);
+		const messageInput = await body.findByLabelText(/follow-up message/i);
 		await userEvent.type(messageInput, "Continue task");
 		await userEvent.click(
-			await canvas.findByRole("button", { name: /resume and send message/i }),
+			await body.findByRole("button", { name: /resume and send message/i }),
 		);
 
 		await waitFor(async () => {
@@ -647,13 +652,14 @@ export const TaskFollowUpNon409SendFailure: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
-		const messageInput = await canvas.findByLabelText(/follow-up message/i);
+		const messageInput = await body.findByLabelText(/follow-up message/i);
 		await userEvent.type(messageInput, "Continue task");
 		await userEvent.click(
-			await canvas.findByRole("button", { name: /resume and send message/i }),
+			await body.findByRole("button", { name: /resume and send message/i }),
 		);
 
 		await waitFor(async () => {
