@@ -2779,7 +2779,6 @@ func chatModelConfigToUpdateParams(
 		Provider:             config.Provider,
 		Model:                config.Model,
 		DisplayName:          config.DisplayName,
-		UpdatedBy:            config.UpdatedBy,
 		Enabled:              config.Enabled,
 		IsDefault:            config.IsDefault,
 		ContextLimit:         config.ContextLimit,
