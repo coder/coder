@@ -1102,7 +1102,7 @@ func New(options *Options) *API {
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.RequireExperimentNotFound(api.Experiments, codersdk.ExperimentAgents),
+				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
 			)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
