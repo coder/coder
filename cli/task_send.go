@@ -130,7 +130,7 @@ func waitForTaskIdle(ctx context.Context, client *codersdk.Client, task codersdk
 	// When we have a streaming Task API, this should be converted
 	// away from polling.
 
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
@@ -170,7 +170,7 @@ func waitForTaskReady(ctx context.Context, inv *serpent.Invocation, client *code
 	// TODO(DanielleMaywood):
 	// When we have a streaming Task API, this should be converted away from polling.
 
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
