@@ -290,8 +290,16 @@ describe("api.ts", () => {
 					providers: [],
 				},
 			],
-			["/api/experimental/chats/providers", () => API.getChatProviderConfigs(), []],
-			["/api/experimental/chats/model-configs", () => API.getChatModelConfigs(), []],
+			[
+				"/api/experimental/chats/providers",
+				() => API.getChatProviderConfigs(),
+				[],
+			],
+			[
+				"/api/experimental/chats/model-configs",
+				() => API.getChatModelConfigs(),
+				[],
+			],
 		])("returns response data for %s", async (path, request, responseData) => {
 			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
 				data: responseData,
@@ -306,7 +314,10 @@ describe("api.ts", () => {
 		it.each<[string, () => Promise<unknown>]>([
 			["/api/experimental/chats/models", () => API.getChatModels()],
 			["/api/experimental/chats/providers", () => API.getChatProviderConfigs()],
-			["/api/experimental/chats/model-configs", () => API.getChatModelConfigs()],
+			[
+				"/api/experimental/chats/model-configs",
+				() => API.getChatModelConfigs(),
+			],
 		])("rethrows axios errors for %s", async (path, request) => {
 			const expectedError = new Error("request failed");
 			vi.spyOn(axiosInstance, "get").mockRejectedValueOnce(expectedError);

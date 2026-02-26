@@ -287,7 +287,9 @@ const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const rec = asRecord(result);
 	const templates = rec && Array.isArray(rec.templates) ? rec.templates : [];
-	const count = rec ? (asNumber(rec.count, { parseString: true }) ?? templates.length) : 0;
+	const count = rec
+		? (asNumber(rec.count, { parseString: true }) ?? templates.length)
+		: 0;
 
 	return (
 		<ListTemplatesTool
@@ -307,7 +309,9 @@ const ReadTemplateRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const rec = asRecord(result);
 	const templateRec = rec ? asRecord(rec.template) : undefined;
-	const name = templateRec ? asString(templateRec.display_name) || asString(templateRec.name) : "";
+	const name = templateRec
+		? asString(templateRec.display_name) || asString(templateRec.name)
+		: "";
 
 	return (
 		<ReadTemplateTool

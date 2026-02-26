@@ -2907,7 +2907,9 @@ class ApiMethods {
 
 	// Chat API methods
 	getChats = async (): Promise<TypesGen.Chat[]> => {
-		const response = await this.axios.get<TypesGen.Chat[]>("/api/experimental/chats");
+		const response = await this.axios.get<TypesGen.Chat[]>(
+			"/api/experimental/chats",
+		);
 		return response.data;
 	};
 
@@ -2921,7 +2923,10 @@ class ApiMethods {
 	createChat = async (
 		req: TypesGen.CreateChatRequest,
 	): Promise<TypesGen.Chat> => {
-		const response = await this.axios.post<TypesGen.Chat>("/api/experimental/chats", req);
+		const response = await this.axios.post<TypesGen.Chat>(
+			"/api/experimental/chats",
+			req,
+		);
 		return response.data;
 	};
 
@@ -2951,7 +2956,9 @@ class ApiMethods {
 		chatId: string,
 		queuedMessageId: number,
 	): Promise<void> => {
-		await this.axios.delete(`/api/experimental/chats/${chatId}/queue/${queuedMessageId}`);
+		await this.axios.delete(
+			`/api/experimental/chats/${chatId}/queue/${queuedMessageId}`,
+		);
 	};
 
 	promoteChatQueuedMessage = async (

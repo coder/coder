@@ -21,13 +21,7 @@ export const CreateWorkspaceTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({
-	workspaceName,
-	resultJson,
-	status,
-	isError,
-	errorMessage,
-}) => {
+}> = ({ workspaceName, resultJson, status, isError, errorMessage }) => {
 	const isRunning = status === "running";
 	let rec: Record<string, unknown> | null = null;
 	if (resultJson) {
