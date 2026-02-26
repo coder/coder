@@ -1,27 +1,19 @@
-import { useTheme } from "@emotion/react";
-import { File as FileViewer } from "@pierre/diffs/react";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ChevronDownIcon, CircleAlertIcon, LoaderIcon } from "lucide-react";
+import { CircleAlertIcon, ExternalLinkIcon, LoaderIcon } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { Link } from "react-router";
 import { cn } from "utils/cn";
-import {
-	DIFFS_FONT_STYLE,
-	getFileViewerOptionsMinimal,
-	type ToolStatus,
-} from "./utils";
+import { asRecord, asString, type ToolStatus } from "./utils";
 
 /**
- * Collapsed-by-default rendering for `create_workspace` tool calls.
+ * Rendering for `create_workspace` tool calls.
  *
- * Once complete the result becomes a JSON object with workspace metadata.
  * Shows "Creating workspace…" while running, and "Created <name>" when
- * complete, expandable to reveal the full result JSON.
+ * complete with a link to view the workspace.
  */
 export const CreateWorkspaceTool: React.FC<{
 	workspaceName: string;
@@ -36,35 +28,30 @@ export const CreateWorkspaceTool: React.FC<{
 	isError,
 	errorMessage,
 }) => {
-	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
-	const [expanded, setExpanded] = useState(false);
 	const isRunning = status === "running";
-	const hasContent = resultJson.length > 0;
+	let rec: Record<string, unknown> | null = null;
+	if (resultJson) {
+		try {
+			const parsed = JSON.parse(resultJson);
+			rec = asRecord(parsed);
+		} catch {
+			// resultJson might already be an object or invalid JSON
+			rec = asRecord(resultJson);
+		}
+	}
+	const ownerName = rec ? asString(rec.owner_name) : "";
+	const wsName = rec ? asString(rec.workspace_name) : workspaceName;
+	const workspaceLink = ownerName && wsName ? `/@${ownerName}/${wsName}` : null;
 
 	const label = isRunning
 		? "Creating workspace…"
-		: workspaceName
-			? `Created ${workspaceName}`
+		: wsName
+			? `Created ${wsName}`
 			: "Created workspace";
 
 	return (
 		<div className="w-full">
-			<div
-				role="button"
-				tabIndex={0}
-				aria-expanded={expanded}
-				onClick={() => hasContent && setExpanded((v) => !v)}
-				onKeyDown={(e) => {
-					if ((e.key === "Enter" || e.key === " ") && hasContent) {
-						setExpanded((v) => !v);
-					}
-				}}
-				className={cn(
-					"flex items-center gap-2",
-					hasContent && "cursor-pointer",
-				)}
-			>
+			<div className="flex items-center gap-2">
 				<span
 					className={cn(
 						"text-sm",
@@ -86,33 +73,17 @@ export const CreateWorkspaceTool: React.FC<{
 				{isRunning && (
 					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 				)}
-				{hasContent && (
-					<ChevronDownIcon
-						className={cn(
-							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
-							expanded ? "rotate-0" : "-rotate-90",
-						)}
-					/>
+				{workspaceLink && !isRunning && (
+					<Link
+						to={workspaceLink}
+						onClick={(e) => e.stopPropagation()}
+						className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+						aria-label="View workspace"
+					>
+						<ExternalLinkIcon className="h-3 w-3" />
+					</Link>
 				)}
 			</div>
-
-			{/* Expandable JSON result once workspace creation completes. */}
-			{expanded && hasContent && (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<FileViewer
-						file={{
-							name: "result.json",
-							contents: resultJson,
-						}}
-						options={getFileViewerOptionsMinimal(isDark)}
-						style={DIFFS_FONT_STYLE}
-					/>
-				</ScrollArea>
-			)}
 		</div>
 	);
 };

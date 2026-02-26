@@ -1272,7 +1272,6 @@ func (p *Server) Subscribe(
 				cancelFn()
 			}
 		}
-		closeRelay()
 	}
 
 	return initialSnapshot, mergedEvents, cancel, true

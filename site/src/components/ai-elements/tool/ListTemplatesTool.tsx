@@ -4,8 +4,9 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { CircleAlertIcon, LoaderIcon } from "lucide-react";
+import { CircleAlertIcon, ExternalLinkIcon, LoaderIcon } from "lucide-react";
 import type React from "react";
+import { Link } from "react-router";
 import { cn } from "utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 import { asRecord, asString, type ToolStatus } from "./utils";
@@ -63,45 +64,38 @@ export const ListTemplatesTool: React.FC<{
 				</>
 			}
 		>
-			<ScrollArea
-				className="mt-1.5 rounded-md border border-solid border-border-default"
-				viewportClassName="max-h-64"
-				scrollBarClassName="w-1.5"
-			>
-				<div className="px-3 py-2">
-					<ul className="m-0 list-none space-y-2">
-						{templates.map((template, index) => {
-							const rec = asRecord(template);
-							if (!rec) {
-								return null;
-							}
-							const id = asString(rec.id);
-							const name = asString(rec.name);
-							const displayName = asString(rec.display_name);
-							const description = asString(rec.description);
-							const templateName = displayName || name || `Template ${index + 1}`;
+			<div className="mt-1.5">
+				{templates.map((template, index) => {
+					const rec = asRecord(template);
+					if (!rec) {
+						return null;
+					}
+					const name = asString(rec.name);
+					const displayName = asString(rec.display_name);
+					const templateName = displayName || name || `Template ${index + 1}`;
 
-							return (
-								<li key={id || index} className="border-b border-solid border-border-default pb-2 last:border-b-0 last:pb-0">
-									<div className="font-medium text-content-primary">
-										{templateName}
-									</div>
-									{description && (
-										<div className="mt-0.5 text-xs text-content-secondary">
-											{description}
-										</div>
-									)}
-									{id && (
-										<div className="mt-0.5 font-mono text-xs text-content-secondary opacity-60">
-											{id}
-										</div>
-									)}
-								</li>
-							);
-						})}
-					</ul>
-				</div>
-			</ScrollArea>
+					if (!name) {
+						return (
+							<div key={index} className="text-sm text-content-secondary">
+								{templateName}
+							</div>
+						);
+					}
+
+					return (
+						<div key={name} className="flex items-center gap-1.5">
+							<Link
+								to={`/templates/${name}`}
+								onClick={(e) => e.stopPropagation()}
+								className="flex items-center gap-1.5 text-sm text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+							>
+								<span>{templateName}</span>
+								<ExternalLinkIcon className="h-3 w-3 shrink-0" />
+							</Link>
+						</div>
+					);
+				})}
+			</div>
 		</ToolCollapsible>
 	);
 };
