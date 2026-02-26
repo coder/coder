@@ -1931,6 +1931,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	// Persist git refs as soon as the agent requests external auth so branch
 	// context is retained even if the flow requires an out-of-band login.
 	if gitRef.Branch != "" || gitRef.RemoteOrigin != "" {
+		//nolint:gocritic // System context required to persist chat git refs.
 		api.storeChatGitRef(dbauthz.AsSystemRestricted(ctx), workspace.ID, workspace.OwnerID, gitRef)
 	}
 

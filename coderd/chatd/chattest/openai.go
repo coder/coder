@@ -25,11 +25,12 @@ type OpenAIResponse struct {
 // OpenAIRequest represents an OpenAI chat completion request.
 type OpenAIRequest struct {
 	*http.Request
-	Model    string                 `json:"model"`
-	Messages []OpenAIMessage        `json:"messages"`
-	Stream   bool                   `json:"stream,omitempty"`
-	Prompt   []interface{}          `json:"prompt,omitempty"` // For responses API
-	Options  map[string]interface{} `json:",inline"`
+	Model    string          `json:"model"`
+	Messages []OpenAIMessage `json:"messages"`
+	Stream   bool            `json:"stream,omitempty"`
+	Prompt   []interface{}   `json:"prompt,omitempty"` // For responses API
+	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
+	Options map[string]interface{} `json:",inline"` //nolint:revive
 }
 
 // OpenAIMessage represents a message in an OpenAI request.
