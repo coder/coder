@@ -98,7 +98,7 @@ func gitAskpass(agentAuth *AgentAuth) *serpent.Command {
 			if token.URL != "" {
 				// This is to help the agent authenticate with Git.
 				if inv.Environ.Get("CODER_CHAT_AGENT") == "true" {
-					_, _ = fmt.Fprintf(inv.Stderr, `You must use the "wait_for_external_auth" tool to authenticate with Git.\n\nThe URL is: %s\n`, token.URL)
+					_, _ = fmt.Fprintf(inv.Stderr, `You must notify the user to authenticate with Git.\n\nThe URL is: %s\n`, token.URL)
 					return cliui.ErrCanceled
 				}
 
