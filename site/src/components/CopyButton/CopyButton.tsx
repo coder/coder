@@ -30,11 +30,7 @@ export const CopyButton: FC<CopyButtonProps> = ({
 					onClick={() => copyToClipboard(text)}
 					{...buttonProps}
 				>
-					{showCopiedSuccess ? (
-						<CheckIcon className="animate-in fade-in-0 zoom-in-[0.8] duration-300" />
-					) : (
-						<CopyIcon />
-					)}
+					{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
 					<span className="sr-only">{label}</span>
 				</Button>
 			</TooltipTrigger>
