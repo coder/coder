@@ -60,7 +60,7 @@ type store interface {
 	InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) (database.AIBridgeUserPrompt, error)
 	InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) (database.AIBridgeToolUsage, error)
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, intcID database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error)
-	GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error)
+	GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (database.GetAIBridgeInterceptionLineageByToolCallIDRow, error)
 
 	// MCPConfigurator-related queries.
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
@@ -140,11 +140,8 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		metadata[MetadataUserAgentKey] = in.UserAgent
 	}
 
-	// Look up the parent interception using the correlating tool call ID.
-	var parentID uuid.NullUUID
-	if toolCallID := in.GetCorrelatingToolCallId(); toolCallID != "" {
-		parentID = s.findParentInterceptionID(ctx, toolCallID)
-	}
+	// Look up the interception lineage using the correlating tool call ID.
+	parentID, rootID := s.findInterceptionLineage(ctx, in.GetCorrelatingToolCallId())
 
 	if s.structuredLogging {
 		s.logger.Info(ctx, InterceptionLogMarker,
@@ -175,7 +172,8 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		Model:                      in.Model,
 		Metadata:                   out,
 		StartedAt:                  in.StartedAt.AsTime(),
-		ThreadParentInterceptionID: parentID,
+		ThreadParentInterceptionID: uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
+		ThreadRootInterceptionID:   uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
@@ -350,33 +348,27 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	return &proto.RecordToolUsageResponse{}, nil
 }
 
-// findParentInterceptionID looks up the parent interception by finding
-// which interception recorded a tool usage with the given tool call ID.
-// If no match is found or there's ambiguity, it returns a null UUID.
-func (s *Server) findParentInterceptionID(ctx context.Context, toolCallID string) uuid.NullUUID {
-	interceptionIDs, err := s.store.GetAIBridgeInterceptionByToolCallID(ctx, sql.NullString{String: toolCallID, Valid: true})
+// findInterceptionLineage looks up the parent interception and the root
+// of the thread by finding which interception recorded a tool usage with
+// the given tool call ID. Returns (parentID, rootID); both will be
+// uuid.Nil if no match is found or the tool call ID is empty.
+func (s *Server) findInterceptionLineage(ctx context.Context, toolCallID string) (parent uuid.UUID, root uuid.UUID) {
+	if toolCallID == "" {
+		return uuid.Nil, uuid.Nil
+	}
+
+	lineage, err := s.store.GetAIBridgeInterceptionLineageByToolCallID(ctx, toolCallID)
 	if err != nil {
-		s.logger.Warn(ctx, "failed to look up parent interception by tool call ID",
-			slog.F("tool_call_id", toolCallID),
-			slog.Error(err),
-		)
-		return uuid.NullUUID{}
+		s.logger.Warn(ctx, "failed to retrieve interception lineage",
+			slog.Error(err), slog.F("tool_call_id", toolCallID))
+		return uuid.Nil, uuid.Nil
 	}
 
-	if len(interceptionIDs) == 0 {
-		return uuid.NullUUID{}
+	if lineage.ThreadParentID == uuid.Nil {
+		return uuid.Nil, uuid.Nil
 	}
 
-	if len(interceptionIDs) > 1 {
-		// Ambiguous match — log a warning but use the first (most
-		// recent) candidate, since the query orders by created_at DESC.
-		s.logger.Warn(ctx, "ambiguous parent interception candidates",
-			slog.F("tool_call_id", toolCallID),
-			slog.F("candidates", interceptionIDs),
-		)
-	}
-
-	return uuid.NullUUID{UUID: interceptionIDs[0], Valid: true}
+	return lineage.ThreadParentID, lineage.ThreadRootID
 }
 
 func (s *Server) GetMCPServerConfigs(_ context.Context, _ *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {

@@ -378,7 +378,7 @@ func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime ti
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id
 FROM
 	aibridge_interceptions
 WHERE
@@ -399,49 +399,44 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.APIKeyID,
 		&i.Client,
 		&i.ThreadParentID,
+		&i.ThreadRootID,
 	)
 	return i, err
 }
 
-const getAIBridgeInterceptionByToolCallID = `-- name: GetAIBridgeInterceptionByToolCallID :many
-SELECT interception_id
-FROM aibridge_tool_usages
-WHERE provider_tool_call_id = $1
-GROUP BY interception_id
-ORDER BY MAX(created_at) DESC
-LIMIT 3
+const getAIBridgeInterceptionLineageByToolCallID = `-- name: GetAIBridgeInterceptionLineageByToolCallID :one
+WITH linked AS (
+  SELECT interception_id FROM aibridge_tool_usages
+  WHERE provider_tool_call_id = $1::text
+  ORDER BY created_at DESC
+  LIMIT 1
+)
+SELECT linked.interception_id AS thread_parent_id,
+       COALESCE(aibridge_interceptions.thread_root_id, linked.interception_id) AS thread_root_id
+FROM aibridge_interceptions
+INNER JOIN linked ON linked.interception_id = aibridge_interceptions.id
+WHERE aibridge_interceptions.id = linked.interception_id
 `
 
-// Retrieve the interception ID(s) of a given tool call ID. It's *possible*
-// that the provider_tool_call_id may not be unique, therefore we retrieve all
-// matches and deal with this in application code.
-// Just to limit output in case of unexpected volumes.
-func (q *sqlQuerier) GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, getAIBridgeInterceptionByToolCallID, toolCallID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var interception_id uuid.UUID
-		if err := rows.Scan(&interception_id); err != nil {
-			return nil, err
-		}
-		items = append(items, interception_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+type GetAIBridgeInterceptionLineageByToolCallIDRow struct {
+	ThreadParentID uuid.UUID `db:"thread_parent_id" json:"thread_parent_id"`
+	ThreadRootID   uuid.UUID `db:"thread_root_id" json:"thread_root_id"`
+}
+
+// Look up the parent interception and the root of the thread by finding
+// which interception recorded a tool usage with the given tool call ID.
+// COALESCE ensures that if the parent has no thread_root_id (i.e. it IS
+// the root), we return its own ID as the root.
+func (q *sqlQuerier) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (GetAIBridgeInterceptionLineageByToolCallIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getAIBridgeInterceptionLineageByToolCallID, toolCallID)
+	var i GetAIBridgeInterceptionLineageByToolCallIDRow
+	err := row.Scan(&i.ThreadParentID, &i.ThreadRootID)
+	return i, err
 }
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id
 FROM
 	aibridge_interceptions
 `
@@ -466,6 +461,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.APIKeyID,
 			&i.Client,
 			&i.ThreadParentID,
+			&i.ThreadRootID,
 		); err != nil {
 			return nil, err
 		}
@@ -612,11 +608,11 @@ func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context,
 
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, model, metadata, started_at, client, thread_parent_id
+	id, api_key_id, initiator_id, provider, model, metadata, started_at, client, thread_parent_id, thread_root_id
 ) VALUES (
-	$1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7, $8, $9::uuid
+	$1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7, $8, $9::uuid, $10::uuid
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -629,6 +625,7 @@ type InsertAIBridgeInterceptionParams struct {
 	StartedAt                  time.Time       `db:"started_at" json:"started_at"`
 	Client                     sql.NullString  `db:"client" json:"client"`
 	ThreadParentInterceptionID uuid.NullUUID   `db:"thread_parent_interception_id" json:"thread_parent_interception_id"`
+	ThreadRootInterceptionID   uuid.NullUUID   `db:"thread_root_interception_id" json:"thread_root_interception_id"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error) {
@@ -642,6 +639,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		arg.StartedAt,
 		arg.Client,
 		arg.ThreadParentInterceptionID,
+		arg.ThreadRootInterceptionID,
 	)
 	var i AIBridgeInterception
 	err := row.Scan(
@@ -655,6 +653,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.APIKeyID,
 		&i.Client,
 		&i.ThreadParentID,
+		&i.ThreadRootID,
 	)
 	return i, err
 }
@@ -796,7 +795,7 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id,
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id,
 	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
 	aibridge_interceptions
@@ -906,6 +905,7 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 			&i.AIBridgeInterception.APIKeyID,
 			&i.AIBridgeInterception.Client,
 			&i.AIBridgeInterception.ThreadParentID,
+			&i.AIBridgeInterception.ThreadRootID,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,
@@ -1166,7 +1166,7 @@ UPDATE aibridge_interceptions
 WHERE
 	id = $2::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
@@ -1188,6 +1188,7 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.APIKeyID,
 		&i.Client,
 		&i.ThreadParentID,
+		&i.ThreadRootID,
 	)
 	return i, err
 }

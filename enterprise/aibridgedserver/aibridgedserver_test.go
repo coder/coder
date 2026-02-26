@@ -474,15 +474,20 @@ func TestRecordInterception(t *testing.T) {
 					selfID, err := uuid.Parse(req.GetId())
 					assert.NoError(t, err, "parse self UUID")
 					parentID := uuid.UUID{4}
+					rootID := uuid.UUID{5}
 
-					db.EXPECT().GetAIBridgeInterceptionByToolCallID(
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
 						gomock.Any(),
-						sql.NullString{String: "call_abc", Valid: true},
-					).Return([]uuid.UUID{parentID, uuid.New()}, nil) // If multiple entries are returned (unexpectedly), we pick the first one.
+						"call_abc",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{
+						ThreadParentID: parentID,
+						ThreadRootID:   rootID,
+					}, nil)
 
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
 						return assert.Equal(t, selfID, p.ID, "ID") &&
-							assert.Equal(t, uuid.NullUUID{UUID: parentID, Valid: true}, p.ThreadParentInterceptionID, "thread parent interception ID")
+							assert.Equal(t, uuid.NullUUID{UUID: parentID, Valid: true}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{UUID: rootID, Valid: true}, p.ThreadRootInterceptionID, "thread root interception ID")
 					})).Return(database.AIBridgeInterception{
 						ID: selfID,
 					}, nil)
@@ -503,14 +508,15 @@ func TestRecordInterception(t *testing.T) {
 					selfID, err := uuid.Parse(req.GetId())
 					assert.NoError(t, err, "parse self UUID")
 
-					db.EXPECT().GetAIBridgeInterceptionByToolCallID(
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
 						gomock.Any(),
-						sql.NullString{String: "call_orphan", Valid: true},
-					).Return([]uuid.UUID{}, nil)
+						"call_orphan",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{}, sql.ErrNoRows)
 
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
 						return assert.Equal(t, selfID, p.ID, "ID") &&
-							assert.Equal(t, uuid.NullUUID{}, p.ThreadParentInterceptionID, "thread parent interception ID")
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadRootInterceptionID, "thread root interception ID")
 					})).Return(database.AIBridgeInterception{
 						ID: selfID,
 					}, nil)

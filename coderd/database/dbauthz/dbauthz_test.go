@@ -5073,11 +5073,14 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(intID).Asserts(intc, policy.ActionRead).Returns(intc)
 	}))
 
-	s.Run("GetAIBridgeInterceptionByToolCallID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		toolCallID := sql.NullString{String: "call_123", Valid: true}
-		ids := []uuid.UUID{{1}, {2}}
-		db.EXPECT().GetAIBridgeInterceptionByToolCallID(gomock.Any(), toolCallID).Return(ids, nil).AnyTimes()
-		check.Args(toolCallID).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns(ids)
+	s.Run("GetAIBridgeInterceptionLineageByToolCallID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		toolCallID := "call_123"
+		row := database.GetAIBridgeInterceptionLineageByToolCallIDRow{
+			ThreadParentID: uuid.UUID{1},
+			ThreadRootID:   uuid.UUID{2},
+		}
+		db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(gomock.Any(), toolCallID).Return(row, nil).AnyTimes()
+		check.Args(toolCallID).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns(row)
 	}))
 
 	s.Run("GetAIBridgeInterceptions", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

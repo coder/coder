@@ -1,8 +1,8 @@
 -- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, model, metadata, started_at, client, thread_parent_id
+	id, api_key_id, initiator_id, provider, model, metadata, started_at, client, thread_parent_id, thread_root_id
 ) VALUES (
-	@id, @api_key_id, @initiator_id, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('thread_parent_interception_id')::uuid
+	@id, @api_key_id, @initiator_id, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('thread_parent_interception_id')::uuid, sqlc.narg('thread_root_interception_id')::uuid
 )
 RETURNING *;
 
@@ -14,17 +14,22 @@ WHERE
 	AND ended_at IS NULL
 RETURNING *;
 
--- name: GetAIBridgeInterceptionByToolCallID :many
--- Retrieve the interception ID(s) of a given tool call ID. It's *possible*
--- that the provider_tool_call_id may not be unique, therefore we retrieve all
--- matches and deal with this in application code.
-SELECT interception_id
-FROM aibridge_tool_usages
-WHERE provider_tool_call_id = @tool_call_id
-GROUP BY interception_id
-ORDER BY MAX(created_at) DESC
--- Just to limit output in case of unexpected volumes.
-LIMIT 3;
+-- name: GetAIBridgeInterceptionLineageByToolCallID :one
+-- Look up the parent interception and the root of the thread by finding
+-- which interception recorded a tool usage with the given tool call ID.
+-- COALESCE ensures that if the parent has no thread_root_id (i.e. it IS
+-- the root), we return its own ID as the root.
+WITH linked AS (
+  SELECT interception_id FROM aibridge_tool_usages
+  WHERE provider_tool_call_id = @tool_call_id::text
+  ORDER BY created_at DESC
+  LIMIT 1
+)
+SELECT linked.interception_id AS thread_parent_id,
+       COALESCE(aibridge_interceptions.thread_root_id, linked.interception_id) AS thread_root_id
+FROM aibridge_interceptions
+INNER JOIN linked ON linked.interception_id = aibridge_interceptions.id
+WHERE aibridge_interceptions.id = linked.interception_id;
 
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (

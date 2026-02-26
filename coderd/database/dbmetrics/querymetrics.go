@@ -5,7 +5,6 @@ package dbmetrics
 
 import (
 	"context"
-	"database/sql"
 	"slices"
 	"time"
 
@@ -792,11 +791,11 @@ func (m queryMetricsStore) GetAIBridgeInterceptionByID(ctx context.Context, id u
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error) {
+func (m queryMetricsStore) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (database.GetAIBridgeInterceptionLineageByToolCallIDRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetAIBridgeInterceptionByToolCallID(ctx, toolCallID)
-	m.queryLatencies.WithLabelValues("GetAIBridgeInterceptionByToolCallID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeInterceptionByToolCallID").Inc()
+	r0, r1 := m.s.GetAIBridgeInterceptionLineageByToolCallID(ctx, toolCallID)
+	m.queryLatencies.WithLabelValues("GetAIBridgeInterceptionLineageByToolCallID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeInterceptionLineageByToolCallID").Inc()
 	return r0, r1
 }
 
