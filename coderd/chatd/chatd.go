@@ -47,10 +47,6 @@ const (
 	defaultContextCompressionThresholdPercent = int32(70)
 
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
-
-	externalAuthWaitPollInterval    = time.Second
-	externalAuthWaitTimedOutStatus  = "timed_out"
-	externalAuthWaitCompletedStatus = "completed"
 )
 
 // Server handles background processing of pending chats.
@@ -233,10 +229,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				RawMessage: systemContent,
 				Valid:      len(systemContent) > 0,
 			},
-			Visibility: database.NullChatMessageVisibility{
-				ChatMessageVisibility: database.ChatMessageVisibilityModel,
-				Valid:                 true,
-			},
+			Visibility: database.ChatMessageVisibilityModel,
 		})
 		if err != nil {
 			return database.Chat{}, xerrors.Errorf("insert system message: %w", err)
@@ -327,7 +320,7 @@ func (p *Server) PostMessages(
 				RawMessage: opts.Content,
 				Valid:      len(opts.Content) > 0,
 			},
-			Visibility: bothChatMessageVisibility(),
+			Visibility: database.ChatMessageVisibilityBoth,
 		})
 		if err != nil {
 			return err
@@ -536,7 +529,7 @@ func (p *Server) PromoteQueued(
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
 			},
-			Visibility: bothChatMessageVisibility(),
+			Visibility: database.ChatMessageVisibilityBoth,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert message: %w", err)
@@ -654,7 +647,7 @@ func (p *Server) InsertMessage(
 			RawMessage: opts.Content,
 			Valid:      len(opts.Content) > 0,
 		},
-		Visibility: bothChatMessageVisibility(),
+		Visibility: database.ChatMessageVisibilityBoth,
 	})
 	if err != nil {
 		return InsertMessageResult{}, err
@@ -708,23 +701,6 @@ func insertChatMessageWithStore(
 		return database.ChatMessage{}, xerrors.Errorf("insert chat message: %w", err)
 	}
 	return message, nil
-}
-
-func chatMessageVisibility(
-	visibility database.ChatMessageVisibility,
-) database.NullChatMessageVisibility {
-	return database.NullChatMessageVisibility{
-		ChatMessageVisibility: visibility,
-		Valid:                 true,
-	}
-}
-
-func bothChatMessageVisibility() database.NullChatMessageVisibility {
-	return chatMessageVisibility(database.ChatMessageVisibilityBoth)
-}
-
-func modelChatMessageVisibility() database.NullChatMessageVisibility {
-	return chatMessageVisibility(database.ChatMessageVisibilityModel)
 }
 
 // shouldQueueUserMessage reports whether a user message should be
@@ -1613,7 +1589,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 							RawMessage: nextQueued.Content,
 							Valid:      len(nextQueued.Content) > 0,
 						},
-						Visibility:          bothChatMessageVisibility(),
+						Visibility:          database.ChatMessageVisibilityBoth,
 						InputTokens:         sql.NullInt64{},
 						OutputTokens:        sql.NullInt64{},
 						TotalTokens:         sql.NullInt64{},
@@ -1819,7 +1795,7 @@ func (p *Server) runChat(
 				ModelConfigID: modelConfigIDNullUUID(modelConfig.ModelConfigID),
 				Role:          string(fantasy.MessageRoleAssistant),
 				Content:       assistantContent,
-				Visibility:    bothChatMessageVisibility(),
+				Visibility:    database.ChatMessageVisibilityBoth,
 				InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
 				OutputTokens:  usageNullInt64(step.Usage.OutputTokens, hasUsage),
 				TotalTokens:   usageNullInt64(step.Usage.TotalTokens, hasUsage),
@@ -1852,7 +1828,7 @@ func (p *Server) runChat(
 				ModelConfigID: modelConfigIDNullUUID(modelConfig.ModelConfigID),
 				Role:          string(fantasy.MessageRoleTool),
 				Content:       resultContent,
-				Visibility:    bothChatMessageVisibility(),
+				Visibility:    database.ChatMessageVisibilityBoth,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert tool result: %w", err)
@@ -1999,7 +1975,7 @@ func (p *Server) persistChatContextSummary(
 			RawMessage: systemContent,
 			Valid:      len(systemContent) > 0,
 		},
-		Visibility:          bothChatMessageVisibility(),
+		Visibility:          database.ChatMessageVisibilityModel,
 		Compressed:          sql.NullBool{Bool: true, Valid: true},
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
@@ -2038,10 +2014,7 @@ func (p *Server) persistChatContextSummary(
 		ModelConfigID: modelConfigIDNullUUID(modelConfigID),
 		Role:          string(fantasy.MessageRoleAssistant),
 		Content:       assistantContent,
-		Visibility: database.NullChatMessageVisibility{
-			ChatMessageVisibility: database.ChatMessageVisibilityUser,
-			Valid:                 true,
-		},
+		Visibility:    database.ChatMessageVisibilityUser,
 		Compressed: sql.NullBool{
 			Bool:  true,
 			Valid: true,
@@ -2084,7 +2057,7 @@ func (p *Server) persistChatContextSummary(
 		ModelConfigID: modelConfigIDNullUUID(modelConfigID),
 		Role:          string(fantasy.MessageRoleTool),
 		Content:       toolResult,
-		Visibility:    bothChatMessageVisibility(),
+		Visibility:    database.ChatMessageVisibilityBoth,
 		Compressed: sql.NullBool{
 			Bool:  true,
 			Valid: true,

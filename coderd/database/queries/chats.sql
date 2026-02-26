@@ -33,6 +33,7 @@ FROM
     chat_messages
 WHERE
     chat_id = @chat_id::uuid
+    AND visibility IN ('user', 'both')
 ORDER BY
     created_at ASC;
 
@@ -173,7 +174,7 @@ INSERT INTO chat_messages (
     sqlc.narg('model_config_id')::uuid,
     @role::text,
     sqlc.narg('content')::jsonb,
-    COALESCE(sqlc.narg('visibility')::chat_message_visibility, 'both'),
+    @visibility::chat_message_visibility,
     sqlc.narg('input_tokens')::bigint,
     sqlc.narg('output_tokens')::bigint,
     sqlc.narg('total_tokens')::bigint,

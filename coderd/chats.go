@@ -691,7 +691,7 @@ func promoteQueuedWithoutServer(
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
 			},
-			Visibility:          database.NullChatMessageVisibility{ChatMessageVisibility: database.ChatMessageVisibilityBoth, Valid: true},
+			Visibility:          database.ChatMessageVisibilityBoth,
 			InputTokens:         sql.NullInt64{},
 			OutputTokens:        sql.NullInt64{},
 			TotalTokens:         sql.NullInt64{},

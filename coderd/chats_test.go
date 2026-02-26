@@ -71,6 +71,31 @@ func TestChats(t *testing.T) {
 			require.True(t, foundUserMessage)
 		})
 
+		t.Run("HidesSystemPromptMessages", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := coderdtest.New(t, nil)
+			_ = coderdtest.CreateFirstUser(t, client)
+			_ = createChatModelConfig(t, client)
+
+			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				Content: []codersdk.ChatInputPart{
+					{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: "verify hidden system prompt",
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			chatWithMessages, err := client.GetChat(ctx, chat.ID)
+			require.NoError(t, err)
+			for _, message := range chatWithMessages.Messages {
+				require.NotEqual(t, "system", message.Role)
+			}
+		})
+
 		t.Run("WorkspaceNotAccessible", func(t *testing.T) {
 			t.Parallel()
 

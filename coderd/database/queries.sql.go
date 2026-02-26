@@ -3093,6 +3093,7 @@ FROM
     chat_messages
 WHERE
     chat_id = $1::uuid
+    AND visibility IN ('user', 'both')
 ORDER BY
     created_at ASC
 `
@@ -3457,7 +3458,7 @@ INSERT INTO chat_messages (
     $2::uuid,
     $3::text,
     $4::jsonb,
-    COALESCE($5::chat_message_visibility, 'both'),
+    $5::chat_message_visibility,
     $6::bigint,
     $7::bigint,
     $8::bigint,
@@ -3472,19 +3473,19 @@ RETURNING
 `
 
 type InsertChatMessageParams struct {
-	ChatID              uuid.UUID                 `db:"chat_id" json:"chat_id"`
-	ModelConfigID       uuid.NullUUID             `db:"model_config_id" json:"model_config_id"`
-	Role                string                    `db:"role" json:"role"`
-	Content             pqtype.NullRawMessage     `db:"content" json:"content"`
-	Visibility          NullChatMessageVisibility `db:"visibility" json:"visibility"`
-	InputTokens         sql.NullInt64             `db:"input_tokens" json:"input_tokens"`
-	OutputTokens        sql.NullInt64             `db:"output_tokens" json:"output_tokens"`
-	TotalTokens         sql.NullInt64             `db:"total_tokens" json:"total_tokens"`
-	ReasoningTokens     sql.NullInt64             `db:"reasoning_tokens" json:"reasoning_tokens"`
-	CacheCreationTokens sql.NullInt64             `db:"cache_creation_tokens" json:"cache_creation_tokens"`
-	CacheReadTokens     sql.NullInt64             `db:"cache_read_tokens" json:"cache_read_tokens"`
-	ContextLimit        sql.NullInt64             `db:"context_limit" json:"context_limit"`
-	Compressed          sql.NullBool              `db:"compressed" json:"compressed"`
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
+	Role                string                `db:"role" json:"role"`
+	Content             pqtype.NullRawMessage `db:"content" json:"content"`
+	Visibility          ChatMessageVisibility `db:"visibility" json:"visibility"`
+	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt64         `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt64         `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt64         `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt64         `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
+	Compressed          sql.NullBool          `db:"compressed" json:"compressed"`
 }
 
 func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error) {
