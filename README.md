@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD041 -->
 
-> **Why do programmers prefer dark mode?** Because light attracts bugs. 🪲
+> **Why do Java developers wear glasses?** Because they can't C#.
 
 <div align="center">
   <a href="https://coder.com#gh-light-mode-only">
