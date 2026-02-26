@@ -32,9 +32,15 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
+
+// minimalUserJSON is a minimal valid User JSON for codersdk.Client.User token validation.
+// Used by mock Coder API handlers for /api/v2/users/me.
+const minimalUserJSON = `{"id":"00000000-0000-0000-0000-000000000000","username":"test","email":"test@test.com","created_at":"2020-01-01T00:00:00Z","updated_at":"2020-01-01T00:00:00Z","status":"active","organization_ids":[],"roles":[]}`
 
 var (
 	// testCAOnce ensures the shared CA is generated exactly once.
@@ -112,6 +118,8 @@ type testProxyConfig struct {
 	upstreamProxy            string
 	upstreamProxyCA          string
 	metrics                  *aibridgeproxyd.Metrics
+	tokenCacheTTL            time.Duration
+	clock                    quartz.Clock
 }
 
 type testProxyOption func(*testProxyConfig)
@@ -164,6 +172,18 @@ func withMetrics(metrics *aibridgeproxyd.Metrics) testProxyOption {
 	}
 }
 
+func withTokenCacheTTL(ttl time.Duration) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.tokenCacheTTL = ttl
+	}
+}
+
+func withClock(clock quartz.Clock) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.clock = clock
+	}
+}
+
 // newTestProxy creates a new AI Bridge Proxy server for testing.
 // It uses the shared test CA and registers cleanup automatically.
 // It waits for the proxy server to be ready before returning.
@@ -196,6 +216,8 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 		UpstreamProxy:            cfg.upstreamProxy,
 		UpstreamProxyCA:          cfg.upstreamProxyCA,
 		Metrics:                  cfg.metrics,
+		TokenCacheTTL:            cfg.tokenCacheTTL,
+		Clock:                    cfg.clock,
 	}
 	if cfg.certStore != nil {
 		aibridgeOpts.CertStore = cfg.certStore
@@ -280,6 +302,37 @@ func newTargetServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, 
 	require.NoError(t, err)
 
 	return srv, srvURL
+}
+
+// newMockCoderServer creates a mock Coder server that handles token validation
+// and optionally aibridged requests. The validToken is the token that will be
+// accepted by the /api/v2/users/me endpoint. The aibridgedHandler, if provided,
+// handles non-API requests (aibridged traffic).
+func newMockCoderServer(t *testing.T, validToken string, aibridgedHandler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v2/users/me" && r.Method == http.MethodGet {
+			// Token validation for tunneled CONNECT requests.
+			token := r.Header.Get(codersdk.SessionTokenHeader)
+			if token == validToken {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(minimalUserJSON))
+				return
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		// Non-API requests go to aibridged handler if provided.
+		if aibridgedHandler != nil {
+			aibridgedHandler(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(func() { srv.Close() })
+	return srv
 }
 
 // makeProxyAuthHeader creates a Proxy-Authorization header value with the given token.
@@ -837,11 +890,10 @@ func TestProxy_CertCaching(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			// Create a mock aibridged server for allowlisted (MITM'd) requests.
-			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Create a mock Coder server for token validation and aibridged server for allowlisted (MITM'd) requests.
+			coderServer := newMockCoderServer(t, "test-token", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
-			}))
-			t.Cleanup(func() { aibridgedServer.Close() })
+			})
 
 			// Create a cert cache so we can inspect it after the request.
 			certCache := aibridgeproxyd.NewCertCache()
@@ -854,7 +906,7 @@ func TestProxy_CertCaching(t *testing.T) {
 
 			// Start the proxy server with the certificate cache.
 			srv := newTestProxy(t,
-				withCoderAccessURL(aibridgedServer.URL),
+				withCoderAccessURL(coderServer.URL),
 				withAllowedPorts(targetURL.Port()),
 				withCertStore(certCache),
 				withDomainAllowlist(domainAllowlist...),
@@ -1137,15 +1189,15 @@ func TestProxy_MITM(t *testing.T) {
 			// Track what aibridged receives.
 			var receivedPath, receivedCoderToken, receivedRequestID string
 
-			// Create a mock aibridged server that captures requests.
-			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Create a mock Coder server that handles token validation and aibridged.
+			coderServer := newMockCoderServer(t, "test-token", func(w http.ResponseWriter, r *http.Request) {
+				// aibridged requests.
 				receivedPath = r.URL.Path
 				receivedCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
 				receivedRequestID = r.Header.Get(aibridgeproxyd.HeaderAIBridgeRequestID)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("hello from aibridged"))
-			}))
-			t.Cleanup(func() { aibridgedServer.Close() })
+			})
 
 			// Create a mock target server for tunneled tests.
 			tunneledServer, tunneledURL := newTargetServer(t, func(w http.ResponseWriter, _ *http.Request) {
@@ -1165,9 +1217,9 @@ func TestProxy_MITM(t *testing.T) {
 				domainAllowlist = []string{tunneledURL.Hostname()}
 			}
 
-			// Start the proxy server pointing to our mock aibridged.
+			// Start the proxy server pointing to our mock Coder server.
 			srv := newTestProxy(t,
-				withCoderAccessURL(aibridgedServer.URL),
+				withCoderAccessURL(coderServer.URL),
 				withAllowedPorts(allowedPorts...),
 				withDomainAllowlist(domainAllowlist...),
 				// Use default provider mapping to test real AI provider routing.
@@ -1245,6 +1297,191 @@ func TestProxy_MITM(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestProxy_Tunneled verifies that requests to non-allowlisted domains are
+// tunneled directly to the destination without MITM, and never reach aibridged.
+// The Coder token is validated against the Coder API before allowing the tunnel.
+func TestProxy_Tunneled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		domainAllowlist []string
+		proxyAuth       string
+		validToken      string // token that the mock Coder API accepts
+		expectSuccess   bool
+	}{
+		{
+			name:            "TunneledToArbitraryHost",
+			domainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			proxyAuth:       makeProxyAuthHeader("test-token"),
+			validToken:      "test-token",
+			expectSuccess:   true,
+		},
+		{
+			name:            "TunneledWithoutProxyAuth",
+			domainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+			proxyAuth:       "",
+			validToken:      "test-token",
+			expectSuccess:   false,
+		},
+		{
+			name:            "TunneledWithInvalidToken",
+			domainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+			proxyAuth:       makeProxyAuthHeader("invalid-token"),
+			validToken:      "test-token",
+			expectSuccess:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reg := prometheus.NewRegistry()
+			metrics := aibridgeproxyd.NewMetrics(reg)
+
+			// Mock Coder server that handles both token validation and aibridged.
+			// For tunneled requests, aibridged should never be reached.
+			var aibridgedReached bool
+			coderServer := newMockCoderServer(t, tt.validToken, func(w http.ResponseWriter, r *http.Request) {
+				// Any other request would be aibridged traffic, which should not
+				// happen for tunneled requests.
+				aibridgedReached = true
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from aibridged"))
+			})
+
+			tunneledServer, tunneledURL := newTargetServer(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from tunneled"))
+			})
+
+			srv := newTestProxy(t,
+				withCoderAccessURL(coderServer.URL),
+				withAllowedPorts(tunneledURL.Port()),
+				withDomainAllowlist(tt.domainAllowlist...),
+				withAIBridgeProviderFromHost(nil),
+				withMetrics(metrics),
+			)
+
+			targetURL, err := url.JoinPath(tunneledURL.String(), "/some/path")
+			require.NoError(t, err)
+
+			certPool := x509.NewCertPool()
+			certPool.AddCert(tunneledServer.Certificate())
+
+			if tt.expectSuccess {
+				client := newProxyClient(t, srv, tt.proxyAuth, certPool)
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL, nil)
+				require.NoError(t, err)
+
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				require.Equal(t, "hello from tunneled", string(body))
+				require.False(t, aibridgedReached, "aibridged should not receive tunneled requests")
+
+				gatheredMetrics, err := reg.Gather()
+				require.NoError(t, err)
+				require.True(t, testutil.PromCounterHasValue(t, gatheredMetrics, 1, "connect_sessions_total", aibridgeproxyd.RequestTypeTunneled))
+				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "connect_sessions_total", aibridgeproxyd.RequestTypeMITM))
+			} else {
+				// Use raw CONNECT to verify 407, since Go's HTTP client returns
+				// an error instead of the response when CONNECT fails.
+				resp := sendConnect(t, srv.Addr(), tunneledURL.Host, tt.proxyAuth)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusProxyAuthRequired, resp.StatusCode)
+			}
+		})
+	}
+}
+
+// TestProxy_TokenCaching verifies that validated tokens are cached to reduce
+// API calls to the Coder server.
+func TestProxy_TokenCaching(t *testing.T) {
+	t.Parallel()
+
+	// Track number of validation API calls.
+	var validationCalls int
+
+	// Create a mock Coder server that counts validation calls.
+	coderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v2/users/me" && r.Method == http.MethodGet {
+			validationCalls++
+
+			token := r.Header.Get(codersdk.SessionTokenHeader)
+			if token == "test-token" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(minimalUserJSON))
+				return
+			}
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(func() { coderServer.Close() })
+
+	tunneledServer, tunneledURL := newTargetServer(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("hello from tunneled"))
+	})
+
+	// Use mock clock for testing cache expiry.
+	clock := quartz.NewMock(t)
+
+	// Create proxy with short cache TTL for testing.
+	srv := newTestProxy(t,
+		withCoderAccessURL(coderServer.URL),
+		withAllowedPorts(tunneledURL.Port()),
+		withDomainAllowlist(aibridgeproxyd.HostAnthropic), // Tunnel to tunneledServer
+		withTokenCacheTTL(100*time.Millisecond),
+		withClock(clock),
+	)
+
+	targetURL, err := url.JoinPath(tunneledURL.String(), "/test")
+	require.NoError(t, err)
+
+	certPool := x509.NewCertPool()
+	certPool.AddCert(tunneledServer.Certificate())
+
+	client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool)
+
+	doRequest := func() {
+		t.Helper()
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL, nil)
+		require.NoError(t, err)
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		resp.Body.Close()
+	}
+
+	// First request - should validate token.
+	doRequest()
+	require.Equal(t, 1, validationCalls, "first request should validate token")
+
+	// Second request immediately after - should use cache.
+	doRequest()
+	require.Equal(t, 1, validationCalls, "second request should use cached token")
+
+	// Advance clock past cache TTL to expire the token.
+	// Advance in two steps: first to trigger cleanup ticker, then past expiry.
+	clock.Advance(100 * time.Millisecond).MustWait(t.Context())
+	clock.Advance(50 * time.Millisecond).MustWait(t.Context())
+
+	// Third request after expiry - should validate again.
+	doRequest()
+	require.Equal(t, 2, validationCalls, "third request after expiry should validate token again")
 }
 
 // TestServeCACert validates that a configured certificate file can be served correctly by the API.
@@ -1557,10 +1794,10 @@ func TestUpstreamProxy(t *testing.T) {
 			}
 			t.Cleanup(upstreamProxy.Close)
 
-			// Create a mock aibridged server:
-			//   - For tunneled requests, traffic should NOT reach this server.
-			//   - For MITM requests, aiproxy rewrites the URL and forwards here.
-			aibridgeServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Create a mock Coder server:
+			//   - For tunneled requests, traffic should NOT reach aibridged.
+			//   - For MITM requests, aiproxy rewrites the URL and forwards to aibridged.
+			coderServer := newMockCoderServer(t, "test-coder-token", func(w http.ResponseWriter, r *http.Request) {
 				aibridgeReceived = true
 				aibridgePath = r.URL.Path
 				aibridgeCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
@@ -1572,8 +1809,7 @@ func TestUpstreamProxy(t *testing.T) {
 				aibridgeBody = string(body)
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("aibridge response"))
-			}))
-			t.Cleanup(aibridgeServer.Close)
+			})
 
 			// Build the target URL for this test case.
 			targetURL := tt.buildTargetURL(finalDestinationURL)
@@ -1595,7 +1831,7 @@ func TestUpstreamProxy(t *testing.T) {
 
 			// Create aiproxy with upstream proxy configured.
 			proxyOpts := []testProxyOption{
-				withCoderAccessURL(aibridgeServer.URL),
+				withCoderAccessURL(coderServer.URL),
 				withDomainAllowlist(domainAllowlist...),
 				withUpstreamProxy(upstreamProxyURLStr),
 				withAllowedPorts("80", "443", parsedTargetURL.Port()),

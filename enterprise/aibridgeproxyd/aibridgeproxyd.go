@@ -27,6 +27,8 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/aibridge"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 // Known AI provider hosts.
@@ -73,6 +75,11 @@ type Server struct {
 	caCert []byte
 	// Metrics is the Prometheus metrics for the proxy. If nil, metrics are disabled.
 	metrics *Metrics
+	// coderHTTPClient is used to validate Coder tokens against the Coder API
+	// for tunneled CONNECT requests.
+	coderHTTPClient *http.Client
+	// tokenCache caches validated tokens to avoid repeated API calls.
+	tokenCache *tokenCache
 }
 
 // requestContext holds metadata propagated through the proxy request/response chain.
@@ -132,6 +139,12 @@ type Options struct {
 	// Metrics is the prometheus metrics instance for recording proxy metrics.
 	// If nil, metrics will not be recorded.
 	Metrics *Metrics
+	// TokenCacheTTL is the duration for which validated tokens are cached.
+	// If zero, defaults to 4 hours.
+	TokenCacheTTL time.Duration
+	// Clock is used for time operations in the token cache. If nil, defaults
+	// to real time. Exposed for testing.
+	Clock quartz.Clock
 }
 
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error) {
@@ -267,6 +280,24 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		proxy.ConnectDial = proxy.NewConnectDialToProxyWithHandler(opts.UpstreamProxy, connectReqHandler)
 	}
 
+	// HTTP client for validating Coder tokens against the Coder API.
+	coderHTTPClient := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	// Initialize token cache with configured TTL (default 4 hours).
+	// The cache starts its own background cleanup goroutine.
+	tokenCacheTTL := opts.TokenCacheTTL
+	if tokenCacheTTL == 0 {
+		tokenCacheTTL = 4 * time.Hour
+	}
+	clock := opts.Clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+	// Use TTL as cleanup interval - in production they're the same.
+	cache := newTokenCache(ctx, tokenCacheTTL, tokenCacheTTL, clock)
+
 	srv := &Server{
 		ctx:                      ctx,
 		logger:                   logger,
@@ -275,6 +306,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		aibridgeProviderFromHost: aibridgeProviderFromHost,
 		caCert:                   certPEM,
 		metrics:                  opts.Metrics,
+		coderHTTPClient:          coderHTTPClient,
+		tokenCache:               cache,
 	}
 
 	// Reject CONNECT requests to non-standard ports.
@@ -629,7 +662,32 @@ func defaultAIBridgeProvider(host string) string {
 // tunneledMiddleware is a CONNECT middleware that handles tunneled (non-allowlisted)
 // connections. These connections are not MITM'd and are tunneled directly to their
 // destination. This middleware records metrics for tunneled CONNECT sessions.
-func (s *Server) tunneledMiddleware(host string, _ *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+// The Coder token from Proxy-Authorization is validated against the Coder API before allowing the tunnel.
+func (s *Server) tunneledMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.ConnectAction, string) {
+	logger := s.logger.With(slog.F("host", host))
+
+	proxyAuth := ctx.Req.Header.Get("Proxy-Authorization")
+	coderToken := extractCoderTokenFromProxyAuth(proxyAuth)
+
+	if coderToken == "" {
+		hasAuth := proxyAuth != ""
+		logger.Warn(s.ctx, "rejecting tunneled CONNECT request",
+			slog.F("reason", map[bool]string{true: "invalid_credentials", false: "missing_credentials"}[hasAuth]),
+		)
+
+		// Send 407 challenge to allow clients to retry with credentials.
+		ctx.Resp = newProxyAuthRequiredResponse(ctx.Req) //nolint:bodyclose // Response body is written by goproxy to the client
+		return goproxy.RejectConnect, host
+	}
+
+	if err := s.validateCoderToken(ctx.Req.Context(), coderToken); err != nil {
+		logger.Warn(s.ctx, "rejecting tunneled CONNECT request: token validation failed",
+			slog.Error(err),
+		)
+		ctx.Resp = newProxyAuthRequiredResponse(ctx.Req) //nolint:bodyclose // Response body is written by goproxy to the client
+		return goproxy.RejectConnect, host
+	}
+
 	// Record tunneled CONNECT session establishment.
 	if s.metrics != nil {
 		s.metrics.ConnectSessionsTotal.WithLabelValues(RequestTypeTunneled).Inc()
@@ -638,6 +696,33 @@ func (s *Server) tunneledMiddleware(host string, _ *goproxy.ProxyCtx) (*goproxy.
 	// Return OkConnect to allow the tunnel to be established.
 	// goproxy will create a tunnel between the client and the destination.
 	return goproxy.OkConnect, host
+}
+
+// validateCoderToken checks the token against the Coder API. Returns nil if valid.
+// Uses a cache to avoid repeated API calls for recently validated tokens.
+func (s *Server) validateCoderToken(ctx context.Context, token string) error {
+	// Hash the token for cache lookup (avoid storing raw tokens).
+	tokenHash := hashToken(token)
+
+	// Check cache first.
+	if s.tokenCache.isValid(tokenHash) {
+		return nil
+	}
+
+	// Validate against Coder API.
+	client := codersdk.New(s.coderAccessURL,
+		codersdk.WithSessionToken(token),
+		codersdk.WithHTTPClient(s.coderHTTPClient),
+	)
+	_, err := client.User(ctx, codersdk.Me)
+	if err != nil {
+		return err
+	}
+
+	// Cache successful validation.
+	s.tokenCache.add(tokenHash)
+
+	return nil
 }
 
 // handleRequest intercepts HTTP requests after MITM decryption.
