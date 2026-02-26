@@ -303,6 +303,7 @@ func TestServer(t *testing.T) {
 			"open install.sh: file does not exist",
 			"telemetry disabled, unable to notify of security issues",
 			"installed terraform version newer than expected",
+			"report generator",
 		}
 
 		countLines := func(fullOutput string) int {
