@@ -12,6 +12,7 @@ import {
 } from "api/queries/chats";
 import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
+import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
@@ -19,6 +20,18 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import { AgentChatInput } from "./AgentChatInput";
+import {
+	selectChatStatus,
+	selectHasStreamState,
+	selectMessagesByID,
+	selectOrderedMessageIDs,
+	selectQueuedMessages,
+	selectStreamError,
+	selectStreamState,
+	selectSubagentStatusOverrides,
+	useChatSelector,
+	useChatStore,
+} from "./AgentDetail/ChatContext";
 import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import {
 	getLatestContextUsage,
@@ -32,7 +45,6 @@ import {
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
 import { AgentDetailTopBarPortals } from "./AgentDetail/TopBarPortals";
-import { useChatStream } from "./AgentDetail/useChatStream";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
@@ -52,6 +64,257 @@ const noopSetRightPanelOpen: AgentsOutletContext["setRightPanelOpen"] =
 const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
 	() => {};
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+
+const isChatMessage = (
+	message: TypesGen.ChatMessage | undefined,
+): message is TypesGen.ChatMessage => Boolean(message);
+
+interface AgentDetailTimelineProps {
+	store: ChatStoreHandle;
+	chatID: string;
+	persistedErrorReason: string | undefined;
+}
+
+const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
+	store,
+	chatID,
+	persistedErrorReason,
+}) => {
+	const messagesByID = useChatSelector(store, selectMessagesByID);
+	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const streamState = useChatSelector(store, selectStreamState);
+	const chatStatus = useChatSelector(store, selectChatStatus);
+	const streamError = useChatSelector(store, selectStreamError);
+	const subagentStatusOverrides = useChatSelector(
+		store,
+		selectSubagentStatusOverrides,
+	);
+
+	const messages = useMemo(
+		() =>
+			orderedMessageIDs
+				.map((messageID) => messagesByID.get(messageID))
+				.filter(isChatMessage),
+		[messagesByID, orderedMessageIDs],
+	);
+	const streamTools = useMemo(
+		() => buildStreamTools(streamState),
+		[streamState],
+	);
+	const { hasMoreMessages, windowedMessages, loadMoreSentinelRef } =
+		useMessageWindow({
+			messages,
+			resetKey: chatID,
+		});
+	const parsedMessages = useMemo(
+		() => parseMessagesWithMergedTools(windowedMessages),
+		[windowedMessages],
+	);
+	const subagentTitles = useMemo(
+		() => buildSubagentTitles(parsedMessages),
+		[parsedMessages],
+	);
+	const parsedSections = useMemo(
+		() => buildParsedMessageSections(parsedMessages),
+		[parsedMessages],
+	);
+	const detailErrorMessage =
+		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
+	const isAwaitingFirstStreamChunk =
+		!streamState && (chatStatus === "running" || chatStatus === "pending");
+	const hasStreamOutput = Boolean(streamState) || isAwaitingFirstStreamChunk;
+
+	return (
+		<ConversationTimeline
+			isEmpty={messages.length === 0}
+			hasMoreMessages={hasMoreMessages}
+			loadMoreSentinelRef={loadMoreSentinelRef}
+			parsedSections={parsedSections}
+			hasStreamOutput={hasStreamOutput}
+			streamState={streamState}
+			streamTools={streamTools}
+			subagentTitles={subagentTitles}
+			subagentStatusOverrides={subagentStatusOverrides}
+			isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+			detailErrorMessage={detailErrorMessage}
+		/>
+	);
+};
+
+interface AgentDetailQueuedMessagesProps {
+	store: ChatStoreHandle;
+	onDeleteQueuedMessage: (id: number) => void;
+	onPromoteQueuedMessage: (id: number) => void;
+}
+
+const AgentDetailQueuedMessages: FC<AgentDetailQueuedMessagesProps> = ({
+	store,
+	onDeleteQueuedMessage,
+	onPromoteQueuedMessage,
+}) => {
+	const queuedMessages = useChatSelector(store, selectQueuedMessages);
+	if (queuedMessages.length === 0) {
+		return null;
+	}
+
+	return (
+		<QueuedMessagesList
+			messages={queuedMessages}
+			onDelete={onDeleteQueuedMessage}
+			onPromote={onPromoteQueuedMessage}
+		/>
+	);
+};
+
+interface AgentDetailInputProps {
+	store: ChatStoreHandle;
+	compressionThreshold: number | undefined;
+	onSend: (message: string) => Promise<void>;
+	onInterrupt: () => void;
+	isInputDisabled: boolean;
+	isSendPending: boolean;
+	isInterruptPending: boolean;
+	hasModelOptions: boolean;
+	selectedModel: string;
+	onModelChange: (modelID: string) => void;
+	modelOptions: readonly ModelSelectorOption[];
+	modelSelectorPlaceholder: string;
+	inputStatusText: string | null;
+	modelCatalogStatusMessage: string | null;
+}
+
+const AgentDetailInput: FC<AgentDetailInputProps> = ({
+	store,
+	compressionThreshold,
+	onSend,
+	onInterrupt,
+	isInputDisabled,
+	isSendPending,
+	isInterruptPending,
+	hasModelOptions,
+	selectedModel,
+	onModelChange,
+	modelOptions,
+	modelSelectorPlaceholder,
+	inputStatusText,
+	modelCatalogStatusMessage,
+}) => {
+	const messagesByID = useChatSelector(store, selectMessagesByID);
+	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const hasStreamState = useChatSelector(store, selectHasStreamState);
+	const chatStatus = useChatSelector(store, selectChatStatus);
+
+	const messages = useMemo(
+		() =>
+			orderedMessageIDs
+				.map((messageID) => messagesByID.get(messageID))
+				.filter(isChatMessage),
+		[messagesByID, orderedMessageIDs],
+	);
+	const latestContextUsage = useMemo(() => {
+		const usage = getLatestContextUsage(messages);
+		if (!usage) {
+			return usage;
+		}
+		return { ...usage, compressionThreshold };
+	}, [messages, compressionThreshold]);
+	const isStreaming =
+		hasStreamState || chatStatus === "running" || chatStatus === "pending";
+
+	return (
+		<AgentChatInput
+			onSend={onSend}
+			isDisabled={isInputDisabled}
+			isLoading={isSendPending}
+			isStreaming={isStreaming}
+			onInterrupt={onInterrupt}
+			isInterruptPending={isInterruptPending}
+			contextUsage={latestContextUsage}
+			hasModelOptions={hasModelOptions}
+			selectedModel={selectedModel}
+			onModelChange={onModelChange}
+			modelOptions={modelOptions}
+			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			inputStatusText={inputStatusText}
+			modelCatalogStatusMessage={modelCatalogStatusMessage}
+			sticky
+		/>
+	);
+};
+
+interface AgentDetailConversationProps {
+	store: ChatStoreHandle;
+	chatID: string;
+	persistedErrorReason: string | undefined;
+	compressionThreshold: number | undefined;
+	onDeleteQueuedMessage: (id: number) => void;
+	onPromoteQueuedMessage: (id: number) => void;
+	onSend: (message: string) => Promise<void>;
+	onInterrupt: () => void;
+	isInputDisabled: boolean;
+	isSendPending: boolean;
+	isInterruptPending: boolean;
+	hasModelOptions: boolean;
+	selectedModel: string;
+	onModelChange: (modelID: string) => void;
+	modelOptions: readonly ModelSelectorOption[];
+	modelSelectorPlaceholder: string;
+	inputStatusText: string | null;
+	modelCatalogStatusMessage: string | null;
+}
+
+const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
+	store,
+	chatID,
+	persistedErrorReason,
+	compressionThreshold,
+	onDeleteQueuedMessage,
+	onPromoteQueuedMessage,
+	onSend,
+	onInterrupt,
+	isInputDisabled,
+	isSendPending,
+	isInterruptPending,
+	hasModelOptions,
+	selectedModel,
+	onModelChange,
+	modelOptions,
+	modelSelectorPlaceholder,
+	inputStatusText,
+	modelCatalogStatusMessage,
+}) => {
+	return (
+		<>
+			<AgentDetailTimeline
+				store={store}
+				chatID={chatID}
+				persistedErrorReason={persistedErrorReason}
+			/>
+			<AgentDetailQueuedMessages
+				store={store}
+				onDeleteQueuedMessage={onDeleteQueuedMessage}
+				onPromoteQueuedMessage={onPromoteQueuedMessage}
+			/>
+			<AgentDetailInput
+				store={store}
+				compressionThreshold={compressionThreshold}
+				onSend={onSend}
+				onInterrupt={onInterrupt}
+				isInputDisabled={isInputDisabled}
+				isSendPending={isSendPending}
+				isInterruptPending={isInterruptPending}
+				hasModelOptions={hasModelOptions}
+				selectedModel={selectedModel}
+				onModelChange={onModelChange}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder={modelSelectorPlaceholder}
+				inputStatusText={inputStatusText}
+				modelCatalogStatusMessage={modelCatalogStatusMessage}
+			/>
+		</>
+	);
+};
 
 const AgentDetail: FC = () => {
 	const navigate = useNavigate();
@@ -167,16 +430,8 @@ const AgentDetail: FC = () => {
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
 
-	const {
-		messagesById,
-		streamState,
-		chatStatus,
-		streamError,
-		queuedMessages,
-		subagentStatusOverrides,
-		clearStreamError,
-	} = useChatStream({
-		chatId: agentId,
+	const { store, clearStreamError } = useChatStore({
+		chatID: agentId,
 		chatMessages,
 		chatRecord,
 		chatData,
@@ -200,14 +455,6 @@ const AgentDetail: FC = () => {
 		});
 	}, [chatLastModelConfigID, modelIDByConfigID, modelOptions]);
 
-	const messages = useMemo(() => {
-		const list = Array.from(messagesById.values());
-		list.sort(
-			(a, b) =>
-				new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-		);
-		return list;
-	}, [messagesById]);
 	const compressionThreshold = useMemo(() => {
 		if (!chatLastModelConfigID) {
 			return undefined;
@@ -217,17 +464,6 @@ const AgentDetail: FC = () => {
 		);
 		return config?.compression_threshold;
 	}, [chatLastModelConfigID, chatModelConfigsQuery.data]);
-	const latestContextUsage = useMemo(() => {
-		const usage = getLatestContextUsage(messages);
-		if (!usage) {
-			return usage;
-		}
-		return { ...usage, compressionThreshold };
-	}, [messages, compressionThreshold]);
-	const isStreaming =
-		Boolean(streamState) ||
-		chatStatus === "running" ||
-		chatStatus === "pending";
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(
 		chatModelsQuery.data,
@@ -291,35 +527,6 @@ const AgentDetail: FC = () => {
 		}
 		void interruptMutation.mutateAsync();
 	};
-
-	const streamTools = useMemo(
-		() => buildStreamTools(streamState),
-		[streamState],
-	);
-	const { hasMoreMessages, windowedMessages, loadMoreSentinelRef } =
-		useMessageWindow({
-			messages,
-			resetKey: agentId,
-		});
-
-	const parsedMessages = useMemo(
-		() => parseMessagesWithMergedTools(windowedMessages),
-		[windowedMessages],
-	);
-	const subagentTitles = useMemo(
-		() => buildSubagentTitles(parsedMessages),
-		[parsedMessages],
-	);
-	const parsedSections = useMemo(
-		() => buildParsedMessageSections(parsedMessages),
-		[parsedMessages],
-	);
-	const persistedErrorReason = agentId ? chatErrorReasons[agentId] : undefined;
-	const detailErrorMessage =
-		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
-	const isAwaitingFirstStreamChunk =
-		!streamState && (chatStatus === "running" || chatStatus === "pending");
-	const hasStreamOutput = Boolean(streamState) || isAwaitingFirstStreamChunk;
 
 	const topBarTitleRef = outletContext?.topBarTitleRef;
 	const topBarActionsRef = outletContext?.topBarActionsRef;
@@ -449,35 +656,18 @@ const AgentDetail: FC = () => {
 				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				<div>
-					<ConversationTimeline
-						isEmpty={messages.length === 0}
-						hasMoreMessages={hasMoreMessages}
-						loadMoreSentinelRef={loadMoreSentinelRef}
-						parsedSections={parsedSections}
-						hasStreamOutput={hasStreamOutput}
-						streamState={streamState}
-						streamTools={streamTools}
-						subagentTitles={subagentTitles}
-						subagentStatusOverrides={subagentStatusOverrides}
-						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-						detailErrorMessage={detailErrorMessage}
-					/>
-
-					{queuedMessages.length > 0 && (
-						<QueuedMessagesList
-							messages={queuedMessages}
-							onDelete={(id) => deleteQueuedMutation.mutate(id)}
-							onPromote={(id) => promoteQueuedMutation.mutate(id)}
-						/>
-					)}
-					<AgentChatInput
+					<AgentDetailConversation
+						store={store}
+						chatID={agentId}
+						persistedErrorReason={chatErrorReasons[agentId]}
+						compressionThreshold={compressionThreshold}
+						onDeleteQueuedMessage={(id) => deleteQueuedMutation.mutate(id)}
+						onPromoteQueuedMessage={(id) => promoteQueuedMutation.mutate(id)}
 						onSend={handleSend}
-						isDisabled={isInputDisabled}
-						isLoading={sendMutation.isPending}
-						isStreaming={isStreaming}
 						onInterrupt={handleInterrupt}
+						isInputDisabled={isInputDisabled}
+						isSendPending={sendMutation.isPending}
 						isInterruptPending={interruptMutation.isPending}
-						contextUsage={latestContextUsage}
 						hasModelOptions={hasModelOptions}
 						selectedModel={selectedModel}
 						onModelChange={setSelectedModel}
@@ -485,7 +675,6 @@ const AgentDetail: FC = () => {
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						inputStatusText={inputStatusText}
 						modelCatalogStatusMessage={modelCatalogStatusMessage}
-						sticky
 					/>
 				</div>
 			</div>

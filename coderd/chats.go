@@ -40,6 +40,7 @@ const (
 	chatDiffStatusTTL                = 120 * time.Second
 	chatDiffBackgroundRefreshTimeout = 20 * time.Second
 	githubAPIBaseURL                 = "https://api.github.com"
+	chatStreamBatchSize              = 256
 
 	chatContextLimitModelConfigKey                = "context_limit"
 	chatContextCompressionThresholdModelConfigKey = "context_compression_threshold"
@@ -634,11 +635,46 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer cancel()
 
-	for _, event := range snapshot {
-		if err := sendEvent(codersdk.ServerSentEvent{
+	sendChatStreamBatch := func(batch []codersdk.ChatStreamEvent) error {
+		if len(batch) == 0 {
+			return nil
+		}
+		return sendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
-			Data: event,
-		}); err != nil {
+			Data: batch,
+		})
+	}
+
+	drainChatStreamBatch := func(
+		first codersdk.ChatStreamEvent,
+		maxBatchSize int,
+	) ([]codersdk.ChatStreamEvent, bool) {
+		batch := []codersdk.ChatStreamEvent{first}
+		if maxBatchSize <= 1 {
+			return batch, false
+		}
+
+		for len(batch) < maxBatchSize {
+			select {
+			case event, ok := <-events:
+				if !ok {
+					return batch, true
+				}
+				batch = append(batch, event)
+			default:
+				return batch, false
+			}
+		}
+
+		return batch, false
+	}
+
+	for start := 0; start < len(snapshot); start += chatStreamBatchSize {
+		end := start + chatStreamBatchSize
+		if end > len(snapshot) {
+			end = len(snapshot)
+		}
+		if err := sendChatStreamBatch(snapshot[start:end]); err != nil {
 			api.Logger.Debug(ctx, "failed to send chat stream snapshot", slog.Error(err))
 			return
 		}
@@ -650,15 +686,19 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 			return
 		case <-senderClosed:
 			return
-		case event, ok := <-events:
+		case firstEvent, ok := <-events:
 			if !ok {
 				return
 			}
-			if err := sendEvent(codersdk.ServerSentEvent{
-				Type: codersdk.ServerSentEventTypeData,
-				Data: event,
-			}); err != nil {
+			batch, streamClosed := drainChatStreamBatch(
+				firstEvent,
+				chatStreamBatchSize,
+			)
+			if err := sendChatStreamBatch(batch); err != nil {
 				api.Logger.Debug(ctx, "failed to send chat stream event", slog.Error(err))
+				return
+			}
+			if streamClosed {
 				return
 			}
 		}

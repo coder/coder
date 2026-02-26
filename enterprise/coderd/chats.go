@@ -2,12 +2,8 @@ package coderd
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -15,7 +11,6 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/websocket"
-	"github.com/coder/websocket/wsjson"
 )
 
 // RelaySourceHeader marks replica-relayed stream requests.
@@ -25,11 +20,6 @@ const (
 	authorizationHeader = "Authorization"
 	cookieHeader        = "Cookie"
 )
-
-type relayEvent struct {
-	Type codersdk.ServerSentEventType `json:"type"`
-	Data json.RawMessage              `json:"data,omitempty"`
-}
 
 // newRemotePartsProvider creates a RemotePartsProvider that dials a remote
 // replica's stream endpoint to fetch message_part events. It filters to only
@@ -55,122 +45,117 @@ func newRemotePartsProvider(
 			return nil, nil, nil, xerrors.New("worker replica not found")
 		}
 
-		base, err := url.Parse(address)
+		baseURL, err := url.Parse(address)
 		if err != nil {
 			return nil, nil, nil, xerrors.Errorf("parse relay address %q: %w", address, err)
 		}
-		target, err := base.Parse(fmt.Sprintf("/api/experimental/chats/%s/stream", chatID))
-		if err != nil {
-			return nil, nil, nil, xerrors.Errorf("build relay stream URL: %w", err)
+		relayCtx, relayCancel := context.WithCancel(ctx)
+		sdkClient := codersdk.New(baseURL)
+		sdkClient.HTTPClient = replicaHTTPClient
+		sdkClient.SessionTokenProvider = relayHeaderTokenProvider{
+			header: relayHeaders(requestHeader, replicaID),
 		}
-		switch target.Scheme {
-		case "http":
-			target.Scheme = "ws"
-		case "https":
-			target.Scheme = "wss"
-		}
-
-		conn, res, err := websocket.Dial(ctx, target.String(), &websocket.DialOptions{
-			HTTPClient: replicaHTTPClient,
-			HTTPHeader: relayHeaders(requestHeader, replicaID),
-		})
+		sourceEvents, sourceStream, err := sdkClient.StreamChat(relayCtx, chatID)
 		if err != nil {
-			if res != nil {
-				defer res.Body.Close()
-				if responseErr := codersdk.ReadBodyAsError(res); responseErr != nil {
-					err = responseErr
-				}
-			}
+			relayCancel()
 			return nil, nil, nil, xerrors.Errorf("dial relay stream: %w", err)
 		}
 
-		relayCtx, relayCancel := context.WithCancel(ctx)
+		snapshot := make([]codersdk.ChatStreamEvent, 0, 100)
+		preloaded := make([]codersdk.ChatStreamEvent, 0, 100)
+	drainInitial:
+		for len(snapshot) < cap(snapshot) {
+			select {
+			case <-relayCtx.Done():
+				_ = sourceStream.Close()
+				relayCancel()
+				return nil, nil, nil, xerrors.Errorf("dial relay stream: %w", relayCtx.Err())
+			case event, ok := <-sourceEvents:
+				if !ok {
+					break drainInitial
+				}
+				if event.Type != codersdk.ChatStreamEventTypeMessagePart {
+					continue
+				}
+				snapshot = append(snapshot, event)
+				preloaded = append(preloaded, event)
+			default:
+				break drainInitial
+			}
+		}
+
 		events := make(chan codersdk.ChatStreamEvent, 128)
-		snapshot := make([]codersdk.ChatStreamEvent, 0)
 
 		go func() {
 			defer close(events)
 			defer relayCancel()
 			defer func() {
-				_ = conn.Close(websocket.StatusNormalClosure, "")
+				_ = sourceStream.Close()
 			}()
 
-			for {
-				var envelope relayEvent
-				err := wsjson.Read(relayCtx, conn, &envelope)
-				if err != nil {
-					if errors.Is(err, context.Canceled) {
-						return
-					}
-					switch websocket.CloseStatus(err) {
-					case websocket.StatusNormalClosure, websocket.StatusGoingAway:
-						return
-					}
-					select {
-					case events <- relayError(chatID, xerrors.Errorf("read relay stream: %w", err)):
-					case <-relayCtx.Done():
-					}
+			for _, event := range preloaded {
+				select {
+				case events <- event:
+				case <-relayCtx.Done():
 					return
 				}
+			}
 
-				switch envelope.Type {
-				case codersdk.ServerSentEventTypePing:
-					continue
-				case codersdk.ServerSentEventTypeData:
-					var event codersdk.ChatStreamEvent
-					if err := json.Unmarshal(envelope.Data, &event); err != nil {
-						select {
-						case events <- relayError(chatID, xerrors.Errorf("decode relay data event: %w", err)):
-						case <-relayCtx.Done():
-						}
+			for {
+				select {
+				case <-relayCtx.Done():
+					return
+				case event, ok := <-sourceEvents:
+					if !ok {
 						return
 					}
-					if event.ChatID == uuid.Nil {
-						event.ChatID = chatID
-					}
-					// Only forward message_part events (durable events come via pubsub)
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-						// First events go to snapshot, then live stream
-						if len(snapshot) < 100 {
-							snapshot = append(snapshot, event)
-						}
-						select {
-						case events <- event:
-						case <-relayCtx.Done():
-							return
-						}
-					}
-				case codersdk.ServerSentEventTypeError:
-					msg := "relay stream returned an error"
-					if len(envelope.Data) > 0 {
-						var response codersdk.Response
-						if err := json.Unmarshal(envelope.Data, &response); err == nil {
-							msg = formatRelayError(response)
-						} else {
-							msg = strings.TrimSpace(string(envelope.Data))
-						}
+					if event.Type != codersdk.ChatStreamEventTypeMessagePart {
+						continue
 					}
 					select {
-					case events <- relayError(chatID, xerrors.New(msg)):
+					case events <- event:
 					case <-relayCtx.Done():
+						return
 					}
-					return
-				default:
-					select {
-					case events <- relayError(chatID, xerrors.Errorf("unknown relay event type %q", envelope.Type)):
-					case <-relayCtx.Done():
-					}
-					return
 				}
 			}
 		}()
 
 		cancel := func() {
 			relayCancel()
-			_ = conn.Close(websocket.StatusNormalClosure, "")
+			_ = sourceStream.Close()
 		}
 		return snapshot, events, cancel, nil
 	}
+}
+
+type relayHeaderTokenProvider struct {
+	header http.Header
+}
+
+func (p relayHeaderTokenProvider) AsRequestOption() codersdk.RequestOption {
+	return func(req *http.Request) {
+		for key, values := range p.header {
+			for _, value := range values {
+				req.Header.Add(key, value)
+			}
+		}
+	}
+}
+
+func (p relayHeaderTokenProvider) SetDialOption(opts *websocket.DialOptions) {
+	if opts.HTTPHeader == nil {
+		opts.HTTPHeader = make(http.Header)
+	}
+	for key, values := range p.header {
+		for _, value := range values {
+			opts.HTTPHeader.Add(key, value)
+		}
+	}
+}
+
+func (p relayHeaderTokenProvider) GetSessionToken() string {
+	return p.header.Get(codersdk.SessionTokenHeader)
 }
 
 func relayHeaders(source http.Header, replicaID uuid.UUID) http.Header {
@@ -184,29 +169,4 @@ func relayHeaders(source http.Header, replicaID uuid.UUID) http.Header {
 	}
 	header.Set(RelaySourceHeader, replicaID.String())
 	return header
-}
-
-func relayError(chatID uuid.UUID, err error) codersdk.ChatStreamEvent {
-	return codersdk.ChatStreamEvent{
-		Type:   codersdk.ChatStreamEventTypeError,
-		ChatID: chatID,
-		Error: &codersdk.ChatStreamError{
-			Message: err.Error(),
-		},
-	}
-}
-
-func formatRelayError(response codersdk.Response) string {
-	message := strings.TrimSpace(response.Message)
-	detail := strings.TrimSpace(response.Detail)
-	switch {
-	case message == "" && detail == "":
-		return "relay stream returned an error"
-	case message == "":
-		return detail
-	case detail == "":
-		return message
-	default:
-		return fmt.Sprintf("%s: %s", message, detail)
-	}
 }

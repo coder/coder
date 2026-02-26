@@ -653,6 +653,7 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID) (<-chan ChatS
 	if err != nil {
 		return nil, nil, err
 	}
+	conn.SetReadLimit(1 << 22) // 4MiB
 
 	streamCtx, streamCancel := context.WithCancel(ctx)
 	events := make(chan ChatStreamEvent, 128)
@@ -699,17 +700,27 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID) (<-chan ChatS
 			case ServerSentEventTypePing:
 				continue
 			case ServerSentEventTypeData:
-				var event ChatStreamEvent
-				if err := json.Unmarshal(envelope.Data, &event); err != nil {
+				var batch []ChatStreamEvent
+				decodeErr := json.Unmarshal(envelope.Data, &batch)
+				if decodeErr == nil {
+					for _, streamedEvent := range batch {
+						if !send(streamedEvent) {
+							return
+						}
+					}
+					continue
+				}
+
+				{
 					_ = send(ChatStreamEvent{
 						Type: ChatStreamEventTypeError,
 						Error: &ChatStreamError{
-							Message: fmt.Sprintf("decode chat stream event: %v", err),
+							Message: fmt.Sprintf(
+								"decode chat stream event batch: %v",
+								decodeErr,
+							),
 						},
 					})
-					return
-				}
-				if !send(event) {
 					return
 				}
 			case ServerSentEventTypeError:
