@@ -16,14 +16,6 @@ import (
 
 var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
-// ToolResultBlock is the persisted chat tool result shape.
-type ToolResultBlock struct {
-	ToolCallID string `json:"tool_call_id"`
-	ToolName   string `json:"tool_name"`
-	Result     any    `json:"result"`
-	IsError    bool   `json:"is_error,omitempty"`
-}
-
 func ConvertMessages(
 	messages []database.ChatMessage,
 ) ([]fantasy.Message, error) {
@@ -80,17 +72,21 @@ func ConvertMessages(
 				Content: parts,
 			})
 		case string(fantasy.MessageRoleTool):
-			results, err := ParseResults(message.Content)
+			rows, err := parseToolResultRows(message.Content)
 			if err != nil {
 				return nil, err
 			}
-			for _, result := range results {
-				if result.ToolCallID == "" || strings.TrimSpace(result.ToolName) == "" {
-					continue
+			parts := make([]fantasy.MessagePart, 0, len(rows))
+			for _, row := range rows {
+				if row.ToolCallID != "" && row.ToolName != "" {
+					toolNameByCallID[sanitizeToolCallID(row.ToolCallID)] = row.ToolName
 				}
-				toolNameByCallID[sanitizeToolCallID(result.ToolCallID)] = result.ToolName
+				parts = append(parts, row.toToolResultPart())
 			}
-			prompt = append(prompt, toolMessageFromResults(results))
+			prompt = append(prompt, fantasy.Message{
+				Role:    fantasy.MessageRoleTool,
+				Content: parts,
+			})
 		default:
 			return nil, xerrors.Errorf("unsupported chat message role %q", message.Role)
 		}
@@ -211,17 +207,74 @@ func ParseContent(role string, raw pqtype.NullRawMessage) ([]fantasy.Content, er
 	return content, nil
 }
 
-// ParseResults decodes persisted tool result blocks.
-func ParseResults(raw pqtype.NullRawMessage) ([]ToolResultBlock, error) {
+// toolResultRaw is an untyped representation of a persisted tool
+// result row. We intentionally avoid a strict Go struct so that
+// historical shapes are never rejected.
+type toolResultRaw struct {
+	ToolCallID string          `json:"tool_call_id"`
+	ToolName   string          `json:"tool_name"`
+	Result     json.RawMessage `json:"result"`
+	IsError    bool            `json:"is_error,omitempty"`
+}
+
+// parseToolResultRows decodes persisted tool result rows.
+func parseToolResultRows(raw pqtype.NullRawMessage) ([]toolResultRaw, error) {
 	if !raw.Valid || len(raw.RawMessage) == 0 {
 		return nil, nil
 	}
 
-	var results []ToolResultBlock
-	if err := json.Unmarshal(raw.RawMessage, &results); err != nil {
+	var rows []toolResultRaw
+	if err := json.Unmarshal(raw.RawMessage, &rows); err != nil {
 		return nil, xerrors.Errorf("parse tool content: %w", err)
 	}
-	return results, nil
+	return rows, nil
+}
+
+func (r toolResultRaw) toToolResultPart() fantasy.ToolResultPart {
+	toolCallID := sanitizeToolCallID(r.ToolCallID)
+	resultText := string(r.Result)
+	if resultText == "" || resultText == "null" {
+		resultText = "{}"
+	}
+
+	if r.IsError {
+		message := strings.TrimSpace(resultText)
+		if extracted := extractErrorString(r.Result); extracted != "" {
+			message = extracted
+		}
+		return fantasy.ToolResultPart{
+			ToolCallID: toolCallID,
+			Output: fantasy.ToolResultOutputContentError{
+				Error: xerrors.New(message),
+			},
+		}
+	}
+
+	return fantasy.ToolResultPart{
+		ToolCallID: toolCallID,
+		Output: fantasy.ToolResultOutputContentText{
+			Text: resultText,
+		},
+	}
+}
+
+// extractErrorString pulls the "error" field from a JSON object if
+// present, returning it as a string. Returns "" if the field is
+// missing or the input is not an object.
+func extractErrorString(raw json.RawMessage) string {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return ""
+	}
+	errField, ok := fields["error"]
+	if !ok {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(errField, &s); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(s)
 }
 
 // ToMessageParts converts fantasy content blocks into message parts.
@@ -338,16 +391,54 @@ func MarshalContent(blocks []fantasy.Content) (pqtype.NullRawMessage, error) {
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }
 
-// MarshalResults encodes tool result blocks for persistence.
-func MarshalResults(results []ToolResultBlock) (pqtype.NullRawMessage, error) {
-	if len(results) == 0 {
-		return pqtype.NullRawMessage{}, nil
+// MarshalToolResult encodes a single tool result for persistence as
+// an opaque JSON blob. The stored shape is
+// [{"tool_call_id":…,"tool_name":…,"result":…,"is_error":…}].
+func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isError bool) (pqtype.NullRawMessage, error) {
+	row := toolResultRaw{
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+		Result:     result,
+		IsError:    isError,
 	}
-	data, err := json.Marshal(results)
+	data, err := json.Marshal([]toolResultRaw{row})
 	if err != nil {
-		return pqtype.NullRawMessage{}, xerrors.Errorf("encode tool results: %w", err)
+		return pqtype.NullRawMessage{}, xerrors.Errorf("encode tool result: %w", err)
 	}
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
+}
+
+// MarshalToolResultContent encodes a fantasy tool result content
+// block for persistence. It extracts the raw fields and delegates
+// to MarshalToolResult.
+func MarshalToolResultContent(content fantasy.ToolResultContent) (pqtype.NullRawMessage, error) {
+	var result json.RawMessage
+	var isError bool
+
+	switch output := content.Result.(type) {
+	case fantasy.ToolResultOutputContentError:
+		isError = true
+		if output.Error != nil {
+			result, _ = json.Marshal(map[string]any{"error": output.Error.Error()})
+		} else {
+			result = []byte(`{"error":""}`)
+		}
+	case fantasy.ToolResultOutputContentText:
+		result = json.RawMessage(output.Text)
+		if !json.Valid(result) {
+			result, _ = json.Marshal(map[string]any{"output": output.Text})
+		}
+	case fantasy.ToolResultOutputContentMedia:
+		result, _ = json.Marshal(map[string]any{
+			"data":      output.Data,
+			"mime_type": output.MediaType,
+			"text":      output.Text,
+		})
+	default:
+		result = []byte(`{}`)
+	}
+
+	return MarshalToolResult(content.ToolCallID, content.ToolName, result, isError)
 }
 
 // PartFromContent converts fantasy content into a SDK chat message part.
@@ -416,12 +507,58 @@ func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
 			Data:      value.Data,
 		}
 	case fantasy.ToolResultContent:
-		return PartFromResult(ResultFromContent(value))
+		return toolResultContentToPart(value)
 	case *fantasy.ToolResultContent:
-		return PartFromResult(ResultFromContent(*value))
+		return toolResultContentToPart(*value)
 	default:
 		return codersdk.ChatMessagePart{}
 	}
+}
+
+// ToolResultToPart converts a tool call ID, raw result, and error
+// flag into a ChatMessagePart. This is the minimal conversion used
+// both during streaming and when reading from the database.
+func ToolResultToPart(toolCallID, toolName string, result json.RawMessage, isError bool) codersdk.ChatMessagePart {
+	return codersdk.ChatMessagePart{
+		Type:       codersdk.ChatMessagePartTypeToolResult,
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+		Result:     result,
+		IsError:    isError,
+	}
+}
+
+// toolResultContentToPart converts a fantasy ToolResultContent
+// directly into a ChatMessagePart without an intermediate struct.
+func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMessagePart {
+	var result json.RawMessage
+	var isError bool
+
+	switch output := content.Result.(type) {
+	case fantasy.ToolResultOutputContentError:
+		isError = true
+		if output.Error != nil {
+			result, _ = json.Marshal(map[string]any{"error": output.Error.Error()})
+		} else {
+			result = []byte(`{"error":""}`)
+		}
+	case fantasy.ToolResultOutputContentText:
+		result = json.RawMessage(output.Text)
+		// Ensure valid JSON; wrap in an object if not.
+		if !json.Valid(result) {
+			result, _ = json.Marshal(map[string]any{"output": output.Text})
+		}
+	case fantasy.ToolResultOutputContentMedia:
+		result, _ = json.Marshal(map[string]any{
+			"data":      output.Data,
+			"mime_type": output.MediaType,
+			"text":      output.Text,
+		})
+	default:
+		result = []byte(`{}`)
+	}
+
+	return ToolResultToPart(content.ToolCallID, content.ToolName, result, isError)
 }
 
 // ReasoningTitleFromFirstLine extracts a compact markdown title.
@@ -459,51 +596,6 @@ func ReasoningTitleFromFirstLine(text string) string {
 	}
 
 	return compactReasoningSummaryTitle(title)
-}
-
-// ResultFromContent normalizes fantasy tool result content.
-func ResultFromContent(content fantasy.ToolResultContent) ToolResultBlock {
-	result := ToolResultBlock{
-		ToolCallID: content.ToolCallID,
-		ToolName:   content.ToolName,
-	}
-	switch output := content.Result.(type) {
-	case fantasy.ToolResultOutputContentError:
-		result.IsError = true
-		if output.Error != nil {
-			result.Result = map[string]any{"error": output.Error.Error()}
-		} else {
-			result.Result = map[string]any{"error": ""}
-		}
-	case fantasy.ToolResultOutputContentText:
-		decoded := map[string]any{}
-		if err := json.Unmarshal([]byte(output.Text), &decoded); err == nil {
-			result.Result = decoded
-		} else {
-			result.Result = map[string]any{"output": output.Text}
-		}
-	case fantasy.ToolResultOutputContentMedia:
-		result.Result = map[string]any{
-			"data":      output.Data,
-			"mime_type": output.MediaType,
-			"text":      output.Text,
-		}
-	default:
-		result.Result = map[string]any{}
-	}
-	return result
-}
-
-// PartFromResult converts a persisted tool result into SDK part payload.
-func PartFromResult(result ToolResultBlock) codersdk.ChatMessagePart {
-	return codersdk.ChatMessagePart{
-		Type:       codersdk.ChatMessagePartTypeToolResult,
-		ToolCallID: result.ToolCallID,
-		ToolName:   result.ToolName,
-		Result:     toRawJSON(result.Result),
-		IsError:    result.IsError,
-		ResultMeta: toolResultMetadata(result.Result),
-	}
 }
 
 func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
@@ -544,21 +636,22 @@ func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
 		}
 
 		// Build synthetic results for any unanswered tool calls.
-		var missing []ToolResultBlock
+		var missing []fantasy.MessagePart
 		for _, tc := range toolCalls {
 			if _, ok := answered[tc.ToolCallID]; !ok {
-				missing = append(missing, ToolResultBlock{
+				missing = append(missing, fantasy.ToolResultPart{
 					ToolCallID: tc.ToolCallID,
-					ToolName:   tc.ToolName,
-					Result: map[string]any{
-						"error": "tool call was interrupted and did not receive a result",
+					Output: fantasy.ToolResultOutputContentError{
+						Error: xerrors.New("tool call was interrupted and did not receive a result"),
 					},
-					IsError: true,
 				})
 			}
 		}
 		if len(missing) > 0 {
-			result = append(result, toolMessageFromResults(missing))
+			result = append(result, fantasy.Message{
+				Role:    fantasy.MessageRoleTool,
+				Content: missing,
+			})
 		}
 	}
 	return result
@@ -701,53 +794,6 @@ func parseSystemContent(raw pqtype.NullRawMessage) (string, error) {
 	return content, nil
 }
 
-func toolMessageFromResults(results []ToolResultBlock) fantasy.Message {
-	parts := make([]fantasy.MessagePart, 0, len(results))
-	for _, result := range results {
-		parts = append(parts, toolResultToMessagePart(result))
-	}
-	return fantasy.Message{
-		Role:    fantasy.MessageRoleTool,
-		Content: parts,
-	}
-}
-
-func toolResultToMessagePart(result ToolResultBlock) fantasy.ToolResultPart {
-	toolCallID := sanitizeToolCallID(result.ToolCallID)
-
-	payload := result.Result
-	if payload == nil {
-		payload = map[string]any{}
-	}
-
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		raw = []byte(`{}`)
-	}
-
-	if result.IsError {
-		message := strings.TrimSpace(string(raw))
-		if fields, ok := payload.(map[string]any); ok {
-			if extracted, ok := fields["error"].(string); ok && strings.TrimSpace(extracted) != "" {
-				message = extracted
-			}
-		}
-		return fantasy.ToolResultPart{
-			ToolCallID: toolCallID,
-			Output: fantasy.ToolResultOutputContentError{
-				Error: xerrors.New(message),
-			},
-		}
-	}
-
-	return fantasy.ToolResultPart{
-		ToolCallID: toolCallID,
-		Output: fantasy.ToolResultOutputContentText{
-			Text: string(raw),
-		},
-	}
-}
-
 func sanitizeToolCallID(id string) string {
 	if id == "" {
 		return ""
@@ -886,118 +932,6 @@ func reasoningSummaryHeadline(summary string) string {
 	}
 
 	return strings.TrimSpace(strings.Trim(summary, "\"'`"))
-}
-
-func toRawJSON(value any) json.RawMessage {
-	if value == nil {
-		return nil
-	}
-	data, err := json.Marshal(value)
-	if err != nil {
-		return nil
-	}
-	return data
-}
-
-func toolResultMetadata(value any) *codersdk.ChatToolResultMetadata {
-	fields, ok := value.(map[string]any)
-	if !ok {
-		return nil
-	}
-
-	meta := codersdk.ChatToolResultMetadata{}
-	if s, ok := stringValue(fields["error"]); ok {
-		meta.Error = s
-	}
-	if s, ok := stringValue(fields["output"]); ok {
-		meta.Output = s
-	}
-	if n, ok := intValue(fields["exit_code"]); ok {
-		meta.ExitCode = &n
-	}
-	if s, ok := stringValue(fields["content"]); ok {
-		meta.Content = s
-	}
-	if s, ok := stringValue(fields["mime_type"]); ok {
-		meta.MimeType = s
-	}
-	if b, ok := boolValue(fields["created"]); ok {
-		meta.Created = &b
-	}
-	if s, ok := stringValue(fields["workspace_id"]); ok {
-		meta.WorkspaceID = s
-	}
-	if s, ok := stringValue(fields["workspace_agent_id"]); ok {
-		meta.WorkspaceAgentID = s
-	}
-	if s, ok := stringValue(fields["workspace_name"]); ok {
-		meta.WorkspaceName = s
-	}
-	if s, ok := stringValue(fields["workspace_url"]); ok {
-		meta.WorkspaceURL = s
-	}
-	if s, ok := stringValue(fields["reason"]); ok {
-		meta.Reason = s
-	}
-
-	if meta.Error == "" &&
-		meta.Output == "" &&
-		meta.ExitCode == nil &&
-		meta.Content == "" &&
-		meta.MimeType == "" &&
-		meta.Created == nil &&
-		meta.WorkspaceID == "" &&
-		meta.WorkspaceAgentID == "" &&
-		meta.WorkspaceName == "" &&
-		meta.WorkspaceURL == "" &&
-		meta.Reason == "" {
-		return nil
-	}
-
-	return &meta
-}
-
-func stringValue(value any) (string, bool) {
-	switch typed := value.(type) {
-	case string:
-		return typed, true
-	default:
-		return "", false
-	}
-}
-
-func boolValue(value any) (result bool, ok bool) {
-	switch typed := value.(type) {
-	case bool:
-		return typed, true
-	default:
-		return false, false
-	}
-}
-
-func intValue(value any) (int, bool) {
-	switch typed := value.(type) {
-	case int:
-		return typed, true
-	case int8:
-		return int(typed), true
-	case int16:
-		return int(typed), true
-	case int32:
-		return int(typed), true
-	case int64:
-		return int(typed), true
-	case float64:
-		return int(typed), true
-	case json.Number:
-		n, err := typed.Int64()
-		if err != nil {
-			return 0, false
-		}
-		return int(n), true
-	default:
-		return 0, false
-	}
 }
 
 func truncateRunes(value string, maxLen int) string {

@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/codersdk"
@@ -81,28 +80,19 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			"This tool is idempotent — if the chat already has a "+
 			"workspace that is building or running, the existing "+
 			"workspace is returned.",
-		func(ctx context.Context, args createWorkspaceArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			base := chatprompt.ToolResultBlock{
-				ToolCallID: call.ID,
-				ToolName:   call.Name,
-			}
-
+		func(ctx context.Context, args createWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.CreateFn == nil {
-				return toolResultBlockToAgentResponse(
-					toolError(base, xerrors.New("workspace creator is not configured")),
-				), nil
+				return fantasy.NewTextErrorResponse("workspace creator is not configured"), nil
 			}
 
 			templateIDStr := strings.TrimSpace(args.TemplateID)
 			if templateIDStr == "" {
-				return toolResultBlockToAgentResponse(
-					toolError(base, xerrors.New("template_id is required; use list_templates to find one")),
-				), nil
+				return fantasy.NewTextErrorResponse("template_id is required; use list_templates to find one"), nil
 			}
 			templateID, err := uuid.Parse(templateIDStr)
 			if err != nil {
-				return toolResultBlockToAgentResponse(
-					toolError(base, xerrors.Errorf("invalid template_id: %w", err)),
+				return fantasy.NewTextErrorResponse(
+					xerrors.Errorf("invalid template_id: %w", err).Error(),
 				), nil
 			}
 
@@ -120,13 +110,10 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 					options.AgentConnFn,
 				)
 				if existErr != nil {
-					return toolResultBlockToAgentResponse(
-						toolError(base, existErr),
-					), nil
+					return fantasy.NewTextErrorResponse(existErr.Error()), nil
 				}
 				if done {
-					base.Result = existing
-					return toolResultBlockToAgentResponse(base), nil
+					return toolResponse(existing), nil
 				}
 			}
 
@@ -136,7 +123,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			if options.DB != nil {
 				ownerCtx, ownerErr := asOwner(ctx, options.DB, ownerID)
 				if ownerErr != nil {
-					return toolResultBlockToAgentResponse(toolError(base, ownerErr)), nil
+					return fantasy.NewTextErrorResponse(ownerErr.Error()), nil
 				}
 				ctx = ownerCtx
 			}
@@ -170,7 +157,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 
 			workspace, err := options.CreateFn(ctx, ownerID, createReq)
 			if err != nil {
-				return toolResultBlockToAgentResponse(toolError(base, err)), nil
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
 			// Wait for the build to complete and the agent to
@@ -178,8 +165,8 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 			// workspace immediately.
 			if options.DB != nil {
 				if err := waitForBuild(ctx, options.DB, workspace.ID); err != nil {
-					return toolResultBlockToAgentResponse(
-						toolError(base, xerrors.Errorf("workspace build failed: %w", err)),
+					return fantasy.NewTextErrorResponse(
+						xerrors.Errorf("workspace build failed: %w", err).Error(),
 					), nil
 				}
 			}
@@ -214,21 +201,19 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 					// Non-fatal: the workspace was created
 					// successfully, the agent just isn't ready
 					// yet. The model can retry.
-					base.Result = map[string]any{
+					return toolResponse(map[string]any{
 						"created":        true,
 						"workspace_name": workspace.FullName(),
 						"agent_status":   "not_ready",
 						"agent_error":    err.Error(),
-					}
-					return toolResultBlockToAgentResponse(base), nil
+					}), nil
 				}
 			}
 
-			base.Result = map[string]any{
+			return toolResponse(map[string]any{
 				"created":        true,
 				"workspace_name": workspace.FullName(),
-			}
-			return toolResultBlockToAgentResponse(base), nil
+			}), nil
 		},
 	)
 }

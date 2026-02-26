@@ -5,9 +5,7 @@ import (
 	"io"
 
 	"charm.land/fantasy"
-	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -25,21 +23,15 @@ func ReadFile(options ReadFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"read_file",
 		"Read a file from the workspace.",
-		func(ctx context.Context, args ReadFileArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			result := chatprompt.ToolResultBlock{
-				ToolCallID: call.ID,
-				ToolName:   call.Name,
-			}
+		func(ctx context.Context, args ReadFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
-				return toolResultBlockToAgentResponse(
-					toolError(result, xerrors.New("workspace connection resolver is not configured")),
-				), nil
+				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
-				return toolResultBlockToAgentResponse(toolError(result, err)), nil
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return toolResultBlockToAgentResponse(executeReadFileTool(ctx, conn, result, args)), nil
+			return executeReadFileTool(ctx, conn, args)
 		},
 	)
 }
@@ -47,11 +39,10 @@ func ReadFile(options ReadFileOptions) fantasy.AgentTool {
 func executeReadFileTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
-	result chatprompt.ToolResultBlock,
 	args ReadFileArgs,
-) chatprompt.ToolResultBlock {
+) (fantasy.ToolResponse, error) {
 	if args.Path == "" {
-		return toolError(result, xerrors.New("path is required"))
+		return fantasy.NewTextErrorResponse("path is required"), nil
 	}
 
 	offset := int64(0)
@@ -65,18 +56,17 @@ func executeReadFileTool(
 
 	reader, mimeType, err := conn.ReadFile(ctx, args.Path, offset, limit)
 	if err != nil {
-		return toolError(result, err)
+		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 	defer reader.Close()
 
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return toolError(result, err)
+		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 
-	result.Result = map[string]any{
+	return toolResponse(map[string]any{
 		"content":   string(data),
 		"mime_type": mimeType,
-	}
-	return result
+	}), nil
 }

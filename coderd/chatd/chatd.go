@@ -1969,18 +1969,23 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("insert summary tool call message: %w", err)
 	}
 
-	toolResult, err := chatprompt.MarshalResults([]chatprompt.ToolResultBlock{{
-		ToolCallID: toolCallID,
-		ToolName:   "chat_summarized",
-		Result: map[string]any{
-			"summary":              result.SummaryReport,
-			"source":               "automatic",
-			"threshold_percent":    result.ThresholdPercent,
-			"usage_percent":        result.UsagePercent,
-			"context_tokens":       result.ContextTokens,
-			"context_limit_tokens": result.ContextLimit,
-		},
-	}})
+	summaryResult, marshalErr := json.Marshal(map[string]any{
+		"summary":              result.SummaryReport,
+		"source":               "automatic",
+		"threshold_percent":    result.ThresholdPercent,
+		"usage_percent":        result.UsagePercent,
+		"context_tokens":       result.ContextTokens,
+		"context_limit_tokens": result.ContextLimit,
+	})
+	if marshalErr != nil {
+		return xerrors.Errorf("encode summary result payload: %w", marshalErr)
+	}
+	toolResult, err := chatprompt.MarshalToolResult(
+		toolCallID,
+		"chat_summarized",
+		summaryResult,
+		false,
+	)
 	if err != nil {
 		return xerrors.Errorf("encode summary tool result: %w", err)
 	}
@@ -2281,8 +2286,25 @@ func (p *Server) runChatWithAgent(
 	modelConfigContextLimit := compressionConfig.ContextLimit
 
 	persistStep := func(persistCtx context.Context, step chatloop.PersistedStep) error {
-		if len(step.AssistantContent) > 0 {
-			assistantContent, err := chatprompt.MarshalContent(step.AssistantContent)
+		// Split the step content into assistant blocks and tool
+		// result blocks so they can be stored as separate messages
+		// with the appropriate roles.
+		var assistantBlocks []fantasy.Content
+		var toolResults []fantasy.ToolResultContent
+		for _, block := range step.Content {
+			if tr, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok {
+				toolResults = append(toolResults, tr)
+				continue
+			}
+			if trPtr, ok := fantasy.AsContentType[*fantasy.ToolResultContent](block); ok && trPtr != nil {
+				toolResults = append(toolResults, *trPtr)
+				continue
+			}
+			assistantBlocks = append(assistantBlocks, block)
+		}
+
+		if len(assistantBlocks) > 0 {
+			assistantContent, err := chatprompt.MarshalContent(assistantBlocks)
 			if err != nil {
 				return err
 			}
@@ -2315,8 +2337,8 @@ func (p *Server) runChatWithAgent(
 			p.publishMessage(chat.ID, assistantMessage)
 		}
 
-		for _, result := range step.ToolResults {
-			resultContent, err := chatprompt.MarshalResults([]chatprompt.ToolResultBlock{result})
+		for _, tr := range toolResults {
+			resultContent, err := chatprompt.MarshalToolResultContent(tr)
 			if err != nil {
 				return err
 			}
@@ -2718,11 +2740,10 @@ func (p *Server) agentTools(
 			"wait_for_external_auth",
 			"Wait for external authentication to complete after execute reports auth_required=true. "+
 				"Use this before retrying git commands, and do not rerun commands automatically.",
-			func(ctx context.Context, args waitForExternalAuthArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
+			func(ctx context.Context, args waitForExternalAuthArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				providerID := strings.TrimSpace(args.ProviderID)
 				if providerID == "" {
-					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("provider_id is required"))), nil
+					return fantasy.NewTextErrorResponse("provider_id is required"), nil
 				}
 
 				timeout := defaultExternalAuthWait
@@ -2742,7 +2763,7 @@ func (p *Server) agentTools(
 					timeout,
 				)
 				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
 				status := externalAuthWaitCompletedStatus
@@ -2750,15 +2771,11 @@ func (p *Server) agentTools(
 					status = externalAuthWaitTimedOutStatus
 				}
 
-				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-					ToolCallID: call.ID,
-					ToolName:   call.Name,
-					Result: map[string]any{
-						"provider_id":   providerID,
-						"authenticated": authenticated,
-						"timed_out":     timedOut,
-						"status":        status,
-					},
+				return toolJSONResponse(map[string]any{
+					"provider_id":   providerID,
+					"authenticated": authenticated,
+					"timed_out":     timedOut,
+					"status":        status,
 				}), nil
 			},
 		),
@@ -2814,38 +2831,10 @@ func (p *Server) waitForExternalAuth(
 	}
 }
 
-func toolError(result chatprompt.ToolResultBlock, err error) chatprompt.ToolResultBlock {
-	result.IsError = true
-	result.Result = map[string]any{"error": err.Error()}
-	return result
-}
-
-func toolResultBlockToAgentResponse(result chatprompt.ToolResultBlock) fantasy.ToolResponse {
-	content := ""
-	if result.IsError {
-		if fields, ok := result.Result.(map[string]any); ok {
-			if extracted, ok := fields["error"].(string); ok && strings.TrimSpace(extracted) != "" {
-				content = extracted
-			}
-		}
-		if content == "" {
-			if raw, err := json.Marshal(result.Result); err == nil {
-				content = strings.TrimSpace(string(raw))
-			}
-		}
-	} else if payload, err := json.Marshal(result.Result); err == nil {
-		content = string(payload)
+func toolJSONResponse(result map[string]any) fantasy.ToolResponse {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fantasy.NewTextResponse("{}")
 	}
-
-	metadata := ""
-	if encoded, err := json.Marshal(result); err == nil {
-		metadata = string(encoded)
-	}
-
-	return fantasy.ToolResponse{
-		Type:     "text",
-		Content:  content,
-		Metadata: metadata,
-		IsError:  result.IsError,
-	}
+	return fantasy.NewTextResponse(string(data))
 }

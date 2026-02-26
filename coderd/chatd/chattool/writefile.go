@@ -5,9 +5,7 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
-	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -24,21 +22,15 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"write_file",
 		"Write a file to the workspace.",
-		func(ctx context.Context, args WriteFileArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			result := chatprompt.ToolResultBlock{
-				ToolCallID: call.ID,
-				ToolName:   call.Name,
-			}
+		func(ctx context.Context, args WriteFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
-				return toolResultBlockToAgentResponse(
-					toolError(result, xerrors.New("workspace connection resolver is not configured")),
-				), nil
+				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
-				return toolResultBlockToAgentResponse(toolError(result, err)), nil
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return toolResultBlockToAgentResponse(executeWriteFileTool(ctx, conn, result, args)), nil
+			return executeWriteFileTool(ctx, conn, args)
 		},
 	)
 }
@@ -46,16 +38,14 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 func executeWriteFileTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
-	result chatprompt.ToolResultBlock,
 	args WriteFileArgs,
-) chatprompt.ToolResultBlock {
+) (fantasy.ToolResponse, error) {
 	if args.Path == "" {
-		return toolError(result, xerrors.New("path is required"))
+		return fantasy.NewTextErrorResponse("path is required"), nil
 	}
 
 	if err := conn.WriteFile(ctx, args.Path, strings.NewReader(args.Content)); err != nil {
-		return toolError(result, err)
+		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
-	result.Result = map[string]any{"ok": true}
-	return result
+	return toolResponse(map[string]any{"ok": true}), nil
 }

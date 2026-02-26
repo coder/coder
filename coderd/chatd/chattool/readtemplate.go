@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
@@ -33,46 +32,36 @@ func ReadTemplate(options ReadTemplateOptions) fantasy.AgentTool {
 			"configurable parameters. Use this after finding a "+
 			"template with list_templates and before creating a "+
 			"workspace with create_workspace.",
-		func(ctx context.Context, args readTemplateArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			result := chatprompt.ToolResultBlock{
-				ToolCallID: call.ID,
-				ToolName:   call.Name,
-			}
+		func(ctx context.Context, args readTemplateArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.DB == nil {
-				return toolResultBlockToAgentResponse(
-					toolError(result, xerrors.New("database is not configured")),
-				), nil
+				return fantasy.NewTextErrorResponse("database is not configured"), nil
 			}
 
 			templateIDStr := strings.TrimSpace(args.TemplateID)
 			if templateIDStr == "" {
-				return toolResultBlockToAgentResponse(
-					toolError(result, xerrors.New("template_id is required")),
-				), nil
+				return fantasy.NewTextErrorResponse("template_id is required"), nil
 			}
 			templateID, err := uuid.Parse(templateIDStr)
 			if err != nil {
-				return toolResultBlockToAgentResponse(
-					toolError(result, xerrors.Errorf("invalid template_id: %w", err)),
+				return fantasy.NewTextErrorResponse(
+					xerrors.Errorf("invalid template_id: %w", err).Error(),
 				), nil
 			}
 
 			ctx, err = asOwner(ctx, options.DB, options.OwnerID)
 			if err != nil {
-				return toolResultBlockToAgentResponse(toolError(result, err)), nil
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
 			template, err := options.DB.GetTemplateByID(ctx, templateID)
 			if err != nil {
-				return toolResultBlockToAgentResponse(
-					toolError(result, xerrors.New("template not found")),
-				), nil
+				return fantasy.NewTextErrorResponse("template not found"), nil
 			}
 
 			params, err := options.DB.GetTemplateVersionParameters(ctx, template.ActiveVersionID)
 			if err != nil {
-				return toolResultBlockToAgentResponse(
-					toolError(result, xerrors.Errorf("failed to get template parameters: %w", err)),
+				return fantasy.NewTextErrorResponse(
+					xerrors.Errorf("failed to get template parameters: %w", err).Error(),
 				), nil
 			}
 
@@ -132,11 +121,10 @@ func ReadTemplate(options ReadTemplateOptions) fantasy.AgentTool {
 				paramList = append(paramList, param)
 			}
 
-			result.Result = map[string]any{
+			return toolResponse(map[string]any{
 				"template":   templateInfo,
 				"parameters": paramList,
-			}
-			return toolResultBlockToAgentResponse(result), nil
+			}), nil
 		},
 	)
 }

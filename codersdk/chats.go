@@ -76,39 +76,23 @@ const (
 	ChatMessagePartTypeFile       ChatMessagePartType = "file"
 )
 
-// ChatToolResultMetadata exposes commonly used tool-result fields for rendering.
-type ChatToolResultMetadata struct {
-	Error            string `json:"error,omitempty"`
-	Output           string `json:"output,omitempty"`
-	ExitCode         *int   `json:"exit_code,omitempty"`
-	Content          string `json:"content,omitempty"`
-	MimeType         string `json:"mime_type,omitempty"`
-	Created          *bool  `json:"created,omitempty"`
-	WorkspaceID      string `json:"workspace_id,omitempty"`
-	WorkspaceAgentID string `json:"workspace_agent_id,omitempty"`
-	WorkspaceName    string `json:"workspace_name,omitempty"`
-	WorkspaceURL     string `json:"workspace_url,omitempty"`
-	Reason           string `json:"reason,omitempty"`
-}
-
 // ChatMessagePart is a structured chunk of a chat message.
 type ChatMessagePart struct {
-	Type        ChatMessagePartType     `json:"type"`
-	Text        string                  `json:"text,omitempty"`
-	Signature   string                  `json:"signature,omitempty"`
-	ToolCallID  string                  `json:"tool_call_id,omitempty"`
-	ToolName    string                  `json:"tool_name,omitempty"`
-	Args        json.RawMessage         `json:"args,omitempty"`
-	ArgsDelta   string                  `json:"args_delta,omitempty"`
-	Result      json.RawMessage         `json:"result,omitempty"`
-	ResultDelta string                  `json:"result_delta,omitempty"`
-	IsError     bool                    `json:"is_error,omitempty"`
-	ResultMeta  *ChatToolResultMetadata `json:"result_meta,omitempty"`
-	SourceID    string                  `json:"source_id,omitempty"`
-	URL         string                  `json:"url,omitempty"`
-	Title       string                  `json:"title,omitempty"`
-	MediaType   string                  `json:"media_type,omitempty"`
-	Data        []byte                  `json:"data,omitempty"`
+	Type        ChatMessagePartType `json:"type"`
+	Text        string              `json:"text,omitempty"`
+	Signature   string              `json:"signature,omitempty"`
+	ToolCallID  string              `json:"tool_call_id,omitempty"`
+	ToolName    string              `json:"tool_name,omitempty"`
+	Args        json.RawMessage     `json:"args,omitempty"`
+	ArgsDelta   string              `json:"args_delta,omitempty"`
+	Result      json.RawMessage     `json:"result,omitempty"`
+	ResultDelta string              `json:"result_delta,omitempty"`
+	IsError     bool                `json:"is_error,omitempty"`
+	SourceID    string              `json:"source_id,omitempty"`
+	URL         string              `json:"url,omitempty"`
+	Title       string              `json:"title,omitempty"`
+	MediaType   string              `json:"media_type,omitempty"`
+	Data        []byte              `json:"data,omitempty"`
 }
 
 // ChatInputPartType represents an input part type for user chat input.

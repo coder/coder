@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -34,20 +33,14 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 		"List available workspace templates. Optionally filter by a "+
 			"search query matching template name or description. "+
 			"Use this to find a template before creating a workspace.",
-		func(ctx context.Context, args listTemplatesArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			result := chatprompt.ToolResultBlock{
-				ToolCallID: call.ID,
-				ToolName:   call.Name,
-			}
+		func(ctx context.Context, args listTemplatesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.DB == nil {
-				return toolResultBlockToAgentResponse(
-					toolError(result, xerrors.New("database is not configured")),
-				), nil
+				return fantasy.NewTextErrorResponse("database is not configured"), nil
 			}
 
 			ctx, err := asOwner(ctx, options.DB, options.OwnerID)
 			if err != nil {
-				return toolResultBlockToAgentResponse(toolError(result, err)), nil
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
 			filterParams := database.GetTemplatesWithFilterParams{
@@ -64,7 +57,7 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 
 			templates, err := options.DB.GetTemplatesWithFilter(ctx, filterParams)
 			if err != nil {
-				return toolResultBlockToAgentResponse(toolError(result, err)), nil
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
 			items := make([]map[string]any, 0, len(templates))
@@ -82,11 +75,10 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 				items = append(items, item)
 			}
 
-			result.Result = map[string]any{
+			return toolResponse(map[string]any{
 				"templates": items,
 				"count":     len(items),
-			}
-			return toolResultBlockToAgentResponse(result), nil
+			}), nil
 		},
 	)
 }

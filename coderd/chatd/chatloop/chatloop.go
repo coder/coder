@@ -24,11 +24,16 @@ const (
 
 var ErrInterrupted = xerrors.New("chat interrupted")
 
+// PersistedStep contains the full content of a completed or
+// interrupted agent step. Content includes both assistant blocks
+// (text, reasoning, tool calls) and tool result blocks, mirroring
+// what fantasy provides in StepResult.Content. The persistence
+// layer is responsible for splitting these into separate database
+// messages by role.
 type PersistedStep struct {
-	AssistantContent []fantasy.Content
-	ToolResults      []chatprompt.ToolResultBlock
-	Usage            fantasy.Usage
-	ContextLimit     sql.NullInt64
+	Content      []fantasy.Content
+	Usage        fantasy.Usage
+	ContextLimit sql.NullInt64
 }
 
 // RunOptions configures a single streaming chat loop run.
@@ -76,9 +81,12 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 		streamToolNames       map[string]string
 		streamReasoningTitles map[string]string
 		streamReasoningText   map[string]string
-		stepToolResults       []chatprompt.ToolResultBlock
-		stepAssistantDraft    []fantasy.Content
-		stepToolCallIndexByID map[string]int
+		// stepToolResultContents tracks tool results received during
+		// streaming. These are needed for the interrupted-step path
+		// where OnStepFinish never fires.
+		stepToolResultContents []fantasy.ToolResultContent
+		stepAssistantDraft     []fantasy.Content
+		stepToolCallIndexByID  map[string]int
 	)
 
 	resetStepState := func() {
@@ -86,7 +94,7 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 		streamToolNames = make(map[string]string)
 		streamReasoningTitles = make(map[string]string)
 		streamReasoningText = make(map[string]string)
-		stepToolResults = nil
+		stepToolResultContents = nil
 		stepAssistantDraft = nil
 		stepToolCallIndexByID = make(map[string]int)
 		stepStateMu.Unlock()
@@ -234,7 +242,7 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 	persistInterruptedStep := func() error {
 		stepStateMu.Lock()
 		draft := append([]fantasy.Content(nil), stepAssistantDraft...)
-		toolResults := append([]chatprompt.ToolResultBlock(nil), stepToolResults...)
+		toolResults := append([]fantasy.ToolResultContent(nil), stepToolResultContents...)
 		toolNameByCallID := make(map[string]string, len(streamToolNames))
 		for id, name := range streamToolNames {
 			toolNameByCallID[id] = name
@@ -245,15 +253,22 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 			return nil
 		}
 
-		resultByToolCallID := make(map[string]struct{}, len(toolResults))
-		for _, toolResult := range toolResults {
-			if toolResult.ToolCallID == "" {
-				continue
+		// Track which tool calls already have results.
+		answeredToolCalls := make(map[string]struct{}, len(toolResults))
+		for _, tr := range toolResults {
+			if tr.ToolCallID != "" {
+				answeredToolCalls[tr.ToolCallID] = struct{}{}
 			}
-			resultByToolCallID[toolResult.ToolCallID] = struct{}{}
 		}
 
-		missingResults := make([]chatprompt.ToolResultBlock, 0)
+		// Build the combined content: draft + received tool results
+		// + synthetic interrupted results for unanswered tool calls.
+		content := make([]fantasy.Content, 0, len(draft)+len(toolResults))
+		content = append(content, draft...)
+		for _, tr := range toolResults {
+			content = append(content, tr)
+		}
+
 		for _, block := range draft {
 			toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
 			if !ok {
@@ -265,7 +280,7 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 			if !ok || toolCall.ToolCallID == "" {
 				continue
 			}
-			if _, exists := resultByToolCallID[toolCall.ToolCallID]; exists {
+			if _, exists := answeredToolCalls[toolCall.ToolCallID]; exists {
 				continue
 			}
 
@@ -274,24 +289,19 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 				toolName = strings.TrimSpace(toolNameByCallID[toolCall.ToolCallID])
 			}
 
-			missingResults = append(missingResults, chatprompt.ToolResultBlock{
+			content = append(content, fantasy.ToolResultContent{
 				ToolCallID: toolCall.ToolCallID,
 				ToolName:   toolName,
-				Result: map[string]any{
-					"status": "interrupted",
-					"error":  interruptedToolResultErrorMessage,
+				Result: fantasy.ToolResultOutputContentError{
+					Error: xerrors.New(interruptedToolResultErrorMessage),
 				},
-				IsError: true,
 			})
-			resultByToolCallID[toolCall.ToolCallID] = struct{}{}
+			answeredToolCalls[toolCall.ToolCallID] = struct{}{}
 		}
-
-		toolResults = append(toolResults, missingResults...)
 
 		persistCtx := context.WithoutCancel(ctx)
 		return opts.PersistStep(persistCtx, PersistedStep{
-			AssistantContent: stepAssistantContent(draft, toolResults),
-			ToolResults:      toolResults,
+			Content: content,
 		})
 	}
 
@@ -403,35 +413,21 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 		return nil
 	}
 	streamCall.OnToolResult = func(result fantasy.ToolResultContent) error {
-		toolResult := chatprompt.ResultFromContent(result)
-		if strings.TrimSpace(result.ClientMetadata) != "" {
-			var block chatprompt.ToolResultBlock
-			if err := json.Unmarshal([]byte(result.ClientMetadata), &block); err == nil {
-				if block.ToolCallID == "" {
-					block.ToolCallID = result.ToolCallID
-				}
-				if block.ToolName == "" {
-					block.ToolName = result.ToolName
-				}
-				toolResult = block
-			}
-		}
-		publishMessagePart(fantasy.MessageRoleTool, chatprompt.PartFromResult(toolResult))
+		publishMessagePart(
+			fantasy.MessageRoleTool,
+			chatprompt.PartFromContent(result),
+		)
 
 		stepStateMu.Lock()
-		if toolResult.ToolCallID != "" && strings.TrimSpace(toolResult.ToolName) != "" {
-			streamToolNames[toolResult.ToolCallID] = toolResult.ToolName
+		if result.ToolCallID != "" && strings.TrimSpace(result.ToolName) != "" {
+			streamToolNames[result.ToolCallID] = result.ToolName
 		}
-		stepToolResults = append(stepToolResults, toolResult)
+		stepToolResultContents = append(stepToolResultContents, result)
 		stepStateMu.Unlock()
 
 		return nil
 	}
 	streamCall.OnStepFinish = func(stepResult fantasy.StepResult) error {
-		stepStateMu.Lock()
-		toolResults := append([]chatprompt.ToolResultBlock(nil), stepToolResults...)
-		stepStateMu.Unlock()
-
 		contextLimit := extractContextLimit(stepResult.ProviderMetadata)
 		if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
 			contextLimit = sql.NullInt64{
@@ -441,10 +437,9 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 		}
 
 		return opts.PersistStep(ctx, PersistedStep{
-			AssistantContent: stepAssistantContent(stepResult.Content, toolResults),
-			ToolResults:      toolResults,
-			Usage:            stepResult.Usage,
-			ContextLimit:     contextLimit,
+			Content:      stepResult.Content,
+			Usage:        stepResult.Usage,
+			ContextLimit: contextLimit,
 		})
 	}
 
@@ -539,30 +534,6 @@ func addAnthropicPromptCaching(messages []fantasy.Message) []fantasy.Message {
 	}
 
 	return messages
-}
-
-func stepAssistantContent(content []fantasy.Content, toolResults []chatprompt.ToolResultBlock) []fantasy.Content {
-	toolResultIDs := make(map[string]struct{}, len(toolResults))
-	for _, toolResult := range toolResults {
-		if toolResult.ToolCallID == "" {
-			continue
-		}
-		toolResultIDs[toolResult.ToolCallID] = struct{}{}
-	}
-
-	filtered := make([]fantasy.Content, 0, len(content))
-	for _, block := range content {
-		toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
-		if !ok {
-			filtered = append(filtered, block)
-			continue
-		}
-		if _, tracked := toolResultIDs[toolResult.ToolCallID]; tracked {
-			continue
-		}
-		filtered = append(filtered, block)
-	}
-	return filtered
 }
 
 func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {

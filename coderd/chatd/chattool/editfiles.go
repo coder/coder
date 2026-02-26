@@ -4,9 +4,7 @@ import (
 	"context"
 
 	"charm.land/fantasy"
-	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -23,21 +21,15 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 		"edit_files",
 		"Perform search-and-replace edits on one or more files in the workspace."+
 			" Each file can have multiple edits applied atomically.",
-		func(ctx context.Context, args EditFilesArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			result := chatprompt.ToolResultBlock{
-				ToolCallID: call.ID,
-				ToolName:   call.Name,
-			}
+		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
-				return toolResultBlockToAgentResponse(
-					toolError(result, xerrors.New("workspace connection resolver is not configured")),
-				), nil
+				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
-				return toolResultBlockToAgentResponse(toolError(result, err)), nil
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return toolResultBlockToAgentResponse(executeEditFilesTool(ctx, conn, result, args)), nil
+			return executeEditFilesTool(ctx, conn, args)
 		},
 	)
 }
@@ -45,16 +37,14 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 func executeEditFilesTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
-	result chatprompt.ToolResultBlock,
 	args EditFilesArgs,
-) chatprompt.ToolResultBlock {
+) (fantasy.ToolResponse, error) {
 	if len(args.Files) == 0 {
-		return toolError(result, xerrors.New("files is required"))
+		return fantasy.NewTextErrorResponse("files is required"), nil
 	}
 
 	if err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files}); err != nil {
-		return toolError(result, err)
+		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
-	result.Result = map[string]any{"ok": true}
-	return result
+	return toolResponse(map[string]any{"ok": true}), nil
 }

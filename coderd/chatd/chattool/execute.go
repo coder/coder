@@ -10,7 +10,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -35,27 +34,15 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"execute",
 		"Execute a shell command in the workspace.",
-		func(ctx context.Context, args ExecuteArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			result := chatprompt.ToolResultBlock{
-				ToolCallID: call.ID,
-				ToolName:   call.Name,
-			}
+		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
-				return toolResultBlockToAgentResponse(
-					toolError(result, xerrors.New("workspace connection resolver is not configured")),
-				), nil
+				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
-				return toolResultBlockToAgentResponse(toolError(result, err)), nil
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return toolResultBlockToAgentResponse(executeTool(
-				ctx,
-				conn,
-				result,
-				args,
-				options.DefaultTimeout,
-			)), nil
+			return executeTool(ctx, conn, args, options.DefaultTimeout), nil
 		},
 	)
 }
@@ -63,12 +50,11 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 func executeTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
-	result chatprompt.ToolResultBlock,
 	args ExecuteArgs,
 	defaultTimeout time.Duration,
-) chatprompt.ToolResultBlock {
+) fantasy.ToolResponse {
 	if args.Command == "" {
-		return toolError(result, xerrors.New("command is required"))
+		return fantasy.NewTextErrorResponse("command is required")
 	}
 
 	timeout := defaultTimeout
@@ -103,15 +89,18 @@ func executeTool(
 		if err != nil {
 			resultPayload["error"] = err.Error()
 		}
-		result.Result = resultPayload
-		return result
+		return toolResponse(resultPayload)
 	}
 	if err != nil {
 		resultPayload["error"] = err.Error()
-		result.IsError = true
+		data, _ := json.Marshal(resultPayload)
+		return fantasy.ToolResponse{
+			Type:    "text",
+			Content: string(data),
+			IsError: true,
+		}
 	}
-	result.Result = resultPayload
-	return result
+	return toolResponse(resultPayload)
 }
 
 func runCommand(

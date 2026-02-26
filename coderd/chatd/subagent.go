@@ -47,23 +47,19 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 		fantasy.NewAgentTool(
 			"spawn_agent",
 			"Spawn a delegated child agent chat from the root chat.",
-			func(ctx context.Context, args spawnAgentArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
+			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
-					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent callbacks are not configured"))), nil
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
 				}
 
 				parent := currentChat()
 				if parent.ParentChatID.Valid {
-					return toolResultBlockToAgentResponse(toolError(
-						base,
-						xerrors.New("delegated chats cannot create child subagents"),
-					)), nil
+					return fantasy.NewTextErrorResponse("delegated chats cannot create child subagents"), nil
 				}
 
 				parent, err := p.db.GetChatByID(ctx, parent.ID)
 				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 				childChat, err := p.createChildSubagentChat(
 					ctx,
@@ -72,32 +68,27 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 					args.Title,
 				)
 				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-					ToolCallID: call.ID,
-					ToolName:   call.Name,
-					Result: map[string]any{
-						"chat_id": childChat.ID.String(),
-						"title":   childChat.Title,
-						"status":  string(childChat.Status),
-					},
+				return toolJSONResponse(map[string]any{
+					"chat_id": childChat.ID.String(),
+					"title":   childChat.Title,
+					"status":  string(childChat.Status),
 				}), nil
 			},
 		),
 		fantasy.NewAgentTool(
 			"wait_agent",
 			"Wait until a delegated descendant agent reaches a non-streaming status.",
-			func(ctx context.Context, args waitAgentArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
+			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
-					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent callbacks are not configured"))), nil
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
 				}
 
 				targetChatID, err := parseSubagentToolChatID(args.ChatID)
 				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
 				timeout := defaultSubagentWaitTimeout
@@ -113,33 +104,28 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 					timeout,
 				)
 				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-					ToolCallID: call.ID,
-					ToolName:   call.Name,
-					Result: map[string]any{
-						"chat_id": targetChatID.String(),
-						"title":   targetChat.Title,
-						"report":  report,
-						"status":  string(targetChat.Status),
-					},
+				return toolJSONResponse(map[string]any{
+					"chat_id": targetChatID.String(),
+					"title":   targetChat.Title,
+					"report":  report,
+					"status":  string(targetChat.Status),
 				}), nil
 			},
 		),
 		fantasy.NewAgentTool(
 			"message_agent",
 			"Send a message to a delegated descendant agent. Use wait_agent to collect a response.",
-			func(ctx context.Context, args messageAgentArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
+			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
-					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent callbacks are not configured"))), nil
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
 				}
 
 				targetChatID, err := parseSubagentToolChatID(args.ChatID)
 				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
 				parent := currentChat()
@@ -151,33 +137,28 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 					args.Interrupt,
 				)
 				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-					ToolCallID: call.ID,
-					ToolName:   call.Name,
-					Result: map[string]any{
-						"chat_id":     targetChatID.String(),
-						"title":       targetChat.Title,
-						"status":      string(targetChat.Status),
-						"interrupted": args.Interrupt,
-					},
+				return toolJSONResponse(map[string]any{
+					"chat_id":     targetChatID.String(),
+					"title":       targetChat.Title,
+					"status":      string(targetChat.Status),
+					"interrupted": args.Interrupt,
 				}), nil
 			},
 		),
 		fantasy.NewAgentTool(
 			"close_agent",
 			"Interrupt a delegated descendant agent immediately.",
-			func(ctx context.Context, args closeAgentArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				base := chatprompt.ToolResultBlock{ToolCallID: call.ID, ToolName: call.Name}
+			func(ctx context.Context, args closeAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
-					return toolResultBlockToAgentResponse(toolError(base, xerrors.New("subagent callbacks are not configured"))), nil
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
 				}
 
 				targetChatID, err := parseSubagentToolChatID(args.ChatID)
 				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
 				parent := currentChat()
@@ -187,18 +168,14 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 					targetChatID,
 				)
 				if err != nil {
-					return toolResultBlockToAgentResponse(toolError(base, err)), nil
+					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
-				return toolResultBlockToAgentResponse(chatprompt.ToolResultBlock{
-					ToolCallID: call.ID,
-					ToolName:   call.Name,
-					Result: map[string]any{
-						"chat_id":    targetChatID.String(),
-						"title":      targetChat.Title,
-						"terminated": true,
-						"status":     string(targetChat.Status),
-					},
+				return toolJSONResponse(map[string]any{
+					"chat_id":    targetChatID.String(),
+					"title":      targetChat.Title,
+					"terminated": true,
+					"status":     string(targetChat.Status),
 				}), nil
 			},
 		),

@@ -20,6 +20,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -1053,13 +1054,6 @@ func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
 	return m
 }
 
-type chatToolResultBlock struct {
-	ToolCallID string `json:"tool_call_id"`
-	ToolName   string `json:"tool_name"`
-	Result     any    `json:"result"`
-	IsError    bool   `json:"is_error,omitempty"`
-}
-
 func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 	msg := codersdk.ChatMessage{
 		ID:                  m.ID,
@@ -1141,11 +1135,13 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 		}
 		parts := make([]codersdk.ChatMessagePart, 0, len(results))
 		for _, result := range results {
-			part := toolResultToPart(result)
-			if part.Type == "" {
-				continue
-			}
-			parts = append(parts, part)
+			parts = append(parts, codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID: result.ToolCallID,
+				ToolName:   result.ToolName,
+				Result:     result.Result,
+				IsError:    result.IsError,
+			})
 		}
 		return parts, nil
 	default:
@@ -1195,12 +1191,21 @@ func parseContentBlocks(role string, raw pqtype.NullRawMessage) ([]fantasy.Conte
 	return content, nil
 }
 
-func parseToolResults(raw pqtype.NullRawMessage) ([]chatToolResultBlock, error) {
+// toolResultRow is used only for extracting top-level fields from
+// persisted tool result JSON. The result payload is kept as raw JSON.
+type toolResultRow struct {
+	ToolCallID string          `json:"tool_call_id"`
+	ToolName   string          `json:"tool_name"`
+	Result     json.RawMessage `json:"result"`
+	IsError    bool            `json:"is_error,omitempty"`
+}
+
+func parseToolResults(raw pqtype.NullRawMessage) ([]toolResultRow, error) {
 	if !raw.Valid || len(raw.RawMessage) == 0 {
 		return nil, nil
 	}
 
-	var results []chatToolResultBlock
+	var results []toolResultRow
 	if err := json.Unmarshal(raw.RawMessage, &results); err != nil {
 		return nil, xerrors.Errorf("parse tool results: %w", err)
 	}
@@ -1286,167 +1291,54 @@ func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 			Data:      value.Data,
 		}
 	case fantasy.ToolResultContent:
-		return toolResultToPart(toolResultBlockFromContent(value))
+		return chatprompt.ToolResultToPart(
+			value.ToolCallID,
+			value.ToolName,
+			toolResultOutputToRawJSON(value.Result),
+			toolResultOutputIsError(value.Result),
+		)
 	case *fantasy.ToolResultContent:
-		return toolResultToPart(toolResultBlockFromContent(*value))
+		return chatprompt.ToolResultToPart(
+			value.ToolCallID,
+			value.ToolName,
+			toolResultOutputToRawJSON(value.Result),
+			toolResultOutputIsError(value.Result),
+		)
 	default:
 		return codersdk.ChatMessagePart{}
 	}
 }
 
-func toolResultBlockFromContent(content fantasy.ToolResultContent) chatToolResultBlock {
-	result := chatToolResultBlock{
-		ToolCallID: content.ToolCallID,
-		ToolName:   content.ToolName,
-	}
-	switch output := content.Result.(type) {
+func toolResultOutputToRawJSON(output fantasy.ToolResultOutputContent) json.RawMessage {
+	switch v := output.(type) {
 	case fantasy.ToolResultOutputContentError:
-		result.IsError = true
-		if output.Error != nil {
-			result.Result = map[string]any{"error": output.Error.Error()}
-		} else {
-			result.Result = map[string]any{"error": ""}
+		if v.Error != nil {
+			data, _ := json.Marshal(map[string]any{"error": v.Error.Error()})
+			return data
 		}
+		return json.RawMessage(`{"error":""}`)
 	case fantasy.ToolResultOutputContentText:
-		decoded := map[string]any{}
-		if err := json.Unmarshal([]byte(output.Text), &decoded); err == nil {
-			result.Result = decoded
-		} else {
-			result.Result = map[string]any{"output": output.Text}
+		raw := json.RawMessage(v.Text)
+		if json.Valid(raw) {
+			return raw
 		}
+		data, _ := json.Marshal(map[string]any{"output": v.Text})
+		return data
 	case fantasy.ToolResultOutputContentMedia:
-		result.Result = map[string]any{
-			"data":      output.Data,
-			"mime_type": output.MediaType,
-			"text":      output.Text,
-		}
+		data, _ := json.Marshal(map[string]any{
+			"data":      v.Data,
+			"mime_type": v.MediaType,
+			"text":      v.Text,
+		})
+		return data
 	default:
-		result.Result = map[string]any{}
-	}
-	return result
-}
-
-func toolResultToPart(result chatToolResultBlock) codersdk.ChatMessagePart {
-	return codersdk.ChatMessagePart{
-		Type:       codersdk.ChatMessagePartTypeToolResult,
-		ToolCallID: result.ToolCallID,
-		ToolName:   result.ToolName,
-		Result:     toRawJSON(result.Result),
-		IsError:    result.IsError,
-		ResultMeta: toolResultMetadata(result.Result),
+		return json.RawMessage(`{}`)
 	}
 }
 
-func toRawJSON(value any) json.RawMessage {
-	if value == nil {
-		return nil
-	}
-	data, err := json.Marshal(value)
-	if err != nil {
-		return nil
-	}
-	return data
-}
-
-func toolResultMetadata(value any) *codersdk.ChatToolResultMetadata {
-	fields, ok := value.(map[string]any)
-	if !ok {
-		return nil
-	}
-
-	meta := codersdk.ChatToolResultMetadata{}
-	if s, ok := stringValue(fields["error"]); ok {
-		meta.Error = s
-	}
-	if s, ok := stringValue(fields["output"]); ok {
-		meta.Output = s
-	}
-	if n, ok := intValue(fields["exit_code"]); ok {
-		meta.ExitCode = &n
-	}
-	if s, ok := stringValue(fields["content"]); ok {
-		meta.Content = s
-	}
-	if s, ok := stringValue(fields["mime_type"]); ok {
-		meta.MimeType = s
-	}
-	if b, ok := boolValue(fields["created"]); ok {
-		meta.Created = &b
-	}
-	if s, ok := stringValue(fields["workspace_id"]); ok {
-		meta.WorkspaceID = s
-	}
-	if s, ok := stringValue(fields["workspace_agent_id"]); ok {
-		meta.WorkspaceAgentID = s
-	}
-	if s, ok := stringValue(fields["workspace_name"]); ok {
-		meta.WorkspaceName = s
-	}
-	if s, ok := stringValue(fields["workspace_url"]); ok {
-		meta.WorkspaceURL = s
-	}
-	if s, ok := stringValue(fields["reason"]); ok {
-		meta.Reason = s
-	}
-
-	if meta.Error == "" &&
-		meta.Output == "" &&
-		meta.ExitCode == nil &&
-		meta.Content == "" &&
-		meta.MimeType == "" &&
-		meta.Created == nil &&
-		meta.WorkspaceID == "" &&
-		meta.WorkspaceAgentID == "" &&
-		meta.WorkspaceName == "" &&
-		meta.WorkspaceURL == "" &&
-		meta.Reason == "" {
-		return nil
-	}
-
-	return &meta
-}
-
-func stringValue(value any) (string, bool) {
-	switch typed := value.(type) {
-	case string:
-		return typed, true
-	default:
-		return "", false
-	}
-}
-
-func boolValue(value any) (result bool, ok bool) {
-	switch typed := value.(type) {
-	case bool:
-		return typed, true
-	default:
-		return false, false
-	}
-}
-
-func intValue(value any) (int, bool) {
-	switch typed := value.(type) {
-	case int:
-		return typed, true
-	case int8:
-		return int(typed), true
-	case int16:
-		return int(typed), true
-	case int32:
-		return int(typed), true
-	case int64:
-		return int(typed), true
-	case float64:
-		return int(typed), true
-	case json.Number:
-		n, err := typed.Int64()
-		if err != nil {
-			return 0, false
-		}
-		return int(n), true
-	default:
-		return 0, false
-	}
+func toolResultOutputIsError(output fantasy.ToolResultOutputContent) bool {
+	_, ok := output.(fantasy.ToolResultOutputContentError)
+	return ok
 }
 
 func nullInt64Ptr(v sql.NullInt64) *int64 {

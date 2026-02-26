@@ -10,8 +10,6 @@ import (
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 )
 
 const activeToolName = "read_file"
@@ -61,7 +59,6 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, 1, persistStepCalls)
-	require.Empty(t, persistedStep.ToolResults)
 	require.True(t, persistedStep.ContextLimit.Valid)
 	require.Equal(t, int64(4096), persistedStep.ContextLimit.Int64)
 
@@ -131,8 +128,7 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 	}()
 
 	persistedAssistantCtxErr := xerrors.New("unset")
-	var persistedAssistantContent []fantasy.Content
-	persistedToolResults := make([]chatprompt.ToolResultBlock, 0, 1)
+	var persistedContent []fantasy.Content
 
 	_, err := Run(ctx, RunOptions{
 		Model: model,
@@ -145,23 +141,20 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 		MaxSteps: 3,
 		PersistStep: func(persistCtx context.Context, step PersistedStep) error {
 			persistedAssistantCtxErr = persistCtx.Err()
-			persistedAssistantContent = append([]fantasy.Content(nil), step.AssistantContent...)
-			persistedToolResults = append(
-				persistedToolResults,
-				step.ToolResults...,
-			)
+			persistedContent = append([]fantasy.Content(nil), step.Content...)
 			return nil
 		},
 	})
 	require.ErrorIs(t, err, ErrInterrupted)
 	require.NoError(t, persistedAssistantCtxErr)
 
-	require.NotEmpty(t, persistedAssistantContent)
+	require.NotEmpty(t, persistedContent)
 	var (
-		foundText     bool
-		foundToolCall bool
+		foundText       bool
+		foundToolCall   bool
+		foundToolResult bool
 	)
-	for _, block := range persistedAssistantContent {
+	for _, block := range persistedContent {
 		if text, ok := fantasy.AsContentType[fantasy.TextContent](block); ok {
 			if strings.Contains(text.Text, "partial assistant output") {
 				foundText = true
@@ -174,23 +167,20 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 				strings.Contains(toolCall.Input, `"path":"main.go"`) {
 				foundToolCall = true
 			}
+			continue
+		}
+		if toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok {
+			if toolResult.ToolCallID == "interrupt-tool-1" &&
+				toolResult.ToolName == "read_file" {
+				_, isErr := toolResult.Result.(fantasy.ToolResultOutputContentError)
+				require.True(t, isErr, "interrupted tool result should be an error")
+				foundToolResult = true
+			}
 		}
 	}
 	require.True(t, foundText)
 	require.True(t, foundToolCall)
-
-	require.Len(t, persistedToolResults, 1)
-	require.Equal(t, "interrupt-tool-1", persistedToolResults[0].ToolCallID)
-	require.Equal(t, "read_file", persistedToolResults[0].ToolName)
-	require.True(t, persistedToolResults[0].IsError)
-
-	resultMap, ok := persistedToolResults[0].Result.(map[string]any)
-	require.True(t, ok)
-	require.Equal(t, "interrupted", resultMap["status"])
-
-	errorText, ok := resultMap["error"].(string)
-	require.True(t, ok)
-	require.Contains(t, strings.ToLower(errorText), "interrupted")
+	require.True(t, foundToolResult)
 }
 
 type loopTestModel struct {
