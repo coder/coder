@@ -8,7 +8,7 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API, withDefaultFeatures } from "api/api";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
@@ -131,14 +131,19 @@ describe("TemplateSettingsPage", () => {
 		);
 		await fillAndSubmitForm(validFormValues);
 		await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
-		const form = await screen.findByRole("form", {
-			name: /template settings/i,
-		});
-		expect(
-			await within(form).findByText(
-				"This value is already in use and should be unique.",
-			),
-		).toBeInTheDocument();
+
+		const nameField = await screen.findByLabelText("Name");
+
+		expect(nameField).toHaveAttribute("aria-invalid", "true");
+		expect(nameField).toHaveAttribute("aria-errormessage", "name-helper-text");
+
+		const helperTextAndToast = await screen.findAllByText(
+			"This value is already in use and should be unique.",
+		);
+
+		// The error message should be shown both as helper text for the field and
+		// in a toast notification
+		expect(helperTextAndToast).toHaveLength(2);
 	});
 
 	it("allows a description of 128 chars", () => {

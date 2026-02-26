@@ -293,10 +293,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							helperText: (
 								<DefaultTTLHelperText ttl={form.values.default_ttl_ms} />
 							),
+							inputProps: { min: 0, step: 1 },
 						})}
 						disabled={isSubmitting}
 						fullWidth
-						inputProps={{ min: 0, step: 1 }}
 						label="Default autostop (hours)"
 						type="number"
 					/>
@@ -309,10 +309,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 									defaultTTL={form.values.default_ttl_ms}
 								/>
 							),
+							inputProps: { min: 0, step: 1 },
 						})}
 						disabled={isSubmitting || !form.values.default_ttl_ms}
 						fullWidth
-						inputProps={{ min: 0, step: 1 }}
 						label="Activity bump (hours)"
 						type="number"
 					/>
@@ -354,6 +354,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 										weeks={form.values.autostop_requirement_weeks}
 									/>
 								),
+								inputProps: { min: 1, max: 16, step: 1 },
 							})}
 							disabled={
 								isSubmitting ||
@@ -362,7 +363,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 								)
 							}
 							fullWidth
-							inputProps={{ min: 1, max: 16, step: 1 }}
 							label="Weeks between required stops"
 							type="number"
 						/>

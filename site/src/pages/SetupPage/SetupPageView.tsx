@@ -301,14 +301,13 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								renderInput={(params) => (
 									<TextField
 										{...params}
-										{...getFieldHelpers("trial_info.country")}
+										{...getFieldHelpers("trial_info.country", {
+											inputProps: params.inputProps,
+										})}
 										id="trial_info.country"
 										name="trial_info.country"
 										label={Language.countryLabel}
 										fullWidth
-										inputProps={{
-											...params.inputProps,
-										}}
 										InputLabelProps={{ shrink: true }}
 									/>
 								)}

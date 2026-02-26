@@ -4,6 +4,7 @@ import type {
 	ChangeEvent,
 	ChangeEventHandler,
 	FocusEventHandler,
+	InputHTMLAttributes,
 	ReactNode,
 } from "react";
 import * as Yup from "yup";
@@ -36,6 +37,13 @@ interface GetFormHelperOptions {
 	 * over the limit. Zero and negative values will be ignored.
 	 */
 	maxLength?: number;
+	/**
+	 * inputProps are merged with the computed aria-errormessage attribute and
+	 * returned as inputProps on the FormHelpers object. Use this instead of
+	 * passing inputProps directly to the input so that aria-errormessage is
+	 * not overridden.
+	 */
+	inputProps?: InputHTMLAttributes<HTMLInputElement>;
 }
 
 export interface FormHelpers {
@@ -46,6 +54,7 @@ export interface FormHelpers {
 	value?: string | number;
 	error: boolean;
 	helperText?: ReactNode;
+	inputProps?: InputHTMLAttributes<HTMLInputElement>;
 }
 
 export const getFormHelpers =
@@ -93,11 +102,22 @@ export const getFormHelpers =
 		const errorToDisplay =
 			(touched && apiError) || lengthError || (touched && formError);
 
+		const inputProps = errorToDisplay
+			? {
+					...options.inputProps,
+					// MUI sets id="${fieldName}-helper-text" on the FormHelperText
+					// element when the TextField has id="${fieldName}", so this value
+					// is always in sync with the helper text that displays the error.
+					"aria-errormessage": `${fieldName}-helper-text`,
+				}
+			: options.inputProps;
+
 		return {
 			...fieldProps,
 			id: fieldName.toString(),
 			error: Boolean(errorToDisplay),
 			helperText: errorToDisplay || helperText,
+			inputProps,
 		};
 	};
 

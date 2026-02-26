@@ -99,14 +99,15 @@ export const AppearanceSettingsPageView: FC<
 				button={!isEntitled && <Button disabled>Submit</Button>}
 			>
 				<TextField
-					{...applicationNameFieldHelpers("application_name")}
+					{...applicationNameFieldHelpers("application_name", {
+						inputProps: {
+							"aria-label": "Application name",
+						},
+					})}
 					defaultValue={appearance.application_name}
 					fullWidth
 					placeholder='Leave empty to display "Coder".'
 					disabled={!isEntitled}
-					inputProps={{
-						"aria-label": "Application name",
-					}}
 				/>
 			</Fieldset>
 
@@ -123,7 +124,11 @@ export const AppearanceSettingsPageView: FC<
 				button={!isEntitled && <Button disabled>Submit</Button>}
 			>
 				<TextField
-					{...logoFieldHelpers("logo_url")}
+					{...logoFieldHelpers("logo_url", {
+						inputProps: {
+							"aria-label": "Logo URL",
+						},
+					})}
 					defaultValue={appearance.logo_url}
 					fullWidth
 					placeholder="Leave empty to display the Coder logo."
@@ -155,9 +160,6 @@ export const AppearanceSettingsPageView: FC<
 								/>
 							</InputAdornment>
 						),
-					}}
-					inputProps={{
-						"aria-label": "Logo URL",
 					}}
 				/>
 			</Fieldset>

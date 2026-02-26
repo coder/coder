@@ -418,6 +418,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 						{...formHelpers("ttl", {
 							helperText: ttlShutdownAt(form.values.ttl),
 							backendFieldName: "ttl_ms",
+							inputProps: { min: 0, step: "any", maxLength: 5 },
 						})}
 						// disabled if autostop disabled at template level or
 						// if autostop feature is toggled off via the switch above
@@ -426,7 +427,6 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 							!template.allow_user_autostop ||
 							!form.values.autostopEnabled
 						}
-						inputProps={{ min: 0, step: "any", maxLength: 5 }}
 						label={Language.ttlLabel}
 						type="number"
 						fullWidth

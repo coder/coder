@@ -94,6 +94,14 @@ describe("form util functions", () => {
 				expect(touchedGoodResult.helperText).toBeUndefined();
 				expect(touchedBadResult.helperText).toEqual("oops!");
 			});
+			it('sets aria-errormessage to "{field name}-error" if touched and invalid', () => {
+				expect(untouchedGoodResult.inputProps).toBeUndefined();
+				expect(untouchedBadResult.inputProps).toBeUndefined();
+				expect(touchedGoodResult.inputProps).toBeUndefined();
+				expect(touchedBadResult.inputProps).toEqual({
+					"aria-errormessage": "touchedBadField-helper-text",
+				});
+			});
 			it("allows short entries", () => {
 				expect(maxLengthOk.error).toBe(false);
 				expect(maxLengthOk.helperText).toBeUndefined();
@@ -105,6 +113,9 @@ describe("form util functions", () => {
 			it("reports an error for entries that are too long", () => {
 				expect(maxLengthOver.error).toBe(true);
 				expect(maxLengthOver.helperText).toBeDefined();
+				expect(maxLengthOver.inputProps).toEqual({
+					"aria-errormessage": "maxLengthOver-helper-text",
+				});
 			});
 		});
 		describe("with API errors", () => {
@@ -123,12 +134,18 @@ describe("form util functions", () => {
 				const result = getFieldHelpers("touchedGoodField");
 				expect(result.error).toBeTruthy();
 				expect(result.helperText).toEqual("API error!");
+				expect(result.inputProps).toEqual({
+					"aria-errormessage": "touchedGoodField-helper-text",
+				});
 			});
 			it("shows an error if there is only a validation error", () => {
 				const getFieldHelpers = getFormHelpers<TestType>(form, {});
 				const result = getFieldHelpers("touchedBadField");
 				expect(result.error).toBeTruthy();
 				expect(result.helperText).toEqual("oops!");
+				expect(result.inputProps).toEqual({
+					"aria-errormessage": "touchedBadField-helper-text",
+				});
 			});
 			it("shows the API error if both are present", () => {
 				const getFieldHelpers = getFormHelpers<TestType>(
@@ -145,6 +162,9 @@ describe("form util functions", () => {
 				const result = getFieldHelpers("touchedBadField");
 				expect(result.error).toBeTruthy();
 				expect(result.helperText).toEqual("API error!");
+				expect(result.inputProps).toEqual({
+					"aria-errormessage": "touchedBadField-helper-text",
+				});
 			});
 		});
 	});

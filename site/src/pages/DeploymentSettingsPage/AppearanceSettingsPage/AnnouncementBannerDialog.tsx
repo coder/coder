@@ -56,13 +56,13 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 						<TextField
 							{...bannerFieldHelpers("message", {
 								helperText: "Markdown bold, italics, and links are supported.",
+								inputProps: {
+									"aria-label": "Message",
+									placeholder: "Enter a message for the banner",
+								},
 							})}
 							fullWidth
 							multiline
-							inputProps={{
-								"aria-label": "Message",
-								placeholder: "Enter a message for the banner",
-							}}
 						/>
 					</div>
 					<div>
