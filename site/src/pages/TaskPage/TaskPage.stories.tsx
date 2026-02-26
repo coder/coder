@@ -136,6 +136,22 @@ const MockTaskLogsResponse: TaskLogsResponse = {
 	snapshot_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
 };
 
+const getFollowUpDialog = async (canvasElement: HTMLElement) => {
+	const body = within(canvasElement.ownerDocument.body);
+	const dialogs = await body.findAllByRole("dialog", {
+		name: /send follow-up message/i,
+	});
+	// Radix dialog content can linger during transitions; use the newest instance.
+	const dialog = dialogs.at(-1);
+	if (!dialog) {
+		throw new Error("Follow-up dialog was not found.");
+	}
+	return {
+		body,
+		dialog: within(dialog),
+	};
+};
+
 const meta: Meta<typeof TaskPage> = {
 	title: "pages/TaskPage",
 	component: TaskPage,
@@ -424,16 +440,16 @@ export const TaskFollowUpAutoResumeSuccess: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
+		const { dialog } = await getFollowUpDialog(canvasElement);
 		await userEvent.type(
-			await body.findByLabelText(/follow-up message/i),
+			await dialog.findByLabelText(/follow-up message/i),
 			"Continue from where you left off",
 		);
 		await userEvent.click(
-			await body.findByRole("button", { name: /resume and send message/i }),
+			await dialog.findByRole("button", { name: /send follow-up/i }),
 		);
 
 		await waitFor(() => {
@@ -449,7 +465,10 @@ export const TaskFollowUpActiveTaskDirectSend: Story = {
 			...MockTask,
 			status: "active",
 		});
-		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(MockWorkspace);
+		// Keep paused UI visible (for Follow-up button) while simulating an already-active task.
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
 		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 		spyOn(API, "sendTaskInput").mockResolvedValue();
 		spyOn(API, "resumeTask").mockResolvedValue({
@@ -458,16 +477,16 @@ export const TaskFollowUpActiveTaskDirectSend: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
+		const { dialog } = await getFollowUpDialog(canvasElement);
 		await userEvent.type(
-			await body.findByLabelText(/follow-up message/i),
+			await dialog.findByLabelText(/follow-up message/i),
 			"Please continue with the next step",
 		);
 		await userEvent.click(
-			await body.findByRole("button", { name: /resume and send message/i }),
+			await dialog.findByRole("button", { name: /send follow-up/i }),
 		);
 
 		await waitFor(() => {
@@ -493,8 +512,9 @@ export const TaskFollowUpEmptyMessageDisabled: Story = {
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
-		const submit = await canvas.findByRole("button", {
-			name: /resume and send message/i,
+		const { dialog } = await getFollowUpDialog(canvasElement);
+		const submit = await dialog.findByRole("button", {
+			name: /send follow-up/i,
 		});
 		expect(submit).toBeDisabled();
 	},
@@ -521,21 +541,26 @@ export const TaskFollowUpShowsResumingProgress: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
-		const messageInput = await body.findByLabelText(/follow-up message/i);
+		const { body, dialog } = await getFollowUpDialog(canvasElement);
+		const messageInput = await dialog.findByLabelText(/follow-up message/i);
 		await userEvent.type(messageInput, "Continue task");
 		await userEvent.click(
-			await body.findByRole("button", { name: /resume and send message/i }),
+			await dialog.findByRole("button", { name: /send follow-up/i }),
 		);
 
 		await waitFor(async () => {
+			expect(
+				body.queryByRole("heading", { name: /send follow-up message/i }),
+			).not.toBeInTheDocument();
 			expect(await canvas.findByText("Resuming task...")).toBeInTheDocument();
-			expect(await canvas.findByText(/Build status:/i)).toBeInTheDocument();
-			expect(messageInput).toBeDisabled();
-			expect(messageInput).toHaveValue("Continue task");
+			const pendingLabel = await canvas.findByText(/Pending follow-up:/i);
+			expect(pendingLabel.parentElement).toHaveTextContent("Continue task");
+			expect(
+				await canvas.findByText(/clears the pending follow-up message/i),
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -563,21 +588,25 @@ export const TaskFollowUpRetrySendFailure: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
-		const messageInput = await body.findByLabelText(/follow-up message/i);
+		const { dialog } = await getFollowUpDialog(canvasElement);
+		const messageInput = await dialog.findByLabelText(/follow-up message/i);
 		await userEvent.type(messageInput, "Please continue");
 		await userEvent.click(
-			await body.findByRole("button", { name: /resume and send message/i }),
+			await dialog.findByRole("button", { name: /send follow-up/i }),
 		);
 
 		await waitFor(async () => {
 			expect(
 				await canvas.findByText("Failed to send message"),
 			).toBeInTheDocument();
-			expect(messageInput).toHaveValue("Please continue");
+			const pendingLabel = await canvas.findByText(/Pending follow-up:/i);
+			expect(pendingLabel.parentElement).toHaveTextContent("Please continue");
+			expect(
+				await canvas.findByRole("button", { name: /follow-up/i }),
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -617,14 +646,14 @@ export const TaskFollowUpResumeBuildFailure: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
-		const messageInput = await body.findByLabelText(/follow-up message/i);
+		const { dialog } = await getFollowUpDialog(canvasElement);
+		const messageInput = await dialog.findByLabelText(/follow-up message/i);
 		await userEvent.type(messageInput, "Continue task");
 		await userEvent.click(
-			await body.findByRole("button", { name: /resume and send message/i }),
+			await dialog.findByRole("button", { name: /send follow-up/i }),
 		);
 
 		await waitFor(async () => {
@@ -633,7 +662,8 @@ export const TaskFollowUpResumeBuildFailure: Story = {
 					"Failed to resume task because the workspace build did not complete successfully.",
 				),
 			).toBeInTheDocument();
-			expect(messageInput).toHaveValue("Continue task");
+			const pendingLabel = await canvas.findByText(/Pending follow-up:/i);
+			expect(pendingLabel.parentElement).toHaveTextContent("Continue task");
 		});
 	},
 };
@@ -644,7 +674,10 @@ export const TaskFollowUpNon409SendFailure: Story = {
 			...MockTask,
 			status: "active",
 		});
-		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(MockWorkspace);
+		// Keep paused UI visible (for Follow-up button) while simulating active-task send behavior.
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
 		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 		spyOn(API, "sendTaskInput").mockRejectedValue(
 			new Error("Failed to send message"),
@@ -652,21 +685,25 @@ export const TaskFollowUpNon409SendFailure: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(
 			await canvas.findByRole("button", { name: /follow-up/i }),
 		);
-		const messageInput = await body.findByLabelText(/follow-up message/i);
+		const { dialog } = await getFollowUpDialog(canvasElement);
+		const messageInput = await dialog.findByLabelText(/follow-up message/i);
 		await userEvent.type(messageInput, "Continue task");
 		await userEvent.click(
-			await body.findByRole("button", { name: /resume and send message/i }),
+			await dialog.findByRole("button", { name: /send follow-up/i }),
 		);
 
 		await waitFor(async () => {
 			expect(
 				await canvas.findByText("Failed to send message"),
 			).toBeInTheDocument();
-			expect(messageInput).toHaveValue("Continue task");
+			const pendingLabel = await canvas.findByText(/Pending follow-up:/i);
+			expect(pendingLabel.parentElement).toHaveTextContent("Continue task");
+			expect(
+				await canvas.findByRole("button", { name: /follow-up/i }),
+			).toBeInTheDocument();
 		});
 	},
 };

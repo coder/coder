@@ -2,7 +2,10 @@ import { API } from "api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
 import { pauseTask, resumeTask, taskLogs } from "api/queries/tasks";
 import { template as templateQueryOptions } from "api/queries/templates";
-import { workspaceByOwnerAndName } from "api/queries/workspaces";
+import {
+	workspaceByOwnerAndName,
+	workspaceByOwnerAndNameKey,
+} from "api/queries/workspaces";
 import type {
 	Task,
 	TaskLogEntry,
@@ -37,6 +40,7 @@ import {
 	type PropsWithChildren,
 	type ReactNode,
 	useCallback,
+	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -59,6 +63,8 @@ import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskApps } from "./TaskApps";
 import { TaskTopbar } from "./TaskTopbar";
 
+type FollowUpStage = "idle" | "resuming" | "waitingForActive" | "sending" | "error";
+
 const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<div className="flex items-stretch h-full">
@@ -71,10 +77,26 @@ const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 const TaskPage = () => {
 	const [isModifyDialogOpen, setIsModifyDialogOpen] = useState(false);
 	const [isFollowUpDialogOpen, setIsFollowUpDialogOpen] = useState(false);
+	const [followUpDraft, setFollowUpDraft] = useState("");
+	const [followUpStage, setFollowUpStage] = useState<FollowUpStage>("idle");
+	const [followUpError, setFollowUpError] = useState<string>();
 	const { taskId, username } = useParams() as {
 		taskId: string;
 		username: string;
 	};
+	const queryClient = useQueryClient();
+	const resumeFollowUpMutation = useMutation({
+		mutationFn: () => API.resumeTask(username, taskId),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+		},
+	});
+	const sendFollowUpMutation = useMutation({
+		mutationFn: (input: string) => API.sendTaskInput(username, taskId, input),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+		},
+	});
 	const { data: task, ...taskQuery } = useQuery({
 		queryKey: ["tasks", username, taskId],
 		queryFn: () => API.getTask(username, taskId),
@@ -92,6 +114,111 @@ const TaskPage = () => {
 	const refetch = taskQuery.error ? taskQuery.refetch : workspaceQuery.refetch;
 	const error = taskQuery.error ?? workspaceQuery.error;
 	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
+
+	useEffect(() => {
+		// Reset in-memory follow-up state when navigating to another task.
+		setFollowUpDraft("");
+		setFollowUpStage("idle");
+		setFollowUpError(undefined);
+	}, [taskId, username]);
+
+	const startSendingFollowUp = useCallback(
+		async (message: string) => {
+			setFollowUpStage("sending");
+			try {
+				await sendFollowUpMutation.mutateAsync(message);
+				setFollowUpDraft("");
+				setFollowUpError(undefined);
+				setFollowUpStage("idle");
+			} catch (error) {
+				setFollowUpError(getErrorMessage(error, "Failed to send message."));
+				setFollowUpStage("error");
+			}
+		},
+		[sendFollowUpMutation],
+	);
+
+	const queueFollowUp = useCallback(
+		async (message: string) => {
+			const trimmedMessage = message.trim();
+			if (!trimmedMessage || !task || !workspace) {
+				return;
+			}
+
+			setFollowUpDraft(trimmedMessage);
+			setFollowUpError(undefined);
+
+			if (task.status === "active") {
+				void startSendingFollowUp(trimmedMessage);
+				return;
+			}
+
+			if (followUpStage === "resuming" || followUpStage === "waitingForActive") {
+				return;
+			}
+
+			setFollowUpStage("resuming");
+			try {
+				await resumeFollowUpMutation.mutateAsync();
+				await queryClient.invalidateQueries({
+					queryKey: ["tasks", task.owner_name, task.id],
+				});
+				await queryClient.invalidateQueries({
+					queryKey: workspaceByOwnerAndNameKey(
+						workspace.owner_name,
+						workspace.name,
+					),
+				});
+				setFollowUpStage("waitingForActive");
+			} catch (error) {
+				setFollowUpError(getErrorMessage(error, "Failed to resume task."));
+				setFollowUpStage("error");
+			}
+		},
+		[
+			followUpStage,
+			queryClient,
+			resumeFollowUpMutation,
+			startSendingFollowUp,
+			task,
+			workspace,
+		],
+	);
+
+	const openFollowUpDialog = useCallback(() => {
+		setIsFollowUpDialogOpen(true);
+	}, []);
+
+	useEffect(() => {
+		if (
+			followUpStage !== "resuming" &&
+			followUpStage !== "waitingForActive"
+		) {
+			return;
+		}
+		if (
+			workspace?.latest_build.status === "failed" ||
+			workspace?.latest_build.status === "canceled"
+		) {
+			setFollowUpError(
+				"Failed to resume task because the workspace build did not complete successfully.",
+			);
+			setFollowUpStage("error");
+		}
+	}, [followUpStage, workspace?.latest_build.status]);
+
+	useEffect(() => {
+		if (!task || !followUpDraft) {
+			return;
+		}
+		if (task.status !== "active") {
+			return;
+		}
+		if (followUpStage !== "waitingForActive") {
+			return;
+		}
+		void startSendingFollowUp(followUpDraft);
+	}, [followUpDraft, followUpStage, startSendingFollowUp, task]);
 
 	if (error) {
 		return (
@@ -161,7 +288,10 @@ const TaskPage = () => {
 				task={task}
 				workspace={workspace}
 				onEditPrompt={() => setIsModifyDialogOpen(true)}
-				onAddFollowUp={() => setIsFollowUpDialogOpen(true)}
+				onAddFollowUp={openFollowUpDialog}
+				followUpDraft={followUpDraft}
+				followUpStage={followUpStage}
+				followUpError={followUpError}
 			/>
 		);
 	} else if (workspace.latest_build.status === "canceling") {
@@ -230,9 +360,12 @@ const TaskPage = () => {
 			/>
 			<FollowUpDialog
 				task={task}
-				workspace={workspace}
+				initialMessage={followUpDraft}
 				open={isFollowUpDialogOpen}
 				onOpenChange={setIsFollowUpDialogOpen}
+				onSubmit={(message) => {
+					void queueFollowUp(message);
+				}}
 			/>
 		</TaskPageLayout>
 	);
@@ -447,6 +580,9 @@ type TaskPausedProps = {
 	workspace: Workspace;
 	onEditPrompt: () => void;
 	onAddFollowUp: () => void;
+	followUpDraft: string;
+	followUpStage: FollowUpStage;
+	followUpError?: string;
 };
 
 const TaskPaused: FC<TaskPausedProps> = ({
@@ -454,6 +590,9 @@ const TaskPaused: FC<TaskPausedProps> = ({
 	workspace,
 	onEditPrompt,
 	onAddFollowUp,
+	followUpDraft,
+	followUpStage,
+	followUpError,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -485,6 +624,19 @@ const TaskPaused: FC<TaskPausedProps> = ({
 	const apiError = isApiError(resumeMutation.error)
 		? resumeMutation.error
 		: undefined;
+	const hasPendingFollowUp = followUpDraft.trim().length > 0;
+	const isFollowUpSending =
+		followUpStage === "resuming" ||
+		followUpStage === "waitingForActive" ||
+		followUpStage === "sending";
+	const followUpStatusLabel =
+		followUpStage === "resuming"
+			? "Resuming task..."
+			: followUpStage === "waitingForActive"
+				? "Waiting for the task to become active..."
+				: followUpStage === "sending"
+					? "Sending follow-up message..."
+					: undefined;
 
 	return (
 		<>
@@ -509,21 +661,51 @@ const TaskPaused: FC<TaskPausedProps> = ({
 					)
 				}
 				actions={
-					<div className="flex flex-row gap-4">
-						<Button
-							size="sm"
-							disabled={isWaitingForStart}
-							onClick={() => resumeMutation.mutate()}
-						>
-							<Spinner loading={isWaitingForStart} />
-							Resume
-						</Button>
-						<Button size="sm" variant="outline" onClick={onEditPrompt}>
-							Edit prompt
-						</Button>
-						<Button size="sm" variant="outline" onClick={onAddFollowUp}>
-							Follow-up
-						</Button>
+					<div className="flex flex-col gap-3 items-center">
+						<div className="flex flex-row gap-4">
+							<Button
+								size="sm"
+								disabled={isWaitingForStart}
+								onClick={() => resumeMutation.mutate()}
+							>
+								<Spinner loading={isWaitingForStart} />
+								Resume
+							</Button>
+							<Button size="sm" variant="outline" onClick={onEditPrompt}>
+								Edit prompt
+							</Button>
+							<Button size="sm" variant="outline" onClick={onAddFollowUp}>
+								Follow-up
+							</Button>
+						</div>
+
+						{hasPendingFollowUp && (
+							<div className="w-full max-w-xl rounded-md border border-border p-3 text-left text-sm">
+								<p className="m-0 text-content-primary">
+									<strong>Pending follow-up:</strong> {followUpDraft}
+								</p>
+								{followUpStatusLabel && (
+									<p className="m-0 mt-2 text-content-secondary flex items-center gap-2">
+										<Spinner loading />
+										{followUpStatusLabel}
+									</p>
+								)}
+								{followUpError && (
+									<p className="m-0 mt-2 text-content-destructive">
+										{followUpError}
+									</p>
+								)}
+								<p className="m-0 mt-2 text-content-secondary">
+									Refreshing or leaving this page clears the pending follow-up
+									message.
+								</p>
+							</div>
+						)}
+						{!hasPendingFollowUp && isFollowUpSending && (
+							<p className="m-0 text-content-secondary text-sm">
+								<Spinner loading /> Processing follow-up message...
+							</p>
+						)}
 					</div>
 				}
 			/>
