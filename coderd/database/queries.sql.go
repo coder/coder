@@ -404,14 +404,18 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 }
 
 const getAIBridgeInterceptionByToolCallID = `-- name: GetAIBridgeInterceptionByToolCallID :many
-SELECT interception_id FROM aibridge_tool_usages
+SELECT interception_id
+FROM aibridge_tool_usages
 WHERE provider_tool_call_id = $1
-ORDER BY created_at DESC
+GROUP BY interception_id
+ORDER BY MAX(created_at) DESC
+LIMIT 3
 `
 
 // Retrieve the interception ID(s) of a given tool call ID. It's *possible*
 // that the provider_tool_call_id may not be unique, therefore we retrieve all
 // matches and deal with this in application code.
+// Just to limit output in case of unexpected volumes.
 func (q *sqlQuerier) GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, getAIBridgeInterceptionByToolCallID, toolCallID)
 	if err != nil {

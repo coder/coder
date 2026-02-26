@@ -176,6 +176,7 @@ type sqlcQuerier interface {
 	// Retrieve the interception ID(s) of a given tool call ID. It's *possible*
 	// that the provider_tool_call_id may not be unique, therefore we retrieve all
 	// matches and deal with this in application code.
+	// Just to limit output in case of unexpected volumes.
 	GetAIBridgeInterceptionByToolCallID(ctx context.Context, toolCallID sql.NullString) ([]uuid.UUID, error)
 	GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error)
 	GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error)

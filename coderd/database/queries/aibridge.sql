@@ -18,10 +18,13 @@ RETURNING *;
 -- Retrieve the interception ID(s) of a given tool call ID. It's *possible*
 -- that the provider_tool_call_id may not be unique, therefore we retrieve all
 -- matches and deal with this in application code.
-SELECT DISTINCT interception_id FROM aibridge_tool_usages
+SELECT interception_id
+FROM aibridge_tool_usages
 WHERE provider_tool_call_id = @tool_call_id
-ORDER BY created_at DESC
-LIMIT 10; -- Just to protect against unexpected volumes.
+GROUP BY interception_id
+ORDER BY MAX(created_at) DESC
+-- Just to limit output in case of unexpected volumes.
+LIMIT 3;
 
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (

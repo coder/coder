@@ -143,7 +143,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	// Look up the parent interception using the correlating tool call ID.
 	var parentID uuid.NullUUID
 	if toolCallID := in.GetCorrelatingToolCallId(); toolCallID != "" {
-		parentID = s.findParentInterceptionID(ctx, intcID, toolCallID)
+		parentID = s.findParentInterceptionID(ctx, toolCallID)
 	}
 
 	if s.structuredLogging {
@@ -353,7 +353,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 // findParentInterceptionID looks up the parent interception by finding
 // which interception recorded a tool usage with the given tool call ID.
 // If no match is found or there's ambiguity, it returns a null UUID.
-func (s *Server) findParentInterceptionID(ctx context.Context, selfID uuid.UUID, toolCallID string) uuid.NullUUID {
+func (s *Server) findParentInterceptionID(ctx context.Context, toolCallID string) uuid.NullUUID {
 	interceptionIDs, err := s.store.GetAIBridgeInterceptionByToolCallID(ctx, sql.NullString{String: toolCallID, Valid: true})
 	if err != nil {
 		s.logger.Warn(ctx, "failed to look up parent interception by tool call ID",
