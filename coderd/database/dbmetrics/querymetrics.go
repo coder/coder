@@ -1135,6 +1135,14 @@ func (m queryMetricsStore) GetDERPMeshKey(ctx context.Context) (string, error) {
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDefaultChatModelConfig(ctx)
+	m.queryLatencies.WithLabelValues("GetDefaultChatModelConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDefaultChatModelConfig").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetDefaultOrganization(ctx context.Context) (database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDefaultOrganization(ctx)

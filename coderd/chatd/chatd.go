@@ -1738,71 +1738,13 @@ func (p *Server) resolveChatContextCompressionConfig(
 		ThresholdPercent: defaultContextCompressionThresholdPercent,
 	}
 
-	chatConfig, err := parseChatModelConfig(nil)
+	dbConfig, err := p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return config, nil
-	}
-	latestConfig, found, latestErr := p.resolveLatestMessageModelConfig(ctx, chat)
-	if latestErr != nil {
-		return config, xerrors.Errorf("resolve latest message model config: %w", latestErr)
-	}
-	if found {
-		chatConfig = applyFallbackChatModelConfig(chatConfig, latestConfig)
+		return config, xerrors.Errorf("resolve model config: %w", err)
 	}
 
-	if chatConfig.ContextLimit > 0 {
-		config.ContextLimit = chatConfig.ContextLimit
-	}
-	modelName := strings.TrimSpace(chatConfig.Model)
-	providerHint := strings.TrimSpace(chatConfig.Provider)
-	if modelName == "" {
-		keys, resolveKeysErr := p.resolveProviderAPIKeys(ctx)
-		if resolveKeysErr != nil {
-			return config, nil
-		}
-
-		fallbackConfig, fallbackErr := p.resolveFallbackChatModelConfig(
-			ctx,
-			keys,
-			providerHint,
-		)
-		if fallbackErr != nil {
-			return config, nil
-		}
-
-		if config.ContextLimit <= 0 {
-			config.ContextLimit = fallbackConfig.ContextLimit
-		}
-		config.ThresholdPercent = fallbackConfig.CompressionThreshold
-		return config, nil
-	}
-
-	provider, modelID, err := chatprovider.ResolveModelWithProviderHint(
-		modelName,
-		providerHint,
-	)
-	if err != nil {
-		return config, nil
-	}
-
-	modelConfig, err := p.db.GetChatModelConfigByProviderAndModel(
-		ctx,
-		database.GetChatModelConfigByProviderAndModelParams{
-			Provider: provider,
-			Model:    modelID,
-		},
-	)
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return config, nil
-		}
-		return config, xerrors.Errorf("load model compression config: %w", err)
-	}
-
-	if config.ContextLimit <= 0 {
-		config.ContextLimit = modelConfig.ContextLimit
-	}
-	config.ThresholdPercent = modelConfig.CompressionThreshold
+	config.ContextLimit = dbConfig.ContextLimit
+	config.ThresholdPercent = dbConfig.CompressionThreshold
 	return config, nil
 }
 
@@ -1941,179 +1883,77 @@ func (p *Server) resolveChatModel(
 	ctx context.Context,
 	chat database.Chat,
 ) (fantasy.LanguageModel, chatModelConfig, error) {
-	config, parseErr := parseChatModelConfig(nil)
-	if parseErr != nil {
-		config = chatModelConfig{}
-	}
-	latestConfig, found, latestErr := p.resolveLatestMessageModelConfig(ctx, chat)
-	if latestErr != nil {
+	dbConfig, err := p.resolveModelConfig(ctx, chat)
+	if err != nil {
 		return nil, chatModelConfig{}, xerrors.Errorf(
-			"resolve latest message model config: %w",
-			latestErr,
+			"resolve model config: %w", err,
 		)
 	}
-	if found {
-		config = applyFallbackChatModelConfig(config, latestConfig)
-	}
+
+	config := chatModelConfigFromDB(dbConfig)
 
 	keys, err := p.resolveProviderAPIKeys(ctx)
 	if err != nil {
 		return nil, chatModelConfig{}, xerrors.Errorf(
-			"resolve provider API keys: %w",
-			err,
+			"resolve provider API keys: %w", err,
 		)
 	}
-	model, config, err := p.modelFromChat(ctx, config, keys)
+
+	model, err := modelFromConfig(config, keys)
 	if err != nil {
-		return nil, chatModelConfig{}, xerrors.Errorf("resolve model: %w", err)
+		return nil, chatModelConfig{}, xerrors.Errorf(
+			"create model: %w", err,
+		)
 	}
 	return model, config, nil
 }
 
-func (p *Server) modelFromChat(
-	ctx context.Context,
-	config chatModelConfig,
-	providerKeys chatprovider.ProviderAPIKeys,
-) (fantasy.LanguageModel, chatModelConfig, error) {
-	if strings.TrimSpace(config.Model) == "" {
-		fallbackConfig, fallbackErr := p.resolveFallbackChatModelConfig(
-			ctx,
-			providerKeys,
-			config.Provider,
-		)
-		if fallbackErr != nil {
-			return nil, chatModelConfig{}, fallbackErr
-		}
-		config = applyFallbackChatModelConfig(config, fallbackConfig)
-	}
-	config = p.resolveModelConfigIDByReference(ctx, config)
-
-	model, err := modelFromConfig(config, providerKeys)
-	if err != nil {
-		return nil, chatModelConfig{}, err
-	}
-	return model, config, nil
-}
-
-func applyFallbackChatModelConfig(
-	config chatModelConfig,
-	fallbackConfig database.ChatModelConfig,
-) chatModelConfig {
-	config.Provider = fallbackConfig.Provider
-	config.Model = fallbackConfig.Model
-	if config.ModelConfigID == nil {
-		config.ModelConfigID = uuidPointer(fallbackConfig.ID)
-	}
-
-	defaults, err := parseChatModelConfig(fallbackConfig.Options)
-	if err != nil {
-		return config
-	}
-
-	chatprovider.MergeMissingCallConfig(
-		&config.ChatModelCallConfig,
-		defaults.ChatModelCallConfig,
-	)
-	return config
-}
-
-func (p *Server) resolveFallbackChatModelConfig(
-	ctx context.Context,
-	providerKeys chatprovider.ProviderAPIKeys,
-	providerHint string,
-) (database.ChatModelConfig, error) {
-	modelConfigs, err := p.db.GetEnabledChatModelConfigs(ctx)
-	if err != nil {
-		return database.ChatModelConfig{}, xerrors.Errorf(
-			"load enabled chat model configs: %w",
-			err,
-		)
-	}
-
-	normalizedProviderHint := chatprovider.NormalizeProvider(providerHint)
-	if strings.TrimSpace(providerHint) != "" && normalizedProviderHint == "" {
-		return database.ChatModelConfig{}, xerrors.Errorf(
-			"unknown provider %q in chat model config",
-			providerHint,
-		)
-	}
-
-	for _, modelConfig := range modelConfigs {
-		provider := chatprovider.NormalizeProvider(modelConfig.Provider)
-		if provider == "" {
-			continue
-		}
-		if normalizedProviderHint != "" && provider != normalizedProviderHint {
-			continue
-		}
-		if providerKeys.APIKey(provider) == "" {
-			continue
-		}
-		return modelConfig, nil
-	}
-
-	if normalizedProviderHint != "" {
-		return database.ChatModelConfig{}, xerrors.Errorf(
-			"chat model is not configured and no enabled models with API keys are available for provider %q",
-			normalizedProviderHint,
-		)
-	}
-
-	return database.ChatModelConfig{}, xerrors.New(
-		"chat model is not configured and no enabled models with API keys are available",
-	)
-}
-
-func (p *Server) resolveLatestMessageModelConfig(
+// resolveModelConfig looks up the chat's model config by its
+// LastModelConfigID. If the referenced config no longer exists
+// (e.g. it was deleted), it falls back to the default model
+// config. Returns an error when no usable config is available.
+func (p *Server) resolveModelConfig(
 	ctx context.Context,
 	chat database.Chat,
-) (database.ChatModelConfig, bool, error) {
-	if chat.LastModelConfigID == uuid.Nil {
-		return database.ChatModelConfig{}, false, xerrors.New("chat model config id is required")
-	}
-
-	modelConfig, err := p.db.GetChatModelConfigByID(ctx, chat.LastModelConfigID)
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return database.ChatModelConfig{}, false, xerrors.Errorf(
-				"chat model config %q was not found",
-				chat.LastModelConfigID,
+) (database.ChatModelConfig, error) {
+	if chat.LastModelConfigID != uuid.Nil {
+		modelConfig, err := p.db.GetChatModelConfigByID(
+			ctx, chat.LastModelConfigID,
+		)
+		if err == nil {
+			return modelConfig, nil
+		}
+		if !xerrors.Is(err, sql.ErrNoRows) {
+			return database.ChatModelConfig{}, xerrors.Errorf(
+				"get chat model config %s: %w",
+				chat.LastModelConfigID, err,
 			)
 		}
-		return database.ChatModelConfig{}, false, xerrors.Errorf("load chat model config by id: %w", err)
+		// Model config was deleted, fall through to default.
 	}
 
-	return modelConfig, true, nil
+	defaultConfig, err := p.db.GetDefaultChatModelConfig(ctx)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return database.ChatModelConfig{}, xerrors.New(
+				"no default chat model config is available",
+			)
+		}
+		return database.ChatModelConfig{}, xerrors.Errorf(
+			"get default chat model config: %w", err,
+		)
+	}
+	return defaultConfig, nil
 }
 
-func (p *Server) resolveModelConfigIDByReference(
-	ctx context.Context,
-	config chatModelConfig,
-) chatModelConfig {
-	if config.ModelConfigID != nil {
-		return config
-	}
-
-	provider, modelID, err := chatprovider.ResolveModelWithProviderHint(
-		strings.TrimSpace(config.Model),
-		strings.TrimSpace(config.Provider),
-	)
-	if err != nil {
-		return config
-	}
-
-	modelConfig, err := p.db.GetChatModelConfigByProviderAndModel(
-		ctx,
-		database.GetChatModelConfigByProviderAndModelParams{
-			Provider: provider,
-			Model:    modelID,
-		},
-	)
-	if err != nil {
-		return config
-	}
-
-	config.ModelConfigID = uuidPointer(modelConfig.ID)
+// chatModelConfigFromDB builds a chatModelConfig from a database
+// ChatModelConfig row, parsing call options from the Options JSON.
+func chatModelConfigFromDB(dbConfig database.ChatModelConfig) chatModelConfig {
+	config, _ := parseChatModelConfig(dbConfig.Options)
+	config.Provider = dbConfig.Provider
+	config.Model = dbConfig.Model
+	config.ContextLimit = dbConfig.ContextLimit
+	config.ModelConfigID = uuidPointer(dbConfig.ID)
 	return config
 }
 
@@ -2502,40 +2342,7 @@ func parseChatModelConfig(raw json.RawMessage) (chatModelConfig, error) {
 	if err := json.Unmarshal(raw, &config); err != nil {
 		return chatModelConfig{}, err
 	}
-	config.ModelConfigID = parseModelConfigID(raw)
 	return config, nil
-}
-
-func parseModelConfigID(raw json.RawMessage) *uuid.UUID {
-	if len(raw) == 0 {
-		return nil
-	}
-
-	decoded := map[string]json.RawMessage{}
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return nil
-	}
-
-	modelConfigIDRaw, ok := decoded["model_config_id"]
-	if !ok || len(modelConfigIDRaw) == 0 {
-		return nil
-	}
-
-	var modelConfigIDText string
-	if err := json.Unmarshal(modelConfigIDRaw, &modelConfigIDText); err != nil {
-		return nil
-	}
-	modelConfigIDText = strings.TrimSpace(modelConfigIDText)
-	if modelConfigIDText == "" {
-		return nil
-	}
-
-	modelConfigID, err := uuid.Parse(modelConfigIDText)
-	if err != nil || modelConfigID == uuid.Nil {
-		return nil
-	}
-
-	return uuidPointer(modelConfigID)
 }
 
 func resolveMessageModelConfigIDFromChat(

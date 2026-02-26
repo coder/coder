@@ -7,6 +7,15 @@ WHERE
     id = @id::uuid
     AND deleted = FALSE;
 
+-- name: GetDefaultChatModelConfig :one
+SELECT
+    *
+FROM
+    chat_model_configs
+WHERE
+    is_default = TRUE
+    AND deleted = FALSE;
+
 -- name: GetChatModelConfigByProviderAndModel :one
 SELECT
     *

@@ -2555,6 +2555,13 @@ func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) {
 	return q.db.GetDERPMeshKey(ctx)
 }
 
+func (q *querier) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.ChatModelConfig{}, err
+	}
+	return q.db.GetDefaultChatModelConfig(ctx)
+}
+
 func (q *querier) GetDefaultOrganization(ctx context.Context) (database.Organization, error) {
 	return fetch(q.log, q.auth, func(ctx context.Context, _ any) (database.Organization, error) {
 		return q.db.GetDefaultOrganization(ctx)
