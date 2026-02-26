@@ -45,13 +45,13 @@ type Chat struct {
 
 // ChatMessage represents a single message in a chat.
 type ChatMessage struct {
-	ID            int64              `json:"id"`
-	ChatID        uuid.UUID          `json:"chat_id" format:"uuid"`
-	ModelConfigID *uuid.UUID         `json:"model_config_id,omitempty" format:"uuid"`
-	CreatedAt     time.Time          `json:"created_at" format:"date-time"`
-	Role          string             `json:"role"`
-	Content       []ChatMessagePart  `json:"content,omitempty"`
-	Usage         *ChatMessageUsage  `json:"usage,omitempty"`
+	ID            int64             `json:"id"`
+	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
+	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
+	Role          string            `json:"role"`
+	Content       []ChatMessagePart `json:"content,omitempty"`
+	Usage         *ChatMessageUsage `json:"usage,omitempty"`
 }
 
 // ChatMessageUsage contains token usage information for a chat message.

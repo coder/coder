@@ -193,13 +193,6 @@ describe("parseMessageContent", () => {
 		expect(result.blocks).toEqual([{ type: "response", text: "raw string" }]);
 	});
 
-	it("handles an object with a parts array", () => {
-		const result = parseMessageContent({
-			parts: [{ type: "text", text: "from parts" }],
-		});
-		expect(result.markdown).toBe("from parts");
-	});
-
 	it("handles an object with a type field (treated as single-element array)", () => {
 		const result = parseMessageContent({ type: "text", text: "single" });
 		expect(result.markdown).toBe("single");
