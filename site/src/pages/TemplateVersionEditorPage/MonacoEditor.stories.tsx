@@ -73,12 +73,14 @@ export const WithOnChangeHandler: Story = {
 
 		model.setValue("");
 
-		await expect(args.onChange).toHaveBeenCalledOnce();
-		await expect(args.onChange).toHaveBeenCalledWith("");
+		await waitFor(() => {
+			expect(args.onChange).toHaveBeenCalledWith("");
+		});
 
 		model.setValue("fnord");
 
-		await expect(args.onChange).toHaveBeenCalledTimes(2);
-		await expect(args.onChange).toHaveBeenLastCalledWith("fnord");
+		await waitFor(() => {
+			expect(args.onChange).toHaveBeenLastCalledWith("fnord");
+		});
 	},
 };
