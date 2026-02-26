@@ -45,6 +45,24 @@ func RequireExperiment(experiments codersdk.Experiments, requiredExperiments ...
 	}
 }
 
+// RequireExperimentNotFound returns middleware that checks if all required
+// experiments are enabled. If any experiment is disabled, it returns a 404
+// response to indicate the route is unavailable.
+func RequireExperimentNotFound(experiments codersdk.Experiments, requiredExperiments ...codersdk.Experiment) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			for _, experiment := range requiredExperiments {
+				if !experiments.Enabled(experiment) {
+					httpapi.RouteNotFound(w)
+					return
+				}
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequireExperimentWithDevBypass checks if ALL the given experiments are enabled,
 // but bypasses the check in development mode (buildinfo.IsDev()).
 func RequireExperimentWithDevBypass(experiments codersdk.Experiments, requiredExperiments ...codersdk.Experiment) func(next http.Handler) http.Handler {

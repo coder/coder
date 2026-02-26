@@ -1100,7 +1100,10 @@ func New(options *Options) *API {
 			})
 		})
 		r.Route("/chats", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperimentNotFound(api.Experiments, codersdk.ExperimentAgents),
+			)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
