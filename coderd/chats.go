@@ -237,7 +237,7 @@ func (api *API) getChatDiffStatusesByChatID(
 // @Param request body codersdk.CreateChatRequest true "Create chat request"
 // @Success 201 {object} codersdk.Chat
 // @Router /chats [post]
-func (api *API) createChat(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
@@ -344,23 +344,8 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chatID, ok := parseChatID(rw, r)
-	if !ok {
-		return
-	}
-
-	chat, err := api.Database.GetChatByID(ctx, chatID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
 
 	messages, err := api.Database.GetChatMessagesByChatID(ctx, chatID)
 	if err != nil {
@@ -396,25 +381,10 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 // @Router /chats/{chat} [delete]
 func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chatID, ok := parseChatID(rw, r)
-	if !ok {
-		return
-	}
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
 
-	// Check that the chat exists and user has access.
-	_, err := api.Database.GetChatByID(ctx, chatID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
+	var err error
 	if api.chatProcessor != nil {
 		err = api.chatProcessor.Delete(ctx, chatID)
 	} else {
@@ -486,10 +456,8 @@ func deleteChatTree(
 // @Router /chats/{chat}/messages [post]
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chatID, ok := parseChatID(rw, r)
-	if !ok {
-		return
-	}
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
 
 	if api.chatProcessor == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -517,20 +485,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to encode chat message.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Check that the chat exists and user has access.
-	_, err = api.Database.GetChatByID(ctx, chatID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat.",
 			Detail:  err.Error(),
 		})
 		return
@@ -584,30 +538,14 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 // @Router /chats/{chat}/queue/{queuedMessage} [delete]
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chatID, ok := parseChatID(rw, r)
-	if !ok {
-		return
-	}
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
 
 	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
 	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid queued message ID.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Check that the chat exists and user has access.
-	_, err = api.Database.GetChatByID(ctx, chatID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat.",
 			Detail:  err.Error(),
 		})
 		return
@@ -643,30 +581,14 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 // @Router /chats/{chat}/queue/{queuedMessage}/promote [post]
 func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chatID, ok := parseChatID(rw, r)
-	if !ok {
-		return
-	}
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
 
 	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
 	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid queued message ID.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Check that the chat exists and user has access.
-	_, err = api.Database.GetChatByID(ctx, chatID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat.",
 			Detail:  err.Error(),
 		})
 		return
@@ -805,24 +727,8 @@ func promoteQueuedWithoutServer(
 // @Router /chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chatID, ok := parseChatID(rw, r)
-	if !ok {
-		return
-	}
-
-	// Check that the chat exists and user has access.
-	_, err := api.Database.GetChatByID(ctx, chatID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
 
 	if api.chatProcessor == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -895,23 +801,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // @Router /chats/{chat}/interrupt [post]
 func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chatID, ok := parseChatID(rw, r)
-	if !ok {
-		return
-	}
-
-	chat, err := api.Database.GetChatByID(ctx, chatID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
 
 	if api.chatProcessor != nil {
 		chat = api.chatProcessor.InterruptAndSetWaiting(ctx, chat)
@@ -945,23 +836,8 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffStatus(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chatID, ok := parseChatID(rw, r)
-	if !ok {
-		return
-	}
-
-	chat, err := api.Database.GetChatByID(ctx, chatID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
 
 	status, err := api.resolveChatDiffStatus(ctx, chat)
 	if err != nil {
@@ -987,23 +863,7 @@ func (api *API) getChatDiffStatus(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	chatID, ok := parseChatID(rw, r)
-	if !ok {
-		return
-	}
-
-	chat, err := api.Database.GetChatByID(ctx, chatID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	chat := httpmw.ChatParam(r)
 
 	diff, err := api.resolveChatDiffContents(ctx, chat)
 	if err != nil {
@@ -1987,19 +1847,6 @@ func parseGitHubPullRequestURL(raw string) (githubPullRequestRef, bool) {
 		Repo:   matches[2],
 		Number: number,
 	}, true
-}
-
-func parseChatID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	chatIDStr := chi.URLParam(r, "chat")
-	chatID, err := uuid.Parse(chatIDStr)
-	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid chat ID.",
-			Detail:  err.Error(),
-		})
-		return uuid.Nil, false
-	}
-	return chatID, true
 }
 
 func uuidOrNil(u *uuid.UUID) uuid.UUID {

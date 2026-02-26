@@ -2605,20 +2605,6 @@ func parseModelConfigID(raw json.RawMessage) *uuid.UUID {
 	return uuidPointer(modelConfigID)
 }
 
-func resolveMessageModelConfigID(
-	explicitModelConfigID uuid.UUID,
-	modelConfigRaw json.RawMessage,
-) *uuid.UUID {
-	if explicitModelConfigID != uuid.Nil {
-		return uuidPointer(explicitModelConfigID)
-	}
-	config, err := parseChatModelConfig(modelConfigRaw)
-	if err != nil {
-		return nil
-	}
-	return config.ModelConfigID
-}
-
 func resolveMessageModelConfigIDFromChat(
 	explicitModelConfigID *uuid.UUID,
 	chat database.Chat,
