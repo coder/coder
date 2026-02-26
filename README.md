@@ -40,6 +40,8 @@
 - Automatically shutdown idle resources to save on costs
 - Onboard developers in seconds instead of days
 
+> **Dev joke:** Why do programmers prefer dark mode? Because light attracts bugs.
+
 <p align="center">
   <img src="./docs/images/hero-image.png" alt="Coder Hero Image">
 </p>
