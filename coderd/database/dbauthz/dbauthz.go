@@ -5264,7 +5264,10 @@ func (q *querier) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 }
 
 func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context) error {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UnsetDefaultChatModelConfigs(ctx)
 }
 
 func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {
@@ -5293,7 +5296,10 @@ func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByI
 }
 
 func (q *querier) UpdateChatHeartbeat(ctx context.Context, id uuid.UUID) error {
-	panic("not implemented")
+	fetch := func(ctx context.Context, arg uuid.UUID) (database.Chat, error) {
+		return q.db.GetChatByID(ctx, arg)
+	}
+	return update(q.log, q.auth, fetch, q.db.UpdateChatHeartbeat)(ctx, id)
 }
 
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {
