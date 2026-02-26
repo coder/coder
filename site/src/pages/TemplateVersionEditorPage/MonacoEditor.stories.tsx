@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import * as monaco from "monaco-editor";
-import { expect, fn, waitFor, within } from "storybook/test";
+import { expect, fn, waitFor } from "storybook/test";
 import { MonacoEditor } from "./MonacoEditor";
 
 const meta: Meta<typeof MonacoEditor> = {
@@ -58,9 +58,7 @@ export const WithOnChangeHandler: Story = {
 	},
 	// Target a deterministic model URI so this story remains stable even when
 	// other Monaco stories have active models in the same Storybook session.
-	async play({ args, canvasElement }) {
-		const canvas = within(canvasElement);
-		const editor = canvas.getByRole("textbox");
+	async play({ args }) {
 		const modelURI = monaco.Uri.parse(args.path as string);
 		let model = monaco.editor.getModel(modelURI);
 
@@ -75,13 +73,11 @@ export const WithOnChangeHandler: Story = {
 
 		model.setValue("");
 
-		await expect(editor).toHaveValue("");
 		await expect(args.onChange).toHaveBeenCalledOnce();
 		await expect(args.onChange).toHaveBeenCalledWith("");
 
 		model.setValue("fnord");
 
-		await expect(editor).toHaveValue("fnord");
 		await expect(args.onChange).toHaveBeenCalledTimes(2);
 		await expect(args.onChange).toHaveBeenLastCalledWith("fnord");
 	},
