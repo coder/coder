@@ -1,3 +1,4 @@
+import type { ChatDiffStatusResponse } from "api/api";
 import { API } from "api/api";
 import {
 	chat,
@@ -12,12 +13,32 @@ import {
 } from "api/queries/chats";
 import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
+import { Button } from "components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { useAuthenticated } from "hooks";
+import {
+	ArchiveIcon,
+	ChevronRightIcon,
+	EllipsisIcon,
+	ExternalLinkIcon,
+	MonitorIcon,
+	PanelRightCloseIcon,
+	PanelRightOpenIcon,
+} from "lucide-react";
 import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
+import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
+import { cn } from "utils/cn";
 import { AgentChatInput } from "./AgentChatInput";
 import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import {
@@ -31,10 +52,10 @@ import {
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
-import { AgentDetailTopBarPortals } from "./AgentDetail/TopBarPortals";
 import { useChatStream } from "./AgentDetail/useChatStream";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import type { AgentsOutletContext } from "./AgentsPage";
+import { FilesChangedPanel } from "./FilesChangedPanel";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -43,15 +64,74 @@ import {
 } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
+interface DiffStatsBadgeProps {
+	status: ChatDiffStatusResponse;
+	isOpen: boolean;
+	onToggle: () => void;
+}
+
+const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
+	status,
+	isOpen,
+	onToggle,
+}) => {
+	const additions = status.additions ?? 0;
+	const deletions = status.deletions ?? 0;
+
+	return (
+		<Button
+			variant="subtle"
+			onClick={onToggle}
+			className="h-auto min-w-0 gap-3 px-2 py-1 shadow-none hover:bg-transparent"
+		>
+			<span className="font-mono text-sm font-semibold text-content-success">
+				+{additions}
+			</span>
+			<span className="font-mono text-sm font-semibold text-content-destructive">
+				−{deletions}
+			</span>
+			{isOpen ? <PanelRightCloseIcon /> : <PanelRightOpenIcon />}
+		</Button>
+	);
+};
+
 const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
 	() => {};
 const noopClearChatErrorReason: AgentsOutletContext["clearChatErrorReason"] =
 	() => {};
-const noopSetRightPanelOpen: AgentsOutletContext["setRightPanelOpen"] =
-	() => {};
 const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
 	() => {};
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+
+/**
+ * Renders the top bar shared by all AgentDetail states (loading,
+ * error, and loaded). The UserDropdown is always visible so the
+ * page never looks broken while data is loading.
+ */
+const AgentDetailTopBar: FC<{ children?: React.ReactNode }> = ({
+	children,
+}) => {
+	const { user, signOut } = useAuthenticated();
+	const { appearance, buildInfo } = useDashboard();
+
+	return (
+		<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
+			{children ?? <div className="flex-1" />}
+			<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
+				<UserDropdown
+					user={user}
+					buildInfo={buildInfo}
+					supportLinks={
+						appearance.support_links?.filter(
+							(link) => link.location !== "navbar",
+						) ?? []
+					}
+					onSignOut={signOut}
+				/>
+			</div>
+		</div>
+	);
+};
 
 export const AgentDetail: FC = () => {
 	const navigate = useNavigate();
@@ -65,8 +145,6 @@ export const AgentDetail: FC = () => {
 		outletContext?.setChatErrorReason ?? noopSetChatErrorReason;
 	const clearChatErrorReason =
 		outletContext?.clearChatErrorReason ?? noopClearChatErrorReason;
-	const setRightPanelOpen =
-		outletContext?.setRightPanelOpen ?? noopSetRightPanelOpen;
 	const requestArchiveAgent =
 		outletContext?.requestArchiveAgent ?? noopRequestArchiveAgent;
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -106,16 +184,6 @@ export const AgentDetail: FC = () => {
 			setShowDiffPanel(true);
 		}
 	}
-
-	// Notify the parent layout about right panel visibility. This
-	// useEffect is necessary because we're synchronizing with state
-	// owned by the parent outlet, not adjusting our own state.
-	useEffect(() => {
-		setRightPanelOpen(hasDiffStatus && showDiffPanel);
-		return () => {
-			setRightPanelOpen(false);
-		};
-	}, [hasDiffStatus, setRightPanelOpen, showDiffPanel]);
 
 	const modelOptions = useMemo(
 		() =>
@@ -321,9 +389,6 @@ export const AgentDetail: FC = () => {
 		!streamState && (chatStatus === "running" || chatStatus === "pending");
 	const hasStreamOutput = Boolean(streamState) || isAwaitingFirstStreamChunk;
 
-	const topBarTitleRef = outletContext?.topBarTitleRef;
-	const topBarActionsRef = outletContext?.topBarActionsRef;
-	const rightPanelRef = outletContext?.rightPanelRef;
 	const chatTitle = chatQuery.data?.chat?.title;
 	const parentChatID = getParentChatID(chatQuery.data?.chat);
 	const parentChat = parentChatID
@@ -393,16 +458,19 @@ export const AgentDetail: FC = () => {
 
 	if (chatQuery.isLoading) {
 		return (
-			<div className="mx-auto w-full max-w-3xl space-y-6 py-6">
-				<div className="flex justify-end">
-					<Skeleton className="h-10 w-2/3 rounded-xl" />
-				</div>
-				<div className="space-y-3">
-					<Skeleton className="h-4 w-full" />
-					<Skeleton className="h-4 w-5/6" />
-					<Skeleton className="h-4 w-4/6" />
-					<Skeleton className="h-4 w-full" />
-					<Skeleton className="h-4 w-3/5" />
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary">
+				<AgentDetailTopBar />
+				<div className="mx-auto w-full max-w-3xl space-y-6 py-6">
+					<div className="flex justify-end">
+						<Skeleton className="h-10 w-2/3 rounded-xl" />
+					</div>
+					<div className="space-y-3">
+						<Skeleton className="h-4 w-full" />
+						<Skeleton className="h-4 w-5/6" />
+						<Skeleton className="h-4 w-4/6" />
+						<Skeleton className="h-4 w-full" />
+						<Skeleton className="h-4 w-3/5" />
+					</div>
 				</div>
 			</div>
 		);
@@ -410,85 +478,158 @@ export const AgentDetail: FC = () => {
 
 	if (!chatQuery.data || !agentId) {
 		return (
-			<div className="flex flex-1 items-center justify-center text-content-secondary">
-				Chat not found
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary">
+				<AgentDetailTopBar />
+				<div className="flex flex-1 items-center justify-center text-content-secondary">
+					Chat not found
+				</div>
 			</div>
 		);
 	}
 
 	return (
-		<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
-			<AgentDetailTopBarPortals
-				topBarTitleRef={topBarTitleRef}
-				topBarActionsRef={topBarActionsRef}
-				rightPanelRef={rightPanelRef}
-				chatTitle={chatTitle}
-				parentChat={parentChat}
-				onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
-				diff={{
-					hasDiffStatus,
-					diffStatus: diffStatusQuery.data,
-					showDiffPanel,
-					onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
-				}}
-				workspace={{
-					canOpenEditors,
-					canOpenWorkspace,
-					onOpenInEditor: (editor) => {
-						void handleOpenInEditor(editor);
-					},
-					onViewWorkspace: handleViewWorkspace,
-				}}
-				onArchiveAgent={handleArchiveAgentAction}
-				shouldShowDiffPanel={shouldShowDiffPanel}
-				agentId={agentId}
-			/>
+		<div
+			className={cn(
+				"flex min-h-0 min-w-0 flex-1 bg-surface-primary",
+				shouldShowDiffPanel && "flex-col xl:flex-row",
+			)}
+		>
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary">
+				<AgentDetailTopBar>
+					<div className="flex min-w-0 flex-1 items-center gap-1.5">
+						{chatTitle && (
+							<>
+								{parentChat && (
+									<>
+										<Button
+											size="sm"
+											variant="subtle"
+											className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-xs text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
+											onClick={() => navigate(`/agents/${parentChat.id}`)}
+										>
+											<span className="truncate">{parentChat.title}</span>
+										</Button>
+										<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70" />
+									</>
+								)}
+								<span className="truncate text-sm text-content-primary">
+									{chatTitle}
+								</span>
+							</>
+						)}
+					</div>
+					<div className="flex items-center gap-2">
+						{hasDiffStatus && diffStatusQuery.data && (
+							<DiffStatsBadge
+								status={diffStatusQuery.data}
+								isOpen={showDiffPanel}
+								onToggle={() => setShowDiffPanel((prev) => !prev)}
+							/>
+						)}
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									size="icon"
+									variant="subtle"
+									className="h-7 w-7 text-content-secondary hover:text-content-primary"
+									aria-label="Open agent actions"
+								>
+									<EllipsisIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									disabled={!canOpenEditors}
+									onSelect={() => {
+										void handleOpenInEditor("cursor");
+									}}
+								>
+									<ExternalLinkIcon className="h-3.5 w-3.5" />
+									Open in Cursor
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									disabled={!canOpenEditors}
+									onSelect={() => {
+										void handleOpenInEditor("vscode");
+									}}
+								>
+									<ExternalLinkIcon className="h-3.5 w-3.5" />
+									Open in VS Code
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									disabled={!canOpenWorkspace}
+									onSelect={handleViewWorkspace}
+								>
+									<MonitorIcon className="h-3.5 w-3.5" />
+									View Workspace
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onSelect={handleArchiveAgentAction}
+								>
+									<ArchiveIcon className="h-3.5 w-3.5" />
+									Archive Agent
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</div>
+				</AgentDetailTopBar>
 
-			<div
-				ref={scrollContainerRef}
-				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
-			>
-				<div>
-					<ConversationTimeline
-						isEmpty={messages.length === 0}
-						hasMoreMessages={hasMoreMessages}
-						loadMoreSentinelRef={loadMoreSentinelRef}
-						parsedSections={parsedSections}
-						hasStreamOutput={hasStreamOutput}
-						streamState={streamState}
-						streamTools={streamTools}
-						subagentTitles={subagentTitles}
-						subagentStatusOverrides={subagentStatusOverrides}
-						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-						detailErrorMessage={detailErrorMessage}
-					/>
-
-					{queuedMessages.length > 0 && (
-						<QueuedMessagesList
-							messages={queuedMessages}
-							onDelete={(id) => deleteQueuedMutation.mutate(id)}
-							onPromote={(id) => promoteQueuedMutation.mutate(id)}
+				<div
+					ref={scrollContainerRef}
+					className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+				>
+					<div>
+						<ConversationTimeline
+							isEmpty={messages.length === 0}
+							hasMoreMessages={hasMoreMessages}
+							loadMoreSentinelRef={loadMoreSentinelRef}
+							parsedSections={parsedSections}
+							hasStreamOutput={hasStreamOutput}
+							streamState={streamState}
+							streamTools={streamTools}
+							subagentTitles={subagentTitles}
+							subagentStatusOverrides={subagentStatusOverrides}
+							isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+							detailErrorMessage={detailErrorMessage}
 						/>
-					)}
-					<AgentChatInput
-						onSend={handleSend}
-						isDisabled={isInputDisabled}
-						isLoading={sendMutation.isPending}
-						isStreaming={isStreaming}
-						onInterrupt={handleInterrupt}
-						isInterruptPending={interruptMutation.isPending}
-						contextUsage={latestContextUsage}
-						hasModelOptions={hasModelOptions}
-						selectedModel={selectedModel}
-						onModelChange={setSelectedModel}
-						modelOptions={modelOptions}
-						modelSelectorPlaceholder={modelSelectorPlaceholder}
-						inputStatusText={inputStatusText}
-						modelCatalogStatusMessage={modelCatalogStatusMessage}
-						sticky
-					/>
+
+						{queuedMessages.length > 0 && (
+							<QueuedMessagesList
+								messages={queuedMessages}
+								onDelete={(id) => deleteQueuedMutation.mutate(id)}
+								onPromote={(id) => promoteQueuedMutation.mutate(id)}
+							/>
+						)}
+						<AgentChatInput
+							onSend={handleSend}
+							isDisabled={isInputDisabled}
+							isLoading={sendMutation.isPending}
+							isStreaming={isStreaming}
+							onInterrupt={handleInterrupt}
+							isInterruptPending={interruptMutation.isPending}
+							contextUsage={latestContextUsage}
+							hasModelOptions={hasModelOptions}
+							selectedModel={selectedModel}
+							onModelChange={setSelectedModel}
+							modelOptions={modelOptions}
+							modelSelectorPlaceholder={modelSelectorPlaceholder}
+							inputStatusText={inputStatusText}
+							modelCatalogStatusMessage={modelCatalogStatusMessage}
+							sticky
+						/>
+					</div>
 				</div>
 			</div>
+
+			{shouldShowDiffPanel && (
+				<div
+					data-testid="agents-detail-right-panel"
+					className="min-h-0 min-w-0 border-t border-border-default bg-surface-primary h-[42dvh] min-h-[260px] max-h-[56dvh] xl:h-auto xl:max-h-none xl:w-[40%] xl:min-w-[360px] xl:max-w-[720px] xl:border-l xl:border-t-0"
+				>
+					<FilesChangedPanel chatId={agentId} />
+				</div>
+			)}
 		</div>
 	);
 };

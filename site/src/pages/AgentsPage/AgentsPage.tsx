@@ -41,7 +41,6 @@ import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
-import { DiffRightPanel } from "./DiffRightPanel";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -80,10 +79,6 @@ export interface AgentsOutletContext {
 	chatErrorReasons: Record<string, string>;
 	setChatErrorReason: (chatId: string, reason: string) => void;
 	clearChatErrorReason: (chatId: string) => void;
-	topBarTitleRef: React.RefObject<HTMLDivElement | null>;
-	topBarActionsRef: React.RefObject<HTMLDivElement | null>;
-	rightPanelRef: React.RefObject<HTMLDivElement | null>;
-	setRightPanelOpen: (isOpen: boolean) => void;
 	requestArchiveAgent: (chatId: string) => void;
 }
 
@@ -107,7 +102,6 @@ export const AgentsPage: FC = () => {
 	const createMutation = useMutation(createChat(queryClient));
 	const archiveMutation = useMutation(deleteChat(queryClient));
 	const [archivingChatId, setArchivingChatId] = useState<string | null>(null);
-	const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, string>
 	>({});
@@ -166,9 +160,6 @@ export const AgentsPage: FC = () => {
 			return next;
 		});
 	}, []);
-	const topBarTitleRef = useRef<HTMLDivElement>(null);
-	const topBarActionsRef = useRef<HTMLDivElement>(null);
-	const rightPanelRef = useRef<HTMLDivElement>(null);
 	const chatList = chatsQuery.data ?? [];
 	const requestArchiveAgent = useCallback(
 		async (chatId: string) => {
@@ -206,10 +197,6 @@ export const AgentsPage: FC = () => {
 			chatErrorReasons,
 			setChatErrorReason,
 			clearChatErrorReason,
-			topBarTitleRef,
-			topBarActionsRef,
-			rightPanelRef,
-			setRightPanelOpen: setIsRightPanelOpen,
 			requestArchiveAgent,
 		}),
 		[
@@ -322,12 +309,6 @@ export const AgentsPage: FC = () => {
 		document.title = pageTitle("Agents");
 	}, []);
 
-	useEffect(() => {
-		if (!agentId) {
-			setIsRightPanelOpen(false);
-		}
-	}, [agentId]);
-
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<div
@@ -353,20 +334,13 @@ export const AgentsPage: FC = () => {
 				/>
 			</div>
 
-			<div
-				className={cn(
-					"flex min-h-0 min-w-0 flex-1 bg-surface-primary",
-					isRightPanelOpen && "flex-col xl:flex-row",
-				)}
-			>
+			{agentId ? (
+				<Outlet context={outletContext} />
+			) : (
 				<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary">
 					<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
-						<div
-							ref={topBarTitleRef}
-							className="flex min-w-0 flex-1 items-center"
-						/>
-						<div ref={topBarActionsRef} className="flex items-center gap-2" />
-						{!agentId && hasAdminControls && (
+						<div className="flex-1" />
+						{hasAdminControls && (
 							<Button
 								variant="subtle"
 								disabled={createMutation.isPending}
@@ -389,27 +363,19 @@ export const AgentsPage: FC = () => {
 							/>
 						</div>
 					</div>
-					{agentId ? (
-						<Outlet context={outletContext} />
-					) : (
-						<AgentsEmptyState
-							onCreateChat={handleCreateChat}
-							isCreating={createMutation.isPending}
-							createError={createMutation.error}
-							modelCatalog={chatModelsQuery.data}
-							modelOptions={catalogModelOptions}
-							modelConfigs={chatModelConfigsQuery.data ?? []}
-							isModelCatalogLoading={chatModelsQuery.isLoading}
-							isModelConfigsLoading={chatModelConfigsQuery.isLoading}
-							modelCatalogError={chatModelsQuery.error}
-						/>
-					)}
+					<AgentsEmptyState
+						onCreateChat={handleCreateChat}
+						isCreating={createMutation.isPending}
+						createError={createMutation.error}
+						modelCatalog={chatModelsQuery.data}
+						modelOptions={catalogModelOptions}
+						modelConfigs={chatModelConfigsQuery.data ?? []}
+						isModelCatalogLoading={chatModelsQuery.isLoading}
+						isModelConfigsLoading={chatModelConfigsQuery.isLoading}
+						modelCatalogError={chatModelsQuery.error}
+					/>
 				</div>
-				<DiffRightPanel
-					ref={rightPanelRef}
-					isOpen={Boolean(agentId && isRightPanelOpen)}
-				/>
-			</div>
+			)}
 
 			{hasAdminControls && (
 				<ConfigureAgentsDialog
@@ -641,7 +607,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 									{selectedWorkspaceName ?? "Workspace"}
 								</SelectValue>
 							</SelectTrigger>
-							<SelectContent side="top" align="center" className="[&_[role=option]]:text-xs">
+							<SelectContent
+								side="top"
+								align="center"
+								className="[&_[role=option]]:text-xs"
+							>
 								<SelectItem value={autoCreateWorkspaceValue}>
 									Auto-create Workspace
 								</SelectItem>

@@ -14,7 +14,7 @@ import {
 } from "api/queries/chats";
 import { workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import { type FC, useRef, useState } from "react";
+import type { FC } from "react";
 import { Outlet } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -25,45 +25,24 @@ import { AgentDetail } from "./AgentDetail";
 import type { AgentsOutletContext } from "./AgentsPage";
 
 // ---------------------------------------------------------------------------
-// Layout wrapper – provides portal targets for the top-bar and right panel
-// so the component can render its portaled actions menu and diff panel.
+// Layout wrapper – provides the outlet context that AgentDetail expects.
+// The child now owns its own top bar and right panel declaratively.
 // ---------------------------------------------------------------------------
 const AgentDetailLayout: FC = () => {
-	const topBarTitleRef = useRef<HTMLDivElement>(null);
-	const topBarActionsRef = useRef<HTMLDivElement>(null);
-	const rightPanelRef = useRef<HTMLDivElement>(null);
-	const [rightPanelOpen, setRightPanelOpen] = useState(false);
-
 	return (
 		<div className="flex h-full">
 			<div className="flex min-w-0 flex-1 flex-col">
-				<div className="flex items-center gap-2 border-b border-border px-4 py-2">
-					<div ref={topBarTitleRef} className="flex-1" />
-					<div ref={topBarActionsRef} />
-				</div>
-				<div className="flex-1 overflow-hidden">
-					<Outlet
-						context={
-							{
-								chatErrorReasons: {},
-								setChatErrorReason: () => {},
-								clearChatErrorReason: () => {},
-								topBarTitleRef,
-								topBarActionsRef,
-								rightPanelRef,
-								setRightPanelOpen,
-								requestArchiveAgent: () => {},
-							} satisfies AgentsOutletContext
-						}
-					/>
-				</div>
+				<Outlet
+					context={
+						{
+							chatErrorReasons: {},
+							setChatErrorReason: () => {},
+							clearChatErrorReason: () => {},
+							requestArchiveAgent: () => {},
+						} satisfies AgentsOutletContext
+					}
+				/>
 			</div>
-			<div
-				ref={rightPanelRef}
-				className={
-					rightPanelOpen ? "w-[400px] border-l border-border" : "hidden"
-				}
-			/>
 		</div>
 	);
 };
