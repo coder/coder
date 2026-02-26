@@ -1,4 +1,7 @@
 <!-- markdownlint-disable MD041 -->
+
+> **Why do programmers prefer dark mode?** Because light attracts bugs. 🪲
+
 <div align="center">
   <a href="https://coder.com#gh-light-mode-only">
     <img src="./docs/images/logo-black.png" alt="Coder Logo Light" style="width: 128px">
