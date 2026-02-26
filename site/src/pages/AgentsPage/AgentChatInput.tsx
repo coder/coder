@@ -21,6 +21,8 @@ export interface AgentContextUsage {
 	readonly cacheReadTokens?: number;
 	readonly cacheCreationTokens?: number;
 	readonly reasoningTokens?: number;
+	// Percentage (0–100) at which the context will be compacted.
+	readonly compressionThreshold?: number;
 }
 
 interface AgentChatInputProps {
@@ -66,6 +68,21 @@ const hasFiniteTokenValue = (value: number | undefined): value is number =>
 const formatTokenCount = (value: number | undefined): string =>
 	hasFiniteTokenValue(value) ? value.toLocaleString() : "--";
 
+const formatTokenCountCompact = (value: number | undefined): string => {
+	if (!hasFiniteTokenValue(value)) {
+		return "--";
+	}
+	if (value >= 1_000_000) {
+		const m = value / 1_000_000;
+		return `${Number.isInteger(m) ? m : m.toFixed(1).replace(/\.0$/, "")}M`;
+	}
+	if (value >= 1_000) {
+		const k = value / 1_000;
+		return `${Number.isInteger(k) ? k : k.toFixed(1).replace(/\.0$/, "")}K`;
+	}
+	return String(value);
+};
+
 const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	if (percentUsed === null) {
 		return "text-content-secondary/60";
@@ -76,10 +93,10 @@ const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	if (percentUsed >= 85) {
 		return "text-content-warning";
 	}
-	return "text-content-link";
+	return "text-content-secondary/60";
 };
 
-const RING_SIZE = 22;
+const RING_SIZE = 18;
 const RING_STROKE = 2.5;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
@@ -101,11 +118,7 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 		const hasPercent = percentUsed !== null;
 		const percentLabel =
 			percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
-		const indicatorLabel = hasPercent
-			? percentUsed >= 100
-				? "100+"
-				: `${Math.round(percentUsed)}`
-			: null;
+		const indicatorLabel = null;
 		const clampedPercent = hasPercent
 			? Math.min(Math.max(percentUsed, 0), 100)
 			: 100;
@@ -136,10 +149,10 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 						role="button"
 						tabIndex={0}
 						aria-label={ariaLabel}
-						className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+						className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 					>
 						<svg
-							className={`h-6 w-6 -rotate-90 ${toneClassName}`}
+							className={`h-5 w-5 -rotate-90 ${toneClassName}`}
 							viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
 							aria-hidden
 						>
@@ -149,7 +162,7 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 								r={RING_RADIUS}
 								fill="none"
 								strokeWidth={RING_STROKE}
-								className="stroke-border-default/70"
+								className="stroke-content-secondary/25"
 							/>
 							<circle
 								cx={RING_SIZE / 2}
@@ -172,44 +185,18 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 						)}
 					</span>
 				</TooltipTrigger>
-				<TooltipContent
-					side="top"
-					className="min-w-[10rem] max-w-[14rem] rounded-lg border-border-default/60 bg-surface-primary px-3 py-2.5 shadow-md"
-				>
-					<div className="space-y-1.5">
-						<div className="flex items-center justify-between gap-4">
-							<span className="text-2xs font-medium text-content-secondary">
-								Context
-							</span>
-							{hasPercent && (
-								<span className="font-mono text-2xs tabular-nums text-content-primary">
-									{percentLabel}
-								</span>
+				<TooltipContent side="top">
+					<div className="text-xs text-content-primary">
+						{hasPercent
+							? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
+							: "Context usage unavailable"}
+						{hasPercent &&
+							usage?.compressionThreshold !== undefined &&
+							usage.compressionThreshold > 0 && (
+								<div className="mt-1 text-content-secondary">
+									Compacts at {usage.compressionThreshold}%
+								</div>
 							)}
-						</div>
-						{(usedTokens !== undefined || contextLimitTokens !== undefined) && (
-							<div className="font-mono text-2xs tabular-nums text-content-secondary">
-								{formatTokenCount(usedTokens)} /{" "}
-								{formatTokenCount(contextLimitTokens)} tokens
-							</div>
-						)}
-						{breakdown.length > 0 && (
-							<div className="space-y-px border-t border-border-default/40 pt-1.5">
-								{breakdown.map((entry) => (
-									<div
-										key={entry.key}
-										className="flex items-center justify-between gap-3 text-2xs"
-									>
-										<span className="text-content-secondary">
-											{entry.label}
-										</span>
-										<span className="font-mono tabular-nums text-content-primary">
-											{formatTokenCount(entry.value)}
-										</span>
-									</div>
-								))}
-							</div>
-						)}
 					</div>
 				</TooltipContent>
 			</Tooltip>
@@ -326,7 +313,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 							<Button
 								size="icon"
 								variant="default"
-								className="size-7 rounded-full transition-colors [&>svg]:!size-3.5"
+								className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
 								onClick={() => void handleSubmit()}
 								disabled={isDisabled || !hasModelOptions || !input.trim()}
 								title={isStreaming ? "Queue message" : "Send"}

@@ -204,10 +204,22 @@ export const AgentDetail: FC = () => {
 		);
 		return list;
 	}, [messagesById]);
-	const latestContextUsage = useMemo(
-		() => getLatestContextUsage(messages),
-		[messages],
-	);
+	const compressionThreshold = useMemo(() => {
+		if (!chatLastModelConfigID) {
+			return undefined;
+		}
+		const config = chatModelConfigsQuery.data?.find(
+			(c) => c.id === chatLastModelConfigID,
+		);
+		return config?.compression_threshold;
+	}, [chatLastModelConfigID, chatModelConfigsQuery.data]);
+	const latestContextUsage = useMemo(() => {
+		const usage = getLatestContextUsage(messages);
+		if (!usage) {
+			return usage;
+		}
+		return { ...usage, compressionThreshold };
+	}, [messages, compressionThreshold]);
 	const isStreaming =
 		Boolean(streamState) ||
 		chatStatus === "running" ||
