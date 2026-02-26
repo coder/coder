@@ -801,28 +801,6 @@ func (p *Server) processOnce(ctx context.Context) {
 	}()
 }
 
-func (p *Server) startStream(chatID uuid.UUID) {
-	p.streamMu.Lock()
-	state := p.streamStateLocked(chatID)
-	state.buffer = nil
-	state.buffering = true
-	p.streamMu.Unlock()
-}
-
-// stopStream marks the stream as no longer buffering. If
-// subscribers remain, the entry stays in the map until the
-// last subscriber cancels.
-func (p *Server) stopStream(chatID uuid.UUID) {
-	p.streamMu.Lock()
-	state, ok := p.chatStreams[chatID]
-	if ok {
-		state.buffer = nil
-		state.buffering = false
-		p.cleanupStreamIfIdleLocked(chatID, state)
-	}
-	p.streamMu.Unlock()
-}
-
 func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
 	p.streamMu.Lock()
 	state := p.streamStateLocked(chatID)
@@ -1300,13 +1278,6 @@ func (p *Server) Subscribe(
 	return initialSnapshot, mergedEvents, cancel, true
 }
 
-func (p *Server) Stop(chatID uuid.UUID) {
-	if p == nil {
-		return
-	}
-	p.stopStream(chatID)
-}
-
 func (p *Server) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
 	if event.ChatID == uuid.Nil {
 		event.ChatID = chatID
@@ -1356,9 +1327,35 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if p.pubsub == nil {
 		return
 	}
+	sdkChat := codersdk.Chat{
+		ID:        chat.ID,
+		OwnerID:   chat.OwnerID,
+		Title:     chat.Title,
+		Status:    codersdk.ChatStatus(chat.Status),
+		CreatedAt: chat.CreatedAt,
+		UpdatedAt: chat.UpdatedAt,
+	}
+	if chat.ParentChatID.Valid {
+		parentChatID := chat.ParentChatID.UUID
+		sdkChat.ParentChatID = &parentChatID
+	}
+	if chat.RootChatID.Valid {
+		rootChatID := chat.RootChatID.UUID
+		sdkChat.RootChatID = &rootChatID
+	} else if !chat.ParentChatID.Valid {
+		rootChatID := chat.ID
+		sdkChat.RootChatID = &rootChatID
+	}
+	if chat.WorkspaceID.Valid {
+		sdkChat.WorkspaceID = &chat.WorkspaceID.UUID
+	}
+	if chat.WorkspaceAgentID.Valid {
+		sdkChat.WorkspaceAgentID = &chat.WorkspaceAgentID.UUID
+	}
+
 	event := coderdpubsub.ChatEvent{
 		Kind: kind,
-		Chat: convertChatForPubsub(chat),
+		Chat: sdkChat,
 	}
 	payload, err := json.Marshal(event)
 	if err != nil {
@@ -1375,38 +1372,6 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 			slog.Error(err),
 		)
 	}
-}
-
-// convertChatForPubsub converts a database.Chat to codersdk.Chat for pubsub events.
-// This is a lightweight conversion — we don't include diff status since
-// the watch subscriber can fetch that separately if needed.
-func convertChatForPubsub(c database.Chat) codersdk.Chat {
-	chat := codersdk.Chat{
-		ID:        c.ID,
-		OwnerID:   c.OwnerID,
-		Title:     c.Title,
-		Status:    codersdk.ChatStatus(c.Status),
-		CreatedAt: c.CreatedAt,
-		UpdatedAt: c.UpdatedAt,
-	}
-	if c.ParentChatID.Valid {
-		parentChatID := c.ParentChatID.UUID
-		chat.ParentChatID = &parentChatID
-	}
-	if c.RootChatID.Valid {
-		rootChatID := c.RootChatID.UUID
-		chat.RootChatID = &rootChatID
-	} else if !c.ParentChatID.Valid {
-		rootChatID := c.ID
-		chat.RootChatID = &rootChatID
-	}
-	if c.WorkspaceID.Valid {
-		chat.WorkspaceID = &c.WorkspaceID.UUID
-	}
-	if c.WorkspaceAgentID.Valid {
-		chat.WorkspaceAgentID = &c.WorkspaceAgentID.UUID
-	}
-	return chat
 }
 
 func (p *Server) publishError(chatID uuid.UUID, message string) {
@@ -1711,6 +1676,13 @@ func (p *Server) runChat(
 		return err
 	}
 
+	var callConfig codersdk.ChatModelCallConfig
+	if len(modelConfig.Options) > 0 {
+		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
+			return xerrors.Errorf("parse model call config: %w", err)
+		}
+	}
+
 	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	if err != nil {
 		return xerrors.Errorf("get chat messages: %w", err)
@@ -1725,8 +1697,22 @@ func (p *Server) runChat(
 		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
 	}
 
-	p.startStream(chat.ID)
-	defer p.stopStream(chat.ID)
+	// Start buffering stream events for this chat so that new
+	// subscribers receive a snapshot of in-flight message parts.
+	p.streamMu.Lock()
+	startState := p.streamStateLocked(chat.ID)
+	startState.buffer = nil
+	startState.buffering = true
+	p.streamMu.Unlock()
+	defer func() {
+		p.streamMu.Lock()
+		if stopState, ok := p.chatStreams[chat.ID]; ok {
+			stopState.buffer = nil
+			stopState.buffering = false
+			p.cleanupStreamIfIdleLocked(chat.ID, stopState)
+		}
+		p.streamMu.Unlock()
+	}()
 
 	currentChat := chat
 	var (
@@ -1819,7 +1805,7 @@ func (p *Server) runChat(
 			hasUsage := step.Usage != (fantasy.Usage{})
 			assistantMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 				ChatID:        chat.ID,
-				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ModelConfigID, Valid: true},
+				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 				Role:          string(fantasy.MessageRoleAssistant),
 				Content:       assistantContent,
 				Visibility:    database.ChatMessageVisibilityBoth,
@@ -1852,7 +1838,7 @@ func (p *Server) runChat(
 
 			toolMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 				ChatID:        chat.ID,
-				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ModelConfigID, Valid: true},
+				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 				Role:          string(fantasy.MessageRoleTool),
 				Content:       resultContent,
 				Visibility:    database.ChatMessageVisibilityBoth,
@@ -1867,13 +1853,13 @@ func (p *Server) runChat(
 	}
 
 	streamCall := fantasy.AgentStreamCall{
-		MaxOutputTokens:  modelConfig.MaxOutputTokens,
-		Temperature:      modelConfig.Temperature,
-		TopP:             modelConfig.TopP,
-		TopK:             modelConfig.TopK,
-		PresencePenalty:  modelConfig.PresencePenalty,
-		FrequencyPenalty: modelConfig.FrequencyPenalty,
-		ProviderOptions:  chatprovider.ProviderOptionsFromChatModelConfig(model, modelConfig.ProviderOptions),
+		MaxOutputTokens:  callConfig.MaxOutputTokens,
+		Temperature:      callConfig.Temperature,
+		TopP:             callConfig.TopP,
+		TopK:             callConfig.TopK,
+		PresencePenalty:  callConfig.PresencePenalty,
+		FrequencyPenalty: callConfig.FrequencyPenalty,
+		ProviderOptions:  chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions),
 	}
 
 	if streamCall.MaxOutputTokens == nil {
@@ -1891,7 +1877,7 @@ func (p *Server) runChat(
 			if err := p.persistChatContextSummary(
 				persistCtx,
 				chat.ID,
-				modelConfig.ModelConfigID,
+				modelConfig.ID,
 				result,
 			); err != nil {
 				return xerrors.Errorf("persist context summary: %w", err)
@@ -2103,24 +2089,17 @@ func (p *Server) persistChatContextSummary(
 func (p *Server) resolveChatModel(
 	ctx context.Context,
 	chat database.Chat,
-) (fantasy.LanguageModel, chatModelConfig, error) {
+) (fantasy.LanguageModel, database.ChatModelConfig, error) {
 	dbConfig, err := p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, chatModelConfig{}, xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, xerrors.Errorf(
 			"resolve model config: %w", err,
 		)
 	}
 
-	config, _ := parseChatModelConfig(dbConfig.Options)
-	config.Provider = dbConfig.Provider
-	config.Model = dbConfig.Model
-	config.ContextLimit = dbConfig.ContextLimit
-	config.CompressionThreshold = dbConfig.CompressionThreshold
-	config.ModelConfigID = dbConfig.ID
-
 	providers, err := p.db.GetEnabledChatProviders(ctx)
 	if err != nil {
-		return nil, chatModelConfig{}, xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, xerrors.Errorf(
 			"get enabled chat providers: %w", err,
 		)
 	}
@@ -2139,14 +2118,14 @@ func (p *Server) resolveChatModel(
 	)
 
 	model, err := chatprovider.ModelFromConfig(
-		config.Provider, config.Model, keys,
+		dbConfig.Provider, dbConfig.Model, keys,
 	)
 	if err != nil {
-		return nil, chatModelConfig{}, xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, xerrors.Errorf(
 			"create model: %w", err,
 		)
 	}
-	return model, config, nil
+	return model, dbConfig, nil
 }
 
 // resolveModelConfig looks up the chat's model config by its
@@ -2301,24 +2280,4 @@ func (p *Server) Close() error {
 	<-p.closed
 	p.inflight.Wait()
 	return nil
-}
-
-type chatModelConfig struct {
-	codersdk.ChatModelCallConfig
-	Provider             string `json:"provider,omitempty"`
-	Model                string `json:"model"`
-	ContextLimit         int64  `json:"context_limit,omitempty"`
-	CompressionThreshold int32  `json:"compression_threshold,omitempty"`
-	ModelConfigID        uuid.UUID
-}
-
-func parseChatModelConfig(raw json.RawMessage) (chatModelConfig, error) {
-	config := chatModelConfig{}
-	if len(raw) == 0 {
-		return config, nil
-	}
-	if err := json.Unmarshal(raw, &config); err != nil {
-		return chatModelConfig{}, err
-	}
-	return config, nil
 }
