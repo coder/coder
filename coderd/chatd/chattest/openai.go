@@ -29,7 +29,7 @@ type OpenAIRequest struct {
 	Messages []OpenAIMessage        `json:"messages"`
 	Stream   bool                   `json:"stream,omitempty"`
 	Prompt   []interface{}          `json:"prompt,omitempty"` // For responses API
-	Options  map[string]interface{} `json:",inline"`
+	Options  map[string]interface{} `json:"-"`
 }
 
 // OpenAIMessage represents a message in an OpenAI request.

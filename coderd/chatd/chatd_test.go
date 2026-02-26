@@ -244,7 +244,7 @@ func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
 	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Len(t, messages, 2)
-	require.Equal(t, int64(messages[len(messages)-1].ID), result.Message.ID)
+	require.Equal(t, messages[len(messages)-1].ID, result.Message.ID)
 }
 
 func newTestServer(

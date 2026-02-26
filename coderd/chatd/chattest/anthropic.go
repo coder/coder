@@ -28,7 +28,7 @@ type AnthropicRequest struct {
 	Messages      []AnthropicRequestMessage `json:"messages"`
 	Stream        bool                      `json:"stream,omitempty"`
 	MaxTokens     int                       `json:"max_tokens,omitempty"`
-	Options       map[string]interface{}    `json:",inline"`
+	Options       map[string]interface{}    `json:"-"`
 }
 
 // AnthropicRequestMessage represents a message in an Anthropic request.

@@ -1,4 +1,4 @@
-package chatprompt
+package chatprompt_test
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
@@ -45,7 +46,7 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assistantContent, err := MarshalContent([]fantasy.Content{
+			assistantContent, err := chatprompt.MarshalContent([]fantasy.Content{
 				fantasy.ToolCallContent{
 					ToolCallID: "toolu_01C4PqN6F2493pi7Ebag8Vg7",
 					ToolName:   "execute",
@@ -54,7 +55,7 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			toolContent, err := MarshalToolResult(
+			toolContent, err := chatprompt.MarshalToolResult(
 				"toolu_01C4PqN6F2493pi7Ebag8Vg7",
 				"execute",
 				json.RawMessage(`{"error":"tool call was interrupted before it produced a result"}`),
@@ -62,7 +63,7 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			prompt, err := ConvertMessages([]database.ChatMessage{
+			prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
 				{
 					Role:       string(fantasy.MessageRoleAssistant),
 					Visibility: database.ChatMessageVisibilityBoth,
@@ -78,7 +79,7 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 			require.Len(t, prompt, 2)
 
 			require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
-			toolCalls := ExtractToolCalls(prompt[0].Content)
+			toolCalls := chatprompt.ExtractToolCalls(prompt[0].Content)
 			require.Len(t, toolCalls, 1)
 			require.Equal(t, tc.expected, toolCalls[0].Input)
 			require.Equal(t, "execute", toolCalls[0].ToolName)

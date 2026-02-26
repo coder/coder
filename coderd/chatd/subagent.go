@@ -129,12 +129,16 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 				}
 
 				parent := currentChat()
+				busyBehavior := SendMessageBusyBehaviorQueue
+				if args.Interrupt {
+					busyBehavior = SendMessageBusyBehaviorInterrupt
+				}
 				targetChat, err := p.sendSubagentMessage(
 					ctx,
 					parent.ID,
 					targetChatID,
 					args.Message,
-					args.Interrupt,
+					busyBehavior,
 				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
@@ -246,7 +250,7 @@ func (p *Server) sendSubagentMessage(
 	parentChatID uuid.UUID,
 	targetChatID uuid.UUID,
 	message string,
-	interrupt bool,
+	busyBehavior SendMessageBusyBehavior,
 ) (database.Chat, error) {
 	message = strings.TrimSpace(message)
 	if message == "" {
@@ -259,11 +263,6 @@ func (p *Server) sendSubagentMessage(
 	}
 	if !isDescendant {
 		return database.Chat{}, ErrSubagentNotDescendant
-	}
-
-	busyBehavior := SendMessageBusyBehaviorQueue
-	if interrupt {
-		busyBehavior = SendMessageBusyBehaviorInterrupt
 	}
 
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
@@ -491,17 +490,17 @@ func subagentFallbackChatTitle(message string) string {
 	return subagentTruncateRunes(title, maxRunes)
 }
 
-func subagentTruncateRunes(value string, max int) string {
-	if max <= 0 {
+func subagentTruncateRunes(value string, maxRunes int) string {
+	if maxRunes <= 0 {
 		return ""
 	}
 
 	runes := []rune(value)
-	if len(runes) <= max {
+	if len(runes) <= maxRunes {
 		return value
 	}
 
-	return string(runes[:max])
+	return string(runes[:maxRunes])
 }
 
 func toolJSONResponse(result map[string]any) fantasy.ToolResponse {
