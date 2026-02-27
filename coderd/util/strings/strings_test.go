@@ -139,4 +139,3 @@ func TestCapitalize(t *testing.T) {
 		})
 	}
 }
-
