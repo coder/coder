@@ -1,5 +1,5 @@
 /**
- * Copied from shadc/ui on 02/27/2026
+ * Copied from shadcn/ui on 02/27/2026
  * @see {@link https://ui.shadcn.com/docs/components/toggle}
  */
 import * as TogglePrimitive from "@radix-ui/react-toggle";
