@@ -818,16 +818,29 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.True(t, found)
 	})
 
-	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
+	t.Run("SuccessForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		modelConfig := createChatModelConfig(t, adminClient)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
-		_, err := memberClient.ListChatModelConfigs(ctx)
-		requireSDKError(t, err, http.StatusForbidden)
+		// Non-admin users should see only enabled model configs.
+		configs, err := memberClient.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.NotEmpty(t, configs)
+
+		found := false
+		for _, config := range configs {
+			if config.ID == modelConfig.ID {
+				found = true
+				require.Equal(t, "openai", config.Provider)
+				require.Equal(t, "gpt-4o-mini", config.Model)
+			}
+		}
+		require.True(t, found)
 	})
 }
 

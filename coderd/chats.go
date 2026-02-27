@@ -2444,12 +2444,20 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
-	configs, err := api.Database.GetChatModelConfigs(ctx)
+	// Admin users can see all model configs (including disabled ones)
+	// for management purposes. Non-admin users see only enabled
+	// configs, which is sufficient for using the chat feature.
+	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
+
+	var configs []database.ChatModelConfig
+	var err error
+	if isAdmin {
+		configs, err = api.Database.GetChatModelConfigs(ctx)
+	} else {
+		//nolint:gocritic // All authenticated users need to read enabled model configs to use the chat feature.
+		configs, err = api.Database.GetEnabledChatModelConfigs(dbauthz.AsSystemRestricted(ctx))
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat model configs.",
