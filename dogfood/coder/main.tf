@@ -373,13 +373,15 @@ module "personalize" {
 }
 
 module "mux" {
-  count        = data.coder_workspace.me.start_count
-  source       = "registry.coder.com/coder/mux/coder"
-  version      = "1.1.0"
-  agent_id     = coder_agent.dev.id
-  subdomain    = true
-  display_name = "Mux"
-  add-project  = local.repo_dir
+  count           = data.coder_workspace.me.start_count
+  source          = "registry.coder.com/coder/mux/coder"
+  version         = "1.3.0"
+  agent_id        = coder_agent.dev.id
+  subdomain       = true
+  display_name    = "Mux"
+  add-project     = local.repo_dir
+  install_version = "next"
+  package_manager = "bun"
 }
 
 module "code-server" {
@@ -473,6 +475,8 @@ resource "coder_agent" "dev" {
     data.coder_parameter.use_ai_bridge.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
+      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
+      OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
     } : {}
   )
   startup_script_behavior = "blocking"

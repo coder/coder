@@ -361,7 +361,9 @@ export const PauseTask: Story = {
 		spyOn(API, "getTasks").mockResolvedValue([
 			{ ...MockTask, status: "active" },
 		]);
-		spyOn(API, "stopWorkspace").mockResolvedValue(MockWorkspaceBuildStop);
+		spyOn(API, "pauseTask").mockResolvedValue({
+			workspace_build: MockWorkspaceBuildStop,
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -370,7 +372,10 @@ export const PauseTask: Story = {
 		});
 		await userEvent.click(pauseButton);
 		await waitFor(() => {
-			expect(API.stopWorkspace).toHaveBeenCalledWith(MockTask.workspace_id);
+			expect(API.pauseTask).toHaveBeenCalledWith(
+				MockTask.owner_name,
+				MockTask.id,
+			);
 		});
 	},
 };
@@ -394,7 +399,9 @@ export const ResumeTask: Story = {
 		spyOn(API, "getTasks").mockResolvedValue([
 			{ ...MockTask, status: "paused" },
 		]);
-		spyOn(API, "startWorkspace").mockResolvedValue(MockWorkspaceBuildStop);
+		spyOn(API, "resumeTask").mockResolvedValue({
+			workspace_build: MockWorkspaceBuildStop,
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -403,11 +410,9 @@ export const ResumeTask: Story = {
 		});
 		await userEvent.click(resumeButton);
 		await waitFor(() => {
-			expect(API.startWorkspace).toHaveBeenCalledWith(
-				MockTask.workspace_id,
-				MockTask.template_version_id,
-				undefined,
-				undefined,
+			expect(API.resumeTask).toHaveBeenCalledWith(
+				MockTask.owner_name,
+				MockTask.id,
 			);
 		});
 	},

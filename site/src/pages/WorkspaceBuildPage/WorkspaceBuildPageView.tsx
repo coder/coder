@@ -179,7 +179,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 								href={`/api/v2/workspacebuilds/${build.id}/logs?format=text`}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="flex items-center gap-1 px-4 pb-2 text-xs text-content-secondary hover:text-content-primary"
+								className="flex items-center gap-1 px-4 text-xs text-content-secondary hover:text-content-primary"
 							>
 								View raw logs
 								<ExternalLinkIcon className="size-3" />
@@ -190,7 +190,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 								href={`/api/v2/workspaceagents/${selectedAgent.id}/logs?format=text`}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="flex items-center gap-1 px-4 pb-2 text-xs text-content-secondary hover:text-content-primary"
+								className="flex items-center gap-1 px-4 text-xs text-content-secondary hover:text-content-primary"
 							>
 								View raw logs
 								<ExternalLinkIcon className="size-3" />
