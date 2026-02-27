@@ -390,6 +390,7 @@ const AgentDetail: FC = () => {
 	// always sees the most recent messages instead of a stale scroll
 	// position from the previous chat.
 	useEffect(() => {
+		void agentId;
 		if (scrollContainerRef.current) {
 			scrollContainerRef.current.scrollTop = 0;
 		}
