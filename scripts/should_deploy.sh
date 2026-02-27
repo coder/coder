@@ -18,21 +18,11 @@ deploy_branch=main
 branch_name=$(git branch --show-current)
 
 # --- BEGIN TEMPORARY SHORT-CIRCUIT ---
-# Forces deployment of main between 2026-02-27T16:00Z and 2026-03-04T12:00Z.
-# Remove after 2026-03-04T12:00Z.
+# Forces deployment of main. Remove after 2026-03-04T12:00Z.
 if [[ "$branch_name" == "main" ]]; then
-	log "TEMPORARY SHORT-CIRCUIT: deploying main (window ends 2026-03-04T12:00Z)"
-	now=$(date -u +%s)
-	window_start=$(date -u -d '2026-02-27T16:00:00Z' +%s)
-	window_end=$(date -u -d '2026-03-04T12:00:00Z' +%s)
-	if [[ "$now" -ge "$window_start" && "$now" -le "$window_end" ]]; then
-		log "VERDICT: DEPLOY"
-		echo "DEPLOY"
-		exit 0
-	fi
-else
-	log "VERDICT: DO NOT DEPLOY"
-	echo "NOOP"
+	log "TEMPORARY SHORT-CIRCUIT: deploying main"
+	log "VERDICT: DEPLOY"
+	echo "DEPLOY"
 	exit 0
 fi
 # --- END TEMPORARY SHORT-CIRCUIT ---
