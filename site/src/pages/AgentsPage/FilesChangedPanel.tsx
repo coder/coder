@@ -1,7 +1,12 @@
+import { useTheme } from "@emotion/react";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import {
+	DIFFS_FONT_STYLE,
+	getDiffViewerOptions,
+} from "components/ai-elements/tool/utils";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import {
@@ -33,6 +38,10 @@ function formatPullRequestLabel(url: string): string {
 }
 
 export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
+	const theme = useTheme();
+	const isDark = theme.palette.mode === "dark";
+	const diffOptions = useMemo(() => getDiffViewerOptions(isDark), [isDark]);
+
 	const diffStatusQuery = useQuery(chatDiffStatus(chatId));
 	const diffContentsQuery = useQuery({
 		...chatDiffContents(chatId),
@@ -134,23 +143,14 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 								key={fileDiff.name}
 								fileDiff={fileDiff}
 								options={{
-									diffStyle: "unified",
-									diffIndicators: "bars",
-									overflow: "scroll",
-									themeType: "dark",
+									...diffOptions,
 									enableLineSelection: true,
 									enableHoverUtility: true,
 									onLineSelected() {
 										// TODO: Make this add context to the input so the user can type.
 									},
-									theme: "github-dark-high-contrast",
-									unsafeCSS:
-										"pre, [data-line], [data-diffs-header] { background-color: transparent !important; } [data-diffs-header] { border-left: 1px solid var(--border); }",
 								}}
-								style={{
-									"--diffs-font-size": "11px",
-									"--diffs-line-height": "1.5",
-								}}
+								style={DIFFS_FONT_STYLE}
 							/>
 						))}
 					</div>
