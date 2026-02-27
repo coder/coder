@@ -294,3 +294,160 @@ func detectFileDump(command string) string {
 	}
 	return ""
 }
+
+// ProcessOutputOptions configures the process_output tool.
+type ProcessOutputOptions struct {
+	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+}
+
+// ProcessOutputArgs are the parameters accepted by the
+// process_output tool.
+type ProcessOutputArgs struct {
+	ProcessID string `json:"process_id"`
+}
+
+// ProcessOutput returns an AgentTool that retrieves the output
+// of a background process by its ID.
+func ProcessOutput(options ProcessOutputOptions) fantasy.AgentTool {
+	return fantasy.NewAgentTool(
+		"process_output",
+		"Retrieve output from a background process. "+
+			"Use the process_id returned by execute with "+
+			"run_in_background=true. Returns the current output, "+
+			"whether the process is still running, and the exit "+
+			"code if it has finished.",
+		func(ctx context.Context, args ProcessOutputArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			if options.GetWorkspaceConn == nil {
+				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
+			}
+			if args.ProcessID == "" {
+				return fantasy.NewTextErrorResponse("process_id is required"), nil
+			}
+			conn, err := options.GetWorkspaceConn(ctx)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			resp, err := conn.ProcessOutput(ctx, args.ProcessID)
+			if err != nil {
+				return errorResult(fmt.Sprintf("get process output: %v", err)), nil
+			}
+			output := resp.Output
+			if len(output) > maxOutputToModel {
+				output = output[:maxOutputToModel]
+			}
+			exitCode := 0
+			if resp.ExitCode != nil {
+				exitCode = *resp.ExitCode
+			}
+			result := ExecuteResult{
+				Success:   !resp.Running && exitCode == 0,
+				Output:    output,
+				ExitCode:  exitCode,
+				Truncated: resp.Truncated,
+			}
+			if resp.Running {
+				// Process is still running — success is not
+				// yet determined.
+				result.Success = true
+				result.Note = "process is still running"
+			}
+			data, err := json.Marshal(result)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			return fantasy.NewTextResponse(string(data)), nil
+		},
+	)
+}
+
+// ProcessListOptions configures the process_list tool.
+type ProcessListOptions struct {
+	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+}
+
+// ProcessList returns an AgentTool that lists all tracked
+// processes on the workspace agent.
+func ProcessList(options ProcessListOptions) fantasy.AgentTool {
+	return fantasy.NewAgentTool(
+		"process_list",
+		"List all tracked processes in the workspace. "+
+			"Returns process IDs, commands, status (running or "+
+			"exited), and exit codes. Use this to discover "+
+			"background processes or check which processes are "+
+			"still running.",
+		func(ctx context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			if options.GetWorkspaceConn == nil {
+				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
+			}
+			conn, err := options.GetWorkspaceConn(ctx)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			resp, err := conn.ListProcesses(ctx)
+			if err != nil {
+				return errorResult(fmt.Sprintf("list processes: %v", err)), nil
+			}
+			data, err := json.Marshal(resp)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			return fantasy.NewTextResponse(string(data)), nil
+		},
+	)
+}
+
+// ProcessSignalOptions configures the process_signal tool.
+type ProcessSignalOptions struct {
+	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+}
+
+// ProcessSignalArgs are the parameters accepted by the
+// process_signal tool.
+type ProcessSignalArgs struct {
+	ProcessID string `json:"process_id"`
+	Signal    string `json:"signal"`
+}
+
+// ProcessSignal returns an AgentTool that sends a signal to a
+// tracked process on the workspace agent.
+func ProcessSignal(options ProcessSignalOptions) fantasy.AgentTool {
+	return fantasy.NewAgentTool(
+		"process_signal",
+		"Send a signal to a background process. "+
+			"Use \"terminate\" (SIGTERM) for graceful shutdown "+
+			"or \"kill\" (SIGKILL) to force stop. Use the "+
+			"process_id returned by execute with "+
+			"run_in_background=true or from process_list.",
+		func(ctx context.Context, args ProcessSignalArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			if options.GetWorkspaceConn == nil {
+				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
+			}
+			if args.ProcessID == "" {
+				return fantasy.NewTextErrorResponse("process_id is required"), nil
+			}
+			if args.Signal != "terminate" && args.Signal != "kill" {
+				return fantasy.NewTextErrorResponse(
+					"signal must be \"terminate\" or \"kill\"",
+				), nil
+			}
+			conn, err := options.GetWorkspaceConn(ctx)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			if err := conn.SignalProcess(ctx, args.ProcessID, args.Signal); err != nil {
+				return errorResult(fmt.Sprintf("signal process: %v", err)), nil
+			}
+			data, err := json.Marshal(map[string]any{
+				"success": true,
+				"message": fmt.Sprintf(
+					"signal %q sent to process %s",
+					args.Signal, args.ProcessID,
+				),
+			})
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			return fantasy.NewTextResponse(string(data)), nil
+		},
+	)
+}

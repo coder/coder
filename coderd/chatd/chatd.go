@@ -2063,6 +2063,15 @@ func (p *Server) runChat(
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
+		chattool.ProcessOutput(chattool.ProcessOutputOptions{
+			GetWorkspaceConn: getWorkspaceConn,
+		}),
+		chattool.ProcessList(chattool.ProcessListOptions{
+			GetWorkspaceConn: getWorkspaceConn,
+		}),
+		chattool.ProcessSignal(chattool.ProcessSignalOptions{
+			GetWorkspaceConn: getWorkspaceConn,
+		}),
 	}
 	tools = append(tools, p.subagentTools(func() database.Chat {
 		return chat
