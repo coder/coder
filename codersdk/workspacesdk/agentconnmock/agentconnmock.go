@@ -213,6 +213,21 @@ func (mr *MockAgentConnMockRecorder) ListContainers(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListContainers", reflect.TypeOf((*MockAgentConn)(nil).ListContainers), ctx)
 }
 
+// ListProcesses mocks base method.
+func (m *MockAgentConn) ListProcesses(ctx context.Context) (workspacesdk.ListProcessesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListProcesses", ctx)
+	ret0, _ := ret[0].(workspacesdk.ListProcessesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListProcesses indicates an expected call of ListProcesses.
+func (mr *MockAgentConnMockRecorder) ListProcesses(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProcesses", reflect.TypeOf((*MockAgentConn)(nil).ListProcesses), ctx)
+}
+
 // ListeningPorts mocks base method.
 func (m *MockAgentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error) {
 	m.ctrl.T.Helper()
@@ -258,6 +273,21 @@ func (m *MockAgentConn) Ping(ctx context.Context) (time.Duration, bool, *ipnstat
 func (mr *MockAgentConnMockRecorder) Ping(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockAgentConn)(nil).Ping), ctx)
+}
+
+// ProcessOutput mocks base method.
+func (m *MockAgentConn) ProcessOutput(ctx context.Context, id string) (workspacesdk.ProcessOutputResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ProcessOutput", ctx, id)
+	ret0, _ := ret[0].(workspacesdk.ProcessOutputResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ProcessOutput indicates an expected call of ProcessOutput.
+func (mr *MockAgentConnMockRecorder) ProcessOutput(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessOutput", reflect.TypeOf((*MockAgentConn)(nil).ProcessOutput), ctx, id)
 }
 
 // PrometheusMetrics mocks base method.
@@ -401,6 +431,20 @@ func (mr *MockAgentConnMockRecorder) SSHOnPort(ctx, port any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHOnPort", reflect.TypeOf((*MockAgentConn)(nil).SSHOnPort), ctx, port)
 }
 
+// SignalProcess mocks base method.
+func (m *MockAgentConn) SignalProcess(ctx context.Context, id, signal string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SignalProcess", ctx, id, signal)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SignalProcess indicates an expected call of SignalProcess.
+func (mr *MockAgentConnMockRecorder) SignalProcess(ctx, id, signal any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SignalProcess", reflect.TypeOf((*MockAgentConn)(nil).SignalProcess), ctx, id, signal)
+}
+
 // Speedtest mocks base method.
 func (m *MockAgentConn) Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error) {
 	m.ctrl.T.Helper()
@@ -414,6 +458,21 @@ func (m *MockAgentConn) Speedtest(ctx context.Context, direction speedtest.Direc
 func (mr *MockAgentConnMockRecorder) Speedtest(ctx, direction, duration any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Speedtest", reflect.TypeOf((*MockAgentConn)(nil).Speedtest), ctx, direction, duration)
+}
+
+// StartProcess mocks base method.
+func (m *MockAgentConn) StartProcess(ctx context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StartProcess", ctx, req)
+	ret0, _ := ret[0].(workspacesdk.StartProcessResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StartProcess indicates an expected call of StartProcess.
+func (mr *MockAgentConnMockRecorder) StartProcess(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartProcess", reflect.TypeOf((*MockAgentConn)(nil).StartProcess), ctx, req)
 }
 
 // TailnetConn mocks base method.
