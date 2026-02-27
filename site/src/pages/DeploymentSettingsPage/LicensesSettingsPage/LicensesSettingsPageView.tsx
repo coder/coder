@@ -134,7 +134,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 					</Stack>
 				)}
 
-				{!isLoading && licenses === null && (
+				{!isLoading && licenses?.length === 0 && (
 					<div css={styles.root}>
 						<Stack alignItems="center" spacing={1}>
 							<Stack alignItems="center" spacing={0.5}>
