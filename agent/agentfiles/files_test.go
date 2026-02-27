@@ -915,7 +915,7 @@ func TestReadFileLines(t *testing.T) {
 				require.Equal(t, tt.expRead, resp.LinesRead)
 				require.Equal(t, tt.expSize, resp.FileSize)
 			} else {
-				require.Equal(t, http.StatusBadRequest, w.Code)
+				require.Equal(t, http.StatusOK, w.Code)
 				require.False(t, resp.Success)
 				require.Contains(t, resp.Error, tt.expError)
 			}

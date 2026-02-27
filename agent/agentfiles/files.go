@@ -147,11 +147,7 @@ func (api *API) HandleReadFileLines(rw http.ResponseWriter, r *http.Request) {
 		MaxResponseLines: int(maxResponseLines),
 		MaxResponseBytes: int(maxResponseBytes),
 	})
-	if resp.Success {
-		httpapi.Write(ctx, rw, http.StatusOK, resp)
-	} else {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
-	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 func (api *API) readFileLines(_ context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) ReadFileLinesResponse {

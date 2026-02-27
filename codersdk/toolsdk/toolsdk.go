@@ -1522,6 +1522,10 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 			return WorkspaceReadFileResponse{}, err
 		}
 
+		if !resp.Success {
+			return WorkspaceReadFileResponse{}, xerrors.New(resp.Error)
+		}
+
 		return WorkspaceReadFileResponse{
 			Success:    resp.Success,
 			FileSize:   resp.FileSize,

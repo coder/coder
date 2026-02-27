@@ -564,8 +564,8 @@ func TestTools(t *testing.T) {
 				name:      "Exists",
 				path:      filePath,
 				success:   true,
-				content:   "line1\nline2\nline3\n",
-				linesRead: 3,
+				content:   "1\tline1\n2\tline2\n3\tline3\n4\t",
+				linesRead: 4,
 			},
 			{
 				name:      "Limit1Offset2",
@@ -573,7 +573,7 @@ func TestTools(t *testing.T) {
 				limit:     1,
 				offset:    2,
 				success:   true,
-				content:   "line2\n",
+				content:   "2\tline2",
 				linesRead: 1,
 			},
 		}
