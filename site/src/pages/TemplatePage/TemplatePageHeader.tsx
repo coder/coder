@@ -1,4 +1,5 @@
 import { API } from "api/api";
+import { getErrorDetail } from "api/errors";
 import { workspaces } from "api/queries/workspaces";
 import type {
 	AuthorizationResponse,
@@ -39,6 +40,7 @@ import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
+import { toast } from "sonner";
 import { TemplateStats } from "./TemplateStats";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
@@ -89,7 +91,9 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 			window.URL.revokeObjectURL(url);
 		} catch (error) {
 			console.error("Failed to export template:", error);
-			// TODO: Show user-friendly error message
+			toast.error("Failed to export template.", {
+				description: getErrorDetail(error),
+			});
 		}
 	};
 
