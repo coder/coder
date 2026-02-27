@@ -13,6 +13,19 @@ cdroot
 
 deploy_branch=main
 
+# --- TEMPORARY SHORT-CIRCUIT: remove after 2026-03-04T12:00Z ---
+# Forces deployment of main between 2026-02-27T18:00Z and 2026-03-04T12:00Z.
+now=$(date -u +%s)
+window_start=$(date -u -d '2026-02-27T18:00:00Z' +%s)
+window_end=$(date -u -d '2026-03-04T12:00:00Z' +%s)
+if [[ "$now" -ge "$window_start" && "$now" -le "$window_end" ]]; then
+  log "TEMPORARY SHORT-CIRCUIT: deploying main (window ends 2026-03-04T12:00Z)"
+  echo "DEPLOY"
+  exit 0
+fi
+# --- END TEMPORARY SHORT-CIRCUIT ---
+
+
 # Determine the current branch name and check that it is one of the supported
 # branch names.
 branch_name=$(git branch --show-current)
