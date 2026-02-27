@@ -57,9 +57,11 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				title="Confirm license removal"
 				verb="Removing"
 				confirmText="Remove"
-				info={isExpired
-					? "This license has already expired and is not providing any features. Removing it will not affect your current entitlements."
-					: "Removing this license will disable all Premium features. You can add a new license at any time."}
+				info={
+					isExpired
+						? "This license has already expired and is not providing any features. Removing it will not affect your current entitlements."
+						: "Removing this license will disable all Premium features. You can add a new license at any time."
+				}
 				confirmLoading={isRemoving}
 			/>
 			<div className="flex flex-row gap-4 items-center">
