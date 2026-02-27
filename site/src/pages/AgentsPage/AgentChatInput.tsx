@@ -324,25 +324,35 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				isEditingHistoryMessage && editingHistoryMessageID !== null
 					? editingHistoryMessageID
 					: undefined;
+			// Capture the raw input before clearing so we can restore
+			// it if the request fails.
+			const capturedInput = input;
+
+			// Clear the input and editing state immediately so the
+			// user can start typing their next message without waiting
+			// for the network round-trip.
+			setInput("");
+			onInputChange?.("");
+			if (queueEditID !== null) {
+				setEditingQueuedMessageID(null);
+				setDraftBeforeQueueEdit(null);
+			}
+			if (isEditingHistoryMessage) {
+				setIsEditingHistoryMessage(false);
+				setEditingHistoryMessageID(null);
+				setDraftBeforeHistoryEdit(null);
+				onEditCleared?.();
+			}
+
 			try {
-				await onSend(input, editedMessageID);
+				await onSend(capturedInput, editedMessageID);
 				if (queueEditID !== null && onDeleteQueuedMessage) {
 					await onDeleteQueuedMessage(queueEditID);
 				}
-				setInput("");
-				onInputChange?.("");
-				if (queueEditID !== null) {
-					setEditingQueuedMessageID(null);
-					setDraftBeforeQueueEdit(null);
-				}
-				if (isEditingHistoryMessage) {
-					setIsEditingHistoryMessage(false);
-					setEditingHistoryMessageID(null);
-					setDraftBeforeHistoryEdit(null);
-					onEditCleared?.();
-				}
 			} catch {
-				// Keep input on failure so the user can retry.
+				// Restore the input so the user can retry.
+				setInput(capturedInput);
+				onInputChange?.(capturedInput);
 			} finally {
 				// Re-focus the textarea so the user can keep typing.
 				textareaRef.current?.focus();

@@ -614,7 +614,31 @@ const AgentDetail: FC = () => {
 		if (scrollContainerRef.current) {
 			scrollContainerRef.current.scrollTop = 0;
 		}
-		await sendMutation.mutateAsync(request);
+
+		// Inject an optimistic user message so the bubble appears in
+		// the timeline immediately, without waiting for the server.
+		const previousMessages = getOrderedMessagesFromStore(store);
+		const previousChatStatus = store.getSnapshot().chatStatus;
+		const optimisticMessage: TypesGen.ChatMessage = {
+			id: -Date.now(),
+			chat_id: agentId,
+			created_at: new Date().toISOString(),
+			role: "user",
+			content: toOptimisticMessageParts(content),
+		};
+		store.upsertDurableMessage(optimisticMessage);
+		store.clearStreamState();
+		store.setChatStatus("pending");
+
+		try {
+			await sendMutation.mutateAsync(request);
+		} catch (error) {
+			// Roll back the optimistic message so the timeline
+			// returns to its previous state.
+			store.replaceMessages(previousMessages);
+			store.setChatStatus(previousChatStatus);
+			throw error;
+		}
 		if (typeof window !== "undefined") {
 			if (selectedModelConfigID) {
 				localStorage.setItem(
