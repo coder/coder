@@ -6,11 +6,11 @@
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/chats/{chat}
+curl -X POST http://coder-server:8080/api/v2/chats/{chat}/archive
 
 ```
 
-`POST /chats/{chat}`
+`POST /chats/{chat}/archive`
 
 ### Responses
 

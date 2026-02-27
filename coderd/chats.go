@@ -397,7 +397,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 // @ID archive-chat
 // @Tags Chats
 // @Success 204
-// @Router /chats/{chat} [post]
+// @Router /chats/{chat}/archive [post]
 func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)

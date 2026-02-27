@@ -481,7 +481,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/{chat}": {
+        "/chats/{chat}/archive": {
             "post": {
                 "tags": [
                     "Chats"
