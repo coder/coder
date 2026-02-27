@@ -3041,13 +3041,16 @@ func chatProviderValidationDetail() string {
 func chatProviderAPIKeysFromDeploymentValues(
 	deploymentValues *codersdk.DeploymentValues,
 ) chatprovider.ProviderAPIKeys {
+	_ = deploymentValues
+	// For now, we'll just manage configs in the UI.
+	// We should probably not be reusing the AI bridge configs anyways.
 	return chatprovider.ProviderAPIKeys{
-		OpenAI:    deploymentValues.AI.BridgeConfig.OpenAI.Key.Value(),
-		Anthropic: deploymentValues.AI.BridgeConfig.Anthropic.Key.Value(),
-		BaseURLByProvider: map[string]string{
-			"openai":    deploymentValues.AI.BridgeConfig.OpenAI.BaseURL.Value(),
-			"anthropic": deploymentValues.AI.BridgeConfig.Anthropic.BaseURL.Value(),
-		},
+		// OpenAI:    deploymentValues.AI.BridgeConfig.OpenAI.Key.Value(),
+		// Anthropic: deploymentValues.AI.BridgeConfig.Anthropic.Key.Value(),
+		// BaseURLByProvider: map[string]string{
+		// 	"openai":    deploymentValues.AI.BridgeConfig.OpenAI.BaseURL.Value(),
+		// 	"anthropic": deploymentValues.AI.BridgeConfig.Anthropic.BaseURL.Value(),
+		// },
 	}
 }
 
