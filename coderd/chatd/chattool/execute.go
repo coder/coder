@@ -50,14 +50,14 @@ var fileDumpPatterns = []*regexp.Regexp{
 // ExecuteResult is the structured response from the execute
 // tool.
 type ExecuteResult struct {
-	Success             bool                           `json:"success"`
-	Output              string                         `json:"output,omitempty"`
-	ExitCode            int                            `json:"exit_code"`
-	WallDurationMs      int64                          `json:"wall_duration_ms"`
-	Error               string                         `json:"error,omitempty"`
+	Success             bool                            `json:"success"`
+	Output              string                          `json:"output,omitempty"`
+	ExitCode            int                             `json:"exit_code"`
+	WallDurationMs      int64                           `json:"wall_duration_ms"`
+	Error               string                          `json:"error,omitempty"`
 	Truncated           *workspacesdk.ProcessTruncation `json:"truncated,omitempty"`
-	Note                string                         `json:"note,omitempty"`
-	BackgroundProcessID string                         `json:"background_process_id,omitempty"`
+	Note                string                          `json:"note,omitempty"`
+	BackgroundProcessID string                          `json:"background_process_id,omitempty"`
 }
 
 // ExecuteOptions configures the execute tool.
