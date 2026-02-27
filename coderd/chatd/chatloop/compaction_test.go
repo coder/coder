@@ -83,6 +83,113 @@ func TestRun_Compaction(t *testing.T) {
 		require.InDelta(t, 80.0, persistedCompaction.UsagePercent, 0.0001)
 	})
 
+	t.Run("OnStartFiresBeforePersist", func(t *testing.T) {
+		t.Parallel()
+
+		const summaryText = "compaction summary for ordering test"
+
+		// Track the order of callbacks to verify OnStart fires
+		// before the Generate call (summary generation) and
+		// before Persist.
+		var callOrder []string
+
+		model := &loopTestModel{
+			provider: "fake",
+			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{
+						Type:         fantasy.StreamPartTypeFinish,
+						FinishReason: fantasy.FinishReasonStop,
+						Usage: fantasy.Usage{
+							InputTokens: 80,
+							TotalTokens: 85,
+						},
+					},
+				}), nil
+			},
+			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				callOrder = append(callOrder, "generate")
+				return &fantasy.Response{
+					Content: []fantasy.Content{
+						fantasy.TextContent{Text: summaryText},
+					},
+				}, nil
+			},
+		}
+
+		_, err := Run(context.Background(), RunOptions{
+			Model: model,
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "hello"),
+			},
+			MaxSteps: 1,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			ContextLimitFallback: 100,
+			Compaction: &CompactionOptions{
+				ThresholdPercent: 70,
+				SummaryPrompt:    "summarize now",
+				OnStart: func() {
+					callOrder = append(callOrder, "on_start")
+				},
+				Persist: func(_ context.Context, _ CompactionResult) error {
+					callOrder = append(callOrder, "persist")
+					return nil
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"on_start", "generate", "persist"}, callOrder)
+	})
+
+	t.Run("OnStartNotCalledBelowThreshold", func(t *testing.T) {
+		t.Parallel()
+
+		onStartCalled := false
+
+		model := &loopTestModel{
+			provider: "fake",
+			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{
+						Type:         fantasy.StreamPartTypeFinish,
+						FinishReason: fantasy.FinishReasonStop,
+						Usage: fantasy.Usage{
+							InputTokens: 10,
+						},
+					},
+				}), nil
+			},
+		}
+
+		_, err := Run(context.Background(), RunOptions{
+			Model: model,
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "hello"),
+			},
+			MaxSteps: 1,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			ContextLimitFallback: 100,
+			Compaction: &CompactionOptions{
+				ThresholdPercent: 70,
+				OnStart: func() {
+					onStartCalled = true
+				},
+				Persist: func(_ context.Context, _ CompactionResult) error {
+					return nil
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, onStartCalled, "OnStart should not fire when usage is below threshold")
+	})
+
 	t.Run("ErrorsAreReported", func(t *testing.T) {
 		t.Parallel()
 

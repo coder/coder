@@ -30,6 +30,7 @@ type CompactionOptions struct {
 	SystemSummaryPrefix string
 	Timeout             time.Duration
 	Persist             func(context.Context, CompactionResult) error
+	OnStart             func()
 	OnError             func(error)
 }
 
@@ -132,6 +133,10 @@ func maybeCompact(
 	usagePercent := (float64(contextTokens) / float64(contextLimit)) * 100
 	if usagePercent < float64(config.ThresholdPercent) {
 		return nil
+	}
+
+	if config.OnStart != nil {
+		config.OnStart()
 	}
 
 	summary, err := generateCompactionSummary(
