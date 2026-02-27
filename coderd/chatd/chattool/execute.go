@@ -227,9 +227,8 @@ func pollProcess(
 				context.Background(),
 				5*time.Second,
 			)
-			defer bgCancel()
-
 			outputResp, _ := conn.ProcessOutput(bgCtx, processID)
+			bgCancel()
 			output := outputResp.Output
 			if len(output) > maxOutputToModel {
 				output = output[:maxOutputToModel]

@@ -238,18 +238,18 @@ func (b *HeadTailBuffer) Output() (string, *TruncationInfo) {
 	tailStr := truncateLines(string(tail))
 
 	var sb strings.Builder
-	sb.WriteString(headStr)
+	_, _ = sb.WriteString(headStr)
 	if omitted > 0 {
-		sb.WriteString(fmt.Sprintf(
+		_, _ = sb.WriteString(fmt.Sprintf(
 			"\n\n... [omitted %d bytes] ...\n\n",
 			omitted,
 		))
 	} else {
 		// Head and tail are contiguous but were stored
 		// separately because the head filled up.
-		sb.WriteString("\n")
+		_, _ = sb.WriteString("\n")
 	}
-	sb.WriteString(tailStr)
+	_, _ = sb.WriteString(tailStr)
 	result := sb.String()
 
 	return result, &TruncationInfo{
@@ -290,16 +290,16 @@ func truncateLines(s string) string {
 			if cut < 0 {
 				cut = 0
 			}
-			b.WriteString(line[:cut])
-			b.WriteString(lineTruncationSuffix)
+			_, _ = b.WriteString(line[:cut])
+			_, _ = b.WriteString(lineTruncationSuffix)
 		} else {
-			b.WriteString(line)
+			_, _ = b.WriteString(line)
 		}
 
 		// Re-add the newline unless this was the final
 		// segment without a trailing newline.
 		if idx != -1 {
-			b.WriteByte('\n')
+			_ = b.WriteByte('\n')
 		}
 	}
 

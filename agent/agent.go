@@ -303,8 +303,8 @@ type agent struct {
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
 
-	filesAPI    *agentfiles.API
-	processAPI  *agentproc.API
+	filesAPI   *agentfiles.API
+	processAPI *agentproc.API
 
 	socketServerEnabled bool
 	socketPath          string
