@@ -52,6 +52,7 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 
 const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
@@ -337,6 +338,10 @@ const AgentsPage: FC = () => {
 	useEffect(() => {
 		document.title = pageTitle("Agents");
 	}, []);
+
+	useAgentsPageKeybindings({
+		onNewAgent: handleNewAgent,
+	});
 
 	useEffect(() => {
 		if (!agentId) {

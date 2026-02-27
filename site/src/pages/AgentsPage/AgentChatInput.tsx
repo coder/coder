@@ -397,6 +397,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					} else if (isEditingHistoryMessage) {
 						e.preventDefault();
 						handleCancelHistoryEdit();
+					} else if (isStreaming && onInterrupt && !isInterruptPending) {
+						e.preventDefault();
+						onInterrupt();
 					}
 					return;
 				}
@@ -422,6 +425,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				handleSubmit,
 				input,
 				isEditingHistoryMessage,
+				isInterruptPending,
+				isStreaming,
+				onInterrupt,
 				onPromoteQueuedMessage,
 				queuedMessages,
 			],
