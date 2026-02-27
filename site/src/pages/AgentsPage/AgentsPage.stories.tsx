@@ -1,6 +1,6 @@
+import { MockWorkspace } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
-import { MockWorkspace } from "testHelpers/entities";
 import { useRef } from "react";
 import {
 	expect,
