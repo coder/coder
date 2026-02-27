@@ -9,8 +9,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
@@ -111,16 +109,6 @@ func getAnthropicModelFromEnv() anthropic.Model {
 	return anthropic.Model(os.Getenv("ANTHROPIC_MODEL"))
 }
 
-// capitalize returns s with its first rune upper-cased. It is safe for
-// multi-byte UTF-8 characters, unlike naive byte-slicing approaches.
-func capitalize(s string) string {
-	r, size := utf8.DecodeRuneInString(s)
-	if size == 0 {
-		return s
-	}
-	return string(unicode.ToUpper(r)) + s[size:]
-}
-
 // generateSuffix generates a random hex string between `0000` and `ffff`.
 func generateSuffix() string {
 	numMin := 0x00000
@@ -189,7 +177,7 @@ func generateFromPrompt(prompt string) (TaskName, error) {
 		// Ensure display name is never empty
 		displayName = strings.ReplaceAll(name, "-", " ")
 	}
-	displayName = capitalize(displayName)
+	displayName = strutil.Capitalize(displayName)
 
 	return TaskName{
 		Name:        taskName,
@@ -281,7 +269,7 @@ func generateFromAnthropic(ctx context.Context, prompt string, apiKey string, mo
 		// Ensure display name is never empty
 		displayName = strings.ReplaceAll(taskNameResponse.Name, "-", " ")
 	}
-	displayName = capitalize(displayName)
+	displayName = strutil.Capitalize(displayName)
 
 	return TaskName{
 		Name:        name,

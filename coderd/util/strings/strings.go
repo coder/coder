@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/acarl005/stripansi"
 	"github.com/microcosm-cc/bluemonday"
@@ -126,4 +127,14 @@ func UISanitize(in string) string {
 		}
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// Capitalize returns s with its first rune upper-cased. It is safe for
+// multi-byte UTF-8 characters, unlike naive byte-slicing approaches.
+func Capitalize(s string) string {
+	r, size := utf8.DecodeRuneInString(s)
+	if size == 0 {
+		return s
+	}
+	return string(unicode.ToUpper(r)) + s[size:]
 }
