@@ -525,6 +525,72 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
+		})
+		return
+	}
+
+	messageIDStr := chi.URLParam(r, "message")
+	messageID, err := strconv.ParseInt(messageIDStr, 10, 64)
+	if err != nil || messageID <= 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid chat message ID.",
+			Detail:  "Message ID must be a positive integer.",
+		})
+		return
+	}
+
+	var req codersdk.EditChatMessageRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	contentBlocks, _, inputError := createChatInputFromParts(req.Content, "content")
+	if inputError != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: inputError.Message,
+			Detail:  inputError.Detail,
+		})
+		return
+	}
+
+	editResult, editErr := api.chatDaemon.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: messageID,
+		Content:         contentBlocks,
+	})
+	if editErr != nil {
+		switch {
+		case xerrors.Is(editErr, chatd.ErrEditedMessageNotFound):
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Chat message not found.",
+				Detail:  "Message does not belong to this chat.",
+			})
+		case xerrors.Is(editErr, chatd.ErrEditedMessageNotUser):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Only user messages can be edited.",
+			})
+		default:
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to edit chat message.",
+				Detail:  editErr.Error(),
+			})
+		}
+		return
+	}
+
+	message := convertChatMessage(editResult.Message)
+	httpapi.Write(ctx, rw, http.StatusOK, message)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)

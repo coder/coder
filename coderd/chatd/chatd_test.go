@@ -4,16 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
@@ -245,6 +248,160 @@ func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 2)
 	require.Equal(t, messages[len(messages)-1].ID, result.Message.ID)
+}
+
+func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "edit-message",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "original"}},
+	})
+	require.NoError(t, err)
+
+	initialMessages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, initialMessages, 1)
+	editedMessageID := initialMessages[0].ID
+
+	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []fantasy.Content{fantasy.TextContent{Text: "follow-up"}},
+		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
+	})
+	require.NoError(t, err)
+	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []fantasy.Content{fantasy.TextContent{Text: "another"}},
+		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+		ChatID:  chat.ID,
+		Content: json.RawMessage(`"queued"`),
+	})
+	require.NoError(t, err)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	editResult, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: editedMessageID,
+		Content:         []fantasy.Content{fantasy.TextContent{Text: "edited"}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, editedMessageID, editResult.Message.ID)
+	require.Equal(t, database.ChatStatusPending, editResult.Chat.Status)
+	require.False(t, editResult.Chat.WorkerID.Valid)
+
+	editedSDK := db2sdk.ChatMessage(editResult.Message)
+	require.Len(t, editedSDK.Content, 1)
+	require.Equal(t, "edited", editedSDK.Content[0].Text)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	require.Equal(t, editedMessageID, messages[0].ID)
+	onlyMessage := db2sdk.ChatMessage(messages[0])
+	require.Len(t, onlyMessage.Content, 1)
+	require.Equal(t, "edited", onlyMessage.Content[0].Text)
+
+	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queued, 0)
+
+	chatFromDB, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusPending, chatFromDB.Status)
+	require.False(t, chatFromDB.WorkerID.Valid)
+}
+
+func TestEditMessageRejectsMissingMessage(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "missing-edited-message",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: 999999,
+		Content:         []fantasy.Content{fantasy.TextContent{Text: "edited"}},
+	})
+	require.Error(t, err)
+	require.True(t, errors.Is(err, chatd.ErrEditedMessageNotFound))
+}
+
+func TestEditMessageRejectsNonUserMessage(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "non-user-edited-message",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	assistantMessage, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          "assistant",
+		Content: pqtype.NullRawMessage{
+			RawMessage: json.RawMessage(`"assistant"`),
+			Valid:      true,
+		},
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
+	})
+	require.NoError(t, err)
+
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: assistantMessage.ID,
+		Content:         []fantasy.Content{fantasy.TextContent{Text: "edited"}},
+	})
+	require.Error(t, err)
+	require.True(t, errors.Is(err, chatd.ErrEditedMessageNotUser))
 }
 
 func newTestServer(

@@ -1768,6 +1768,18 @@ func (q *querier) DeleteChatByID(ctx context.Context, id uuid.UUID) error {
 	return q.db.DeleteChatByID(ctx, id)
 }
 
+func (q *querier) DeleteChatMessagesAfterID(ctx context.Context, arg database.DeleteChatMessagesAfterIDParams) error {
+	// Authorize update on the parent chat.
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.DeleteChatMessagesAfterID(ctx, arg)
+}
+
 func (q *querier) DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	// Authorize delete on the parent chat.
 	chat, err := q.db.GetChatByID(ctx, chatID)
@@ -5311,6 +5323,22 @@ func (q *querier) UpdateChatHeartbeat(ctx context.Context, arg database.UpdateCh
 		return 0, err
 	}
 	return q.db.UpdateChatHeartbeat(ctx, arg)
+}
+
+func (q *querier) UpdateChatMessageByID(ctx context.Context, arg database.UpdateChatMessageByIDParams) (database.ChatMessage, error) {
+	// Authorize update on the parent chat of the edited message.
+	msg, err := q.db.GetChatMessageByID(ctx, arg.ID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	chat, err := q.db.GetChatByID(ctx, msg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatMessage{}, err
+	}
+	return q.db.UpdateChatMessageByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {

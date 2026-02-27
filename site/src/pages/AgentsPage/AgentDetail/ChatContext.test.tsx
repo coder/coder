@@ -1,5 +1,6 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { watchChat } from "api/api";
+import { chatKey } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
@@ -123,6 +124,17 @@ const makeMessage = (
 	chat_id: chatID,
 	created_at: "2025-01-01T00:00:00.000Z",
 	role,
+	content: [{ type: "text", text }],
+});
+
+const makeQueuedMessage = (
+	chatID: string,
+	id: number,
+	text: string,
+): TypesGen.ChatQueuedMessage => ({
+	id,
+	chat_id: chatID,
+	created_at: "2025-01-01T00:00:00.000Z",
 	content: [{ type: "text", text }],
 });
 
@@ -456,6 +468,209 @@ describe("useChatStore", () => {
 			expect(result.current.streamState?.blocks).toEqual([
 				{ type: "response", text: "hello world" },
 			]);
+		});
+	});
+
+	it("does not restore stale queued messages after a stream queue_update", async () => {
+		const chatID = "chat-1";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+		const initialOptions = {
+			chatID,
+			chatMessages: [existingMessage],
+			chatRecord: makeChat(chatID),
+			chatData: {
+				chat: makeChat(chatID),
+				messages: [existingMessage],
+				queued_messages: [queuedMessage],
+			},
+			chatQueuedMessages: [queuedMessage],
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
+				};
+			},
+			{
+				initialProps: initialOptions,
+				wrapper,
+			},
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+		expect(result.current.queuedMessages.map((message) => message.id)).toEqual([
+			queuedMessage.id,
+		]);
+
+		act(() => {
+			mockSocket.emitData({
+				type: "queue_update",
+				chat_id: chatID,
+				queued_messages: [],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([]);
+		});
+
+		rerender({
+			...initialOptions,
+			chatData: {
+				chat: {
+					...makeChat(chatID),
+					updated_at: "2025-01-01T00:00:01.000Z",
+				},
+				messages: [existingMessage],
+				queued_messages: [queuedMessage],
+			},
+			chatQueuedMessages: [queuedMessage],
+		});
+
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([]);
+		});
+	});
+
+	it("writes queue_update snapshots into the chat query cache", async () => {
+		const chatID = "chat-1";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const initialChatData: TypesGen.ChatWithMessages = {
+			chat: makeChat(chatID),
+			messages: [existingMessage],
+			queued_messages: [queuedMessage],
+		};
+		queryClient.setQueryData(chatKey(chatID), initialChatData);
+
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: makeChat(chatID),
+					chatData: initialChatData,
+					chatQueuedMessages: [queuedMessage],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "queue_update",
+				chat_id: chatID,
+				queued_messages: [],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([]);
+		});
+		expect(
+			queryClient.getQueryData<TypesGen.ChatWithMessages | undefined>(
+				chatKey(chatID),
+			)?.queued_messages,
+		).toEqual([]);
+	});
+
+	it("ignores queue_update events for other chats", async () => {
+		const chatID = "chat-1";
+		const otherChatID = "chat-2";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [existingMessage],
+						queued_messages: [queuedMessage],
+					},
+					chatQueuedMessages: [queuedMessage],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "queue_update",
+				chat_id: otherChatID,
+				queued_messages: [],
+			});
+		});
+
+		await waitFor(() => {
+			expect(
+				result.current.queuedMessages.map((message) => message.id),
+			).toEqual([queuedMessage.id]);
 		});
 	});
 });

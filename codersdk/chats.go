@@ -127,6 +127,11 @@ type CreateChatMessageRequest struct {
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
 }
 
+// EditChatMessageRequest is the request to edit a user message in a chat.
+type EditChatMessageRequest struct {
+	Content []ChatInputPart `json:"content"`
+}
+
 // CreateChatMessageResponse is the response from adding a message to a chat.
 type CreateChatMessageResponse struct {
 	Message       *ChatMessage       `json:"message,omitempty"`
@@ -800,6 +805,30 @@ func (c *Client) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req Cr
 	}
 	var resp CreateChatMessageResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// EditChatMessage edits an existing user message in a chat and re-runs from there.
+func (c *Client) EditChatMessage(
+	ctx context.Context,
+	chatID uuid.UUID,
+	messageID int64,
+	req EditChatMessageRequest,
+) (ChatMessage, error) {
+	res, err := c.Request(
+		ctx,
+		http.MethodPatch,
+		fmt.Sprintf("/api/experimental/chats/%s/messages/%d", chatID, messageID),
+		req,
+	)
+	if err != nil {
+		return ChatMessage{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatMessage{}, ReadBodyAsError(res)
+	}
+	var message ChatMessage
+	return message, json.NewDecoder(res.Body).Decode(&message)
 }
 
 // InterruptChat cancels an in-flight chat run and leaves it waiting.

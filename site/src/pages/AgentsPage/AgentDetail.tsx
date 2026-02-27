@@ -7,6 +7,7 @@ import {
 	chats,
 	createChatMessage,
 	deleteChatQueuedMessage,
+	editChatMessage,
 	interruptChat,
 	promoteChatQueuedMessage,
 } from "api/queries/chats";
@@ -15,7 +16,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
-import { type FC, useEffect, useMemo, useRef, useState } from "react";
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
@@ -73,12 +74,16 @@ interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
 	chatID: string;
 	persistedErrorReason: string | undefined;
+	onEditUserMessage?: (messageId: number, text: string) => void;
+	editingMessageId?: number | null;
 }
 
 const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	store,
 	chatID,
 	persistedErrorReason,
+	onEditUserMessage,
+	editingMessageId,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -142,6 +147,8 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 			subagentStatusOverrides={subagentStatusOverrides}
 			isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 			detailErrorMessage={detailErrorMessage}
+			onEditUserMessage={onEditUserMessage}
+			editingMessageId={editingMessageId}
 		/>
 	);
 };
@@ -149,7 +156,7 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 interface AgentDetailInputProps {
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
-	onSend: (message: string) => Promise<void>;
+	onSend: (message: string, editedMessageID?: number) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -163,6 +170,8 @@ interface AgentDetailInputProps {
 	modelSelectorPlaceholder: string;
 	inputStatusText: string | null;
 	modelCatalogStatusMessage: string | null;
+	editRequest?: { text: string; messageId?: number; key: number } | null;
+	onEditCleared?: () => void;
 }
 
 const AgentDetailInput: FC<AgentDetailInputProps> = ({
@@ -182,6 +191,8 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	modelSelectorPlaceholder,
 	inputStatusText,
 	modelCatalogStatusMessage,
+	editRequest,
+	onEditCleared,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -225,6 +236,8 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			inputStatusText={inputStatusText}
 			modelCatalogStatusMessage={modelCatalogStatusMessage}
+			editRequest={editRequest}
+			onEditCleared={onEditCleared}
 			sticky
 		/>
 	);
@@ -237,7 +250,7 @@ interface AgentDetailConversationProps {
 	compressionThreshold: number | undefined;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
-	onSend: (message: string) => Promise<void>;
+	onSend: (message: string, editedMessageID?: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isSendPending: boolean;
@@ -271,12 +284,28 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 	inputStatusText,
 	modelCatalogStatusMessage,
 }) => {
+	const [editRequest, setEditRequest] = useState<{
+		text: string;
+		messageId: number;
+		key: number;
+	} | null>(null);
+
+	const handleEditUserMessage = useCallback((messageId: number, text: string) => {
+		setEditRequest({ text, messageId, key: Date.now() });
+	}, []);
+
+	const handleEditCleared = useCallback(() => {
+		setEditRequest(null);
+	}, []);
+
 	return (
 		<>
 			<AgentDetailTimeline
 				store={store}
 				chatID={chatID}
 				persistedErrorReason={persistedErrorReason}
+				onEditUserMessage={handleEditUserMessage}
+				editingMessageId={editRequest?.messageId ?? null}
 			/>
 			<AgentDetailInput
 				store={store}
@@ -295,6 +324,8 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				inputStatusText={inputStatusText}
 				modelCatalogStatusMessage={modelCatalogStatusMessage}
+				editRequest={editRequest}
+				onEditCleared={handleEditCleared}
 			/>
 		</>
 	);
@@ -404,6 +435,9 @@ const AgentDetail: FC = () => {
 	const sendMutation = useMutation(
 		createChatMessage(queryClient, agentId ?? ""),
 	);
+	const editMutation = useMutation(
+		editChatMessage(queryClient, agentId ?? ""),
+	);
 	const interruptMutation = useMutation(
 		interruptChat(queryClient, agentId ?? ""),
 	);
@@ -469,10 +503,10 @@ const AgentDetail: FC = () => {
 			? "Models are configured but unavailable. Ask an admin."
 			: "No models configured. Ask an admin.";
 	const isSubmissionPending =
-		sendMutation.isPending || interruptMutation.isPending;
+		sendMutation.isPending || editMutation.isPending || interruptMutation.isPending;
 	const isInputDisabled = !hasModelOptions;
 
-	const handleSend = async (message: string) => {
+	const handleSend = async (message: string, editedMessageID?: number) => {
 		if (
 			!message.trim() ||
 			isSubmissionPending ||
@@ -481,10 +515,21 @@ const AgentDetail: FC = () => {
 		) {
 			return;
 		}
+		const content: TypesGen.ChatInputPart[] = [{ type: "text", text: message }];
+		if (editedMessageID !== undefined) {
+			const request: TypesGen.EditChatMessageRequest = { content };
+			clearChatErrorReason(agentId);
+			clearStreamError();
+			if (scrollContainerRef.current) {
+				scrollContainerRef.current.scrollTop = 0;
+			}
+			await editMutation.mutateAsync({ messageId: editedMessageID, req: request });
+			return;
+		}
 		const selectedModelConfigID =
 			(selectedModel && modelConfigIDByModelID.get(selectedModel)) || undefined;
 		const request: TypesGen.CreateChatMessageRequest = {
-			content: [{ type: "text", text: message }],
+			content,
 			model_config_id: selectedModelConfigID,
 		};
 		clearChatErrorReason(agentId);
@@ -669,6 +714,16 @@ const AgentDetail: FC = () => {
 			/>
 
 			<div
+				aria-hidden
+				className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-surface-primary"
+				style={{
+					maskImage:
+						"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+					WebkitMaskImage:
+						"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+				}}
+			/>
+			<div
 				ref={scrollContainerRef}
 				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
@@ -687,7 +742,7 @@ const AgentDetail: FC = () => {
 						onSend={handleSend}
 						onInterrupt={handleInterrupt}
 						isInputDisabled={isInputDisabled}
-						isSendPending={sendMutation.isPending}
+						isSendPending={isSubmissionPending}
 						isInterruptPending={interruptMutation.isPending}
 						hasModelOptions={hasModelOptions}
 						selectedModel={selectedModel}

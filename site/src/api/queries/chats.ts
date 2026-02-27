@@ -40,6 +40,25 @@ export const createChatMessage = (
 	},
 });
 
+type EditChatMessageMutationArgs = {
+	messageId: number;
+	req: TypesGen.EditChatMessageRequest;
+};
+
+export const editChatMessage = (
+	queryClient: QueryClient,
+	chatId: string,
+) => ({
+	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
+		API.editChatMessage(chatId, messageId, req),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({ queryKey: chatsKey }),
+			queryClient.invalidateQueries({ queryKey: chatKey(chatId) }),
+		]);
+	},
+});
+
 export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.interruptChat(chatId),
 	onSuccess: async () => {

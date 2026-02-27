@@ -2,6 +2,7 @@ import { watchChat } from "api/api";
 import {
 	chatDiffContentsKey,
 	chatDiffStatusKey,
+	chatKey,
 	chatsKey,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
@@ -371,6 +372,7 @@ export const useChatStore = (
 	const queryClient = useQueryClient();
 	const storeRef = useRef<ChatStore>(createChatStore());
 	const streamResetFrameRef = useRef<number | null>(null);
+	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
 
 	const store = storeRef.current;
 
@@ -416,6 +418,36 @@ export const useChatStore = (
 		});
 	}, [cancelScheduledStreamReset, store]);
 
+	const updateChatQueuedMessages = useCallback(
+		(queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined) => {
+			if (!chatID) {
+				return;
+			}
+			const nextQueuedMessages = queuedMessages ?? [];
+			queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
+				chatKey(chatID),
+				(currentChat) => {
+					if (!currentChat) {
+						return currentChat;
+					}
+					if (
+						chatQueuedMessagesEqualByID(
+							currentChat.queued_messages,
+							nextQueuedMessages,
+						)
+					) {
+						return currentChat;
+					}
+					return {
+						...currentChat,
+						queued_messages: nextQueuedMessages,
+					};
+				},
+			);
+		},
+		[chatID, queryClient],
+	);
+
 	useEffect(() => {
 		store.replaceMessages(chatMessages);
 	}, [chatMessages, store]);
@@ -425,12 +457,23 @@ export const useChatStore = (
 	}, [chatRecord?.status, store]);
 
 	useEffect(() => {
-		if (!chatData) {
-			store.setQueuedMessages([]);
+		queuedMessagesHydratedChatIDRef.current = null;
+		store.setQueuedMessages([]);
+		if (!chatID) {
 			return;
 		}
+	}, [chatID, store]);
+
+	useEffect(() => {
+		if (!chatID || !chatData) {
+			return;
+		}
+		if (queuedMessagesHydratedChatIDRef.current === chatID) {
+			return;
+		}
+		queuedMessagesHydratedChatIDRef.current = chatID;
 		store.setQueuedMessages(chatQueuedMessages);
-	}, [chatData, chatQueuedMessages, store]);
+	}, [chatData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
 		cancelScheduledStreamReset();
@@ -496,7 +539,14 @@ export const useChatStore = (
 						continue;
 					}
 					case "queue_update":
+						{
+							const eventChatID = asString(streamEvent.chat_id);
+							if (eventChatID && eventChatID !== chatID) {
+								continue;
+							}
+						}
 						store.setQueuedMessages(streamEvent.queued_messages);
+						updateChatQueuedMessages(streamEvent.queued_messages);
 						continue;
 					case "status": {
 						const status = asRecord(streamEvent.status);
@@ -578,6 +628,7 @@ export const useChatStore = (
 		scheduleStreamReset,
 		setChatErrorReason,
 		store,
+		updateChatQueuedMessages,
 		updateSidebarChat,
 	]);
 

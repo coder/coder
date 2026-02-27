@@ -114,8 +114,15 @@ type chatStreamState struct {
 // MaxQueueSize is the maximum number of queued user messages per chat.
 const MaxQueueSize = 20
 
-// ErrMessageQueueFull indicates the per-chat queue limit was reached.
-var ErrMessageQueueFull = xerrors.New("chat message queue is full")
+var (
+	// ErrMessageQueueFull indicates the per-chat queue limit was reached.
+	ErrMessageQueueFull = xerrors.New("chat message queue is full")
+	// ErrEditedMessageNotFound indicates the edited message does not exist
+	// in the target chat.
+	ErrEditedMessageNotFound = xerrors.New("edited message not found")
+	// ErrEditedMessageNotUser indicates a non-user message edit attempt.
+	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
+)
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
@@ -155,6 +162,19 @@ type SendMessageResult struct {
 	QueuedMessage *database.ChatQueuedMessage
 	Message       database.ChatMessage
 	Chat          database.Chat
+}
+
+// EditMessageOptions controls in-place user message edits.
+type EditMessageOptions struct {
+	ChatID          uuid.UUID
+	EditedMessageID int64
+	Content         []fantasy.Content
+}
+
+// EditMessageResult contains the updated user message and chat status.
+type EditMessageResult struct {
+	Message database.ChatMessage
+	Chat    database.Chat
 }
 
 // PromoteQueuedOptions controls queued-message promotion.
@@ -380,6 +400,103 @@ func (p *Server) SendMessage(
 	p.publishMessage(opts.ChatID, result.Message)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange)
+	return result, nil
+}
+
+// EditMessage updates a user message in-place, truncates all following messages,
+// clears queued messages, and moves the chat into pending status.
+func (p *Server) EditMessage(
+	ctx context.Context,
+	opts EditMessageOptions,
+) (EditMessageResult, error) {
+	if opts.ChatID == uuid.Nil {
+		return EditMessageResult{}, xerrors.New("chat_id is required")
+	}
+	if opts.EditedMessageID <= 0 {
+		return EditMessageResult{}, xerrors.New("edited_message_id is required")
+	}
+	if len(opts.Content) == 0 {
+		return EditMessageResult{}, xerrors.New("content is required")
+	}
+
+	content, err := chatprompt.MarshalContent(opts.Content)
+	if err != nil {
+		return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
+	}
+
+	var result EditMessageResult
+	txErr := p.db.InTx(func(tx database.Store) error {
+		_, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("lock chat: %w", err)
+		}
+
+		existing, err := tx.GetChatMessageByID(ctx, opts.EditedMessageID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrEditedMessageNotFound
+			}
+			return xerrors.Errorf("get edited message: %w", err)
+		}
+		if existing.ChatID != opts.ChatID {
+			return ErrEditedMessageNotFound
+		}
+		if existing.Role != "user" {
+			return ErrEditedMessageNotUser
+		}
+
+		updatedMessage, err := tx.UpdateChatMessageByID(ctx, database.UpdateChatMessageByIDParams{
+			ModelConfigID: uuid.NullUUID{},
+			Content:       content,
+			ID:            opts.EditedMessageID,
+		})
+		if err != nil {
+			return xerrors.Errorf("update chat message: %w", err)
+		}
+
+		err = tx.DeleteChatMessagesAfterID(ctx, database.DeleteChatMessagesAfterIDParams{
+			ChatID:  opts.ChatID,
+			AfterID: opts.EditedMessageID,
+		})
+		if err != nil {
+			return xerrors.Errorf("delete later chat messages: %w", err)
+		}
+
+		err = tx.DeleteAllChatQueuedMessages(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("delete queued messages: %w", err)
+		}
+
+		updatedChat, err := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:          opts.ChatID,
+			Status:      database.ChatStatusPending,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+		})
+		if err != nil {
+			return xerrors.Errorf("set chat pending: %w", err)
+		}
+
+		result.Message = updatedMessage
+		result.Chat = updatedChat
+		return nil
+	}, nil)
+	if txErr != nil {
+		return EditMessageResult{}, txErr
+	}
+
+	p.publishMessage(opts.ChatID, result.Message)
+	p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
+		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+		QueuedMessages: []codersdk.ChatQueuedMessage{},
+	})
+	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
+		QueueUpdate: true,
+	})
+	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
+	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange)
+
 	return result, nil
 }
 
@@ -1477,6 +1594,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 
 	// Determine the final status to set when we're done.
 	status := database.ChatStatusWaiting
+	remainingQueuedMessages := []database.ChatQueuedMessage{}
+	shouldPublishQueueUpdate := false
 
 	defer func() {
 		// Handle panics gracefully.
@@ -1540,13 +1659,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 
 						remaining, qErr := tx.GetChatQueuedMessages(ctx, chat.ID)
 						if qErr == nil {
-							p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
-								Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-								QueuedMessages: db2sdk.ChatQueuedMessages(remaining),
-							})
-							p.publishChatStreamNotify(chat.ID, coderdpubsub.ChatStreamNotifyMessage{
-								QueueUpdate: true,
-							})
+							remainingQueuedMessages = remaining
+							shouldPublishQueueUpdate = true
 						}
 					}
 				}
@@ -1563,6 +1677,15 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}, nil)
 		if err != nil {
 			logger.Error(ctx, "failed to release chat", slog.Error(err))
+		}
+		if err == nil && shouldPublishQueueUpdate {
+			p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
+				Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+				QueuedMessages: db2sdk.ChatQueuedMessages(remainingQueuedMessages),
+			})
+			p.publishChatStreamNotify(chat.ID, coderdpubsub.ChatStreamNotifyMessage{
+				QueueUpdate: true,
+			})
 		}
 
 		p.publishStatus(chat.ID, status, uuid.NullUUID{})

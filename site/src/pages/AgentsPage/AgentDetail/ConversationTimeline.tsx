@@ -8,7 +8,15 @@ import {
 	Tool,
 } from "components/ai-elements";
 import { ChevronDownIcon } from "lucide-react";
-import { type FC, memo, type ReactNode, type RefObject, useState } from "react";
+import {
+	type FC,
+	memo,
+	type ReactNode,
+	type RefObject,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { cn } from "utils/cn";
 import type {
 	MergedTool,
@@ -180,7 +188,10 @@ function renderBlockList({
 const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
-}>(({ message, parsed }) => {
+	isStuck?: boolean;
+	onEditUserMessage?: (messageId: number, text: string) => void;
+	editingMessageId?: number | null;
+}>(({ message, parsed, isStuck = false, onEditUserMessage, editingMessageId }) => {
 	const isUser = message.role === "user";
 	const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
 
@@ -211,7 +222,14 @@ const ChatMessageItem = memo<{
 		<ConversationItem {...conversationItemProps}>
 			{isUser ? (
 				<Message className="my-2 w-full max-w-none">
-					<MessageContent className="rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm">
+					<MessageContent
+						className={cn(
+							"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-all",
+							onEditUserMessage && "cursor-pointer hover:bg-surface-tertiary",
+							editingMessageId === message.id && "ring-2 ring-content-link/40",
+						)}
+						onClick={onEditUserMessage ? () => onEditUserMessage(message.id, parsed.markdown || "") : undefined}
+					>
 						{parsed.markdown || ""}
 					</MessageContent>
 				</Message>
@@ -318,11 +336,45 @@ StreamingOutput.displayName = "StreamingOutput";
 const StickyUserMessage: FC<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
-}> = ({ message, parsed }) => {
+	onEditUserMessage?: (messageId: number, text: string) => void;
+	editingMessageId?: number | null;
+}> = ({ message, parsed, onEditUserMessage, editingMessageId }) => {
+	const [isStuck, setIsStuck] = useState(false);
+	const sentinelRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const sentinel = sentinelRef.current;
+		if (!sentinel) return;
+		const observer = new IntersectionObserver(
+			([entry]) => setIsStuck(!entry.isIntersecting),
+			{ threshold: 0 },
+		);
+		observer.observe(sentinel);
+		return () => observer.disconnect();
+	}, []);
+
 	return (
-		<div className="sticky -top-2 z-10 pt-2">
-			<ChatMessageItem message={message} parsed={parsed} />
-		</div>
+		<>
+			<div ref={sentinelRef} className="h-0" />
+			<div
+				className={cn(
+					"sticky -top-2 z-10 -mx-3 px-3 pt-4 pb-6 transition-all duration-200",
+					isStuck
+						? "backdrop-blur-[1px] bg-surface-primary/15"
+						: "backdrop-blur-none bg-transparent",
+				)}
+				style={{
+					maskImage: isStuck
+						? "linear-gradient(to bottom, transparent 0%, black 15%, black 75%, transparent 100%)"
+						: undefined,
+					WebkitMaskImage: isStuck
+						? "linear-gradient(to bottom, transparent 0%, black 15%, black 75%, transparent 100%)"
+						: undefined,
+				}}
+			>
+				<ChatMessageItem message={message} parsed={parsed} isStuck={isStuck} onEditUserMessage={onEditUserMessage} editingMessageId={editingMessageId} />
+			</div>
+		</>
 	);
 };
 
@@ -338,6 +390,8 @@ type ConversationTimelineProps = {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	isAwaitingFirstStreamChunk: boolean;
 	detailErrorMessage?: string | null;
+	onEditUserMessage?: (messageId: number, text: string) => void;
+	editingMessageId?: number | null;
 };
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
@@ -352,6 +406,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	subagentStatusOverrides,
 	isAwaitingFirstStreamChunk,
 	detailErrorMessage,
+	onEditUserMessage,
+	editingMessageId,
 }) => {
 	const shouldRenderStreamInLastSection =
 		hasStreamOutput && parsedSections.length > 0;
@@ -375,6 +431,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 					{parsedSections.map((section, sectionIdx) => (
 						<div
 							key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
+							className="-mx-1 px-1"
 							style={{
 								contentVisibility: "auto",
 								containIntrinsicSize: "1px 600px",
@@ -387,6 +444,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 											key={message.id}
 											message={message}
 											parsed={parsed}
+											onEditUserMessage={onEditUserMessage}
+											editingMessageId={editingMessageId}
 										/>
 									) : (
 										<ChatMessageItem

@@ -109,6 +109,7 @@ const createComponents = (
 									overflow: "scroll",
 									themeType: fileViewerThemeType,
 									disableFileHeader: true,
+									disableLineNumbers: true,
 									theme: viewerTheme,
 									unsafeCSS: fileViewerCSS,
 								}}

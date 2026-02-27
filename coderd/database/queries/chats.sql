@@ -10,6 +10,13 @@ DELETE FROM
 WHERE
     chat_id = @chat_id::uuid;
 
+-- name: DeleteChatMessagesAfterID :exec
+DELETE FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND id > @after_id::bigint;
+
 -- name: GetChatByID :one
 SELECT
     *
@@ -184,6 +191,17 @@ INSERT INTO chat_messages (
     sqlc.narg('context_limit')::bigint,
     COALESCE(sqlc.narg('compressed')::boolean, FALSE)
 )
+RETURNING
+    *;
+
+-- name: UpdateChatMessageByID :one
+UPDATE
+    chat_messages
+SET
+    model_config_id = COALESCE(sqlc.narg('model_config_id')::uuid, model_config_id),
+    content = sqlc.narg('content')::jsonb
+WHERE
+    id = @id::bigint
 RETURNING
     *;
 

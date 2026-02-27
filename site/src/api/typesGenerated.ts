@@ -1178,6 +1178,14 @@ export interface CreateChatMessageResponse {
 
 // From codersdk/chats.go
 /**
+ * EditChatMessageRequest is the request to edit a user message in a chat.
+ */
+export interface EditChatMessageRequest {
+    readonly content: readonly ChatInputPart[];
+}
+
+// From codersdk/chats.go
+/**
  * CreateChatModelConfigRequest creates a chat model config.
  */
 export interface CreateChatModelConfigRequest {
@@ -6374,5 +6382,3 @@ export interface WorkspacesResponse {
     readonly workspaces: readonly Workspace[];
     readonly count: number;
 }
-
-

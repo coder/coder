@@ -290,6 +290,114 @@ func TestChats(t *testing.T) {
 		})
 	})
 
+	t.Run("PatchChatMessage", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Success", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			_ = coderdtest.CreateFirstUser(t, client)
+			_ = createChatModelConfig(t, client)
+
+			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				Content: []codersdk.ChatInputPart{
+					{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: "hello before edit",
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			chatWithMessages, err := client.GetChat(ctx, chat.ID)
+			require.NoError(t, err)
+
+			var userMessageID int64
+			for _, message := range chatWithMessages.Messages {
+				if message.Role == "user" {
+					userMessageID = message.ID
+					break
+				}
+			}
+			require.NotZero(t, userMessageID)
+
+			edited, err := client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+				Content: []codersdk.ChatInputPart{
+					{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: "hello after edit",
+					},
+				},
+			})
+			require.NoError(t, err)
+			require.Equal(t, userMessageID, edited.ID)
+			require.Equal(t, "user", edited.Role)
+
+			foundEditedText := false
+			for _, part := range edited.Content {
+				if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "hello after edit" {
+					foundEditedText = true
+				}
+			}
+			require.True(t, foundEditedText)
+
+			updatedChat, err := client.GetChat(ctx, chat.ID)
+			require.NoError(t, err)
+			foundEditedInChat := false
+			foundOriginalInChat := false
+			for _, message := range updatedChat.Messages {
+				if message.Role != "user" {
+					continue
+				}
+				for _, part := range message.Content {
+					if part.Type != codersdk.ChatMessagePartTypeText {
+						continue
+					}
+					if part.Text == "hello after edit" {
+						foundEditedInChat = true
+					}
+					if part.Text == "hello before edit" {
+						foundOriginalInChat = true
+					}
+				}
+			}
+			require.True(t, foundEditedInChat)
+			require.False(t, foundOriginalInChat)
+		})
+
+		t.Run("MessageNotFound", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			_ = coderdtest.CreateFirstUser(t, client)
+			_ = createChatModelConfig(t, client)
+
+			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				Content: []codersdk.ChatInputPart{
+					{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: "hello",
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = client.EditChatMessage(ctx, chat.ID, 999999, codersdk.EditChatMessageRequest{
+				Content: []codersdk.ChatInputPart{
+					{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: "edited",
+					},
+				},
+			})
+			sdkErr := requireSDKError(t, err, http.StatusNotFound)
+			require.Equal(t, "Chat message not found.", sdkErr.Message)
+		})
+	})
+
 	t.Run("ListChatModels", func(t *testing.T) {
 		t.Parallel()
 

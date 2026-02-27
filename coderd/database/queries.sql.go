@@ -2895,6 +2895,24 @@ func (q *sqlQuerier) DeleteChatByID(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const deleteChatMessagesAfterID = `-- name: DeleteChatMessagesAfterID :exec
+DELETE FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND id > $2::bigint
+`
+
+type DeleteChatMessagesAfterIDParams struct {
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	AfterID int64     `db:"after_id" json:"after_id"`
+}
+
+func (q *sqlQuerier) DeleteChatMessagesAfterID(ctx context.Context, arg DeleteChatMessagesAfterIDParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatMessagesAfterID, arg.ChatID, arg.AfterID)
+	return err
+}
+
 const deleteChatMessagesByChatID = `-- name: DeleteChatMessagesByChatID :exec
 DELETE FROM
     chat_messages
@@ -3732,6 +3750,47 @@ func (q *sqlQuerier) UpdateChatHeartbeat(ctx context.Context, arg UpdateChatHear
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const updateChatMessageByID = `-- name: UpdateChatMessageByID :one
+UPDATE
+    chat_messages
+SET
+    model_config_id = COALESCE($1::uuid, model_config_id),
+    content = $2::jsonb
+WHERE
+    id = $3::bigint
+RETURNING
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+`
+
+type UpdateChatMessageByIDParams struct {
+	ModelConfigID uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
+	Content       pqtype.NullRawMessage `db:"content" json:"content"`
+	ID            int64                 `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatMessageByID(ctx context.Context, arg UpdateChatMessageByIDParams) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, updateChatMessageByID, arg.ModelConfigID, arg.Content, arg.ID)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.ModelConfigID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+		&i.Visibility,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.Compressed,
+	)
+	return i, err
 }
 
 const updateChatStatus = `-- name: UpdateChatStatus :one

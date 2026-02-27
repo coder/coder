@@ -8,7 +8,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ArrowUpIcon, ListPlusIcon, Loader2Icon, Square } from "lucide-react";
+import { ArrowUpIcon, ListPlusIcon, Loader2Icon, Square, XIcon } from "lucide-react";
 import type { ChatQueuedMessage } from "api/typesGenerated";
 import {
 	memo,
@@ -35,7 +35,7 @@ export interface AgentContextUsage {
 }
 
 interface AgentChatInputProps {
-	onSend: (message: string) => Promise<void>;
+	onSend: (message: string, editedMessageID?: number) => Promise<void>;
 	placeholder?: string;
 	isDisabled: boolean;
 	isLoading: boolean;
@@ -73,6 +73,13 @@ interface AgentChatInputProps {
 	// When true the entire input sticks to the bottom of the scroll
 	// container (used in the detail page).
 	sticky?: boolean;
+	// External edit request — when set, replaces the input text and
+	// focuses the textarea. Use a unique `key` to allow re-editing the
+	// same text.
+	editRequest?: { text: string; messageId?: number; key: number } | null;
+	// Called when the user cancels or completes a history edit so the
+	// parent can clear the editing highlight.
+	onEditCleared?: () => void;
 }
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -229,6 +236,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		onPromoteQueuedMessage,
 		contextUsage,
 		sticky = false,
+		editRequest = null,
+		onEditCleared,
 	}) => {
 		const [input, setInput] = useState(initialValue);
 		const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
@@ -238,6 +247,46 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			string | null
 		>(null);
 		const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+		// Handle external edit requests (e.g. clicking a historical
+		// user message's edit icon).
+		const lastEditKeyRef = useRef<number | null>(null);
+		const [isEditingHistoryMessage, setIsEditingHistoryMessage] =
+			useState(false);
+		const [editingHistoryMessageID, setEditingHistoryMessageID] = useState<
+			number | null
+		>(null);
+		const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] = useState<
+			string | null
+		>(null);
+		useEffect(() => {
+			if (!editRequest || editRequest.key === lastEditKeyRef.current) {
+				return;
+			}
+			lastEditKeyRef.current = editRequest.key;
+			setDraftBeforeHistoryEdit((current) =>
+				isEditingHistoryMessage ? current : input,
+			);
+			setIsEditingHistoryMessage(true);
+			setEditingHistoryMessageID(editRequest.messageId ?? null);
+			setInput(editRequest.text);
+			onInputChange?.(editRequest.text);
+			textareaRef.current?.focus();
+		}, [editRequest, input, isEditingHistoryMessage, onInputChange]);
+
+		const handleCancelHistoryEdit = useCallback(() => {
+			if (!isEditingHistoryMessage) {
+				return;
+			}
+			const restored = draftBeforeHistoryEdit ?? "";
+			setIsEditingHistoryMessage(false);
+			setEditingHistoryMessageID(null);
+			setDraftBeforeHistoryEdit(null);
+			setInput(restored);
+			onInputChange?.(restored);
+			onEditCleared?.();
+			textareaRef.current?.focus();
+		}, [draftBeforeHistoryEdit, isEditingHistoryMessage, onEditCleared, onInputChange]);
 
 		useEffect(() => {
 			if (editingQueuedMessageID === null) {
@@ -260,8 +309,12 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 
 			const queueEditID = editingQueuedMessageID;
+			const editedMessageID =
+				isEditingHistoryMessage && editingHistoryMessageID !== null
+					? editingHistoryMessageID
+					: undefined;
 			try {
-				await onSend(input);
+				await onSend(input, editedMessageID);
 				if (queueEditID !== null && onDeleteQueuedMessage) {
 					await onDeleteQueuedMessage(queueEditID);
 				}
@@ -271,6 +324,12 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					setEditingQueuedMessageID(null);
 					setDraftBeforeQueueEdit(null);
 				}
+				if (isEditingHistoryMessage) {
+					setIsEditingHistoryMessage(false);
+					setEditingHistoryMessageID(null);
+					setDraftBeforeHistoryEdit(null);
+					onEditCleared?.();
+				}
 			} catch {
 				// Keep input on failure so the user can retry.
 			} finally {
@@ -279,10 +338,13 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 		}, [
 			editingQueuedMessageID,
+			editingHistoryMessageID,
 			hasModelOptions,
 			input,
 			isDisabled,
+			isEditingHistoryMessage,
 			onDeleteQueuedMessage,
+			onEditCleared,
 			onInputChange,
 			onSend,
 		]);
@@ -317,6 +379,16 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 
 		const handleKeyDown = useCallback(
 			(e: React.KeyboardEvent) => {
+				if (e.key === "Escape") {
+					if (editingQueuedMessageID !== null) {
+						e.preventDefault();
+						handleCancelQueueEdit();
+					} else if (isEditingHistoryMessage) {
+						e.preventDefault();
+						handleCancelHistoryEdit();
+					}
+					return;
+				}
 				if (e.key === "Enter" && !e.shiftKey) {
 					e.preventDefault();
 					// If the input is empty and there are queued messages,
@@ -332,7 +404,16 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					void handleSubmit();
 				}
 			},
-			[handleSubmit, input, onPromoteQueuedMessage, queuedMessages],
+			[
+				editingQueuedMessageID,
+				handleCancelHistoryEdit,
+				handleCancelQueueEdit,
+				handleSubmit,
+				input,
+				isEditingHistoryMessage,
+				onPromoteQueuedMessage,
+				queuedMessages,
+			],
 		);
 
 		const content = (
@@ -371,6 +452,23 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								className="h-7 px-2 text-content-secondary hover:text-content-primary"
 							>
 								Cancel
+							</Button>
+						</div>
+					)}
+					{isEditingHistoryMessage && editingQueuedMessageID === null && (
+						<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
+							<span className="text-sm text-content-secondary">
+								Editing message
+							</span>
+							<Button
+								type="button"
+								variant="subtle"
+								size="icon"
+								aria-label="Cancel editing"
+								onClick={handleCancelHistoryEdit}
+								className="size-6 rounded text-content-secondary hover:text-content-primary"
+							>
+								<XIcon className="h-3.5 w-3.5" />
 							</Button>
 						</div>
 					)}
