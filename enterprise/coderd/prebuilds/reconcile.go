@@ -842,7 +842,7 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 				// mark the preset to prevent endless retries on every reconciliation loop.
 				var buildErr wsbuilder.BuildError
 				if xerrors.As(err, &buildErr) && buildErr.Status == http.StatusBadRequest {
-					logger.Warn(ctx, "marking preset as failed validation", slog.Error(err))
+					logger.Warn(ctx, "marking preset as failed validation")
 					if dbErr := c.store.UpdatePresetPrebuildStatus(ctx, database.UpdatePresetPrebuildStatusParams{
 						Status:   database.PrebuildStatusValidationFailed,
 						PresetID: ps.Preset.ID,
