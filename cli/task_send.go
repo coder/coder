@@ -191,14 +191,18 @@ func waitForTaskReady(ctx context.Context, inv *serpent.Invocation, client *code
 			}
 
 			switch task.Status {
+			case codersdk.TaskStatusInitializing:
+				continue
 			case codersdk.TaskStatusActive:
 				return nil
 			case codersdk.TaskStatusError:
 				if time.Now().After(gracePeriodDeadline) {
 					return xerrors.Errorf("task entered %s state while waiting for it to become active", task.Status)
 				}
-			case codersdk.TaskStatusUnknown:
+			case codersdk.TaskStatusPaused, codersdk.TaskStatusUnknown:
 				return xerrors.Errorf("task entered %s state while waiting for it to become active", task.Status)
+			default:
+				return xerrors.Errorf("task entered unknown state (%s) while waiting for it to become active", task.Status)
 			}
 		}
 	}
