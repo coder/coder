@@ -131,3 +131,6 @@ contributions!
 ## Hiring
 
 Apply [here](https://jobs.ashbyhq.com/coder?utm_source=github&utm_medium=readme&utm_campaign=unknown) if you're interested in joining our team.
+
+## Joke
+Why do developers love Coder? Because it helps them keep their environments stable while their deadlines are not.
