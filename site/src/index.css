@@ -135,22 +135,26 @@
 		@apply border-none p-0 m-0 w-full;
 	}
 
-	/*
-	By default, Radix adds a margin to the `body` element when a dropdown is displayed,
-	causing some shifting when the dropdown has a full-width size, as is the case with the mobile menu.
-	To prevent this, we need to apply the styles below.
+	/* Prevent layout shift when modals open by maintaining scrollbar width.
+	scrollbar-gutter: stable reserves space for the scrollbar so Radix's
+	scroll-bar compensation (margin-right/padding-right) is unnecessary
+	and causes double spacing. We zero it out with !important to win
+	over Radix's injected !important styles. The @supports guard ensures
+	we only do this on browsers that actually support scrollbar-gutter.
 
 	There’s a related issue on GitHub: Radix UI Primitives Issue #3251
 	https://github.com/radix-ui/primitives/issues/3251
-	 */
-	html body[data-scroll-locked] {
-		--removed-body-scroll-bar-size: 0;
-		margin-right: 0;
-	}
+	*/
+	@supports (scrollbar-gutter: stable) {
+		html {
+			scrollbar-gutter: stable;
+		}
 
-	/* Prevent layout shift when modals open by maintaining scrollbar width */
-	html {
-		scrollbar-gutter: stable;
+		html body[data-scroll-locked] {
+			--removed-body-scroll-bar-size: 0 !important;
+			margin-right: 0 !important;
+			overflow-y: scroll !important;
+		}
 	}
 
 	/*
