@@ -35,6 +35,7 @@ import {
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
+	selectRetryState,
 	selectStreamError,
 	selectStreamState,
 	selectSubagentStatusOverrides,
@@ -121,6 +122,7 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		store,
 		selectSubagentStatusOverrides,
 	);
+	const retryState = useChatSelector(store, selectRetryState);
 
 	const messages = useMemo(
 		() =>
@@ -172,6 +174,7 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 			streamTools={streamTools}
 			subagentTitles={subagentTitles}
 			subagentStatusOverrides={subagentStatusOverrides}
+			retryState={retryState}
 			isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 			detailErrorMessage={detailErrorMessage}
 			onEditUserMessage={onEditUserMessage}

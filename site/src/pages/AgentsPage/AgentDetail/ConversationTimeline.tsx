@@ -307,12 +307,13 @@ const ChatMessageItem = memo<{
 );
 ChatMessageItem.displayName = "ChatMessageItem";
 
-const StreamingOutput = memo<{
+export const StreamingOutput = memo<{
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	subagentTitles?: Map<string, string>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	showInitialPlaceholder?: boolean;
+	retryState?: { attempt: number; error: string } | null;
 }>(
 	({
 		streamState,
@@ -320,6 +321,7 @@ const StreamingOutput = memo<{
 		subagentTitles,
 		subagentStatusOverrides,
 		showInitialPlaceholder = false,
+		retryState,
 	}) => {
 		const conversationItemProps = { role: "assistant" as const };
 		const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
@@ -348,12 +350,17 @@ const StreamingOutput = memo<{
 								streamTools.length === 0) ? (
 								<div className="relative">
 									<Response aria-hidden className="invisible">
-										Thinking...
+										{`Thinking...${retryState ? ` attempt ${retryState.attempt}` : ""}`}
 									</Response>
-									<div className="pointer-events-none absolute inset-0">
+									<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
 										<Shimmer as="div" className="text-[13px] leading-relaxed">
 											Thinking...
 										</Shimmer>
+										{retryState && (
+											<span className="text-[11px] text-content-secondary">
+												attempt {retryState.attempt}
+											</span>
+										)}
 									</div>
 								</div>
 							) : null}
@@ -598,6 +605,7 @@ type ConversationTimelineProps = {
 	streamTools: readonly MergedTool[];
 	subagentTitles: Map<string, string>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
+	retryState?: { attempt: number; error: string } | null;
 	isAwaitingFirstStreamChunk: boolean;
 	detailErrorMessage?: string | null;
 	onEditUserMessage?: (messageId: number, text: string) => void;
@@ -615,6 +623,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	streamTools,
 	subagentTitles,
 	subagentStatusOverrides,
+	retryState,
 	isAwaitingFirstStreamChunk,
 	detailErrorMessage,
 	onEditUserMessage,
@@ -677,6 +686,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 											subagentTitles={subagentTitles}
 											subagentStatusOverrides={subagentStatusOverrides}
 											showInitialPlaceholder={isAwaitingFirstStreamChunk}
+											retryState={retryState}
 										/>
 									)}
 							</div>
@@ -689,6 +699,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 							subagentTitles={subagentTitles}
 							subagentStatusOverrides={subagentStatusOverrides}
 							showInitialPlaceholder={isAwaitingFirstStreamChunk}
+							retryState={retryState}
 						/>
 					)}
 				</div>

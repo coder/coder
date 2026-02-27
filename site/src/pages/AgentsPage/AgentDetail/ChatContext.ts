@@ -146,6 +146,7 @@ type ChatStoreState = {
 	streamState: StreamState | null;
 	chatStatus: TypesGen.ChatStatus | null;
 	streamError: string | null;
+	retryState: { attempt: number; error: string } | null;
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
@@ -168,6 +169,8 @@ type ChatStore = {
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	setStreamError: (reason: string | null) => void;
 	clearStreamError: () => void;
+	setRetryState: (state: { attempt: number; error: string } | null) => void;
+	clearRetryState: () => void;
 	clearStreamState: () => void;
 	setSubagentStatusOverride: (
 		chatID: string,
@@ -182,6 +185,7 @@ const createInitialState = (): ChatStoreState => ({
 	streamState: null,
 	chatStatus: null,
 	streamError: null,
+	retryState: null,
 	queuedMessages: [],
 	subagentStatusOverrides: new Map(),
 });
@@ -318,6 +322,24 @@ const createChatStore = (): ChatStore => {
 				streamError: null,
 			}));
 		},
+		setRetryState: (retryState) => {
+			if (state.retryState === retryState) {
+				return;
+			}
+			setState((current) => ({
+				...current,
+				retryState,
+			}));
+		},
+		clearRetryState: () => {
+			if (state.retryState === null) {
+				return;
+			}
+			setState((current) => ({
+				...current,
+				retryState: null,
+			}));
+		},
 		clearStreamState: () => {
 			if (state.streamState === null) {
 				return;
@@ -342,6 +364,7 @@ const createChatStore = (): ChatStore => {
 			if (
 				state.streamState === null &&
 				state.streamError === null &&
+				state.retryState === null &&
 				state.subagentStatusOverrides.size === 0
 			) {
 				return;
@@ -350,6 +373,7 @@ const createChatStore = (): ChatStore => {
 				...current,
 				streamState: null,
 				streamError: null,
+				retryState: null,
 				subagentStatusOverrides: new Map(),
 			}));
 		},
@@ -378,6 +402,7 @@ export const selectQueuedMessages = (state: ChatStoreState) =>
 	state.queuedMessages;
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
+export const selectRetryState = (state: ChatStoreState) => state.retryState;
 
 export const useChatStore = (
 	options: UseChatStoreOptions,
@@ -618,6 +643,10 @@ export const useChatStore = (
 						store.setChatStatus(nextStatus);
 						if (nextStatus === "pending" || nextStatus === "waiting") {
 							store.clearStreamState();
+							store.clearRetryState();
+						}
+						if (nextStatus === "running") {
+							store.clearRetryState();
 						}
 						if (nextStatus !== "error") {
 							clearChatErrorReason(chatID);
@@ -646,12 +675,23 @@ export const useChatStore = (
 							asString(error?.message).trim() || "Chat processing failed.";
 						store.setChatStatus("error");
 						store.setStreamError(reason);
+						store.clearRetryState();
 						setChatErrorReason(chatID, reason);
 						updateSidebarChat((chat) => ({
 							...chat,
 							status: "error",
 							updated_at: new Date().toISOString(),
 						}));
+						continue;
+					}
+					case "retry": {
+						const retry = streamEvent.retry;
+						if (retry) {
+							store.setRetryState({
+								attempt: retry.attempt,
+								error: retry.error,
+							});
+						}
 						continue;
 					}
 					default:
