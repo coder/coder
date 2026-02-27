@@ -1042,7 +1042,22 @@ const fillParameters = async (
 			case "number":
 				{
 					const parameterField = parameterLabel.locator("input");
-					await parameterField.fill(buildParameter.value);
+					// Dynamic parameters can hydrate after initial render and
+					// overwrite an early fill. Re-apply until the desired value
+					// is stable.
+					for (let attempt = 0; attempt < 3; attempt++) {
+						await parameterField.fill(buildParameter.value);
+						try {
+							await expect(parameterField).toHaveValue(buildParameter.value, {
+								timeout: 1000,
+							});
+							break;
+						} catch (error) {
+							if (attempt === 2) {
+								throw error;
+							}
+						}
+					}
 				}
 				break;
 			default:
