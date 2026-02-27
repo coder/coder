@@ -39,8 +39,9 @@ type ChatEvent struct {
 type ChatEventKind string
 
 const (
-	ChatEventKindStatusChange ChatEventKind = "status_change"
-	ChatEventKindTitleChange  ChatEventKind = "title_change"
-	ChatEventKindCreated      ChatEventKind = "created"
-	ChatEventKindDeleted      ChatEventKind = "deleted"
+	ChatEventKindStatusChange     ChatEventKind = "status_change"
+	ChatEventKindTitleChange      ChatEventKind = "title_change"
+	ChatEventKindCreated          ChatEventKind = "created"
+	ChatEventKindDeleted          ChatEventKind = "deleted"
+	ChatEventKindDiffStatusChange ChatEventKind = "diff_status_change"
 )

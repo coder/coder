@@ -1068,7 +1068,9 @@ func (api *API) storeChatGitRef(ctx context.Context, workspaceID, workspaceOwner
 				slog.F("workspace_id", workspaceID),
 				slog.Error(err),
 			)
+			continue
 		}
+		api.publishChatDiffStatusEvent(ctx, chat.ID)
 	}
 }
 
@@ -1109,6 +1111,7 @@ func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceI
 		}
 
 		api.publishChatStatusEvent(ctx, chat.ID)
+		api.publishChatDiffStatusEvent(ctx, chat.ID)
 	}
 
 	return allHavePR
@@ -1132,6 +1135,19 @@ func (api *API) publishChatStatusEvent(ctx context.Context, chatID uuid.UUID) {
 
 	if err := api.chatDaemon.RefreshStatus(ctx, chatID); err != nil {
 		api.Logger.Debug(ctx, "failed to refresh published chat status",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
+}
+
+func (api *API) publishChatDiffStatusEvent(ctx context.Context, chatID uuid.UUID) {
+	if api.chatDaemon == nil {
+		return
+	}
+
+	if err := api.chatDaemon.PublishDiffStatusChange(ctx, chatID); err != nil {
+		api.Logger.Debug(ctx, "failed to publish chat diff status change",
 			slog.F("chat_id", chatID),
 			slog.Error(err),
 		)

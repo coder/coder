@@ -1,10 +1,5 @@
 import { watchChat } from "api/api";
-import {
-	chatDiffContentsKey,
-	chatDiffStatusKey,
-	chatKey,
-	chatsKey,
-} from "api/queries/chats";
+import { chatKey, chatsKey } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
 import {
@@ -614,7 +609,6 @@ export const useChatStore = (
 							continue;
 						}
 
-						const previousStatus = store.getSnapshot().chatStatus;
 						store.setChatStatus(nextStatus);
 						if (nextStatus === "pending" || nextStatus === "waiting") {
 							store.clearStreamState();
@@ -627,16 +621,6 @@ export const useChatStore = (
 							status: nextStatus,
 							updated_at: new Date().toISOString(),
 						}));
-						if (previousStatus !== nextStatus) {
-							void Promise.all([
-								queryClient.invalidateQueries({
-									queryKey: chatDiffStatusKey(chatID),
-								}),
-								queryClient.invalidateQueries({
-									queryKey: chatDiffContentsKey(chatID),
-								}),
-							]);
-						}
 
 						continue;
 					}
@@ -681,7 +665,6 @@ export const useChatStore = (
 		cancelScheduledStreamReset,
 		chatID,
 		clearChatErrorReason,
-		queryClient,
 		scheduleStreamReset,
 		setChatErrorReason,
 		store,

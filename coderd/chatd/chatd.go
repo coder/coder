@@ -1430,6 +1430,24 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	}
 }
 
+// PublishDiffStatusChange broadcasts a diff_status_change event for
+// the given chat so that watching clients know to re-fetch the diff
+// status. This is called from the HTTP layer after the diff status
+// is updated in the database.
+func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) error {
+	if p.pubsub == nil {
+		return nil
+	}
+
+	chat, err := p.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("get chat: %w", err)
+	}
+
+	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDiffStatusChange)
+	return nil
+}
+
 func (p *Server) publishError(chatID uuid.UUID, message string) {
 	message = strings.TrimSpace(message)
 	if message == "" {

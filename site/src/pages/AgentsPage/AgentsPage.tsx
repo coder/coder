@@ -2,6 +2,8 @@ import { watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
+	chatDiffContentsKey,
+	chatDiffStatusKey,
 	chatKey,
 	chatModelConfigs,
 	chatModels,
@@ -288,6 +290,21 @@ const AgentsPage: FC = () => {
 					queryKey: chatKey(updatedChat.id),
 					exact: true,
 				});
+				return;
+			}
+
+			if (chatEvent.kind === "diff_status_change") {
+				void Promise.all([
+					queryClient.invalidateQueries({
+						queryKey: chatsKey,
+					}),
+					queryClient.invalidateQueries({
+						queryKey: chatDiffStatusKey(updatedChat.id),
+					}),
+					queryClient.invalidateQueries({
+						queryKey: chatDiffContentsKey(updatedChat.id),
+					}),
+				]);
 				return;
 			}
 
