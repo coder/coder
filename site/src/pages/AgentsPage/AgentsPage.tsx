@@ -22,7 +22,9 @@ import {
 	SelectValue,
 } from "components/Select/Select";
 import { useAuthenticated } from "hooks";
-import { MonitorIcon } from "lucide-react";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import { ArrowLeftIcon, MonitorIcon, PanelLeftIcon } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
@@ -36,7 +38,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Outlet, useNavigate, useParams } from "react-router";
+import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -101,6 +103,19 @@ const AgentsPage: FC = () => {
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
 	const canSetSystemPrompt = isAgentsAdmin;
 
+	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
+	// layout shift on pages that toggle scrollbars. The agents page uses
+	// its own internal scroll containers so the reserved gutter space is
+	// unnecessary and wastes horizontal room.
+	useEffect(() => {
+		const html = document.documentElement;
+		const prev = html.style.scrollbarGutter;
+		html.style.scrollbarGutter = "auto";
+		return () => {
+			html.style.scrollbarGutter = prev;
+		};
+	}, []);
+
 	const chatsQuery = useQuery(chats());
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
@@ -108,6 +123,7 @@ const AgentsPage: FC = () => {
 	const archiveMutation = useMutation(deleteChat(queryClient));
 	const [archivingChatId, setArchivingChatId] = useState<string | null>(null);
 	const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, string>
 	>({});
@@ -332,8 +348,11 @@ const AgentsPage: FC = () => {
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<div
 				className={cn(
-					"shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default md:h-full md:w-[320px] md:min-h-0 md:border-b-0",
-					agentId && "hidden md:block",
+					"md:h-full md:w-[320px] md:min-h-0 md:border-b-0",
+					agentId
+						? "hidden md:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
+						: "order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0",
+					isSidebarCollapsed && "md:hidden",
 				)}
 			>
 				<AgentsSidebar
@@ -350,17 +369,60 @@ const AgentsPage: FC = () => {
 					isLoading={chatsQuery.isLoading}
 					loadError={chatsQuery.isError ? chatsQuery.error : undefined}
 					onRetryLoad={() => void chatsQuery.refetch()}
+					onCollapse={() => setIsSidebarCollapsed(true)}
 				/>
 			</div>
 
 			<div
 				className={cn(
-					"flex min-h-0 min-w-0 flex-1 bg-surface-primary",
+					"flex min-h-0 min-w-0 bg-surface-primary",
+					agentId ? "flex-1" : "order-1 md:order-none flex-none md:flex-1",
 					isRightPanelOpen && "flex-col xl:flex-row",
 				)}
 			>
 				<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary">
 					<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
+						{/* Mobile logo: visible when no agent is selected. */}
+						{!agentId && (
+							<NavLink
+								to="/workspaces"
+								className="inline-flex shrink-0 opacity-50 md:hidden"
+							>
+								{appearance.logo_url ? (
+									<ExternalImage
+										className="h-6"
+										src={appearance.logo_url}
+										alt="Logo"
+									/>
+								) : (
+									<CoderIcon className="h-6 w-6 fill-content-primary" />
+								)}
+							</NavLink>
+						)}
+						{/* Mobile back button: visible on mobile when an agent is selected. */}
+						{agentId && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={() => navigate("/agents")}
+								aria-label="Back"
+								className="inline-flex h-7 w-7 min-w-0 shrink-0 md:hidden"
+							>
+								<ArrowLeftIcon />
+							</Button>
+						)}
+						{/* Desktop expand button: visible when sidebar is manually collapsed. */}
+						{isSidebarCollapsed && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={() => setIsSidebarCollapsed(false)}
+								aria-label="Expand sidebar"
+								className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
+							>
+								<PanelLeftIcon />
+							</Button>
+						)}
 						<div
 							ref={topBarTitleRef}
 							className="flex min-w-0 flex-1 items-center"
@@ -631,7 +693,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		: null;
 
 	return (
-		<div className="flex h-full min-h-0 flex-1 items-center justify-center overflow-auto p-4 sm:p-6 lg:p-8">
+		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
 			{hasAdminControls &&
 				topBarActionsRef.current &&
 				createPortal(
@@ -672,8 +734,8 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 							onValueChange={handleWorkspaceChange}
 							disabled={isCreating || workspacesQuery.isLoading}
 						>
-							<SelectTrigger className="h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none hover:bg-transparent">
-								<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+							<SelectTrigger className="h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary [&>svg]:transition-colors [&>svg]:hover:text-content-primary focus:ring-0 focus-visible:ring-0">
+								<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary group-hover:text-content-primary" />
 								<SelectValue>
 									{selectedWorkspaceName ?? "Workspace"}
 								</SelectValue>

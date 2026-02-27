@@ -9,9 +9,18 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { ArrowUpIcon, ListPlusIcon, Loader2Icon, Square } from "lucide-react";
-import { memo, type ReactNode, useCallback, useRef, useState } from "react";
+import type { ChatQueuedMessage } from "api/typesGenerated";
+import {
+	memo,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatProviderLabel } from "./modelOptions";
+import { QueuedMessagesList } from "./QueuedMessagesList";
 
 export interface AgentContextUsage {
 	readonly usedTokens?: number;
@@ -52,6 +61,10 @@ interface AgentChatInputProps {
 	// Extra controls rendered in the left action area (e.g. workspace
 	// selector on the create page).
 	leftActions?: ReactNode;
+	// Queued user messages rendered above the textarea.
+	queuedMessages?: readonly ChatQueuedMessage[];
+	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
+	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
@@ -211,42 +224,156 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		onInterrupt,
 		isInterruptPending = false,
 		leftActions,
+		queuedMessages = [],
+		onDeleteQueuedMessage,
+		onPromoteQueuedMessage,
 		contextUsage,
 		sticky = false,
 	}) => {
 		const [input, setInput] = useState(initialValue);
+		const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
+			number | null
+		>(null);
+		const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
+			string | null
+		>(null);
 		const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+		useEffect(() => {
+			if (editingQueuedMessageID === null) {
+				return;
+			}
+			const stillQueued = queuedMessages.some(
+				(message) => message.id === editingQueuedMessageID,
+			);
+			if (stillQueued) {
+				return;
+			}
+			setEditingQueuedMessageID(null);
+			setDraftBeforeQueueEdit(null);
+		}, [editingQueuedMessageID, queuedMessages]);
 
 		const handleSubmit = useCallback(async () => {
 			const text = input.trim();
 			if (!text || isDisabled || !hasModelOptions) {
 				return;
 			}
+
+			const queueEditID = editingQueuedMessageID;
 			try {
 				await onSend(input);
+				if (queueEditID !== null && onDeleteQueuedMessage) {
+					await onDeleteQueuedMessage(queueEditID);
+				}
 				setInput("");
 				onInputChange?.("");
+				if (queueEditID !== null) {
+					setEditingQueuedMessageID(null);
+					setDraftBeforeQueueEdit(null);
+				}
 			} catch {
 				// Keep input on failure so the user can retry.
 			} finally {
 				// Re-focus the textarea so the user can keep typing.
 				textareaRef.current?.focus();
 			}
-		}, [input, isDisabled, hasModelOptions, onSend, onInputChange]);
+		}, [
+			editingQueuedMessageID,
+			hasModelOptions,
+			input,
+			isDisabled,
+			onDeleteQueuedMessage,
+			onInputChange,
+			onSend,
+		]);
+
+		const handleStartQueueEdit = useCallback(
+			(id: number, text: string) => {
+				setDraftBeforeQueueEdit((current) =>
+					editingQueuedMessageID === null ? input : current,
+				);
+				setEditingQueuedMessageID(id);
+				setInput(text);
+				onInputChange?.(text);
+				textareaRef.current?.focus();
+			},
+			[editingQueuedMessageID, input, onInputChange],
+		);
+
+		const handleCancelQueueEdit = useCallback(() => {
+			if (editingQueuedMessageID === null) {
+				return;
+			}
+			const restored = draftBeforeQueueEdit ?? "";
+			setEditingQueuedMessageID(null);
+			setDraftBeforeQueueEdit(null);
+			setInput(restored);
+			onInputChange?.(restored);
+			textareaRef.current?.focus();
+		}, [draftBeforeQueueEdit, editingQueuedMessageID, onInputChange]);
+
+		const sendButtonLabel =
+			isStreaming && editingQueuedMessageID === null ? "Queue message" : "Send";
 
 		const handleKeyDown = useCallback(
 			(e: React.KeyboardEvent) => {
 				if (e.key === "Enter" && !e.shiftKey) {
 					e.preventDefault();
+					// If the input is empty and there are queued messages,
+					// promote the first one instead of submitting.
+					if (
+						!input.trim() &&
+						queuedMessages.length > 0 &&
+						onPromoteQueuedMessage
+					) {
+						void onPromoteQueuedMessage(queuedMessages[0].id);
+						return;
+					}
 					void handleSubmit();
 				}
 			},
-			[handleSubmit],
+			[handleSubmit, input, onPromoteQueuedMessage, queuedMessages],
 		);
 
 		const content = (
 			<div className="mx-auto w-full max-w-3xl pb-4">
+				{queuedMessages.length > 0 && (
+					<QueuedMessagesList
+						messages={queuedMessages}
+						onDelete={(id) => {
+							if (id === editingQueuedMessageID) {
+								handleCancelQueueEdit();
+							}
+							void onDeleteQueuedMessage?.(id);
+						}}
+						onPromote={(id) => {
+							if (id === editingQueuedMessageID) {
+								handleCancelQueueEdit();
+							}
+							void onPromoteQueuedMessage?.(id);
+						}}
+						onEdit={handleStartQueueEdit}
+						editingMessageID={editingQueuedMessageID}
+						className="mb-2"
+					/>
+				)}
 				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
+					{editingQueuedMessageID !== null && (
+						<div className="flex items-center justify-between border-b border-border-default/70 bg-surface-primary/25 px-3 py-1.5">
+							<span className="text-sm text-content-secondary">
+								Editing queued message
+							</span>
+							<Button
+								type="button"
+								variant="subtle"
+								size="sm"
+								onClick={handleCancelQueueEdit}
+								className="h-7 px-2 text-content-secondary hover:text-content-primary"
+							>
+								Cancel
+							</Button>
+						</div>
+					)}
 					<TextareaAutosize
 						ref={textareaRef}
 						aria-label="Chat message"
@@ -272,7 +399,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								formatProviderLabel={formatProviderLabel}
 								dropdownSide="top"
 								dropdownAlign="center"
-								className="[&>span]:!text-content-secondary"
+								className=""
 							/>
 							{leftActions}
 							{inputStatusText && (
@@ -303,18 +430,16 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
 								onClick={() => void handleSubmit()}
 								disabled={isDisabled || !hasModelOptions || !input.trim()}
-								title={isStreaming ? "Queue message" : "Send"}
+								title={sendButtonLabel}
 							>
 								{isLoading ? (
 									<Loader2Icon className="animate-spin" />
-								) : isStreaming ? (
+								) : isStreaming && editingQueuedMessageID === null ? (
 									<ListPlusIcon />
 								) : (
 									<ArrowUpIcon />
 								)}
-								<span className="sr-only">
-									{isStreaming ? "Queue message" : "Send"}
-								</span>
+								<span className="sr-only">{sendButtonLabel}</span>
 							</Button>
 						</div>
 					</div>
@@ -334,7 +459,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 
 		if (sticky) {
 			return (
-				<div className="sticky bottom-0 z-50 bg-surface-primary">{content}</div>
+				<div className="sticky bottom-0 z-50 bg-surface-primary">
+					{content}
+				</div>
 			);
 		}
 

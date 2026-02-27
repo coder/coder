@@ -1540,18 +1540,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 
 						remaining, qErr := tx.GetChatQueuedMessages(ctx, chat.ID)
 						if qErr == nil {
-							sdkQueued := make([]codersdk.ChatQueuedMessage, 0, len(remaining))
-							for _, q := range remaining {
-								sdkQueued = append(sdkQueued, codersdk.ChatQueuedMessage{
-									ID:        q.ID,
-									ChatID:    q.ChatID,
-									Content:   q.Content,
-									CreatedAt: q.CreatedAt,
-								})
-							}
 							p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
 								Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-								QueuedMessages: sdkQueued,
+								QueuedMessages: db2sdk.ChatQueuedMessages(remaining),
 							})
 							p.publishChatStreamNotify(chat.ID, coderdpubsub.ChatStreamNotifyMessage{
 								QueueUpdate: true,

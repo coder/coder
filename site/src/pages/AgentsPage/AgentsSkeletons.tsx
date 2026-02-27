@@ -45,19 +45,38 @@ export const AgentsPageSkeleton: FC = () => (
 
 /**
  * Skeleton shown while the AgentDetail chunk is loading. Mimics a
- * chat conversation layout (user bubble + assistant response lines).
+ * chat conversation layout (user bubble + assistant response lines)
+ * inside the same scroll/padding wrapper used by the real view.
  */
 export const AgentDetailSkeleton: FC = () => (
-	<div className="mx-auto w-full max-w-3xl space-y-6 py-6">
-		<div className="flex justify-end">
-			<Skeleton className="h-10 w-2/3 rounded-xl" />
-		</div>
-		<div className="space-y-3">
-			<Skeleton className="h-4 w-full" />
-			<Skeleton className="h-4 w-5/6" />
-			<Skeleton className="h-4 w-4/6" />
-			<Skeleton className="h-4 w-full" />
-			<Skeleton className="h-4 w-3/5" />
+	<div className="flex h-full flex-col-reverse overflow-hidden">
+		<div className="px-4">
+			<div className="mx-auto w-full max-w-3xl py-6">
+				<div className="flex flex-col gap-3">
+					{/* User message bubble (right-aligned) */}
+					<div className="flex w-full justify-end">
+						<Skeleton className="h-10 w-2/3 rounded-lg" />
+					</div>
+					{/* Assistant response lines (left-aligned) */}
+					<div className="space-y-3">
+						<Skeleton className="h-4 w-full" />
+						<Skeleton className="h-4 w-5/6" />
+						<Skeleton className="h-4 w-4/6" />
+					</div>
+					{/* Second user message bubble */}
+					<div className="mt-3 flex w-full justify-end">
+						<Skeleton className="h-10 w-1/2 rounded-lg" />
+					</div>
+					{/* Second assistant response */}
+					<div className="space-y-3">
+						<Skeleton className="h-4 w-full" />
+						<Skeleton className="h-4 w-5/6" />
+						<Skeleton className="h-4 w-4/6" />
+						<Skeleton className="h-4 w-full" />
+						<Skeleton className="h-4 w-3/5" />
+					</div>
+				</div>
+			</div>
 		</div>
 	</div>
 );

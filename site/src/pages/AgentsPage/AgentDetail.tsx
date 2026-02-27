@@ -53,7 +53,6 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
-import { QueuedMessagesList } from "./QueuedMessagesList";
 
 const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
 	() => {};
@@ -121,8 +120,13 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	);
 	const detailErrorMessage =
 		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
+	const latestMessage = messages[messages.length - 1];
+	const latestMessageNeedsAssistantResponse =
+		!latestMessage || latestMessage.role !== "assistant";
 	const isAwaitingFirstStreamChunk =
-		!streamState && (chatStatus === "running" || chatStatus === "pending");
+		!streamState &&
+		(chatStatus === "running" || chatStatus === "pending") &&
+		latestMessageNeedsAssistantResponse;
 	const hasStreamOutput = Boolean(streamState) || isAwaitingFirstStreamChunk;
 
 	return (
@@ -142,35 +146,12 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	);
 };
 
-interface AgentDetailQueuedMessagesProps {
-	store: ChatStoreHandle;
-	onDeleteQueuedMessage: (id: number) => void;
-	onPromoteQueuedMessage: (id: number) => void;
-}
-
-const AgentDetailQueuedMessages: FC<AgentDetailQueuedMessagesProps> = ({
-	store,
-	onDeleteQueuedMessage,
-	onPromoteQueuedMessage,
-}) => {
-	const queuedMessages = useChatSelector(store, selectQueuedMessages);
-	if (queuedMessages.length === 0) {
-		return null;
-	}
-
-	return (
-		<QueuedMessagesList
-			messages={queuedMessages}
-			onDelete={onDeleteQueuedMessage}
-			onPromote={onPromoteQueuedMessage}
-		/>
-	);
-};
-
 interface AgentDetailInputProps {
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
 	onSend: (message: string) => Promise<void>;
+	onDeleteQueuedMessage: (id: number) => Promise<void>;
+	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isSendPending: boolean;
@@ -188,6 +169,8 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	store,
 	compressionThreshold,
 	onSend,
+	onDeleteQueuedMessage,
+	onPromoteQueuedMessage,
 	onInterrupt,
 	isInputDisabled,
 	isSendPending,
@@ -204,6 +187,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
+	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 
 	const messages = useMemo(
 		() =>
@@ -225,6 +209,9 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	return (
 		<AgentChatInput
 			onSend={onSend}
+			queuedMessages={queuedMessages}
+			onDeleteQueuedMessage={onDeleteQueuedMessage}
+			onPromoteQueuedMessage={onPromoteQueuedMessage}
 			isDisabled={isInputDisabled}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
@@ -248,8 +235,8 @@ interface AgentDetailConversationProps {
 	chatID: string;
 	persistedErrorReason: string | undefined;
 	compressionThreshold: number | undefined;
-	onDeleteQueuedMessage: (id: number) => void;
-	onPromoteQueuedMessage: (id: number) => void;
+	onDeleteQueuedMessage: (id: number) => Promise<void>;
+	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onSend: (message: string) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
@@ -291,15 +278,12 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 				chatID={chatID}
 				persistedErrorReason={persistedErrorReason}
 			/>
-			<AgentDetailQueuedMessages
-				store={store}
-				onDeleteQueuedMessage={onDeleteQueuedMessage}
-				onPromoteQueuedMessage={onPromoteQueuedMessage}
-			/>
 			<AgentDetailInput
 				store={store}
 				compressionThreshold={compressionThreshold}
 				onSend={onSend}
+				onDeleteQueuedMessage={onDeleteQueuedMessage}
+				onPromoteQueuedMessage={onPromoteQueuedMessage}
 				onInterrupt={onInterrupt}
 				isInputDisabled={isInputDisabled}
 				isSendPending={isSendPending}
@@ -600,16 +584,49 @@ const AgentDetail: FC = () => {
 
 	if (chatQuery.isLoading) {
 		return (
-			<div className="mx-auto w-full max-w-3xl space-y-6 py-6">
-				<div className="flex justify-end">
-					<Skeleton className="h-10 w-2/3 rounded-xl" />
-				</div>
-				<div className="space-y-3">
-					<Skeleton className="h-4 w-full" />
-					<Skeleton className="h-4 w-5/6" />
-					<Skeleton className="h-4 w-4/6" />
-					<Skeleton className="h-4 w-full" />
-					<Skeleton className="h-4 w-3/5" />
+			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+				<div className="flex h-full flex-col-reverse overflow-hidden">
+					<div className="px-4">
+						<div className="mx-auto w-full max-w-3xl py-6">
+							<div className="flex flex-col gap-3">
+								{/* User message bubble (right-aligned) */}
+								<div className="flex w-full justify-end">
+									<Skeleton className="h-10 w-2/3 rounded-lg" />
+								</div>
+								{/* Assistant response lines (left-aligned) */}
+								<div className="space-y-3">
+									<Skeleton className="h-4 w-full" />
+									<Skeleton className="h-4 w-5/6" />
+									<Skeleton className="h-4 w-4/6" />
+								</div>
+								{/* Second user message bubble */}
+								<div className="mt-3 flex w-full justify-end">
+									<Skeleton className="h-10 w-1/2 rounded-lg" />
+								</div>
+								{/* Second assistant response */}
+								<div className="space-y-3">
+									<Skeleton className="h-4 w-full" />
+									<Skeleton className="h-4 w-5/6" />
+									<Skeleton className="h-4 w-4/6" />
+									<Skeleton className="h-4 w-full" />
+									<Skeleton className="h-4 w-3/5" />
+								</div>
+							</div>
+						</div>
+						<AgentChatInput
+							onSend={handleSend}
+							isDisabled={isInputDisabled}
+							isLoading={false}
+							selectedModel={selectedModel}
+							onModelChange={setSelectedModel}
+							modelOptions={modelOptions}
+							modelSelectorPlaceholder={modelSelectorPlaceholder}
+							hasModelOptions={hasModelOptions}
+							inputStatusText={inputStatusText}
+							modelCatalogStatusMessage={modelCatalogStatusMessage}
+							sticky
+						/>
+					</div>
 				</div>
 			</div>
 		);
@@ -655,14 +672,18 @@ const AgentDetail: FC = () => {
 				ref={scrollContainerRef}
 				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
-				<div>
+				<div className="px-4">
 					<AgentDetailConversation
 						store={store}
 						chatID={agentId}
 						persistedErrorReason={chatErrorReasons[agentId]}
 						compressionThreshold={compressionThreshold}
-						onDeleteQueuedMessage={(id) => deleteQueuedMutation.mutate(id)}
-						onPromoteQueuedMessage={(id) => promoteQueuedMutation.mutate(id)}
+						onDeleteQueuedMessage={async (id) => {
+							await deleteQueuedMutation.mutateAsync(id);
+						}}
+						onPromoteQueuedMessage={async (id) => {
+							await promoteQueuedMutation.mutateAsync(id);
+						}}
 						onSend={handleSend}
 						onInterrupt={handleInterrupt}
 						isInputDisabled={isInputDisabled}

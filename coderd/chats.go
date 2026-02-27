@@ -1993,12 +1993,7 @@ func convertChats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]data
 }
 
 func convertChatQueuedMessage(m database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
-	return codersdk.ChatQueuedMessage{
-		ID:        m.ID,
-		ChatID:    m.ChatID,
-		Content:   m.Content,
-		CreatedAt: m.CreatedAt,
-	}
+	return db2sdk.ChatQueuedMessage(m)
 }
 
 func convertChatQueuedMessagePtr(m database.ChatQueuedMessage) *codersdk.ChatQueuedMessage {

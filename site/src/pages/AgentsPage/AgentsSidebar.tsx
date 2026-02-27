@@ -26,6 +26,7 @@ import {
 	ChevronRightIcon,
 	EllipsisIcon,
 	Loader2Icon,
+	PanelLeftCloseIcon,
 	PauseIcon,
 	SearchIcon,
 } from "lucide-react";
@@ -57,6 +58,7 @@ interface AgentsSidebarProps {
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
+	onCollapse?: () => void;
 }
 
 const statusConfig = {
@@ -478,6 +480,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isLoading = false,
 		loadError,
 		onRetryLoad,
+		onCollapse,
 	} = props;
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
@@ -567,14 +570,27 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 	return (
 		<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
-			<div className="border-b border-border-default px-3 pb-3 pt-1.5 md:px-3.5">
-				<NavLink to="/workspaces" className="mb-2.5 inline-flex">
-					{logoUrl ? (
-						<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-					) : (
-						<CoderIcon className="h-6 w-6 fill-content-primary" />
+			<div className="hidden border-b border-border-default px-3 pb-3 pt-1.5 md:block md:px-3.5">
+				<div className="mb-2.5 flex items-center justify-between">
+					<NavLink to="/workspaces" className="inline-flex opacity-50">
+						{logoUrl ? (
+							<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
+						) : (
+							<CoderIcon className="h-6 w-6 fill-content-primary" />
+						)}
+					</NavLink>
+					{onCollapse && (
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={onCollapse}
+							aria-label="Collapse sidebar"
+							className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+						>
+							<PanelLeftCloseIcon />
+						</Button>
 					)}
-				</NavLink>
+				</div>
 				<div className="flex flex-col gap-2.5">
 					<div className="relative">
 						<label className="sr-only" htmlFor="agents-sidebar-search">
@@ -655,7 +671,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									if (groupChats.length === 0) return null;
 									return (
 										<div key={group}>
-											<div className="ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+											<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 												<span>{group}</span>
 											</div>
 											<div className="flex flex-col gap-0.5">

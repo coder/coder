@@ -65,7 +65,10 @@ export const promoteChatQueuedMessage = (
 	mutationFn: (queuedMessageId: number) =>
 		API.promoteChatQueuedMessage(chatId, queuedMessageId),
 	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: chatsKey });
+		await Promise.all([
+			queryClient.invalidateQueries({ queryKey: chatsKey }),
+			queryClient.invalidateQueries({ queryKey: chatKey(chatId) }),
+		]);
 	},
 });
 

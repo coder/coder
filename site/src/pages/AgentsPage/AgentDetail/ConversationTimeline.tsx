@@ -283,9 +283,16 @@ const StreamingOutput = memo<{
 							(streamState &&
 								orderedBlocks.length === 0 &&
 								streamTools.length === 0) ? (
-								<Shimmer as="span" className="text-sm">
-									Thinking...
-								</Shimmer>
+								<div className="relative">
+									<Response aria-hidden className="invisible">
+										Thinking...
+									</Response>
+									<div className="pointer-events-none absolute inset-0">
+										<Shimmer as="div" className="text-[13px] leading-relaxed">
+											Thinking...
+										</Shimmer>
+									</div>
+								</div>
 							) : null}
 							{remainingTools.map((tool) => (
 								<Tool
@@ -313,7 +320,7 @@ const StickyUserMessage: FC<{
 	parsed: ParsedMessageContent;
 }> = ({ message, parsed }) => {
 	return (
-		<div className="sticky -top-2 z-10 pt-1 drop-shadow-xl">
+		<div className="sticky -top-2 z-10 pt-2">
 			<ChatMessageItem message={message} parsed={parsed} />
 		</div>
 	);
@@ -346,6 +353,9 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	isAwaitingFirstStreamChunk,
 	detailErrorMessage,
 }) => {
+	const shouldRenderStreamInLastSection =
+		hasStreamOutput && parsedSections.length > 0;
+
 	return (
 		<div className="mx-auto w-full max-w-3xl py-6">
 			{isEmpty && !hasStreamOutput ? (
@@ -386,19 +396,27 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 										/>
 									),
 								)}
+								{shouldRenderStreamInLastSection &&
+									sectionIdx === parsedSections.length - 1 && (
+										<StreamingOutput
+											streamState={streamState}
+											streamTools={streamTools}
+											subagentTitles={subagentTitles}
+											subagentStatusOverrides={subagentStatusOverrides}
+											showInitialPlaceholder={isAwaitingFirstStreamChunk}
+										/>
+									)}
 							</div>
 						</div>
 					))}
-					{hasStreamOutput && (
-						<div className="mt-5">
-							<StreamingOutput
-								streamState={streamState}
-								streamTools={streamTools}
-								subagentTitles={subagentTitles}
-								subagentStatusOverrides={subagentStatusOverrides}
-								showInitialPlaceholder={isAwaitingFirstStreamChunk}
-							/>
-						</div>
+					{hasStreamOutput && parsedSections.length === 0 && (
+						<StreamingOutput
+							streamState={streamState}
+							streamTools={streamTools}
+							subagentTitles={subagentTitles}
+							subagentStatusOverrides={subagentStatusOverrides}
+							showInitialPlaceholder={isAwaitingFirstStreamChunk}
+						/>
 					)}
 				</div>
 			)}

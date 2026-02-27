@@ -35,10 +35,18 @@ export const Empty: Story = {
 	},
 };
 
-// A single queued message with plain object content.
+const textContent = (text: string): ChatQueuedMessage["content"] =>
+	[
+		{
+			type: "text",
+			text,
+		},
+	] as ChatQueuedMessage["content"];
+
+// A single queued message with text-part content.
 export const SingleMessage: Story = {
 	args: {
-		messages: [makeMessage(1, { text: "Run the test suite" })],
+		messages: [makeMessage(1, textContent("Run the test suite"))],
 	},
 };
 
@@ -46,9 +54,9 @@ export const SingleMessage: Story = {
 export const SeveralMessages: Story = {
 	args: {
 		messages: [
-			makeMessage(1, { text: "Install dependencies" }),
-			makeMessage(2, { text: "Run database migrations" }),
-			makeMessage(3, { text: "Start the dev server" }),
+			makeMessage(1, textContent("Install dependencies")),
+			makeMessage(2, textContent("Run database migrations")),
+			makeMessage(3, textContent("Start the dev server")),
 		],
 	},
 };
@@ -57,12 +65,15 @@ export const SeveralMessages: Story = {
 export const MixedContentTypes: Story = {
 	args: {
 		messages: [
-			// Object with a text field — extracted by the component.
-			makeMessage(1, { text: "Plain text content" }),
-			// Object without a text field — falls through to JSON.stringify.
-			makeMessage(2, { action: "deploy", target: "staging" }),
-			// Empty object — stringified as "{}".
-			makeMessage(3, {} as ChatQueuedMessage["content"]),
+			// Typed text content.
+			makeMessage(1, textContent("Plain text content")),
+			// Legacy serialized payload in a text field.
+			makeMessage(
+				2,
+				textContent('[{"type":"text","data":{"text":"legacy payload"}}]'),
+			),
+			// Empty content falls back to the generic label.
+			makeMessage(3, [] as ChatQueuedMessage["content"]),
 		],
 	},
 };
@@ -71,7 +82,7 @@ export const MixedContentTypes: Story = {
 export const LongQueue: Story = {
 	args: {
 		messages: Array.from({ length: 10 }, (_, i) =>
-			makeMessage(i + 1, { text: `Queued task number ${i + 1}` }),
+			makeMessage(i + 1, textContent(`Queued task number ${i + 1}`)),
 		),
 	},
 };
@@ -80,10 +91,13 @@ export const LongQueue: Story = {
 export const LongMessageText: Story = {
 	args: {
 		messages: [
-			makeMessage(1, {
-				text: "This is an extremely long queued message that should be truncated by the component layout because it exceeds the available horizontal space in the queue list container",
-			}),
-			makeMessage(2, { text: "Short follow-up" }),
+			makeMessage(
+				1,
+				textContent(
+					"This is an extremely long queued message that should be truncated by the component layout because it exceeds the available horizontal space in the queue list container",
+				),
+			),
+			makeMessage(2, textContent("Short follow-up")),
 		],
 	},
 };

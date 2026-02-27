@@ -1107,17 +1107,30 @@ func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
 	}
 }
 
+// ChatQueuedMessage converts a queued message to its SDK representation.
+func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
+	parts, err := chatMessageParts(string(fantasy.MessageRoleUser), pqtype.NullRawMessage{
+		RawMessage: message.Content,
+		Valid:      len(message.Content) > 0,
+	})
+	if err != nil {
+		parts = nil
+	}
+
+	return codersdk.ChatQueuedMessage{
+		ID:        message.ID,
+		ChatID:    message.ChatID,
+		Content:   parts,
+		CreatedAt: message.CreatedAt,
+	}
+}
+
 // ChatQueuedMessages converts a slice of database queued messages
 // to their SDK representation.
 func ChatQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
 	out := make([]codersdk.ChatQueuedMessage, 0, len(messages))
 	for _, message := range messages {
-		out = append(out, codersdk.ChatQueuedMessage{
-			ID:        message.ID,
-			ChatID:    message.ChatID,
-			Content:   message.Content,
-			CreatedAt: message.CreatedAt,
-		})
+		out = append(out, ChatQueuedMessage(message))
 	}
 	return out
 }
