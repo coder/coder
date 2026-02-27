@@ -1832,12 +1832,9 @@ func (p *Server) runChat(
 		return currentConn, nil
 	}
 
-	prompt = p.appendHomeInstructionToPrompt(
-		ctx,
-		chat,
-		prompt,
-		getWorkspaceConn,
-	)
+	if instruction := p.resolveInstructions(ctx, chat, getWorkspaceConn); instruction != "" {
+		prompt = chatprompt.InsertSystem(prompt, instruction)
+	}
 
 	// Use the model config's context_limit as a fallback when the LLM
 	// provider doesn't include context_limit in its response metadata
@@ -2268,31 +2265,18 @@ func refreshChatWorkspaceSnapshot(
 	return refreshedChat, nil
 }
 
-func (p *Server) appendHomeInstructionToPrompt(
-	ctx context.Context,
-	chat database.Chat,
-	prompt []fantasy.Message,
-	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) []fantasy.Message {
-	if !chat.WorkspaceAgentID.Valid || getWorkspaceConn == nil {
-		return prompt
-	}
-
-	instruction := p.resolveHomeInstruction(ctx, chat, getWorkspaceConn)
-	if instruction == "" {
-		return prompt
-	}
-
-	return chatprompt.InsertSystem(prompt, instruction)
-}
-
-// resolveHomeInstruction returns cached home instructions for the
-// workspace agent, fetching them on cache miss or expiry.
-func (p *Server) resolveHomeInstruction(
+// resolveInstructions returns the combined system instructions for the
+// workspace agent. It reads the home-level (~/.coder/AGENTS.md) and
+// working-directory-level (<pwd>/AGENTS.md) instruction files, combines
+// them with agent metadata (OS, directory), and caches the result.
+func (p *Server) resolveInstructions(
 	ctx context.Context,
 	chat database.Chat,
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) string {
+	if !chat.WorkspaceAgentID.Valid {
+		return ""
+	}
 	agentID := chat.WorkspaceAgentID.UUID
 
 	p.instructionCacheMu.Lock()
@@ -2303,28 +2287,54 @@ func (p *Server) resolveHomeInstruction(
 		return cached.instruction
 	}
 
-	instructionCtx, cancel := context.WithTimeout(ctx, homeInstructionLookupTimeout)
-	defer cancel()
-
-	conn, err := getWorkspaceConn(instructionCtx)
+	// Look up the agent's OS and working directory.
+	//nolint:gocritic // System context needed to read workspace agent metadata.
+	agent, err := p.db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
 	if err != nil {
-		p.logger.Debug(ctx, "failed to resolve workspace connection for home instruction file",
-			slog.F("chat_id", chat.ID),
+		p.logger.Debug(ctx, "failed to look up workspace agent for instruction context",
+			slog.F("agent_id", agentID),
 			slog.Error(err),
 		)
-		return cached.instruction
+	}
+	directory := agent.ExpandedDirectory
+	if directory == "" {
+		directory = agent.Directory
 	}
 
-	content, sourcePath, truncated, err := readHomeInstructionFile(instructionCtx, conn)
-	if err != nil {
-		p.logger.Debug(ctx, "failed to load home instruction file",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return cached.instruction
+	// Read instruction files from the workspace agent.
+	var sections []instructionFileSection
+	if getWorkspaceConn != nil {
+		instructionCtx, cancel := context.WithTimeout(ctx, homeInstructionLookupTimeout)
+		defer cancel()
+
+		conn, connErr := getWorkspaceConn(instructionCtx)
+		if connErr != nil {
+			p.logger.Debug(ctx, "failed to resolve workspace connection for instruction files",
+				slog.F("chat_id", chat.ID),
+				slog.Error(connErr),
+			)
+		} else {
+			// ~/.coder/AGENTS.md
+			if content, source, truncated, err := readHomeInstructionFile(instructionCtx, conn); err != nil {
+				p.logger.Debug(ctx, "failed to load home instruction file",
+					slog.F("chat_id", chat.ID), slog.Error(err))
+			} else if content != "" {
+				sections = append(sections, instructionFileSection{content, source, truncated})
+			}
+
+			// <pwd>/AGENTS.md
+			if pwdPath := pwdInstructionFilePath(directory); pwdPath != "" {
+				if content, source, truncated, err := readInstructionFile(instructionCtx, conn, pwdPath); err != nil {
+					p.logger.Debug(ctx, "failed to load working directory instruction file",
+						slog.F("chat_id", chat.ID), slog.F("directory", directory), slog.Error(err))
+				} else if content != "" {
+					sections = append(sections, instructionFileSection{content, source, truncated})
+				}
+			}
+		}
 	}
 
-	instruction := formatHomeInstruction(content, sourcePath, truncated)
+	instruction := formatSystemInstructions(agent.OperatingSystem, directory, sections)
 
 	p.instructionCacheMu.Lock()
 	p.instructionCache[agentID] = cachedInstruction{

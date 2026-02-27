@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"path"
 	"regexp"
 	"strings"
 
@@ -21,6 +22,8 @@ const (
 
 var markdownCommentPattern = regexp.MustCompile(`<!--[\s\S]*?-->`)
 
+// readHomeInstructionFile reads the ~/.coder/AGENTS.md file from the
+// workspace agent's home directory.
 func readHomeInstructionFile(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
@@ -54,6 +57,16 @@ func readHomeInstructionFile(
 		return "", "", false, nil
 	}
 
+	return readInstructionFile(ctx, conn, filePath)
+}
+
+// readInstructionFile reads and sanitizes an instruction file at the
+// given absolute path.
+func readInstructionFile(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	filePath string,
+) (content string, sourcePath string, truncated bool, err error) {
 	reader, _, err := conn.ReadFile(
 		ctx,
 		filePath,
@@ -64,13 +77,13 @@ func readHomeInstructionFile(
 		if isCodersdkStatusCode(err, http.StatusNotFound) {
 			return "", "", false, nil
 		}
-		return "", "", false, xerrors.Errorf("read home instruction file: %w", err)
+		return "", "", false, xerrors.Errorf("read instruction file: %w", err)
 	}
 	defer reader.Close()
 
 	raw, err := io.ReadAll(reader)
 	if err != nil {
-		return "", "", false, xerrors.Errorf("read home instruction bytes: %w", err)
+		return "", "", false, xerrors.Errorf("read instruction bytes: %w", err)
 	}
 
 	truncated = int64(len(raw)) > maxInstructionFileBytes
@@ -93,28 +106,67 @@ func sanitizeInstructionMarkdown(content string) string {
 	return strings.TrimSpace(content)
 }
 
-//nolint:revive // Boolean indicates content was truncated.
-func formatHomeInstruction(content string, sourcePath string, truncated bool) string {
-	content = strings.TrimSpace(content)
-	if content == "" {
-		return ""
+// formatSystemInstructions builds the <workspace-context> block from
+// agent metadata and zero or more instruction file sections.
+func formatSystemInstructions(
+	operatingSystem, directory string,
+	sections []instructionFileSection,
+) string {
+	hasSections := false
+	for _, s := range sections {
+		if s.content != "" {
+			hasSections = true
+			break
+		}
 	}
-	sourcePath = strings.TrimSpace(sourcePath)
-	if sourcePath == "" {
-		sourcePath = "~/.coder/AGENTS.md"
+	if !hasSections && operatingSystem == "" && directory == "" {
+		return ""
 	}
 
 	var b strings.Builder
-	_, _ = b.WriteString("<coder-home-instructions>\n")
-	_, _ = b.WriteString("Source: ")
-	_, _ = b.WriteString(sourcePath)
-	if truncated {
-		_, _ = b.WriteString(" (truncated to 64KiB)")
+	_, _ = b.WriteString("<workspace-context>\n")
+	if operatingSystem != "" {
+		_, _ = b.WriteString("Operating System: ")
+		_, _ = b.WriteString(operatingSystem)
+		_, _ = b.WriteString("\n")
 	}
-	_, _ = b.WriteString("\n\n")
-	_, _ = b.WriteString(content)
-	_, _ = b.WriteString("\n</coder-home-instructions>")
+	if directory != "" {
+		_, _ = b.WriteString("Working Directory: ")
+		_, _ = b.WriteString(directory)
+		_, _ = b.WriteString("\n")
+	}
+	for _, s := range sections {
+		if s.content == "" {
+			continue
+		}
+		_, _ = b.WriteString("\nSource: ")
+		_, _ = b.WriteString(s.source)
+		if s.truncated {
+			_, _ = b.WriteString(" (truncated to 64KiB)")
+		}
+		_, _ = b.WriteString("\n")
+		_, _ = b.WriteString(s.content)
+		_, _ = b.WriteString("\n")
+	}
+	_, _ = b.WriteString("</workspace-context>")
 	return b.String()
+}
+
+// instructionFileSection is a single instruction file's content and
+// source path for rendering inside <workspace-context>.
+type instructionFileSection struct {
+	content   string
+	source    string
+	truncated bool
+}
+
+// pwdInstructionFilePath returns the absolute path to the AGENTS.md
+// file in the given working directory, or empty if directory is empty.
+func pwdInstructionFilePath(directory string) string {
+	if directory == "" {
+		return ""
+	}
+	return path.Join(directory, coderHomeInstructionFile)
 }
 
 func isCodersdkStatusCode(err error, statusCode int) bool {
