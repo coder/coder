@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
+	"github.com/coder/coder/v2/agent/agentgitchanges"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -302,6 +303,8 @@ type agent struct {
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
 
+	gitChangesAPI *agentgitchanges.API
+
 	filesAPI *agentfiles.API
 
 	socketServerEnabled bool
@@ -373,6 +376,8 @@ func (a *agent) init() {
 	containerAPIOpts = append(containerAPIOpts, a.containerAPIOptions...)
 
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
+
+	a.gitChangesAPI = agentgitchanges.NewAPI(a.logger.Named("git-changes"))
 
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem)
 
@@ -1252,6 +1257,21 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				scripts             = manifest.Scripts
 				devcontainerScripts map[uuid.UUID]codersdk.WorkspaceAgentScript
 			)
+			// Initialize the git changes API with the workspace directory
+			// from the manifest, falling back to the home directory.
+			gitChangesDir := manifest.Directory
+			if gitChangesDir == "" {
+				if homeDir, err := userHomeDir(); err == nil {
+					gitChangesDir = homeDir
+				}
+			}
+			if gitChangesDir != "" {
+				a.gitChangesAPI.Init(
+					agentgitchanges.WithDirectory(gitChangesDir),
+				)
+				a.gitChangesAPI.Start()
+			}
+
 			if a.devcontainers {
 				// Init the container API with the manifest and client so that
 				// we can start accepting requests. The final start of the API
@@ -2028,6 +2048,9 @@ func (a *agent) Close() error {
 
 	if err := a.containerAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
+	}
+	if err := a.gitChangesAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "git changes API close", slog.Error(err))
 	}
 
 	if a.boundaryLogProxy != nil {

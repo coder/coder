@@ -160,6 +160,14 @@ export const watchAgentContainers = (
 	});
 };
 
+export const watchAgentGitChanges = (
+	agentId: string,
+): OneWayWebSocket<TypesGen.WorkspaceAgentGitChangesResponse> => {
+	return new OneWayWebSocket({
+		apiRoute: `/api/v2/workspaceagents/${agentId}/git-changes/watch`,
+	});
+};
+
 type WatchInboxNotificationsParams = Readonly<{
 	read_status?: "read" | "unread" | "all";
 }>;

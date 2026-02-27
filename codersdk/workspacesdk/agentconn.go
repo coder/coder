@@ -71,6 +71,7 @@ type AgentConn interface {
 	SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error)
 	Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error)
 	WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error)
+	WatchGitChanges(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentGitChangesResponse, io.Closer, error)
 }
 
 // AgentConn represents a connection to a workspace agent.
@@ -458,6 +459,34 @@ func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 	conn.SetReadLimit(1 << 22) // 4MiB
 
 	d := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, logger)
+	return d.Chan(), d, nil
+}
+
+func (c *agentConn) WatchGitChanges(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentGitChangesResponse, io.Closer, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
+	url := fmt.Sprintf("http://%s%s", host, "/api/v0/git-changes/watch")
+
+	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
+		HTTPClient:      c.apiClient(),
+		CompressionMode: websocket.CompressionNoContextTakeover,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, nil, err
+		}
+		return nil, nil, codersdk.ReadBodyAsError(res)
+	}
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	// Git diffs can be large; allow up to 4 MiB per message.
+	conn.SetReadLimit(1 << 22) // 4MiB
+
+	d := wsjson.NewDecoder[codersdk.WorkspaceAgentGitChangesResponse](conn, websocket.MessageText, logger)
 	return d.Chan(), d, nil
 }
 

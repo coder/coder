@@ -1,5 +1,6 @@
 import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
+import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -18,7 +19,7 @@ import {
 } from "lucide-react";
 import type { FC, RefObject } from "react";
 import { createPortal } from "react-dom";
-import { FilesChangedPanel } from "../FilesChangedPanel";
+import { RightPanelContent } from "../RightPanelContent";
 
 interface DiffStatsBadgeProps {
 	status: ChatDiffStatusResponse;
@@ -65,6 +66,7 @@ interface DiffPanelState {
 	hasDiffStatus: boolean;
 	diffStatus: ChatDiffStatusResponse | undefined;
 	showDiffPanel: boolean;
+	hasRightPanelContent: boolean;
 	onToggleFilesChanged: () => void;
 }
 
@@ -87,6 +89,7 @@ type AgentDetailTopBarPortalsProps = {
 	onArchiveAgent: () => void;
 	shouldShowDiffPanel: boolean;
 	agentId: string;
+	gitChangesRepos: readonly WorkspaceAgentRepoChanges[] | undefined;
 };
 
 export const AgentDetailTopBarPortals: FC<AgentDetailTopBarPortalsProps> = ({
@@ -101,6 +104,7 @@ export const AgentDetailTopBarPortals: FC<AgentDetailTopBarPortalsProps> = ({
 	onArchiveAgent,
 	shouldShowDiffPanel,
 	agentId,
+	gitChangesRepos,
 }) => {
 	return (
 		<>
@@ -127,17 +131,33 @@ export const AgentDetailTopBarPortals: FC<AgentDetailTopBarPortalsProps> = ({
 					</div>,
 					topBarTitleRef.current,
 				)}
-			{diff.hasDiffStatus &&
-				diff.diffStatus &&
+			{diff.hasRightPanelContent &&
 				topBarActionsRef?.current &&
 				createPortal(
-					<DiffStatsBadge
-						status={diff.diffStatus}
-						isOpen={diff.showDiffPanel}
-						onToggle={diff.onToggleFilesChanged}
-					/>,
+					diff.hasDiffStatus && diff.diffStatus ? (
+						<DiffStatsBadge
+							status={diff.diffStatus}
+							isOpen={diff.showDiffPanel}
+							onToggle={diff.onToggleFilesChanged}
+						/>
+					) : (
+						<Button
+							size="icon"
+							variant="subtle"
+							className="h-7 w-7 text-content-secondary hover:text-content-primary"
+							aria-label="Toggle changes panel"
+							onClick={diff.onToggleFilesChanged}
+						>
+							{diff.showDiffPanel ? (
+								<PanelRightCloseIcon className="h-4 w-4" />
+							) : (
+								<PanelRightOpenIcon className="h-4 w-4" />
+							)}
+						</Button>
+					),
 					topBarActionsRef.current,
 				)}
+
 			{topBarActionsRef?.current &&
 				createPortal(
 					<DropdownMenu>
@@ -191,7 +211,11 @@ export const AgentDetailTopBarPortals: FC<AgentDetailTopBarPortalsProps> = ({
 			{shouldShowDiffPanel &&
 				rightPanelRef?.current &&
 				createPortal(
-					<FilesChangedPanel chatId={agentId} />,
+					<RightPanelContent
+						chatId={agentId}
+						gitChangesRepos={gitChangesRepos}
+					/>,
+
 					rightPanelRef.current,
 				)}
 		</>

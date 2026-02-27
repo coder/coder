@@ -887,6 +887,113 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	}
 }
 
+// @Summary Watch for git working changes in workspace agent
+// @ID watch-workspace-agent-git-changes
+// @Security CoderSessionToken
+// @Tags Agents
+// @Produce json
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Success 101
+// @Router /workspaceagents/{workspaceagent}/git-changes/watch [get]
+func (api *API) watchWorkspaceAgentGitChanges(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		waws   = httpmw.WorkspaceAgentAndWorkspaceParam(r)
+		logger = api.Logger.Named("agent_git_changes_watcher").With(slog.F("agent_id", waws.WorkspaceAgent.ID))
+	)
+
+	// If the agent is unreachable, the request will hang. Assume that if we
+	// don't get a response after 30s that the agent is unreachable.
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		waws.WorkspaceAgent,
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, waws.WorkspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	gitChangesCh, closer, err := agentConn.WatchGitChanges(ctx, logger)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error watching agent git changes.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer closer.Close()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upgrade connection to websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	// Close the websocket for reading, so that the websocket library
+	// will handle pings and close frames.
+	_ = conn.CloseRead(context.Background())
+
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
+	defer wsNetConn.Close()
+
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
+
+	encoder := json.NewEncoder(wsNetConn)
+
+	for {
+		select {
+		case <-api.ctx.Done():
+			return
+
+		case <-ctx.Done():
+			return
+
+		case gitChanges, ok := <-gitChangesCh:
+			if !ok {
+				return
+			}
+
+			if err := encoder.Encode(gitChanges); err != nil {
+				api.Logger.Error(ctx, "encode git changes", slog.Error(err))
+				return
+			}
+		}
+	}
+}
+
 // @Summary Get running containers for workspace agent
 // @ID get-running-containers-for-workspace-agent
 // @Security CoderSessionToken

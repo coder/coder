@@ -28,6 +28,7 @@ func (a *agent) apiHandler() http.Handler {
 	})
 
 	r.Mount("/api/v0", a.filesAPI.Routes())
+	r.Mount("/api/v0/git-changes", a.gitChangesAPI.Routes())
 
 	if a.devcontainers {
 		r.Mount("/api/v0/containers", a.containerAPI.Routes())

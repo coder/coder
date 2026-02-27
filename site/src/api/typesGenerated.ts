@@ -7001,6 +7001,15 @@ export type WorkspaceAgentDevcontainerStatus =
 export const WorkspaceAgentDevcontainerStatuses: WorkspaceAgentDevcontainerStatus[] =
 	["deleting", "error", "running", "starting", "stopped", "stopping"];
 
+// From codersdk/gitchanges.go
+/**
+ * WorkspaceAgentGitChangesResponse contains the git working changes
+ * for all repositories discovered in a workspace agent's directory.
+ */
+export interface WorkspaceAgentGitChangesResponse {
+	readonly repos: readonly WorkspaceAgentRepoChanges[];
+}
+
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentHealth {
 	readonly healthy: boolean; // Healthy is true if the agent is healthy.
@@ -7152,6 +7161,46 @@ export const WorkspaceAgentPortShareProtocols: WorkspaceAgentPortShareProtocol[]
 // From codersdk/workspaceagentportshare.go
 export interface WorkspaceAgentPortShares {
 	readonly shares: readonly WorkspaceAgentPortShare[];
+}
+
+// From codersdk/gitchanges.go
+/**
+ * WorkspaceAgentRepoChanges represents uncommitted working changes
+ * for a single git repository.
+ */
+export interface WorkspaceAgentRepoChanges {
+	/**
+	 * RepoRoot is the absolute path to the repository root.
+	 */
+	readonly repo_root: string;
+	/**
+	 * Branch is the current branch name, if available.
+	 */
+	readonly branch?: string;
+	/**
+	 * RemoteOrigin is the URL of the "origin" remote, if configured.
+	 */
+	readonly remote_origin?: string;
+	/**
+	 * UnifiedDiff is the unified diff output of working changes.
+	 */
+	readonly unified_diff: string;
+	/**
+	 * UntrackedFiles lists files not tracked by git.
+	 */
+	readonly untracked_files?: readonly string[];
+	/**
+	 * Additions is the total number of added lines.
+	 */
+	readonly additions: number;
+	/**
+	 * Deletions is the total number of deleted lines.
+	 */
+	readonly deletions: number;
+	/**
+	 * ChangedFiles is the number of files with changes.
+	 */
+	readonly changed_files: number;
 }
 
 // From codersdk/workspaceagents.go

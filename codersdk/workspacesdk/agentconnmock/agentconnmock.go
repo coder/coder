@@ -431,6 +431,22 @@ func (mr *MockAgentConnMockRecorder) WatchContainers(ctx, logger any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchContainers", reflect.TypeOf((*MockAgentConn)(nil).WatchContainers), ctx, logger)
 }
 
+// WatchGitChanges mocks base method.
+func (m *MockAgentConn) WatchGitChanges(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentGitChangesResponse, io.Closer, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WatchGitChanges", ctx, logger)
+	ret0, _ := ret[0].(<-chan codersdk.WorkspaceAgentGitChangesResponse)
+	ret1, _ := ret[1].(io.Closer)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// WatchGitChanges indicates an expected call of WatchGitChanges.
+func (mr *MockAgentConnMockRecorder) WatchGitChanges(ctx, logger any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchGitChanges", reflect.TypeOf((*MockAgentConn)(nil).WatchGitChanges), ctx, logger)
+}
+
 // WriteFile mocks base method.
 func (m *MockAgentConn) WriteFile(ctx context.Context, path string, reader io.Reader) error {
 	m.ctrl.T.Helper()

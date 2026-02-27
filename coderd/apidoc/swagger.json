@@ -8986,6 +8986,34 @@
 				}
 			}
 		},
+		"/workspaceagents/{workspaceagent}/git-changes/watch": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Agents"],
+				"summary": "Watch for git working changes in workspace agent",
+				"operationId": "watch-workspace-agent-git-changes",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace agent ID",
+						"name": "workspaceagent",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"101": {
+						"description": "Switching Protocols"
+					}
+				}
+			}
+		},
 		"/workspaceagents/{workspaceagent}/listening-ports": {
 			"get": {
 				"security": [

@@ -61,6 +61,7 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import { useWorkspaceGitChanges } from "./useWorkspaceGitChanges";
 
 const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
 	() => {};
@@ -405,18 +406,29 @@ const AgentDetail: FC = () => {
 	const hasDiffStatus = Boolean(diffStatusQuery.data?.url);
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, workspaceAgentId);
+	// Use the resolved agent ID (which falls back to agents[0] if the
+	// chat's stale ID no longer matches after a workspace rebuild).
+	const resolvedAgentId = workspaceAgent?.id;
+	const gitChangesRepos = useWorkspaceGitChanges(resolvedAgentId);
+	const hasGitChanges =
+		gitChangesRepos !== undefined && gitChangesRepos.length > 0;
 	const chatData = chatQuery.data;
 	const chatRecord = chatData?.chat;
 	const chatMessages = chatData?.messages;
 	const chatQueuedMessages = chatData?.queued_messages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
-	// Auto-open the diff panel when diff status first appears.
+	// The right panel has content when there's a PR diff or workspace
+	// git changes (or both).
+	const hasRightPanelContent = hasDiffStatus || hasGitChanges;
+
+	// Auto-open the diff panel when diff content first appears.
 	// See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-	const [prevHasDiffStatus, setPrevHasDiffStatus] = useState(false);
-	if (hasDiffStatus !== prevHasDiffStatus) {
-		setPrevHasDiffStatus(hasDiffStatus);
-		if (hasDiffStatus) {
+	const [prevHasRightPanelContent, setPrevHasRightPanelContent] =
+		useState(false);
+	if (hasRightPanelContent !== prevHasRightPanelContent) {
+		setPrevHasRightPanelContent(hasRightPanelContent);
+		if (hasRightPanelContent) {
 			setShowDiffPanel(true);
 		}
 	}
@@ -425,11 +437,11 @@ const AgentDetail: FC = () => {
 	// useEffect is necessary because we're synchronizing with state
 	// owned by the parent outlet, not adjusting our own state.
 	useEffect(() => {
-		setRightPanelOpen(hasDiffStatus && showDiffPanel);
+		setRightPanelOpen(hasRightPanelContent && showDiffPanel);
 		return () => {
 			setRightPanelOpen(false);
 		};
-	}, [hasDiffStatus, setRightPanelOpen, showDiffPanel]);
+	}, [hasRightPanelContent, setRightPanelOpen, showDiffPanel]);
 
 	const modelOptions = useMemo(
 		() =>
@@ -589,6 +601,10 @@ const AgentDetail: FC = () => {
 			} finally {
 				setPendingEditMessageId(null);
 			}
+			await editMutation.mutateAsync({
+				messageId: editedMessageID,
+				req: request,
+			});
 			return;
 		}
 		const selectedModelConfigID =
@@ -673,7 +689,7 @@ const AgentDetail: FC = () => {
 		: null;
 	const canOpenWorkspace = Boolean(workspaceRoute);
 	const canOpenEditors = Boolean(workspace && workspaceAgent);
-	const shouldShowDiffPanel = hasDiffStatus && showDiffPanel;
+	const shouldShowDiffPanel = hasRightPanelContent && showDiffPanel;
 
 	const handleOpenInEditor = async (editor: "cursor" | "vscode") => {
 		if (!workspace || !workspaceAgent) {
@@ -801,6 +817,7 @@ const AgentDetail: FC = () => {
 					hasDiffStatus,
 					diffStatus: diffStatusQuery.data,
 					showDiffPanel,
+					hasRightPanelContent,
 					onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
 				}}
 				workspace={{
@@ -814,6 +831,7 @@ const AgentDetail: FC = () => {
 				onArchiveAgent={handleArchiveAgentAction}
 				shouldShowDiffPanel={shouldShowDiffPanel}
 				agentId={agentId}
+				gitChangesRepos={gitChangesRepos}
 			/>
 
 			<div
@@ -828,7 +846,7 @@ const AgentDetail: FC = () => {
 			/>
 			<div
 				ref={scrollContainerRef}
-				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+				className="flex h-full flex-col-reverse overflow-y-auto px-4 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				<div className="px-4">
 					<AgentDetailConversation
