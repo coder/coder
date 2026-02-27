@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -280,6 +281,13 @@ func (e BuildError) Unwrap() error {
 }
 
 func (e BuildError) Response() (int, codersdk.Response) {
+	// If the wrapped error knows how to produce its own response
+	// (e.g. DiagnosticError with Validations), prefer that over
+	// the generic BuildError response.
+	if inner, ok := httperror.IsResponder(e.Wrapped); ok {
+		return inner.Response()
+	}
+
 	return e.Status, codersdk.Response{
 		Message: e.Message,
 		Detail:  e.Error(),
@@ -875,7 +883,7 @@ func (b *Builder) getDynamicParameters() (names, values []string, err error) {
 		b.richParameterValues,
 		presetParameterValues)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("resolve parameters: %w", err)
+		return nil, nil, BuildError{http.StatusBadRequest, "resolve parameters", err}
 	}
 
 	names = make([]string, 0, len(buildValues))
@@ -1112,7 +1120,7 @@ func (b *Builder) getDynamicProvisionerTags() (map[string]string, error) {
 	output, diags := render.Render(b.ctx, b.workspace.OwnerID, vals)
 	tagErr := dynamicparameters.CheckTags(output, diags)
 	if tagErr != nil {
-		return nil, tagErr
+		return nil, BuildError{http.StatusBadRequest, "workspace tags validation failed", tagErr}
 	}
 
 	for k, v := range output.WorkspaceTags.Tags() {

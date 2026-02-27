@@ -1,10 +1,14 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
+import {
+	templateVersions,
+	templateVersionsQueryKey,
+} from "api/queries/templates";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useState } from "react";
-import { useMutation, useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getTemplatePageTitle } from "../utils";
@@ -14,13 +18,11 @@ const TemplateVersionsPage = () => {
 	const navigate = useNavigate();
 	const getLink = useLinks();
 	const { template, permissions } = useTemplateLayoutContext();
+	const queryClient = useQueryClient();
 	const templateLink = getLink(
 		linkToTemplate(template.organization_name, template.name),
 	);
-	const { data } = useQuery({
-		queryKey: ["template", "versions", template.id],
-		queryFn: () => API.getTemplateVersions(template.id),
-	});
+	const { data } = useQuery(templateVersions(template.id));
 	// We use this to update the active version in the UI without having to refetch the template
 	const [latestActiveVersion, setLatestActiveVersion] = useState(
 		template.active_version_id,
@@ -72,11 +74,9 @@ const TemplateVersionsPage = () => {
 			return API.archiveTemplateVersion(templateVersionId);
 		},
 		onSuccess: async (data) => {
-			// The reload is unfortunate. When a version is archived, we should hide
-			// the row. I do not know an easy way to do that, so a reload makes the API call
-			// resend and now the version is omitted.
-			// TODO: Improve this to not reload the page.
-			location.reload();
+			await queryClient.invalidateQueries({
+				queryKey: templateVersionsQueryKey(template.id),
+			});
 			setSelectedVersionIdToArchive(undefined);
 			toast.success(`Version "${data.name}" archived successfully.`);
 		},
