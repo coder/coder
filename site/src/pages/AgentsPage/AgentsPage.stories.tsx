@@ -108,8 +108,13 @@ export const WithWorkspaces: Story = {
 		});
 	},
 	play: async () => {
-		const trigger = await screen.findByText("Workspace");
-		await userEvent.click(trigger);
+		// Wait for the workspaces query to resolve and the select to become
+		// enabled before clicking.
+		await waitFor(async () => {
+			const trigger = screen.getByText("Workspace").closest("button")!;
+			expect(trigger).toBeEnabled();
+			await userEvent.click(trigger);
+		});
 	},
 };
 
