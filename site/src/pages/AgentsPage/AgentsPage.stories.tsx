@@ -107,6 +107,10 @@ export const WithWorkspaces: Story = {
 			count: 3,
 		});
 	},
+	play: async () => {
+		const trigger = await screen.findByText("Workspace");
+		await userEvent.click(trigger);
+	},
 };
 
 export const SavesBehaviorPromptAndRestores: Story = {
