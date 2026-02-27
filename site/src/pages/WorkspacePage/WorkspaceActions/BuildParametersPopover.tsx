@@ -146,7 +146,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 			{buildParameters && ephemeralParameters ? (
 				ephemeralParameters.length > 0 ? (
 					<>
-						<div className="border-border p-5 text-content-secondary border-b">
+						<div className="p-5 text-content-secondary">
 							<HelpTooltipTitle>Build Options</HelpTooltipTitle>
 							<HelpTooltipText>
 								These parameters only apply for a single workspace start.
@@ -169,7 +169,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 						</div>
 					</>
 				) : (
-					<div className="border-surface-quaternary p-5 text-content-secondary border-b">
+					<div className="p-5 text-content-secondary">
 						<HelpTooltipTitle>Build Options</HelpTooltipTitle>
 						<HelpTooltipText>
 							This template has no ephemeral build options.
