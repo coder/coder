@@ -88,7 +88,7 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 				<TableRow>
 					<TableCell
 						colSpan={4}
-						className="!p-0 border-b-0 divide-y divide-solid"
+						className="!p-0 border-b-0 divide-y divide-solid overflow-clip"
 					>
 						<ProxyMessagesRow
 							proxy={proxy as WorkspaceProxy}
