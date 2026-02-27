@@ -385,6 +385,16 @@ const AgentDetail: FC = () => {
 		outletContext?.requestArchiveAgent ?? noopRequestArchiveAgent;
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
+	// When switching between chats, reset the scroll container to the
+	// bottom (scrollTop 0 in a flex-col-reverse container) so the user
+	// always sees the most recent messages instead of a stale scroll
+	// position from the previous chat.
+	useEffect(() => {
+		if (scrollContainerRef.current) {
+			scrollContainerRef.current.scrollTop = 0;
+		}
+	}, [agentId]);
+
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
