@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import { CheckIcon } from "components/AnimatedIcons/Check";
 import {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
@@ -10,7 +11,6 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useClipboard } from "hooks/useClipboard";
 import {
-	CheckIcon,
 	CircleUserIcon,
 	CopyIcon,
 	LogOutIcon,

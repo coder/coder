@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { richParameters } from "api/queries/templates";
 import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import type {
@@ -102,8 +101,6 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 	onSubmit,
 	setIsOpen,
 }) => {
-	const theme = useTheme();
-
 	if (
 		!workspace.template_use_classic_parameter_flow &&
 		ephemeralParameters &&
@@ -149,19 +146,13 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 			{buildParameters && ephemeralParameters ? (
 				ephemeralParameters.length > 0 ? (
 					<>
-						<div
-							css={{
-								color: theme.palette.text.secondary,
-								padding: 20,
-								borderBottom: `1px solid ${theme.palette.divider}`,
-							}}
-						>
+						<div className="p-5 text-content-secondary">
 							<HelpTooltipTitle>Build Options</HelpTooltipTitle>
 							<HelpTooltipText>
 								These parameters only apply for a single workspace start.
 							</HelpTooltipText>
 						</div>
-						<div css={{ padding: 20 }}>
+						<div className="p-5">
 							<Form
 								onSubmit={(buildParameters) => {
 									onSubmit(buildParameters);
@@ -178,13 +169,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 						</div>
 					</>
 				) : (
-					<div
-						css={{
-							color: theme.palette.text.secondary,
-							padding: 20,
-							borderBottom: `1px solid ${theme.palette.divider}`,
-						}}
-					>
+					<div className="p-5 text-content-secondary">
 						<HelpTooltipTitle>Build Options</HelpTooltipTitle>
 						<HelpTooltipText>
 							This template has no ephemeral build options.
@@ -251,11 +236,11 @@ const Form: FC<FormProps> = ({
 					);
 				})}
 			</FormFields>
-			<div css={{ paddingTop: "24px", paddingBottom: "8px" }}>
+			<div className="pb-2 pt-6">
 				<Button
 					data-testid="build-parameters-submit"
 					type="submit"
-					css={{ width: "100%" }}
+					className="w-full"
 				>
 					Build workspace
 				</Button>
