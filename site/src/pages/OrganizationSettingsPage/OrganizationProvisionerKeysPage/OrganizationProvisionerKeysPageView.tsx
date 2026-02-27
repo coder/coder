@@ -86,18 +86,14 @@ export const OrganizationProvisionerKeysPageView: FC<
 									</TableCell>
 								</TableRow>
 							) : (
-								filteredProvisionerKeyDaemons
-									.filter(
-										(pkd) => !HIDDEN_PROVISIONER_KEYS.includes(pkd.key.id),
-									)
-									.map((pkd) => (
-										<ProvisionerKeyRow
-											key={pkd.key.id}
-											provisionerKey={pkd.key}
-											provisioners={pkd.daemons}
-											defaultIsOpen={false}
-										/>
-									))
+								filteredProvisionerKeyDaemons.map((pkd) => (
+									<ProvisionerKeyRow
+										key={pkd.key.id}
+										provisionerKey={pkd.key}
+										provisioners={pkd.daemons}
+										defaultIsOpen={false}
+									/>
+								))
 							)
 						) : error ? (
 							<TableRow>
