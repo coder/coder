@@ -154,7 +154,7 @@ func (api *API) HandleReadFileLines(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *API) readFileLines(ctx context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) ReadFileLinesResponse {
+func (api *API) readFileLines(_ context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) ReadFileLinesResponse {
 	errResp := func(msg string) ReadFileLinesResponse {
 		return ReadFileLinesResponse{Success: false, Error: msg}
 	}
