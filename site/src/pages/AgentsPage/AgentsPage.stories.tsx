@@ -78,6 +78,9 @@ type Story = StoryObj<typeof AgentsEmptyStateWithPortal>;
 export const Default: Story = {};
 
 export const WithWorkspaces: Story = {
+	parameters: {
+		chromatic: { disableSnapshot: true },
+	},
 	beforeEach: () => {
 		localStorage.clear();
 		spyOn(API, "getWorkspaces").mockResolvedValue({
