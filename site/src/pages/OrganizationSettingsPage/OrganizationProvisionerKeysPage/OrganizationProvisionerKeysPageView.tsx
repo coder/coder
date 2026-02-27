@@ -44,6 +44,10 @@ interface OrganizationProvisionerKeysPageViewProps {
 export const OrganizationProvisionerKeysPageView: FC<
 	OrganizationProvisionerKeysPageViewProps
 > = ({ showPaywall, provisionerKeyDaemons, error, onRetry }) => {
+	const filteredProvisionerKeyDaemons = provisionerKeyDaemons?.filter(
+		(pkd) => !HIDDEN_PROVISIONER_KEYS.includes(pkd.key.id),
+	);
+
 	return (
 		<section className="w-full max-w-screen-2xl pb-10">
 			<SettingsHeader>
@@ -71,8 +75,8 @@ export const OrganizationProvisionerKeysPageView: FC<
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{provisionerKeyDaemons ? (
-							provisionerKeyDaemons.length === 0 ? (
+						{filteredProvisionerKeyDaemons ? (
+							filteredProvisionerKeyDaemons.length === 0 ? (
 								<TableRow>
 									<TableCell colSpan={5}>
 										<EmptyState
@@ -82,18 +86,14 @@ export const OrganizationProvisionerKeysPageView: FC<
 									</TableCell>
 								</TableRow>
 							) : (
-								provisionerKeyDaemons
-									.filter(
-										(pkd) => !HIDDEN_PROVISIONER_KEYS.includes(pkd.key.id),
-									)
-									.map((pkd) => (
-										<ProvisionerKeyRow
-											key={pkd.key.id}
-											provisionerKey={pkd.key}
-											provisioners={pkd.daemons}
-											defaultIsOpen={false}
-										/>
-									))
+								filteredProvisionerKeyDaemons.map((pkd) => (
+									<ProvisionerKeyRow
+										key={pkd.key.id}
+										provisionerKey={pkd.key}
+										provisioners={pkd.daemons}
+										defaultIsOpen={false}
+									/>
+								))
 							)
 						) : error ? (
 							<TableRow>
