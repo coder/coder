@@ -24,6 +24,10 @@ if [[ "$branch_name" == "main" ]]; then
 	log "VERDICT: DEPLOY"
 	echo "DEPLOY"
 	exit 0
+else
+	log "VERDICT: DO NOT DEPLOY"
+	echo "NOOP"
+	exit 0
 fi
 # --- END TEMPORARY SHORT-CIRCUIT ---
 
