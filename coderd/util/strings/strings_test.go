@@ -118,3 +118,25 @@ func TestUISanitize(t *testing.T) {
 		})
 	}
 }
+
+func TestCapitalize(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"", ""},
+		{"hello", "Hello"},
+		{"über", "Über"},
+		{"Hello", "Hello"},
+		{"a", "A"},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%q", tt.input), func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.expected, strings.Capitalize(tt.input))
+		})
+	}
+}
+
