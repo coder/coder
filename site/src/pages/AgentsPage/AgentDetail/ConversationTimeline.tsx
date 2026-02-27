@@ -358,7 +358,9 @@ const StickyUserMessage: FC<{
 			<div ref={sentinelRef} className="h-0" />
 			<div
 				className={cn(
-					"sticky -top-2 z-10 -mx-3 px-3 pt-4 pb-6 transition-all duration-200",
+					// This has very precise negative margins to ensure
+				    // that the blur background is applied to background content.
+					"sticky top-0 z-10 -mx-3 -mt-2 px-3 pt-4 -mb-2 pb-4 transition-all duration-200",
 					isStuck
 						? "backdrop-blur-[1px] bg-surface-primary/15"
 						: "backdrop-blur-none bg-transparent",
