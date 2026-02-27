@@ -35,14 +35,3 @@ export const resumeTask = (task: Task, queryClient: QueryClient) => {
 		},
 	};
 };
-
-export const sendTaskInput = (task: Task, queryClient: QueryClient) => {
-	return {
-		mutationFn: async (input: string) => {
-			return API.sendTaskInput(task.owner_name, task.id, input);
-		},
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-		},
-	};
-};
