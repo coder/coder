@@ -19,7 +19,7 @@ import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
 interface RequestLogsPageViewProps {
 	isLoading: boolean;
-	isRequestLogsVisible: boolean;
+	isRequestLogsEntitled: boolean;
 	interceptions?: readonly AIBridgeInterception[];
 	interceptionsQuery: PaginationResult;
 	filterProps: ComponentProps<typeof RequestLogsFilter>;
@@ -27,12 +27,12 @@ interface RequestLogsPageViewProps {
 
 export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	isLoading,
-	isRequestLogsVisible,
+	isRequestLogsEntitled,
 	interceptions,
 	interceptionsQuery,
 	filterProps,
 }) => {
-	if (!isRequestLogsVisible) {
+	if (!isRequestLogsEntitled) {
 		return <PaywallAIGovernance />;
 	}
 
