@@ -1,3 +1,12 @@
+# HELP agent_boundary_log_proxy_batches_dropped_total Total number of boundary log batches dropped. The reason label indicates where: buffer_full (agent channel), forward_failed (RPC to coderd).
+# TYPE agent_boundary_log_proxy_batches_dropped_total counter
+agent_boundary_log_proxy_batches_dropped_total{reason=""} 0
+# HELP agent_boundary_log_proxy_batches_forwarded_total Total number of boundary log batches successfully forwarded.
+# TYPE agent_boundary_log_proxy_batches_forwarded_total counter
+agent_boundary_log_proxy_batches_forwarded_total 0
+# HELP agent_boundary_log_proxy_logs_dropped_total Total number of individual boundary log entries dropped. The reason label indicates where: buffer_full (agent channel), forward_failed (RPC to coderd), boundary_channel_full or boundary_batch_full (self-reported by boundary).
+# TYPE agent_boundary_log_proxy_logs_dropped_total counter
+agent_boundary_log_proxy_logs_dropped_total{reason=""} 0
 # HELP coder_pubsub_connected Whether we are connected (1) or not connected (0) to postgres
 # TYPE coder_pubsub_connected gauge
 coder_pubsub_connected 0

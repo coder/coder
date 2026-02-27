@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/proto"
 
@@ -43,6 +44,7 @@ type Reporter interface {
 type Server struct {
 	logger     slog.Logger
 	socketPath string
+	metrics    *Metrics
 
 	listener net.Listener
 	cancel   context.CancelFunc
@@ -53,10 +55,11 @@ type Server struct {
 }
 
 // NewServer creates a new boundary log proxy server.
-func NewServer(logger slog.Logger, socketPath string) *Server {
+func NewServer(logger slog.Logger, socketPath string, registerer prometheus.Registerer) *Server {
 	return &Server{
 		logger:     logger.Named("boundary-log-proxy"),
 		socketPath: socketPath,
+		metrics:    newMetrics(registerer),
 		logs:       make(chan *agentproto.ReportBoundaryLogsRequest, logBufferSize),
 	}
 }
@@ -95,14 +98,31 @@ func (s *Server) RunForwarder(ctx context.Context, sender Reporter) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case req := <-s.logs:
+			// Record any drops reported by boundary, then strip the
+			// metadata so it isn't forwarded to coderd (which doesn't
+			// use it).
+			if req.Metadata != nil {
+				if n := req.Metadata.DroppedChannelFull; n > 0 {
+					s.metrics.logsDropped.WithLabelValues("boundary_channel_full").Add(float64(n))
+				}
+				if n := req.Metadata.DroppedBatchFull; n > 0 {
+					s.metrics.logsDropped.WithLabelValues("boundary_batch_full").Add(float64(n))
+				}
+				req.Metadata = nil
+			}
+
 			_, err := sender.ReportBoundaryLogs(ctx, req)
 			if err != nil {
 				s.logger.Warn(ctx, "failed to forward boundary logs",
 					slog.Error(err),
 					slog.F("log_count", len(req.Logs)))
+				s.metrics.batchesDropped.WithLabelValues("forward_failed").Inc()
+				s.metrics.logsDropped.WithLabelValues("forward_failed").Add(float64(len(req.Logs)))
 				// Continue forwarding other logs. The current batch is lost,
 				// but the socket stays alive.
+				continue
 			}
+			s.metrics.batchesForwarded.Inc()
 		}
 	}
 }
@@ -180,6 +200,8 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		default:
 			s.logger.Warn(ctx, "dropping boundary logs, buffer full",
 				slog.F("log_count", len(req.Logs)))
+			s.metrics.batchesDropped.WithLabelValues("buffer_full").Inc()
+			s.metrics.logsDropped.WithLabelValues("buffer_full").Add(float64(len(req.Logs)))
 		}
 	}
 }

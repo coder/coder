@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -80,7 +81,7 @@ func TestServer_StartAndClose(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	err := srv.Start()
 	require.NoError(t, err)
@@ -99,7 +100,7 @@ func TestServer_ReceiveAndForwardLogs(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -159,7 +160,7 @@ func TestServer_MultipleMessages(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -211,7 +212,7 @@ func TestServer_MultipleConnections(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -272,7 +273,7 @@ func TestServer_MessageTooLarge(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	err := srv.Start()
 	require.NoError(t, err)
@@ -300,7 +301,7 @@ func TestServer_ForwarderContinuesAfterError(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	err := srv.Start()
 	require.NoError(t, err)
@@ -385,7 +386,7 @@ func TestServer_CloseStopsForwarder(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	err := srv.Start()
 	require.NoError(t, err)
@@ -414,7 +415,7 @@ func TestServer_InvalidProtobuf(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	err := srv.Start()
 	require.NoError(t, err)
@@ -473,7 +474,7 @@ func TestServer_InvalidHeader(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	err := srv.Start()
 	require.NoError(t, err)
@@ -523,7 +524,7 @@ func TestServer_AllowRequest(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	err := srv.Start()
 	require.NoError(t, err)
@@ -575,4 +576,187 @@ func TestServer_AllowRequest(t *testing.T) {
 
 	cancel()
 	<-forwarderDone
+}
+
+func TestServer_Metrics(t *testing.T) {
+	t.Parallel()
+
+	makeReq := func(n int) *agentproto.ReportBoundaryLogsRequest {
+		logs := make([]*agentproto.BoundaryLog, n)
+		for i := range n {
+			logs[i] = &agentproto.BoundaryLog{
+				Allowed: true,
+				Time:    timestamppb.Now(),
+				Resource: &agentproto.BoundaryLog_HttpRequest_{
+					HttpRequest: &agentproto.BoundaryLog_HttpRequest{
+						Method: "GET",
+						Url:    "https://example.com",
+					},
+				},
+			}
+		}
+		return &agentproto.ReportBoundaryLogsRequest{Logs: logs}
+	}
+
+	// BufferFull needs its own setup because it intentionally does not
+	// run a forwarder so the channel fills up.
+	t.Run("BufferFull", func(t *testing.T) {
+		t.Parallel()
+
+		reg := prometheus.NewRegistry()
+		socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
+		srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, reg)
+
+		err := srv.Start()
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+		conn, err := net.Dial("unix", socketPath)
+		require.NoError(t, err)
+		defer conn.Close()
+
+		// Fill the buffer (size 100) without running a forwarder so
+		// nothing drains. Then send one more to trigger the drop path.
+		for range 101 {
+			sendMessage(t, conn, makeReq(1))
+		}
+
+		require.Eventually(t, func() bool {
+			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "buffer_full") >= 1
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.GreaterOrEqual(t,
+			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "buffer_full"),
+			float64(1))
+	})
+
+	// The remaining metrics share one server, forwarder, and connection.
+	// The phases run sequentially so metrics accumulate.
+	t.Run("Forwarding", func(t *testing.T) {
+		t.Parallel()
+
+		reg := prometheus.NewRegistry()
+		socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
+		srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, reg)
+
+		err := srv.Start()
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+		reportNotify := make(chan struct{}, 4)
+		reporter := &fakeReporter{
+			err:     context.DeadlineExceeded,
+			errOnce: true,
+			reportCb: func() {
+				select {
+				case reportNotify <- struct{}{}:
+				default:
+				}
+			},
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		forwarderDone := make(chan error, 1)
+		go func() {
+			forwarderDone <- srv.RunForwarder(ctx, reporter)
+		}()
+
+		conn, err := net.Dial("unix", socketPath)
+		require.NoError(t, err)
+		defer conn.Close()
+
+		// Phase 1: the first forward errors
+		sendMessage(t, conn, makeReq(2))
+
+		select {
+		case <-reportNotify:
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("timed out waiting for forward attempt")
+		}
+
+		// The metric is incremented after ReportBoundaryLogs returns,
+		// so we need to poll briefly.
+		require.Eventually(t, func() bool {
+			return getCounterVecValue(t, reg, "agent_boundary_log_proxy_batches_dropped_total", "forward_failed") >= 1
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, float64(2),
+			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "forward_failed"))
+
+		// Phase 2: forward succeeds.
+		sendMessage(t, conn, makeReq(1))
+
+		require.Eventually(t, func() bool {
+			return len(reporter.getLogs()) >= 1
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, float64(1),
+			getCounterValue(t, reg, "agent_boundary_log_proxy_batches_forwarded_total"))
+
+		// Phase 3: metadata carries boundary-side drop counts. The agent records
+		// them and strips the metadata before forwarding to coderd.
+		req := makeReq(1)
+		req.Metadata = &agentproto.ReportBoundaryLogsRequest_Metadata{
+			DroppedChannelFull: 5,
+			DroppedBatchFull:   3,
+		}
+		sendMessage(t, conn, req)
+
+		require.Eventually(t, func() bool {
+			return len(reporter.getLogs()) >= 2
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.Equal(t, float64(2),
+			getCounterValue(t, reg, "agent_boundary_log_proxy_batches_forwarded_total"))
+		require.Equal(t, float64(5),
+			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_channel_full"))
+		require.Equal(t, float64(3),
+			getCounterVecValue(t, reg, "agent_boundary_log_proxy_logs_dropped_total", "boundary_batch_full"))
+
+		logs := reporter.getLogs()
+		require.Nil(t, logs[1].Metadata)
+
+		cancel()
+		<-forwarderDone
+	})
+}
+
+// getCounterVecValue returns the current value of a CounterVec metric
+// filtered by the given reason label.
+func getCounterVecValue(t *testing.T, reg *prometheus.Registry, name, reason string) float64 {
+	t.Helper()
+
+	metrics, err := reg.Gather()
+	require.NoError(t, err)
+
+	for _, mf := range metrics {
+		if mf.GetName() != name {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			for _, lp := range m.GetLabel() {
+				if lp.GetName() == "reason" && lp.GetValue() == reason {
+					return m.GetCounter().GetValue()
+				}
+			}
+		}
+	}
+
+	return 0
+}
+
+// getCounterValue returns the current value of a Counter metric.
+func getCounterValue(t *testing.T, reg *prometheus.Registry, name string) float64 {
+	t.Helper()
+
+	metrics, err := reg.Gather()
+	require.NoError(t, err)
+
+	for _, mf := range metrics {
+		if mf.GetName() != name {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			return m.GetCounter().GetValue()
+		}
+	}
+
+	return 0
 }

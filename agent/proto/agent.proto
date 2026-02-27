@@ -490,6 +490,16 @@ message BoundaryLog {
 // ReportBoundaryLogsRequest is a request to re-emit the given BoundaryLogs.
 message ReportBoundaryLogsRequest {
 	repeated BoundaryLog logs = 1;
+
+	// Metadata from boundary about the state of log processing.
+	message Metadata {
+		// Logs dropped because boundary's internal channel buffer was full.
+		int64 dropped_channel_full = 1;
+		// Logs dropped because boundary's batch buffer was full after a
+		// failed flush attempt.
+		int64 dropped_batch_full = 2;
+	}
+	Metadata metadata = 2;
 }
 
 message ReportBoundaryLogsResponse {}
