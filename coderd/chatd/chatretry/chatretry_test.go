@@ -291,7 +291,6 @@ func TestRetry_SuccessOnFirstTry(t *testing.T) {
 		calls++
 		return nil
 	}, nil)
-
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -311,7 +310,6 @@ func TestRetry_TransientThenSuccess(t *testing.T) {
 		}
 		return nil
 	}, nil)
-
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -331,7 +329,6 @@ func TestRetry_MultipleTransientThenSuccess(t *testing.T) {
 		}
 		return nil
 	}, nil)
-
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -422,7 +419,6 @@ func TestRetry_OnRetryCalledWithCorrectArgs(t *testing.T) {
 			delay:   delay,
 		})
 	})
-
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -450,7 +446,6 @@ func TestRetry_OnRetryNilDoesNotPanic(t *testing.T) {
 		}
 		return nil
 	}, nil)
-
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
