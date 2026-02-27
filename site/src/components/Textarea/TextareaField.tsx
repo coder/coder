@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import type { ReactNode } from "react";
+import { type ReactNode, useId } from "react";
 import { cn } from "utils/cn";
 import { Textarea } from "./Textarea";
 
@@ -148,6 +148,11 @@ export const TextareaField: React.FC<TextareaFieldProps> = ({
 	className,
 	...textareaProps
 }) => {
+	// hooks must be called unconditionally, so we generate an ID even if we
+	// don't end up using it
+	const fallbackId = useId();
+	const resolvedId = id || fallbackId;
+
 	const helperTextId = id && helperText ? `${id}-helper-text` : undefined;
 
 	if (variant === "mui") {
@@ -170,14 +175,14 @@ export const TextareaField: React.FC<TextareaFieldProps> = ({
 		<div className={cn(wrapperVariants({ variant }), fullWidth && "w-full")}>
 			{label && (
 				<label
-					htmlFor={id}
+					htmlFor={resolvedId}
 					className={labelVariants({ error: error ?? false })}
 				>
 					{label}
 				</label>
 			)}
 			<Textarea
-				id={id}
+				id={resolvedId}
 				aria-invalid={error || undefined}
 				aria-errormessage={error ? helperTextId : undefined}
 				aria-describedby={!error ? helperTextId : undefined}
