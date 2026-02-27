@@ -458,7 +458,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 								ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage,
 							),
 							Permissions(map[string][]policy.Action{
-								ResourceWorkspace.Type:        slice.Omit(allWorkspaceActions, policy.ActionApplicationConnect, policy.ActionSSH),
+								ResourceWorkspace.Type:        slice.Omit(allWorkspaceActions, policy.ActionApplicationConnect, policy.ActionSSH, policy.ActionShare),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 								// PrebuiltWorkspaces are a subset of Workspaces.
 								// Explicitly setting PrebuiltWorkspace permissions for clarity.
