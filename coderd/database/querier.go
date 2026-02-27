@@ -53,6 +53,7 @@ type sqlcQuerier interface {
 	ActivityBumpWorkspace(ctx context.Context, arg ActivityBumpWorkspaceParams) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
+	ArchiveChatByID(ctx context.Context, id uuid.UUID) error
 	// Archiving templates is a soft delete action, so is reversible.
 	// Archiving prevents the version from being used and discovered
 	// by listing.
@@ -92,7 +93,6 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
-	DeleteChatByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatMessagesAfterID(ctx context.Context, arg DeleteChatMessagesAfterIDParams) error
 	DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error
@@ -727,6 +727,7 @@ type sqlcQuerier interface {
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
 	TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error)
+	UnarchiveChatByID(ctx context.Context, id uuid.UUID) error
 	// This will always work regardless of the current state of the template version.
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error
 	UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error

@@ -481,6 +481,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/chats/{chat}": {
+            "post": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Archive a chat",
+                "operationId": "archive-chat",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/unarchive": {
+            "post": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Unarchive a chat",
+                "operationId": "unarchive-chat",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/connectionlog": {
             "get": {
                 "security": [

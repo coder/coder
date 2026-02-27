@@ -38,6 +38,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	last_model_config_id: defaultModelConfigs[0].id,
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
+	archived: false,
 	...overrides,
 });
 

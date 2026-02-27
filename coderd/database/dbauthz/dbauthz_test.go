@@ -387,11 +387,17 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteAllChatQueuedMessages(gomock.Any(), chat.ID).Return(nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
-	s.Run("DeleteChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("ArchiveChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().DeleteChatByID(gomock.Any(), chat.ID).Return(nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionDelete).Returns()
+		dbm.EXPECT().ArchiveChatByID(gomock.Any(), chat.ID).Return(nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
+	}))
+	s.Run("UnarchiveChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UnarchiveChatByID(gomock.Any(), chat.ID).Return(nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
 	s.Run("DeleteChatMessagesByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

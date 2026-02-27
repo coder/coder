@@ -152,6 +152,14 @@ func (m queryMetricsStore) AllUserIDs(ctx context.Context, includeSystem bool) (
 	return r0, r1
 }
 
+func (m queryMetricsStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.ArchiveChatByID(ctx, id)
+	m.queryLatencies.WithLabelValues("ArchiveChatByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ArchiveChatByID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.ArchiveUnusedTemplateVersions(ctx, arg)
@@ -349,14 +357,6 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	r0 := m.s.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("DeleteApplicationConnectAPIKeysByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteApplicationConnectAPIKeysByUserID").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) DeleteChatByID(ctx context.Context, id uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteChatByID(ctx, id)
-	m.queryLatencies.WithLabelValues("DeleteChatByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatByID").Inc()
 	return r0
 }
 
@@ -3661,6 +3661,14 @@ func (m queryMetricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXact
 	m.queryLatencies.WithLabelValues("TryAcquireLock").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "TryAcquireLock").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.UnarchiveChatByID(ctx, id)
+	m.queryLatencies.WithLabelValues("UnarchiveChatByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnarchiveChatByID").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {

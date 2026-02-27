@@ -41,6 +41,7 @@ type Chat struct {
 	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`
 	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
+	Archived          bool            `json:"archived"`
 }
 
 // ChatMessage represents a single message in a chat.
@@ -780,9 +781,20 @@ func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (ChatWithMessage
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
 
-// DeleteChat deletes a chat by ID.
-func (c *Client) DeleteChat(ctx context.Context, chatID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)
+func (c *Client) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/archive", chatID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func (c *Client) UnarchiveChat(ctx context.Context, chatID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/unarchive", chatID), nil)
 	if err != nil {
 		return err
 	}

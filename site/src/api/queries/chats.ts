@@ -22,8 +22,8 @@ export const createChat = (queryClient: QueryClient) => ({
 	},
 });
 
-export const deleteChat = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.deleteChat(chatId),
+export const archiveChat = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) => API.archiveChat(chatId),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({ queryKey: chatsKey });
 	},

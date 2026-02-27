@@ -393,21 +393,31 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
+// @Summary Archive a chat
+// @ID archive-chat
+// @Tags Chats
+// @Success 204
+// @Router /chats/{chat} [post]
+func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
-	chatID := chat.ID
+
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat is already archived.",
+		})
+		return
+	}
 
 	var err error
 	if api.chatDaemon != nil {
-		err = api.chatDaemon.DeleteChat(ctx, chatID)
+		err = api.chatDaemon.ArchiveChat(ctx, chat.ID)
 	} else {
-		err = deleteChatTree(ctx, api.Database, chatID)
+		err = archiveChatTree(ctx, api.Database, chat.ID)
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete chat.",
+			Message: "Failed to archive chat.",
 			Detail:  err.Error(),
 		})
 		return
@@ -416,47 +426,45 @@ func (api *API) deleteChat(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func deleteChatTree(
-	ctx context.Context,
-	store database.Store,
-	chatID uuid.UUID,
-) error {
-	// Child chats (sub-agent chats) reference their parent via
-	// parent_chat_id with ON DELETE SET NULL, so without explicit
-	// cleanup they would become orphaned root-level items.
-	return store.InTx(func(tx database.Store) error {
-		// Recursively collect all descendant chat IDs.
-		var descendantIDs []uuid.UUID
-		queue := []uuid.UUID{chatID}
-		for len(queue) > 0 {
-			parentID := queue[0]
-			queue = queue[1:]
-			children, err := tx.ListChildChatsByParentID(ctx, parentID)
-			if err != nil {
-				return xerrors.Errorf("list children of chat %s: %w", parentID, err)
-			}
-			for _, child := range children {
-				descendantIDs = append(descendantIDs, child.ID)
-				queue = append(queue, child.ID)
-			}
-		}
+// @Summary Unarchive a chat
+// @ID unarchive-chat
+// @Tags Chats
+// @Success 204
+// @Router /chats/{chat}/unarchive [post]
+func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
 
-		// Delete descendants first. The FK is ON DELETE SET NULL so
-		// order doesn't strictly matter, but deleting children before
-		// parents is cleaner.
-		for i := len(descendantIDs) - 1; i >= 0; i-- {
-			if err := tx.DeleteChatByID(ctx, descendantIDs[i]); err != nil {
-				return xerrors.Errorf("delete descendant chat %s: %w", descendantIDs[i], err)
-			}
-		}
+	if !chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat is not archived.",
+		})
+		return
+	}
 
-		// Delete the target chat itself.
-		if err := tx.DeleteChatByID(ctx, chatID); err != nil {
-			return xerrors.Errorf("delete chat: %w", err)
-		}
+	err := api.Database.UnarchiveChatByID(ctx, chat.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to unarchive chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
-		return nil
-	}, nil)
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func archiveChatTree(ctx context.Context, store database.Store, chatID uuid.UUID) error {
+	children, err := store.ListChildChatsByParentID(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("list child chats: %w", err)
+	}
+	for _, child := range children {
+		if err := archiveChatTree(ctx, store, child.ID); err != nil {
+			return err
+		}
+	}
+	return store.ArchiveChatByID(ctx, chatID)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

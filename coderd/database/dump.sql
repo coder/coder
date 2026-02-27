@@ -1273,7 +1273,8 @@ CREATE TABLE chats (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     parent_chat_id uuid,
     root_chat_id uuid,
-    last_model_config_id uuid NOT NULL
+    last_model_config_id uuid NOT NULL,
+    archived boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE connection_logs (

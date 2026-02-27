@@ -132,6 +132,20 @@ func (mr *MockStoreMockRecorder) AllUserIDs(ctx, includeSystem any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllUserIDs", reflect.TypeOf((*MockStore)(nil).AllUserIDs), ctx, includeSystem)
 }
 
+// ArchiveChatByID mocks base method.
+func (m *MockStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ArchiveChatByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ArchiveChatByID indicates an expected call of ArchiveChatByID.
+func (mr *MockStoreMockRecorder) ArchiveChatByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveChatByID", reflect.TypeOf((*MockStore)(nil).ArchiveChatByID), ctx, id)
+}
+
 // ArchiveUnusedTemplateVersions mocks base method.
 func (m *MockStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -538,20 +552,6 @@ func (m *MockStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context,
 func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), ctx, userID)
-}
-
-// DeleteChatByID mocks base method.
-func (m *MockStore) DeleteChatByID(ctx context.Context, id uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatByID", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteChatByID indicates an expected call of DeleteChatByID.
-func (mr *MockStoreMockRecorder) DeleteChatByID(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatByID", reflect.TypeOf((*MockStore)(nil).DeleteChatByID), ctx, id)
 }
 
 // DeleteChatMessagesAfterID mocks base method.
@@ -6899,6 +6899,20 @@ func (m *MockStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock in
 func (mr *MockStoreMockRecorder) TryAcquireLock(ctx, pgTryAdvisoryXactLock any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryAcquireLock", reflect.TypeOf((*MockStore)(nil).TryAcquireLock), ctx, pgTryAdvisoryXactLock)
+}
+
+// UnarchiveChatByID mocks base method.
+func (m *MockStore) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnarchiveChatByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UnarchiveChatByID indicates an expected call of UnarchiveChatByID.
+func (mr *MockStoreMockRecorder) UnarchiveChatByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnarchiveChatByID", reflect.TypeOf((*MockStore)(nil).UnarchiveChatByID), ctx, id)
 }
 
 // UnarchiveTemplateVersion mocks base method.

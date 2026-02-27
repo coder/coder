@@ -1,8 +1,8 @@
--- name: DeleteChatByID :exec
-DELETE FROM
-    chats
-WHERE
-    id = @id::uuid;
+-- name: ArchiveChatByID :exec
+UPDATE chats SET archived = true, updated_at = NOW() WHERE id = @id::uuid;
+
+-- name: UnarchiveChatByID :exec
+UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
 
 -- name: DeleteChatMessagesByChatID :exec
 DELETE FROM
@@ -108,6 +108,7 @@ FROM
     chats
 WHERE
     owner_id = @owner_id::uuid
+    AND archived = false
 ORDER BY
     updated_at DESC;
 

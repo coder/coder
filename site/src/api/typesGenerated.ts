@@ -1063,6 +1063,7 @@ export interface Chat {
 	readonly diff_status?: ChatDiffStatus;
 	readonly created_at: string;
 	readonly updated_at: string;
+	readonly archived: boolean;
 }
 
 // From codersdk/chats.go

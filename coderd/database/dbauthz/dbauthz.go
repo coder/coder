@@ -1528,6 +1528,17 @@ func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UU
 	return q.db.AllUserIDs(ctx, includeSystem)
 }
 
+func (q *querier) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.ArchiveChatByID(ctx, id)
+}
+
 func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	tpl, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
 	if err != nil {
@@ -1755,17 +1766,6 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 		return err
 	}
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
-}
-
-func (q *querier) DeleteChatByID(ctx context.Context, id uuid.UUID) error {
-	chat, err := q.db.GetChatByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionDelete, chat); err != nil {
-		return err
-	}
-	return q.db.DeleteChatByID(ctx, id)
 }
 
 func (q *querier) DeleteChatMessagesAfterID(ctx context.Context, arg database.DeleteChatMessagesAfterIDParams) error {
@@ -5257,6 +5257,17 @@ func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.T
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
+}
+
+func (q *querier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UnarchiveChatByID(ctx, id)
 }
 
 func (q *querier) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {

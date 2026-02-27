@@ -505,8 +505,8 @@ func (p *Server) EditMessage(
 	return result, nil
 }
 
-// DeleteChat removes a chat and all descendants, then broadcasts a deleted event.
-func (p *Server) DeleteChat(ctx context.Context, chatID uuid.UUID) error {
+// ArchiveChat archives a chat and all descendants, then broadcasts a deleted event.
+func (p *Server) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
 	if chatID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
@@ -517,7 +517,7 @@ func (p *Server) DeleteChat(ctx context.Context, chatID uuid.UUID) error {
 	}
 
 	err = p.db.InTx(func(tx database.Store) error {
-		// Collect descendants breadth-first, then delete from leaves upward.
+		// Collect descendants breadth-first, then archive from leaves upward.
 		descendantIDs := make([]uuid.UUID, 0)
 		queue := []uuid.UUID{chatID}
 		for len(queue) > 0 {
@@ -535,13 +535,13 @@ func (p *Server) DeleteChat(ctx context.Context, chatID uuid.UUID) error {
 		}
 
 		for i := len(descendantIDs) - 1; i >= 0; i-- {
-			if err := tx.DeleteChatByID(ctx, descendantIDs[i]); err != nil {
-				return xerrors.Errorf("delete descendant chat %s: %w", descendantIDs[i], err)
+			if err := tx.ArchiveChatByID(ctx, descendantIDs[i]); err != nil {
+				return xerrors.Errorf("archive descendant chat %s: %w", descendantIDs[i], err)
 			}
 		}
 
-		if err := tx.DeleteChatByID(ctx, chatID); err != nil {
-			return xerrors.Errorf("delete chat: %w", err)
+		if err := tx.ArchiveChatByID(ctx, chatID); err != nil {
+			return xerrors.Errorf("archive chat: %w", err)
 		}
 
 		return nil

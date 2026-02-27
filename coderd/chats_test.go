@@ -1158,7 +1158,7 @@ func TestGetChat(t *testing.T) {
 	})
 }
 
-func TestDeleteChat(t *testing.T) {
+func TestArchiveChat(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Success", func(t *testing.T) {
@@ -1169,11 +1169,11 @@ func TestDeleteChat(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 		_ = createChatModelConfig(t, client)
 
-		chatToDelete, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		chatToArchive, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
-					Text: "delete me",
+					Text: "archive me",
 				},
 			},
 		})
@@ -1189,20 +1189,18 @@ func TestDeleteChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chatsBeforeDelete, err := client.ListChats(ctx)
+		chatsBeforeArchive, err := client.ListChats(ctx)
 		require.NoError(t, err)
-		require.Len(t, chatsBeforeDelete, 2)
+		require.Len(t, chatsBeforeArchive, 2)
 
-		err = client.DeleteChat(ctx, chatToDelete.ID)
+		err = client.ArchiveChat(ctx, chatToArchive.ID)
 		require.NoError(t, err)
 
-		_, err = client.GetChat(ctx, chatToDelete.ID)
-		requireSDKError(t, err, http.StatusNotFound)
-
-		chatsAfterDelete, err := client.ListChats(ctx)
+		// Archived chats should not appear in the list.
+		chatsAfterArchive, err := client.ListChats(ctx)
 		require.NoError(t, err)
-		require.Len(t, chatsAfterDelete, 1)
-		require.Equal(t, chatToKeep.ID, chatsAfterDelete[0].ID)
+		require.Len(t, chatsAfterArchive, 1)
+		require.Equal(t, chatToKeep.ID, chatsAfterArchive[0].ID)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -1212,7 +1210,7 @@ func TestDeleteChat(t *testing.T) {
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		err := client.DeleteChat(ctx, uuid.New())
+		err := client.ArchiveChat(ctx, uuid.New())
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 }

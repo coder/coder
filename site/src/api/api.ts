@@ -2930,8 +2930,8 @@ class ApiMethods {
 		return response.data;
 	};
 
-	deleteChat = async (chatId: string): Promise<void> => {
-		await this.axios.delete(`/api/experimental/chats/${chatId}`);
+	archiveChat = async (chatId: string): Promise<void> => {
+		await this.axios.post(`/api/experimental/chats/${chatId}/archive`);
 	};
 
 	createChatMessage = async (
