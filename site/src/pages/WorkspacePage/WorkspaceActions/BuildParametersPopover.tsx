@@ -145,14 +145,14 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 		<>
 			{buildParameters && ephemeralParameters ? (
 				ephemeralParameters.length > 0 ? (
-					<>
+					<div className="divide-y">
 						<div className="p-5 text-content-secondary">
 							<HelpTooltipTitle>Build Options</HelpTooltipTitle>
 							<HelpTooltipText>
 								These parameters only apply for a single workspace start.
 							</HelpTooltipText>
 						</div>
-						<div className="p-5">
+						<div className="border-0 border-solid p-5">
 							<Form
 								onSubmit={(buildParameters) => {
 									onSubmit(buildParameters);
@@ -167,7 +167,7 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 								)}
 							/>
 						</div>
-					</>
+					</div>
 				) : (
 					<div className="p-5 text-content-secondary">
 						<HelpTooltipTitle>Build Options</HelpTooltipTitle>
