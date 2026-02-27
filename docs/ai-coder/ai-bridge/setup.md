@@ -123,3 +123,38 @@ Set to `0` to retain data indefinitely.
 
 For duration formats, how retention works, and best practices, see the
 [Data Retention](../../admin/setup/data-retention.md) documentation.
+
+## Structured Logging
+
+AI Bridge can emit structured JSON logs for every interception record, making it
+straightforward to export data to external SIEM or observability platforms.
+
+Enable with `--aibridge-structured-logging` or `CODER_AIBRIDGE_STRUCTURED_LOGGING`:
+
+```sh
+coder server --aibridge-structured-logging=true
+```
+
+Or in YAML:
+
+```yaml
+aibridge:
+  structured_logging: true
+```
+
+Once enabled, `coderd` writes `INFO`-level log lines tagged with the message
+`"interception log"` for each of the following `record_type` values:
+
+| `record_type` | Key fields | Description |
+|---|---|---|
+| `interception_start` | `interception_id`, `initiator_id`, `provider`, `model`, `client` | Emitted when a new AI Bridge request begins. |
+| `interception_end` | `interception_id`, `ended_at` | Emitted when the request completes. |
+| `token_usage` | `interception_id`, `input_tokens`, `output_tokens` | Token counts for the request. |
+| `prompt_usage` | `interception_id`, `prompt` | The user prompt sent to the model. |
+| `tool_usage` | `interception_id`, `tool`, `input`, `server_url`, `injected` | Tool invocations made during the request. |
+
+All record types include a `metadata` field with additional request context.
+
+Filter for these records in your logging pipeline by matching on the
+`"interception log"` message. From there, you can build dashboards for token
+consumption, per-user cost attribution, and model usage patterns.
