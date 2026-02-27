@@ -191,6 +191,12 @@ AI BRIDGE PROXY OPTIONS:
           Path to the CA private key file used to intercept (MITM) HTTPS traffic
           from AI clients.
 
+      --aibridge-proxy-tls-cert-file string, $CODER_AIBRIDGE_PROXY_TLS_CERT_FILE
+          Path to the TLS certificate file for the AI Bridge Proxy listener.
+
+      --aibridge-proxy-tls-key-file string, $CODER_AIBRIDGE_PROXY_TLS_KEY_FILE
+          Path to the TLS private key file for the AI Bridge Proxy listener.
+
       --aibridge-proxy-upstream string, $CODER_AIBRIDGE_PROXY_UPSTREAM
           URL of an upstream HTTP proxy to chain tunneled (non-allowlisted)
           requests through. Format: http://[user:pass@]host:port or

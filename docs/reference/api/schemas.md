@@ -623,6 +623,8 @@
   "enabled": true,
   "key_file": "string",
   "listen_addr": "string",
+  "tls_cert_file": "string",
+  "tls_key_file": "string",
   "upstream_proxy": "string",
   "upstream_proxy_ca": "string"
 }
@@ -637,6 +639,8 @@
 | `enabled`           | boolean         | false    |              |             |
 | `key_file`          | string          | false    |              |             |
 | `listen_addr`       | string          | false    |              |             |
+| `tls_cert_file`     | string          | false    |              |             |
+| `tls_key_file`      | string          | false    |              |             |
 | `upstream_proxy`    | string          | false    |              |             |
 | `upstream_proxy_ca` | string          | false    |              |             |
 
@@ -746,6 +750,8 @@
     "enabled": true,
     "key_file": "string",
     "listen_addr": "string",
+    "tls_cert_file": "string",
+    "tls_key_file": "string",
     "upstream_proxy": "string",
     "upstream_proxy_ca": "string"
   },
@@ -2671,6 +2677,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string",
+        "tls_cert_file": "string",
+        "tls_key_file": "string",
         "upstream_proxy": "string",
         "upstream_proxy_ca": "string"
       },
@@ -3240,6 +3248,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enabled": true,
       "key_file": "string",
       "listen_addr": "string",
+      "tls_cert_file": "string",
+      "tls_key_file": "string",
       "upstream_proxy": "string",
       "upstream_proxy_ca": "string"
     },
