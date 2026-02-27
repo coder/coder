@@ -163,18 +163,21 @@ func waitForTaskReady(ctx context.Context, inv *serpent.Invocation, client *code
 		return xerrors.Errorf("watch workspace build: %w", err)
 	}
 
-	// TODO(DanielleMaywood):
-	// When we have a streaming Task API, this should be converted away from polling.
-
-	// TODO(DanielleMaywood):
+	// NOTE(DanielleMaywood):
 	// It has been observed that the `TaskStatusError` state has appeared during
 	// a typical healthy startup [^0]. To combat this, we allow a 5 minute grace
 	// period where we allow `TaskStatusError` and `TaskStatusUnknown` to surface.
+	//
+	// TODO(DanielleMaywood):
+	// When/If the upstream API handles this scenario better, we should remove the
+	// grace period.
 	//
 	// [0]: https://github.com/coder/coder/pull/22203#discussion_r2858002569
 	const errorGracePeriod = 5 * time.Minute
 	gracePeriodDeadline := time.Now().Add(errorGracePeriod)
 
+	// TODO(DanielleMaywood):
+	// When we have a streaming Task API, this should be converted away from polling.
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
