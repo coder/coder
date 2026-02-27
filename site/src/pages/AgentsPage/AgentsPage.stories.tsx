@@ -107,14 +107,13 @@ export const WithWorkspaces: Story = {
 			count: 3,
 		});
 	},
-	play: async () => {
-		// Wait for the workspaces query to resolve and the select to become
-		// enabled before clicking.
-		await waitFor(async () => {
-			const trigger = screen.getByText("Workspace").closest("button")!;
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			const trigger = canvas.getByRole("combobox");
 			expect(trigger).toBeEnabled();
-			await userEvent.click(trigger);
 		});
+		await userEvent.click(canvas.getByRole("combobox"));
 	},
 };
 
