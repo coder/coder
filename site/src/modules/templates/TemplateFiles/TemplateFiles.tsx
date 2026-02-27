@@ -7,6 +7,7 @@ import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
+import { getTemplateFileIcon } from "./TemplateFileIcon";
 import { TemplateFileTree } from "./TemplateFileTree";
 
 interface TemplateFilesProps {
@@ -88,6 +89,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 					{Object.keys(currentFiles)
 						.sort((a, b) => a.localeCompare(b))
 						.map((filename) => {
+							const TemplateFileIcon = getTemplateFileIcon(filename, false);
 							const info = fileInfo(filename);
 
 							return (
@@ -97,13 +99,16 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 									className="overflow-hidden rounded-lg border border-solid border-surface-quaternary"
 								>
 									<header className="flex items-center gap-2 border-0 border-b border-solid border-surface-quaternary px-4 py-2 text-[13px] font-medium">
-										<span
-											className={cn({
-												"text-content-warning": info.hasDiff,
-											})}
-										>
-											{filename}
-										</span>
+										<div className="flex items-center gap-2">
+											<TemplateFileIcon className="text-content-secondary size-icon-xs" />
+											<span
+												className={cn({
+													"text-content-warning": info.hasDiff,
+												})}
+											>
+												{filename}
+											</span>
+										</div>
 
 										<div className="ml-auto">
 											<RouterLink
