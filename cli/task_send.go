@@ -166,6 +166,15 @@ func waitForTaskReady(ctx context.Context, inv *serpent.Invocation, client *code
 	// TODO(DanielleMaywood):
 	// When we have a streaming Task API, this should be converted away from polling.
 
+	// TODO(DanielleMaywood):
+	// It has been observed that the `TaskStausError` state has appeared during
+	// a typical healthy startup [^0]. To combat this, we allow a 5 minute grace
+	// period where we allow `TaskStatusError` and `TaskStatusUnknown` to surface.
+	//
+	// [0]: https://github.com/coder/coder/pull/22203#discussion_r2858002569
+	const errorGracePeriod = 5 * time.Minute
+	gracePeriodDeadline := time.Now().Add(errorGracePeriod)
+
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -176,12 +185,17 @@ func waitForTaskReady(ctx context.Context, inv *serpent.Invocation, client *code
 			task, err := client.TaskByID(ctx, task.ID)
 			if err != nil {
 				return xerrors.Errorf("get task by id: %w", err)
-			} else if task.Status == codersdk.TaskStatusError || task.Status == codersdk.TaskStatusUnknown {
-				return xerrors.Errorf("task entered %s state while waiting for it to become active", task.Status)
 			}
 
-			if task.Status == codersdk.TaskStatusActive {
+			switch task.Status {
+			case codersdk.TaskStatusActive:
 				return nil
+			case codersdk.TaskStatusError:
+				if time.Now().After(gracePeriodDeadline) {
+					return xerrors.Errorf("task entered %s state while waiting for it to become active", task.Status)
+				}
+			case codersdk.TaskStatusUnknown:
+				return xerrors.Errorf("task entered %s state while waiting for it to become active", task.Status)
 			}
 		}
 	}
