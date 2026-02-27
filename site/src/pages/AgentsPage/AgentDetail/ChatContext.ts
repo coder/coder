@@ -396,6 +396,7 @@ export const useChatStore = (
 	const storeRef = useRef<ChatStore>(createChatStore());
 	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
+	const activeChatIDRef = useRef<string | null>(null);
 
 	const store = storeRef.current;
 
@@ -482,6 +483,7 @@ export const useChatStore = (
 	useEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
 		store.setQueuedMessages([]);
+		store.replaceMessages([]);
 		if (!chatID) {
 			return;
 		}
@@ -501,6 +503,7 @@ export const useChatStore = (
 	useEffect(() => {
 		cancelScheduledStreamReset();
 		store.resetTransientState();
+		activeChatIDRef.current = chatID ?? null;
 
 		if (!chatID) {
 			return;
@@ -535,7 +538,11 @@ export const useChatStore = (
 				}
 				cancelScheduledStreamReset();
 				const parts = pendingMessageParts.splice(0, pendingMessageParts.length);
+				const currentChatID = chatID;
 				startTransition(() => {
+					if (activeChatIDRef.current !== currentChatID) {
+						return;
+					}
 					store.applyMessageParts(parts);
 				});
 			};
@@ -561,6 +568,10 @@ export const useChatStore = (
 					case "message": {
 						const message = streamEvent.message;
 						if (!message) {
+							continue;
+						}
+						const eventChatID = asString(streamEvent.chat_id);
+						if (eventChatID && eventChatID !== chatID) {
 							continue;
 						}
 						const { changed } = store.upsertDurableMessage(message);
@@ -657,6 +668,7 @@ export const useChatStore = (
 			socket.removeEventListener("error", handleError);
 			socket.close();
 			cancelScheduledStreamReset();
+			activeChatIDRef.current = null;
 		};
 	}, [
 		cancelScheduledStreamReset,

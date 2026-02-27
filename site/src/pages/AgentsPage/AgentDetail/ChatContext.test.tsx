@@ -789,6 +789,101 @@ describe("useChatStore", () => {
 		).toEqual([]);
 	});
 
+	it("closes old WebSocket and resets state when chatID changes", async () => {
+		immediateAnimationFrame();
+
+		const chatID1 = "chat-1";
+		const chatID2 = "chat-2";
+		const msg1 = makeMessage(chatID1, 1, "user", "hello");
+		const msg2 = makeMessage(chatID2, 10, "user", "world");
+
+		const mockSocket1 = createMockSocket();
+		const mockSocket2 = createMockSocket();
+		// Use a fallback so that extra effect re-runs (caused by
+		// dependency changes during rerender) get a valid socket.
+		vi.mocked(watchChat).mockReturnValue(mockSocket2 as never);
+		vi.mocked(watchChat)
+			.mockReturnValueOnce(mockSocket1 as never)
+			.mockReturnValueOnce(mockSocket1 as never)
+			.mockReturnValueOnce(mockSocket1 as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const initialOptions = {
+			chatID: chatID1,
+			chatMessages: [msg1] as TypesGen.ChatMessage[],
+			chatRecord: makeChat(chatID1),
+			chatData: {
+				chat: makeChat(chatID1),
+				messages: [msg1],
+				queued_messages: [] as TypesGen.ChatQueuedMessage[],
+			},
+			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID1);
+		});
+
+		act(() => {
+			mockSocket1.emitData({
+				type: "message_part",
+				chat_id: chatID1,
+				message_part: {
+					role: "assistant",
+					part: {
+						type: "text",
+						text: "chat1-stream",
+					},
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "chat1-stream" },
+			]);
+		});
+
+		rerender({
+			...initialOptions,
+			chatID: chatID2,
+			chatMessages: [msg2],
+			chatRecord: makeChat(chatID2),
+			chatData: {
+				chat: makeChat(chatID2),
+				messages: [msg2],
+				queued_messages: [],
+			},
+		});
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID2);
+		});
+
+		// The old WebSocket was closed during effect cleanup.
+		expect(mockSocket1.close).toHaveBeenCalled();
+		// Stream state was reset — no stale stream data from chat-1.
+		expect(result.current.streamState).toBeNull();
+	});
+
 	it("ignores queue_update events for other chats", async () => {
 		const chatID = "chat-1";
 		const otherChatID = "chat-2";
@@ -843,5 +938,286 @@ describe("useChatStore", () => {
 				result.current.queuedMessages.map((message) => message.id),
 			).toEqual([queuedMessage.id]);
 		});
+	});
+
+	it("filters message events with mismatched chat_id", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-1";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [existingMessage],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		// Build up stream state so we can observe whether it gets cleared.
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: {
+						type: "text",
+						text: "streaming",
+					},
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "streaming" },
+			]);
+		});
+
+		// A message event with a mismatched chat_id should be ignored
+		// and should NOT trigger scheduleStreamReset.
+		const mismatchedMessage = makeMessage(
+			"chat-2",
+			99,
+			"assistant",
+			"wrong chat",
+		);
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: "chat-2",
+				message: mismatchedMessage,
+			});
+		});
+
+		// Stream state should still be present — the mismatched event
+		// was filtered and did not trigger a stream reset.
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "streaming" },
+			]);
+		});
+
+		// A message event with the correct chat_id should be processed
+		// and trigger scheduleStreamReset, clearing stream state.
+		const matchingMessage = makeMessage(
+			chatID,
+			2,
+			"assistant",
+			"correct chat",
+		);
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: matchingMessage,
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState).toBeNull();
+		});
+	});
+
+	it("startTransition deferred parts are discarded after chat switch", async () => {
+		immediateAnimationFrame();
+
+		const chatID1 = "chat-1";
+		const chatID2 = "chat-2";
+		const msg1 = makeMessage(chatID1, 1, "user", "hello");
+		const msg2 = makeMessage(chatID2, 10, "user", "world");
+
+		const mockSocket1 = createMockSocket();
+		const mockSocket2 = createMockSocket();
+		// Use a fallback so that extra effect re-runs get a valid socket.
+		vi.mocked(watchChat).mockReturnValue(mockSocket2 as never);
+		vi.mocked(watchChat)
+			.mockReturnValueOnce(mockSocket1 as never)
+			.mockReturnValueOnce(mockSocket1 as never)
+			.mockReturnValueOnce(mockSocket1 as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const initialOptions = {
+			chatID: chatID1,
+			chatMessages: [msg1] as TypesGen.ChatMessage[],
+			chatRecord: makeChat(chatID1),
+			chatData: {
+				chat: makeChat(chatID1),
+				messages: [msg1],
+				queued_messages: [] as TypesGen.ChatQueuedMessage[],
+			},
+			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID1);
+		});
+
+		act(() => {
+			mockSocket1.emitData({
+				type: "message_part",
+				chat_id: chatID1,
+				message_part: {
+					role: "assistant",
+					part: {
+						type: "text",
+						text: "stale-part",
+					},
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "stale-part" },
+			]);
+		});
+
+		rerender({
+			...initialOptions,
+			chatID: chatID2,
+			chatMessages: [msg2],
+			chatRecord: makeChat(chatID2),
+			chatData: {
+				chat: makeChat(chatID2),
+				messages: [msg2],
+				queued_messages: [],
+			},
+		});
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID2);
+		});
+
+		expect(result.current.streamState).toBeNull();
+	});
+
+	it("messages are cleared immediately on chat switch before new query resolves", async () => {
+		immediateAnimationFrame();
+
+		const chatID1 = "chat-1";
+		const chatID2 = "chat-2";
+		const msg1 = makeMessage(chatID1, 1, "user", "first");
+		const queuedMsg = makeQueuedMessage(chatID1, 10, "queued");
+
+		const mockSocket1 = createMockSocket();
+		const mockSocket2 = createMockSocket();
+		// Use a fallback so that extra effect re-runs get a valid socket.
+		vi.mocked(watchChat).mockReturnValue(mockSocket2 as never);
+		vi.mocked(watchChat)
+			.mockReturnValueOnce(mockSocket1 as never)
+			.mockReturnValueOnce(mockSocket1 as never)
+			.mockReturnValueOnce(mockSocket1 as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const initialOptions = {
+			chatID: chatID1,
+			chatMessages: [msg1] as TypesGen.ChatMessage[],
+			chatRecord: makeChat(chatID1),
+			chatData: {
+				chat: makeChat(chatID1),
+				messages: [msg1],
+				queued_messages: [queuedMsg],
+			},
+			chatQueuedMessages: [queuedMsg],
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					queuedMessages: useChatSelector(
+						store,
+						selectQueuedMessages,
+					),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID1);
+		});
+
+		// Verify queued messages from chat-1 are present.
+		expect(result.current.queuedMessages.map((m) => m.id)).toEqual([
+			queuedMsg.id,
+		]);
+
+		// Switch to chat-2 with no messages and no queued messages
+		// (simulating query not yet resolved for the new chat).
+		rerender({
+			...initialOptions,
+			chatID: chatID2,
+			chatMessages: [],
+			chatRecord: makeChat(chatID2),
+			chatData: {
+				chat: makeChat(chatID2),
+				messages: [],
+				queued_messages: [],
+			},
+			chatQueuedMessages: [],
+		});
+
+		// After the switch, queued messages from chat-1 should NOT be
+		// visible — the store resets them on chatID change.
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID2);
+		});
+		expect(result.current.queuedMessages).toEqual([]);
 	});
 });
