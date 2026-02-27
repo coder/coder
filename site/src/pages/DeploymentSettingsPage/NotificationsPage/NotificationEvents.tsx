@@ -108,7 +108,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 				>
 					<div className="flex flex-col">
 						<header className="border-0 border-b border-solid bg-surface-secondary px-4 py-3">
-							<h3 className="text-sm font-medium">{group}</h3>
+							<h3 className="text-sm font-medium my-0">{group}</h3>
 						</header>
 
 						{templates.map((tpl, i) => {
@@ -118,7 +118,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 							return (
 								<Fragment key={tpl.id}>
 									<div
-										className={`flex items-center justify-between gap-3 px-4 py-3 border-0 border-solid ${
+										className={`flex items-center justify-between gap-3 px-4 py-1.5 border-0 border-solid ${
 											isLastItem ? "" : "border-b"
 										}`}
 									>
