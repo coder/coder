@@ -15,7 +15,8 @@ const AIGovernanceSettingsPage: FC = () => {
 			<AIGovernanceSettingsPageView
 				options={deploymentConfig.options}
 				featureAIBridgeEntitled={
-					entitlements.features.aibridge.entitlement === "entitled"
+					entitlements.features.aibridge.entitlement === "entitled" ||
+					entitlements.features.aibridge.entitlement === "grace_period"
 				}
 			/>
 		</>

@@ -20,7 +20,9 @@ const RequestLogsPage: FC = () => {
 	// but this page is only visible if the feature is enabled and the user
 	// has the `viewAnyAIBridgeInterception` permission.
 	// (as its defined in the Admin settings dropdown).
-	const isEntitled = entitlements.features.aibridge.entitlement === "entitled";
+	const isEntitled =
+		entitlements.features.aibridge.entitlement === "entitled" ||
+		entitlements.features.aibridge.entitlement === "grace_period";
 	const hasPermission = permissions.viewAnyAIBridgeInterception;
 	const canViewRequestLogs = isEntitled && hasPermission;
 
