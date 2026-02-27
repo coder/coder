@@ -110,10 +110,10 @@ export const WithWorkspaces: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			const trigger = canvas.getByRole("combobox");
+			const trigger = canvas.getByText("Workspace").closest("button")!;
 			expect(trigger).toBeEnabled();
 		});
-		await userEvent.click(canvas.getByRole("combobox"));
+		await userEvent.click(canvas.getByText("Workspace").closest("button")!);
 	},
 };
 
