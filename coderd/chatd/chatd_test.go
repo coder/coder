@@ -404,6 +404,179 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 	require.True(t, errors.Is(err, chatd.ErrEditedMessageNotUser))
 }
 
+func TestRecoverStaleChatsPeriodically(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Use a very short stale threshold so the periodic recovery
+	// kicks in quickly during the test.
+	staleAfter := 500 * time.Millisecond
+
+	// Create a chat and simulate a dead worker by setting the chat
+	// to running with a heartbeat in the past.
+	deadWorkerID := uuid.New()
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		Title:             "stale-recovery-periodic",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: deadWorkerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Start a new replica. Its startup recovery will reset the
+	// chat (since the heartbeat is old), but the key point is that
+	// the periodic loop also recovers newly-stale chats.
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitSuperLong,
+		InFlightChatStaleAfter:     staleAfter,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	// The startup recovery should have already reset our stale
+	// chat.
+	require.Eventually(t, func() bool {
+		fromDB, err := db.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusPending
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// Now simulate a second stale chat appearing AFTER startup.
+	// This tests the periodic recovery, not just the startup one.
+	deadWorkerID2 := uuid.New()
+	chat2, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		Title:             "stale-recovery-periodic-2",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat2.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: deadWorkerID2, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// The periodic stale recovery loop (running at staleAfter/5 =
+	// 100ms intervals) should pick this up without a restart.
+	require.Eventually(t, func() bool {
+		fromDB, err := db.GetChatByID(ctx, chat2.ID)
+		if err != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusPending
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Simulate a chat left running by a dead replica with a stale
+	// heartbeat (well beyond the stale threshold).
+	deadReplicaID := uuid.New()
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		Title:             "orphaned-chat",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	// Set the heartbeat far in the past so it's definitely stale.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: deadReplicaID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Start a new replica — it should recover the stale chat on
+	// startup.
+	newReplica := newTestServer(t, db, ps, uuid.New())
+	_ = newReplica
+
+	require.Eventually(t, func() bool {
+		fromDB, err := db.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusPending &&
+			!fromDB.WorkerID.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Create a chat in waiting status — this should NOT be touched
+	// by stale recovery.
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		Title:             "waiting-chat",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	// Start a replica with a short stale threshold.
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitSuperLong,
+		InFlightChatStaleAfter:     500 * time.Millisecond,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	// Wait long enough for multiple periodic recovery cycles to
+	// run (staleAfter/5 = 100ms intervals).
+	require.Never(t, func() bool {
+		fromDB, err := db.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return false
+		}
+		return fromDB.Status != database.ChatStatusWaiting
+	}, time.Second, testutil.IntervalFast,
+		"waiting chat should not be modified by stale recovery")
+}
+
 func newTestServer(
 	t *testing.T,
 	db database.Store,

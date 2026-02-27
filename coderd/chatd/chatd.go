@@ -43,6 +43,11 @@ const (
 	chatHeartbeatInterval        = 30 * time.Second
 	maxChatSteps                 = 1200
 
+	// staleRecoveryIntervalDivisor determines how often the stale
+	// recovery loop runs relative to the stale threshold. A value
+	// of 5 means recovery runs at 1/5 of the stale-after duration.
+	staleRecoveryIntervalDivisor = 5
+
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
 
@@ -885,18 +890,25 @@ func New(cfg Config) *Server {
 func (p *Server) start(ctx context.Context) {
 	defer close(p.closed)
 
-	// First, recover any stale chats from crashed workers.
+	// Recover stale chats on startup and periodically thereafter
+	// to handle chats orphaned by crashed or redeployed workers.
 	p.recoverStaleChats(ctx)
 
-	ticker := time.NewTicker(p.pendingChatAcquireInterval)
-	defer ticker.Stop()
+	acquireTicker := time.NewTicker(p.pendingChatAcquireInterval)
+	defer acquireTicker.Stop()
+
+	staleRecoveryInterval := p.inFlightChatStaleAfter / staleRecoveryIntervalDivisor
+	staleTicker := time.NewTicker(staleRecoveryInterval)
+	defer staleTicker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-acquireTicker.C:
 			p.processOnce(ctx)
+		case <-staleTicker.C:
+			p.recoverStaleChats(ctx)
 		}
 	}
 }
@@ -1598,9 +1610,14 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	shouldPublishQueueUpdate := false
 
 	defer func() {
+		// Use a context that is not canceled by Close() so we can
+		// reliably update the chat status in the database during
+		// graceful shutdown.
+		cleanupCtx := context.WithoutCancel(ctx)
+
 		// Handle panics gracefully.
 		if r := recover(); r != nil {
-			logger.Error(ctx, "panic during chat processing", slog.F("panic", r))
+			logger.Error(cleanupCtx, "panic during chat processing", slog.F("panic", r))
 			p.publishError(chat.ID, panicFailureReason(r))
 			status = database.ChatStatusError
 		}
@@ -1613,7 +1630,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		err := p.db.InTx(func(tx database.Store) error {
 			// Re-read the chat status under lock — another caller
 			// (e.g. promote) may have already set it to pending.
-			latestChat, lockErr := tx.GetChatByIDForUpdate(ctx, chat.ID)
+			latestChat, lockErr := tx.GetChatByIDForUpdate(cleanupCtx, chat.ID)
 			if lockErr != nil {
 				return xerrors.Errorf("lock chat for release: %w", lockErr)
 			}
@@ -1625,9 +1642,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				status = database.ChatStatusPending
 			} else if status == database.ChatStatusWaiting {
 				// Try to auto-promote the next queued message.
-				nextQueued, popErr := tx.PopNextQueuedMessage(ctx, chat.ID)
+				nextQueued, popErr := tx.PopNextQueuedMessage(cleanupCtx, chat.ID)
 				if popErr == nil {
-					msg, insertErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
+					msg, insertErr := tx.InsertChatMessage(cleanupCtx, database.InsertChatMessageParams{
 						ChatID:        chat.ID,
 						ModelConfigID: uuid.NullUUID{UUID: latestChat.LastModelConfigID, Valid: true},
 						Role:          "user",
@@ -1646,7 +1663,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 						Compressed:          sql.NullBool{},
 					})
 					if insertErr != nil {
-						logger.Error(ctx, "failed to promote queued message",
+						logger.Error(cleanupCtx, "failed to promote queued message",
 							slog.F("queued_message_id", nextQueued.ID), slog.Error(insertErr))
 					} else {
 						status = database.ChatStatusPending
@@ -1657,7 +1674,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 							Message: &sdkMsg,
 						})
 
-						remaining, qErr := tx.GetChatQueuedMessages(ctx, chat.ID)
+						remaining, qErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
 						if qErr == nil {
 							remainingQueuedMessages = remaining
 							shouldPublishQueueUpdate = true
@@ -1666,7 +1683,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				}
 			}
 
-			_, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			_, updateErr := tx.UpdateChatStatus(cleanupCtx, database.UpdateChatStatusParams{
 				ID:          chat.ID,
 				Status:      status,
 				WorkerID:    uuid.NullUUID{},
@@ -1676,7 +1693,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			return updateErr
 		}, nil)
 		if err != nil {
-			logger.Error(ctx, "failed to release chat", slog.Error(err))
+			logger.Error(cleanupCtx, "failed to release chat", slog.Error(err))
 		}
 		if err == nil && shouldPublishQueueUpdate {
 			p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
