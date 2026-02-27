@@ -122,6 +122,7 @@ export const OrganizationSettingsPageView: FC<
 								label="Display name"
 							/>
 							<TextareaField
+								variant="mui"
 								{...getFieldHelpers("description")}
 								fullWidth
 								label="Description"

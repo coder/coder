@@ -97,3 +97,38 @@ export const FormIntegration: Story = {
 		fullWidth: true,
 	},
 };
+
+export const MuiVariant: Story = {
+	args: {
+		variant: "mui",
+		id: "description",
+		label: "Description",
+		defaultValue: "An organization that gets used for stuff.",
+		fullWidth: true,
+		rows: 2,
+	},
+};
+
+export const MuiVariantWithHelperText: Story = {
+	args: {
+		variant: "mui",
+		id: "message",
+		label: "Message",
+		helperText: "Markdown bold, italics, and links are supported.",
+		placeholder: "Enter a message for the banner",
+		fullWidth: true,
+	},
+};
+
+export const MuiVariantWithError: Story = {
+	args: {
+		variant: "mui",
+		id: "description",
+		label: "Description",
+		error: true,
+		helperText: "Description must be at most 128 characters.",
+		defaultValue:
+			"This value is too long and has triggered a validation error.",
+		fullWidth: true,
+	},
+};

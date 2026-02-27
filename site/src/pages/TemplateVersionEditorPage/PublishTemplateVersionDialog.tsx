@@ -95,6 +95,7 @@ export const PublishTemplateVersionDialog: FC<
 							/>
 
 							<TextareaField
+								variant="mui"
 								{...getFieldHelpers("message")}
 								label="Message"
 								placeholder={Language.messagePlaceholder}

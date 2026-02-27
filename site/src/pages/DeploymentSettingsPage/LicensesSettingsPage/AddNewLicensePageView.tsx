@@ -104,6 +104,7 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 					}
 				>
 					<TextareaField
+						variant="mui"
 						name="licenseKey"
 						placeholder="Enter your license..."
 						rows={3}

@@ -54,6 +54,7 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 					<div>
 						<h4 css={styles.settingName}>Message</h4>
 						<TextareaField
+							variant="mui"
 							{...bannerFieldHelpers("message", {
 								helperText: "Markdown bold, italics, and links are supported.",
 							})}

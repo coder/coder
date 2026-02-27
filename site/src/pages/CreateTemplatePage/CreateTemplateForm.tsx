@@ -305,6 +305,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 					/>
 
 					<TextareaField
+						variant="mui"
 						{...getFieldHelpers("description", {
 							maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
 						})}

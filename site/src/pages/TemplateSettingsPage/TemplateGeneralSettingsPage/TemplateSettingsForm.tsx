@@ -140,6 +140,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 					/>
 
 					<TextareaField
+						variant="mui"
 						{...getFieldHelpers("description", {
 							maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
 						})}

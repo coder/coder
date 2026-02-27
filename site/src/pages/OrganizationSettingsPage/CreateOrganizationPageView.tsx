@@ -146,6 +146,7 @@ export const CreateOrganizationPageView: FC<
 										label="Display name"
 									/>
 									<TextareaField
+										variant="mui"
 										{...getFieldHelpers("description")}
 										label="Description"
 										rows={2}
