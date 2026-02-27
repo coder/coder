@@ -480,7 +480,7 @@ export const WriteFileRunning: Story = {
 		args: {
 			path: "src/utils/helpers.ts",
 			content:
-				'export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n',
+				"export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -496,7 +496,7 @@ export const WriteFileSuccess: Story = {
 		args: {
 			path: "src/utils/helpers.ts",
 			content:
-				'export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n',
+				"export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
 		},
 	},
 	play: async ({ canvasElement }) => {

@@ -357,10 +357,7 @@ function lcsTable(a: string[], b: string[]): number[][] {
  * addition) by walking the LCS table backwards. Unchanged lines
  * get a " " prefix; changed lines get "-" / "+" prefixes.
  */
-export function diffLines(
-	a: string[],
-	b: string[],
-): string[] {
+export function diffLines(a: string[], b: string[]): string[] {
 	const dp = lcsTable(a, b);
 	const result: string[] = [];
 	let i = a.length;
@@ -428,8 +425,10 @@ export const buildEditDiff = (
 
 		// Count context lines to compute correct hunk line counts.
 		const contextCount = body.filter((l) => l.startsWith(" ")).length;
-		const oldCount = body.filter((l) => l.startsWith("-")).length + contextCount;
-		const newCount = body.filter((l) => l.startsWith("+")).length + contextCount;
+		const oldCount =
+			body.filter((l) => l.startsWith("-")).length + contextCount;
+		const newCount =
+			body.filter((l) => l.startsWith("+")).length + contextCount;
 
 		patchLines.push(
 			`@@ -${lineOffset},${oldCount} +${lineOffset},${newCount} @@`,

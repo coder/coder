@@ -531,18 +531,12 @@ describe("diffLines", () => {
 	});
 
 	it("handles pure insertion in the middle", () => {
-		const result = diffLines(
-			["a", "c"],
-			["a", "b", "c"],
-		);
+		const result = diffLines(["a", "c"], ["a", "b", "c"]);
 		expect(result).toEqual([" a", "+b", " c"]);
 	});
 
 	it("handles pure deletion in the middle", () => {
-		const result = diffLines(
-			["a", "b", "c"],
-			["a", "c"],
-		);
+		const result = diffLines(["a", "b", "c"], ["a", "c"]);
 		expect(result).toEqual([" a", "-b", " c"]);
 	});
 });
