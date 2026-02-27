@@ -1,4 +1,3 @@
-import TextField from "@mui/material/TextField";
 import { getErrorDetail } from "api/errors";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
@@ -9,6 +8,7 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { TextareaField } from "components/Textarea/TextareaField";
 import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
@@ -103,10 +103,9 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 						</Button>
 					}
 				>
-					<TextField
+					<TextareaField
 						name="licenseKey"
 						placeholder="Enter your license..."
-						multiline
 						rows={3}
 						fullWidth
 					/>

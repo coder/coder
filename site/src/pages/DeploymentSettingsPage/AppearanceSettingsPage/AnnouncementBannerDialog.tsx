@@ -1,10 +1,10 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import DialogActions from "@mui/material/DialogActions";
-import TextField from "@mui/material/TextField";
 import type { BannerConfig } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Dialog, DialogActionButtons } from "components/Dialogs/Dialog";
 import { Stack } from "components/Stack/Stack";
+import { TextareaField } from "components/Textarea/TextareaField";
 import { useFormik } from "formik";
 import { AnnouncementBannerView } from "modules/dashboard/AnnouncementBanners/AnnouncementBannerView";
 import { type FC, useState } from "react";
@@ -53,16 +53,13 @@ export const AnnouncementBannerDialog: FC<AnnouncementBannerDialogProps> = ({
 				<Stack>
 					<div>
 						<h4 css={styles.settingName}>Message</h4>
-						<TextField
+						<TextareaField
 							{...bannerFieldHelpers("message", {
 								helperText: "Markdown bold, italics, and links are supported.",
 							})}
 							fullWidth
-							multiline
-							inputProps={{
-								"aria-label": "Message",
-								placeholder: "Enter a message for the banner",
-							}}
+							aria-label="Message"
+							placeholder="Enter a message for the banner"
 						/>
 					</div>
 					<div>

@@ -9,6 +9,7 @@ import { IconField } from "components/IconField/IconField";
 import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import { Spinner } from "components/Spinner/Spinner";
+import { TextareaField } from "components/Textarea/TextareaField";
 import {
 	Tooltip,
 	TooltipContent,
@@ -144,9 +145,8 @@ export const CreateOrganizationPageView: FC<
 										fullWidth
 										label="Display name"
 									/>
-									<TextField
+									<TextareaField
 										{...getFieldHelpers("description")}
-										multiline
 										label="Description"
 										rows={2}
 									/>

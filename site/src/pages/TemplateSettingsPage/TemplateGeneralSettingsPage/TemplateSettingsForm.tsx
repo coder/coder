@@ -25,6 +25,7 @@ import {
 	StackLabel,
 	StackLabelHelperText,
 } from "components/StackLabel/StackLabel";
+import { TextareaField } from "components/Textarea/TextareaField";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import { docs } from "utils/docs";
@@ -138,11 +139,10 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						label="Display name"
 					/>
 
-					<TextField
+					<TextareaField
 						{...getFieldHelpers("description", {
 							maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
 						})}
-						multiline
 						disabled={isSubmitting}
 						fullWidth
 						label="Description"
