@@ -688,11 +688,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		[onCreateChat],
 	);
 
-	const selectedWorkspaceLabel = selectedWorkspaceId
-		? (() => {
-				const ws = workspaceOptions.find((ws) => ws.id === selectedWorkspaceId);
-				return ws ? `${ws.owner_name}/${ws.name}` : null;
-			})()
+	const selectedWorkspace = selectedWorkspaceId
+		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)
+		: undefined;
+	const selectedWorkspaceLabel = selectedWorkspace
+		? `${selectedWorkspace.owner_name}/${selectedWorkspace.name}`
 		: null;
 
 	return (
