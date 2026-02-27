@@ -43,6 +43,13 @@ export const AIBridgeClientIcon = ({
 					className={cn(iconClassName, className)}
 				/>
 			);
+		case "Mux":
+			return (
+				<ExternalImage
+					src="/icon/mux.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
 		case "Zed":
 			return (
 				<ExternalImage
