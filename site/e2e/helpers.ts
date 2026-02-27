@@ -215,10 +215,9 @@ export const verifyParameters = async (
 					// Dynamic parameters can hydrate after initial render with
 					// stale or empty values. Retry with a longer timeout to
 					// allow the page to settle.
-					await expect(parameterField).toHaveValue(
-						buildParameter.value,
-						{ timeout: 15_000 },
-					);
+					await expect(parameterField).toHaveValue(buildParameter.value, {
+						timeout: 15_000,
+					});
 				}
 				break;
 			default:
