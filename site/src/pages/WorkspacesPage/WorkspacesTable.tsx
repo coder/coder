@@ -866,7 +866,12 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 			<Tooltip>
 				<TooltipTrigger asChild>
 					{rest.href !== undefined ? (
-						<Button variant="outline" size="icon-lg" asChild>
+						<Button
+							variant="outline"
+							size="icon-lg"
+							asChild
+							disabled={isLoading}
+						>
 							<a
 								target={rest.target}
 								className={loadingClass}
@@ -889,6 +894,7 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 								e.stopPropagation();
 								rest.onClick(e);
 							}}
+							disabled={isLoading}
 						>
 							{children}
 							<span className="sr-only">{label}</span>
