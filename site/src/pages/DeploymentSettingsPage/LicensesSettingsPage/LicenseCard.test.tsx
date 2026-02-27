@@ -56,7 +56,8 @@ describe("LicenseCard", () => {
 		const removeButton = await screen.findByRole("button", { name: /remove/i });
 		await user.click(removeButton);
 
-		await screen.findByText(/This license has already expired/);
+		const dialog = await screen.findByTestId("dialog");
+		expect(dialog).toHaveTextContent(/This license has already expired/);
 	});
 
 	it("shows disabling features warning for active licenses", async () => {
