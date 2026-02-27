@@ -19,6 +19,7 @@ type AnthropicHandler func(req *AnthropicRequest) AnthropicResponse
 type AnthropicResponse struct {
 	StreamingChunks <-chan AnthropicChunk
 	Response        *AnthropicMessage
+	Error           *ErrorResponse // If set, server returns this HTTP error instead of streaming/JSON.
 }
 
 // AnthropicRequest represents an Anthropic messages request.
@@ -141,6 +142,11 @@ func (s *anthropicServer) handleMessages(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *anthropicServer) writeResponse(w http.ResponseWriter, req *AnthropicRequest, resp AnthropicResponse) {
+	if resp.Error != nil {
+		writeErrorResponse(w, resp.Error)
+		return
+	}
+
 	hasStreaming := resp.StreamingChunks != nil
 	hasNonStreaming := resp.Response != nil
 

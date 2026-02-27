@@ -20,6 +20,7 @@ type OpenAIHandler func(req *OpenAIRequest) OpenAIResponse
 type OpenAIResponse struct {
 	StreamingChunks <-chan OpenAIChunk
 	Response        *OpenAICompletion
+	Error           *ErrorResponse // If set, server returns this HTTP error instead of streaming/JSON.
 }
 
 // OpenAIRequest represents an OpenAI chat completion request.
@@ -160,6 +161,11 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *openAIServer) writeChatCompletionsResponse(w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
+	if resp.Error != nil {
+		writeErrorResponse(w, resp.Error)
+		return
+	}
+
 	hasStreaming := resp.StreamingChunks != nil
 	hasNonStreaming := resp.Response != nil
 
@@ -184,6 +190,11 @@ func (s *openAIServer) writeChatCompletionsResponse(w http.ResponseWriter, req *
 }
 
 func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
+	if resp.Error != nil {
+		writeErrorResponse(w, resp.Error)
+		return
+	}
+
 	hasStreaming := resp.StreamingChunks != nil
 	hasNonStreaming := resp.Response != nil
 

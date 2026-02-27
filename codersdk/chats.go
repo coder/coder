@@ -443,6 +443,7 @@ const (
 	ChatStreamEventTypeStatus      ChatStreamEventType = "status"
 	ChatStreamEventTypeError       ChatStreamEventType = "error"
 	ChatStreamEventTypeQueueUpdate ChatStreamEventType = "queue_update"
+	ChatStreamEventTypeRetry       ChatStreamEventType = "retry"
 )
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
@@ -469,6 +470,19 @@ type ChatStreamError struct {
 	Message string `json:"message"`
 }
 
+// ChatStreamRetry represents an auto-retry status event in the stream.
+// Published when the server automatically retries a failed LLM call.
+type ChatStreamRetry struct {
+	// Attempt is the 1-indexed retry attempt number.
+	Attempt int `json:"attempt"`
+	// DelayMs is the backoff delay in milliseconds before the retry.
+	DelayMs int64 `json:"delay_ms"`
+	// Error is the error message from the failed attempt.
+	Error string `json:"error"`
+	// RetryingAt is the timestamp when the retry will be attempted.
+	RetryingAt time.Time `json:"retrying_at" format:"date-time"`
+}
+
 // ChatStreamEvent represents a real-time update for chat streaming.
 type ChatStreamEvent struct {
 	Type           ChatStreamEventType    `json:"type"`
@@ -477,6 +491,7 @@ type ChatStreamEvent struct {
 	MessagePart    *ChatStreamMessagePart `json:"message_part,omitempty"`
 	Status         *ChatStreamStatus      `json:"status,omitempty"`
 	Error          *ChatStreamError       `json:"error,omitempty"`
+	Retry          *ChatStreamRetry       `json:"retry,omitempty"`
 	QueuedMessages []ChatQueuedMessage    `json:"queued_messages,omitempty"`
 }
 

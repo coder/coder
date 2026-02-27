@@ -2050,6 +2050,24 @@ func (p *Server) runChat(
 		},
 		Compaction: compactionOptions,
 
+		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
+			logger.Warn(ctx, "retrying LLM stream",
+				slog.F("attempt", attempt),
+				slog.F("delay", delay.String()),
+				slog.Error(retryErr),
+			)
+			p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
+				Type:   codersdk.ChatStreamEventTypeRetry,
+				ChatID: chat.ID,
+				Retry: &codersdk.ChatStreamRetry{
+					Attempt:    attempt,
+					DelayMs:    delay.Milliseconds(),
+					Error:      retryErr.Error(),
+					RetryingAt: time.Now().Add(delay),
+				},
+			})
+		},
+
 		OnInterruptedPersistError: func(err error) {
 			p.logger.Warn(ctx, "failed to persist interrupted chat step", slog.Error(err))
 		},

@@ -10,6 +10,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
@@ -65,7 +66,8 @@ func (p *Server) maybeGenerateChatTitle(
 }
 
 // generateTitle calls the model with a title-generation system prompt
-// and returns the normalized result.
+// and returns the normalized result. It retries transient LLM errors
+// (rate limits, overloaded, etc.) with exponential backoff.
 func generateTitle(
 	ctx context.Context,
 	model fantasy.LanguageModel,
@@ -86,10 +88,16 @@ func generateTitle(
 		},
 	}
 	toolChoice := fantasy.ToolChoiceNone
-	response, err := model.Generate(ctx, fantasy.Call{
-		Prompt:     prompt,
-		ToolChoice: &toolChoice,
-	})
+
+	var response *fantasy.Response
+	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+		var genErr error
+		response, genErr = model.Generate(retryCtx, fantasy.Call{
+			Prompt:     prompt,
+			ToolChoice: &toolChoice,
+		})
+		return genErr
+	}, nil)
 	if err != nil {
 		return "", xerrors.Errorf("generate title text: %w", err)
 	}

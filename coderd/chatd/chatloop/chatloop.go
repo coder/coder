@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
@@ -15,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -53,6 +55,12 @@ type RunOptions struct {
 		part codersdk.ChatMessagePart,
 	)
 	Compaction *CompactionOptions
+
+	// OnRetry is called before each retry attempt when the LLM
+	// stream fails with a retryable error. It provides the attempt
+	// number, error, and backoff delay so callers can publish status
+	// events to connected clients.
+	OnRetry chatretry.OnRetryFn
 
 	OnInterruptedPersistError func(error)
 }
@@ -443,15 +451,39 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 		})
 	}
 
-	result, err := agent.Stream(ctx, streamCall)
-	if err != nil {
-		if errors.Is(err, context.Canceled) &&
-			errors.Is(context.Cause(ctx), ErrInterrupted) {
-			if persistErr := persistInterruptedStep(); persistErr != nil {
-				if opts.OnInterruptedPersistError != nil {
-					opts.OnInterruptedPersistError(persistErr)
+	var result *fantasy.AgentResult
+	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+		var streamErr error
+		result, streamErr = agent.Stream(retryCtx, streamCall)
+		if streamErr != nil {
+			// Interrupts are not retryable — propagate them
+			// immediately so processChat can set the correct
+			// status.
+			if errors.Is(streamErr, context.Canceled) &&
+				errors.Is(context.Cause(retryCtx), ErrInterrupted) {
+				if persistErr := persistInterruptedStep(); persistErr != nil {
+					if opts.OnInterruptedPersistError != nil {
+						opts.OnInterruptedPersistError(persistErr)
+					}
 				}
+				// Return ErrInterrupted directly so the retry
+				// loop sees a non-retryable error and stops.
+				return ErrInterrupted
 			}
+			return streamErr
+		}
+		return nil
+	}, func(attempt int, retryErr error, delay time.Duration) {
+		// Reset accumulated draft state from the failed attempt
+		// so the next attempt starts clean.
+		resetStepState()
+
+		if opts.OnRetry != nil {
+			opts.OnRetry(attempt, retryErr, delay)
+		}
+	})
+	if err != nil {
+		if errors.Is(err, ErrInterrupted) {
 			return nil, ErrInterrupted
 		}
 		return nil, xerrors.Errorf("stream response: %w", err)
