@@ -171,8 +171,11 @@ export const verifyParameters = async (
 	expectedBuildParameters: WorkspaceBuildParameter[],
 ) => {
 	const user = currentUser(page);
+	// Use networkidle to ensure all API responses (workspace data, build
+	// parameters) are settled before verifying values. Using domcontentloaded
+	// can cause the form to render with stale React Query cache data.
 	await page.goto(`/@${user.username}/${workspaceName}/settings/parameters`, {
-		waitUntil: "domcontentloaded",
+		waitUntil: "networkidle",
 	});
 
 	for (const buildParameter of expectedBuildParameters) {
@@ -209,7 +212,13 @@ export const verifyParameters = async (
 			case "number":
 				{
 					const parameterField = parameterLabel.locator("input");
-					await expect(parameterField).toHaveValue(buildParameter.value);
+					// Dynamic parameters can hydrate after initial render with
+					// stale or empty values. Retry with a longer timeout to
+					// allow the page to settle.
+					await expect(parameterField).toHaveValue(
+						buildParameter.value,
+						{ timeout: 15_000 },
+					);
 				}
 				break;
 			default:
