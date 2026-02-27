@@ -468,3 +468,178 @@ export const TaskNameGenericRendering: Story = {
 		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
 	},
 };
+
+// ---------------------------------------------------------------------------
+// WriteFile stories
+// ---------------------------------------------------------------------------
+
+export const WriteFileRunning: Story = {
+	args: {
+		name: "write_file",
+		status: "running",
+		args: {
+			path: "src/utils/helpers.ts",
+			content:
+				'export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n',
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Writing helpers\.ts/)).toBeInTheDocument();
+	},
+};
+
+export const WriteFileSuccess: Story = {
+	args: {
+		name: "write_file",
+		status: "completed",
+		args: {
+			path: "src/utils/helpers.ts",
+			content:
+				'export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n',
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Wrote helpers\.ts/)).toBeInTheDocument();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// EditFiles stories
+// ---------------------------------------------------------------------------
+
+export const EditFilesSingleRunning: Story = {
+	args: {
+		name: "edit_files",
+		status: "running",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Editing config\.ts/)).toBeInTheDocument();
+	},
+};
+
+export const EditFilesSingleSuccess: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited config\.ts/)).toBeInTheDocument();
+	},
+};
+
+export const EditFilesMultipleSuccess: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+				{
+					path: "src/server.ts",
+					edits: [
+						{
+							search: 'const host = "localhost";',
+							replace: 'const host = "0.0.0.0";',
+						},
+					],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited 2 files/)).toBeInTheDocument();
+	},
+};
+
+/**
+ * Exercises the LCS-based interleaved diff: only the first and last
+ * lines change while the middle line stays the same, so the viewer
+ * should show context around the modifications instead of removing
+ * everything then re-adding everything.
+ */
+export const EditFilesInterleavedContext: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		args: {
+			files: [
+				{
+					path: "src/constants.ts",
+					edits: [
+						{
+							search:
+								'const API_URL = "http://localhost:3000";\nconst RETRY_COUNT = 3;\nconst TIMEOUT_MS = 5000;',
+							replace:
+								'const API_URL = "https://api.prod.example.com";\nconst RETRY_COUNT = 3;\nconst TIMEOUT_MS = 10000;',
+						},
+					],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited constants\.ts/)).toBeInTheDocument();
+	},
+};
+
+export const EditFilesError: Story = {
+	args: {
+		name: "edit_files",
+		status: "error",
+		isError: true,
+		args: {
+			files: [
+				{
+					path: "src/missing.ts",
+					edits: [
+						{
+							search: "old",
+							replace: "new",
+						},
+					],
+				},
+			],
+		},
+		result: { error: "File not found" },
+	},
+};

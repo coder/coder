@@ -330,10 +330,65 @@ export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 };
 
 /**
+ * Computes the longest common subsequence table for two string
+ * arrays. Returns a 2D array where lcs[i][j] is the LCS length
+ * for a[0..i-1] and b[0..j-1].
+ */
+function lcsTable(a: string[], b: string[]): number[][] {
+	const m = a.length;
+	const n = b.length;
+	const dp: number[][] = Array.from({ length: m + 1 }, () =>
+		Array(n + 1).fill(0),
+	);
+	for (let i = 1; i <= m; i++) {
+		for (let j = 1; j <= n; j++) {
+			if (a[i - 1] === b[j - 1]) {
+				dp[i][j] = dp[i - 1][j - 1] + 1;
+			} else {
+				dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+			}
+		}
+	}
+	return dp;
+}
+
+/**
+ * Produces interleaved unified-diff body lines (context, removal,
+ * addition) by walking the LCS table backwards. Unchanged lines
+ * get a " " prefix; changed lines get "-" / "+" prefixes.
+ */
+export function diffLines(
+	a: string[],
+	b: string[],
+): string[] {
+	const dp = lcsTable(a, b);
+	const result: string[] = [];
+	let i = a.length;
+	let j = b.length;
+
+	while (i > 0 || j > 0) {
+		if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+			result.push(` ${a[i - 1]}`);
+			i--;
+			j--;
+		} else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+			result.push(`+${b[j - 1]}`);
+			j--;
+		} else {
+			result.push(`-${a[i - 1]}`);
+			i--;
+		}
+	}
+
+	return result.reverse();
+}
+
+/**
  * Builds a synthetic unified diff from search/replace edit pairs
- * for a single file. Each pair becomes a separate hunk in the
- * diff. Line numbers are synthetic since we don't have the full
- * file content.
+ * for a single file. Uses LCS-based diffing so that unchanged
+ * lines appear as context rather than being removed and re-added.
+ * Line numbers are synthetic since we don't have the full file
+ * content.
  */
 export const buildEditDiff = (
 	path: string,
@@ -369,13 +424,19 @@ export const buildEditDiff = (
 		}
 		if (searchLines.length === 0 && replaceLines.length === 0) continue;
 
-		patchLines.push(
-			`@@ -${lineOffset},${searchLines.length} +${lineOffset},${replaceLines.length} @@`,
-		);
-		for (const l of searchLines) patchLines.push(`-${l}`);
-		for (const l of replaceLines) patchLines.push(`+${l}`);
+		const body = diffLines(searchLines, replaceLines);
 
-		lineOffset += Math.max(searchLines.length, replaceLines.length) + 1;
+		// Count context lines to compute correct hunk line counts.
+		const contextCount = body.filter((l) => l.startsWith(" ")).length;
+		const oldCount = body.filter((l) => l.startsWith("-")).length + contextCount;
+		const newCount = body.filter((l) => l.startsWith("+")).length + contextCount;
+
+		patchLines.push(
+			`@@ -${lineOffset},${oldCount} +${lineOffset},${newCount} @@`,
+		);
+		patchLines.push(...body);
+
+		lineOffset += Math.max(oldCount, newCount) + 1;
 	}
 
 	const patch = `${patchLines.join("\n")}\n`;
