@@ -26,6 +26,6 @@ export const TestNotification: Story = {
 			name: "Send notification",
 		});
 		await user.click(sendButton);
-		await within(document.body).findByText("Test notification sent");
+		await within(document.body).findByText("Test notification sent.");
 	},
 };

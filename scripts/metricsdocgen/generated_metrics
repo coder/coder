@@ -159,13 +159,13 @@ coderd_dbpurge_records_purged_total{record_type=""} 0
 coderd_experiments{experiment=""} 0
 # HELP coderd_insights_applications_usage_seconds The application usage per template.
 # TYPE coderd_insights_applications_usage_seconds gauge
-coderd_insights_applications_usage_seconds{template_name="",application_name="",slug=""} 0
+coderd_insights_applications_usage_seconds{template_name="",application_name="",slug="",organization_name=""} 0
 # HELP coderd_insights_parameters The parameter usage per template.
 # TYPE coderd_insights_parameters gauge
-coderd_insights_parameters{template_name="",parameter_name="",parameter_type="",parameter_value=""} 0
+coderd_insights_parameters{template_name="",parameter_name="",parameter_type="",parameter_value="",organization_name=""} 0
 # HELP coderd_insights_templates_active_users The number of active users of the template.
 # TYPE coderd_insights_templates_active_users gauge
-coderd_insights_templates_active_users{template_name=""} 0
+coderd_insights_templates_active_users{template_name="",organization_name=""} 0
 # HELP coderd_license_active_users The number of active users.
 # TYPE coderd_license_active_users gauge
 coderd_license_active_users 0

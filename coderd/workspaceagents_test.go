@@ -2784,12 +2784,12 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 		const providerID = "fake-idp"
 
 		// Count all the times we call validate
-		validateCalls := 0
+		var validateCalls atomic.Int32
 		fake := oidctest.NewFakeIDP(t, oidctest.WithServing(), oidctest.WithMiddlewares(func(handler http.Handler) http.Handler {
 			return http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Count all the validate calls
 				if strings.Contains(r.URL.Path, "/external-auth-validate/") {
-					validateCalls++
+					validateCalls.Add(1)
 				}
 				handler.ServeHTTP(w, r)
 			}))
@@ -2852,7 +2852,7 @@ func TestWorkspaceAgentExternalAuthListen(t *testing.T) {
 		// other should be skipped.
 		// In a failed test, you will likely see 9, as the last one
 		// gets canceled.
-		require.Equal(t, 1, validateCalls, "validate calls duplicated on same token")
+		require.EqualValues(t, 1, validateCalls.Load(), "validate calls duplicated on same token")
 	})
 }
 

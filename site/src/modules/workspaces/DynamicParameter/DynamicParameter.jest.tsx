@@ -444,10 +444,8 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const deleteButtons = screen.getAllByTestId("CancelIcon");
-			await waitFor(async () => {
-				await userEvent.click(deleteButtons[0]);
-			});
+			const deleteButton = screen.getByRole("button", { name: "Remove tag1" });
+			await userEvent.click(deleteButton);
 
 			expect(mockOnChange).toHaveBeenCalledWith('["tag2"]');
 		});

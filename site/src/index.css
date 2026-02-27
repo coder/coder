@@ -108,6 +108,33 @@
 		@apply border-border;
 	}
 
+	html,
+	body,
+	#root,
+	#storybook-root {
+		@apply h-full;
+	}
+
+	button,
+	input {
+		@apply font-sans;
+	}
+
+	input:-webkit-autofill,
+	input:-webkit-autofill:hover,
+	input:-webkit-autofill:focus,
+	input:-webkit-autofill:active {
+		-webkit-box-shadow: 0 0 0 100px hsl(var(--surface-primary)) inset !important;
+	}
+
+	::placeholder {
+		@apply text-content-secondary;
+	}
+
+	fieldset {
+		@apply border-none p-0 m-0 w-full;
+	}
+
 	/*
 	By default, Radix adds a margin to the `body` element when a dropdown is displayed,
 	causing some shifting when the dropdown has a full-width size, as is the case with the mobile menu.

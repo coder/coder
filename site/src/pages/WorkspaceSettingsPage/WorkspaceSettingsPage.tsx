@@ -1,8 +1,8 @@
 import { API } from "api/api";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
 import { useMutation } from "react-query";
 import { useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import type { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
 import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
@@ -29,7 +29,7 @@ const WorkspaceSettingsPage: FC = () => {
 			]);
 		},
 		onSuccess: (_, formValues) => {
-			displaySuccess("Workspace updated successfully");
+			toast.success(`Workspace "${formValues.name}" updated successfully.`);
 			navigate(`/@${username}/${formValues.name}/settings`);
 		},
 	});

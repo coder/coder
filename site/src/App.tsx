@@ -10,7 +10,7 @@ import {
 } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { RouterProvider } from "react-router";
-import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
+import { Toaster } from "./components/Toaster/Toaster";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { router } from "./router";
@@ -56,7 +56,7 @@ export const AppProviders: FC<AppProvidersProps> = ({
 				<ThemeProvider>
 					<TooltipProvider delayDuration={100}>
 						{children}
-						<GlobalSnackbar />
+						<Toaster />
 					</TooltipProvider>
 				</ThemeProvider>
 			</AuthProvider>

@@ -47,7 +47,7 @@ test("setup deployment", async ({ page }) => {
 		await page.getByText("Upload License").click();
 
 		await expect(
-			page.getByText("You have successfully added a license"),
+			page.getByText("You have successfully added a license."),
 		).toBeVisible();
 	}
 });

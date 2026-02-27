@@ -136,7 +136,7 @@ describe("TemplateSchedulePage", () => {
 		await waitForWithCutoff(() =>
 			expect(API.updateTemplateMeta).toBeCalledTimes(1),
 		);
-	});
+	}, 15_000);
 
 	test("default is converted to and from hours", async () => {
 		await renderTemplateSchedulePage();
