@@ -324,25 +324,33 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				isEditingHistoryMessage && editingHistoryMessageID !== null
 					? editingHistoryMessageID
 					: undefined;
+
+			// Clear the input optimistically before awaiting the mutation so
+			// that it doesn't linger when the parent navigates away or
+			// re-renders during the async gap (e.g. query invalidation).
+			const previousInput = input;
+			setInput("");
+			onInputChange?.("");
+			if (queueEditID !== null) {
+				setEditingQueuedMessageID(null);
+				setDraftBeforeQueueEdit(null);
+			}
+			if (isEditingHistoryMessage) {
+				setIsEditingHistoryMessage(false);
+				setEditingHistoryMessageID(null);
+				setDraftBeforeHistoryEdit(null);
+				onEditCleared?.();
+			}
+
 			try {
-				await onSend(input, editedMessageID);
+				await onSend(previousInput, editedMessageID);
 				if (queueEditID !== null && onDeleteQueuedMessage) {
 					await onDeleteQueuedMessage(queueEditID);
 				}
-				setInput("");
-				onInputChange?.("");
-				if (queueEditID !== null) {
-					setEditingQueuedMessageID(null);
-					setDraftBeforeQueueEdit(null);
-				}
-				if (isEditingHistoryMessage) {
-					setIsEditingHistoryMessage(false);
-					setEditingHistoryMessageID(null);
-					setDraftBeforeHistoryEdit(null);
-					onEditCleared?.();
-				}
 			} catch {
-				// Keep input on failure so the user can retry.
+				// Restore input on failure so the user can retry.
+				setInput(previousInput);
+				onInputChange?.(previousInput);
 			} finally {
 				// Re-focus the textarea so the user can keep typing.
 				textareaRef.current?.focus();
