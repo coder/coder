@@ -272,13 +272,13 @@ export const WithSubagentCards: Story = {
 							{
 								type: "tool-call",
 								tool_call_id: "tool-subagent-1",
-								tool_name: "subagent",
+								tool_name: "spawn_agent",
 								args: { title: "Child agent" },
 							},
 							{
 								type: "tool-result",
 								tool_call_id: "tool-subagent-1",
-								tool_name: "subagent",
+								tool_name: "spawn_agent",
 								result: {
 									chat_id: "child-chat-1",
 									title: "Child agent",
@@ -380,7 +380,7 @@ export const StreamedSubagentTitle: Story = {
 						part: {
 							type: "tool-call",
 							tool_call_id: "tool-subagent-stream-1",
-							tool_name: "subagent",
+							tool_name: "spawn_agent",
 							args_delta: '{"title":"Streamed Child"',
 						},
 					},

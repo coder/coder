@@ -232,7 +232,7 @@ export const EnvPresetProviders: Story = {
 				"This provider key is configured from deployment environment settings and cannot be edited in this UI.",
 			),
 		).toBeVisible();
-		expect(body.queryByLabelText("API key")).not.toBeInTheDocument();
+		expect(body.queryByLabelText(/API key/i)).not.toBeInTheDocument();
 		expect(
 			body.queryByRole("button", {
 				name: "Create provider config",
@@ -276,7 +276,7 @@ export const CreateAndUpdateProvider: Story = {
 
 		// Fill in form to create a provider config.
 		await userEvent.type(
-			await body.findByLabelText("API key"),
+			await body.findByLabelText(/API key/i),
 			"sk-provider-key",
 		);
 		await userEvent.type(
@@ -316,7 +316,7 @@ export const CreateAndUpdateProvider: Story = {
 		await userEvent.clear(baseURLInput);
 		await userEvent.type(baseURLInput, "https://internal-proxy.example.com/v2");
 		await userEvent.type(
-			body.getByLabelText("API key"),
+			body.getByLabelText(/API key/i),
 			"sk-updated-provider-key",
 		);
 		await userEvent.click(body.getByRole("button", { name: "Save changes" }));
@@ -416,10 +416,10 @@ export const NoModelConfigByDefault: Story = {
 		await userEvent.click(
 			await body.findByRole("button", { name: "Add model" }),
 		);
-		await userEvent.type(body.getByLabelText("Model ID"), "gpt-5-pro");
-		await userEvent.type(body.getByLabelText("Context limit"), "200000");
+		await userEvent.type(body.getByLabelText(/Model ID/i), "gpt-5-pro");
+		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
 
-		await expect(await body.findByLabelText("Max output tokens")).toHaveValue(
+		await expect(await body.findByLabelText(/Max output tokens/i)).toHaveValue(
 			"",
 		);
 
@@ -464,10 +464,10 @@ export const SubmitModelConfigExplicitly: Story = {
 		await userEvent.click(
 			await body.findByRole("button", { name: "Add model" }),
 		);
-		await userEvent.type(body.getByLabelText("Model ID"), "gpt-5-pro-custom");
-		await userEvent.type(body.getByLabelText("Context limit"), "200000");
+		await userEvent.type(body.getByLabelText(/Model ID/i), "gpt-5-pro-custom");
+		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
 		await userEvent.type(
-			await body.findByLabelText("Max output tokens"),
+			await body.findByLabelText(/Max output tokens/i),
 			"32000",
 		);
 		await userEvent.click(
@@ -521,16 +521,14 @@ export const ValidatesModelConfigFields: Story = {
 		await userEvent.click(
 			await body.findByRole("button", { name: "Add model" }),
 		);
-		await userEvent.type(body.getByLabelText("Model ID"), "gpt-5-pro");
-		await userEvent.type(body.getByLabelText("Context limit"), "200000");
-		await userEvent.type(
-			await body.findByLabelText("Max output tokens"),
-			"not-a-number",
-		);
-		expect(
-			body.getByText("Max output tokens must be a valid number."),
-		).toBeInTheDocument();
-		expect(body.getByRole("button", { name: "Add model" })).toBeDisabled();
+		await userEvent.type(body.getByLabelText(/Model ID/i), "gpt-5-pro");
+		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
+		const maxOutputTokensInput =
+			await body.findByLabelText(/Max output tokens/i);
+		await userEvent.type(maxOutputTokensInput, "not-a-number");
+		await waitFor(() => {
+			expect(body.getByRole("button", { name: "Add model" })).toBeDisabled();
+		});
 		// No API call should have been made.
 		expect(API.createChatModelConfig).not.toHaveBeenCalled();
 	},

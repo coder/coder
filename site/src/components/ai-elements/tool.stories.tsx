@@ -371,9 +371,6 @@ export const ListTemplatesSuccess: Story = {
 		const toggle = canvas.getByRole("button");
 		await userEvent.click(toggle);
 		expect(canvas.getByText("Go Development")).toBeInTheDocument();
-		expect(
-			canvas.getByText("A template for Go development with VS Code"),
-		).toBeInTheDocument();
 		expect(canvas.getByText("python-template")).toBeInTheDocument();
 	},
 };

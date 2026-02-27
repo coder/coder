@@ -57,7 +57,7 @@ export const SendsAndClearsInput: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
 
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 		expect(input).toHaveValue("");
 	},

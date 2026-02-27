@@ -139,8 +139,8 @@ export const SelectsModel: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		// Open the popover by clicking the trigger button.
-		const trigger = canvas.getByRole("button", { name: "Select model" });
+		// Open the popover by clicking the trigger.
+		const trigger = canvas.getByRole("combobox");
 		await userEvent.click(trigger);
 
 		// The dropdown should appear with model options.
