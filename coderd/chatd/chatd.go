@@ -1739,7 +1739,10 @@ func (p *Server) runChat(
 	if err != nil {
 		return xerrors.Errorf("get chat messages: %w", err)
 	}
-	p.maybeGenerateChatTitle(ctx, chat, messages, model, logger)
+	// Fire title generation asynchronously so it doesn't block the
+	// chat response. It uses a detached context so it can finish
+	// even after the chat processing context is canceled.
+	go p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, logger)
 
 	prompt, err := chatprompt.ConvertMessages(messages)
 	if err != nil {
