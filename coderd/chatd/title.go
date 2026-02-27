@@ -49,7 +49,10 @@ func (p *Server) maybeGenerateChatTitle(
 		return
 	}
 
-	_, err = p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+	// Use a context detached from the chat processing context so the
+	// DB write succeeds even if the chat is interrupted after title
+	// generation completes.
+	_, err = p.db.UpdateChatByID(context.WithoutCancel(ctx), database.UpdateChatByIDParams{
 		ID:    chat.ID,
 		Title: title,
 	})
