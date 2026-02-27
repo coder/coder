@@ -144,7 +144,6 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	bind9-dnsutils \
 	build-essential \
 	ca-certificates \
-	cargo \
 	cmake \
 	containerd.io \
 	crypto-policies \
@@ -211,6 +210,16 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	apt-get clean && \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
+
+# Install Rust via rustup. The Ubuntu Jammy apt package provides Rust 1.75,
+# which is too old for transitive dependencies that require edition 2024
+# (Rust 1.85+). Using rustup ensures we get a current stable toolchain.
+ENV RUSTUP_HOME=/usr/local/rustup \
+	CARGO_HOME=/usr/local/cargo
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+	sh -s -- -y --default-toolchain stable --profile minimal && \
+	chmod -R a+w $RUSTUP_HOME $CARGO_HOME
+ENV PATH=$CARGO_HOME/bin:$PATH
 
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.14.5.
 # Installing the same version here to match.
