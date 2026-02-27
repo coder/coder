@@ -1517,7 +1517,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 		}
 		defer conn.Close()
 
-		resp, err := conn.ReadFileLines(ctx, args.Path, args.Offset, args.Limit)
+		resp, err := conn.ReadFileLines(ctx, args.Path, args.Offset, args.Limit, workspacesdk.DefaultReadFileLinesLimits())
 		if err != nil {
 			return WorkspaceReadFileResponse{}, err
 		}

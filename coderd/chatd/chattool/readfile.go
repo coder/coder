@@ -56,7 +56,7 @@ func executeReadFileTool(
 		limit = *args.Limit
 	}
 
-	resp, err := conn.ReadFileLines(ctx, args.Path, offset, limit)
+	resp, err := conn.ReadFileLines(ctx, args.Path, offset, limit, workspacesdk.DefaultReadFileLinesLimits())
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}

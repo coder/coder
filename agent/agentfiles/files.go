@@ -24,29 +24,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-const (
-	// MaxFileSize is the maximum file size (in bytes) that the line-based
-	// reader will open. Files larger than this should be read with tools
-	// like grep, sed, or awk.
-	MaxFileSize = 1 << 20 // 1 MB
-
-	// MaxLineBytes is the maximum byte length of a single line before it
-	// is truncated.
-	MaxLineBytes = 1024
-
-	// MaxResponseLines is the maximum number of lines that can be returned
-	// in a single read response.
-	MaxResponseLines = 2000
-
-	// MaxResponseBytes is the maximum total byte size of the formatted
-	// output (line-numbered content).
-	MaxResponseBytes = 32768 // 32 KB
-
-	// DefaultLineLimit is the default number of lines returned when no
-	// limit is specified.
-	DefaultLineLimit = 2000
-)
-
 // ReadFileLinesResponse is the JSON response for the line-based file reader.
 type ReadFileLinesResponse struct {
 	// Success indicates whether the read was successful.
@@ -151,6 +128,10 @@ func (api *API) HandleReadFileLines(rw http.ResponseWriter, r *http.Request) {
 	path := parser.String(query, "", "path")
 	offset := parser.PositiveInt64(query, 1, "offset")
 	limit := parser.PositiveInt64(query, 0, "limit")
+	maxFileSize := parser.PositiveInt64(query, workspacesdk.DefaultMaxFileSize, "max_file_size")
+	maxLineBytes := parser.PositiveInt64(query, workspacesdk.DefaultMaxLineBytes, "max_line_bytes")
+	maxResponseLines := parser.PositiveInt64(query, workspacesdk.DefaultMaxResponseLines, "max_response_lines")
+	maxResponseBytes := parser.PositiveInt64(query, workspacesdk.DefaultMaxResponseBytes, "max_response_bytes")
 	parser.ErrorExcessParams(query)
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -160,7 +141,12 @@ func (api *API) HandleReadFileLines(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := api.readFileLines(ctx, path, offset, limit)
+	resp := api.readFileLines(ctx, path, offset, limit, workspacesdk.ReadFileLinesLimits{
+		MaxFileSize:      maxFileSize,
+		MaxLineBytes:     int(maxLineBytes),
+		MaxResponseLines: int(maxResponseLines),
+		MaxResponseBytes: int(maxResponseBytes),
+	})
 	if resp.Success {
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
 	} else {
@@ -168,7 +154,7 @@ func (api *API) HandleReadFileLines(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *API) readFileLines(ctx context.Context, path string, offset, limit int64) ReadFileLinesResponse {
+func (api *API) readFileLines(ctx context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) ReadFileLinesResponse {
 	errResp := func(msg string) ReadFileLinesResponse {
 		return ReadFileLinesResponse{Success: false, Error: msg}
 	}
@@ -199,10 +185,10 @@ func (api *API) readFileLines(ctx context.Context, path string, offset, limit in
 	}
 
 	fileSize := stat.Size()
-	if fileSize > MaxFileSize {
+	if fileSize > limits.MaxFileSize {
 		return errResp(fmt.Sprintf(
 			"file is %d bytes which exceeds the maximum of %d bytes. Use grep, sed, or awk to extract the content you need, or use offset and limit to read a portion.",
-			fileSize, MaxFileSize,
+			fileSize, limits.MaxFileSize,
 		))
 	}
 
@@ -241,7 +227,7 @@ func (api *API) readFileLines(ctx context.Context, path string, offset, limit in
 
 	// Default limit.
 	if limit <= 0 {
-		limit = DefaultLineLimit
+		limit = int64(limits.MaxResponseLines)
 	}
 
 	startIdx := int(offset - 1) // convert to 0-based
@@ -257,8 +243,8 @@ func (api *API) readFileLines(ctx context.Context, path string, offset, limit in
 		line := lines[i]
 
 		// Per-line truncation.
-		if len(line) > MaxLineBytes {
-			line = line[:MaxLineBytes] + "... [truncated]"
+		if len(line) > limits.MaxLineBytes {
+			line = line[:limits.MaxLineBytes] + "... [truncated]"
 		}
 
 		// Format with 1-based line number.
@@ -270,18 +256,18 @@ func (api *API) readFileLines(ctx context.Context, path string, offset, limit in
 		if len(numbered) > 0 {
 			newTotal++ // account for \n joiner
 		}
-		if newTotal > MaxResponseBytes {
+		if newTotal > limits.MaxResponseBytes {
 			return errResp(fmt.Sprintf(
 				"output would exceed %d bytes. Read less at a time using offset and limit parameters.",
-				MaxResponseBytes,
+				limits.MaxResponseBytes,
 			))
 		}
 
 		// Check line count.
-		if len(numbered) >= MaxResponseLines {
+		if len(numbered) >= limits.MaxResponseLines {
 			return errResp(fmt.Sprintf(
 				"output would exceed %d lines. Read less at a time using offset and limit parameters.",
-				MaxResponseLines,
+				limits.MaxResponseLines,
 			))
 		}
 

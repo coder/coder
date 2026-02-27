@@ -292,18 +292,18 @@ func (mr *MockAgentConnMockRecorder) ReadFile(ctx, path, offset, limit any) *gom
 }
 
 // ReadFileLines mocks base method.
-func (m *MockAgentConn) ReadFileLines(ctx context.Context, path string, offset, limit int64) (workspacesdk.ReadFileLinesResponse, error) {
+func (m *MockAgentConn) ReadFileLines(ctx context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) (workspacesdk.ReadFileLinesResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReadFileLines", ctx, path, offset, limit)
+	ret := m.ctrl.Call(m, "ReadFileLines", ctx, path, offset, limit, limits)
 	ret0, _ := ret[0].(workspacesdk.ReadFileLinesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReadFileLines indicates an expected call of ReadFileLines.
-func (mr *MockAgentConnMockRecorder) ReadFileLines(ctx, path, offset, limit any) *gomock.Call {
+func (mr *MockAgentConnMockRecorder) ReadFileLines(ctx, path, offset, limit, limits any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadFileLines", reflect.TypeOf((*MockAgentConn)(nil).ReadFileLines), ctx, path, offset, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadFileLines", reflect.TypeOf((*MockAgentConn)(nil).ReadFileLines), ctx, path, offset, limit, limits)
 }
 
 // ReconnectingPTY mocks base method.
