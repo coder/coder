@@ -23,6 +23,9 @@ if (process.env.STATS !== undefined) {
 
 export default defineConfig({
 	plugins,
+	worker: {
+		format: "es",
+	},
 	publicDir: path.resolve(__dirname, "./static"),
 	build: {
 		outDir: path.resolve(__dirname, "./out"),

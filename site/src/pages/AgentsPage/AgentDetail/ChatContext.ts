@@ -493,7 +493,6 @@ export const useChatStore = (
 							...chat,
 							updated_at: message.created_at ?? new Date().toISOString(),
 						}));
-						void queryClient.invalidateQueries({ queryKey: chatsKey });
 						continue;
 					}
 					case "queue_update":
@@ -512,6 +511,7 @@ export const useChatStore = (
 							continue;
 						}
 
+						const previousStatus = store.getSnapshot().chatStatus;
 						store.setChatStatus(nextStatus);
 						if (nextStatus !== "error") {
 							clearChatErrorReason(chatID);
@@ -521,23 +521,17 @@ export const useChatStore = (
 							status: nextStatus,
 							updated_at: new Date().toISOString(),
 						}));
-						void Promise.all([
-							queryClient.invalidateQueries({
-								queryKey: chatDiffStatusKey(chatID),
-							}),
-							queryClient.invalidateQueries({
-								queryKey: chatDiffContentsKey(chatID),
-							}),
-						]);
-
-						const shouldRefreshQueries =
-							nextStatus === "completed" ||
-							nextStatus === "error" ||
-							nextStatus === "paused" ||
-							nextStatus === "waiting";
-						if (shouldRefreshQueries) {
-							void queryClient.invalidateQueries({ queryKey: chatsKey });
+						if (previousStatus !== nextStatus) {
+							void Promise.all([
+								queryClient.invalidateQueries({
+									queryKey: chatDiffStatusKey(chatID),
+								}),
+								queryClient.invalidateQueries({
+									queryKey: chatDiffContentsKey(chatID),
+								}),
+							]);
 						}
+
 						continue;
 					}
 					case "error": {
@@ -552,7 +546,6 @@ export const useChatStore = (
 							status: "error",
 							updated_at: new Date().toISOString(),
 						}));
-						void queryClient.invalidateQueries({ queryKey: chatsKey });
 						continue;
 					}
 					default:
@@ -566,7 +559,6 @@ export const useChatStore = (
 			if (!store.getSnapshot().streamError) {
 				store.setStreamError("Chat stream disconnected.");
 			}
-			void queryClient.invalidateQueries({ queryKey: chatsKey });
 		};
 
 		socket.addEventListener("message", handleMessage);

@@ -8,15 +8,7 @@ import {
 	Tool,
 } from "components/ai-elements";
 import { ChevronDownIcon } from "lucide-react";
-import {
-	type FC,
-	memo,
-	type ReactNode,
-	type RefObject,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, memo, type ReactNode, type RefObject, useState } from "react";
 import { cn } from "utils/cn";
 import type {
 	MergedTool,
@@ -320,39 +312,10 @@ const StickyUserMessage: FC<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 }> = ({ message, parsed }) => {
-	const sentinelRef = useRef<HTMLDivElement | null>(null);
-	const [isStuck, setIsStuck] = useState(false);
-
-	useEffect(() => {
-		const element = sentinelRef.current;
-		if (!element) {
-			return;
-		}
-		const observer = new IntersectionObserver(
-			([entry]) => setIsStuck(!entry.isIntersecting),
-			{ threshold: 0 },
-		);
-		observer.observe(element);
-		return () => observer.disconnect();
-	}, []);
-
 	return (
-		<>
-			<div ref={sentinelRef} className="pointer-events-none h-px" />
-			<div
-				className="sticky -top-2 z-10 pt-1 drop-shadow-xl"
-				style={
-					isStuck
-						? {
-								clipPath:
-									"inset(0 0 calc(100% - 5rem) 0 round 0 0 0.5rem 0.5rem)",
-							}
-						: undefined
-				}
-			>
-				<ChatMessageItem message={message} parsed={parsed} />
-			</div>
-		</>
+		<div className="sticky -top-2 z-10 pt-1 drop-shadow-xl">
+			<ChatMessageItem message={message} parsed={parsed} />
+		</div>
 	);
 };
 
@@ -400,7 +363,13 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 						</div>
 					)}
 					{parsedSections.map((section, sectionIdx) => (
-						<div key={section.userEntry?.message.id ?? `section-${sectionIdx}`}>
+						<div
+							key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
+							style={{
+								contentVisibility: "auto",
+								containIntrinsicSize: "1px 600px",
+							}}
+						>
 							<div className="flex flex-col gap-3">
 								{section.entries.map(({ message, parsed }) =>
 									message.role === "user" ? (

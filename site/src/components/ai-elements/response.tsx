@@ -103,6 +103,7 @@ const createComponents = (
 									name: `block.${lang}`,
 									lang: lang as SupportedLanguages,
 									contents: content,
+									cacheKey: content,
 								}}
 								options={{
 									overflow: "scroll",
