@@ -54,13 +54,17 @@ type AgentConn interface {
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
 	GetPeerDiagnostics() tailnet.PeerDiagnostics
 	ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
+	ListProcesses(ctx context.Context) (ListProcessesResponse, error)
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
 	Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error)
+	ProcessOutput(ctx context.Context, id string) (ProcessOutputResponse, error)
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
 	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
 	DeleteDevcontainer(ctx context.Context, devcontainerID string) error
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
+	SignalProcess(ctx context.Context, id string, signal string) error
+	StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
@@ -498,6 +502,61 @@ func (c *agentConn) RecreateDevcontainer(ctx context.Context, devcontainerID str
 	return m, nil
 }
 
+// StartProcessRequest is the request body for starting a
+// process on the workspace agent.
+type StartProcessRequest struct {
+	Command    string            `json:"command"`
+	WorkDir    string            `json:"workdir,omitempty"`
+	Env        map[string]string `json:"env,omitempty"`
+	Background bool              `json:"background,omitempty"`
+}
+
+// StartProcessResponse is returned when a process is started.
+type StartProcessResponse struct {
+	ID      string `json:"id"`
+	Started bool   `json:"started"`
+}
+
+// ListProcessesResponse contains information about tracked
+// processes on the workspace agent.
+type ListProcessesResponse struct {
+	Processes []ProcessInfo `json:"processes"`
+}
+
+// ProcessInfo describes a tracked process on the agent.
+type ProcessInfo struct {
+	ID         string `json:"id"`
+	Command    string `json:"command"`
+	WorkDir    string `json:"workdir,omitempty"`
+	Background bool   `json:"background"`
+	Running    bool   `json:"running"`
+	ExitCode   *int   `json:"exit_code,omitempty"`
+	StartedAt  int64  `json:"started_at_unix"`
+	ExitedAt   *int64 `json:"exited_at_unix,omitempty"`
+}
+
+// ProcessOutputResponse contains the output of a process.
+type ProcessOutputResponse struct {
+	Output    string             `json:"output"`
+	Truncated *ProcessTruncation `json:"truncated,omitempty"`
+	Running   bool               `json:"running"`
+	ExitCode  *int               `json:"exit_code,omitempty"`
+}
+
+// ProcessTruncation describes how process output was truncated.
+type ProcessTruncation struct {
+	OriginalBytes int    `json:"original_bytes"`
+	RetainedBytes int    `json:"retained_bytes"`
+	OmittedBytes  int    `json:"omitted_bytes"`
+	Strategy      string `json:"strategy"`
+}
+
+// SignalProcessRequest is the request body for signaling a
+// process on the workspace agent.
+type SignalProcessRequest struct {
+	Signal string `json:"signal"`
+}
+
 type LSRequest struct {
 	// e.g. [], ["repos", "coder"],
 	Path []string `json:"path"`
@@ -679,6 +738,73 @@ type FileEdits struct {
 
 type FileEditRequest struct {
 	Files []FileEdits `json:"files"`
+}
+
+// StartProcess starts a new process on the workspace agent.
+func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/processes/start", req)
+	if err != nil {
+		return StartProcessResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return StartProcessResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp StartProcessResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ListProcesses returns information about tracked processes on the agent.
+func (c *agentConn) ListProcesses(ctx context.Context) (ListProcessesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/processes/list", nil)
+	if err != nil {
+		return ListProcessesResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListProcessesResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ListProcessesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ProcessOutput returns the output of a tracked process on the agent.
+func (c *agentConn) ProcessOutput(ctx context.Context, id string) (ProcessOutputResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/processes/"+id+"/output", nil)
+	if err != nil {
+		return ProcessOutputResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ProcessOutputResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp ProcessOutputResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// SignalProcess sends a signal to a tracked process on the agent.
+func (c *agentConn) SignalProcess(ctx context.Context, id string, signal string) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/processes/"+id+"/signal", SignalProcessRequest{Signal: signal})
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	var m codersdk.Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return xerrors.Errorf("decode response body: %w", err)
+	}
+	return nil
 }
 
 // EditFiles performs search and replace edits on one or more files.

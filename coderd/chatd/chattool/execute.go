@@ -2,32 +2,80 @@ package chattool
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"regexp"
 	"time"
 
 	"charm.land/fantasy"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
-	defaultExecuteTimeout    = 60 * time.Second
-	chatAgentEnvVar          = "CODER_CHAT_AGENT"
-	gitAuthRequiredPrefix    = "CODER_GITAUTH_REQUIRED:"
-	authRequiredResultReason = "authentication_required"
+	// defaultTimeout is the default timeout for command
+	// execution.
+	defaultTimeout = 10 * time.Second
+
+	// maxOutputToModel is the maximum output sent to the LLM.
+	maxOutputToModel = 32 << 10 // 32KB
+
+	// pollInterval is how often we check for process completion
+	// in foreground mode.
+	pollInterval = 200 * time.Millisecond
 )
 
+// nonInteractiveEnvVars are set on every process to prevent
+// interactive prompts that would hang a headless execution.
+var nonInteractiveEnvVars = map[string]string{
+	"GIT_EDITOR":          "true",
+	"GIT_SEQUENCE_EDITOR": "true",
+	"EDITOR":              "true",
+	"VISUAL":              "true",
+	"GIT_TERMINAL_PROMPT": "0",
+	"NO_COLOR":            "1",
+	"TERM":                "dumb",
+	"PAGER":               "cat",
+	"GIT_PAGER":           "cat",
+}
+
+// fileDumpPatterns detects commands that dump entire files.
+// When matched, a note is added suggesting read_file instead.
+var fileDumpPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`^cat\s+`),
+	regexp.MustCompile(`^(rg|grep)\s+.*--include-all`),
+	regexp.MustCompile(`^(rg|grep)\s+-l\s+`),
+}
+
+// ExecuteResult is the structured response from the execute
+// tool.
+type ExecuteResult struct {
+	Success             bool                           `json:"success"`
+	Output              string                         `json:"output,omitempty"`
+	ExitCode            int                            `json:"exit_code"`
+	WallDurationMs      int64                          `json:"wall_duration_ms"`
+	Error               string                         `json:"error,omitempty"`
+	Truncated           *workspacesdk.ProcessTruncation `json:"truncated,omitempty"`
+	Note                string                         `json:"note,omitempty"`
+	BackgroundProcessID string                         `json:"background_process_id,omitempty"`
+}
+
+// ExecuteOptions configures the execute tool.
 type ExecuteOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	DefaultTimeout   time.Duration
 }
 
+// ExecuteArgs are the parameters accepted by the execute tool.
 type ExecuteArgs struct {
-	Command        string `json:"command"`
-	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
+	Command         string  `json:"command"`
+	Timeout         *string `json:"timeout,omitempty"`
+	WorkDir         *string `json:"workdir,omitempty"`
+	RunInBackground *bool   `json:"run_in_background,omitempty"`
 }
 
+// Execute returns an AgentTool that runs a shell command in the
+// workspace via the agent HTTP API.
 func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"execute",
@@ -49,85 +97,200 @@ func executeTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args ExecuteArgs,
-	defaultTimeout time.Duration,
+	optTimeout time.Duration,
 ) fantasy.ToolResponse {
 	if args.Command == "" {
 		return fantasy.NewTextErrorResponse("command is required")
 	}
 
-	timeout := defaultTimeout
-	if timeout <= 0 {
-		timeout = defaultExecuteTimeout
+	// Build the environment map for the process request.
+	env := make(map[string]string, len(nonInteractiveEnvVars)+1)
+	env["CODER_CHAT_AGENT"] = "true"
+	for k, v := range nonInteractiveEnvVars {
+		env[k] = v
 	}
-	if args.TimeoutSeconds != nil {
-		timeout = time.Duration(*args.TimeoutSeconds) * time.Second
-	}
-	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 
-	output, exitCode, err := runCommand(cmdCtx, conn, args.Command)
-	if err != nil {
-		return fantasy.NewTextErrorResponse(err.Error())
+	background := args.RunInBackground != nil && *args.RunInBackground
+
+	var workDir string
+	if args.WorkDir != nil {
+		workDir = *args.WorkDir
 	}
-	return toolResponse(map[string]any{
-		"output":    output,
-		"exit_code": exitCode,
-	})
+
+	if background {
+		return executeBackground(ctx, conn, args.Command, workDir, env)
+	}
+	return executeForeground(ctx, conn, args, optTimeout, workDir, env)
 }
 
-func runCommand(
+// executeBackground starts a process in the background and
+// returns immediately with the process ID.
+func executeBackground(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	command string,
-) (string, int, error) {
-	sshClient, err := conn.SSHClient(ctx)
+	workDir string,
+	env map[string]string,
+) fantasy.ToolResponse {
+	resp, err := conn.StartProcess(ctx, workspacesdk.StartProcessRequest{
+		Command:    command,
+		WorkDir:    workDir,
+		Env:        env,
+		Background: true,
+	})
 	if err != nil {
-		return "", 0, err
+		return errorResult(fmt.Sprintf("start background process: %v", err))
 	}
-	defer sshClient.Close()
 
-	session, err := sshClient.NewSession()
+	result := ExecuteResult{
+		Success:             true,
+		BackgroundProcessID: resp.ID,
+	}
+	data, err := json.Marshal(result)
 	if err != nil {
-		return "", 0, err
+		return fantasy.NewTextErrorResponse(err.Error())
 	}
-	defer session.Close()
-	if err := session.Setenv(chatAgentEnvVar, "true"); err != nil {
-		return "", 0, xerrors.Errorf("set %s: %w", chatAgentEnvVar, err)
+	return fantasy.NewTextResponse(string(data))
+}
+
+// executeForeground starts a process and polls for its
+// completion, enforcing the configured timeout.
+func executeForeground(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	args ExecuteArgs,
+	optTimeout time.Duration,
+	workDir string,
+	env map[string]string,
+) fantasy.ToolResponse {
+	timeout := optTimeout
+	if timeout <= 0 {
+		timeout = defaultTimeout
 	}
-
-	resultCh := make(chan struct {
-		output   string
-		exitCode int
-		err      error
-	}, 1)
-
-	go func() {
-		output, err := session.CombinedOutput(command)
-		exitCode := 0
+	if args.Timeout != nil {
+		parsed, err := time.ParseDuration(*args.Timeout)
 		if err != nil {
-			var exitErr *ssh.ExitError
-			if xerrors.As(err, &exitErr) {
-				exitCode = exitErr.ExitStatus()
-			} else {
-				exitCode = 1
+			return fantasy.NewTextErrorResponse(
+				fmt.Sprintf("invalid timeout %q: %v", *args.Timeout, err),
+			)
+		}
+		timeout = parsed
+	}
+
+	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	start := time.Now()
+
+	resp, err := conn.StartProcess(cmdCtx, workspacesdk.StartProcessRequest{
+		Command:    args.Command,
+		WorkDir:    workDir,
+		Env:        env,
+		Background: false,
+	})
+	if err != nil {
+		return errorResult(fmt.Sprintf("start process: %v", err))
+	}
+
+	result := pollProcess(cmdCtx, conn, resp.ID, timeout)
+	result.WallDurationMs = time.Since(start).Milliseconds()
+
+	// Add an advisory note for file-dump commands.
+	if note := detectFileDump(args.Command); note != "" {
+		result.Note = note
+	}
+
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error())
+	}
+	return fantasy.NewTextResponse(string(data))
+}
+
+// pollProcess polls for process output until the process exits
+// or the context times out.
+func pollProcess(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	processID string,
+	timeout time.Duration,
+) ExecuteResult {
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Timeout — get whatever output we have. Use a
+			// fresh context since cmdCtx is already canceled.
+			bgCtx, bgCancel := context.WithTimeout(
+				context.Background(),
+				5*time.Second,
+			)
+			defer bgCancel()
+
+			outputResp, _ := conn.ProcessOutput(bgCtx, processID)
+			output := outputResp.Output
+			if len(output) > maxOutputToModel {
+				output = output[:maxOutputToModel]
+			}
+			return ExecuteResult{
+				Success:   false,
+				Output:    output,
+				ExitCode:  -1,
+				Error:     fmt.Sprintf("command timed out after %s", timeout),
+				Truncated: outputResp.Truncated,
+			}
+		case <-ticker.C:
+			outputResp, err := conn.ProcessOutput(ctx, processID)
+			if err != nil {
+				return ExecuteResult{
+					Success: false,
+					Error:   fmt.Sprintf("get process output: %v", err),
+				}
+			}
+			if !outputResp.Running {
+				exitCode := 0
+				if outputResp.ExitCode != nil {
+					exitCode = *outputResp.ExitCode
+				}
+				output := outputResp.Output
+				if len(output) > maxOutputToModel {
+					output = output[:maxOutputToModel]
+				}
+				return ExecuteResult{
+					Success:   exitCode == 0,
+					Output:    output,
+					ExitCode:  exitCode,
+					Truncated: outputResp.Truncated,
+				}
 			}
 		}
-		resultCh <- struct {
-			output   string
-			exitCode int
-			err      error
-		}{
-			output:   string(output),
-			exitCode: exitCode,
-			err:      err,
-		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		_ = session.Close()
-		return "", 0, ctx.Err()
-	case result := <-resultCh:
-		return result.output, result.exitCode, result.err
 	}
+}
+
+// errorResult builds a ToolResponse from an ExecuteResult with
+// an error message.
+func errorResult(msg string) fantasy.ToolResponse {
+	data, err := json.Marshal(ExecuteResult{
+		Success: false,
+		Error:   msg,
+	})
+	if err != nil {
+		return fantasy.NewTextErrorResponse(msg)
+	}
+	return fantasy.NewTextResponse(string(data))
+}
+
+// detectFileDump checks whether the command matches a file-dump
+// pattern and returns an advisory note, or empty string if no
+// match.
+func detectFileDump(command string) string {
+	for _, pat := range fileDumpPatterns {
+		if pat.MatchString(command) {
+			return "Consider using read_file instead of " +
+				"dumping file contents with shell commands."
+		}
+	}
+	return ""
 }
