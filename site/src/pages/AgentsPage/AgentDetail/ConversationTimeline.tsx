@@ -510,6 +510,7 @@ const StickyUserMessage: FC<{
 	// the overlay appears. Without this, the async
 	// IntersectionObserver + RAF-throttled scroll handler can
 	// leave a stale --clip-h for one paint.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: isStuck is an intentional trigger
 	useLayoutEffect(() => {
 		updateFnRef.current?.();
 	}, [isStuck]);
