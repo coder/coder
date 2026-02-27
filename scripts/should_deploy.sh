@@ -13,22 +13,30 @@ cdroot
 
 deploy_branch=main
 
-# --- BEGIN TEMPORARY SHORT-CIRCUIT ---
-# Forces deployment of main between 2026-02-27T18:00Z and 2026-03-04T12:00Z.
-# Remove after 2026-03-04T12:00Z.
-now=$(date -u +%s)
-window_start=$(date -u -d '2026-02-27T18:00:00Z' +%s)
-window_end=$(date -u -d '2026-03-04T12:00:00Z' +%s)
-if [[ "$now" -ge "$window_start" && "$now" -le "$window_end" ]]; then
-  log "TEMPORARY SHORT-CIRCUIT: deploying main (window ends 2026-03-04T12:00Z)"
-  echo "DEPLOY"
-  exit 0
-fi
-# --- END TEMPORARY SHORT-CIRCUIT ---
-
 # Determine the current branch name and check that it is one of the supported
 # branch names.
 branch_name=$(git branch --show-current)
+
+# --- BEGIN TEMPORARY SHORT-CIRCUIT ---
+# Forces deployment of main between 2026-02-27T16:00Z and 2026-03-04T12:00Z.
+# Remove after 2026-03-04T12:00Z.
+if [[ "$branch_name" == "main" ]]; then
+	log "TEMPORARY SHORT-CIRCUIT: deploying main (window ends 2026-03-04T12:00Z)"
+	now=$(date -u +%s)
+	window_start=$(date -u -d '2026-02-27T16:00:00Z' +%s)
+	window_end=$(date -u -d '2026-03-04T12:00:00Z' +%s)
+	if [[ "$now" -ge "$window_start" && "$now" -le "$window_end" ]]; then
+		log "VERDICT: DEPLOY"
+		echo "DEPLOY"
+		exit 0
+	fi
+else
+	log "VERDICT: DO NOT DEPLOY"
+	echo "NOOP"
+	exit 0
+fi
+# --- END TEMPORARY SHORT-CIRCUIT ---
+
 if [[ "$branch_name" != "main" && ! "$branch_name" =~ ^release/[0-9]+\.[0-9]+$ ]]; then
 	error "Current branch '$branch_name' is not a supported branch name for dogfood, must be 'main' or 'release/x.y'"
 fi
