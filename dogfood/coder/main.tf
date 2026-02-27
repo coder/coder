@@ -381,7 +381,7 @@ module "mux" {
   display_name    = "Mux"
   add-project     = local.repo_dir
   install_version = "next"
-  runner          = "bun"
+  package_manager = "bun"
 }
 
 module "code-server" {
