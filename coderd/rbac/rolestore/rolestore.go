@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type customRoleCtxKey struct{}
@@ -168,7 +169,12 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 // (LockIDReconcileSystemRoles) to safely handle multi-instance
 // deployments. Uses set-based comparison to avoid unnecessary
 // database writes when permissions haven't changed.
-func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Store) error {
+func ReconcileSystemRoles(
+	ctx context.Context,
+	log slog.Logger,
+	db database.Store,
+	deploymentValues *codersdk.DeploymentValues,
+) error {
 	return db.InTx(func(tx database.Store) error {
 		// Acquire advisory lock to prevent concurrent updates from
 		// multiple coderd instances. Other instances will block here
@@ -219,7 +225,8 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 				continue
 			}
 
-			_, _, err := ReconcileOrgMemberRole(ctx, tx, role, org.WorkspaceSharingDisabled)
+			workspaceSharingDisabled := bool(deploymentValues.DisableWorkspaceSharing) || org.WorkspaceSharingDisabled
+			_, _, err := ReconcileOrgMemberRole(ctx, tx, role, workspaceSharingDisabled)
 			if err != nil {
 				return xerrors.Errorf("reconcile organization-member role for organization %s: %w",
 					org.ID, err)

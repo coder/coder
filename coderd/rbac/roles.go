@@ -244,6 +244,7 @@ func SystemRoleName(name string) bool {
 
 type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
+	NoWorkspaceSharing   bool
 }
 
 // ReservedRoleName exists because the database should only allow unique role
@@ -267,12 +268,21 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		opts = &RoleOptions{}
 	}
 
-	ownerWorkspaceActions := ResourceWorkspace.AvailableActions()
+	allWorkspaceActions := ResourceWorkspace.AvailableActions()
+	if opts.NoWorkspaceSharing {
+		// If sharing is globally disabled at startup, then we should exclude the
+		// share permission from workspaces entirely.
+		allWorkspaceActions = slice.Omit(allWorkspaceActions, policy.ActionShare)
+	}
+
+	deploymentOwnerWorkspacePermissions := allWorkspaceActions
 	if opts.NoOwnerWorkspaceExec {
 		// Remove ssh and application connect from the owner role. This
 		// prevents owners from have exec access to all workspaces.
-		ownerWorkspaceActions = slice.Omit(ownerWorkspaceActions,
-			policy.ActionApplicationConnect, policy.ActionSSH)
+		deploymentOwnerWorkspacePermissions = slice.Omit(
+			deploymentOwnerWorkspacePermissions,
+			policy.ActionApplicationConnect, policy.ActionSSH,
+		)
 	}
 
 	// Static roles that never change should be allocated in a closure.
@@ -286,16 +296,20 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Workspace dormancy and workspace are omitted.
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
 			// Owners cannot access other users' secrets.
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUsageEvent, ResourceBoundaryUsage),
+			allPermsExcept(
+				ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace,
+				ResourceUserSecret, ResourceUsageEvent, ResourceBoundaryUsage,
+			),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
-				ResourceWorkspace.Type:        ownerWorkspaceActions,
+				ResourceWorkspace.Type:        deploymentOwnerWorkspacePermissions,
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 				// PrebuiltWorkspaces are a subset of Workspaces.
 				// Explicitly setting PrebuiltWorkspace permissions for clarity.
 				// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 				ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
-			})...),
+			})...,
+		),
 		User:    []Permission{},
 		ByOrgID: map[string]OrgPermissions{},
 	}.withCachedRegoValue()
@@ -309,7 +323,12 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceOauth2App.Type:      {policy.ActionRead},
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
 		}),
-		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceBoundaryUsage),
+		User: append(
+			allPermsExcept(
+				ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace,
+				ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember,
+				ResourceBoundaryUsage,
+			),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -433,14 +452,20 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ByOrgID: map[string]OrgPermissions{
 					// Org admins should not have workspace exec perms.
 					organizationID.String(): {
-						Org: append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage), Permissions(map[string][]policy.Action{
-							ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
-							ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
-							// PrebuiltWorkspaces are a subset of Workspaces.
-							// Explicitly setting PrebuiltWorkspace permissions for clarity.
-							// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
-							ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
-						})...),
+						Org: append(
+							allPermsExcept(
+								ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace,
+								ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage,
+							),
+							Permissions(map[string][]policy.Action{
+								ResourceWorkspace.Type:        slice.Omit(allWorkspaceActions, policy.ActionApplicationConnect, policy.ActionSSH),
+								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
+								// PrebuiltWorkspaces are a subset of Workspaces.
+								// Explicitly setting PrebuiltWorkspace permissions for clarity.
+								// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
+								ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
+							})...,
+						),
 						Member: []Permission{},
 					},
 				},
@@ -933,6 +958,8 @@ func PermissionsEqual(a, b []Permission) bool {
 func OrgMemberPermissions(workspaceSharingDisabled bool) (
 	orgPerms, memberPerms []Permission,
 ) {
+	allWorkspaceActions := ResourceWorkspace.AvailableActions()
+
 	// Organization-level permissions that all org members get.
 	orgPermMap := map[string][]policy.Action{
 		// All users can see provisioner daemons for workspace creation.
@@ -943,9 +970,13 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
 	}
 
-	// When workspace sharing is enabled, members need to see other org members
-	// and groups to share workspaces with them.
-	if !workspaceSharingDisabled {
+	if workspaceSharingDisabled {
+		// If sharing is globally disabled at startup, then we should exclude the
+		// share permission from workspaces entirely.
+		allWorkspaceActions = slice.Omit(allWorkspaceActions, policy.ActionShare)
+	} else {
+		// When workspace sharing is enabled, members need to see other org members
+		// and groups to share workspaces with them.
 		orgPermMap[ResourceOrganizationMember.Type] = []policy.Action{policy.ActionRead}
 		orgPermMap[ResourceGroup.Type] = []policy.Action{policy.ActionRead}
 	}
@@ -956,12 +987,14 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 	// Uses allPermsExcept to automatically include permissions for new resources.
 	memberPerms = append(
 		allPermsExcept(
+			ResourceWorkspace,
 			ResourceWorkspaceDormant,
 			ResourcePrebuiltWorkspace,
 			ResourceUser,
 			ResourceOrganizationMember,
 		),
 		Permissions(map[string][]policy.Action{
+			ResourceWorkspace.Type: allWorkspaceActions,
 			// Reduced permission set on dormant workspaces. No build,
 			// ssh, or exec.
 			ResourceWorkspaceDormant.Type: {
@@ -991,17 +1024,6 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 			},
 		})...,
 	)
-
-	if workspaceSharingDisabled {
-		// Org-level negation blocks sharing on ANY workspace in the
-		// org.  This overrides any positive permission from other
-		// roles, including org-admin.
-		orgPerms = append(orgPerms, Permission{
-			Negate:       true,
-			ResourceType: ResourceWorkspace.Type,
-			Action:       policy.ActionShare,
-		})
-	}
 
 	return orgPerms, memberPerms
 }

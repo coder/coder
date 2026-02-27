@@ -329,9 +329,11 @@ func New(options *Options) *API {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
 
-	if options.DeploymentValues.DisableOwnerWorkspaceExec {
+	fmt.Println(options.DeploymentValues.DisableWorkspaceSharing)
+	if options.DeploymentValues.DisableOwnerWorkspaceExec || options.DeploymentValues.DisableWorkspaceSharing {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-			NoOwnerWorkspaceExec: true,
+			NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
+			NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
 		})
 	}
 
@@ -575,7 +577,12 @@ func New(options *Options) *API {
 	// Ensure all system role permissions are current.
 	//nolint:gocritic // Startup reconciliation reads/writes system roles. There is
 	// no user request context here, so use a system-restricted context.
-	err = rolestore.ReconcileSystemRoles(dbauthz.AsSystemRestricted(ctx), options.Logger, options.Database)
+	err = rolestore.ReconcileSystemRoles(
+		dbauthz.AsSystemRestricted(ctx),
+		options.Logger,
+		options.Database,
+		options.DeploymentValues,
+	)
 	if err != nil {
 		// Not ideal, but not using Fatal here and just continuing
 		// after logging the error would be a potential security hole.
