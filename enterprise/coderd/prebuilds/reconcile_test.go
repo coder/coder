@@ -1272,6 +1272,162 @@ func TestValidationFailedPresets(t *testing.T) {
 	checkMetric(tplE.Name, presetE.Name, false)
 }
 
+// TestValidationFailedPresetResets verifies that when a preset is marked as
+// validation_failed and a new template version is promoted, the new preset
+// starts healthy and the validation_failed metric is cleared.
+func TestValidationFailedPresetResets(t *testing.T) {
+	t.Parallel()
+
+	clock := quartz.NewMock(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	cfg := codersdk.PrebuildsConfig{}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, pubSub := dbtestutil.NewDB(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	registry := prometheus.NewRegistry()
+
+	ownerID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: ownerID,
+	})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         ownerID,
+	})
+
+	// Create a template with a required param that will cause validation failure.
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      ownerID,
+		Name:           "tpl-version-reset",
+	})
+
+	job1 := dbgen.ProvisionerJob(t, db, pubSub, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		CompletedAt:    sql.NullTime{Time: clock.Now().Add(earlier), Valid: true},
+		InitiatorID:    ownerID,
+	})
+	tv1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		JobID:          job1.ID,
+		CreatedBy:      ownerID,
+	})
+	require.NoError(t, db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+		ID:              tpl.ID,
+		ActiveVersionID: tv1.ID,
+	}))
+
+	// Add a required param with no default, this triggers validation failure.
+	dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+		TemplateVersionID: tv1.ID,
+		Name:              "required_param",
+		Description:       "required param to trigger validation failure",
+		Type:              "bool",
+		DefaultValue:      "",
+		Required:          true,
+	})
+
+	preset1 := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: tv1.ID,
+		Name:              "preset-test",
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+
+	reconciler := prebuilds.NewStoreReconciler(
+		db, pubSub, cache, cfg, logger,
+		clock,
+		registry,
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+		nil,
+	)
+
+	// First reconcile: preset gets marked as validation_failed.
+	_, err := reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify preset is marked as validation_failed in the database.
+	updatedPreset, err := db.GetPresetByID(ctx, preset1.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.PrebuildStatusValidationFailed, updatedPreset.PrebuildStatus)
+
+	// Second reconcile: metrics snapshot picks up the validation_failed status.
+	_, err = reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Verify metric is set.
+	require.NoError(t, reconciler.ForceMetricsUpdate(ctx))
+	mf, err := registry.Gather()
+	require.NoError(t, err)
+	metric := findMetric(mf, prebuilds.MetricPresetValidationFailedGauge, map[string]string{
+		"template_name":     tpl.Name,
+		"preset_name":       preset1.Name,
+		"organization_name": org.Name,
+	})
+	require.NotNil(t, metric)
+	require.EqualValues(t, 1, metric.GetGauge().GetValue())
+
+	// Promote a new template version without the problematic param.
+	job2 := dbgen.ProvisionerJob(t, db, pubSub, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		CompletedAt:    sql.NullTime{Time: clock.Now().Add(earlier), Valid: true},
+		InitiatorID:    ownerID,
+	})
+	tv2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		JobID:          job2.ID,
+		CreatedBy:      ownerID,
+	})
+	require.NoError(t, db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+		ID:              tpl.ID,
+		ActiveVersionID: tv2.ID,
+	}))
+
+	// Create a preset on the new version.
+	preset2 := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: tv2.ID,
+		Name:              "preset-test", // same name, new version
+		DesiredInstances:  sql.NullInt32{Int32: 1, Valid: true},
+	})
+
+	// Reconcile with the new version active.
+	_, err = reconciler.ReconcileAll(ctx)
+	require.NoError(t, err)
+
+	// Old preset stays validation_failed (it's now inactive, won't be reset).
+	oldPreset, err := db.GetPresetByID(ctx, preset1.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.PrebuildStatusValidationFailed, oldPreset.PrebuildStatus)
+
+	// New preset is healthy.
+	newPreset, err := db.GetPresetByID(ctx, preset2.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.PrebuildStatusHealthy, newPreset.PrebuildStatus)
+
+	// Metric should be cleared: the old preset is inactive, so it's no longer reported.
+	require.NoError(t, reconciler.ForceMetricsUpdate(ctx))
+	mf, err = registry.Gather()
+	require.NoError(t, err)
+	metric = findMetric(mf, prebuilds.MetricPresetValidationFailedGauge, map[string]string{
+		"template_name":     tpl.Name,
+		"preset_name":       preset1.Name,
+		"organization_name": org.Name,
+	})
+	require.Nil(t, metric)
+
+	// New preset should have a workspace created.
+	workspaces, err := db.GetWorkspacesByTemplateID(ctx, tpl.ID)
+	require.NoError(t, err)
+	require.Len(t, workspaces, 1)
+}
+
 func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 	t.Parallel()
 
