@@ -151,7 +151,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 				</Sidebar>
 
 				<ScrollArea>
-					<div className="flex items-center justify-between border-b border-solid border-border">
+					<div className="flex items-center justify-between border-0 border-b border-solid border-border">
 						<Tabs active={tabState.value}>
 							<TabsList className="gap-0">
 								<TabLink
