@@ -1,13 +1,13 @@
 import { watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
+	archiveChat,
 	chatKey,
 	chatModelConfigs,
 	chatModels,
 	chats,
 	chatsKey,
 	createChat,
-	archiveChat,
 } from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
