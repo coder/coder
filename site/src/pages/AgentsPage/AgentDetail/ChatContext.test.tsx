@@ -1028,12 +1028,7 @@ describe("useChatStore", () => {
 
 		// A message event with the correct chat_id should be processed
 		// and trigger scheduleStreamReset, clearing stream state.
-		const matchingMessage = makeMessage(
-			chatID,
-			2,
-			"assistant",
-			"correct chat",
-		);
+		const matchingMessage = makeMessage(chatID, 2, "assistant", "correct chat");
 		act(() => {
 			mockSocket.emitData({
 				type: "message",
@@ -1180,10 +1175,7 @@ describe("useChatStore", () => {
 			(options: Parameters<typeof useChatStore>[0]) => {
 				const { store } = useChatStore(options);
 				return {
-					queuedMessages: useChatSelector(
-						store,
-						selectQueuedMessages,
-					),
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
 				};
 			},
 			{ initialProps: initialOptions, wrapper },
