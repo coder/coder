@@ -542,28 +542,18 @@ func TestTools(t *testing.T) {
 
 		tmpdir := os.TempDir()
 		filePath := filepath.Join(tmpdir, "file")
-		err = afero.WriteFile(fs, filePath, []byte("content"), 0o644)
-		require.NoError(t, err)
-
-		largeFilePath := filepath.Join(tmpdir, "large")
-		largeFile, err := fs.Create(largeFilePath)
-		require.NoError(t, err)
-		err = largeFile.Truncate(1 << 21)
-		require.NoError(t, err)
-
-		imagePath := filepath.Join(tmpdir, "file.png")
-		err = afero.WriteFile(fs, imagePath, []byte("not really an image"), 0o644)
+		err = afero.WriteFile(fs, filePath, []byte("line1\nline2\nline3\n"), 0o644)
 		require.NoError(t, err)
 
 		tests := []struct {
-			name     string
-			path     string
-			limit    int64
-			offset   int64
-			mimeType string
-			bytes    []byte
-			length   int
-			error    string
+			name      string
+			path      string
+			limit     int64
+			offset    int64
+			success   bool
+			content   string
+			linesRead int
+			error     string
 		}{
 			{
 				name:  "NonExistent",
@@ -571,36 +561,20 @@ func TestTools(t *testing.T) {
 				error: "file does not exist",
 			},
 			{
-				name:     "Exists",
-				path:     filePath,
-				bytes:    []byte("content"),
-				mimeType: "application/octet-stream",
+				name:      "Exists",
+				path:      filePath,
+				success:   true,
+				content:   "line1\nline2\nline3\n",
+				linesRead: 3,
 			},
 			{
-				name:     "Limit1Offset2",
-				path:     filePath,
-				limit:    1,
-				offset:   2,
-				bytes:    []byte("n"),
-				mimeType: "application/octet-stream",
-			},
-			{
-				name:     "DefaultMaxLimit",
-				path:     largeFilePath,
-				length:   1 << 20,
-				mimeType: "application/octet-stream",
-			},
-			{
-				name:  "ExceedMaxLimit",
-				path:  filePath,
-				limit: 1 << 21,
-				error: "limit must be 1048576 or less, got 2097152",
-			},
-			{
-				name:     "ImageMimeType",
-				path:     imagePath,
-				bytes:    []byte("not really an image"),
-				mimeType: "image/png",
+				name:      "Limit1Offset2",
+				path:      filePath,
+				limit:     1,
+				offset:    2,
+				success:   true,
+				content:   "line2\n",
+				linesRead: 1,
 			},
 		}
 
@@ -619,13 +593,13 @@ func TestTools(t *testing.T) {
 					require.Contains(t, err.Error(), tt.error)
 				} else {
 					require.NoError(t, err)
-					if tt.length != 0 {
-						require.Len(t, resp.Content, tt.length)
+					require.True(t, resp.Success)
+					if tt.content != "" {
+						require.Equal(t, tt.content, resp.Content)
 					}
-					if tt.bytes != nil {
-						require.Equal(t, tt.bytes, resp.Content)
+					if tt.linesRead != 0 {
+						require.Equal(t, tt.linesRead, resp.LinesRead)
 					}
-					require.Equal(t, tt.mimeType, resp.MimeType)
 				}
 			})
 		}

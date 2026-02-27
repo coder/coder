@@ -2,7 +2,6 @@ package chattool
 
 import (
 	"context"
-	"io"
 
 	"charm.land/fantasy"
 
@@ -22,7 +21,10 @@ type ReadFileArgs struct {
 func ReadFile(options ReadFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"read_file",
-		"Read a file from the workspace.",
+		"Read a file from the workspace. Returns line-numbered content. "+
+			"The offset parameter is a 1-based line number (default: 1). "+
+			"The limit parameter is the number of lines to return (default: 2000). "+
+			"For large files, use offset and limit to paginate.",
 		func(ctx context.Context, args ReadFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -45,8 +47,8 @@ func executeReadFileTool(
 		return fantasy.NewTextErrorResponse("path is required"), nil
 	}
 
-	offset := int64(0)
-	limit := int64(0)
+	offset := int64(1) // 1-based line number default
+	limit := int64(0)  // 0 means use server default (2000)
 	if args.Offset != nil {
 		offset = *args.Offset
 	}
@@ -54,19 +56,19 @@ func executeReadFileTool(
 		limit = *args.Limit
 	}
 
-	reader, mimeType, err := conn.ReadFile(ctx, args.Path, offset, limit)
+	resp, err := conn.ReadFileLines(ctx, args.Path, offset, limit)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
-	defer reader.Close()
 
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return fantasy.NewTextErrorResponse(err.Error()), nil
+	if !resp.Success {
+		return fantasy.NewTextErrorResponse(resp.Error), nil
 	}
 
 	return toolResponse(map[string]any{
-		"content":   string(data),
-		"mime_type": mimeType,
+		"content":     resp.Content,
+		"file_size":   resp.FileSize,
+		"total_lines": resp.TotalLines,
+		"lines_read":  resp.LinesRead,
 	}), nil
 }

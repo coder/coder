@@ -1475,12 +1475,13 @@ type WorkspaceReadFileArgs struct {
 }
 
 type WorkspaceReadFileResponse struct {
-	// Content is the base64-encoded bytes from the file.
-	Content  []byte `json:"content"`
-	MimeType string `json:"mimeType"`
+	Success    bool   `json:"success"`
+	FileSize   int64  `json:"file_size,omitempty"`
+	TotalLines int    `json:"total_lines,omitempty"`
+	LinesRead  int    `json:"lines_read,omitempty"`
+	Content    string `json:"content,omitempty"`
+	Error      string `json:"error,omitempty"`
 }
-
-const maxFileLimit = 1 << 20 // 1MiB
 
 var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 	Tool: aisdk.Tool{
@@ -1498,11 +1499,11 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 				},
 				"offset": map[string]any{
 					"type":        "integer",
-					"description": "A byte offset indicating where in the file to start reading. Defaults to zero. An empty string indicates the end of the file has been reached.",
+					"description": "A 1-based line number indicating where to start reading. Defaults to 1.",
 				},
 				"limit": map[string]any{
 					"type":        "integer",
-					"description": "The number of bytes to read. Cannot exceed 1 MiB. Defaults to the full size of the file or 1 MiB, whichever is lower.",
+					"description": "The number of lines to return. Defaults to 2000.",
 				},
 			},
 			Required: []string{"path", "workspace"},
@@ -1516,28 +1517,19 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 		}
 		defer conn.Close()
 
-		// Ideally we could stream this all the way back, but it looks like the MCP
-		// interfaces only allow returning full responses which means the whole
-		// thing has to be read into memory.  So, add a maximum limit to compensate.
-		limit := args.Limit
-		if limit == 0 {
-			limit = maxFileLimit
-		} else if limit > maxFileLimit {
-			return WorkspaceReadFileResponse{}, xerrors.Errorf("limit must be %d or less, got %d", maxFileLimit, limit)
-		}
-
-		reader, mimeType, err := conn.ReadFile(ctx, args.Path, args.Offset, limit)
+		resp, err := conn.ReadFileLines(ctx, args.Path, args.Offset, args.Limit)
 		if err != nil {
 			return WorkspaceReadFileResponse{}, err
 		}
-		defer reader.Close()
 
-		bs, err := io.ReadAll(reader)
-		if err != nil {
-			return WorkspaceReadFileResponse{}, xerrors.Errorf("read response body: %w", err)
-		}
-
-		return WorkspaceReadFileResponse{Content: bs, MimeType: mimeType}, nil
+		return WorkspaceReadFileResponse{
+			Success:    resp.Success,
+			FileSize:   resp.FileSize,
+			TotalLines: resp.TotalLines,
+			LinesRead:  resp.LinesRead,
+			Content:    resp.Content,
+			Error:      resp.Error,
+		}, nil
 	},
 }
 
