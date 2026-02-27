@@ -27,6 +27,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
+import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
 import {
 	selectChatStatus,
@@ -675,6 +676,17 @@ const AgentDetail: FC = () => {
 	const topBarActionsRef = outletContext?.topBarActionsRef;
 	const rightPanelRef = outletContext?.rightPanelRef;
 	const chatTitle = chatQuery.data?.chat?.title;
+
+	// Update the browser tab title when navigating to / between agents.
+	useEffect(() => {
+		document.title = chatTitle
+			? pageTitle(chatTitle, "Agents")
+			: pageTitle("Agents");
+		return () => {
+			document.title = pageTitle("Agents");
+		};
+	}, [chatTitle]);
+
 	const parentChatID = getParentChatID(chatQuery.data?.chat);
 	const parentChat = parentChatID
 		? chatsQuery.data?.find((chat) => chat.id === parentChatID)
