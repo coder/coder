@@ -391,7 +391,9 @@ NETWORKING OPTIONS:
 
       --host-prefix-cookie bool, $CODER_HOST_PREFIX_COOKIE (default: false)
           Recommended to be enabled. Enables `__Host-` prefix for cookies to
-          guarantee they are only set by the right domain.
+          guarantee they are only set by the right domain. This change is
+          disruptive to any workspaces built before release 1.31, requiring a
+          workspace restart.
 
 NETWORKING / DERP OPTIONS: 
 Most Coder deployments never have to think about DERP because all connections
