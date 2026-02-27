@@ -16,7 +16,14 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
-import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
@@ -70,12 +77,30 @@ const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
 ): message is TypesGen.ChatMessage => Boolean(message);
 
+const toOptimisticMessageParts = (
+	inputParts: readonly TypesGen.ChatInputPart[],
+): readonly TypesGen.ChatMessagePart[] =>
+	inputParts.map((part) => ({
+		type: "text",
+		...(part.text !== undefined ? { text: part.text } : {}),
+	}));
+
+const getOrderedMessagesFromStore = (
+	store: ChatStoreHandle,
+): readonly TypesGen.ChatMessage[] => {
+	const snapshot = store.getSnapshot();
+	return snapshot.orderedMessageIDs
+		.map((messageID) => snapshot.messagesByID.get(messageID))
+		.filter(isChatMessage);
+};
+
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
 	chatID: string;
 	persistedErrorReason: string | undefined;
 	onEditUserMessage?: (messageId: number, text: string) => void;
 	editingMessageId?: number | null;
+	savingMessageId?: number | null;
 }
 
 const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
@@ -84,6 +109,7 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	persistedErrorReason,
 	onEditUserMessage,
 	editingMessageId,
+	savingMessageId,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -149,6 +175,7 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 			detailErrorMessage={detailErrorMessage}
 			onEditUserMessage={onEditUserMessage}
 			editingMessageId={editingMessageId}
+			savingMessageId={savingMessageId}
 		/>
 	);
 };
@@ -262,6 +289,7 @@ interface AgentDetailConversationProps {
 	modelSelectorPlaceholder: string;
 	inputStatusText: string | null;
 	modelCatalogStatusMessage: string | null;
+	savingMessageId?: number | null;
 }
 
 const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
@@ -283,6 +311,7 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 	modelSelectorPlaceholder,
 	inputStatusText,
 	modelCatalogStatusMessage,
+	savingMessageId,
 }) => {
 	const [editRequest, setEditRequest] = useState<{
 		text: string;
@@ -290,9 +319,12 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 		key: number;
 	} | null>(null);
 
-	const handleEditUserMessage = useCallback((messageId: number, text: string) => {
-		setEditRequest({ text, messageId, key: Date.now() });
-	}, []);
+	const handleEditUserMessage = useCallback(
+		(messageId: number, text: string) => {
+			setEditRequest({ text, messageId, key: Date.now() });
+		},
+		[],
+	);
 
 	const handleEditCleared = useCallback(() => {
 		setEditRequest(null);
@@ -306,6 +338,7 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 				persistedErrorReason={persistedErrorReason}
 				onEditUserMessage={handleEditUserMessage}
 				editingMessageId={editRequest?.messageId ?? null}
+				savingMessageId={savingMessageId}
 			/>
 			<AgentDetailInput
 				store={store}
@@ -338,6 +371,9 @@ const AgentDetail: FC = () => {
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const [showDiffPanel, setShowDiffPanel] = useState(false);
+	const [pendingEditMessageId, setPendingEditMessageId] = useState<
+		number | null
+	>(null);
 	const chatErrorReasons = outletContext?.chatErrorReasons ?? {};
 	const setChatErrorReason =
 		outletContext?.setChatErrorReason ?? noopSetChatErrorReason;
@@ -435,9 +471,7 @@ const AgentDetail: FC = () => {
 	const sendMutation = useMutation(
 		createChatMessage(queryClient, agentId ?? ""),
 	);
-	const editMutation = useMutation(
-		editChatMessage(queryClient, agentId ?? ""),
-	);
+	const editMutation = useMutation(editChatMessage(queryClient, agentId ?? ""));
 	const interruptMutation = useMutation(
 		interruptChat(queryClient, agentId ?? ""),
 	);
@@ -503,7 +537,9 @@ const AgentDetail: FC = () => {
 			? "Models are configured but unavailable. Ask an admin."
 			: "No models configured. Ask an admin.";
 	const isSubmissionPending =
-		sendMutation.isPending || editMutation.isPending || interruptMutation.isPending;
+		sendMutation.isPending ||
+		editMutation.isPending ||
+		interruptMutation.isPending;
 	const isInputDisabled = !hasModelOptions;
 
 	const handleSend = async (message: string, editedMessageID?: number) => {
@@ -520,10 +556,39 @@ const AgentDetail: FC = () => {
 			const request: TypesGen.EditChatMessageRequest = { content };
 			clearChatErrorReason(agentId);
 			clearStreamError();
+			setPendingEditMessageId(editedMessageID);
 			if (scrollContainerRef.current) {
 				scrollContainerRef.current.scrollTop = 0;
 			}
-			await editMutation.mutateAsync({ messageId: editedMessageID, req: request });
+			const previousChatStatus = store.getSnapshot().chatStatus;
+			const previousMessages = getOrderedMessagesFromStore(store);
+			const messageIndex = previousMessages.findIndex(
+				(msg) => msg.id === editedMessageID,
+			);
+			if (messageIndex !== -1) {
+				const optimisticEditedMessage: TypesGen.ChatMessage = {
+					...previousMessages[messageIndex],
+					content: toOptimisticMessageParts(request.content),
+				};
+				store.replaceMessages([
+					...previousMessages.slice(0, messageIndex),
+					optimisticEditedMessage,
+				]);
+			}
+			store.clearStreamState();
+			store.setChatStatus("pending");
+			try {
+				await editMutation.mutateAsync({
+					messageId: editedMessageID,
+					req: request,
+				});
+			} catch (error) {
+				store.replaceMessages(previousMessages);
+				store.setChatStatus(previousChatStatus);
+				throw error;
+			} finally {
+				setPendingEditMessageId(null);
+			}
 			return;
 		}
 		const selectedModelConfigID =
@@ -556,6 +621,44 @@ const AgentDetail: FC = () => {
 		}
 		void interruptMutation.mutateAsync();
 	};
+
+	const handleDeleteQueuedMessage = useCallback(
+		async (id: number) => {
+			const previousQueuedMessages = store.getSnapshot().queuedMessages;
+			store.setQueuedMessages(
+				previousQueuedMessages.filter((message) => message.id !== id),
+			);
+			try {
+				await deleteQueuedMutation.mutateAsync(id);
+			} catch (error) {
+				store.setQueuedMessages(previousQueuedMessages);
+				throw error;
+			}
+		},
+		[deleteQueuedMutation, store],
+	);
+
+	const handlePromoteQueuedMessage = useCallback(
+		async (id: number) => {
+			const previousSnapshot = store.getSnapshot();
+			const previousQueuedMessages = previousSnapshot.queuedMessages;
+			const previousChatStatus = previousSnapshot.chatStatus;
+			store.setQueuedMessages(
+				previousQueuedMessages.filter((message) => message.id !== id),
+			);
+			store.clearStreamState();
+			store.clearStreamError();
+			store.setChatStatus("pending");
+			try {
+				await promoteQueuedMutation.mutateAsync(id);
+			} catch (error) {
+				store.setQueuedMessages(previousQueuedMessages);
+				store.setChatStatus(previousChatStatus);
+				throw error;
+			}
+		},
+		[promoteQueuedMutation, store],
+	);
 
 	const topBarTitleRef = outletContext?.topBarTitleRef;
 	const topBarActionsRef = outletContext?.topBarActionsRef;
@@ -733,12 +836,8 @@ const AgentDetail: FC = () => {
 						chatID={agentId}
 						persistedErrorReason={chatErrorReasons[agentId]}
 						compressionThreshold={compressionThreshold}
-						onDeleteQueuedMessage={async (id) => {
-							await deleteQueuedMutation.mutateAsync(id);
-						}}
-						onPromoteQueuedMessage={async (id) => {
-							await promoteQueuedMutation.mutateAsync(id);
-						}}
+						onDeleteQueuedMessage={handleDeleteQueuedMessage}
+						onPromoteQueuedMessage={handlePromoteQueuedMessage}
 						onSend={handleSend}
 						onInterrupt={handleInterrupt}
 						isInputDisabled={isInputDisabled}
@@ -751,6 +850,7 @@ const AgentDetail: FC = () => {
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						inputStatusText={inputStatusText}
 						modelCatalogStatusMessage={modelCatalogStatusMessage}
+						savingMessageId={pendingEditMessageId}
 					/>
 				</div>
 			</div>

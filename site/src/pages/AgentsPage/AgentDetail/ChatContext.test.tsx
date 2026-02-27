@@ -213,10 +213,14 @@ describe("useChatStore", () => {
 		});
 
 		act(() => {
+			const duplicateSnapshotMessage: TypesGen.ChatMessage = {
+				...existingMessage,
+				content: [...(existingMessage.content ?? [])],
+			};
 			mockSocket.emitData({
 				type: "message",
 				chat_id: chatID,
-				message: existingMessage,
+				message: duplicateSnapshotMessage,
 			});
 		});
 
@@ -294,6 +298,81 @@ describe("useChatStore", () => {
 				type: "message",
 				chat_id: chatID,
 				message: newMessage,
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState).toBeNull();
+		});
+	});
+
+	it("clears stream state when a duplicate message id arrives with new content", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-1";
+		const existingMessage = makeMessage(chatID, 1, "assistant", "old");
+		const updatedMessage = makeMessage(chatID, 1, "assistant", "updated");
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [existingMessage],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: {
+						type: "text",
+						text: "partial",
+					},
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "partial" },
+			]);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: updatedMessage,
 			});
 		});
 
@@ -468,6 +547,98 @@ describe("useChatStore", () => {
 			expect(result.current.streamState?.blocks).toEqual([
 				{ type: "response", text: "hello world" },
 			]);
+		});
+	});
+
+	it("ignores message_part updates while chat is pending", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-1";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [existingMessage],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: {
+						type: "text",
+						text: "first",
+					},
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "first" },
+			]);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "pending" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState).toBeNull();
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: {
+						type: "text",
+						text: "late",
+					},
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState).toBeNull();
 		});
 	});
 

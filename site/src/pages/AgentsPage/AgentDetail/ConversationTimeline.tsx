@@ -7,13 +7,14 @@ import {
 	Shimmer,
 	Tool,
 } from "components/ai-elements";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, Loader2Icon } from "lucide-react";
 import {
 	type FC,
 	memo,
 	type ReactNode,
 	type RefObject,
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
@@ -188,78 +189,123 @@ function renderBlockList({
 const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
-	isStuck?: boolean;
 	onEditUserMessage?: (messageId: number, text: string) => void;
 	editingMessageId?: number | null;
-}>(({ message, parsed, isStuck = false, onEditUserMessage, editingMessageId }) => {
-	const isUser = message.role === "user";
-	const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
+	savingMessageId?: number | null;
+	// When true, renders a gradient overlay inside the bubble
+	// that fades text out toward the bottom. Used by the sticky
+	// overlay to indicate truncated content.
+	fadeFromBottom?: boolean;
+}>(
+	({
+		message,
+		parsed,
+		onEditUserMessage,
+		editingMessageId,
+		savingMessageId,
+		fadeFromBottom = false,
+	}) => {
+		const isUser = message.role === "user";
+		const isSavingMessage = savingMessageId === message.id;
+		const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
 
-	if (
-		parsed.toolResults.length > 0 &&
-		parsed.toolCalls.length === 0 &&
-		parsed.markdown === "" &&
-		parsed.reasoning === ""
-	) {
-		return null;
-	}
+		if (
+			parsed.toolResults.length > 0 &&
+			parsed.toolCalls.length === 0 &&
+			parsed.markdown === "" &&
+			parsed.reasoning === ""
+		) {
+			return null;
+		}
 
-	const hasRenderableContent =
-		parsed.blocks.length > 0 || parsed.tools.length > 0;
-	const conversationItemProps: { role: "user" | "assistant" } = {
-		role: isUser ? "user" : "assistant",
-	};
-	const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
-		blocks: parsed.blocks,
-		toolByID,
-		keyPrefix: String(message.id),
-	});
-	const remainingTools = parsed.tools.filter(
-		(tool) => !renderedToolIDs.has(tool.id),
-	);
+		const hasRenderableContent =
+			parsed.blocks.length > 0 || parsed.tools.length > 0;
+		const conversationItemProps: { role: "user" | "assistant" } = {
+			role: isUser ? "user" : "assistant",
+		};
+		const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
+			blocks: parsed.blocks,
+			toolByID,
+			keyPrefix: String(message.id),
+		});
+		const remainingTools = parsed.tools.filter(
+			(tool) => !renderedToolIDs.has(tool.id),
+		);
 
-	return (
-		<ConversationItem {...conversationItemProps}>
-			{isUser ? (
-				<Message className="my-2 w-full max-w-none">
+		return (
+			<ConversationItem {...conversationItemProps}>
+				{isUser ? (
+					<Message className="my-2 w-full max-w-none">
 					<MessageContent
 						className={cn(
 							"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-all",
-							onEditUserMessage && "cursor-pointer hover:bg-surface-tertiary",
-							editingMessageId === message.id && "ring-2 ring-content-link/40",
+							onEditUserMessage &&
+								!isSavingMessage &&
+								"cursor-pointer hover:bg-surface-tertiary",
+							editingMessageId === message.id &&
+								"ring-2 ring-content-link/40",
+							isSavingMessage && "ring-2 ring-content-secondary/40",
+							fadeFromBottom && "relative overflow-hidden",
 						)}
-						onClick={onEditUserMessage ? () => onEditUserMessage(message.id, parsed.markdown || "") : undefined}
+						style={
+							fadeFromBottom
+								? { maxHeight: "var(--clip-h, none)" }
+								: undefined
+						}
+						onClick={
+							onEditUserMessage && !isSavingMessage
+								? () => onEditUserMessage(message.id, parsed.markdown || "")
+								: undefined
+						}
 					>
-						{parsed.markdown || ""}
-					</MessageContent>
-				</Message>
-			) : (
-				<Message className="w-full">
-					<MessageContent className="whitespace-normal">
-						<div className="space-y-3">
-							{orderedBlocks}
-							{remainingTools.map((tool) => (
-								<Tool
-									key={tool.id}
-									name={tool.name}
-									args={tool.args}
-									result={tool.result}
-									status={tool.status}
-									isError={tool.isError}
+							<div className="flex items-start gap-2">
+								<span className="min-w-0 flex-1">{parsed.markdown || ""}</span>
+								{isSavingMessage && (
+									<Loader2Icon
+										className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary"
+										aria-label="Saving message edit"
+									/>
+								)}
+							</div>
+							{fadeFromBottom && (
+								<div
+									className="pointer-events-none absolute inset-x-0 bottom-0 h-12"
+									style={{
+										background:
+											"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
+									}}
 								/>
-							))}
-							{!hasRenderableContent && (
-								<div className="text-xs text-content-secondary">
-									Message has no renderable content.
-								</div>
 							)}
-						</div>
-					</MessageContent>
-				</Message>
-			)}
-		</ConversationItem>
-	);
-});
+						</MessageContent>
+					</Message>
+				) : (
+					<Message className="w-full">
+						<MessageContent className="whitespace-normal">
+							<div className="space-y-3">
+								{orderedBlocks}
+								{remainingTools.map((tool) => (
+									<Tool
+										key={tool.id}
+										name={tool.name}
+										args={tool.args}
+										result={tool.result}
+										status={tool.status}
+										isError={tool.isError}
+									/>
+								))}
+								{!hasRenderableContent && (
+									<div className="text-xs text-content-secondary">
+										Message has no renderable content.
+									</div>
+								)}
+							</div>
+						</MessageContent>
+					</Message>
+				)}
+			</ConversationItem>
+		);
+	},
+);
 ChatMessageItem.displayName = "ChatMessageItem";
 
 const StreamingOutput = memo<{
@@ -338,13 +384,36 @@ const StickyUserMessage: FC<{
 	parsed: ParsedMessageContent;
 	onEditUserMessage?: (messageId: number, text: string) => void;
 	editingMessageId?: number | null;
-}> = ({ message, parsed, onEditUserMessage, editingMessageId }) => {
+	savingMessageId?: number | null;
+}> = ({
+	message,
+	parsed,
+	onEditUserMessage,
+	editingMessageId,
+	savingMessageId,
+}) => {
 	const [isStuck, setIsStuck] = useState(false);
+	const [isReady, setIsReady] = useState(false);
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	const containerRef = useRef<HTMLDivElement>(null);
 
-	useEffect(() => {
+	// useLayoutEffect so isStuck and --clip-h are both resolved
+	// before the browser paints, avoiding a flash on load.
+	useLayoutEffect(() => {
 		const sentinel = sentinelRef.current;
 		if (!sentinel) return;
+		// Immediate check so the first paint is correct when the
+		// sentinel is already scrolled out of view.
+		const scroller = sentinel.closest(".overflow-y-auto");
+		if (scroller) {
+			const stuck =
+				sentinel.getBoundingClientRect().top <
+				scroller.getBoundingClientRect().top;
+			if (stuck) {
+				setIsStuck(true);
+			}
+		}
+		setIsReady(true);
 		const observer = new IntersectionObserver(
 			([entry]) => setIsStuck(!entry.isIntersecting),
 			{ threshold: 0 },
@@ -353,28 +422,173 @@ const StickyUserMessage: FC<{
 		return () => observer.disconnect();
 	}, []);
 
+	// Sets a single CSS custom property (--clip-h) on the sticky
+	// container. All visual behaviour (max-height, mask fade) is
+	// driven by CSS using this variable.
+	useLayoutEffect(() => {
+		const sentinel = sentinelRef.current;
+		const container = containerRef.current;
+		if (!sentinel || !container) return;
+		const scroller = sentinel.closest(
+			".overflow-y-auto",
+		) as HTMLElement | null;
+		if (!scroller) return;
+
+		const MIN_HEIGHT = 72;
+		let scrollerTop = scroller.getBoundingClientRect().top;
+
+		const update = () => {
+			const fullHeight = container.offsetHeight;
+			const sentinelTop = sentinel.getBoundingClientRect().top;
+			const scrolledPast = scrollerTop - sentinelTop;
+
+			if (scrolledPast <= 0) {
+				// Always set a valid value so the overlay has the
+				// correct height immediately when isStuck flips.
+				container.style.setProperty("--clip-h", `${fullHeight}px`);
+				container.style.setProperty("--fade-opacity", "0");
+				return;
+			}
+
+			const visible = Math.max(fullHeight - scrolledPast, MIN_HEIGHT);
+			container.style.setProperty("--clip-h", `${visible}px`);
+			// Only show the fade gradient once enough content is
+			// clipped to be visually meaningful.
+			container.style.setProperty(
+				"--fade-opacity",
+				visible < fullHeight - 8 ? "1" : "0",
+			);
+		};
+
+		const onResize = () => {
+			scrollerTop = scroller.getBoundingClientRect().top;
+			update();
+		};
+
+		// Throttle to one update per animation frame so we don't
+		// do redundant work on high-refresh-rate displays.
+		let rafId: number | null = null;
+		const onScroll = () => {
+			if (rafId !== null) return;
+			rafId = requestAnimationFrame(() => {
+				rafId = null;
+				update();
+			});
+		};
+
+		scroller.addEventListener("scroll", onScroll, { passive: true });
+		window.addEventListener("resize", onResize);
+		update();
+		// Set immediately — both --clip-h and --overlay-ready are
+		// applied before the browser paints since we're in a
+		// useLayoutEffect.
+		container.style.setProperty("--overlay-ready", "1");
+		return () => {
+			scroller.removeEventListener("scroll", onScroll);
+			window.removeEventListener("resize", onResize);
+			container.style.removeProperty("--overlay-ready");
+			if (rafId !== null) cancelAnimationFrame(rafId);
+		};
+		// Re-run when isStuck changes so update() recalculates
+		// after the overlay mounts/unmounts.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isStuck]);
+
+	const handleEditUserMessage = onEditUserMessage
+		? (messageId: number, text: string) => {
+				onEditUserMessage(messageId, text);
+				requestAnimationFrame(() => {
+					const sentinel = sentinelRef.current;
+					if (!sentinel) return;
+					const scroller = sentinel.closest(
+						".overflow-y-auto",
+					) as HTMLElement | null;
+					if (!scroller) return;
+					const offset =
+						sentinel.getBoundingClientRect().top -
+						scroller.getBoundingClientRect().top;
+					scroller.scrollBy({ top: offset, behavior: "smooth" });
+				});
+			}
+		: undefined;
+
 	return (
 		<>
 			<div ref={sentinelRef} className="h-0" />
 			<div
+				ref={containerRef}
 				className={cn(
-					// This has very precise negative margins to ensure
-				    // that the blur background is applied to background content.
-					"sticky top-0 z-10 -mx-3 -mt-2 px-3 pt-4 -mb-2 pb-4 transition-all duration-200",
-					isStuck
-						? "backdrop-blur-[1px] bg-surface-primary/15"
-						: "backdrop-blur-none bg-transparent",
+					"relative sticky top-0 z-10 px-3 -mx-3 pt-2 pb-2",
+					!isReady && "invisible",
+					isStuck && "pointer-events-none",
 				)}
-				style={{
-					maskImage: isStuck
-						? "linear-gradient(to bottom, transparent 0%, black 15%, black 75%, transparent 100%)"
-						: undefined,
-					WebkitMaskImage: isStuck
-						? "linear-gradient(to bottom, transparent 0%, black 15%, black 75%, transparent 100%)"
-						: undefined,
-				}}
 			>
-				<ChatMessageItem message={message} parsed={parsed} isStuck={isStuck} onEditUserMessage={onEditUserMessage} editingMessageId={editingMessageId} />
+				{/* Flow element: always in the DOM to preserve
+				    scroll layout. Hidden when stuck so the
+				    clipped overlay takes over visually. */}
+				<div
+					className={isStuck ? undefined : "pointer-events-auto"}
+					style={
+						isStuck
+							? { opacity: "calc(1 - var(--overlay-ready, 0))" }
+							: undefined
+					}
+				>
+					<ChatMessageItem
+						message={message}
+						parsed={parsed}
+						onEditUserMessage={handleEditUserMessage}
+						editingMessageId={editingMessageId}
+						savingMessageId={savingMessageId}
+					/>
+				</div>
+
+				{/* Overlay: absolutely positioned, matching the
+				    sticky container. max-height + mask are driven
+				    entirely by the --clip-h CSS variable which the
+				    scroll handler sets on the container. */}
+				{isStuck && (
+					<div
+						className="absolute inset-0"
+						style={{
+							opacity: "var(--overlay-ready, 0)",
+							contain: "layout style",
+						}}
+					>
+						{/* Blur layer: extends 48px beyond the
+						    clipped content so the frosted effect
+						    is visible around the bubble. Promoted
+						    to its own GPU layer via will-change. */}
+						<div
+							className="absolute inset-0 backdrop-blur-[1px] bg-surface-primary/15"
+							style={{
+								maxHeight: "calc(var(--clip-h, 100%) + 48px)",
+								willChange: "max-height, mask-image",
+								maskImage:
+									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
+								WebkitMaskImage:
+									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
+							}}
+						/>
+						{/* Content layer: px-3 pt-2 matches the
+						    sticky container's padding so the
+						    overlay aligns with the flow element.
+						    will-change promotes to GPU layer. */}
+						<div
+							className="relative px-3 pt-2 pointer-events-auto"
+							style={{ willChange: "max-height" }}
+						>
+							<ChatMessageItem
+								message={message}
+								parsed={parsed}
+								onEditUserMessage={handleEditUserMessage}
+								editingMessageId={editingMessageId}
+								savingMessageId={savingMessageId}
+								fadeFromBottom
+							/>
+						</div>
+					</div>
+				)}
 			</div>
 		</>
 	);
@@ -394,6 +608,7 @@ type ConversationTimelineProps = {
 	detailErrorMessage?: string | null;
 	onEditUserMessage?: (messageId: number, text: string) => void;
 	editingMessageId?: number | null;
+	savingMessageId?: number | null;
 };
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
@@ -410,6 +625,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	detailErrorMessage,
 	onEditUserMessage,
 	editingMessageId,
+	savingMessageId,
 }) => {
 	const shouldRenderStreamInLastSection =
 		hasStreamOutput && parsedSections.length > 0;
@@ -448,12 +664,14 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 											parsed={parsed}
 											onEditUserMessage={onEditUserMessage}
 											editingMessageId={editingMessageId}
+											savingMessageId={savingMessageId}
 										/>
 									) : (
 										<ChatMessageItem
 											key={message.id}
 											message={message}
 											parsed={parsed}
+											savingMessageId={savingMessageId}
 										/>
 									),
 								)}

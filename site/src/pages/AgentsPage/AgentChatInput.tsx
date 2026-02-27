@@ -1,3 +1,4 @@
+import type { ChatQueuedMessage } from "api/typesGenerated";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
@@ -8,8 +9,13 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ArrowUpIcon, ListPlusIcon, Loader2Icon, Square, XIcon } from "lucide-react";
-import type { ChatQueuedMessage } from "api/typesGenerated";
+import {
+	ArrowUpIcon,
+	ListPlusIcon,
+	Loader2Icon,
+	Square,
+	XIcon,
+} from "lucide-react";
 import {
 	memo,
 	type ReactNode,
@@ -286,7 +292,12 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			onInputChange?.(restored);
 			onEditCleared?.();
 			textareaRef.current?.focus();
-		}, [draftBeforeHistoryEdit, isEditingHistoryMessage, onEditCleared, onInputChange]);
+		}, [
+			draftBeforeHistoryEdit,
+			isEditingHistoryMessage,
+			onEditCleared,
+			onInputChange,
+		]);
 
 		useEffect(() => {
 			if (editingQueuedMessageID === null) {
@@ -457,8 +468,11 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					)}
 					{isEditingHistoryMessage && editingQueuedMessageID === null && (
 						<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
-							<span className="text-sm text-content-secondary">
-								Editing message
+							<span className="flex items-center gap-1.5 text-sm text-content-secondary">
+								{isLoading && (
+									<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+								)}
+								{isLoading ? "Saving edit..." : "Editing message"}
 							</span>
 							<Button
 								type="button"
@@ -466,6 +480,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								size="icon"
 								aria-label="Cancel editing"
 								onClick={handleCancelHistoryEdit}
+								disabled={isLoading}
 								className="size-6 rounded text-content-secondary hover:text-content-primary"
 							>
 								<XIcon className="h-3.5 w-3.5" />
@@ -557,9 +572,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 
 		if (sticky) {
 			return (
-				<div className="sticky bottom-0 z-50 bg-surface-primary">
-					{content}
-				</div>
+				<div className="sticky bottom-0 z-50 bg-surface-primary">{content}</div>
 			);
 		}
 

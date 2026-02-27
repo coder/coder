@@ -102,6 +102,29 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	return true;
 };
 
+const jsonValuesEqual = (left: unknown, right: unknown): boolean => {
+	if (left === right) {
+		return true;
+	}
+	try {
+		return JSON.stringify(left) === JSON.stringify(right);
+	} catch {
+		return false;
+	}
+};
+
+const chatMessagesEqualByValue = (
+	left: TypesGen.ChatMessage,
+	right: TypesGen.ChatMessage,
+): boolean =>
+	left.id === right.id &&
+	left.chat_id === right.chat_id &&
+	left.model_config_id === right.model_config_id &&
+	left.created_at === right.created_at &&
+	left.role === right.role &&
+	jsonValuesEqual(left.content, right.content) &&
+	jsonValuesEqual(left.usage, right.usage);
+
 const chatQueuedMessagesEqualByID = (
 	left: readonly TypesGen.ChatQueuedMessage[],
 	right: readonly TypesGen.ChatQueuedMessage[],
@@ -208,7 +231,7 @@ const createChatStore = (): ChatStore => {
 	const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
 		const existing = state.messagesByID.get(message.id);
 		const isDuplicate = state.messagesByID.has(message.id);
-		if (existing === message) {
+		if (existing && chatMessagesEqualByValue(existing, message)) {
 			return { isDuplicate, changed: false };
 		}
 
@@ -500,6 +523,11 @@ export const useChatStore = (
 				return;
 			}
 
+			const shouldApplyMessagePart = (): boolean => {
+				const currentStatus = store.getSnapshot().chatStatus;
+				return currentStatus !== "pending" && currentStatus !== "waiting";
+			};
+
 			const pendingMessageParts: Record<string, unknown>[] = [];
 			const flushMessageParts = () => {
 				if (pendingMessageParts.length === 0) {
@@ -514,6 +542,13 @@ export const useChatStore = (
 
 			for (const streamEvent of streamEvents) {
 				if (streamEvent.type === "message_part") {
+					const eventChatID = asString(streamEvent.chat_id);
+					if (eventChatID && eventChatID !== chatID) {
+						continue;
+					}
+					if (!shouldApplyMessagePart()) {
+						continue;
+					}
 					const part = asRecord(streamEvent.message_part?.part);
 					if (part) {
 						pendingMessageParts.push(part);
@@ -528,8 +563,8 @@ export const useChatStore = (
 						if (!message) {
 							continue;
 						}
-						const { isDuplicate } = store.upsertDurableMessage(message);
-						if (!isDuplicate) {
+						const { changed } = store.upsertDurableMessage(message);
+						if (changed) {
 							scheduleStreamReset();
 						}
 						updateSidebarChat((chat) => ({
@@ -563,6 +598,9 @@ export const useChatStore = (
 
 						const previousStatus = store.getSnapshot().chatStatus;
 						store.setChatStatus(nextStatus);
+						if (nextStatus === "pending" || nextStatus === "waiting") {
+							store.clearStreamState();
+						}
 						if (nextStatus !== "error") {
 							clearChatErrorReason(chatID);
 						}
