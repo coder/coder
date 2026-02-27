@@ -50,17 +50,17 @@ const (
 // ReadFileLinesResponse is the JSON response for the line-based file reader.
 type ReadFileLinesResponse struct {
 	// Success indicates whether the read was successful.
-	Success    bool   `json:"success"`
+	Success bool `json:"success"`
 	// FileSize is the original file size in bytes.
-	FileSize   int64  `json:"file_size,omitempty"`
+	FileSize int64 `json:"file_size,omitempty"`
 	// TotalLines is the total number of lines in the file.
-	TotalLines int    `json:"total_lines,omitempty"`
+	TotalLines int `json:"total_lines,omitempty"`
 	// LinesRead is the count of lines returned in this response.
-	LinesRead  int    `json:"lines_read,omitempty"`
+	LinesRead int `json:"lines_read,omitempty"`
 	// Content is the line-numbered file content.
-	Content    string `json:"content,omitempty"`
+	Content string `json:"content,omitempty"`
 	// Error is the error message when success is false.
-	Error      string `json:"error,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 type HTTPResponseCode = int
