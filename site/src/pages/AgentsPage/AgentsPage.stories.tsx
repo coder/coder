@@ -114,6 +114,8 @@ export const WithWorkspaces: Story = {
 			expect(trigger).toBeEnabled();
 		});
 		await userEvent.click(canvas.getByText("Workspace").closest("button")!);
+		// Wait for the portalled dropdown to appear so Chromatic captures it.
+		await within(canvasElement.ownerDocument.body).findByRole("listbox");
 	},
 };
 
