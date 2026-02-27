@@ -373,13 +373,15 @@ module "personalize" {
 }
 
 module "mux" {
-  count        = data.coder_workspace.me.start_count
-  source       = "registry.coder.com/coder/mux/coder"
-  version      = "1.1.0"
-  agent_id     = coder_agent.dev.id
-  subdomain    = true
-  display_name = "Mux"
-  add-project  = local.repo_dir
+  count           = data.coder_workspace.me.start_count
+  source          = "registry.coder.com/coder/mux/coder"
+  version         = "1.3.0"
+  agent_id        = coder_agent.dev.id
+  subdomain       = true
+  display_name    = "Mux"
+  add-project     = local.repo_dir
+  install_version = "next"
+  runner          = "bun"
 }
 
 module "code-server" {
