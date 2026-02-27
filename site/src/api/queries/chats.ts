@@ -45,10 +45,7 @@ type EditChatMessageMutationArgs = {
 	req: TypesGen.EditChatMessageRequest;
 };
 
-export const editChatMessage = (
-	queryClient: QueryClient,
-	chatId: string,
-) => ({
+export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.editChatMessage(chatId, messageId, req),
 	onSuccess: async () => {

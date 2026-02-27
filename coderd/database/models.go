@@ -219,6 +219,11 @@ const (
 	ApiKeyScopeBoundaryUsageUpdate                 APIKeyScope = "boundary_usage:update"
 	ApiKeyScopeWorkspaceUpdateAgent                APIKeyScope = "workspace:update_agent"
 	ApiKeyScopeWorkspaceDormantUpdateAgent         APIKeyScope = "workspace_dormant:update_agent"
+	ApiKeyScopeChatCreate                          APIKeyScope = "chat:create"
+	ApiKeyScopeChatRead                            APIKeyScope = "chat:read"
+	ApiKeyScopeChatUpdate                          APIKeyScope = "chat:update"
+	ApiKeyScopeChatDelete                          APIKeyScope = "chat:delete"
+	ApiKeyScopeChat                                APIKeyScope = "chat:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -457,7 +462,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeBoundaryUsageRead,
 		ApiKeyScopeBoundaryUsageUpdate,
 		ApiKeyScopeWorkspaceUpdateAgent,
-		ApiKeyScopeWorkspaceDormantUpdateAgent:
+		ApiKeyScopeWorkspaceDormantUpdateAgent,
+		ApiKeyScopeChatCreate,
+		ApiKeyScopeChatRead,
+		ApiKeyScopeChatUpdate,
+		ApiKeyScopeChatDelete,
+		ApiKeyScopeChat:
 		return true
 	}
 	return false
@@ -665,6 +675,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeBoundaryUsageUpdate,
 		ApiKeyScopeWorkspaceUpdateAgent,
 		ApiKeyScopeWorkspaceDormantUpdateAgent,
+		ApiKeyScopeChatCreate,
+		ApiKeyScopeChatRead,
+		ApiKeyScopeChatUpdate,
+		ApiKeyScopeChatDelete,
+		ApiKeyScopeChat,
 	}
 }
 

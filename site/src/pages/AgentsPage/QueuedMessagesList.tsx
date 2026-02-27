@@ -101,7 +101,7 @@ const extractQueuedContentText = (value: unknown): string => {
 	return "";
 };
 
-export const getQueuedMessageText = (message: ChatQueuedMessage): string => {
+const getQueuedMessageText = (message: ChatQueuedMessage): string => {
 	const text = extractQueuedContentText(message.content).trim();
 	return text || "Queued message";
 };

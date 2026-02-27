@@ -14,6 +14,8 @@ import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { CoderIcon } from "components/Icons/CoderIcon";
 import {
 	Select,
 	SelectContent,
@@ -22,8 +24,6 @@ import {
 	SelectValue,
 } from "components/Select/Select";
 import { useAuthenticated } from "hooks";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { CoderIcon } from "components/Icons/CoderIcon";
 import { ArrowLeftIcon, MonitorIcon, PanelLeftIcon } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";

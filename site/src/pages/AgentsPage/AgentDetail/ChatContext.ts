@@ -356,7 +356,7 @@ const createChatStore = (): ChatStore => {
 	};
 };
 
-export interface UseChatStoreOptions {
+interface UseChatStoreOptions {
 	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;

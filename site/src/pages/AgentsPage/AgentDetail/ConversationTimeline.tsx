@@ -13,7 +13,6 @@ import {
 	memo,
 	type ReactNode,
 	type RefObject,
-	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -236,28 +235,28 @@ const ChatMessageItem = memo<{
 			<ConversationItem {...conversationItemProps}>
 				{isUser ? (
 					<Message className="my-2 w-full max-w-none">
-					<MessageContent
-						className={cn(
-							"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-all",
-							onEditUserMessage &&
-								!isSavingMessage &&
-								"cursor-pointer hover:bg-surface-tertiary",
-							editingMessageId === message.id &&
-								"ring-2 ring-content-link/40",
-							isSavingMessage && "ring-2 ring-content-secondary/40",
-							fadeFromBottom && "relative overflow-hidden",
-						)}
-						style={
-							fadeFromBottom
-								? { maxHeight: "var(--clip-h, none)" }
-								: undefined
-						}
-						onClick={
-							onEditUserMessage && !isSavingMessage
-								? () => onEditUserMessage(message.id, parsed.markdown || "")
-								: undefined
-						}
-					>
+						<MessageContent
+							className={cn(
+								"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-all",
+								onEditUserMessage &&
+									!isSavingMessage &&
+									"cursor-pointer hover:bg-surface-tertiary",
+								editingMessageId === message.id &&
+									"ring-2 ring-content-link/40",
+								isSavingMessage && "ring-2 ring-content-secondary/40",
+								fadeFromBottom && "relative overflow-hidden",
+							)}
+							style={
+								fadeFromBottom
+									? { maxHeight: "var(--clip-h, none)" }
+									: undefined
+							}
+							onClick={
+								onEditUserMessage && !isSavingMessage
+									? () => onEditUserMessage(message.id, parsed.markdown || "")
+									: undefined
+							}
+						>
 							<div className="flex items-start gap-2">
 								<span className="min-w-0 flex-1">{parsed.markdown || ""}</span>
 								{isSavingMessage && (
@@ -429,9 +428,7 @@ const StickyUserMessage: FC<{
 		const sentinel = sentinelRef.current;
 		const container = containerRef.current;
 		if (!sentinel || !container) return;
-		const scroller = sentinel.closest(
-			".overflow-y-auto",
-		) as HTMLElement | null;
+		const scroller = sentinel.closest(".overflow-y-auto") as HTMLElement | null;
 		if (!scroller) return;
 
 		const MIN_HEIGHT = 72;
@@ -489,10 +486,7 @@ const StickyUserMessage: FC<{
 			container.style.removeProperty("--overlay-ready");
 			if (rafId !== null) cancelAnimationFrame(rafId);
 		};
-		// Re-run when isStuck changes so update() recalculates
-		// after the overlay mounts/unmounts.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isStuck]);
+	}, []);
 
 	const handleEditUserMessage = onEditUserMessage
 		? (messageId: number, text: string) => {
