@@ -167,7 +167,7 @@ func waitForTaskReady(ctx context.Context, inv *serpent.Invocation, client *code
 	// When we have a streaming Task API, this should be converted away from polling.
 
 	// TODO(DanielleMaywood):
-	// It has been observed that the `TaskStausError` state has appeared during
+	// It has been observed that the `TaskStatusError` state has appeared during
 	// a typical healthy startup [^0]. To combat this, we allow a 5 minute grace
 	// period where we allow `TaskStatusError` and `TaskStatusUnknown` to surface.
 	//
