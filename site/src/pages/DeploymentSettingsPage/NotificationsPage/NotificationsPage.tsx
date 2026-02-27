@@ -13,6 +13,7 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { useDeploymentConfig } from "modules/management/DeploymentConfigProvider";
 import { castNotificationMethod } from "modules/notifications/utils";
@@ -26,7 +27,9 @@ import { NotificationEvents } from "./NotificationEvents";
 import { Troubleshooting } from "./Troubleshooting";
 
 const NotificationsPage: FC = () => {
+	const { permissions } = useAuthenticated();
 	const { deploymentConfig } = useDeploymentConfig();
+	const canEditDeploymentConfig = permissions.editDeploymentConfig;
 	const [systemTemplatesByGroup, customTemplatesByGroup, dispatchMethods] =
 		useQueries({
 			queries: [
@@ -93,6 +96,7 @@ const NotificationsPage: FC = () => {
 						<NotificationEvents
 							templatesByGroup={allTemplatesByGroup}
 							deploymentConfig={deploymentConfig.config}
+							canEdit={canEditDeploymentConfig}
 							defaultMethod={castNotificationMethod(
 								dispatchMethods.data.default,
 							)}
@@ -101,7 +105,7 @@ const NotificationsPage: FC = () => {
 							)}
 						/>
 					) : tabState.value === "troubleshooting" ? (
-						<Troubleshooting />
+						<Troubleshooting canEdit={canEditDeploymentConfig} />
 					) : (
 						<OptionsTable
 							options={deploymentConfig.options.filter((o) =>
