@@ -268,7 +268,7 @@ const ChatMessageItem = memo<{
 							</div>
 							{fadeFromBottom && (
 								<div
-									className="pointer-events-none absolute inset-x-0 bottom-0 h-12"
+									className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
 									style={{
 										background:
 											"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
@@ -393,8 +393,10 @@ const StickyUserMessage: FC<{
 }) => {
 	const [isStuck, setIsStuck] = useState(false);
 	const [isReady, setIsReady] = useState(false);
+	const [isTooTall, setIsTooTall] = useState(false);
 	const sentinelRef = useRef<HTMLDivElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
+	const updateFnRef = useRef<(() => void) | null>(null);
 
 	// useLayoutEffect so isStuck and --clip-h are both resolved
 	// before the browser paints, avoiding a flash on load.
@@ -433,9 +435,22 @@ const StickyUserMessage: FC<{
 
 		const MIN_HEIGHT = 72;
 		let scrollerTop = scroller.getBoundingClientRect().top;
+		let scrollerHeight = scroller.clientHeight;
 
 		const update = () => {
 			const fullHeight = container.offsetHeight;
+
+			// Skip sticky behavior for messages that take up
+			// most of the visible area — accounting for the
+			// chat input and some breathing room.
+			const tooTall = fullHeight > scrollerHeight * 0.75;
+			setIsTooTall(tooTall);
+			if (tooTall) {
+				container.style.setProperty("--clip-h", `${fullHeight}px`);
+				container.style.setProperty("--fade-opacity", "0");
+				return;
+			}
+
 			const sentinelTop = sentinel.getBoundingClientRect().top;
 			const scrolledPast = scrollerTop - sentinelTop;
 
@@ -456,9 +471,11 @@ const StickyUserMessage: FC<{
 				visible < fullHeight - 8 ? "1" : "0",
 			);
 		};
+		updateFnRef.current = update;
 
 		const onResize = () => {
 			scrollerTop = scroller.getBoundingClientRect().top;
+			scrollerHeight = scroller.clientHeight;
 			update();
 		};
 
@@ -488,6 +505,15 @@ const StickyUserMessage: FC<{
 		};
 	}, []);
 
+	// Re-run the height calculation synchronously whenever
+	// isStuck changes so --clip-h is correct on the same frame
+	// the overlay appears. Without this, the async
+	// IntersectionObserver + RAF-throttled scroll handler can
+	// leave a stale --clip-h for one paint.
+	useLayoutEffect(() => {
+		updateFnRef.current?.();
+	}, [isStuck]);
+
 	const handleEditUserMessage = onEditUserMessage
 		? (messageId: number, text: string) => {
 				onEditUserMessage(messageId, text);
@@ -512,18 +538,19 @@ const StickyUserMessage: FC<{
 			<div
 				ref={containerRef}
 				className={cn(
-					"relative sticky top-0 z-10 px-3 -mx-3 pt-2 pb-2",
+					"relative px-3 -mx-3 pt-2 pb-2",
+					!isTooTall && "sticky top-0 z-10",
 					!isReady && "invisible",
-					isStuck && "pointer-events-none",
+					isStuck && !isTooTall && "pointer-events-none",
 				)}
 			>
 				{/* Flow element: always in the DOM to preserve
 				    scroll layout. Hidden when stuck so the
 				    clipped overlay takes over visually. */}
 				<div
-					className={isStuck ? undefined : "pointer-events-auto"}
+					className={isStuck && !isTooTall ? undefined : "pointer-events-auto"}
 					style={
-						isStuck
+						isStuck && !isTooTall
 							? { opacity: "calc(1 - var(--overlay-ready, 0))" }
 							: undefined
 					}
@@ -541,7 +568,7 @@ const StickyUserMessage: FC<{
 				    sticky container. max-height + mask are driven
 				    entirely by the --clip-h CSS variable which the
 				    scroll handler sets on the container. */}
-				{isStuck && (
+				{isStuck && !isTooTall && (
 					<div
 						className="absolute inset-0"
 						style={{

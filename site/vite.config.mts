@@ -90,6 +90,14 @@ export default defineConfig({
 				target: process.env.CODER_HOST || "http://localhost:3000",
 				secure: process.env.NODE_ENV === "production",
 				configure: (proxy) => {
+					if (process.env.CODER_SESSION_TOKEN) {
+						proxy.on("proxyReq", (proxyReq) => {
+							proxyReq.setHeader(
+								"Coder-Session-Token",
+								process.env.CODER_SESSION_TOKEN!,
+							);
+						});
+					}
 					// Vite does not catch socket errors, and stops the webserver.
 					// As /logs endpoint can return HTTP 4xx status, we need to embrace
 					// Vite with a custom error handler to prevent from quitting.

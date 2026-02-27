@@ -40,7 +40,15 @@ function formatPullRequestLabel(url: string): string {
 export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
-	const diffOptions = useMemo(() => getDiffViewerOptions(isDark), [isDark]);
+	const diffOptions = useMemo(() => {
+		const base = getDiffViewerOptions(isDark);
+		return {
+			...base,
+			// Extend the base CSS to make file headers sticky so they
+			// remain visible while scrolling through long diffs.
+			unsafeCSS: `${base.unsafeCSS ?? ""} [data-diffs-header] { position: sticky; top: 0; z-index: 10; background-color: hsl(var(--surface-primary)) !important; }`,
+		};
+	}, [isDark]);
 
 	const diffStatusQuery = useQuery(chatDiffStatus(chatId));
 	const diffContentsQuery = useQuery({
