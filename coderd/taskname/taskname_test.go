@@ -49,6 +49,19 @@ func TestGenerate(t *testing.T) {
 		require.NotEmpty(t, taskName.DisplayName)
 	})
 
+	t.Run("FromPromptMultiByte", func(t *testing.T) {
+		t.Setenv("ANTHROPIC_API_KEY", "")
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		taskName := taskname.Generate(ctx, testutil.Logger(t), "über cool feature")
+
+		require.NoError(t, codersdk.NameValid(taskName.Name))
+		require.True(t, len(taskName.DisplayName) > 0)
+		// The display name must start with "Ü", not corrupted bytes.
+		require.Equal(t, "Über cool feature", taskName.DisplayName)
+	})
+
 	t.Run("Fallback", func(t *testing.T) {
 		// Ensure no API key
 		t.Setenv("ANTHROPIC_API_KEY", "")
