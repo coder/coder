@@ -397,6 +397,7 @@ export const useChatStore = (
 	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
 	const activeChatIDRef = useRef<string | null>(null);
+	const prevChatIDRef = useRef<string | undefined>(chatID);
 
 	const store = storeRef.current;
 
@@ -473,8 +474,15 @@ export const useChatStore = (
 	);
 
 	useEffect(() => {
+		// When the active chat changes, clear stale messages immediately
+		// so the previous chat's messages aren't briefly visible while
+		// the new chat's query resolves.
+		if (prevChatIDRef.current !== chatID) {
+			prevChatIDRef.current = chatID;
+			store.replaceMessages([]);
+		}
 		store.replaceMessages(chatMessages);
-	}, [chatMessages, store]);
+	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
 		store.setChatStatus(chatRecord?.status ?? null);
@@ -483,7 +491,6 @@ export const useChatStore = (
 	useEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
 		store.setQueuedMessages([]);
-		store.replaceMessages([]);
 		if (!chatID) {
 			return;
 		}
