@@ -113,10 +113,10 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 						</NotificationActionButton>
 					)}
 					{troubleshootingURL && (
-						<NotificationActionButton
-							onClick={() => window.open(troubleshootingURL, "_blank")}
-						>
-							Troubleshooting
+						<NotificationActionButton asChild>
+							<a href={troubleshootingURL} target="_blank" rel="noreferrer">
+								Troubleshooting
+							</a>
 						</NotificationActionButton>
 					)}
 				</>
