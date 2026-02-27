@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -1442,6 +1443,9 @@ func (api *API) resolveChatGitHubAccessToken(
 	ctx context.Context,
 	userID uuid.UUID,
 ) string {
+	// Build a map of provider ID -> config so we can refresh tokens
+	// using the same code path as provisionerdserver.
+	ghConfigs := make(map[string]*externalauth.Config)
 	providerIDs := []string{"github"}
 	for _, config := range api.ExternalAuthConfigs {
 		if !strings.EqualFold(
@@ -1451,6 +1455,7 @@ func (api *API) resolveChatGitHubAccessToken(
 			continue
 		}
 		providerIDs = append(providerIDs, config.ID)
+		ghConfigs[config.ID] = config
 	}
 
 	seen := map[string]struct{}{}
@@ -1469,6 +1474,24 @@ func (api *API) resolveChatGitHubAccessToken(
 		)
 		if err != nil {
 			continue
+		}
+
+		// Refresh the token if there is a matching config, mirroring
+		// the same code path used by provisionerdserver when handing
+		// tokens to provisioners.
+		if cfg, ok := ghConfigs[providerID]; ok {
+			refreshed, refreshErr := cfg.RefreshToken(ctx, api.Database, link)
+			if refreshErr != nil {
+				api.Logger.Debug(ctx, "failed to refresh external auth token for chat diff",
+					slog.F("provider_id", providerID),
+					slog.F("user_id", userID),
+					slog.Error(refreshErr),
+				)
+				// Fall through — the existing token may still work
+				// (e.g. GitHub tokens with no expiry).
+			} else {
+				link = refreshed
+			}
 		}
 
 		token := strings.TrimSpace(link.OAuthAccessToken)
