@@ -575,7 +575,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		useState(initialSystemPrompt);
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
-	const workspacesQuery = useQuery(workspaces({ limit: 50 }));
+	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 50 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
 			if (typeof window === "undefined") return null;
@@ -688,8 +688,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		[onCreateChat],
 	);
 
-	const selectedWorkspaceName = selectedWorkspaceId
-		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)?.name
+	const selectedWorkspaceLabel = selectedWorkspaceId
+		? (() => {
+				const ws = workspaceOptions.find((ws) => ws.id === selectedWorkspaceId);
+				return ws ? `${ws.owner_name}/${ws.name}` : null;
+			})()
 		: null;
 
 	return (
@@ -737,7 +740,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 							<SelectTrigger className="h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary [&>svg]:transition-colors [&>svg]:hover:text-content-primary focus:ring-0 focus-visible:ring-0">
 								<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary group-hover:text-content-primary" />
 								<SelectValue>
-									{selectedWorkspaceName ?? "Workspace"}
+									{selectedWorkspaceLabel ?? "Workspace"}
 								</SelectValue>
 							</SelectTrigger>
 							<SelectContent
@@ -750,7 +753,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 								</SelectItem>
 								{workspaceOptions.map((workspace) => (
 									<SelectItem key={workspace.id} value={workspace.id}>
-										{workspace.name}
+										{workspace.owner_name}/{workspace.name}
 									</SelectItem>
 								))}
 								{workspaceOptions.length === 0 &&

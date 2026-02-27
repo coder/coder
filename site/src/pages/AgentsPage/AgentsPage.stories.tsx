@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import { MockWorkspace } from "testHelpers/entities";
 import { useRef } from "react";
 import {
 	expect,
@@ -75,6 +76,38 @@ export default meta;
 type Story = StoryObj<typeof AgentsEmptyStateWithPortal>;
 
 export const Default: Story = {};
+
+export const WithWorkspaces: Story = {
+	beforeEach: () => {
+		localStorage.clear();
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [
+				{
+					...MockWorkspace,
+					id: "ws-1",
+					name: "my-project",
+					owner_name: "johndoe",
+					owner_id: "user-1",
+				},
+				{
+					...MockWorkspace,
+					id: "ws-2",
+					name: "my-project",
+					owner_name: "janedoe",
+					owner_id: "user-2",
+				},
+				{
+					...MockWorkspace,
+					id: "ws-3",
+					name: "backend-api",
+					owner_name: "johndoe",
+					owner_id: "user-1",
+				},
+			],
+			count: 3,
+		});
+	},
+};
 
 export const SavesBehaviorPromptAndRestores: Story = {
 	play: async ({ canvasElement }) => {
