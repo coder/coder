@@ -26,26 +26,30 @@ export const AIGovernanceSettingsPageView: FC<
 				<SettingsHeaderTitle>AI Governance</SettingsHeaderTitle>
 			</SettingsHeader>
 
-			<SettingsHeader
-				actions={<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />}
-			>
-				<SettingsHeaderTitle hierarchy="secondary" level="h2">
-					AI Bridge
-				</SettingsHeaderTitle>
-				<SettingsHeaderDescription>
-					Monitor and manage AI requests across your deployment.
-				</SettingsHeaderDescription>
-			</SettingsHeader>
+			<div>
+				<SettingsHeader
+					actions={
+						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
+					}
+				>
+					<SettingsHeaderTitle hierarchy="secondary" level="h2">
+						AI Bridge
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Monitor and manage AI requests across your deployment.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
-			{featureAIBridgeEntitled ? (
-				<OptionsTable
-					options={options
-						.filter((o) => deploymentGroupHasParent(o.group, "AI Bridge"))
-						.filter((o) => !o.annotations?.secret === true)}
-				/>
-			) : (
-				<PaywallAIGovernance />
-			)}
+				{featureAIBridgeEntitled ? (
+					<OptionsTable
+						options={options
+							.filter((o) => deploymentGroupHasParent(o.group, "AI Bridge"))
+							.filter((o) => !o.annotations?.secret === true)}
+					/>
+				) : (
+					<PaywallAIGovernance />
+				)}
+			</div>
 		</Stack>
 	);
 };
