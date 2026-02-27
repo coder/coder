@@ -144,6 +144,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 								fileDiff={fileDiff}
 								options={{
 									...diffOptions,
+									overflow: "wrap",
 									enableLineSelection: true,
 									enableHoverUtility: true,
 									onLineSelected() {

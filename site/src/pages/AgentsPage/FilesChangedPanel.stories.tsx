@@ -9,10 +9,11 @@ const sampleUnifiedDiff = `diff --git a/site/src/pages/AgentsPage/FilesChangedPa
 index abc1234..def5678 100644
 --- a/site/src/pages/AgentsPage/FilesChangedPanel.tsx
 +++ b/site/src/pages/AgentsPage/FilesChangedPanel.tsx
-@@ -1,10 +1,14 @@
+@@ -1,10 +1,15 @@
 +import { useTheme } from "@emotion/react";
  import { parsePatchFiles } from "@pierre/diffs";
  import { FileDiff } from "@pierre/diffs/react";
++import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react"; // deliberately long import to verify horizontal overflow handling in narrow panels
 +import {
 +  DIFFS_FONT_STYLE,
 +  getDiffViewerOptions,
