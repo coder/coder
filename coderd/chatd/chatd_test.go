@@ -632,6 +632,74 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 	require.False(t, fromDB.LastError.Valid)
 }
 
+func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "status-snapshot",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// The first event in the snapshot must be a status event.
+	require.NotEmpty(t, snapshot)
+	require.Equal(t, codersdk.ChatStreamEventTypeStatus, snapshot[0].Type)
+	require.NotNil(t, snapshot[0].Status)
+	require.Equal(t, codersdk.ChatStatusPending, snapshot[0].Status.Status)
+}
+
+func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
+	t.Parallel()
+
+	// Use nil pubsub to force the no-pubsub path.
+	db, _ := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, nil, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "no-dup-parts",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Snapshot should have events (at minimum: status + message).
+	require.NotEmpty(t, snapshot)
+
+	// The events channel should NOT immediately produce any
+	// events — the snapshot already contained everything. Before
+	// the fix, localSnapshot was replayed into the channel,
+	// causing duplicates.
+	select {
+	case event, ok := <-events:
+		if ok {
+			t.Fatalf("unexpected event from channel (would be a duplicate): type=%s", event.Type)
+		}
+		// Channel closed without events is fine.
+	case <-time.After(200 * time.Millisecond):
+		// No events — correct behavior.
+	}
+}
+
 func newTestServer(
 	t *testing.T,
 	db database.Store,

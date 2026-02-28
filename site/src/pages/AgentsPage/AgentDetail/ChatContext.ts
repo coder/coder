@@ -584,6 +584,12 @@ export const useChatStore = (
 					if (activeChatIDRef.current !== currentChatID) {
 						return;
 					}
+					// Re-check status at execution time. A status
+					// event processed between scheduling and running
+					// this callback may have cleared stream state.
+					if (!shouldApplyMessagePart()) {
+						return;
+					}
 					store.applyMessageParts(parts);
 				});
 			};
@@ -599,6 +605,7 @@ export const useChatStore = (
 					}
 					const part = asRecord(streamEvent.message_part?.part);
 					if (part) {
+						cancelScheduledStreamReset();
 						pendingMessageParts.push(part);
 					}
 					continue;

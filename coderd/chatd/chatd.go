@@ -1086,6 +1086,23 @@ func (p *Server) Subscribe(
 		}
 	}
 
+	// Include the current chat status in the snapshot so the
+	// frontend can gate message_part processing correctly from
+	// the very first batch, without waiting for a separate REST
+	// query.
+	if err == nil {
+		statusEvent := codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeStatus,
+			ChatID: chatID,
+			Status: &codersdk.ChatStreamStatus{
+				Status: codersdk.ChatStatus(chat.Status),
+			},
+		}
+		// Prepend so the frontend sees the status before any
+		// message_part events.
+		initialSnapshot = append([]codersdk.ChatStreamEvent{statusEvent}, initialSnapshot...)
+	}
+
 	// Track the last message ID we've seen for DB queries
 	var lastMessageID int64
 	if len(messages) > 0 {
@@ -1307,16 +1324,11 @@ func (p *Server) Subscribe(
 			}
 		}()
 	} else {
-		// No pubsub, just merge local parts
+		// No pubsub, just merge local parts.
+		// localSnapshot was already included in initialSnapshot,
+		// so only forward new events here.
 		go func() {
 			defer close(mergedEvents)
-			for _, event := range localSnapshot {
-				select {
-				case <-mergedCtx.Done():
-					return
-				case mergedEvents <- event:
-				}
-			}
 			for event := range localParts {
 				select {
 				case <-mergedCtx.Done():

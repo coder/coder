@@ -1044,6 +1044,95 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("cancels scheduled stream reset when message_part arrives after message", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-raf";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [existingMessage],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		// Build up stream state first.
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "working" },
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "working" },
+			]);
+		});
+
+		// Emit a durable message followed by a message_part in the
+		// same batch. The message handler calls scheduleStreamReset
+		// (via rAF), and the subsequent message_part handler calls
+		// cancelScheduledStreamReset to prevent a flash. The final
+		// flushMessageParts re-populates stream state.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message",
+					chat_id: chatID,
+					message: makeMessage(chatID, 2, "assistant", "done"),
+				},
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: " more" },
+					},
+				},
+			]);
+		});
+
+		// Stream state should be non-null because the message_part
+		// after the message kept it populated.
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+		});
+	});
+
 	it("startTransition deferred parts are discarded after chat switch", async () => {
 		immediateAnimationFrame();
 
@@ -1213,5 +1302,75 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID2);
 		});
 		expect(result.current.queuedMessages).toEqual([]);
+	});
+
+	it("does not apply message parts after status changes to waiting", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-status-guard";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		// Emit a batch with message_parts followed by a status change
+		// to "waiting". The status handler clears stream state
+		// synchronously, and the startTransition guard should prevent
+		// the deferred applyMessageParts from re-populating it.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "should be discarded" },
+					},
+				},
+				{
+					type: "status",
+					chat_id: chatID,
+					status: { status: "waiting" },
+				},
+			]);
+		});
+
+		// Stream state should be null — the status change cleared it,
+		// and the deferred applyMessageParts should not have
+		// re-populated it.
+		await waitFor(() => {
+			expect(result.current.streamState).toBeNull();
+		});
 	});
 });
