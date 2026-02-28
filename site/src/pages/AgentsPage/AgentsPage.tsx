@@ -107,15 +107,45 @@ const AgentsPage: FC = () => {
 	const canSetSystemPrompt = isAgentsAdmin;
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
-	// layout shift on pages that toggle scrollbars. The agents page uses
-	// its own internal scroll containers so the reserved gutter space is
-	// unnecessary and wastes horizontal room.
+	// layout shift on pages that toggle scrollbars. The agents page
+	// uses its own internal scroll containers so the reserved gutter
+	// space is unnecessary and wastes horizontal room.
+	//
+	// Removing the gutter requires three things:
+	//
+	// 1. overflow:hidden on both <html> and <body> so neither element
+	//    can produce a scrollbar.
+	// 2. scrollbar-gutter:auto on <html> so the browser stops
+	//    reserving space for a scrollbar that will never appear.
+	//    This is what makes react-remove-scroll-bar measure a gap of
+	//    0 when a Radix dropdown opens, so it injects no padding or
+	//    margin compensation.
+	// 3. An injected <style> that overrides the global
+	//    `overflow-y: scroll !important` on body[data-scroll-locked].
+	//    Without this, opening any Radix dropdown would force a
+	//    scrollbar onto <body>, re-introducing the layout shift.
 	useEffect(() => {
 		const html = document.documentElement;
-		const prev = html.style.scrollbarGutter;
+		const body = document.body;
+
+		const prevHtmlOverflow = html.style.overflow;
+		const prevHtmlScrollbarGutter = html.style.scrollbarGutter;
+		const prevBodyOverflow = body.style.overflow;
+
+		html.style.overflow = "hidden";
 		html.style.scrollbarGutter = "auto";
+		body.style.overflow = "hidden";
+
+		const style = document.createElement("style");
+		style.textContent =
+			"html body[data-scroll-locked] { overflow-y: hidden !important; }";
+		document.head.appendChild(style);
+
 		return () => {
-			html.style.scrollbarGutter = prev;
+			html.style.overflow = prevHtmlOverflow;
+			html.style.scrollbarGutter = prevHtmlScrollbarGutter;
+			body.style.overflow = prevBodyOverflow;
+			style.remove();
 		};
 	}, []);
 
