@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -9,9 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -19,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -2044,6 +2048,214 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.Equal(t, "Invalid queued message ID.", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, "invalid syntax")
 	})
+}
+
+func TestStartWorkspaceTool(t *testing.T) {
+	t.Parallel()
+
+	t.Run("StartsStoppedWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:         chatDeploymentValues(t),
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a workspace with an agent and wait for the initial build.
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
+			ProvisionApply: echo.ApplyComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Stop the workspace so start_workspace has something to do.
+		workspace = coderdtest.MustTransitionWorkspace(
+			t, client, workspace.ID,
+			codersdk.WorkspaceTransitionStart,
+			codersdk.WorkspaceTransitionStop,
+		)
+		require.Equal(t, codersdk.WorkspaceTransitionStop, workspace.LatestBuild.Transition)
+
+		// Create a chat linked to the stopped workspace.
+		chat := insertChatWithWorkspace(t, ctx, db, user.UserID, modelConfig.ID, workspace.ID)
+
+		// The tool runs under a system-restricted context in
+		// production (chatd.go line 891).
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      db,
+			OwnerID: user.UserID,
+			ChatID:  chat.ID,
+			CreateWorkspaceBuild: func(
+				buildCtx context.Context,
+				_ uuid.UUID,
+				workspaceID uuid.UUID,
+				req codersdk.CreateWorkspaceBuildRequest,
+			) (codersdk.WorkspaceBuild, error) {
+				return client.CreateWorkspaceBuild(buildCtx, workspaceID, req)
+			},
+		})
+
+		resp, err := tool.Run(sysCtx, fantasy.ToolCall{
+			ID:    "test-call",
+			Name:  "start_workspace",
+			Input: "{}",
+		})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "tool returned error: %s", resp.Content)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, true, result["started"])
+		require.Equal(t, workspace.Name, result["workspace_name"])
+
+		// Verify the workspace transitioned back to start.
+		updated, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, updated.LatestBuild.Transition)
+	})
+
+	t.Run("NoChatWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Chat without a workspace association.
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "no workspace",
+		})
+		require.NoError(t, err)
+
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      db,
+			OwnerID: user.UserID,
+			ChatID:  chat.ID,
+			CreateWorkspaceBuild: func(
+				_ context.Context,
+				_ uuid.UUID,
+				_ uuid.UUID,
+				_ codersdk.CreateWorkspaceBuildRequest,
+			) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("build function should not be called")
+				return codersdk.WorkspaceBuild{}, nil
+			},
+		})
+
+		resp, err := tool.Run(sysCtx, fantasy.ToolCall{
+			ID:    "test-call",
+			Name:  "start_workspace",
+			Input: "{}",
+		})
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "use create_workspace first")
+	})
+
+	t.Run("AlreadyRunning", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			DeploymentValues:         chatDeploymentValues(t),
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a workspace with an agent and leave it running.
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionInit:  echo.InitComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionGraph: echo.ProvisionGraphWithAgent(authToken),
+			ProvisionApply: echo.ApplyComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Create a chat linked to the running workspace.
+		chat := insertChatWithWorkspace(t, ctx, db, user.UserID, modelConfig.ID, workspace.ID)
+
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+		tool := chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:      db,
+			OwnerID: user.UserID,
+			ChatID:  chat.ID,
+			CreateWorkspaceBuild: func(
+				_ context.Context,
+				_ uuid.UUID,
+				_ uuid.UUID,
+				_ codersdk.CreateWorkspaceBuildRequest,
+			) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("build function should not be called for already running workspace")
+				return codersdk.WorkspaceBuild{}, nil
+			},
+		})
+
+		resp, err := tool.Run(sysCtx, fantasy.ToolCall{
+			ID:    "test-call",
+			Name:  "start_workspace",
+			Input: "{}",
+		})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "tool returned error: %s", resp.Content)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		require.Equal(t, "workspace is running; agent connection refreshed", result["message"])
+	})
+}
+
+// insertChatWithWorkspace creates a chat row linked to the given workspace.
+func insertChatWithWorkspace(
+	t testing.TB,
+	ctx context.Context,
+	db database.Store,
+	ownerID uuid.UUID,
+	modelConfigID uuid.UUID,
+	workspaceID uuid.UUID,
+) database.Chat {
+	t.Helper()
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OwnerID:           ownerID,
+		LastModelConfigID: modelConfigID,
+		Title:             "start workspace test",
+	})
+	require.NoError(t, err)
+
+	chat, err = db.UpdateChatWorkspace(dbauthz.AsSystemRestricted(ctx), database.UpdateChatWorkspaceParams{
+		ID: chat.ID,
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	return chat
 }
 
 func createChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.ChatModelConfig {

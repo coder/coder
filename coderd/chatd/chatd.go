@@ -66,8 +66,8 @@ type Server struct {
 	agentConnFn            AgentConnFunc
 	createWorkspaceFn      chattool.CreateWorkspaceFn
 	createWorkspaceBuildFn chattool.CreateWorkspaceBuildFn
-	pubsub                pubsub.Pubsub
-	providerAPIKeys   chatprovider.ProviderAPIKeys
+	pubsub                 pubsub.Pubsub
+	providerAPIKeys        chatprovider.ProviderAPIKeys
 
 	// streamMu guards chatStreams which tracks in-flight chat
 	// stream state for broadcasting ephemeral events.
