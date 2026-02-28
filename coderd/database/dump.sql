@@ -1274,7 +1274,8 @@ CREATE TABLE chats (
     parent_chat_id uuid,
     root_chat_id uuid,
     last_model_config_id uuid NOT NULL,
-    archived boolean DEFAULT false NOT NULL
+    archived boolean DEFAULT false NOT NULL,
+    last_error text DEFAULT ''::text NOT NULL
 );
 
 CREATE TABLE connection_logs (

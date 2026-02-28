@@ -478,6 +478,7 @@ func (p *Server) EditMessage(
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
+			LastError:   "",
 		})
 		if err != nil {
 			return xerrors.Errorf("set chat pending: %w", err)
@@ -739,6 +740,7 @@ func setChatPendingWithStore(
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
+		LastError:   "",
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
@@ -753,6 +755,7 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
+		LastError:   "",
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -810,6 +813,7 @@ func insertUserMessageAndSetPending(
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
+		LastError:   "",
 	})
 	if err != nil {
 		return database.ChatMessage{}, database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
@@ -1622,8 +1626,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		Valid: true,
 	})
 
-	// Determine the final status to set when we're done.
+	// Determine the final status and last error to set when we're done.
 	status := database.ChatStatusWaiting
+	lastError := ""
 	remainingQueuedMessages := []database.ChatQueuedMessage{}
 	shouldPublishQueueUpdate := false
 
@@ -1636,7 +1641,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// Handle panics gracefully.
 		if r := recover(); r != nil {
 			logger.Error(cleanupCtx, "panic during chat processing", slog.F("panic", r))
-			p.publishError(chat.ID, panicFailureReason(r))
+			lastError = panicFailureReason(r)
+			p.publishError(chat.ID, lastError)
 			status = database.ChatStatusError
 		}
 
@@ -1707,6 +1713,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				WorkerID:    uuid.NullUUID{},
 				StartedAt:   sql.NullTime{},
 				HeartbeatAt: sql.NullTime{},
+				LastError:   lastError,
 			})
 			return updateErr
 		}, nil)
@@ -1746,7 +1753,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 		logger.Error(ctx, "failed to process chat", slog.Error(err))
 		if reason, ok := processingFailureReason(err); ok {
-			p.publishError(chat.ID, reason)
+			lastError = reason
+			p.publishError(chat.ID, lastError)
 		}
 		status = database.ChatStatusError
 		return
@@ -2458,6 +2466,7 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
+			LastError:   "",
 		})
 		if err != nil {
 			p.logger.Error(ctx, "failed to recover stale chat",
