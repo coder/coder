@@ -1,5 +1,6 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
+import * as Diff from "diff";
 import type React from "react";
 import { asRecord, asString } from "../runtimeTypeUtils";
 
@@ -256,29 +257,10 @@ export const buildWriteFileDiff = (
 	path: string,
 	content: string,
 ): FileDiffMetadata | null => {
-	const lines = content.split("\n");
-	// Remove trailing empty line produced by a final newline.
-	if (lines.length > 0 && lines[lines.length - 1] === "") {
-		lines.pop();
-	}
-	if (lines.length === 0) {
-		return null;
-	}
-
-	const patchLines = [
-		`diff --git a/${path} b/${path}`,
-		"new file mode 100644",
-		"--- /dev/null",
-		`+++ b/${path}`,
-		`@@ -0,0 +1,${lines.length} @@`,
-		...lines.map((l) => `+${l}`),
-	];
-	const patch = `${patchLines.join("\n")}\n`;
-
+	if (!content) return null;
+	const patch = Diff.createPatch(path, "", content, "", "");
 	const parsed = parsePatchFiles(patch);
-	if (!parsed.length || !parsed[0].files.length) {
-		return null;
-	}
+	if (!parsed.length || !parsed[0].files.length) return null;
 	return parsed[0].files[0];
 };
 
@@ -330,62 +312,10 @@ export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 };
 
 /**
- * Computes the longest common subsequence table for two string
- * arrays. Returns a 2D array where lcs[i][j] is the LCS length
- * for a[0..i-1] and b[0..j-1].
- */
-function lcsTable(a: string[], b: string[]): number[][] {
-	const m = a.length;
-	const n = b.length;
-	const dp: number[][] = Array.from({ length: m + 1 }, () =>
-		Array(n + 1).fill(0),
-	);
-	for (let i = 1; i <= m; i++) {
-		for (let j = 1; j <= n; j++) {
-			if (a[i - 1] === b[j - 1]) {
-				dp[i][j] = dp[i - 1][j - 1] + 1;
-			} else {
-				dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-			}
-		}
-	}
-	return dp;
-}
-
-/**
- * Produces interleaved unified-diff body lines (context, removal,
- * addition) by walking the LCS table backwards. Unchanged lines
- * get a " " prefix; changed lines get "-" / "+" prefixes.
- */
-export function diffLines(a: string[], b: string[]): string[] {
-	const dp = lcsTable(a, b);
-	const result: string[] = [];
-	let i = a.length;
-	let j = b.length;
-
-	while (i > 0 || j > 0) {
-		if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-			result.push(` ${a[i - 1]}`);
-			i--;
-			j--;
-		} else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-			result.push(`+${b[j - 1]}`);
-			j--;
-		} else {
-			result.push(`-${a[i - 1]}`);
-			i--;
-		}
-	}
-
-	return result.reverse();
-}
-
-/**
  * Builds a synthetic unified diff from search/replace edit pairs
- * for a single file. Uses LCS-based diffing so that unchanged
- * lines appear as context rather than being removed and re-added.
- * Line numbers are synthetic since we don't have the full file
- * content.
+ * for a single file. Each edit becomes a separate
+ * `Diff.createPatch` call; the patches are concatenated and
+ * parsed into a single FileDiffMetadata.
  */
 export const buildEditDiff = (
 	path: string,
@@ -397,49 +327,21 @@ export const buildEditDiff = (
 	// produce a double-slash that confuses the diff parser.
 	const diffPath = path.startsWith("/") ? path.slice(1) : path;
 
-	const patchLines: string[] = [
-		`diff --git a/${diffPath} b/${diffPath}`,
-		`--- a/${diffPath}`,
-		`+++ b/${diffPath}`,
-	];
-
-	let lineOffset = 1;
+	const patches: string[] = [];
 	for (const edit of edits) {
 		if (!edit.search) continue;
-		const searchLines = edit.search.split("\n");
-		const replaceLines = edit.replace.split("\n");
-
-		// Remove trailing empty line produced by a final newline.
-		if (searchLines.length > 0 && searchLines[searchLines.length - 1] === "") {
-			searchLines.pop();
-		}
-		if (
-			replaceLines.length > 0 &&
-			replaceLines[replaceLines.length - 1] === ""
-		) {
-			replaceLines.pop();
-		}
-		if (searchLines.length === 0 && replaceLines.length === 0) continue;
-
-		const body = diffLines(searchLines, replaceLines);
-
-		// Count context lines to compute correct hunk line counts.
-		const contextCount = body.filter((l) => l.startsWith(" ")).length;
-		const oldCount =
-			body.filter((l) => l.startsWith("-")).length + contextCount;
-		const newCount =
-			body.filter((l) => l.startsWith("+")).length + contextCount;
-
-		patchLines.push(
-			`@@ -${lineOffset},${oldCount} +${lineOffset},${newCount} @@`,
+		patches.push(Diff.createPatch(diffPath, edit.search, edit.replace, "", ""));
+	}
+	if (!patches.length) {
+		// All edits were skipped (empty search). Produce a
+		// header-only patch so the parser still returns a file
+		// entry with zero hunks.
+		patches.push(
+			`Index: ${diffPath}\n===================================================================\n--- ${diffPath}\n+++ ${diffPath}\n`,
 		);
-		patchLines.push(...body);
-
-		lineOffset += Math.max(oldCount, newCount) + 1;
 	}
 
-	const patch = `${patchLines.join("\n")}\n`;
-	const parsed = parsePatchFiles(patch);
+	const parsed = parsePatchFiles(patches.join(""));
 	if (!parsed.length || !parsed[0].files.length) return null;
 	return parsed[0].files[0];
 };

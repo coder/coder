@@ -6,7 +6,6 @@ import {
 	COLLAPSED_OUTPUT_HEIGHT,
 	COLLAPSED_REPORT_HEIGHT,
 	DIFFS_FONT_STYLE,
-	diffLines,
 	diffViewerCSS,
 	fileViewerCSS,
 	formatResultOutput,
@@ -497,47 +496,6 @@ describe("parseEditFilesArgs", () => {
 		const result = parseEditFilesArgs(args);
 		expect(result).toHaveLength(1);
 		expect(result[0].path).toBe("test.ts");
-	});
-});
-
-describe("diffLines", () => {
-	it("returns all context for identical arrays", () => {
-		const result = diffLines(["a", "b", "c"], ["a", "b", "c"]);
-		expect(result).toEqual([" a", " b", " c"]);
-	});
-
-	it("returns all additions for empty old array", () => {
-		const result = diffLines([], ["x", "y"]);
-		expect(result).toEqual(["+x", "+y"]);
-	});
-
-	it("returns all deletions for empty new array", () => {
-		const result = diffLines(["x", "y"], []);
-		expect(result).toEqual(["-x", "-y"]);
-	});
-
-	it("interleaves context with changes", () => {
-		const result = diffLines(
-			["const x = 1;", "const y = 2;", "const z = 3;"],
-			["const x = 10;", "const y = 2;", "const z = 30;"],
-		);
-		expect(result).toEqual([
-			"-const x = 1;",
-			"+const x = 10;",
-			" const y = 2;",
-			"-const z = 3;",
-			"+const z = 30;",
-		]);
-	});
-
-	it("handles pure insertion in the middle", () => {
-		const result = diffLines(["a", "c"], ["a", "b", "c"]);
-		expect(result).toEqual([" a", "+b", " c"]);
-	});
-
-	it("handles pure deletion in the middle", () => {
-		const result = diffLines(["a", "b", "c"], ["a", "c"]);
-		expect(result).toEqual([" a", "-b", " c"]);
 	});
 });
 
