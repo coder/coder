@@ -2033,6 +2033,10 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
 	}
 
+	if err := a.processAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "process API close", slog.Error(err))
+	}
+
 	if a.boundaryLogProxy != nil {
 		err = a.boundaryLogProxy.Close()
 		if err != nil {

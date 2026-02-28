@@ -2063,13 +2063,13 @@ func (p *Server) runChat(
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
-		chattool.ProcessOutput(chattool.ProcessOutputOptions{
+		chattool.ProcessOutput(chattool.ProcessToolOptions{
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
-		chattool.ProcessList(chattool.ProcessListOptions{
+		chattool.ProcessList(chattool.ProcessToolOptions{
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
-		chattool.ProcessSignal(chattool.ProcessSignalOptions{
+		chattool.ProcessSignal(chattool.ProcessToolOptions{
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
 	}

@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 const (
-	// MaxBufferSize is the maximum amount of output retained
-	// in memory per process.
-	MaxBufferSize = 1 << 20 // 1MB
-
 	// MaxHeadBytes is the number of bytes retained from the
 	// beginning of the output for LLM consumption.
 	MaxHeadBytes = 16 << 10 // 16KB
@@ -29,14 +27,6 @@ const (
 	// MaxLineLength.
 	lineTruncationSuffix = " ... [truncated]"
 )
-
-// TruncationInfo describes how output was truncated.
-type TruncationInfo struct {
-	OriginalBytes int    `json:"original_bytes"`
-	RetainedBytes int    `json:"retained_bytes"`
-	OmittedBytes  int    `json:"omitted_bytes"`
-	Strategy      string `json:"strategy"`
-}
 
 // HeadTailBuffer is a thread-safe buffer that captures process
 // output and provides head+tail truncation for LLM consumption.
@@ -210,7 +200,7 @@ func (b *HeadTailBuffer) TotalWritten() int {
 // returned with nil truncation info. Otherwise the head and
 // tail are joined with an omission marker and long lines are
 // truncated.
-func (b *HeadTailBuffer) Output() (string, *TruncationInfo) {
+func (b *HeadTailBuffer) Output() (string, *workspacesdk.ProcessTruncation) {
 	b.mu.Lock()
 	head := make([]byte, len(b.head))
 	copy(head, b.head)
@@ -252,7 +242,7 @@ func (b *HeadTailBuffer) Output() (string, *TruncationInfo) {
 	_, _ = sb.WriteString(tailStr)
 	result := sb.String()
 
-	return result, &TruncationInfo{
+	return result, &workspacesdk.ProcessTruncation{
 		OriginalBytes: total,
 		RetainedBytes: len(result),
 		OmittedBytes:  omitted,

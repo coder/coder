@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"charm.land/fantasy"
@@ -64,6 +65,13 @@ type ExecuteResult struct {
 type ExecuteOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	DefaultTimeout   time.Duration
+}
+
+// ProcessToolOptions configures a process management tool
+// (process_output, process_list, or process_signal). Each of
+// these tools only needs a workspace connection resolver.
+type ProcessToolOptions struct {
+	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 }
 
 // ExecuteArgs are the parameters accepted by the execute tool.
@@ -207,6 +215,16 @@ func executeForeground(
 	return fantasy.NewTextResponse(string(data))
 }
 
+// truncateOutput safely truncates output to maxOutputToModel,
+// ensuring the result is valid UTF-8 even if the cut falls in
+// the middle of a multi-byte character.
+func truncateOutput(output string) string {
+	if len(output) > maxOutputToModel {
+		output = strings.ToValidUTF8(output[:maxOutputToModel], "")
+	}
+	return output
+}
+
 // pollProcess polls for process output until the process exits
 // or the context times out.
 func pollProcess(
@@ -229,10 +247,7 @@ func pollProcess(
 			)
 			outputResp, _ := conn.ProcessOutput(bgCtx, processID)
 			bgCancel()
-			output := outputResp.Output
-			if len(output) > maxOutputToModel {
-				output = output[:maxOutputToModel]
-			}
+			output := truncateOutput(outputResp.Output)
 			return ExecuteResult{
 				Success:   false,
 				Output:    output,
@@ -253,10 +268,7 @@ func pollProcess(
 				if outputResp.ExitCode != nil {
 					exitCode = *outputResp.ExitCode
 				}
-				output := outputResp.Output
-				if len(output) > maxOutputToModel {
-					output = output[:maxOutputToModel]
-				}
+				output := truncateOutput(outputResp.Output)
 				return ExecuteResult{
 					Success:   exitCode == 0,
 					Output:    output,
@@ -294,11 +306,6 @@ func detectFileDump(command string) string {
 	return ""
 }
 
-// ProcessOutputOptions configures the process_output tool.
-type ProcessOutputOptions struct {
-	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-}
-
 // ProcessOutputArgs are the parameters accepted by the
 // process_output tool.
 type ProcessOutputArgs struct {
@@ -307,7 +314,7 @@ type ProcessOutputArgs struct {
 
 // ProcessOutput returns an AgentTool that retrieves the output
 // of a background process by its ID.
-func ProcessOutput(options ProcessOutputOptions) fantasy.AgentTool {
+func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"process_output",
 		"Retrieve output from a background process. "+
@@ -330,10 +337,7 @@ func ProcessOutput(options ProcessOutputOptions) fantasy.AgentTool {
 			if err != nil {
 				return errorResult(fmt.Sprintf("get process output: %v", err)), nil
 			}
-			output := resp.Output
-			if len(output) > maxOutputToModel {
-				output = output[:maxOutputToModel]
-			}
+			output := truncateOutput(resp.Output)
 			exitCode := 0
 			if resp.ExitCode != nil {
 				exitCode = *resp.ExitCode
@@ -359,14 +363,9 @@ func ProcessOutput(options ProcessOutputOptions) fantasy.AgentTool {
 	)
 }
 
-// ProcessListOptions configures the process_list tool.
-type ProcessListOptions struct {
-	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-}
-
 // ProcessList returns an AgentTool that lists all tracked
 // processes on the workspace agent.
-func ProcessList(options ProcessListOptions) fantasy.AgentTool {
+func ProcessList(options ProcessToolOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"process_list",
 		"List all tracked processes in the workspace. "+
@@ -395,11 +394,6 @@ func ProcessList(options ProcessListOptions) fantasy.AgentTool {
 	)
 }
 
-// ProcessSignalOptions configures the process_signal tool.
-type ProcessSignalOptions struct {
-	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-}
-
 // ProcessSignalArgs are the parameters accepted by the
 // process_signal tool.
 type ProcessSignalArgs struct {
@@ -409,7 +403,7 @@ type ProcessSignalArgs struct {
 
 // ProcessSignal returns an AgentTool that sends a signal to a
 // tracked process on the workspace agent.
-func ProcessSignal(options ProcessSignalOptions) fantasy.AgentTool {
+func ProcessSignal(options ProcessToolOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"process_signal",
 		"Send a signal to a background process. "+

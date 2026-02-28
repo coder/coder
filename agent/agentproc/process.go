@@ -14,99 +14,103 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
-// Process represents a running or completed process.
-type Process struct {
+var (
+	errProcessNotFound   = xerrors.New("process not found")
+	errProcessNotRunning = xerrors.New("process is not running")
+)
+
+// process represents a running or completed process.
+type process struct {
 	mu         sync.Mutex
 	id         string
 	command    string
 	workDir    string
 	background bool
 	cmd        *exec.Cmd
+	cancel     context.CancelFunc
 	buf        *HeadTailBuffer
 	running    bool
 	exitCode   *int
-	startedAt  time.Time
-	exitedAt   *time.Time
+	startedAt  int64
+	exitedAt   *int64
 	done       chan struct{} // closed when process exits
 }
 
-// Info returns a snapshot of the process state.
-func (p *Process) Info() ProcessInfo {
+// info returns a snapshot of the process state.
+func (p *process) info() workspacesdk.ProcessInfo {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	info := ProcessInfo{
+	return workspacesdk.ProcessInfo{
 		ID:         p.id,
 		Command:    p.command,
 		WorkDir:    p.workDir,
 		Background: p.background,
 		Running:    p.running,
 		ExitCode:   p.exitCode,
-		StartedAt:  p.startedAt.Unix(),
+		StartedAt:  p.startedAt,
+		ExitedAt:   p.exitedAt,
 	}
-	if p.exitedAt != nil {
-		unix := p.exitedAt.Unix()
-		info.ExitedAt = &unix
-	}
-	return info
 }
 
-// Output returns the truncated output from the process buffer
+// output returns the truncated output from the process buffer
 // along with optional truncation metadata.
-func (p *Process) Output() (string, *TruncationInfo) {
+func (p *process) output() (string, *workspacesdk.ProcessTruncation) {
 	return p.buf.Output()
 }
 
-// Wait blocks until the process exits or the context is
-// canceled.
-func (p *Process) Wait(ctx context.Context) error {
-	select {
-	case <-p.done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-// Manager tracks processes spawned by the agent.
-type Manager struct {
+// manager tracks processes spawned by the agent.
+type manager struct {
 	mu     sync.Mutex
 	logger slog.Logger
 	execer agentexec.Execer
-	procs  map[string]*Process
+	clock  quartz.Clock
+	procs  map[string]*process
+	closed bool
 }
 
-// NewManager creates a new process manager.
-func NewManager(logger slog.Logger, execer agentexec.Execer) *Manager {
-	return &Manager{
+// newManager creates a new process manager.
+func newManager(logger slog.Logger, execer agentexec.Execer) *manager {
+	return &manager{
 		logger: logger,
 		execer: execer,
-		procs:  make(map[string]*Process),
+		clock:  quartz.NewReal(),
+		procs:  make(map[string]*process),
 	}
 }
 
-// Start spawns a new process. For both foreground and
-// background processes, it returns immediately. The caller
-// can poll via Output(). Background processes use
-// context.Background() so they survive the HTTP request.
-func (m *Manager) Start(ctx context.Context, req StartProcessRequest) (*Process, error) {
+// start spawns a new process. Both foreground and background
+// processes use a long-lived context so the process survives
+// the HTTP request lifecycle. The background flag only affects
+// client-side polling behavior.
+func (m *manager) start(req workspacesdk.StartProcessRequest) (*process, error) {
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return nil, xerrors.New("manager is closed")
+	}
+	m.mu.Unlock()
+
 	id := uuid.New().String()
 
-	// Background processes must not be tied to the HTTP
-	// request context, otherwise they die when the
-	// request completes.
-	cmdCtx := ctx
-	if req.Background {
-		cmdCtx = context.Background()
-	}
-
-	cmd := m.execer.CommandContext(cmdCtx, "sh", "-c", req.Command)
+	// Use a cancellable context so Close() can terminate
+	// all processes. context.Background() is the parent so
+	// the process is not tied to any HTTP request.
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := m.execer.CommandContext(ctx, "sh", "-c", req.Command)
 	if req.WorkDir != "" {
 		cmd.Dir = req.WorkDir
 	}
 	cmd.Stdin = nil
+
+	// WaitDelay ensures cmd.Wait returns promptly after
+	// the process is killed, even if child processes are
+	// still holding the stdout/stderr pipes open.
+	cmd.WaitDelay = 5 * time.Second
 
 	buf := NewHeadTailBuffer()
 	cmd.Stdout = buf
@@ -120,32 +124,43 @@ func (m *Manager) Start(ctx context.Context, req StartProcessRequest) (*Process,
 	}
 
 	if err := cmd.Start(); err != nil {
+		cancel()
 		return nil, xerrors.Errorf("start process: %w", err)
 	}
 
-	proc := &Process{
+	now := m.clock.Now().Unix()
+	proc := &process{
 		id:         id,
 		command:    req.Command,
 		workDir:    req.WorkDir,
 		background: req.Background,
 		cmd:        cmd,
+		cancel:     cancel,
 		buf:        buf,
 		running:    true,
-		startedAt:  time.Now(),
+		startedAt:  now,
 		done:       make(chan struct{}),
 	}
 
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		// Manager closed between our check and now. Kill the
+		// process we just started.
+		cancel()
+		_ = cmd.Wait()
+		return nil, xerrors.New("manager is closed")
+	}
 	m.procs[id] = proc
 	m.mu.Unlock()
 
 	go func() {
 		err := cmd.Wait()
-		now := time.Now()
+		exitedAt := m.clock.Now().Unix()
 
 		proc.mu.Lock()
 		proc.running = false
-		proc.exitedAt = &now
+		proc.exitedAt = &exitedAt
 		code := 0
 		if err != nil {
 			// Extract the exit code from the error.
@@ -172,46 +187,46 @@ func (m *Manager) Start(ctx context.Context, req StartProcessRequest) (*Process,
 	return proc, nil
 }
 
-// Get returns a process by ID.
-func (m *Manager) Get(id string) (*Process, bool) {
+// get returns a process by ID.
+func (m *manager) get(id string) (*process, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	proc, ok := m.procs[id]
 	return proc, ok
 }
 
-// List returns info about all tracked processes.
-func (m *Manager) List() []ProcessInfo {
+// list returns info about all tracked processes.
+func (m *manager) list() []workspacesdk.ProcessInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	infos := make([]ProcessInfo, 0, len(m.procs))
+	infos := make([]workspacesdk.ProcessInfo, 0, len(m.procs))
 	for _, proc := range m.procs {
-		infos = append(infos, proc.Info())
+		infos = append(infos, proc.info())
 	}
 	return infos
 }
 
-// Signal sends a signal to a running process.
-func (m *Manager) Signal(id string, signal string) error {
+// signal sends a signal to a running process. It returns
+// sentinel errors errProcessNotFound and errProcessNotRunning
+// so callers can distinguish failure modes.
+func (m *manager) signal(id string, sig string) error {
 	m.mu.Lock()
 	proc, ok := m.procs[id]
 	m.mu.Unlock()
 
 	if !ok {
-		return xerrors.Errorf("process %q not found", id)
+		return errProcessNotFound
 	}
 
 	proc.mu.Lock()
 	defer proc.mu.Unlock()
 
 	if !proc.running {
-		return xerrors.Errorf(
-			"process %q is not running", id,
-		)
+		return errProcessNotRunning
 	}
 
-	switch signal {
+	switch sig {
 	case "kill":
 		if err := proc.cmd.Process.Kill(); err != nil {
 			return xerrors.Errorf("kill process: %w", err)
@@ -223,7 +238,36 @@ func (m *Manager) Signal(id string, signal string) error {
 			return xerrors.Errorf("terminate process: %w", err)
 		}
 	default:
-		return xerrors.Errorf("unsupported signal %q", signal)
+		return xerrors.Errorf("unsupported signal %q", sig)
+	}
+
+	return nil
+}
+
+// Close kills all running processes and prevents new ones from
+// starting. It cancels each process's context, which causes
+// CommandContext to kill the process and its pipe goroutines to
+// drain.
+func (m *manager) Close() error {
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return nil
+	}
+	m.closed = true
+	procs := make([]*process, 0, len(m.procs))
+	for _, p := range m.procs {
+		procs = append(procs, p)
+	}
+	m.mu.Unlock()
+
+	for _, p := range procs {
+		p.cancel()
+	}
+
+	// Wait for all processes to exit.
+	for _, p := range procs {
+		<-p.done
 	}
 
 	return nil
