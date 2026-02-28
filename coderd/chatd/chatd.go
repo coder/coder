@@ -1988,6 +1988,16 @@ func (p *Server) runChat(
 
 			p.publishMessage(chat.ID, toolMessage)
 		}
+
+		// Clear the stream buffer now that the step is
+		// persisted. Late-joining subscribers will load
+		// these messages from the database instead.
+		p.streamMu.Lock()
+		if state, ok := p.chatStreams[chat.ID]; ok {
+			state.buffer = nil
+		}
+		p.streamMu.Unlock()
+
 		return nil
 	}
 
