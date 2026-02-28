@@ -343,6 +343,14 @@ const ProvisionerJobsPage = lazy(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
 		),
 );
+const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
+const AgentDetail = lazy(() => import("./pages/AgentsPage/AgentDetail"));
+
+import {
+	AgentDetailSkeleton,
+	AgentsPageSkeleton,
+} from "./pages/AgentsPage/AgentsSkeletons";
+
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 const AIBridgeLayout = lazy(
@@ -623,6 +631,23 @@ export const router = createBrowserRouter(
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
 				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
+				<Route
+					path="/agents"
+					element={
+						<Suspense fallback={<AgentsPageSkeleton />}>
+							<AgentsPage />
+						</Suspense>
+					}
+				>
+					<Route
+						path=":agentId"
+						element={
+							<Suspense fallback={<AgentDetailSkeleton />}>
+								<AgentDetail />
+							</Suspense>
+						}
+					/>
+				</Route>
 			</Route>
 		</Route>,
 	),

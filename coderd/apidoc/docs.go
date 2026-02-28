@@ -481,6 +481,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/chats/{chat}/archive": {
+            "post": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Archive a chat",
+                "operationId": "archive-chat",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/unarchive": {
+            "post": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Unarchive a chat",
+                "operationId": "unarchive-chat",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/connectionlog": {
             "get": {
                 "security": [
@@ -12783,6 +12811,11 @@ const docTemplate = `{
                 "boundary_usage:delete",
                 "boundary_usage:read",
                 "boundary_usage:update",
+                "chat:*",
+                "chat:create",
+                "chat:delete",
+                "chat:read",
+                "chat:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -12987,6 +13020,11 @@ const docTemplate = `{
                 "APIKeyScopeBoundaryUsageDelete",
                 "APIKeyScopeBoundaryUsageRead",
                 "APIKeyScopeBoundaryUsageUpdate",
+                "APIKeyScopeChatAll",
+                "APIKeyScopeChatCreate",
+                "APIKeyScopeChatDelete",
+                "APIKeyScopeChatRead",
+                "APIKeyScopeChatUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -14848,6 +14886,9 @@ const docTemplate = `{
                 "external_auth": {
                     "$ref": "#/definitions/serpent.Struct-array_codersdk_ExternalAuthConfig"
                 },
+                "external_auth_github_default_provider_enable": {
+                    "type": "boolean"
+                },
                 "external_token_encryption_keys": {
                     "type": "array",
                     "items": {
@@ -15132,9 +15173,11 @@ const docTemplate = `{
                 "workspace-usage",
                 "web-push",
                 "oauth2",
+                "agents",
                 "mcp-server-http"
             ],
             "x-enum-comments": {
+                "ExperimentAgents": "Enables agent-powered chat functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -15150,6 +15193,7 @@ const docTemplate = `{
                 "Enables the new workspace usage tracking.",
                 "Enables web push notifications through the browser.",
                 "Enables OAuth2 provider functionality.",
+                "Enables agent-powered chat functionality.",
                 "Enables the MCP HTTP server functionality."
             ],
             "x-enum-varnames": [
@@ -15159,6 +15203,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
+                "ExperimentAgents",
                 "ExperimentMCPServerHTTP"
             ]
         },
@@ -18099,6 +18144,7 @@ const docTemplate = `{
                 "assign_role",
                 "audit_log",
                 "boundary_usage",
+                "chat",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -18144,6 +18190,7 @@ const docTemplate = `{
                 "ResourceAssignRole",
                 "ResourceAuditLog",
                 "ResourceBoundaryUsage",
+                "ResourceChat",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",

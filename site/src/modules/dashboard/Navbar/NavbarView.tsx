@@ -187,6 +187,7 @@ const NavItems: FC<NavItemsProps> = ({ className, user }) => {
 				Templates
 			</NavLink>
 			<TasksNavItem user={user} />
+			<AgentsNavItem />
 		</nav>
 	);
 };
@@ -250,6 +251,30 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 function idleTasksLabel(count: number) {
 	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
 }
+
+const AgentsNavItem: FC = () => {
+	const { metadata } = useEmbeddedMetadata();
+	const canSeeAgents = Boolean(
+		metadata["agents-tab-visible"].value ||
+			process.env.NODE_ENV === "development" ||
+			process.env.STORYBOOK,
+	);
+
+	if (!canSeeAgents) {
+		return null;
+	}
+
+	return (
+		<NavLink
+			className={({ isActive }) => {
+				return cn(linkStyles.default, { [linkStyles.active]: isActive });
+			}}
+			to="/agents"
+		>
+			Agents
+		</NavLink>
+	);
+};
 
 function isNavbarLink(link: TypesGen.LinkConfig): boolean {
 	return link.location === "navbar";

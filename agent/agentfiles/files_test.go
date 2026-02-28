@@ -737,3 +737,188 @@ func TestEditFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestReadFileLines(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	noPermsFilePath := filepath.Join(tmpdir, "no-perms-lines")
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := newTestFs(afero.NewMemMapFs(), func(call, file string) error {
+		if file == noPermsFilePath {
+			return os.ErrPermission
+		}
+		return nil
+	})
+	api := agentfiles.NewAPI(logger, fs)
+
+	dirPath := filepath.Join(tmpdir, "a-directory-lines")
+	err := fs.MkdirAll(dirPath, 0o755)
+	require.NoError(t, err)
+
+	emptyFilePath := filepath.Join(tmpdir, "empty-file")
+	err = afero.WriteFile(fs, emptyFilePath, []byte(""), 0o644)
+	require.NoError(t, err)
+
+	basicFilePath := filepath.Join(tmpdir, "basic-file")
+	err = afero.WriteFile(fs, basicFilePath, []byte("line1\nline2\nline3"), 0o644)
+	require.NoError(t, err)
+
+	longLine := string(bytes.Repeat([]byte("x"), 1025))
+	longLineFilePath := filepath.Join(tmpdir, "long-line-file")
+	err = afero.WriteFile(fs, longLineFilePath, []byte(longLine), 0o644)
+	require.NoError(t, err)
+
+	largeFilePath := filepath.Join(tmpdir, "large-file")
+	err = afero.WriteFile(fs, largeFilePath, bytes.Repeat([]byte("x"), 1<<20+1), 0o644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		path       string
+		offset     int64
+		limit      int64
+		expSuccess bool
+		expError   string
+		expContent string
+		expTotal   int
+		expRead    int
+		expSize    int64
+		// useCodersdk is set for cases where the handler returns
+		// codersdk.Response (query param validation) instead of ReadFileLinesResponse.
+		useCodersdk bool
+	}{
+		{
+			name:        "NoPath",
+			path:        "",
+			useCodersdk: true,
+			expError:    "is required",
+		},
+		{
+			name:     "RelativePath",
+			path:     "relative/path",
+			expError: "file path must be absolute",
+		},
+		{
+			name:     "NonExistent",
+			path:     filepath.Join(tmpdir, "does-not-exist"),
+			expError: "file does not exist",
+		},
+		{
+			name:     "IsDir",
+			path:     dirPath,
+			expError: "not a file",
+		},
+		{
+			name:     "NoPermissions",
+			path:     noPermsFilePath,
+			expError: "permission denied",
+		},
+		{
+			name:       "EmptyFile",
+			path:       emptyFilePath,
+			expSuccess: true,
+			expTotal:   0,
+			expRead:    0,
+			expSize:    0,
+		},
+		{
+			name:       "BasicRead",
+			path:       basicFilePath,
+			expSuccess: true,
+			expContent: "1\tline1\n2\tline2\n3\tline3",
+			expTotal:   3,
+			expRead:    3,
+			expSize:    int64(len("line1\nline2\nline3")),
+		},
+		{
+			name:       "Offset2",
+			path:       basicFilePath,
+			offset:     2,
+			expSuccess: true,
+			expContent: "2\tline2\n3\tline3",
+			expTotal:   3,
+			expRead:    2,
+			expSize:    int64(len("line1\nline2\nline3")),
+		},
+		{
+			name:       "Limit1",
+			path:       basicFilePath,
+			limit:      1,
+			expSuccess: true,
+			expContent: "1\tline1",
+			expTotal:   3,
+			expRead:    1,
+			expSize:    int64(len("line1\nline2\nline3")),
+		},
+		{
+			name:       "Offset2Limit1",
+			path:       basicFilePath,
+			offset:     2,
+			limit:      1,
+			expSuccess: true,
+			expContent: "2\tline2",
+			expTotal:   3,
+			expRead:    1,
+			expSize:    int64(len("line1\nline2\nline3")),
+		},
+		{
+			name:     "OffsetBeyondFile",
+			path:     basicFilePath,
+			offset:   100,
+			expError: "offset 100 is beyond the file length of 3 lines",
+		},
+		{
+			name:       "LongLineTruncation",
+			path:       longLineFilePath,
+			expSuccess: true,
+			expContent: "1\t" + string(bytes.Repeat([]byte("x"), 1024)) + "... [truncated]",
+			expTotal:   1,
+			expRead:    1,
+			expSize:    1025,
+		},
+		{
+			name:     "LargeFile",
+			path:     largeFilePath,
+			expError: "exceeds the maximum",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/read-file-lines?path=%s&offset=%d&limit=%d", tt.path, tt.offset, tt.limit), nil)
+			api.Routes().ServeHTTP(w, r)
+
+			if tt.useCodersdk {
+				// Query param validation errors return codersdk.Response.
+				require.Equal(t, http.StatusBadRequest, w.Code)
+				require.Contains(t, w.Body.String(), tt.expError)
+				return
+			}
+
+			var resp agentfiles.ReadFileLinesResponse
+			err := json.NewDecoder(w.Body).Decode(&resp)
+			require.NoError(t, err)
+
+			if tt.expSuccess {
+				require.Equal(t, http.StatusOK, w.Code)
+				require.True(t, resp.Success)
+				require.Equal(t, tt.expContent, resp.Content)
+				require.Equal(t, tt.expTotal, resp.TotalLines)
+				require.Equal(t, tt.expRead, resp.LinesRead)
+				require.Equal(t, tt.expSize, resp.FileSize)
+			} else {
+				require.Equal(t, http.StatusOK, w.Code)
+				require.False(t, resp.Success)
+				require.Contains(t, resp.Error, tt.expError)
+			}
+		})
+	}
+}

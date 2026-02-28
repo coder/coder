@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/icholy/replace"
@@ -22,6 +23,22 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
+
+// ReadFileLinesResponse is the JSON response for the line-based file reader.
+type ReadFileLinesResponse struct {
+	// Success indicates whether the read was successful.
+	Success bool `json:"success"`
+	// FileSize is the original file size in bytes.
+	FileSize int64 `json:"file_size,omitempty"`
+	// TotalLines is the total number of lines in the file.
+	TotalLines int `json:"total_lines,omitempty"`
+	// LinesRead is the count of lines returned in this response.
+	LinesRead int `json:"lines_read,omitempty"`
+	// Content is the line-numbered file content.
+	Content string `json:"content,omitempty"`
+	// Error is the error message when success is false.
+	Error string `json:"error,omitempty"`
+}
 
 type HTTPResponseCode = int
 
@@ -101,6 +118,166 @@ func (api *API) streamFile(ctx context.Context, rw http.ResponseWriter, path str
 	}
 
 	return 0, nil
+}
+
+func (api *API) HandleReadFileLines(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	query := r.URL.Query()
+	parser := httpapi.NewQueryParamParser().RequiredNotEmpty("path")
+	path := parser.String(query, "", "path")
+	offset := parser.PositiveInt64(query, 1, "offset")
+	limit := parser.PositiveInt64(query, 0, "limit")
+	maxFileSize := parser.PositiveInt64(query, workspacesdk.DefaultMaxFileSize, "max_file_size")
+	maxLineBytes := parser.PositiveInt64(query, workspacesdk.DefaultMaxLineBytes, "max_line_bytes")
+	maxResponseLines := parser.PositiveInt64(query, workspacesdk.DefaultMaxResponseLines, "max_response_lines")
+	maxResponseBytes := parser.PositiveInt64(query, workspacesdk.DefaultMaxResponseBytes, "max_response_bytes")
+	parser.ErrorExcessParams(query)
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+
+	resp := api.readFileLines(ctx, path, offset, limit, workspacesdk.ReadFileLinesLimits{
+		MaxFileSize:      maxFileSize,
+		MaxLineBytes:     int(maxLineBytes),
+		MaxResponseLines: int(maxResponseLines),
+		MaxResponseBytes: int(maxResponseBytes),
+	})
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func (api *API) readFileLines(_ context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) ReadFileLinesResponse {
+	errResp := func(msg string) ReadFileLinesResponse {
+		return ReadFileLinesResponse{Success: false, Error: msg}
+	}
+
+	if !filepath.IsAbs(path) {
+		return errResp(fmt.Sprintf("file path must be absolute: %q", path))
+	}
+
+	f, err := api.filesystem.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return errResp(fmt.Sprintf("file does not exist: %s", path))
+		}
+		if errors.Is(err, os.ErrPermission) {
+			return errResp(fmt.Sprintf("permission denied: %s", path))
+		}
+		return errResp(fmt.Sprintf("open file: %s", err))
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return errResp(fmt.Sprintf("stat file: %s", err))
+	}
+
+	if stat.IsDir() {
+		return errResp(fmt.Sprintf("not a file: %s", path))
+	}
+
+	fileSize := stat.Size()
+	if fileSize > limits.MaxFileSize {
+		return errResp(fmt.Sprintf(
+			"file is %d bytes which exceeds the maximum of %d bytes. Use grep, sed, or awk to extract the content you need, or use offset and limit to read a portion.",
+			fileSize, limits.MaxFileSize,
+		))
+	}
+
+	// Read the entire file (up to MaxFileSize).
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return errResp(fmt.Sprintf("read file: %s", err))
+	}
+
+	// Split into lines.
+	content := string(data)
+	// Handle empty file.
+	if content == "" {
+		return ReadFileLinesResponse{
+			Success:    true,
+			FileSize:   fileSize,
+			TotalLines: 0,
+			LinesRead:  0,
+			Content:    "",
+		}
+	}
+
+	lines := strings.Split(content, "\n")
+	totalLines := len(lines)
+
+	// offset is 1-based line number.
+	if offset < 1 {
+		offset = 1
+	}
+	if offset > int64(totalLines) {
+		return errResp(fmt.Sprintf(
+			"offset %d is beyond the file length of %d lines",
+			offset, totalLines,
+		))
+	}
+
+	// Default limit.
+	if limit <= 0 {
+		limit = int64(limits.MaxResponseLines)
+	}
+
+	startIdx := int(offset - 1) // convert to 0-based
+	endIdx := startIdx + int(limit)
+	if endIdx > totalLines {
+		endIdx = totalLines
+	}
+
+	var numbered []string
+	totalBytesAccumulated := 0
+
+	for i := startIdx; i < endIdx; i++ {
+		line := lines[i]
+
+		// Per-line truncation.
+		if len(line) > limits.MaxLineBytes {
+			line = line[:limits.MaxLineBytes] + "... [truncated]"
+		}
+
+		// Format with 1-based line number.
+		numberedLine := fmt.Sprintf("%d\t%s", i+1, line)
+		lineBytes := len(numberedLine)
+
+		// Check total byte budget.
+		newTotal := totalBytesAccumulated + lineBytes
+		if len(numbered) > 0 {
+			newTotal++ // account for \n joiner
+		}
+		if newTotal > limits.MaxResponseBytes {
+			return errResp(fmt.Sprintf(
+				"output would exceed %d bytes. Read less at a time using offset and limit parameters.",
+				limits.MaxResponseBytes,
+			))
+		}
+
+		// Check line count.
+		if len(numbered) >= limits.MaxResponseLines {
+			return errResp(fmt.Sprintf(
+				"output would exceed %d lines. Read less at a time using offset and limit parameters.",
+				limits.MaxResponseLines,
+			))
+		}
+
+		numbered = append(numbered, numberedLine)
+		totalBytesAccumulated = newTotal
+	}
+
+	return ReadFileLinesResponse{
+		Success:    true,
+		FileSize:   fileSize,
+		TotalLines: totalLines,
+		LinesRead:  len(numbered),
+		Content:    strings.Join(numbered, "\n"),
+	}
 }
 
 func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {

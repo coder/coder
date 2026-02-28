@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -8,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -91,6 +93,36 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action policy.Action, object
 	return true
 }
 
+// AuthorizeContext checks whether the RBAC subject on the context
+// is authorized to perform the given action. The subject must have
+// been set via dbauthz.As or the ExtractAPIKey middleware. Returns
+// false if the subject is missing or unauthorized.
+func (h *HTTPAuthorizer) AuthorizeContext(ctx context.Context, action policy.Action, object rbac.Objecter) bool {
+	roles, ok := dbauthz.ActorFromContext(ctx)
+	if !ok {
+		h.Logger.Error(ctx, "no authorization actor in context")
+		return false
+	}
+	err := h.Authorizer.Authorize(ctx, roles, action, object.RBACObject())
+	if err != nil {
+		internalError := new(rbac.UnauthorizedError)
+		logger := h.Logger
+		if xerrors.As(err, internalError) {
+			logger = h.Logger.With(slog.F("internal_error", internalError.Internal()))
+		}
+		logger.Warn(ctx, "requester is not authorized to access the object",
+			slog.F("roles", roles.SafeRoleNames()),
+			slog.F("actor_id", roles.ID),
+			slog.F("actor_name", roles),
+			slog.F("scope", roles.SafeScopeName()),
+			slog.F("action", action),
+			slog.F("object", object),
+		)
+		return false
+	}
+	return true
+}
+
 // AuthorizeSQLFilter returns an authorization filter that can used in a
 // SQL 'WHERE' clause. If the filter is used, the resulting rows returned
 // from postgres are already authorized, and the caller does not need to
@@ -99,6 +131,22 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action policy.Action, object
 func (h *HTTPAuthorizer) AuthorizeSQLFilter(r *http.Request, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
 	roles := httpmw.UserAuthorization(r.Context())
 	prepared, err := h.Authorizer.Prepare(r.Context(), roles, action, objectType)
+	if err != nil {
+		return nil, xerrors.Errorf("prepare filter: %w", err)
+	}
+
+	return prepared, nil
+}
+
+// AuthorizeSQLFilterContext is like AuthorizeSQLFilter but reads the
+// RBAC subject from the context directly rather than from an
+// *http.Request. The subject must have been set via dbauthz.As.
+func (h *HTTPAuthorizer) AuthorizeSQLFilterContext(ctx context.Context, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
+	roles, ok := dbauthz.ActorFromContext(ctx)
+	if !ok {
+		return nil, xerrors.New("no authorization actor in context")
+	}
+	prepared, err := h.Authorizer.Prepare(ctx, roles, action, objectType)
 	if err != nil {
 		return nil, xerrors.Errorf("prepare filter: %w", err)
 	}

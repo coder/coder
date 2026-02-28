@@ -63,6 +63,7 @@ type AgentConn interface {
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
+	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	EditFiles(ctx context.Context, edits FileEditRequest) error
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
@@ -551,6 +552,31 @@ func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSRespo
 	return m, nil
 }
 
+// ReadFileLines reads a file with line-based offset and limit, returning
+// line-numbered content with safety limits.
+func (c *agentConn) ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf(
+		"/api/v0/read-file-lines?path=%s&offset=%d&limit=%d&max_file_size=%d&max_line_bytes=%d&max_response_lines=%d&max_response_bytes=%d",
+		path, offset, limit, limits.MaxFileSize, limits.MaxLineBytes, limits.MaxResponseLines, limits.MaxResponseBytes,
+	), nil)
+	if err != nil {
+		return ReadFileLinesResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadFileLinesResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var resp ReadFileLinesResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return ReadFileLinesResponse{}, xerrors.Errorf("decode response: %w", err)
+	}
+	return resp, nil
+}
+
 // ReadFile reads from a file from the workspace, returning a file reader and
 // the mime type.
 func (c *agentConn) ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error) {
@@ -594,6 +620,51 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 		return xerrors.Errorf("decode response body: %w", err)
 	}
 	return nil
+}
+
+// ReadFileLinesResponse is the response from the line-based file reader.
+type ReadFileLinesResponse struct {
+	Success    bool   `json:"success"`
+	FileSize   int64  `json:"file_size,omitempty"`
+	TotalLines int    `json:"total_lines,omitempty"`
+	LinesRead  int    `json:"lines_read,omitempty"`
+	Content    string `json:"content,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
+
+// ReadFileLinesLimits contains configurable safety limits for the line-based
+// file reader. These are sent as query parameters so callers can tune them
+// without requiring an agent redeployment.
+type ReadFileLinesLimits struct {
+	// MaxFileSize is the maximum file size (in bytes) that will be opened.
+	MaxFileSize int64
+	// MaxLineBytes is the per-line byte cap before truncation.
+	MaxLineBytes int
+	// MaxResponseLines is the maximum number of lines in a single response.
+	MaxResponseLines int
+	// MaxResponseBytes is the maximum total bytes of formatted output.
+	MaxResponseBytes int
+}
+
+const (
+	// DefaultMaxFileSize is the default maximum file size (1 MB).
+	DefaultMaxFileSize int64 = 1 << 20
+	// DefaultMaxLineBytes is the default per-line truncation threshold.
+	DefaultMaxLineBytes int64 = 1024
+	// DefaultMaxResponseLines is the default max lines per response.
+	DefaultMaxResponseLines int64 = 2000
+	// DefaultMaxResponseBytes is the default max response size (32 KB).
+	DefaultMaxResponseBytes int64 = 32768
+)
+
+// DefaultReadFileLinesLimits returns the default limits.
+func DefaultReadFileLinesLimits() ReadFileLinesLimits {
+	return ReadFileLinesLimits{
+		MaxFileSize:      DefaultMaxFileSize,
+		MaxLineBytes:     int(DefaultMaxLineBytes),
+		MaxResponseLines: int(DefaultMaxResponseLines),
+		MaxResponseBytes: int(DefaultMaxResponseBytes),
+	}
 }
 
 type FileEdit struct {

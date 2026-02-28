@@ -139,7 +139,6 @@ const AgentAPIVersionREST = "1.0"
 func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
-
 	var req agentsdk.PatchLogs
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -1832,6 +1831,10 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query()
+	gitRef := chatGitRef{
+		Branch:       strings.TrimSpace(query.Get("git_branch")),
+		RemoteOrigin: strings.TrimSpace(query.Get("git_remote_origin")),
+	}
 	// Either match or configID must be provided!
 	match := query.Get("match")
 	if match == "" {
@@ -1854,7 +1857,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 
 	// listen determines if the request will wait for a
 	// new token to be issued!
-	listen := r.URL.Query().Has("listen")
+	listen := query.Has("listen")
 
 	var externalAuthConfig *externalauth.Config
 	for _, extAuth := range api.ExternalAuthConfigs {
@@ -1925,6 +1928,13 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Persist git refs as soon as the agent requests external auth so branch
+	// context is retained even if the flow requires an out-of-band login.
+	if gitRef.Branch != "" || gitRef.RemoteOrigin != "" {
+		//nolint:gocritic // System context required to persist chat git refs.
+		api.storeChatGitRef(dbauthz.AsSystemRestricted(ctx), workspace.ID, workspace.OwnerID, gitRef)
+	}
+
 	var previousToken *database.ExternalAuthLink
 	// handleRetrying will attempt to continually check for a new token
 	// if listen is true. This is useful if an error is encountered in the
@@ -1938,7 +1948,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		api.workspaceAgentsExternalAuthListen(ctx, rw, previousToken, externalAuthConfig, workspace)
+		api.workspaceAgentsExternalAuthListen(ctx, rw, previousToken, externalAuthConfig, workspace, gitRef)
 	}
 
 	// This is the URL that will redirect the user with a state token.
@@ -1996,10 +2006,11 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
+	api.triggerWorkspaceChatDiffStatusRefresh(workspace, gitRef)
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, previous *database.ExternalAuthLink, externalAuthConfig *externalauth.Config, workspace database.Workspace) {
+func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, previous *database.ExternalAuthLink, externalAuthConfig *externalauth.Config, workspace database.Workspace, gitRef chatGitRef) {
 	// Since we're ticking frequently and this sign-in operation is rare,
 	// we are OK with polling to avoid the complexity of pubsub.
 	ticker, done := api.NewTicker(time.Second)
@@ -2069,6 +2080,7 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 			})
 			return
 		}
+		api.triggerWorkspaceChatDiffStatusRefresh(workspace, gitRef)
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
 		return
 	}

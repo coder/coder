@@ -14,42 +14,42 @@ import OptionsTable from "../OptionsTable";
 
 type AIGovernanceSettingsPageViewProps = {
 	options: SerpentOption[];
-	featureAIBridgeEnabled: boolean;
+	featureAIBridgeEntitled: boolean;
 };
 
 export const AIGovernanceSettingsPageView: FC<
 	AIGovernanceSettingsPageViewProps
-> = ({ options, featureAIBridgeEnabled }) => {
+> = ({ options, featureAIBridgeEntitled }) => {
 	return (
 		<Stack direction="column" spacing={6}>
 			<SettingsHeader>
 				<SettingsHeaderTitle>AI Governance</SettingsHeaderTitle>
 			</SettingsHeader>
 
-			{featureAIBridgeEnabled ? (
-				<div>
-					<SettingsHeader
-						actions={
-							<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
-						}
-					>
-						<SettingsHeaderTitle hierarchy="secondary" level="h2">
-							AI Bridge
-						</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Monitor and manage AI requests across your deployment.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
+			<div>
+				<SettingsHeader
+					actions={
+						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
+					}
+				>
+					<SettingsHeaderTitle hierarchy="secondary" level="h2">
+						AI Bridge
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Monitor and manage AI requests across your deployment.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
+				{featureAIBridgeEntitled ? (
 					<OptionsTable
 						options={options
 							.filter((o) => deploymentGroupHasParent(o.group, "AI Bridge"))
 							.filter((o) => !o.annotations?.secret === true)}
 					/>
-				</div>
-			) : (
-				<PaywallAIGovernance />
-			)}
+				) : (
+					<PaywallAIGovernance />
+				)}
+			</div>
 		</Stack>
 	);
 };

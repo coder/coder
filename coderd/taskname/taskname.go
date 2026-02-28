@@ -177,7 +177,7 @@ func generateFromPrompt(prompt string) (TaskName, error) {
 		// Ensure display name is never empty
 		displayName = strings.ReplaceAll(name, "-", " ")
 	}
-	displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
+	displayName = strutil.Capitalize(displayName)
 
 	return TaskName{
 		Name:        taskName,
@@ -269,7 +269,7 @@ func generateFromAnthropic(ctx context.Context, prompt string, apiKey string, mo
 		// Ensure display name is never empty
 		displayName = strings.ReplaceAll(taskNameResponse.Name, "-", " ")
 	}
-	displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
+	displayName = strutil.Capitalize(displayName)
 
 	return TaskName{
 		Name:        name,
