@@ -2,11 +2,11 @@ package chatd
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -70,7 +70,7 @@ func TestRefreshChatWorkspaceSnapshot_ReturnsReloadError(t *testing.T) {
 	t.Parallel()
 
 	chat := database.Chat{ID: uuid.New()}
-	loadErr := errors.New("boom")
+	loadErr := xerrors.New("boom")
 
 	refreshed, err := refreshChatWorkspaceSnapshot(
 		context.Background(),

@@ -735,7 +735,11 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	_ = agenttest.New(t, client.URL, agentToken)
 
 	workspaceName := "chat-ws-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
-	createWorkspaceArgs := fmt.Sprintf(`{"template_id":"%s","name":"%s"}`, template.ID, workspaceName)
+	createWorkspaceArgs := fmt.Sprintf(
+		`{"template_id":%q,"name":%q}`,
+		template.ID.String(),
+		workspaceName,
+	)
 
 	var streamedCallCount atomic.Int32
 	var streamedCallsMu sync.Mutex
