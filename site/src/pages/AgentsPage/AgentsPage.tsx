@@ -106,19 +106,6 @@ const AgentsPage: FC = () => {
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
 	const canSetSystemPrompt = isAgentsAdmin;
 
-	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
-	// layout shift on pages that toggle scrollbars. The agents page uses
-	// its own internal scroll containers so the reserved gutter space is
-	// unnecessary and wastes horizontal room.
-	useEffect(() => {
-		const html = document.documentElement;
-		const prev = html.style.scrollbarGutter;
-		html.style.scrollbarGutter = "auto";
-		return () => {
-			html.style.scrollbarGutter = prev;
-		};
-	}, []);
-
 	const chatsQuery = useQuery(chats());
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
