@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -15,14 +18,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -700,6 +706,155 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 		// No events — correct behavior.
 	}
+}
+
+func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues:         deploymentValues,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	// Start the test workspace agent so create_workspace can wait for
+	// the agent to become reachable before returning.
+	_ = agenttest.New(t, client.URL, agentToken)
+
+	workspaceName := "chat-ws-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
+	createWorkspaceArgs := fmt.Sprintf(`{"template_id":"%s","name":"%s"}`, template.ID, workspaceName)
+
+	var streamedCallCount atomic.Int32
+	var streamedCallsMu sync.Mutex
+	streamedCalls := make([][]chattest.OpenAIMessage, 0, 2)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Create workspace test")
+		}
+
+		streamedCallsMu.Lock()
+		streamedCalls = append(streamedCalls, append([]chattest.OpenAIMessage(nil), req.Messages...))
+		streamedCallsMu.Unlock()
+
+		if streamedCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("create_workspace", createWorkspaceArgs),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Workspace created and ready.")...,
+		)
+	})
+
+	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider: "openai-compat",
+		APIKey:   "test-api-key",
+		BaseURL:  openAIURL,
+	})
+	require.NoError(t, err)
+
+	contextLimit := int64(4096)
+	isDefault := true
+	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+	})
+	require.NoError(t, err)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Create a workspace from the template and continue.",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var chatWithMessages codersdk.ChatWithMessages
+	require.Eventually(t, func() bool {
+		got, getErr := client.GetChat(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatWithMessages = got
+		return got.Chat.Status == codersdk.ChatStatusWaiting || got.Chat.Status == codersdk.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	if chatWithMessages.Chat.Status == codersdk.ChatStatusError {
+		lastError := ""
+		if chatWithMessages.Chat.LastError != nil {
+			lastError = *chatWithMessages.Chat.LastError
+		}
+		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
+	}
+
+	require.NotNil(t, chatWithMessages.Chat.WorkspaceID)
+	workspaceID := *chatWithMessages.Chat.WorkspaceID
+	workspace, err := client.Workspace(ctx, workspaceID)
+	require.NoError(t, err)
+	require.Equal(t, workspaceName, workspace.Name)
+
+	var foundCreateWorkspaceResult bool
+	for _, message := range chatWithMessages.Messages {
+		if message.Role != "tool" {
+			continue
+		}
+		for _, part := range message.Content {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult || part.ToolName != "create_workspace" {
+				continue
+			}
+			var result map[string]any
+			require.NoError(t, json.Unmarshal(part.Result, &result))
+			created, ok := result["created"].(bool)
+			require.True(t, ok)
+			require.True(t, created)
+			foundCreateWorkspaceResult = true
+		}
+	}
+	require.True(t, foundCreateWorkspaceResult, "expected create_workspace tool result message")
+
+	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
+	streamedCallsMu.Lock()
+	recordedStreamCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
+	streamedCallsMu.Unlock()
+	require.GreaterOrEqual(t, len(recordedStreamCalls), 2)
+
+	var foundToolResultInSecondCall bool
+	for _, message := range recordedStreamCalls[1] {
+		if message.Role != "tool" {
+			continue
+		}
+		if !json.Valid([]byte(message.Content)) {
+			continue
+		}
+		var result map[string]any
+		if err := json.Unmarshal([]byte(message.Content), &result); err != nil {
+			continue
+		}
+		created, ok := result["created"].(bool)
+		if ok && created {
+			foundToolResultInSecondCall = true
+			break
+		}
+	}
+	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include create_workspace tool output")
 }
 
 func newTestServer(

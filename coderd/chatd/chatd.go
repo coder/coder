@@ -1844,6 +1844,13 @@ func (p *Server) runChat(
 	}()
 
 	currentChat := chat
+	loadChatSnapshot := func(
+		loadCtx context.Context,
+		chatID uuid.UUID,
+	) (database.Chat, error) {
+		//nolint:gocritic // System context required to load chat snapshots for the stream.
+		return p.db.GetChatByID(dbauthz.AsSystemRestricted(loadCtx), chatID)
+	}
 	var (
 		chatStateMu sync.Mutex
 		workspaceMu sync.Mutex
@@ -1870,6 +1877,23 @@ func (p *Server) runChat(
 
 		if p.agentConnFn == nil {
 			return nil, xerrors.New("workspace agent connector is not configured")
+		}
+
+		if !chatSnapshot.WorkspaceID.Valid {
+			refreshedChat, refreshErr := refreshChatWorkspaceSnapshot(
+				ctx,
+				chatSnapshot,
+				loadChatSnapshot,
+			)
+			if refreshErr != nil {
+				return nil, refreshErr
+			}
+			if refreshedChat.WorkspaceID.Valid {
+				chatStateMu.Lock()
+				currentChat = refreshedChat
+				chatSnapshot = refreshedChat
+				chatStateMu.Unlock()
+			}
 		}
 
 		if !chatSnapshot.WorkspaceID.Valid {
@@ -2388,6 +2412,23 @@ func usageNullInt64(value int64, valid bool) sql.NullInt64 {
 		Int64: value,
 		Valid: valid,
 	}
+}
+
+func refreshChatWorkspaceSnapshot(
+	ctx context.Context,
+	chat database.Chat,
+	loadChat func(context.Context, uuid.UUID) (database.Chat, error),
+) (database.Chat, error) {
+	if chat.WorkspaceID.Valid || loadChat == nil {
+		return chat, nil
+	}
+
+	refreshedChat, err := loadChat(ctx, chat.ID)
+	if err != nil {
+		return chat, xerrors.Errorf("reload chat workspace state: %w", err)
+	}
+
+	return refreshedChat, nil
 }
 
 // resolveInstructions returns the combined system instructions for the
