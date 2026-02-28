@@ -46,7 +46,15 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 	return []fantasy.AgentTool{
 		fantasy.NewAgentTool(
 			"spawn_agent",
-			"Spawn a delegated child agent chat from the root chat.",
+			"Spawn a delegated child agent to work on a clearly scoped, "+
+				"independent task in parallel. Use this when the task is "+
+				"self-contained and would benefit from a separate agent "+
+				"(e.g. fixing a specific bug, writing a single module, "+
+				"running a migration). Do NOT use for simple or quick "+
+				"operations you can handle directly with execute, "+
+				"read_file, or write_file. The child agent receives the "+
+				"same workspace tools but cannot spawn its own subagents. "+
+				"After spawning, use wait_agent to collect the result.",
 			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -80,7 +88,10 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 		),
 		fantasy.NewAgentTool(
 			"wait_agent",
-			"Wait until a delegated descendant agent reaches a non-streaming status.",
+			"Wait until a spawned child agent finishes its task. "+
+				"Returns the agent's final response and status. "+
+				"Call this after spawn_agent to collect the result "+
+				"before continuing your own work.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -117,7 +128,11 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 		),
 		fantasy.NewAgentTool(
 			"message_agent",
-			"Send a message to a delegated descendant agent. Use wait_agent to collect a response.",
+			"Send a follow-up message to a previously spawned child "+
+				"agent. Use this to provide additional instructions, "+
+				"corrections, or context to a running or completed "+
+				"agent. After sending, use wait_agent to collect the "+
+				"updated response.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -154,7 +169,9 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 		),
 		fantasy.NewAgentTool(
 			"close_agent",
-			"Interrupt a delegated descendant agent immediately.",
+			"Immediately stop a spawned child agent. Use this to "+
+				"cancel a subagent that is stuck, no longer needed, "+
+				"or working on the wrong approach.",
 			func(ctx context.Context, args closeAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil

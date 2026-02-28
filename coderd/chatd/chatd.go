@@ -2093,9 +2093,14 @@ func (p *Server) runChat(
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
 	}
-	tools = append(tools, p.subagentTools(func() database.Chat {
-		return chat
-	})...)
+	// Only root chats (not delegated subagents) get subagent tools.
+	// Child agents must not spawn further subagents — they should
+	// focus on completing their delegated task.
+	if !chat.ParentChatID.Valid {
+		tools = append(tools, p.subagentTools(func() database.Chat {
+			return chat
+		})...)
+	}
 
 	_, err = chatloop.Run(ctx, chatloop.RunOptions{
 		Model:      model,
