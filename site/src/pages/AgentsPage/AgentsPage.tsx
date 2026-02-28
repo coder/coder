@@ -693,7 +693,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		: undefined;
 	const selectedWorkspaceLabel = selectedWorkspace
 		? `${selectedWorkspace.owner_name}/${selectedWorkspace.name}`
-		: null;
+		: undefined;
 
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
