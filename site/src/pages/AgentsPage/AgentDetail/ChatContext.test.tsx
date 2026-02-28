@@ -1606,7 +1606,12 @@ describe("useChatStore", () => {
 			mockSocket.emitData({
 				type: "retry",
 				chat_id: chatID,
-				retry: { attempt: 1, error: "rate limited" },
+				retry: {
+					attempt: 1,
+					error: "rate limited",
+					delay_ms: 3000,
+					retrying_at: "2025-01-01T00:00:30.000Z",
+				},
 			});
 		});
 
