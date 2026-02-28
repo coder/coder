@@ -101,3 +101,18 @@ export const LoadingSpinner: Story = {
 		expect(sendButton.querySelector(".animate-spin")).toBeTruthy();
 	},
 };
+
+export const LoadingDisablesSend: Story = {
+	args: {
+		isDisabled: false,
+		isLoading: true,
+		initialValue: "Another message",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		// The send button should be disabled while a previous send is
+		// in-flight, even though the textarea has content.
+		expect(sendButton).toBeDisabled();
+	},
+};

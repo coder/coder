@@ -1,3 +1,4 @@
+import { getErrorMessage } from "api/errors";
 import type { ChatQueuedMessage } from "api/typesGenerated";
 import {
 	ModelSelector,
@@ -25,6 +26,8 @@ import {
 	useState,
 } from "react";
 import TextareaAutosize from "react-textarea-autosize";
+import { toast } from "sonner";
+import { cn } from "utils/cn";
 import { formatProviderLabel } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
@@ -144,7 +147,6 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 		const hasPercent = percentUsed !== null;
 		const percentLabel =
 			percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
-		const indicatorLabel = null;
 		const clampedPercent = hasPercent
 			? Math.min(Math.max(percentUsed, 0), 100)
 			: 100;
@@ -158,14 +160,13 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 		return (
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<span
-						role="button"
-						tabIndex={0}
+					<button
+						type="button"
 						aria-label={ariaLabel}
-						className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+						className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 					>
 						<svg
-							className={`h-5 w-5 -rotate-90 ${toneClassName}`}
+							className={cn("h-5 w-5 -rotate-90", toneClassName)}
 							viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
 							aria-hidden
 						>
@@ -191,12 +192,7 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 								}}
 							/>
 						</svg>
-						{indicatorLabel !== null && (
-							<span className="pointer-events-none absolute text-[7px] font-semibold tabular-nums text-content-secondary">
-								{indicatorLabel}
-							</span>
-						)}
-					</span>
+					</button>
 				</TooltipTrigger>
 				<TooltipContent side="top">
 					<div className="text-xs text-content-primary">
@@ -265,20 +261,29 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] = useState<
 			string | null
 		>(null);
+
+		// Refs to read current values inside the editRequest effect
+		// without adding them as dependencies (which would cause the
+		// effect to re-fire on every keystroke).
+		const inputRef = useRef(input);
+		inputRef.current = input;
+		const isEditingHistoryRef = useRef(isEditingHistoryMessage);
+		isEditingHistoryRef.current = isEditingHistoryMessage;
+
 		useEffect(() => {
 			if (!editRequest || editRequest.key === lastEditKeyRef.current) {
 				return;
 			}
 			lastEditKeyRef.current = editRequest.key;
 			setDraftBeforeHistoryEdit((current) =>
-				isEditingHistoryMessage ? current : input,
+				isEditingHistoryRef.current ? current : inputRef.current,
 			);
 			setIsEditingHistoryMessage(true);
 			setEditingHistoryMessageID(editRequest.messageId ?? null);
 			setInput(editRequest.text);
 			onInputChange?.(editRequest.text);
 			textareaRef.current?.focus();
-		}, [editRequest, input, isEditingHistoryMessage, onInputChange]);
+		}, [editRequest, onInputChange]);
 
 		const handleCancelHistoryEdit = useCallback(() => {
 			if (!isEditingHistoryMessage) {
@@ -315,7 +320,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 
 		const handleSubmit = useCallback(async () => {
 			const text = input.trim();
-			if (!text || isDisabled || !hasModelOptions) {
+			if (!text || isDisabled || isLoading || !hasModelOptions) {
 				return;
 			}
 
@@ -328,31 +333,35 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			// it if the request fails.
 			const capturedInput = input;
 
-			// Clear the input and editing state immediately so the
-			// user can start typing their next message without waiting
-			// for the network round-trip.
+			// Clear the input immediately so the user can start typing
+			// their next message without waiting for the network
+			// round-trip. Editing state is cleared only after the
+			// request succeeds so it can be restored on failure.
 			setInput("");
 			onInputChange?.("");
-			if (queueEditID !== null) {
-				setEditingQueuedMessageID(null);
-				setDraftBeforeQueueEdit(null);
-			}
-			if (isEditingHistoryMessage) {
-				setIsEditingHistoryMessage(false);
-				setEditingHistoryMessageID(null);
-				setDraftBeforeHistoryEdit(null);
-				onEditCleared?.();
-			}
 
 			try {
 				await onSend(capturedInput, editedMessageID);
 				if (queueEditID !== null && onDeleteQueuedMessage) {
 					await onDeleteQueuedMessage(queueEditID);
 				}
-			} catch {
+				// Clear editing state only on success so we can
+				// restore it if the request fails above.
+				if (queueEditID !== null) {
+					setEditingQueuedMessageID(null);
+					setDraftBeforeQueueEdit(null);
+				}
+				if (isEditingHistoryMessage) {
+					setIsEditingHistoryMessage(false);
+					setEditingHistoryMessageID(null);
+					setDraftBeforeHistoryEdit(null);
+					onEditCleared?.();
+				}
+			} catch (error) {
 				// Restore the input so the user can retry.
 				setInput(capturedInput);
 				onInputChange?.(capturedInput);
+				toast.error(getErrorMessage(error, "Failed to send message."));
 			} finally {
 				// Re-focus the textarea so the user can keep typing.
 				textareaRef.current?.focus();
@@ -364,6 +373,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			input,
 			isDisabled,
 			isEditingHistoryMessage,
+			isLoading,
 			onDeleteQueuedMessage,
 			onEditCleared,
 			onInputChange,
@@ -419,6 +429,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					// promote the first one instead of submitting.
 					if (
 						!input.trim() &&
+						!isDisabled &&
+						!isLoading &&
 						queuedMessages.length > 0 &&
 						onPromoteQueuedMessage
 					) {
@@ -434,8 +446,10 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				handleCancelQueueEdit,
 				handleSubmit,
 				input,
+				isDisabled,
 				isEditingHistoryMessage,
 				isInterruptPending,
+				isLoading,
 				isStreaming,
 				onInterrupt,
 				onPromoteQueuedMessage,
@@ -528,7 +542,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								formatProviderLabel={formatProviderLabel}
 								dropdownSide="top"
 								dropdownAlign="center"
-								className=""
 							/>
 							{leftActions}
 							{inputStatusText && (
@@ -558,8 +571,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								variant="default"
 								className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
 								onClick={() => void handleSubmit()}
-								disabled={isDisabled || !hasModelOptions || !input.trim()}
-								title={sendButtonLabel}
+								disabled={isDisabled || isLoading || !hasModelOptions || !input.trim()}
 							>
 								{isLoading ? (
 									<Loader2Icon className="animate-spin" />
