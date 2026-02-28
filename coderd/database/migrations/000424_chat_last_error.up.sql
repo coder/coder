@@ -1,1 +1,1 @@
-ALTER TABLE chats ADD COLUMN last_error TEXT NOT NULL DEFAULT '';
+ALTER TABLE chats ADD COLUMN last_error TEXT;

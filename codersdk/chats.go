@@ -38,7 +38,7 @@ type Chat struct {
 	LastModelConfigID uuid.UUID       `json:"last_model_config_id" format:"uuid"`
 	Title             string          `json:"title"`
 	Status            ChatStatus      `json:"status"`
-	LastError         string          `json:"last_error,omitempty"`
+	LastError         *string         `json:"last_error"`
 	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`
 	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`

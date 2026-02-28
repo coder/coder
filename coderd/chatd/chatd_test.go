@@ -601,17 +601,17 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   errorMessage,
+		LastError:   sql.NullString{String: errorMessage, Valid: true},
 	})
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusError, chat.Status)
-	require.Equal(t, errorMessage, chat.LastError)
+	require.Equal(t, sql.NullString{String: errorMessage, Valid: true}, chat.LastError)
 
 	// Verify the error is persisted when re-read from the database.
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusError, fromDB.Status)
-	require.Equal(t, errorMessage, fromDB.LastError)
+	require.Equal(t, sql.NullString{String: errorMessage, Valid: true}, fromDB.LastError)
 
 	// Verify the error is cleared when the chat transitions to a
 	// non-error status (e.g. pending after a retry).
@@ -621,15 +621,15 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   "",
+		LastError:   sql.NullString{},
 	})
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusPending, chat.Status)
-	require.Equal(t, "", chat.LastError)
+	require.False(t, chat.LastError.Valid)
 
 	fromDB, err = db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, "", fromDB.LastError)
+	require.False(t, fromDB.LastError.Valid)
 }
 
 func newTestServer(

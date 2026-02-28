@@ -3835,12 +3835,12 @@ RETURNING
 `
 
 type UpdateChatStatusParams struct {
-	Status      ChatStatus    `db:"status" json:"status"`
-	WorkerID    uuid.NullUUID `db:"worker_id" json:"worker_id"`
-	StartedAt   sql.NullTime  `db:"started_at" json:"started_at"`
-	HeartbeatAt sql.NullTime  `db:"heartbeat_at" json:"heartbeat_at"`
-	LastError   string        `db:"last_error" json:"last_error"`
-	ID          uuid.UUID     `db:"id" json:"id"`
+	Status      ChatStatus     `db:"status" json:"status"`
+	WorkerID    uuid.NullUUID  `db:"worker_id" json:"worker_id"`
+	StartedAt   sql.NullTime   `db:"started_at" json:"started_at"`
+	HeartbeatAt sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
+	LastError   sql.NullString `db:"last_error" json:"last_error"`
+	ID          uuid.UUID      `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error) {

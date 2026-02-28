@@ -478,7 +478,7 @@ func (p *Server) EditMessage(
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   "",
+			LastError:   sql.NullString{},
 		})
 		if err != nil {
 			return xerrors.Errorf("set chat pending: %w", err)
@@ -740,7 +740,7 @@ func setChatPendingWithStore(
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   "",
+		LastError:   sql.NullString{},
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
@@ -755,7 +755,7 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   "",
+		LastError:   sql.NullString{},
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -813,7 +813,7 @@ func insertUserMessageAndSetPending(
 		WorkerID:    uuid.NullUUID{},
 		StartedAt:   sql.NullTime{},
 		HeartbeatAt: sql.NullTime{},
-		LastError:   "",
+		LastError:   sql.NullString{},
 	})
 	if err != nil {
 		return database.ChatMessage{}, database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
@@ -1713,7 +1713,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				WorkerID:    uuid.NullUUID{},
 				StartedAt:   sql.NullTime{},
 				HeartbeatAt: sql.NullTime{},
-				LastError:   lastError,
+				LastError:   sql.NullString{String: lastError, Valid: lastError != ""},
 			})
 			return updateErr
 		}, nil)
@@ -2466,7 +2466,7 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 			WorkerID:    uuid.NullUUID{},
 			StartedAt:   sql.NullTime{},
 			HeartbeatAt: sql.NullTime{},
-			LastError:   "",
+			LastError:   sql.NullString{},
 		})
 		if err != nil {
 			p.logger.Error(ctx, "failed to recover stale chat",
