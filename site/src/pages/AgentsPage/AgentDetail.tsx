@@ -506,7 +506,7 @@ const AgentDetail: FC = () => {
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const hasDiffStatus = Boolean(diffStatusQuery.data?.url);
 	const workspace = workspaceQuery.data;
-	const workspaceAgent = getWorkspaceAgent(workspace);
+	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const chatData = chatQuery.data;
 	const chatRecord = chatData?.chat;
 	const chatMessages = chatData?.messages;

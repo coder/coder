@@ -1853,7 +1853,7 @@ func parseGitHubPullRequestURL(raw string) (githubPullRequestRef, bool) {
 }
 
 type createChatWorkspaceSelection struct {
-	WorkspaceID      uuid.NullUUID
+	WorkspaceID uuid.NullUUID
 }
 
 func (api *API) validateCreateChatWorkspaceSelection(
