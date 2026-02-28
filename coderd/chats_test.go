@@ -77,7 +77,6 @@ func TestPostChats(t *testing.T) {
 		require.NotZero(t, chat.CreatedAt)
 		require.NotZero(t, chat.UpdatedAt)
 		require.Nil(t, chat.WorkspaceID)
-		require.Nil(t, chat.WorkspaceAgentID)
 		require.NotNil(t, chat.RootChatID)
 		require.Equal(t, chat.ID, *chat.RootChatID)
 
@@ -206,8 +205,6 @@ func TestPostChats(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, chat.WorkspaceID)
 		require.Equal(t, workspaceBuild.Workspace.ID, *chat.WorkspaceID)
-		require.NotNil(t, chat.WorkspaceAgentID)
-		require.Equal(t, workspaceBuild.Agents[0].ID, *chat.WorkspaceAgentID)
 		require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
 	})
 
@@ -342,7 +339,6 @@ func TestListChats(t *testing.T) {
 			require.NotZero(t, chat.UpdatedAt)
 			require.Nil(t, chat.ParentChatID)
 			require.Nil(t, chat.WorkspaceID)
-			require.Nil(t, chat.WorkspaceAgentID)
 			require.NotNil(t, chat.RootChatID)
 			require.Equal(t, chat.ID, *chat.RootChatID)
 			require.NotNil(t, chat.DiffStatus)

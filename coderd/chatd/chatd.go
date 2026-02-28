@@ -133,7 +133,6 @@ var (
 type CreateOptions struct {
 	OwnerID            uuid.UUID
 	WorkspaceID        uuid.NullUUID
-	WorkspaceAgentID   uuid.NullUUID
 	ParentChatID       uuid.NullUUID
 	RootChatID         uuid.NullUUID
 	Title              string
@@ -212,7 +211,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
 			OwnerID:           opts.OwnerID,
 			WorkspaceID:       opts.WorkspaceID,
-			WorkspaceAgentID:  opts.WorkspaceAgentID,
 			ParentChatID:      opts.ParentChatID,
 			RootChatID:        opts.RootChatID,
 			LastModelConfigID: opts.ModelConfigID,
@@ -1421,10 +1419,6 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	if chat.WorkspaceID.Valid {
 		sdkChat.WorkspaceID = &chat.WorkspaceID.UUID
 	}
-	if chat.WorkspaceAgentID.Valid {
-		sdkChat.WorkspaceAgentID = &chat.WorkspaceAgentID.UUID
-	}
-
 	event := coderdpubsub.ChatEvent{
 		Kind: kind,
 		Chat: sdkChat,
@@ -1825,13 +1819,6 @@ func (p *Server) runChat(
 	}()
 
 	currentChat := chat
-	loadChatSnapshot := func(
-		loadCtx context.Context,
-		chatID uuid.UUID,
-	) (database.Chat, error) {
-		//nolint:gocritic // System context required to load chat snapshots for the stream.
-		return p.db.GetChatByID(dbauthz.AsSystemRestricted(loadCtx), chatID)
-	}
 	var (
 		chatStateMu sync.Mutex
 		workspaceMu sync.Mutex
@@ -1860,28 +1847,20 @@ func (p *Server) runChat(
 			return nil, xerrors.New("workspace agent connector is not configured")
 		}
 
-		if !chatSnapshot.WorkspaceAgentID.Valid {
-			refreshedChat, refreshErr := refreshChatWorkspaceSnapshot(
-				ctx,
-				chatSnapshot,
-				loadChatSnapshot,
-			)
-			if refreshErr != nil {
-				return nil, refreshErr
-			}
-			if refreshedChat.WorkspaceAgentID.Valid {
-				chatStateMu.Lock()
-				currentChat = refreshedChat
-				chatSnapshot = refreshedChat
-				chatStateMu.Unlock()
-			}
+		if !chatSnapshot.WorkspaceID.Valid {
+			return nil, xerrors.New("chat has no workspace")
 		}
 
-		if !chatSnapshot.WorkspaceAgentID.Valid {
+		//nolint:gocritic // System context needed to look up workspace agents.
+		agents, err := p.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+			dbauthz.AsSystemRestricted(ctx),
+			chatSnapshot.WorkspaceID.UUID,
+		)
+		if err != nil || len(agents) == 0 {
 			return nil, xerrors.New("chat has no workspace agent")
 		}
 
-		agentConn, agentRelease, err := p.agentConnFn(ctx, chatSnapshot.WorkspaceAgentID.UUID)
+		agentConn, agentRelease, err := p.agentConnFn(ctx, agents[0].ID)
 		if err != nil {
 			return nil, xerrors.Errorf("connect to workspace agent: %w", err)
 		}
@@ -2371,23 +2350,6 @@ func usageNullInt64(value int64, valid bool) sql.NullInt64 {
 	}
 }
 
-func refreshChatWorkspaceSnapshot(
-	ctx context.Context,
-	chat database.Chat,
-	loadChat func(context.Context, uuid.UUID) (database.Chat, error),
-) (database.Chat, error) {
-	if chat.WorkspaceAgentID.Valid || loadChat == nil {
-		return chat, nil
-	}
-
-	refreshedChat, err := loadChat(ctx, chat.ID)
-	if err != nil {
-		return chat, xerrors.Errorf("reload chat workspace state: %w", err)
-	}
-
-	return refreshedChat, nil
-}
-
 // resolveInstructions returns the combined system instructions for the
 // workspace agent. It reads the home-level (~/.coder/AGENTS.md) and
 // working-directory-level (<pwd>/AGENTS.md) instruction files, combines
@@ -2397,10 +2359,19 @@ func (p *Server) resolveInstructions(
 	chat database.Chat,
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) string {
-	if !chat.WorkspaceAgentID.Valid {
+	if !chat.WorkspaceID.Valid {
 		return ""
 	}
-	agentID := chat.WorkspaceAgentID.UUID
+
+	//nolint:gocritic // System context needed to look up workspace agents.
+	agents, agentsErr := p.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+		dbauthz.AsSystemRestricted(ctx),
+		chat.WorkspaceID.UUID,
+	)
+	if agentsErr != nil || len(agents) == 0 {
+		return ""
+	}
+	agentID := agents[0].ID
 
 	p.instructionCacheMu.Lock()
 	cached, ok := p.instructionCache[agentID]

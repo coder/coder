@@ -136,7 +136,6 @@ ORDER BY
 INSERT INTO chats (
     owner_id,
     workspace_id,
-    workspace_agent_id,
     parent_chat_id,
     root_chat_id,
     last_model_config_id,
@@ -144,7 +143,6 @@ INSERT INTO chats (
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
-    sqlc.narg('workspace_agent_id')::uuid,
     sqlc.narg('parent_chat_id')::uuid,
     sqlc.narg('root_chat_id')::uuid,
     @last_model_config_id::uuid,
@@ -222,7 +220,6 @@ UPDATE
     chats
 SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
-    workspace_agent_id = sqlc.narg('workspace_agent_id')::uuid,
     updated_at = NOW()
 WHERE
     id = @id::uuid

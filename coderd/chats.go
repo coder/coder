@@ -258,7 +258,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
-		WorkspaceAgentID:   workspaceSelection.WorkspaceAgentID,
 		Title:              title,
 		ModelConfigID:      modelConfigID,
 		SystemPrompt:       defaultChatSystemPrompt(),
@@ -1855,7 +1854,6 @@ func parseGitHubPullRequestURL(raw string) (githubPullRequestRef, bool) {
 
 type createChatWorkspaceSelection struct {
 	WorkspaceID      uuid.NullUUID
-	WorkspaceAgentID uuid.NullUUID
 }
 
 func (api *API) validateCreateChatWorkspaceSelection(
@@ -1886,23 +1884,6 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	selection.WorkspaceID = uuid.NullUUID{
 		UUID:  workspace.ID,
 		Valid: true,
-	}
-
-	workspaceAgents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
-		ctx,
-		workspace.ID,
-	)
-	if err != nil {
-		return selection, http.StatusInternalServerError, &codersdk.Response{
-			Message: "Failed to get workspace agents.",
-			Detail:  err.Error(),
-		}
-	}
-	if len(workspaceAgents) > 0 {
-		selection.WorkspaceAgentID = uuid.NullUUID{
-			UUID:  workspaceAgents[0].ID,
-			Valid: true,
-		}
 	}
 
 	return selection, 0, nil
@@ -2080,9 +2061,6 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 	}
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
-	}
-	if c.WorkspaceAgentID.Valid {
-		chat.WorkspaceAgentID = &c.WorkspaceAgentID.UUID
 	}
 	if diffStatus != nil {
 		convertedDiffStatus := convertChatDiffStatus(c.ID, diffStatus)

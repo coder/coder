@@ -223,9 +223,8 @@ func (p *Server) createChildSubagentChat(
 	}
 
 	child, err := p.CreateChat(ctx, CreateOptions{
-		OwnerID:          parent.OwnerID,
-		WorkspaceID:      parent.WorkspaceID,
-		WorkspaceAgentID: parent.WorkspaceAgentID,
+		OwnerID:     parent.OwnerID,
+		WorkspaceID: parent.WorkspaceID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,

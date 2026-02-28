@@ -494,7 +494,6 @@ const AgentDetail: FC = () => {
 	});
 	const chatsQuery = useQuery(chats());
 	const workspaceId = chatQuery.data?.chat?.workspace_id;
-	const workspaceAgentId = chatQuery.data?.chat?.workspace_agent_id;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
@@ -507,7 +506,7 @@ const AgentDetail: FC = () => {
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const hasDiffStatus = Boolean(diffStatusQuery.data?.url);
 	const workspace = workspaceQuery.data;
-	const workspaceAgent = getWorkspaceAgent(workspace, workspaceAgentId);
+	const workspaceAgent = getWorkspaceAgent(workspace);
 	const chatData = chatQuery.data;
 	const chatRecord = chatData?.chat;
 	const chatMessages = chatData?.messages;

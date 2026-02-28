@@ -191,10 +191,6 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 						UUID:  workspace.ID,
 						Valid: true,
 					},
-					WorkspaceAgentID: uuid.NullUUID{
-						UUID:  workspaceAgentID,
-						Valid: workspaceAgentID != uuid.Nil,
-					},
 				})
 			}
 
@@ -281,14 +277,15 @@ func checkExistingWorkspace(
 
 	case database.ProvisionerJobStatusSucceeded:
 		// Build succeeded — check if agent is reachable.
-		if chat.WorkspaceAgentID.Valid && agentConnFn != nil {
+		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
+		if agentsErr == nil && len(agents) > 0 && agentConnFn != nil {
 			pingCtx, cancel := context.WithTimeout(
 				ctx, agentPingTimeout,
 			)
 			defer cancel()
 
 			conn, release, connErr := agentConnFn(
-				pingCtx, chat.WorkspaceAgentID.UUID,
+				pingCtx, agents[0].ID,
 			)
 			if connErr == nil {
 				release()

@@ -64,7 +64,6 @@ func TestChatParam(t *testing.T) {
 		chat, err := db.InsertChat(context.Background(), database.InsertChatParams{
 			OwnerID:           ownerID,
 			WorkspaceID:       uuid.NullUUID{},
-			WorkspaceAgentID:  uuid.NullUUID{},
 			ParentChatID:      uuid.NullUUID{},
 			RootChatID:        uuid.NullUUID{},
 			LastModelConfigID: modelConfig.ID,

@@ -2842,7 +2842,7 @@ WHERE
             1
     )
 RETURNING
-    id, owner_id, workspace_id, workspace_agent_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 `
 
 type AcquireChatParams struct {
@@ -2859,7 +2859,6 @@ func (q *sqlQuerier) AcquireChat(ctx context.Context, arg AcquireChatParams) (Ch
 		&i.ID,
 		&i.OwnerID,
 		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
 		&i.Title,
 		&i.Status,
 		&i.WorkerID,
@@ -2940,7 +2939,7 @@ func (q *sqlQuerier) DeleteChatQueuedMessage(ctx context.Context, arg DeleteChat
 
 const getChatByID = `-- name: GetChatByID :one
 SELECT
-    id, owner_id, workspace_id, workspace_agent_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 FROM
     chats
 WHERE
@@ -2954,7 +2953,6 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 		&i.ID,
 		&i.OwnerID,
 		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
 		&i.Title,
 		&i.Status,
 		&i.WorkerID,
@@ -2972,7 +2970,7 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 }
 
 const getChatByIDForUpdate = `-- name: GetChatByIDForUpdate :one
-SELECT id, owner_id, workspace_id, workspace_agent_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error FROM chats WHERE id = $1::uuid FOR UPDATE
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error FROM chats WHERE id = $1::uuid FOR UPDATE
 `
 
 func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error) {
@@ -2982,7 +2980,6 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 		&i.ID,
 		&i.OwnerID,
 		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
 		&i.Title,
 		&i.Status,
 		&i.WorkerID,
@@ -3291,7 +3288,7 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 
 const getChatsByOwnerID = `-- name: GetChatsByOwnerID :many
 SELECT
-    id, owner_id, workspace_id, workspace_agent_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 FROM
     chats
 WHERE
@@ -3314,7 +3311,6 @@ func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) (
 			&i.ID,
 			&i.OwnerID,
 			&i.WorkspaceID,
-			&i.WorkspaceAgentID,
 			&i.Title,
 			&i.Status,
 			&i.WorkerID,
@@ -3343,7 +3339,7 @@ func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) (
 
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
-    id, owner_id, workspace_id, workspace_agent_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 FROM
     chats
 WHERE
@@ -3366,7 +3362,6 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 			&i.ID,
 			&i.OwnerID,
 			&i.WorkspaceID,
-			&i.WorkspaceAgentID,
 			&i.Title,
 			&i.Status,
 			&i.WorkerID,
@@ -3397,7 +3392,6 @@ const insertChat = `-- name: InsertChat :one
 INSERT INTO chats (
     owner_id,
     workspace_id,
-    workspace_agent_id,
     parent_chat_id,
     root_chat_id,
     last_model_config_id,
@@ -3408,17 +3402,15 @@ INSERT INTO chats (
     $3::uuid,
     $4::uuid,
     $5::uuid,
-    $6::uuid,
-    $7::text
+    $6::text
 )
 RETURNING
-    id, owner_id, workspace_id, workspace_agent_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 `
 
 type InsertChatParams struct {
 	OwnerID           uuid.UUID     `db:"owner_id" json:"owner_id"`
 	WorkspaceID       uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
-	WorkspaceAgentID  uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 	ParentChatID      uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
 	RootChatID        uuid.NullUUID `db:"root_chat_id" json:"root_chat_id"`
 	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
@@ -3429,7 +3421,6 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 	row := q.db.QueryRowContext(ctx, insertChat,
 		arg.OwnerID,
 		arg.WorkspaceID,
-		arg.WorkspaceAgentID,
 		arg.ParentChatID,
 		arg.RootChatID,
 		arg.LastModelConfigID,
@@ -3440,7 +3431,6 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		&i.ID,
 		&i.OwnerID,
 		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
 		&i.Title,
 		&i.Status,
 		&i.WorkerID,
@@ -3578,7 +3568,7 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 
 const listChatsByRootID = `-- name: ListChatsByRootID :many
 SELECT
-    id, owner_id, workspace_id, workspace_agent_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 FROM
     chats
 WHERE
@@ -3600,7 +3590,6 @@ func (q *sqlQuerier) ListChatsByRootID(ctx context.Context, rootChatID uuid.UUID
 			&i.ID,
 			&i.OwnerID,
 			&i.WorkspaceID,
-			&i.WorkspaceAgentID,
 			&i.Title,
 			&i.Status,
 			&i.WorkerID,
@@ -3629,7 +3618,7 @@ func (q *sqlQuerier) ListChatsByRootID(ctx context.Context, rootChatID uuid.UUID
 
 const listChildChatsByParentID = `-- name: ListChildChatsByParentID :many
 SELECT
-    id, owner_id, workspace_id, workspace_agent_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 FROM
     chats
 WHERE
@@ -3651,7 +3640,6 @@ func (q *sqlQuerier) ListChildChatsByParentID(ctx context.Context, parentChatID 
 			&i.ID,
 			&i.OwnerID,
 			&i.WorkspaceID,
-			&i.WorkspaceAgentID,
 			&i.Title,
 			&i.Status,
 			&i.WorkerID,
@@ -3719,7 +3707,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, workspace_agent_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 `
 
 type UpdateChatByIDParams struct {
@@ -3734,7 +3722,6 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 		&i.ID,
 		&i.OwnerID,
 		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
 		&i.Title,
 		&i.Status,
 		&i.WorkerID,
@@ -3831,7 +3818,7 @@ SET
 WHERE
     id = $6::uuid
 RETURNING
-    id, owner_id, workspace_id, workspace_agent_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 `
 
 type UpdateChatStatusParams struct {
@@ -3857,7 +3844,6 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.ID,
 		&i.OwnerID,
 		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
 		&i.Title,
 		&i.Status,
 		&i.WorkerID,
@@ -3879,28 +3865,25 @@ UPDATE
     chats
 SET
     workspace_id = $1::uuid,
-    workspace_agent_id = $2::uuid,
     updated_at = NOW()
 WHERE
-    id = $3::uuid
+    id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, workspace_agent_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 `
 
 type UpdateChatWorkspaceParams struct {
-	WorkspaceID      uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
-	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	ID               uuid.UUID     `db:"id" json:"id"`
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	ID          uuid.UUID     `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatWorkspace(ctx context.Context, arg UpdateChatWorkspaceParams) (Chat, error) {
-	row := q.db.QueryRowContext(ctx, updateChatWorkspace, arg.WorkspaceID, arg.WorkspaceAgentID, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateChatWorkspace, arg.WorkspaceID, arg.ID)
 	var i Chat
 	err := row.Scan(
 		&i.ID,
 		&i.OwnerID,
 		&i.WorkspaceID,
-		&i.WorkspaceAgentID,
 		&i.Title,
 		&i.Status,
 		&i.WorkerID,

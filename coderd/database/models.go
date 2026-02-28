@@ -3889,7 +3889,6 @@ type Chat struct {
 	ID                uuid.UUID      `db:"id" json:"id"`
 	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
 	WorkspaceID       uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
-	WorkspaceAgentID  uuid.NullUUID  `db:"workspace_agent_id" json:"workspace_agent_id"`
 	Title             string         `db:"title" json:"title"`
 	Status            ChatStatus     `db:"status" json:"status"`
 	WorkerID          uuid.NullUUID  `db:"worker_id" json:"worker_id"`
