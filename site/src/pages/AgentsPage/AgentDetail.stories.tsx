@@ -14,59 +14,10 @@ import {
 } from "api/queries/chats";
 import { workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import { type FC, useRef, useState } from "react";
-import { Outlet } from "react-router";
+import { fn } from "storybook/test";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import {
-	reactRouterOutlet,
-	reactRouterParameters,
-} from "storybook-addon-remix-react-router";
-import AgentDetail from "./AgentDetail";
-import type { AgentsOutletContext } from "./AgentsPage";
-
-// ---------------------------------------------------------------------------
-// Layout wrapper – provides portal targets for the top-bar and right panel
-// so the component can render its portaled actions menu and diff panel.
-// ---------------------------------------------------------------------------
-const AgentDetailLayout: FC = () => {
-	const topBarTitleRef = useRef<HTMLDivElement>(null);
-	const topBarActionsRef = useRef<HTMLDivElement>(null);
-	const rightPanelRef = useRef<HTMLDivElement>(null);
-	const [rightPanelOpen, setRightPanelOpen] = useState(false);
-
-	return (
-		<div className="flex h-full">
-			<div className="flex min-w-0 flex-1 flex-col">
-				<div className="flex items-center gap-2 border-b border-border px-4 py-2">
-					<div ref={topBarTitleRef} className="flex-1" />
-					<div ref={topBarActionsRef} />
-				</div>
-				<div className="flex-1 overflow-hidden">
-					<Outlet
-						context={
-							{
-								chatErrorReasons: {},
-								setChatErrorReason: () => {},
-								clearChatErrorReason: () => {},
-								topBarTitleRef,
-								topBarActionsRef,
-								rightPanelRef,
-								setRightPanelOpen,
-								requestArchiveAgent: () => {},
-							} satisfies AgentsOutletContext
-						}
-					/>
-				</div>
-			</div>
-			<div
-				ref={rightPanelRef}
-				className={
-					rightPanelOpen ? "w-[400px] border-l border-border" : "hidden"
-				}
-			/>
-		</div>
-	);
-};
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { AgentDetail } from "./AgentDetail";
 
 // ---------------------------------------------------------------------------
 // Shared mock data
@@ -164,10 +115,19 @@ const wrapSSE = (payload: unknown): string =>
 // ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
-const meta: Meta<typeof AgentDetailLayout> = {
+const meta: Meta<typeof AgentDetail> = {
 	title: "pages/AgentsPage/AgentDetail",
-	component: AgentDetailLayout,
+	component: AgentDetail,
 	decorators: [withAuthProvider, withWebSocket],
+	args: {
+		agentId: CHAT_ID,
+		chatErrorReasons: {},
+		setChatErrorReason: fn(),
+		clearChatErrorReason: fn(),
+		requestArchiveAgent: fn(),
+		onDiffPanelStateChange: fn(),
+		onTopBarChange: fn(),
+	},
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
@@ -177,7 +137,6 @@ const meta: Meta<typeof AgentDetailLayout> = {
 				path: `/agents/${CHAT_ID}`,
 				pathParams: { agentId: CHAT_ID },
 			},
-			routing: reactRouterOutlet({ path: "/agents/:agentId" }, <AgentDetail />),
 		}),
 	},
 	beforeEach: () => {
@@ -186,7 +145,7 @@ const meta: Meta<typeof AgentDetailLayout> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof AgentDetailLayout>;
+type Story = StoryObj<typeof AgentDetail>;
 
 // ---------------------------------------------------------------------------
 // Stories
@@ -195,7 +154,7 @@ type Story = StoryObj<typeof AgentDetailLayout>;
 /** Skeleton placeholder when no query data is available yet. */
 export const Loading: Story = {};
 
-/** Full layout with actions menu and diff panel portaled to the right slot. */
+/** Full layout with actions menu and diff panel. */
 export const CompletedWithDiffPanel: Story = {
 	parameters: {
 		queries: buildQueries(
@@ -216,7 +175,7 @@ export const CompletedWithDiffPanel: Story = {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
 
-		// Wait for the actions menu trigger to appear in the top bar.
+		// Wait for the actions menu trigger to appear.
 		const menuTrigger = await canvas.findByRole("button", {
 			name: "Open agent actions",
 		});

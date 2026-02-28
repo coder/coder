@@ -38,16 +38,17 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { NavLink, Outlet, useNavigate, useParams } from "react-router";
+import { NavLink, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import { AgentDetail, type TopBarContent } from "./AgentDetail";
 import { AgentChatInput } from "./AgentChatInput";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 import { DiffRightPanel } from "./DiffRightPanel";
+import { FilesChangedPanel } from "./FilesChangedPanel";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -84,16 +85,6 @@ function isChatListSSEEvent(
 	);
 }
 
-export interface AgentsOutletContext {
-	chatErrorReasons: Record<string, string>;
-	setChatErrorReason: (chatId: string, reason: string) => void;
-	clearChatErrorReason: (chatId: string) => void;
-	topBarTitleRef: React.RefObject<HTMLDivElement | null>;
-	topBarActionsRef: React.RefObject<HTMLDivElement | null>;
-	rightPanelRef: React.RefObject<HTMLDivElement | null>;
-	setRightPanelOpen: (isOpen: boolean) => void;
-	requestArchiveAgent: (chatId: string) => void;
-}
 
 const AgentsPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -105,6 +96,41 @@ const AgentsPage: FC = () => {
 		permissions.editDeploymentConfig ||
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
 	const canSetSystemPrompt = isAgentsAdmin;
+	const canManageChatModelConfigs = isAgentsAdmin;
+	const hasAdminControls = canSetSystemPrompt || canManageChatModelConfigs;
+
+	const initialSystemPrompt = () => {
+		if (typeof window === "undefined") {
+			return "";
+		}
+		return localStorage.getItem(systemPromptStorageKey) ?? "";
+	};
+	const [savedSystemPrompt, setSavedSystemPrompt] =
+		useState(initialSystemPrompt);
+	const [systemPromptDraft, setSystemPromptDraft] =
+		useState(initialSystemPrompt);
+	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
+		useState(false);
+	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
+
+	const handleSaveSystemPrompt = useCallback(
+		(event: FormEvent) => {
+			event.preventDefault();
+			if (!isSystemPromptDirty) {
+				return;
+			}
+
+			setSavedSystemPrompt(systemPromptDraft);
+			if (typeof window !== "undefined") {
+				if (systemPromptDraft) {
+					localStorage.setItem(systemPromptStorageKey, systemPromptDraft);
+				} else {
+					localStorage.removeItem(systemPromptStorageKey);
+				}
+			}
+		},
+		[isSystemPromptDirty, systemPromptDraft],
+	);
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page uses
@@ -126,6 +152,7 @@ const AgentsPage: FC = () => {
 	const archiveMutation = useMutation(archiveChat(queryClient));
 	const [archivingChatId, setArchivingChatId] = useState<string | null>(null);
 	const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+	const [topBarContent, setTopBarContent] = useState<TopBarContent | null>(null);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, string>
@@ -185,9 +212,7 @@ const AgentsPage: FC = () => {
 			return next;
 		});
 	}, []);
-	const topBarTitleRef = useRef<HTMLDivElement>(null);
-	const topBarActionsRef = useRef<HTMLDivElement>(null);
-	const rightPanelRef = useRef<HTMLDivElement>(null);
+
 	const chatList = chatsQuery.data ?? [];
 	const requestArchiveAgent = useCallback(
 		async (chatId: string) => {
@@ -220,24 +245,7 @@ const AgentsPage: FC = () => {
 		},
 		[archiveMutation, queryClient, agentId, navigate, clearChatErrorReason],
 	);
-	const outletContext: AgentsOutletContext = useMemo(
-		() => ({
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			topBarTitleRef,
-			topBarActionsRef,
-			rightPanelRef,
-			setRightPanelOpen: setIsRightPanelOpen,
-			requestArchiveAgent,
-		}),
-		[
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			requestArchiveAgent,
-		],
-	);
+
 	const handleCreateChat = async (options: CreateChatOptions) => {
 		const { message, workspaceId, model } = options;
 		const modelConfigID =
@@ -446,10 +454,23 @@ const AgentsPage: FC = () => {
 							</Button>
 						)}
 						<div
-							ref={topBarTitleRef}
 							className="flex min-w-0 flex-1 items-center"
-						/>
-						<div ref={topBarActionsRef} className="flex items-center gap-2" />
+						>
+							{topBarContent?.title}
+						</div>
+						<div className="flex items-center gap-2">
+							{!agentId && hasAdminControls && (
+								<Button
+									variant="subtle"
+									disabled={createMutation.isPending}
+									className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
+									onClick={() => setConfigureAgentsDialogOpen(true)}
+								>
+									Admin
+								</Button>
+							)}
+							{topBarContent?.actions}
+						</div>
 						<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
 							<UserDropdown
 								user={user}
@@ -464,7 +485,15 @@ const AgentsPage: FC = () => {
 						</div>
 					</div>
 					{agentId ? (
-						<Outlet context={outletContext} />
+						<AgentDetail
+							agentId={agentId}
+							chatErrorReasons={chatErrorReasons}
+							setChatErrorReason={setChatErrorReason}
+							clearChatErrorReason={clearChatErrorReason}
+							requestArchiveAgent={requestArchiveAgent}
+							onDiffPanelStateChange={setIsRightPanelOpen}
+							onTopBarChange={setTopBarContent}
+						/>
 					) : (
 						<AgentsEmptyState
 							onCreateChat={handleCreateChat}
@@ -476,17 +505,27 @@ const AgentsPage: FC = () => {
 							isModelCatalogLoading={chatModelsQuery.isLoading}
 							isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 							modelCatalogError={chatModelsQuery.error}
-							canSetSystemPrompt={canSetSystemPrompt}
-							canManageChatModelConfigs={isAgentsAdmin}
-							topBarActionsRef={topBarActionsRef}
 						/>
 					)}
 				</div>
-				<DiffRightPanel
-					ref={rightPanelRef}
-					isOpen={Boolean(agentId && isRightPanelOpen)}
-				/>
+				<DiffRightPanel isOpen={Boolean(agentId && isRightPanelOpen)}>
+					{agentId && isRightPanelOpen && <FilesChangedPanel chatId={agentId} />}
+				</DiffRightPanel>
 			</div>
+
+			{hasAdminControls && (
+				<ConfigureAgentsDialog
+					open={isConfigureAgentsDialogOpen}
+					onOpenChange={setConfigureAgentsDialogOpen}
+					canManageChatModelConfigs={canManageChatModelConfigs}
+					canSetSystemPrompt={canSetSystemPrompt}
+					systemPromptDraft={systemPromptDraft}
+					onSystemPromptDraftChange={setSystemPromptDraft}
+					onSaveSystemPrompt={handleSaveSystemPrompt}
+					isSystemPromptDirty={isSystemPromptDirty}
+					isDisabled={createMutation.isPending}
+				/>
+			)}
 		</div>
 	);
 };
@@ -501,9 +540,6 @@ interface AgentsEmptyStateProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
 	modelCatalogError: unknown;
-	canSetSystemPrompt: boolean;
-	canManageChatModelConfigs: boolean;
-	topBarActionsRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
@@ -516,9 +552,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	isModelCatalogLoading,
 	isModelConfigsLoading,
 	modelCatalogError,
-	canSetSystemPrompt,
-	canManageChatModelConfigs,
-	topBarActionsRef,
 }) => {
 	const [inputValue, setInputValue] = useState(() => {
 		if (typeof window === "undefined") {
@@ -526,12 +559,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 		return localStorage.getItem(emptyInputStorageKey) ?? "";
 	});
-	const initialSystemPrompt = () => {
-		if (typeof window === "undefined") {
-			return "";
-		}
-		return localStorage.getItem(systemPromptStorageKey) ?? "";
-	};
 	const [initialLastModelConfigID] = useState(() => {
 		if (typeof window === "undefined") {
 			return "";
@@ -591,12 +618,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
-	const [savedSystemPrompt, setSavedSystemPrompt] =
-		useState(initialSystemPrompt);
-	const [systemPromptDraft, setSystemPromptDraft] =
-		useState(initialSystemPrompt);
-	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
-		useState(false);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 50 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -606,7 +627,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	);
 	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
 	const autoCreateWorkspaceValue = "__auto_create_workspace__";
-	const hasAdminControls = canSetSystemPrompt || canManageChatModelConfigs;
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -654,7 +674,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	selectedWorkspaceIdRef.current = selectedWorkspaceId;
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
-	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
 
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
@@ -681,24 +700,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		setUserSelectedModel(value);
 	}, []);
 
-	const handleSaveSystemPrompt = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isSystemPromptDirty) {
-				return;
-			}
-
-			setSavedSystemPrompt(systemPromptDraft);
-			if (typeof window !== "undefined") {
-				if (systemPromptDraft) {
-					localStorage.setItem(systemPromptStorageKey, systemPromptDraft);
-				} else {
-					localStorage.removeItem(systemPromptStorageKey);
-				}
-			}
-		},
-		[isSystemPromptDirty, systemPromptDraft],
-	);
 
 	const handleSend = useCallback(
 		(message: string) => {
@@ -720,20 +721,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
-			{hasAdminControls &&
-				topBarActionsRef.current &&
-				createPortal(
-					<Button
-						variant="subtle"
-						disabled={isCreating}
-						className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
-						onClick={() => setConfigureAgentsDialogOpen(true)}
-					>
-						Admin
-					</Button>,
-					topBarActionsRef.current,
-				)}
-
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
 				{createError ? <ErrorAlert error={createError} /> : null}
 				{workspacesQuery.isError && (
@@ -790,20 +777,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					}
 				/>
 			</div>
-
-			{hasAdminControls && (
-				<ConfigureAgentsDialog
-					open={isConfigureAgentsDialogOpen}
-					onOpenChange={setConfigureAgentsDialogOpen}
-					canManageChatModelConfigs={canManageChatModelConfigs}
-					canSetSystemPrompt={canSetSystemPrompt}
-					systemPromptDraft={systemPromptDraft}
-					onSystemPromptDraftChange={setSystemPromptDraft}
-					onSaveSystemPrompt={handleSaveSystemPrompt}
-					isSystemPromptDirty={isSystemPromptDirty}
-					isDisabled={isCreating}
-				/>
-			)}
 		</div>
 	);
 };

@@ -25,7 +25,7 @@ import {
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useOutletContext, useParams } from "react-router";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
@@ -54,9 +54,7 @@ import {
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
-import { AgentDetailTopBarPortals } from "./AgentDetail/TopBarPortals";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
-import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -64,14 +62,6 @@ import {
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 
-const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
-	() => {};
-const noopClearChatErrorReason: AgentsOutletContext["clearChatErrorReason"] =
-	() => {};
-const noopSetRightPanelOpen: AgentsOutletContext["setRightPanelOpen"] =
-	() => {};
-const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
-	() => {};
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -456,25 +446,97 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 	);
 };
 
-const AgentDetail: FC = () => {
+import type { ChatDiffStatusResponse } from "api/api";
+import { Button } from "components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import {
+	ArchiveIcon,
+	ChevronRightIcon,
+	EllipsisIcon,
+	ExternalLinkIcon,
+	MonitorIcon,
+	PanelRightCloseIcon,
+	PanelRightOpenIcon,
+} from "lucide-react";
+import type { ReactNode } from "react";
+
+export interface TopBarContent {
+	title: ReactNode;
+	actions: ReactNode;
+}
+
+interface DiffStatsBadgeProps {
+	status: ChatDiffStatusResponse;
+	isOpen: boolean;
+	onToggle: () => void;
+}
+
+const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
+	status,
+	isOpen,
+	onToggle,
+}) => {
+	const additions = status.additions ?? 0;
+	const deletions = status.deletions ?? 0;
+
+	return (
+		<div
+			role="button"
+			tabIndex={0}
+			onClick={onToggle}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					onToggle();
+				}
+			}}
+			className="flex cursor-pointer items-center gap-3 px-2 py-1 text-content-secondary transition-colors hover:text-content-primary"
+		>
+			<span className="font-mono text-sm font-semibold text-content-success">
+				+{additions}
+			</span>
+			<span className="font-mono text-sm font-semibold text-content-destructive">
+				−{deletions}
+			</span>
+			{isOpen ? (
+				<PanelRightCloseIcon className="h-4 w-4" />
+			) : (
+				<PanelRightOpenIcon className="h-4 w-4" />
+			)}
+		</div>
+	);
+};
+
+export interface AgentDetailProps {
+	agentId: string;
+	chatErrorReasons: Record<string, string>;
+	setChatErrorReason: (chatId: string, reason: string) => void;
+	clearChatErrorReason: (chatId: string) => void;
+	requestArchiveAgent: (chatId: string) => void;
+	onDiffPanelStateChange: (isOpen: boolean) => void;
+	onTopBarChange: (content: TopBarContent | null) => void;
+}
+
+export const AgentDetail: FC<AgentDetailProps> = ({
+	agentId,
+	chatErrorReasons,
+	setChatErrorReason,
+	clearChatErrorReason,
+	requestArchiveAgent,
+	onDiffPanelStateChange,
+	onTopBarChange,
+}) => {
 	const navigate = useNavigate();
-	const { agentId } = useParams<{ agentId: string }>();
-	const outletContext = useOutletContext<AgentsOutletContext | undefined>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const [showDiffPanel, setShowDiffPanel] = useState(false);
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
-	const chatErrorReasons = outletContext?.chatErrorReasons ?? {};
-	const setChatErrorReason =
-		outletContext?.setChatErrorReason ?? noopSetChatErrorReason;
-	const clearChatErrorReason =
-		outletContext?.clearChatErrorReason ?? noopClearChatErrorReason;
-	const setRightPanelOpen =
-		outletContext?.setRightPanelOpen ?? noopSetRightPanelOpen;
-	const requestArchiveAgent =
-		outletContext?.requestArchiveAgent ?? noopRequestArchiveAgent;
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
 	// When switching between chats, reset the scroll container to the
@@ -489,7 +551,7 @@ const AgentDetail: FC = () => {
 	}, [agentId]);
 
 	const chatQuery = useQuery({
-		...chat(agentId ?? ""),
+		...chat(agentId),
 		enabled: Boolean(agentId),
 	});
 	const chatsQuery = useQuery(chats());
@@ -526,13 +588,13 @@ const AgentDetail: FC = () => {
 
 	// Notify the parent layout about right panel visibility. This
 	// useEffect is necessary because we're synchronizing with state
-	// owned by the parent outlet, not adjusting our own state.
+	// owned by the parent, not adjusting our own state.
 	useEffect(() => {
-		setRightPanelOpen(hasDiffStatus && showDiffPanel);
+		onDiffPanelStateChange(hasDiffStatus && showDiffPanel);
 		return () => {
-			setRightPanelOpen(false);
+			onDiffPanelStateChange(false);
 		};
-	}, [hasDiffStatus, setRightPanelOpen, showDiffPanel]);
+	}, [hasDiffStatus, onDiffPanelStateChange, showDiffPanel]);
 
 	const modelOptions = useMemo(
 		() =>
@@ -572,17 +634,17 @@ const AgentDetail: FC = () => {
 	}, [modelConfigIDByModelID]);
 
 	const sendMutation = useMutation(
-		createChatMessage(queryClient, agentId ?? ""),
+		createChatMessage(queryClient, agentId),
 	);
-	const editMutation = useMutation(editChatMessage(queryClient, agentId ?? ""));
+	const editMutation = useMutation(editChatMessage(queryClient, agentId));
 	const interruptMutation = useMutation(
-		interruptChat(queryClient, agentId ?? ""),
+		interruptChat(queryClient, agentId),
 	);
 	const deleteQueuedMutation = useMutation(
-		deleteChatQueuedMessage(queryClient, agentId ?? ""),
+		deleteChatQueuedMessage(queryClient, agentId),
 	);
 	const promoteQueuedMutation = useMutation(
-		promoteChatQueuedMessage(queryClient, agentId ?? ""),
+		promoteChatQueuedMessage(queryClient, agentId),
 	);
 
 	const { store, clearStreamError } = useChatStore({
@@ -649,7 +711,6 @@ const AgentDetail: FC = () => {
 		if (
 			!message.trim() ||
 			isSubmissionPending ||
-			!agentId ||
 			!hasModelOptions
 		) {
 			return;
@@ -743,7 +804,7 @@ const AgentDetail: FC = () => {
 	};
 
 	const handleInterrupt = () => {
-		if (!agentId || interruptMutation.isPending) {
+		if (interruptMutation.isPending) {
 			return;
 		}
 		void interruptMutation.mutateAsync();
@@ -787,9 +848,6 @@ const AgentDetail: FC = () => {
 		[promoteQueuedMutation, store],
 	);
 
-	const topBarTitleRef = outletContext?.topBarTitleRef;
-	const topBarActionsRef = outletContext?.topBarActionsRef;
-	const rightPanelRef = outletContext?.rightPanelRef;
 	const chatTitle = chatQuery.data?.chat?.title;
 
 	// Update the browser tab title when navigating to / between agents.
@@ -811,9 +869,8 @@ const AgentDetail: FC = () => {
 		: null;
 	const canOpenWorkspace = Boolean(workspaceRoute);
 	const canOpenEditors = Boolean(workspace && workspaceAgent);
-	const shouldShowDiffPanel = hasDiffStatus && showDiffPanel;
 
-	const handleOpenInEditor = async (editor: "cursor" | "vscode") => {
+	const handleOpenInEditor = useCallback(async (editor: "cursor" | "vscode") => {
 		if (!workspace || !workspaceAgent) {
 			return;
 		}
@@ -852,21 +909,110 @@ const AgentDetail: FC = () => {
 					: "Failed to open in VS Code.",
 			);
 		}
-	};
+	}, [workspace, workspaceAgent]);
 
-	const handleViewWorkspace = () => {
+	const handleViewWorkspace = useCallback(() => {
 		if (!workspaceRoute) {
 			return;
 		}
 		navigate(workspaceRoute);
-	};
+	}, [navigate, workspaceRoute]);
 
-	const handleArchiveAgentAction = () => {
-		if (!agentId) {
-			return;
-		}
+	const handleArchiveAgentAction = useCallback(() => {
 		requestArchiveAgent(agentId);
-	};
+	}, [requestArchiveAgent, agentId]);
+
+	// Notify the parent about top bar content whenever relevant
+	// values change. The parent renders this content in the top bar
+	// slots without portals.
+	useEffect(() => {
+		onTopBarChange({
+			title: chatTitle ? (
+				<div className="flex min-w-0 items-center gap-1.5">
+					{parentChat && (
+						<>
+							<Button
+								size="sm"
+								variant="subtle"
+								className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-xs text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
+								onClick={() => navigate(`/agents/${parentChat.id}`)}
+							>
+								<span className="truncate">{parentChat.title}</span>
+							</Button>
+							<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70" />
+						</>
+					)}
+					<span className="truncate text-sm text-content-primary">
+						{chatTitle}
+					</span>
+				</div>
+			) : null,
+			actions: (
+				<>
+					{hasDiffStatus && diffStatusQuery.data && (
+						<DiffStatsBadge
+							status={diffStatusQuery.data}
+							isOpen={showDiffPanel}
+							onToggle={() => setShowDiffPanel((prev) => !prev)}
+						/>
+					)}
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								className="h-7 w-7 text-content-secondary hover:text-content-primary"
+								aria-label="Open agent actions"
+							>
+								<EllipsisIcon className="h-4 w-4" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								disabled={!canOpenEditors}
+								onSelect={() => {
+									void handleOpenInEditor("cursor");
+								}}
+							>
+								<ExternalLinkIcon className="h-3.5 w-3.5" />
+								Open in Cursor
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								disabled={!canOpenEditors}
+								onSelect={() => {
+									void handleOpenInEditor("vscode");
+								}}
+							>
+								<ExternalLinkIcon className="h-3.5 w-3.5" />
+								Open in VS Code
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								disabled={!canOpenWorkspace}
+								onSelect={handleViewWorkspace}
+							>
+								<MonitorIcon className="h-3.5 w-3.5" />
+								View Workspace
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onSelect={handleArchiveAgentAction}
+							>
+								<ArchiveIcon className="h-3.5 w-3.5" />
+								Archive Agent
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</>
+			),
+		});
+
+		return () => onTopBarChange(null);
+	}, [
+		onTopBarChange, chatTitle, parentChat, hasDiffStatus,
+		diffStatusQuery.data, showDiffPanel, canOpenEditors,
+		canOpenWorkspace, handleViewWorkspace, handleArchiveAgentAction,
+		navigate, handleOpenInEditor,
+	]);
 
 	if (chatQuery.isLoading) {
 		return (
@@ -920,7 +1066,7 @@ const AgentDetail: FC = () => {
 		);
 	}
 
-	if (!chatQuery.data || !agentId) {
+	if (!chatQuery.data) {
 		return (
 			<div className="flex flex-1 items-center justify-center text-content-secondary">
 				Chat not found
@@ -930,31 +1076,6 @@ const AgentDetail: FC = () => {
 
 	return (
 		<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
-			<AgentDetailTopBarPortals
-				topBarTitleRef={topBarTitleRef}
-				topBarActionsRef={topBarActionsRef}
-				rightPanelRef={rightPanelRef}
-				chatTitle={chatTitle}
-				parentChat={parentChat}
-				onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
-				diff={{
-					hasDiffStatus,
-					diffStatus: diffStatusQuery.data,
-					showDiffPanel,
-					onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
-				}}
-				workspace={{
-					canOpenEditors,
-					canOpenWorkspace,
-					onOpenInEditor: (editor) => {
-						void handleOpenInEditor(editor);
-					},
-					onViewWorkspace: handleViewWorkspace,
-				}}
-				onArchiveAgent={handleArchiveAgentAction}
-				shouldShowDiffPanel={shouldShowDiffPanel}
-				agentId={agentId}
-			/>
 
 			<div
 				aria-hidden
@@ -998,4 +1119,4 @@ const AgentDetail: FC = () => {
 	);
 };
 
-export default AgentDetail;
+

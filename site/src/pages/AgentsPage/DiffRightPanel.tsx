@@ -1,6 +1,6 @@
 import {
 	type PointerEvent as ReactPointerEvent,
-	type Ref,
+	type ReactNode,
 	useCallback,
 	useEffect,
 	useRef,
@@ -29,8 +29,8 @@ function loadPersistedWidth(): number {
 }
 
 interface DiffRightPanelProps {
-	ref?: Ref<HTMLDivElement>;
 	isOpen: boolean;
+	children?: ReactNode;
 }
 
 /**
@@ -39,7 +39,7 @@ interface DiffRightPanelProps {
  * closed the panel is hidden via CSS and takes no layout space. On xl+
  * screens the panel is horizontally resizable via a drag handle.
  */
-export const DiffRightPanel = ({ ref, isOpen }: DiffRightPanelProps) => {
+export const DiffRightPanel = ({ isOpen, children }: DiffRightPanelProps) => {
 	const [width, setWidth] = useState(loadPersistedWidth);
 	const isDragging = useRef(false);
 	const startX = useRef(0);
@@ -93,7 +93,6 @@ export const DiffRightPanel = ({ ref, isOpen }: DiffRightPanelProps) => {
 
 	return (
 		<div
-			ref={ref}
 			data-testid="agents-detail-right-panel"
 			style={
 				isOpen
@@ -114,6 +113,7 @@ export const DiffRightPanel = ({ ref, isOpen }: DiffRightPanelProps) => {
 				onPointerUp={handlePointerUp}
 				className="absolute top-0 left-0 z-10 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link xl:block"
 			/>
+			{children}
 		</div>
 	);
 };
