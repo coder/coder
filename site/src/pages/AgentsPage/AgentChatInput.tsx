@@ -278,9 +278,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		};
 
 		const sendButtonLabel =
-			isStreaming && editingQueuedMessageID === null
-				? "Queue message"
-				: "Send";
+			isStreaming && editingQueuedMessageID === null ? "Queue message" : "Send";
 
 		const content = (
 			<div className="mx-auto w-full max-w-3xl pb-4">

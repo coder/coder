@@ -334,9 +334,7 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 	const [inputValue, setInputValue] = useState("");
 
 	// -- History editing state --
-	const [editingMessageId, setEditingMessageId] = useState<number | null>(
-		null,
-	);
+	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
 	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] = useState<
 		string | null
 	>(null);
@@ -413,12 +411,7 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 					setInputValue(message);
 				});
 		},
-		[
-			editingMessageId,
-			editingQueuedMessageID,
-			onDeleteQueuedMessage,
-			onSend,
-		],
+		[editingMessageId, editingQueuedMessageID, onDeleteQueuedMessage, onSend],
 	);
 
 	return (
