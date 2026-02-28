@@ -884,7 +884,9 @@ const AgentDetail: FC = () => {
 					<AgentDetailConversation
 						store={store}
 						chatID={agentId}
-						persistedErrorReason={chatErrorReasons[agentId]}
+						persistedErrorReason={
+							chatErrorReasons[agentId] || chatRecord?.last_error || undefined
+						}
 						compressionThreshold={compressionThreshold}
 						onDeleteQueuedMessage={handleDeleteQueuedMessage}
 						onPromoteQueuedMessage={handlePromoteQueuedMessage}

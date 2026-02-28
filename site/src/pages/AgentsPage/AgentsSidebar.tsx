@@ -312,7 +312,9 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		modelOptions,
 	);
 	const errorReason =
-		chat.status === "error" ? chatErrorReasons[chat.id] : undefined;
+		chat.status === "error"
+			? chatErrorReasons[chat.id] || chat.last_error || undefined
+			: undefined;
 	const subtitle = errorReason || modelName;
 	const diffStatus = getChatDiffStatus(chat);
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
