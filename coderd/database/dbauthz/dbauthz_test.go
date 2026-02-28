@@ -694,9 +694,8 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("UpdateChatWorkspace", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatWorkspaceParams{
-			ID:               chat.ID,
-			WorkspaceID:      uuid.NullUUID{UUID: uuid.New(), Valid: true},
-			WorkspaceAgentID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			ID:          chat.ID,
+			WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		}
 		updatedChat := testutil.Fake(s.T(), faker, database.Chat{ID: chat.ID})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
