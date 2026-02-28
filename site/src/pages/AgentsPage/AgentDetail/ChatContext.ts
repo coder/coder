@@ -135,7 +135,7 @@ const chatQueuedMessagesEqualByID = (
 	return true;
 };
 
-type ChatStoreState = {
+export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
 	orderedMessageIDs: readonly number[];
 	streamState: StreamState | null;
@@ -146,7 +146,7 @@ type ChatStoreState = {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
 
-type ChatStore = {
+export type ChatStore = {
 	getSnapshot: () => ChatStoreState;
 	subscribe: (listener: () => void) => () => void;
 	replaceMessages: (
@@ -185,7 +185,7 @@ const createInitialState = (): ChatStoreState => ({
 	subagentStatusOverrides: new Map(),
 });
 
-const createChatStore = (): ChatStore => {
+export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
 	const listeners = new Set<() => void>();
 

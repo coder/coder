@@ -7,9 +7,13 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	selectChatStatus,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
+	selectRetryState,
+	selectStreamError,
 	selectStreamState,
+	selectSubagentStatusOverrides,
 	useChatSelector,
 	useChatStore,
 } from "./ChatContext";
@@ -31,6 +35,7 @@ interface MockSocket {
 	close: () => void;
 	emitData: (event: TypesGen.ChatStreamEvent) => void;
 	emitDataBatch: (events: readonly TypesGen.ChatStreamEvent[]) => void;
+	emitError: () => void;
 }
 
 const createMockSocket = (): MockSocket => {
@@ -87,6 +92,11 @@ const createMockSocket = (): MockSocket => {
 			};
 			for (const listener of messageListeners) {
 				listener(payload);
+			}
+		},
+		emitError: () => {
+			for (const listener of errorListeners) {
+				listener(new Event("error"));
 			}
 		},
 	};
@@ -150,6 +160,7 @@ const immediateAnimationFrame = (): void => {
 
 afterEach(() => {
 	vi.restoreAllMocks();
+	vi.mocked(watchChat).mockReset();
 });
 
 describe("useChatStore", () => {
@@ -1371,6 +1382,480 @@ describe("useChatStore", () => {
 		// re-populated it.
 		await waitFor(() => {
 			expect(result.current.streamState).toBeNull();
+		});
+	});
+
+	it("sets chatStatus to error and populates streamError on error event", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-error";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					chatStatus: useChatSelector(store, selectChatStatus),
+					streamError: useChatSelector(store, selectStreamError),
+					retryState: useChatSelector(store, selectRetryState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: { message: "Rate limit exceeded" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("error");
+		});
+		expect(result.current.streamError).toBe("Rate limit exceeded");
+		expect(result.current.retryState).toBeNull();
+		expect(setChatErrorReason).toHaveBeenCalledWith(
+			chatID,
+			"Rate limit exceeded",
+		);
+	});
+
+	it("uses fallback message when error event has no message", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-error-empty";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: { message: "  " },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toBe("Chat processing failed.");
+		});
+	});
+
+	it("populates retryState on retry event", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-retry";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					retryState: useChatSelector(store, selectRetryState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "retry",
+				chat_id: chatID,
+				retry: {
+					attempt: 2,
+					error: "upstream timeout",
+					delay_ms: 5000,
+					retrying_at: "2025-01-01T00:01:00.000Z",
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.retryState).toEqual({
+				attempt: 2,
+				error: "upstream timeout",
+			});
+		});
+	});
+
+	it("clears retryState when status transitions to running", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-retry-clear";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					retryState: useChatSelector(store, selectRetryState),
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		// Set retry state first.
+		act(() => {
+			mockSocket.emitData({
+				type: "retry",
+				chat_id: chatID,
+				retry: { attempt: 1, error: "rate limited" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.retryState).not.toBeNull();
+		});
+
+		// Transition to running — should clear retry state.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+		expect(result.current.retryState).toBeNull();
+	});
+
+	it("routes status events for other chatIDs to subagent overrides", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-main";
+		const subagentChatID = "chat-subagent-1";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					chatStatus: useChatSelector(store, selectChatStatus),
+					subagentStatusOverrides: useChatSelector(
+						store,
+						selectSubagentStatusOverrides,
+					),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: subagentChatID,
+				status: { status: "completed" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.subagentStatusOverrides.get(subagentChatID)).toBe(
+				"completed",
+			);
+		});
+		// Main chat status should remain "running" from the initial
+		// chatRecord — the subagent status event must not change it.
+		expect(result.current.chatStatus).toBe("running");
+	});
+
+	it("sets streamError on WebSocket disconnect", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-disconnect";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		act(() => {
+			mockSocket.emitError();
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toBe("Chat stream disconnected.");
+		});
+	});
+
+	it("does not overwrite existing streamError on WebSocket disconnect", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-disconnect-existing";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamError: useChatSelector(store, selectStreamError),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		// Set an error via an error stream event first.
+		act(() => {
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: { message: "Rate limit exceeded" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toBe("Rate limit exceeded");
+		});
+
+		// WebSocket disconnect should NOT overwrite the existing error.
+		act(() => {
+			mockSocket.emitError();
+		});
+
+		// The original error should be preserved.
+		await waitFor(() => {
+			expect(result.current.streamError).toBe("Rate limit exceeded");
+		});
+	});
+
+	it("clears chatErrorReason when status transitions to non-error", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-clear-error";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID);
+		});
+
+		// Transition to running — should call clearChatErrorReason.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(clearChatErrorReason).toHaveBeenCalledWith(chatID);
 		});
 	});
 });
