@@ -16,16 +16,7 @@ import {
 	Square,
 	XIcon,
 } from "lucide-react";
-import {
-	memo,
-	type ReactNode,
-	type Ref,
-	useCallback,
-	useEffect,
-	useImperativeHandle,
-	useRef,
-	useState,
-} from "react";
+import { memo, type ReactNode, useRef } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "./modelOptions";
@@ -44,16 +35,13 @@ export interface AgentContextUsage {
 }
 
 interface AgentChatInputProps {
-	onSend: (message: string, editedMessageID?: number) => Promise<void>;
+	onSend: (message: string) => void;
 	placeholder?: string;
 	isDisabled: boolean;
 	isLoading: boolean;
-	// Optional initial value for the textarea (e.g. restored from
-	// localStorage on the create page).
-	initialValue?: string;
-	// Fires whenever the textarea value changes, useful for persisting
-	// the draft externally.
-	onInputChange?: (value: string) => void;
+	// Controlled input value. The parent owns the text state.
+	value: string;
+	onChange: (value: string) => void;
 	// Model selector.
 	selectedModel: string;
 	onModelChange: (value: string) => void;
@@ -74,6 +62,13 @@ interface AgentChatInputProps {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	// Queue editing state, owned by the parent.
+	editingQueuedMessageID?: number | null;
+	onStartQueueEdit?: (id: number, text: string) => void;
+	onCancelQueueEdit?: () => void;
+	// History editing state, owned by the parent.
+	isEditingHistoryMessage?: boolean;
+	onCancelHistoryEdit?: () => void;
 
 	// Optional context-usage summary shown to the left of the send button.
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
@@ -82,11 +77,6 @@ interface AgentChatInputProps {
 	// When true the entire input sticks to the bottom of the scroll
 	// container (used in the detail page).
 	sticky?: boolean;
-	// Called when the user cancels or completes a history edit so the
-	// parent can clear the editing highlight.
-	onEditCleared?: () => void;
-	// Imperative handle ref for the parent to trigger edit requests.
-	ref?: Ref<AgentChatInputHandle>;
 }
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -212,18 +202,14 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 );
 ContextUsageIndicator.displayName = "ContextUsageIndicator";
 
-export interface AgentChatInputHandle {
-	applyEditRequest: (text: string, messageId?: number) => void;
-}
-
 export const AgentChatInput = memo<AgentChatInputProps>(
 	({
 		onSend,
 		placeholder = "Type a message...",
 		isDisabled,
 		isLoading,
-		initialValue = "",
-		onInputChange,
+		value,
+		onChange,
 		selectedModel,
 		onModelChange,
 		modelOptions,
@@ -238,208 +224,63 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		queuedMessages = [],
 		onDeleteQueuedMessage,
 		onPromoteQueuedMessage,
+		editingQueuedMessageID = null,
+		onStartQueueEdit,
+		onCancelQueueEdit,
+		isEditingHistoryMessage = false,
+		onCancelHistoryEdit,
 		contextUsage,
 		sticky = false,
-		onEditCleared,
-		ref,
 	}) => {
-		const [input, setInput] = useState(initialValue);
-		const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
-			number | null
-		>(null);
-		const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
-			string | null
-		>(null);
 		const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-		const [isEditingHistoryMessage, setIsEditingHistoryMessage] =
-			useState(false);
-		const [editingHistoryMessageID, setEditingHistoryMessageID] = useState<
-			number | null
-		>(null);
-		const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] = useState<
-			string | null
-		>(null);
+		const canSend =
+			!isDisabled && !isLoading && hasModelOptions && !!value.trim();
 
-		useImperativeHandle(
-			ref,
-			() => ({
-				applyEditRequest: (text: string, messageId?: number) => {
-					setDraftBeforeHistoryEdit((current) =>
-						isEditingHistoryMessage ? current : input,
-					);
-					setIsEditingHistoryMessage(true);
-					setEditingHistoryMessageID(messageId ?? null);
-					setInput(text);
-					onInputChange?.(text);
-					textareaRef.current?.focus();
-				},
-			}),
-			[input, isEditingHistoryMessage, onInputChange],
-		);
-
-		const handleCancelHistoryEdit = useCallback(() => {
-			if (!isEditingHistoryMessage) {
+		const handleSubmit = () => {
+			if (!canSend) {
 				return;
 			}
-			const restored = draftBeforeHistoryEdit ?? "";
-			setIsEditingHistoryMessage(false);
-			setEditingHistoryMessageID(null);
-			setDraftBeforeHistoryEdit(null);
-			setInput(restored);
-			onInputChange?.(restored);
-			onEditCleared?.();
+			onSend(value.trim());
 			textareaRef.current?.focus();
-		}, [
-			draftBeforeHistoryEdit,
-			isEditingHistoryMessage,
-			onEditCleared,
-			onInputChange,
-		]);
+		};
 
-		useEffect(() => {
-			if (editingQueuedMessageID === null) {
-				return;
-			}
-			const stillQueued = queuedMessages.some(
-				(message) => message.id === editingQueuedMessageID,
-			);
-			if (stillQueued) {
-				return;
-			}
-			setEditingQueuedMessageID(null);
-			setDraftBeforeQueueEdit(null);
-		}, [editingQueuedMessageID, queuedMessages]);
-
-		const handleSubmit = useCallback(async () => {
-			const text = input.trim();
-			if (!text || isDisabled || isLoading || !hasModelOptions) {
-				return;
-			}
-
-			const queueEditID = editingQueuedMessageID;
-			const editedMessageID =
-				isEditingHistoryMessage && editingHistoryMessageID !== null
-					? editingHistoryMessageID
-					: undefined;
-			const capturedInput = input;
-
-			// Clear input and editing state optimistically.
-			setInput("");
-			onInputChange?.("");
-			if (queueEditID !== null) {
-				setEditingQueuedMessageID(null);
-				setDraftBeforeQueueEdit(null);
-			}
-			if (isEditingHistoryMessage) {
-				setIsEditingHistoryMessage(false);
-				setEditingHistoryMessageID(null);
-				setDraftBeforeHistoryEdit(null);
-				onEditCleared?.();
-			}
-
-			try {
-				await onSend(capturedInput, editedMessageID);
-				if (queueEditID !== null && onDeleteQueuedMessage) {
-					await onDeleteQueuedMessage(queueEditID);
+		const handleKeyDown = (e: React.KeyboardEvent) => {
+			if (e.key === "Escape") {
+				if (editingQueuedMessageID !== null) {
+					e.preventDefault();
+					onCancelQueueEdit?.();
+				} else if (isEditingHistoryMessage) {
+					e.preventDefault();
+					onCancelHistoryEdit?.();
+				} else if (isStreaming && onInterrupt && !isInterruptPending) {
+					e.preventDefault();
+					onInterrupt();
 				}
-			} catch {
-				// Restore the input so the user can retry.
-				setInput(capturedInput);
-				onInputChange?.(capturedInput);
-			} finally {
-				textareaRef.current?.focus();
-			}
-		}, [
-			editingQueuedMessageID,
-			editingHistoryMessageID,
-			hasModelOptions,
-			input,
-			isDisabled,
-			isEditingHistoryMessage,
-			isLoading,
-			onDeleteQueuedMessage,
-			onEditCleared,
-			onInputChange,
-			onSend,
-		]);
-
-		const handleStartQueueEdit = useCallback(
-			(id: number, text: string) => {
-				setDraftBeforeQueueEdit((current) =>
-					editingQueuedMessageID === null ? input : current,
-				);
-				setEditingQueuedMessageID(id);
-				setInput(text);
-				onInputChange?.(text);
-				textareaRef.current?.focus();
-			},
-			[editingQueuedMessageID, input, onInputChange],
-		);
-
-		const handleCancelQueueEdit = useCallback(() => {
-			if (editingQueuedMessageID === null) {
 				return;
 			}
-			const restored = draftBeforeQueueEdit ?? "";
-			setEditingQueuedMessageID(null);
-			setDraftBeforeQueueEdit(null);
-			setInput(restored);
-			onInputChange?.(restored);
-			textareaRef.current?.focus();
-		}, [draftBeforeQueueEdit, editingQueuedMessageID, onInputChange]);
-
-		const sendButtonLabel =
-			isStreaming && editingQueuedMessageID === null ? "Queue message" : "Send";
-
-		const handleKeyDown = useCallback(
-			(e: React.KeyboardEvent) => {
-				if (e.key === "Escape") {
-					if (editingQueuedMessageID !== null) {
-						e.preventDefault();
-						handleCancelQueueEdit();
-					} else if (isEditingHistoryMessage) {
-						e.preventDefault();
-						handleCancelHistoryEdit();
-					} else if (isStreaming && onInterrupt && !isInterruptPending) {
-						e.preventDefault();
-						onInterrupt();
-					}
+			if (e.key === "Enter" && !e.shiftKey) {
+				e.preventDefault();
+				// If the input is empty and there are queued messages,
+				// promote the first one instead of submitting.
+				if (
+					!value.trim() &&
+					!isDisabled &&
+					!isLoading &&
+					queuedMessages.length > 0 &&
+					onPromoteQueuedMessage
+				) {
+					void onPromoteQueuedMessage(queuedMessages[0].id);
 					return;
 				}
-				if (e.key === "Enter" && !e.shiftKey) {
-					e.preventDefault();
-					// If the input is empty and there are queued messages,
-					// promote the first one instead of submitting.
-					if (
-						!input.trim() &&
-						!isDisabled &&
-						!isLoading &&
-						queuedMessages.length > 0 &&
-						onPromoteQueuedMessage
-					) {
-						void onPromoteQueuedMessage(queuedMessages[0].id);
-						return;
-					}
-					void handleSubmit();
-				}
-			},
-			[
-				editingQueuedMessageID,
-				handleCancelHistoryEdit,
-				handleCancelQueueEdit,
-				handleSubmit,
-				input,
-				isDisabled,
-				isEditingHistoryMessage,
-				isInterruptPending,
-				isLoading,
-				isStreaming,
-				onInterrupt,
-				onPromoteQueuedMessage,
-				queuedMessages,
-			],
-		);
+				handleSubmit();
+			}
+		};
+
+		const sendButtonLabel =
+			isStreaming && editingQueuedMessageID === null
+				? "Queue message"
+				: "Send";
 
 		const content = (
 			<div className="mx-auto w-full max-w-3xl pb-4">
@@ -448,17 +289,17 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						messages={queuedMessages}
 						onDelete={(id) => {
 							if (id === editingQueuedMessageID) {
-								handleCancelQueueEdit();
+								onCancelQueueEdit?.();
 							}
 							void onDeleteQueuedMessage?.(id);
 						}}
 						onPromote={(id) => {
 							if (id === editingQueuedMessageID) {
-								handleCancelQueueEdit();
+								onCancelQueueEdit?.();
 							}
 							void onPromoteQueuedMessage?.(id);
 						}}
-						onEdit={handleStartQueueEdit}
+						onEdit={onStartQueueEdit}
 						editingMessageID={editingQueuedMessageID}
 						className="mb-2"
 					/>
@@ -473,7 +314,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								type="button"
 								variant="subtle"
 								size="sm"
-								onClick={handleCancelQueueEdit}
+								onClick={onCancelQueueEdit}
 								className="h-7 px-2 text-content-secondary hover:text-content-primary"
 							>
 								Cancel
@@ -493,7 +334,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								variant="subtle"
 								size="icon"
 								aria-label="Cancel editing"
-								onClick={handleCancelHistoryEdit}
+								onClick={onCancelHistoryEdit}
 								disabled={isLoading}
 								className="size-6 rounded text-content-secondary hover:text-content-primary"
 							>
@@ -506,11 +347,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						aria-label="Chat message"
 						className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
-						value={input}
-						onChange={(e) => {
-							setInput(e.target.value);
-							onInputChange?.(e.target.value);
-						}}
+						value={value}
+						onChange={(e) => onChange(e.target.value)}
 						onKeyDown={handleKeyDown}
 						disabled={isDisabled}
 						minRows={4}
@@ -554,10 +392,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								size="icon"
 								variant="default"
 								className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
-								onClick={() => void handleSubmit()}
-								disabled={
-									isDisabled || isLoading || !hasModelOptions || !input.trim()
-								}
+								onClick={handleSubmit}
+								disabled={!canSend}
 							>
 								{isLoading ? (
 									<Loader2Icon className="animate-spin" />

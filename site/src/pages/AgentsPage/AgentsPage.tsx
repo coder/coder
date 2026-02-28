@@ -520,24 +520,24 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	canManageChatModelConfigs,
 	topBarActionsRef,
 }) => {
-	const initialInput = useMemo(() => {
+	const [inputValue, setInputValue] = useState(() => {
 		if (typeof window === "undefined") {
 			return "";
 		}
 		return localStorage.getItem(emptyInputStorageKey) ?? "";
-	}, []);
-	const initialSystemPrompt = useMemo(() => {
+	});
+	const initialSystemPrompt = () => {
 		if (typeof window === "undefined") {
 			return "";
 		}
 		return localStorage.getItem(systemPromptStorageKey) ?? "";
-	}, []);
-	const initialLastModelConfigID = useMemo(() => {
+	};
+	const [initialLastModelConfigID] = useState(() => {
 		if (typeof window === "undefined") {
 			return "";
 		}
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
-	}, []);
+	});
 	const modelIDByConfigID = useMemo(() => {
 		const optionIDByRef = new Map<string, string>();
 		for (const option of modelOptions) {
@@ -671,6 +671,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	};
 
 	const handleInputChange = useCallback((value: string) => {
+		setInputValue(value);
 		if (typeof window !== "undefined") {
 			localStorage.setItem(emptyInputStorageKey, value);
 		}
@@ -700,8 +701,8 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	);
 
 	const handleSend = useCallback(
-		async (message: string) => {
-			await onCreateChat({
+		(message: string) => {
+			void onCreateChat({
 				message,
 				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
 				model: selectedModelRef.current || undefined,
@@ -741,8 +742,8 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
 					isDisabled={isCreating}
 					isLoading={isCreating}
-					initialValue={initialInput}
-					onInputChange={handleInputChange}
+					value={inputValue}
+					onChange={handleInputChange}
 					selectedModel={selectedModel}
 					onModelChange={handleModelChange}
 					modelOptions={modelOptions}

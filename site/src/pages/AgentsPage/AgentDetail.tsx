@@ -28,10 +28,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
-import {
-	AgentChatInput,
-	type AgentChatInputHandle,
-} from "./AgentChatInput";
+import { AgentChatInput } from "./AgentChatInput";
 import {
 	selectChatStatus,
 	selectHasStreamState,
@@ -187,7 +184,7 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 interface AgentDetailInputProps {
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
-	onSend: (message: string, editedMessageID?: number) => Promise<void>;
+	onSend: (message: string) => void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -201,8 +198,15 @@ interface AgentDetailInputProps {
 	modelSelectorPlaceholder: string;
 	inputStatusText: string | null;
 	modelCatalogStatusMessage: string | null;
-	inputRef?: React.Ref<AgentChatInputHandle>;
-	onEditCleared?: () => void;
+	// Controlled input value and editing state, owned by the
+	// conversation component.
+	inputValue: string;
+	onInputChange: (value: string) => void;
+	editingQueuedMessageID: number | null;
+	onStartQueueEdit: (id: number, text: string) => void;
+	onCancelQueueEdit: () => void;
+	isEditingHistoryMessage: boolean;
+	onCancelHistoryEdit: () => void;
 }
 
 const AgentDetailInput: FC<AgentDetailInputProps> = ({
@@ -222,8 +226,13 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	modelSelectorPlaceholder,
 	inputStatusText,
 	modelCatalogStatusMessage,
-	inputRef,
-	onEditCleared,
+	inputValue,
+	onInputChange,
+	editingQueuedMessageID,
+	onStartQueueEdit,
+	onCancelQueueEdit,
+	isEditingHistoryMessage,
+	onCancelHistoryEdit,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -251,9 +260,16 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	return (
 		<AgentChatInput
 			onSend={onSend}
+			value={inputValue}
+			onChange={onInputChange}
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
+			editingQueuedMessageID={editingQueuedMessageID}
+			onStartQueueEdit={onStartQueueEdit}
+			onCancelQueueEdit={onCancelQueueEdit}
+			isEditingHistoryMessage={isEditingHistoryMessage}
+			onCancelHistoryEdit={onCancelHistoryEdit}
 			isDisabled={isInputDisabled}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
@@ -267,8 +283,6 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			inputStatusText={inputStatusText}
 			modelCatalogStatusMessage={modelCatalogStatusMessage}
-			ref={inputRef}
-			onEditCleared={onEditCleared}
 			sticky
 		/>
 	);
@@ -317,22 +331,95 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 	modelCatalogStatusMessage,
 	savingMessageId,
 }) => {
-	const chatInputRef = useRef<AgentChatInputHandle>(null);
+	const [inputValue, setInputValue] = useState("");
+
+	// -- History editing state --
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(
 		null,
 	);
+	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] = useState<
+		string | null
+	>(null);
 
 	const handleEditUserMessage = useCallback(
 		(messageId: number, text: string) => {
+			setDraftBeforeHistoryEdit((prev) =>
+				editingMessageId !== null ? prev : inputValue,
+			);
 			setEditingMessageId(messageId);
-			chatInputRef.current?.applyEditRequest(text, messageId);
+			setInputValue(text);
 		},
-		[],
+		[editingMessageId, inputValue],
 	);
 
-	const handleEditCleared = useCallback(() => {
+	const handleCancelHistoryEdit = useCallback(() => {
+		setInputValue(draftBeforeHistoryEdit ?? "");
 		setEditingMessageId(null);
-	}, []);
+		setDraftBeforeHistoryEdit(null);
+	}, [draftBeforeHistoryEdit]);
+
+	// -- Queue editing state --
+	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
+		number | null
+	>(null);
+	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
+		string | null
+	>(null);
+
+	const handleStartQueueEdit = useCallback(
+		(id: number, text: string) => {
+			setDraftBeforeQueueEdit((prev) =>
+				editingQueuedMessageID === null ? inputValue : prev,
+			);
+			setEditingQueuedMessageID(id);
+			setInputValue(text);
+		},
+		[editingQueuedMessageID, inputValue],
+	);
+
+	const handleCancelQueueEdit = useCallback(() => {
+		setInputValue(draftBeforeQueueEdit ?? "");
+		setEditingQueuedMessageID(null);
+		setDraftBeforeQueueEdit(null);
+	}, [draftBeforeQueueEdit]);
+
+	// Wraps the parent onSend to clear local input/editing state
+	// and handle queue-edit deletion.
+	const handleSendFromInput = useCallback(
+		(message: string) => {
+			const editedMessageID =
+				editingMessageId !== null ? editingMessageId : undefined;
+			const queueEditID = editingQueuedMessageID;
+
+			// Clear input and editing state optimistically.
+			setInputValue("");
+			if (editingMessageId !== null) {
+				setEditingMessageId(null);
+				setDraftBeforeHistoryEdit(null);
+			}
+			if (queueEditID !== null) {
+				setEditingQueuedMessageID(null);
+				setDraftBeforeQueueEdit(null);
+			}
+
+			void onSend(message, editedMessageID)
+				.then(() => {
+					if (queueEditID !== null) {
+						void onDeleteQueuedMessage(queueEditID);
+					}
+				})
+				.catch(() => {
+					// Restore input so the user can retry.
+					setInputValue(message);
+				});
+		},
+		[
+			editingMessageId,
+			editingQueuedMessageID,
+			onDeleteQueuedMessage,
+			onSend,
+		],
+	);
 
 	return (
 		<>
@@ -347,7 +434,7 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 			<AgentDetailInput
 				store={store}
 				compressionThreshold={compressionThreshold}
-				onSend={onSend}
+				onSend={handleSendFromInput}
 				onDeleteQueuedMessage={onDeleteQueuedMessage}
 				onPromoteQueuedMessage={onPromoteQueuedMessage}
 				onInterrupt={onInterrupt}
@@ -361,8 +448,13 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				inputStatusText={inputStatusText}
 				modelCatalogStatusMessage={modelCatalogStatusMessage}
-				inputRef={chatInputRef}
-				onEditCleared={handleEditCleared}
+				inputValue={inputValue}
+				onInputChange={setInputValue}
+				editingQueuedMessageID={editingQueuedMessageID}
+				onStartQueueEdit={handleStartQueueEdit}
+				onCancelQueueEdit={handleCancelQueueEdit}
+				isEditingHistoryMessage={editingMessageId !== null}
+				onCancelHistoryEdit={handleCancelHistoryEdit}
 			/>
 		</>
 	);
@@ -812,7 +904,9 @@ const AgentDetail: FC = () => {
 							</div>
 						</div>
 						<AgentChatInput
-							onSend={handleSend}
+							onSend={() => {}}
+							value=""
+							onChange={() => {}}
 							isDisabled={isInputDisabled}
 							isLoading={false}
 							selectedModel={selectedModel}
