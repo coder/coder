@@ -11,6 +11,7 @@ import {
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import {
+	chatDiffContentsKey,
 	chatDiffStatusKey,
 	chatKey,
 	chatModelsKey,
@@ -113,6 +114,21 @@ const baseChatFields = {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** A small sample unified diff for stories that show the diff panel. */
+const sampleDiff = `diff --git a/main.go b/main.go
+index abc1234..def5678 100644
+--- a/main.go
++++ b/main.go
+@@ -10,6 +10,9 @@ func main() {
+ 	fmt.Println("hello")
++	fmt.Println("new feature")
++	fmt.Println("added line")
++	fmt.Println("another addition")
+ 	fmt.Println("world")
+-	fmt.Println("old line")
+ }
+`;
+
 /** Build `parameters.queries` entries for a given chat data object. */
 const buildQueries = (
 	chatData: TypesGen.ChatWithMessages,
@@ -130,6 +146,14 @@ const buildQueries = (
 			deletions: opts?.diffUrl ? 1 : 0,
 			changed_files: opts?.diffUrl ? 2 : 0,
 		} satisfies TypesGen.ChatDiffStatus,
+	},
+	{
+		key: chatDiffContentsKey(CHAT_ID),
+		data: {
+			chat_id: CHAT_ID,
+			diff: opts?.diffUrl ? sampleDiff : undefined,
+			pull_request_url: opts?.diffUrl,
+		} satisfies TypesGen.ChatDiffContents,
 	},
 	{
 		key: workspaceByIdKey(mockWorkspace.id),
