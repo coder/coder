@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/chatd"
+	"github.com/coder/coder/v2/coderd/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -754,4 +756,133 @@ func seedChatDependencies(
 	})
 	require.NoError(t, err)
 	return user, model
+}
+
+func setOpenAIProviderBaseURL(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	baseURL string,
+) {
+	t.Helper()
+
+	provider, err := db.GetChatProviderByProvider(ctx, "openai")
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
+		ID:          provider.ID,
+		DisplayName: provider.DisplayName,
+		APIKey:      provider.APIKey,
+		BaseUrl:     baseURL,
+		ApiKeyKeyID: provider.ApiKeyKeyID,
+		Enabled:     provider.Enabled,
+	})
+	require.NoError(t, err)
+}
+
+func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var requestCount atomic.Int32
+	streamStarted := make(chan struct{})
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if requestCount.Add(1) == 1 {
+			chunks := make(chan chattest.OpenAIChunk, 1)
+			go func() {
+				defer close(chunks)
+				chunks <- chattest.OpenAITextChunks("partial")[0]
+				select {
+				case <-streamStarted:
+				default:
+					close(streamStarted)
+				}
+				<-req.Context().Done()
+			}()
+			return chattest.OpenAIResponse{StreamingChunks: chunks}
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("retry", " complete")...)
+	})
+
+	loggerA := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	serverA := chatd.New(chatd.Config{
+		Logger:                     loggerA,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, serverA.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := serverA.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "shutdown-retry",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-streamStarted:
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.NoError(t, serverA.Close())
+
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusPending &&
+			!fromDB.WorkerID.Valid &&
+			!fromDB.LastError.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	loggerB := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	serverB := chatd.New(chatd.Config{
+		Logger:                     loggerB,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, serverB.Close())
+	})
+
+	require.Eventually(t, func() bool {
+		return requestCount.Load() >= 2
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting &&
+			!fromDB.WorkerID.Valid &&
+			!fromDB.LastError.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
 }
