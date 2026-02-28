@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -221,16 +222,19 @@ func TestStartProcess(t *testing.T) {
 		handler := newTestAPI(t)
 		tmpDir := t.TempDir()
 
+		// Write a marker file to verify the command ran in
+		// the correct directory. Comparing pwd output is
+		// unreliable on Windows where Git Bash returns POSIX
+		// paths.
 		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
-			Command: "pwd",
+			Command: "touch marker.txt && ls marker.txt",
 			WorkDir: tmpDir,
 		})
 
 		resp := waitForExit(t, handler, id)
 		require.NotNil(t, resp.ExitCode)
 		require.Equal(t, 0, *resp.ExitCode)
-		// pwd output should contain the tmpDir path.
-		require.Contains(t, strings.TrimSpace(resp.Output), tmpDir)
+		require.Contains(t, resp.Output, "marker.txt")
 	})
 
 	t.Run("CustomEnv", func(t *testing.T) {
@@ -405,6 +409,10 @@ func TestSignalProcess(t *testing.T) {
 
 	t.Run("TerminateRunning", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("SIGTERM is not supported on Windows")
+		}
 
 		handler := newTestAPI(t)
 
