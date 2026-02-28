@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,11 +18,13 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/chatd"
+	"github.com/coder/coder/v2/coderd/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -660,7 +665,58 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	require.Equal(t, codersdk.ChatStatusPending, snapshot[0].Status.Status)
 }
 
-func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
+func TestSubscribeMalformedNotifyEmitsErrorEvent(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "malformed-notify",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), []byte("{invalid json"))
+	require.NoError(t, err)
+
+	var sawDecodeError bool
+	require.Eventually(t, func() bool {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				return sawDecodeError
+			}
+			if event.Type != codersdk.ChatStreamEventTypeError || event.Error == nil {
+				return false
+			}
+			sawDecodeError = strings.Contains(event.Error.Message, "unmarshal chat stream notify")
+			return sawDecodeError
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.Eventually(t, func() bool {
+		select {
+		case _, ok := <-events:
+			return !ok
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubscribeNoPubsubReconnectNoReplay(t *testing.T) {
 	t.Parallel()
 
 	// Use nil pubsub to force the no-pubsub path.
@@ -678,26 +734,245 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil)
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	snapshotFirst, _, cancelFirst, ok := replica.Subscribe(ctx, chat.ID, nil)
 	require.True(t, ok)
-	t.Cleanup(cancel)
+	cancelFirst()
 
-	// Snapshot should have events (at minimum: status + message).
-	require.NotEmpty(t, snapshot)
+	snapshotReconnect, events, cancelReconnect, ok := replica.Subscribe(ctx, chat.ID, nil)
+	require.True(t, ok)
+	t.Cleanup(cancelReconnect)
 
-	// The events channel should NOT immediately produce any
-	// events — the snapshot already contained everything. Before
-	// the fix, localSnapshot was replayed into the channel,
-	// causing duplicates.
-	select {
-	case event, ok := <-events:
-		if ok {
-			t.Fatalf("unexpected event from channel (would be a duplicate): type=%s", event.Type)
+	require.NotEmpty(t, snapshotFirst)
+	require.NotEmpty(t, snapshotReconnect)
+	require.Equal(t, codersdk.ChatStreamEventTypeStatus, snapshotReconnect[0].Type)
+	require.NotNil(t, snapshotReconnect[0].Status)
+	require.Equal(t, codersdk.ChatStatusRunning, snapshotReconnect[0].Status.Status)
+
+	updated := replica.InterruptChat(ctx, chat)
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+	require.False(t, updated.WorkerID.Valid)
+
+	var firstEvent codersdk.ChatStreamEvent
+	require.Eventually(t, func() bool {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				return false
+			}
+			firstEvent = event
+			return true
+		default:
+			return false
 		}
-		// Channel closed without events is fine.
-	case <-time.After(200 * time.Millisecond):
-		// No events — correct behavior.
-	}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// If snapshot replay accidentally leaks into live events for a reconnecting
+	// subscriber, the first event here would be a stale running/message event.
+	require.Equal(t, codersdk.ChatStreamEventTypeStatus, firstEvent.Type)
+	require.NotNil(t, firstEvent.Status)
+	require.Equal(t, codersdk.ChatStatusWaiting, firstEvent.Status.Status)
+}
+
+func TestInterruptActiveChatControlNotificationCancelsRun(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	streamStarted := make(chan struct{})
+	streamingChunks := make(chan chattest.OpenAIChunk, 1)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		select {
+		case <-streamStarted:
+		default:
+			close(streamStarted)
+		}
+		return chattest.OpenAIResponse{StreamingChunks: streamingChunks}
+	})
+
+	replicaID := uuid.New()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  replicaID,
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+
+	closeStream := sync.OnceFunc(func() {
+		close(streamingChunks)
+	})
+	t.Cleanup(func() {
+		closeStream()
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "interrupt-active-chat",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusRunning &&
+			fromDB.WorkerID.Valid &&
+			fromDB.WorkerID.UUID == replicaID
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-streamStarted:
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	runningChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	updated := server.InterruptChat(ctx, runningChat)
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+	require.False(t, updated.WorkerID.Valid)
+
+	closeStream()
+
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting &&
+			!fromDB.WorkerID.Valid &&
+			!fromDB.LastError.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var requestCount atomic.Int32
+	streamStarted := make(chan struct{})
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if requestCount.Add(1) == 1 {
+			chunks := make(chan chattest.OpenAIChunk, 1)
+			go func() {
+				defer close(chunks)
+				chunks <- chattest.OpenAITextChunks("partial")[0]
+				select {
+				case <-streamStarted:
+				default:
+					close(streamStarted)
+				}
+				<-req.Context().Done()
+			}()
+			return chattest.OpenAIResponse{StreamingChunks: chunks}
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("retry", " complete")...)
+	})
+
+	loggerA := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	serverA := chatd.New(chatd.Config{
+		Logger:                     loggerA,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, serverA.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := serverA.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "shutdown-retry",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-streamStarted:
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.NoError(t, serverA.Close())
+
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusPending &&
+			!fromDB.WorkerID.Valid &&
+			!fromDB.LastError.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	loggerB := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	serverB := chatd.New(chatd.Config{
+		Logger:                     loggerB,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, serverB.Close())
+	})
+
+	require.Eventually(t, func() bool {
+		return requestCount.Load() >= 2
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting &&
+			!fromDB.WorkerID.Valid &&
+			!fromDB.LastError.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
 func newTestServer(
@@ -754,4 +1029,26 @@ func seedChatDependencies(
 	})
 	require.NoError(t, err)
 	return user, model
+}
+
+func setOpenAIProviderBaseURL(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	baseURL string,
+) {
+	t.Helper()
+
+	provider, err := db.GetChatProviderByProvider(ctx, "openai")
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
+		ID:          provider.ID,
+		DisplayName: provider.DisplayName,
+		APIKey:      provider.APIKey,
+		BaseUrl:     baseURL,
+		ApiKeyKeyID: provider.ApiKeyKeyID,
+		Enabled:     provider.Enabled,
+	})
+	require.NoError(t, err)
 }

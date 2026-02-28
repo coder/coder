@@ -12,172 +12,219 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chattest"
 )
 
+type openAIAPIMode string
+
+const (
+	openAICompletionsAPI openAIAPIMode = "completions"
+	openAIResponsesAPI   openAIAPIMode = "responses"
+)
+
+func newOpenAILanguageModel(
+	t *testing.T,
+	mode providerRunMode,
+	mockServerURL string,
+	apiMode openAIAPIMode,
+) fantasy.LanguageModel {
+	t.Helper()
+
+	apiKey := "test-key"
+	modelName := "gpt-4"
+	opts := []fantasyopenai.Option{}
+
+	if mode.Live {
+		apiKey = envOrDefault("OPENAI_API_KEY", "")
+		modelName = envOrDefault("OPENAI_TEST_MODEL", "gpt-4o-mini")
+		if baseURL := envOrDefault("OPENAI_BASE_URL", ""); baseURL != "" {
+			opts = append(opts, fantasyopenai.WithBaseURL(baseURL))
+		}
+	} else {
+		opts = append(opts, fantasyopenai.WithBaseURL(mockServerURL))
+	}
+
+	opts = append(opts, fantasyopenai.WithAPIKey(apiKey))
+	if apiMode == openAIResponsesAPI {
+		opts = append(opts, fantasyopenai.WithUseResponsesAPI())
+	}
+
+	client, err := fantasyopenai.New(opts...)
+	require.NoError(t, err)
+
+	model, err := client.LanguageModel(context.Background(), modelName)
+	require.NoError(t, err)
+	return model
+}
+
 func TestOpenAI_Streaming(t *testing.T) {
 	t.Parallel()
 
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		return chattest.OpenAIStreamingResponse(
-			append(
-				append(
-					chattest.OpenAITextChunks("Hello", "Hi"),
-					chattest.OpenAITextChunks(" world", " there")...,
-				),
-				chattest.OpenAITextChunks("!", "!")...,
-			)...,
-		)
-	})
+	for _, mode := range providerModes(t, "OPENAI_API_KEY") {
+		mode := mode
+		t.Run(mode.Name, func(t *testing.T) {
+			t.Parallel()
 
-	// Create fantasy client pointing to our test server
-	client, err := fantasyopenai.New(
-		fantasyopenai.WithAPIKey("test-key"),
-		fantasyopenai.WithBaseURL(serverURL),
-	)
-	require.NoError(t, err)
+			serverURL := ""
+			if !mode.Live {
+				serverURL = chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+					return chattest.OpenAIStreamingResponse(
+						append(
+							append(
+								chattest.OpenAITextChunks("Hello", "Hi"),
+								chattest.OpenAITextChunks(" world", " there")...,
+							),
+							chattest.OpenAITextChunks("!", "!")...,
+						)...,
+					)
+				})
+			}
 
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "gpt-4")
-	require.NoError(t, err)
-
-	call := fantasy.Call{
-		Prompt: []fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "Say hello"},
+			model := newOpenAILanguageModel(t, mode, serverURL, openAICompletionsAPI)
+			stream, err := model.Stream(context.Background(), fantasy.Call{
+				Prompt: []fantasy.Message{
+					{
+						Role: fantasy.MessageRoleUser,
+						Content: []fantasy.MessagePart{
+							fantasy.TextPart{Text: "Say hello"},
+						},
+					},
 				},
-			},
-		},
+			})
+			require.NoError(t, err)
+
+			var streamErr error
+			expectedDeltas := []string{"Hello", "Hi", " world", " there", "!", "!"}
+			deltaIndex := 0
+			sawTextDelta := false
+
+			for part := range stream {
+				if part.Type == fantasy.StreamPartTypeError {
+					streamErr = part.Error
+					continue
+				}
+				if part.Type != fantasy.StreamPartTypeTextDelta {
+					continue
+				}
+				sawTextDelta = true
+				if mode.Live {
+					continue
+				}
+				require.Less(t, deltaIndex, len(expectedDeltas), "Received more deltas than expected")
+				require.Equal(t, expectedDeltas[deltaIndex], part.Delta,
+					"Delta at index %d should be %q, got %q", deltaIndex, expectedDeltas[deltaIndex], part.Delta)
+				deltaIndex++
+			}
+
+			require.NoError(t, streamErr)
+			require.True(t, sawTextDelta)
+			if !mode.Live {
+				require.Equal(t, len(expectedDeltas), deltaIndex, "Expected %d deltas, got %d", len(expectedDeltas), deltaIndex)
+			}
+		})
 	}
-
-	stream, err := model.Stream(ctx, call)
-	require.NoError(t, err)
-
-	// We expect chunks in order: one choice per chunk
-	// So we get: "Hello" (choice 0), "Hi" (choice 1), " world" (choice 0), " there" (choice 1), "!" (choice 0), "!" (choice 1)
-	expectedDeltas := []string{"Hello", "Hi", " world", " there", "!", "!"}
-	deltaIndex := 0
-
-	for part := range stream {
-		if part.Type == fantasy.StreamPartTypeTextDelta {
-			// Verify we're getting deltas in the expected order
-			require.Less(t, deltaIndex, len(expectedDeltas), "Received more deltas than expected")
-			require.Equal(t, expectedDeltas[deltaIndex], part.Delta,
-				"Delta at index %d should be %q, got %q", deltaIndex, expectedDeltas[deltaIndex], part.Delta)
-			deltaIndex++
-		}
-	}
-
-	// Verify we received all expected deltas
-	require.Equal(t, len(expectedDeltas), deltaIndex, "Expected %d deltas, got %d", len(expectedDeltas), deltaIndex)
 }
 
 func TestOpenAI_Streaming_ResponsesAPI(t *testing.T) {
 	t.Parallel()
 
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		return chattest.OpenAIStreamingResponse(
-			append(
-				append(
-					chattest.OpenAITextChunks("First", "Second"),
-					chattest.OpenAITextChunks(" output", " output")...,
-				),
-				chattest.OpenAITextChunks("!", "!")...,
-			)...,
-		)
-	})
+	for _, mode := range providerModes(t, "OPENAI_API_KEY") {
+		mode := mode
+		t.Run(mode.Name, func(t *testing.T) {
+			t.Parallel()
 
-	// Create fantasy client pointing to our test server (responses API)
-	client, err := fantasyopenai.New(
-		fantasyopenai.WithAPIKey("test-key"),
-		fantasyopenai.WithBaseURL(serverURL),
-		fantasyopenai.WithUseResponsesAPI(),
-	)
-	require.NoError(t, err)
+			serverURL := ""
+			if !mode.Live {
+				serverURL = chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+					return chattest.OpenAIStreamingResponse(
+						append(
+							append(
+								chattest.OpenAITextChunks("First", "Second"),
+								chattest.OpenAITextChunks(" output", " output")...,
+							),
+							chattest.OpenAITextChunks("!", "!")...,
+						)...,
+					)
+				})
+			}
 
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "gpt-4")
-	require.NoError(t, err)
-
-	call := fantasy.Call{
-		Prompt: []fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "Say hello"},
+			model := newOpenAILanguageModel(t, mode, serverURL, openAIResponsesAPI)
+			stream, err := model.Stream(context.Background(), fantasy.Call{
+				Prompt: []fantasy.Message{
+					{
+						Role: fantasy.MessageRoleUser,
+						Content: []fantasy.MessagePart{
+							fantasy.TextPart{Text: "Say hello"},
+						},
+					},
 				},
-			},
-		},
-	}
+			})
+			require.NoError(t, err)
 
-	stream, err := model.Stream(ctx, call)
-	require.NoError(t, err)
+			var parts []fantasy.StreamPart
+			var streamErr error
+			for part := range stream {
+				parts = append(parts, part)
+				if part.Type == fantasy.StreamPartTypeError {
+					streamErr = part.Error
+				}
+			}
 
-	var parts []fantasy.StreamPart
-	for part := range stream {
-		parts = append(parts, part)
-	}
+			require.NoError(t, streamErr)
+			require.Greater(t, len(parts), 0)
 
-	// Verify we received the chunks in order
-	require.Greater(t, len(parts), 0)
+			if mode.Live {
+				return
+			}
 
-	// Extract text deltas from parts and verify they match expected chunks in order
-	// We expect: "First", " output", "!" for choice 0, and "Second", " output", "!" for choice 1
-	var allDeltas []string
-	for _, part := range parts {
-		if part.Type == fantasy.StreamPartTypeTextDelta {
-			allDeltas = append(allDeltas, part.Delta)
-		}
-	}
+			var allDeltas []string
+			for _, part := range parts {
+				if part.Type == fantasy.StreamPartTypeTextDelta {
+					allDeltas = append(allDeltas, part.Delta)
+				}
+			}
 
-	// Verify we received deltas (responses API may handle multiple choices differently)
-	// If we got text deltas, verify the content
-	if len(allDeltas) > 0 {
-		allText := ""
-		for _, delta := range allDeltas {
-			allText += delta
-		}
-		require.Contains(t, allText, "First")
-		require.Contains(t, allText, "Second")
-		require.Contains(t, allText, "output")
-		require.Contains(t, allText, "!")
-	} else {
-		// If no text deltas, at least verify we got some parts (may be different format)
-		require.Greater(t, len(parts), 0, "Expected at least one stream part")
+			if len(allDeltas) > 0 {
+				allText := ""
+				for _, delta := range allDeltas {
+					allText += delta
+				}
+				require.Contains(t, allText, "First")
+				require.Contains(t, allText, "Second")
+				require.Contains(t, allText, "output")
+				require.Contains(t, allText, "!")
+			}
+		})
 	}
 }
 
 func TestOpenAI_NonStreaming_CompletionsAPI(t *testing.T) {
 	t.Parallel()
 
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		return chattest.OpenAINonStreamingResponse("First response")
-	})
+	for _, mode := range providerModes(t, "OPENAI_API_KEY") {
+		mode := mode
+		t.Run(mode.Name, func(t *testing.T) {
+			t.Parallel()
 
-	// Create fantasy client pointing to our test server (completions API)
-	client, err := fantasyopenai.New(
-		fantasyopenai.WithAPIKey("test-key"),
-		fantasyopenai.WithBaseURL(serverURL),
-	)
-	require.NoError(t, err)
+			serverURL := ""
+			if !mode.Live {
+				serverURL = chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+					return chattest.OpenAINonStreamingResponse("First response")
+				})
+			}
 
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "gpt-4")
-	require.NoError(t, err)
-
-	call := fantasy.Call{
-		Prompt: []fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "Test message"},
+			model := newOpenAILanguageModel(t, mode, serverURL, openAICompletionsAPI)
+			response, err := model.Generate(context.Background(), fantasy.Call{
+				Prompt: []fantasy.Message{
+					{
+						Role: fantasy.MessageRoleUser,
+						Content: []fantasy.MessagePart{
+							fantasy.TextPart{Text: "Test message"},
+						},
+					},
 				},
-			},
-		},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, response)
+		})
 	}
-
-	response, err := model.Generate(ctx, call)
-	require.NoError(t, err)
-	require.NotNil(t, response)
 }
 
 func TestOpenAI_ToolCalls(t *testing.T) {
@@ -240,36 +287,33 @@ func TestOpenAI_ToolCalls(t *testing.T) {
 func TestOpenAI_NonStreaming_ResponsesAPI(t *testing.T) {
 	t.Parallel()
 
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		return chattest.OpenAINonStreamingResponse("First output")
-	})
+	for _, mode := range providerModes(t, "OPENAI_API_KEY") {
+		mode := mode
+		t.Run(mode.Name, func(t *testing.T) {
+			t.Parallel()
 
-	// Create fantasy client pointing to our test server (responses API)
-	client, err := fantasyopenai.New(
-		fantasyopenai.WithAPIKey("test-key"),
-		fantasyopenai.WithBaseURL(serverURL),
-		fantasyopenai.WithUseResponsesAPI(),
-	)
-	require.NoError(t, err)
+			serverURL := ""
+			if !mode.Live {
+				serverURL = chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+					return chattest.OpenAINonStreamingResponse("First output")
+				})
+			}
 
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "gpt-4")
-	require.NoError(t, err)
-
-	call := fantasy.Call{
-		Prompt: []fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "Test message"},
+			model := newOpenAILanguageModel(t, mode, serverURL, openAIResponsesAPI)
+			response, err := model.Generate(context.Background(), fantasy.Call{
+				Prompt: []fantasy.Message{
+					{
+						Role: fantasy.MessageRoleUser,
+						Content: []fantasy.MessagePart{
+							fantasy.TextPart{Text: "Test message"},
+						},
+					},
 				},
-			},
-		},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, response)
+		})
 	}
-
-	response, err := model.Generate(ctx, call)
-	require.NoError(t, err)
-	require.NotNil(t, response)
 }
 
 func TestOpenAI_Streaming_MismatchReturnsErrorPart(t *testing.T) {

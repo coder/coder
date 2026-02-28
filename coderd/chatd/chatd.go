@@ -1763,6 +1763,12 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			status = database.ChatStatusWaiting
 			return
 		}
+		if isShutdownCancellation(ctx, chatCtx, err) {
+			logger.Info(ctx, "chat canceled during shutdown; returning to pending")
+			status = database.ChatStatusPending
+			lastError = ""
+			return
+		}
 		logger.Error(ctx, "failed to process chat", slog.Error(err))
 		if reason, ok := processingFailureReason(err); ok {
 			lastError = reason
@@ -1771,6 +1777,25 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		status = database.ChatStatusError
 		return
 	}
+}
+
+func isShutdownCancellation(
+	serverCtx context.Context,
+	chatCtx context.Context,
+	err error,
+) bool {
+	if err == nil {
+		return false
+	}
+	// During Close(), the server context is canceled. In-flight chats should
+	// be returned to pending so another replica can retry them.
+	if serverCtx.Err() == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+	return errors.Is(context.Cause(chatCtx), context.Canceled)
 }
 
 func (p *Server) runChat(

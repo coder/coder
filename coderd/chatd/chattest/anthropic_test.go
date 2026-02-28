@@ -12,55 +12,96 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chattest"
 )
 
+func newAnthropicLanguageModel(
+	t *testing.T,
+	mode providerRunMode,
+	mockServerURL string,
+) fantasy.LanguageModel {
+	t.Helper()
+
+	apiKey := "test-key"
+	modelName := "claude-3-opus-20240229"
+	opts := []fantasyanthropic.Option{}
+
+	if mode.Live {
+		apiKey = envOrDefault("ANTHROPIC_API_KEY", "")
+		modelName = envOrDefault("ANTHROPIC_TEST_MODEL", "claude-3-5-haiku-latest")
+		if baseURL := envOrDefault("ANTHROPIC_BASE_URL", ""); baseURL != "" {
+			opts = append(opts, fantasyanthropic.WithBaseURL(baseURL))
+		}
+	} else {
+		opts = append(opts, fantasyanthropic.WithBaseURL(mockServerURL))
+	}
+
+	opts = append(opts, fantasyanthropic.WithAPIKey(apiKey))
+	client, err := fantasyanthropic.New(opts...)
+	require.NoError(t, err)
+
+	model, err := client.LanguageModel(context.Background(), modelName)
+	require.NoError(t, err)
+	return model
+}
+
 func TestAnthropic_Streaming(t *testing.T) {
 	t.Parallel()
 
-	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
-		return chattest.AnthropicStreamingResponse(
-			chattest.AnthropicTextChunks("Hello", " world", "!")...,
-		)
-	})
+	for _, mode := range providerModes(t, "ANTHROPIC_API_KEY") {
+		mode := mode
+		t.Run(mode.Name, func(t *testing.T) {
+			t.Parallel()
 
-	// Create fantasy client pointing to our test server
-	client, err := fantasyanthropic.New(
-		fantasyanthropic.WithAPIKey("test-key"),
-		fantasyanthropic.WithBaseURL(serverURL),
-	)
-	require.NoError(t, err)
+			serverURL := ""
+			if !mode.Live {
+				serverURL = chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+					return chattest.AnthropicStreamingResponse(
+						chattest.AnthropicTextChunks("Hello", " world", "!")...,
+					)
+				})
+			}
 
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "claude-3-opus-20240229")
-	require.NoError(t, err)
-
-	call := fantasy.Call{
-		Prompt: []fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "Say hello"},
+			model := newAnthropicLanguageModel(t, mode, serverURL)
+			stream, err := model.Stream(context.Background(), fantasy.Call{
+				Prompt: []fantasy.Message{
+					{
+						Role: fantasy.MessageRoleUser,
+						Content: []fantasy.MessagePart{
+							fantasy.TextPart{Text: "Say hello"},
+						},
+					},
 				},
-			},
-		},
+			})
+			require.NoError(t, err)
+
+			expectedDeltas := []string{"Hello", " world", "!"}
+			deltaIndex := 0
+			sawTextDelta := false
+			var streamErr error
+
+			for part := range stream {
+				if part.Type == fantasy.StreamPartTypeError {
+					streamErr = part.Error
+					continue
+				}
+				if part.Type != fantasy.StreamPartTypeTextDelta {
+					continue
+				}
+				sawTextDelta = true
+				if mode.Live {
+					continue
+				}
+				require.Less(t, deltaIndex, len(expectedDeltas), "Received more deltas than expected")
+				require.Equal(t, expectedDeltas[deltaIndex], part.Delta,
+					"Delta at index %d should be %q, got %q", deltaIndex, expectedDeltas[deltaIndex], part.Delta)
+				deltaIndex++
+			}
+
+			require.NoError(t, streamErr)
+			require.True(t, sawTextDelta)
+			if !mode.Live {
+				require.Equal(t, len(expectedDeltas), deltaIndex, "Expected %d deltas, got %d", len(expectedDeltas), deltaIndex)
+			}
+		})
 	}
-
-	stream, err := model.Stream(ctx, call)
-	require.NoError(t, err)
-
-	expectedDeltas := []string{"Hello", " world", "!"}
-	deltaIndex := 0
-
-	var allParts []fantasy.StreamPart
-	for part := range stream {
-		allParts = append(allParts, part)
-		if part.Type == fantasy.StreamPartTypeTextDelta {
-			require.Less(t, deltaIndex, len(expectedDeltas), "Received more deltas than expected")
-			require.Equal(t, expectedDeltas[deltaIndex], part.Delta,
-				"Delta at index %d should be %q, got %q", deltaIndex, expectedDeltas[deltaIndex], part.Delta)
-			deltaIndex++
-		}
-	}
-
-	require.Equal(t, len(expectedDeltas), deltaIndex, "Expected %d deltas, got %d. Total parts received: %d", len(expectedDeltas), deltaIndex, len(allParts))
 }
 
 func TestAnthropic_ToolCalls(t *testing.T) {
@@ -122,35 +163,33 @@ func TestAnthropic_ToolCalls(t *testing.T) {
 func TestAnthropic_NonStreaming(t *testing.T) {
 	t.Parallel()
 
-	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
-		return chattest.AnthropicNonStreamingResponse("Response text")
-	})
+	for _, mode := range providerModes(t, "ANTHROPIC_API_KEY") {
+		mode := mode
+		t.Run(mode.Name, func(t *testing.T) {
+			t.Parallel()
 
-	// Create fantasy client pointing to our test server
-	client, err := fantasyanthropic.New(
-		fantasyanthropic.WithAPIKey("test-key"),
-		fantasyanthropic.WithBaseURL(serverURL),
-	)
-	require.NoError(t, err)
+			serverURL := ""
+			if !mode.Live {
+				serverURL = chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+					return chattest.AnthropicNonStreamingResponse("Response text")
+				})
+			}
 
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "claude-3-opus-20240229")
-	require.NoError(t, err)
-
-	call := fantasy.Call{
-		Prompt: []fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "Test message"},
+			model := newAnthropicLanguageModel(t, mode, serverURL)
+			response, err := model.Generate(context.Background(), fantasy.Call{
+				Prompt: []fantasy.Message{
+					{
+						Role: fantasy.MessageRoleUser,
+						Content: []fantasy.MessagePart{
+							fantasy.TextPart{Text: "Test message"},
+						},
+					},
 				},
-			},
-		},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, response)
+		})
 	}
-
-	response, err := model.Generate(ctx, call)
-	require.NoError(t, err)
-	require.NotNil(t, response)
 }
 
 func TestAnthropic_Streaming_MismatchReturnsErrorPart(t *testing.T) {
