@@ -26,7 +26,7 @@ import {
 	SelectValue,
 } from "components/Select/Select";
 import { useAuthenticated } from "hooks";
-import { ArrowLeftIcon, MonitorIcon, PanelLeftIcon } from "lucide-react";
+import { MonitorIcon, PanelLeftIcon } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
@@ -38,7 +38,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -47,7 +46,6 @@ import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
-import { DiffRightPanel } from "./DiffRightPanel";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -88,11 +86,9 @@ export interface AgentsOutletContext {
 	chatErrorReasons: Record<string, string>;
 	setChatErrorReason: (chatId: string, reason: string) => void;
 	clearChatErrorReason: (chatId: string) => void;
-	topBarTitleRef: React.RefObject<HTMLDivElement | null>;
-	topBarActionsRef: React.RefObject<HTMLDivElement | null>;
-	rightPanelRef: React.RefObject<HTMLDivElement | null>;
-	setRightPanelOpen: (isOpen: boolean) => void;
 	requestArchiveAgent: (chatId: string) => void;
+	isSidebarCollapsed: boolean;
+	onToggleSidebarCollapsed: () => void;
 }
 
 const AgentsPage: FC = () => {
@@ -125,7 +121,8 @@ const AgentsPage: FC = () => {
 	const createMutation = useMutation(createChat(queryClient));
 	const archiveMutation = useMutation(archiveChat(queryClient));
 	const [archivingChatId, setArchivingChatId] = useState<string | null>(null);
-	const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
+	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
+		useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, string>
@@ -185,9 +182,6 @@ const AgentsPage: FC = () => {
 			return next;
 		});
 	}, []);
-	const topBarTitleRef = useRef<HTMLDivElement>(null);
-	const topBarActionsRef = useRef<HTMLDivElement>(null);
-	const rightPanelRef = useRef<HTMLDivElement>(null);
 	const chatList = chatsQuery.data ?? [];
 	const requestArchiveAgent = useCallback(
 		async (chatId: string) => {
@@ -220,22 +214,26 @@ const AgentsPage: FC = () => {
 		},
 		[archiveMutation, queryClient, agentId, navigate, clearChatErrorReason],
 	);
+	const handleToggleSidebarCollapsed = useCallback(
+		() => setIsSidebarCollapsed((prev) => !prev),
+		[],
+	);
 	const outletContext: AgentsOutletContext = useMemo(
 		() => ({
 			chatErrorReasons,
 			setChatErrorReason,
 			clearChatErrorReason,
-			topBarTitleRef,
-			topBarActionsRef,
-			rightPanelRef,
-			setRightPanelOpen: setIsRightPanelOpen,
 			requestArchiveAgent,
+			isSidebarCollapsed,
+			onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
 		}),
 		[
 			chatErrorReasons,
 			setChatErrorReason,
 			clearChatErrorReason,
 			requestArchiveAgent,
+			isSidebarCollapsed,
+			handleToggleSidebarCollapsed,
 		],
 	);
 	const handleCreateChat = async (options: CreateChatOptions) => {
@@ -360,12 +358,6 @@ const AgentsPage: FC = () => {
 		onNewAgent: handleNewAgent,
 	});
 
-	useEffect(() => {
-		if (!agentId) {
-			setIsRightPanelOpen(false);
-		}
-	}, [agentId]);
-
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<div
@@ -397,15 +389,15 @@ const AgentsPage: FC = () => {
 
 			<div
 				className={cn(
-					"flex min-h-0 min-w-0 bg-surface-primary",
-					agentId ? "flex-1" : "order-1 md:order-none flex-none md:flex-1",
-					isRightPanelOpen && "flex-col xl:flex-row",
+					"flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+					!agentId && "order-1 md:order-none flex-none md:flex-1",
 				)}
 			>
-				<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary">
-					<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
-						{/* Mobile logo: visible when no agent is selected. */}
-						{!agentId && (
+				{agentId ? (
+					<Outlet key={agentId} context={outletContext} />
+				) : (
+					<>
+						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
 							<NavLink
 								to="/workspaces"
 								className="inline-flex shrink-0 opacity-50 md:hidden"
@@ -420,52 +412,43 @@ const AgentsPage: FC = () => {
 									<CoderIcon className="h-6 w-6 fill-content-primary" />
 								)}
 							</NavLink>
-						)}
-						{/* Mobile back button: visible on mobile when an agent is selected. */}
-						{agentId && (
-							<Button
-								variant="subtle"
-								size="icon"
-								onClick={() => navigate("/agents")}
-								aria-label="Back"
-								className="inline-flex h-7 w-7 min-w-0 shrink-0 md:hidden"
-							>
-								<ArrowLeftIcon />
-							</Button>
-						)}
-						{/* Desktop expand button: visible when sidebar is manually collapsed. */}
-						{isSidebarCollapsed && (
-							<Button
-								variant="subtle"
-								size="icon"
-								onClick={() => setIsSidebarCollapsed(false)}
-								aria-label="Expand sidebar"
-								className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
-							>
-								<PanelLeftIcon />
-							</Button>
-						)}
-						<div
-							ref={topBarTitleRef}
-							className="flex min-w-0 flex-1 items-center"
-						/>
-						<div ref={topBarActionsRef} className="flex items-center gap-2" />
-						<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
-							<UserDropdown
-								user={user}
-								buildInfo={buildInfo}
-								supportLinks={
-									appearance.support_links?.filter(
-										(link) => link.location !== "navbar",
-									) ?? []
-								}
-								onSignOut={signOut}
-							/>
+							{isSidebarCollapsed && (
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={() => setIsSidebarCollapsed(false)}
+									aria-label="Expand sidebar"
+									className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
+								>
+									<PanelLeftIcon />
+								</Button>
+							)}
+							<div className="flex min-w-0 flex-1 items-center" />
+							<div className="flex items-center gap-2">
+								{isAgentsAdmin && (
+									<Button
+										variant="subtle"
+										disabled={createMutation.isPending}
+										className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
+										onClick={() => setConfigureAgentsDialogOpen(true)}
+									>
+										Admin
+									</Button>
+								)}
+							</div>
+							<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
+								<UserDropdown
+									user={user}
+									buildInfo={buildInfo}
+									supportLinks={
+										appearance.support_links?.filter(
+											(link) => link.location !== "navbar",
+										) ?? []
+									}
+									onSignOut={signOut}
+								/>
+							</div>
 						</div>
-					</div>
-					{agentId ? (
-						<Outlet context={outletContext} />
-					) : (
 						<AgentsEmptyState
 							onCreateChat={handleCreateChat}
 							isCreating={createMutation.isPending}
@@ -478,14 +461,11 @@ const AgentsPage: FC = () => {
 							modelCatalogError={chatModelsQuery.error}
 							canSetSystemPrompt={canSetSystemPrompt}
 							canManageChatModelConfigs={isAgentsAdmin}
-							topBarActionsRef={topBarActionsRef}
+							isConfigureAgentsDialogOpen={isConfigureAgentsDialogOpen}
+							onConfigureAgentsDialogOpenChange={setConfigureAgentsDialogOpen}
 						/>
-					)}
-				</div>
-				<DiffRightPanel
-					ref={rightPanelRef}
-					isOpen={Boolean(agentId && isRightPanelOpen)}
-				/>
+					</>
+				)}
 			</div>
 		</div>
 	);
@@ -503,7 +483,8 @@ interface AgentsEmptyStateProps {
 	modelCatalogError: unknown;
 	canSetSystemPrompt: boolean;
 	canManageChatModelConfigs: boolean;
-	topBarActionsRef: React.RefObject<HTMLDivElement | null>;
+	isConfigureAgentsDialogOpen: boolean;
+	onConfigureAgentsDialogOpenChange: (open: boolean) => void;
 }
 
 export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
@@ -518,7 +499,8 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	modelCatalogError,
 	canSetSystemPrompt,
 	canManageChatModelConfigs,
-	topBarActionsRef,
+	isConfigureAgentsDialogOpen,
+	onConfigureAgentsDialogOpenChange,
 }) => {
 	const [inputValue, setInputValue] = useState(() => {
 		if (typeof window === "undefined") {
@@ -595,8 +577,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		useState(initialSystemPrompt);
 	const [systemPromptDraft, setSystemPromptDraft] =
 		useState(initialSystemPrompt);
-	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
-		useState(false);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 50 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -720,20 +700,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
-			{hasAdminControls &&
-				topBarActionsRef.current &&
-				createPortal(
-					<Button
-						variant="subtle"
-						disabled={isCreating}
-						className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
-						onClick={() => setConfigureAgentsDialogOpen(true)}
-					>
-						Admin
-					</Button>,
-					topBarActionsRef.current,
-				)}
-
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
 				{createError ? <ErrorAlert error={createError} /> : null}
 				{workspacesQuery.isError && (
@@ -794,7 +760,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 			{hasAdminControls && (
 				<ConfigureAgentsDialog
 					open={isConfigureAgentsDialogOpen}
-					onOpenChange={setConfigureAgentsDialogOpen}
+					onOpenChange={onConfigureAgentsDialogOpenChange}
 					canManageChatModelConfigs={canManageChatModelConfigs}
 					canSetSystemPrompt={canSetSystemPrompt}
 					systemPromptDraft={systemPromptDraft}

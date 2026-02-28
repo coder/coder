@@ -1,6 +1,6 @@
 import {
+	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
-	type Ref,
 	useCallback,
 	useEffect,
 	useRef,
@@ -29,17 +29,16 @@ function loadPersistedWidth(): number {
 }
 
 interface DiffRightPanelProps {
-	ref?: Ref<HTMLDivElement>;
 	isOpen: boolean;
+	children?: ReactNode;
 }
 
 /**
- * The right-side panel for the diff/files-changed view. Always mounted
- * so the portal ref is always available (fixes blank-on-reopen). When
- * closed the panel is hidden via CSS and takes no layout space. On xl+
+ * The right-side panel for the diff/files-changed view. When closed
+ * the panel is hidden via CSS and takes no layout space. On xl+
  * screens the panel is horizontally resizable via a drag handle.
  */
-export const DiffRightPanel = ({ ref, isOpen }: DiffRightPanelProps) => {
+export const DiffRightPanel = ({ isOpen, children }: DiffRightPanelProps) => {
 	const [width, setWidth] = useState(loadPersistedWidth);
 	const isDragging = useRef(false);
 	const startX = useRef(0);
@@ -93,7 +92,6 @@ export const DiffRightPanel = ({ ref, isOpen }: DiffRightPanelProps) => {
 
 	return (
 		<div
-			ref={ref}
 			data-testid="agents-detail-right-panel"
 			style={
 				isOpen
@@ -103,7 +101,7 @@ export const DiffRightPanel = ({ ref, isOpen }: DiffRightPanelProps) => {
 			className={cn(
 				"relative min-h-0 min-w-0 border-t border-border-default bg-surface-primary",
 				isOpen
-					? "h-[42dvh] min-h-[260px] max-h-[56dvh] xl:h-auto xl:max-h-none xl:w-[var(--panel-width)] xl:min-w-[360px] xl:max-w-[960px] xl:border-l xl:border-t-0"
+					? "flex h-[42dvh] min-h-[260px] max-h-[56dvh] flex-col xl:h-auto xl:max-h-none xl:w-[var(--panel-width)] xl:min-w-[360px] xl:max-w-[960px] xl:border-l xl:border-t-0"
 					: "hidden",
 			)}
 		>
@@ -114,6 +112,7 @@ export const DiffRightPanel = ({ ref, isOpen }: DiffRightPanelProps) => {
 				onPointerUp={handlePointerUp}
 				className="absolute top-0 left-0 z-10 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link xl:block"
 			/>
+			{children}
 		</div>
 	);
 };

@@ -27,6 +27,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
+import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
 import {
@@ -54,9 +55,11 @@ import {
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
-import { AgentDetailTopBarPortals } from "./AgentDetail/TopBarPortals";
+import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import type { AgentsOutletContext } from "./AgentsPage";
+import { DiffRightPanel } from "./DiffRightPanel";
+import { FilesChangedPanel } from "./FilesChangedPanel";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -67,8 +70,6 @@ import {
 const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
 	() => {};
 const noopClearChatErrorReason: AgentsOutletContext["clearChatErrorReason"] =
-	() => {};
-const noopSetRightPanelOpen: AgentsOutletContext["setRightPanelOpen"] =
 	() => {};
 const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
 	() => {};
@@ -471,22 +472,12 @@ const AgentDetail: FC = () => {
 		outletContext?.setChatErrorReason ?? noopSetChatErrorReason;
 	const clearChatErrorReason =
 		outletContext?.clearChatErrorReason ?? noopClearChatErrorReason;
-	const setRightPanelOpen =
-		outletContext?.setRightPanelOpen ?? noopSetRightPanelOpen;
 	const requestArchiveAgent =
 		outletContext?.requestArchiveAgent ?? noopRequestArchiveAgent;
+	const isSidebarCollapsed = outletContext?.isSidebarCollapsed ?? false;
+	const onToggleSidebarCollapsed =
+		outletContext?.onToggleSidebarCollapsed ?? (() => {});
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-
-	// When switching between chats, reset the scroll container to the
-	// bottom (scrollTop 0 in a flex-col-reverse container) so the user
-	// always sees the most recent messages instead of a stale scroll
-	// position from the previous chat.
-	useEffect(() => {
-		void agentId;
-		if (scrollContainerRef.current) {
-			scrollContainerRef.current.scrollTop = 0;
-		}
-	}, [agentId]);
 
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
@@ -523,16 +514,6 @@ const AgentDetail: FC = () => {
 			setShowDiffPanel(true);
 		}
 	}
-
-	// Notify the parent layout about right panel visibility. This
-	// useEffect is necessary because we're synchronizing with state
-	// owned by the parent outlet, not adjusting our own state.
-	useEffect(() => {
-		setRightPanelOpen(hasDiffStatus && showDiffPanel);
-		return () => {
-			setRightPanelOpen(false);
-		};
-	}, [hasDiffStatus, setRightPanelOpen, showDiffPanel]);
 
 	const modelOptions = useMemo(
 		() =>
@@ -787,9 +768,6 @@ const AgentDetail: FC = () => {
 		[promoteQueuedMutation, store],
 	);
 
-	const topBarTitleRef = outletContext?.topBarTitleRef;
-	const topBarActionsRef = outletContext?.topBarActionsRef;
-	const rightPanelRef = outletContext?.rightPanelRef;
 	const chatTitle = chatQuery.data?.chat?.title;
 
 	// Update the browser tab title when navigating to / between agents.
@@ -871,6 +849,24 @@ const AgentDetail: FC = () => {
 	if (chatQuery.isLoading) {
 		return (
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+				<AgentDetailTopBar
+					diff={{
+						hasDiffStatus: false,
+						diffStatus: undefined,
+						showDiffPanel: false,
+						onToggleFilesChanged: () => {},
+					}}
+					workspace={{
+						canOpenEditors: false,
+						canOpenWorkspace: false,
+						onOpenInEditor: () => {},
+						onViewWorkspace: () => {},
+					}}
+					onOpenParentChat={() => {}}
+					onArchiveAgent={() => {}}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				/>
 				<div className="flex h-full flex-col-reverse overflow-hidden">
 					<div className="px-4">
 						<div className="mx-auto w-full max-w-3xl py-6">
@@ -922,80 +918,106 @@ const AgentDetail: FC = () => {
 
 	if (!chatQuery.data || !agentId) {
 		return (
-			<div className="flex flex-1 items-center justify-center text-content-secondary">
-				Chat not found
+			<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+				<AgentDetailTopBar
+					diff={{
+						hasDiffStatus: false,
+						diffStatus: undefined,
+						showDiffPanel: false,
+						onToggleFilesChanged: () => {},
+					}}
+					workspace={{
+						canOpenEditors: false,
+						canOpenWorkspace: false,
+						onOpenInEditor: () => {},
+						onViewWorkspace: () => {},
+					}}
+					onOpenParentChat={() => {}}
+					onArchiveAgent={() => {}}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				/>
+				<div className="flex flex-1 items-center justify-center text-content-secondary">
+					Chat not found
+				</div>
 			</div>
 		);
 	}
 
 	return (
-		<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
-			<AgentDetailTopBarPortals
-				topBarTitleRef={topBarTitleRef}
-				topBarActionsRef={topBarActionsRef}
-				rightPanelRef={rightPanelRef}
-				chatTitle={chatTitle}
-				parentChat={parentChat}
-				onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
-				diff={{
-					hasDiffStatus,
-					diffStatus: diffStatusQuery.data,
-					showDiffPanel,
-					onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
-				}}
-				workspace={{
-					canOpenEditors,
-					canOpenWorkspace,
-					onOpenInEditor: (editor) => {
-						void handleOpenInEditor(editor);
-					},
-					onViewWorkspace: handleViewWorkspace,
-				}}
-				onArchiveAgent={handleArchiveAgentAction}
-				shouldShowDiffPanel={shouldShowDiffPanel}
-				agentId={agentId}
-			/>
-
-			<div
-				aria-hidden
-				className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-surface-primary"
-				style={{
-					maskImage:
-						"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-					WebkitMaskImage:
-						"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-				}}
-			/>
-			<div
-				ref={scrollContainerRef}
-				className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
-			>
-				<div className="px-4">
-					<AgentDetailConversation
-						store={store}
-						chatID={agentId}
-						persistedErrorReason={
-							chatErrorReasons[agentId] || chatRecord?.last_error || undefined
-						}
-						compressionThreshold={compressionThreshold}
-						onDeleteQueuedMessage={handleDeleteQueuedMessage}
-						onPromoteQueuedMessage={handlePromoteQueuedMessage}
-						onSend={handleSend}
-						onInterrupt={handleInterrupt}
-						isInputDisabled={isInputDisabled}
-						isSendPending={isSubmissionPending}
-						isInterruptPending={interruptMutation.isPending}
-						hasModelOptions={hasModelOptions}
-						selectedModel={selectedModel}
-						onModelChange={setSelectedModel}
-						modelOptions={modelOptions}
-						modelSelectorPlaceholder={modelSelectorPlaceholder}
-						inputStatusText={inputStatusText}
-						modelCatalogStatusMessage={modelCatalogStatusMessage}
-						savingMessageId={pendingEditMessageId}
-					/>
+		<div
+			className={cn(
+				"flex min-h-0 min-w-0 flex-1",
+				shouldShowDiffPanel && "flex-col xl:flex-row",
+			)}
+		>
+			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+				<AgentDetailTopBar
+					chatTitle={chatTitle}
+					parentChat={parentChat}
+					onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
+					diff={{
+						hasDiffStatus,
+						diffStatus: diffStatusQuery.data,
+						showDiffPanel,
+						onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
+					}}
+					workspace={{
+						canOpenEditors,
+						canOpenWorkspace,
+						onOpenInEditor: (editor) => {
+							void handleOpenInEditor(editor);
+						},
+						onViewWorkspace: handleViewWorkspace,
+					}}
+					onArchiveAgent={handleArchiveAgentAction}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				/>
+				<div
+					aria-hidden
+					className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-surface-primary"
+					style={{
+						maskImage:
+							"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+						WebkitMaskImage:
+							"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+					}}
+				/>
+				<div
+					ref={scrollContainerRef}
+					className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+				>
+					<div className="px-4">
+						<AgentDetailConversation
+							store={store}
+							chatID={agentId}
+							persistedErrorReason={
+								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
+							}
+							compressionThreshold={compressionThreshold}
+							onDeleteQueuedMessage={handleDeleteQueuedMessage}
+							onPromoteQueuedMessage={handlePromoteQueuedMessage}
+							onSend={handleSend}
+							onInterrupt={handleInterrupt}
+							isInputDisabled={isInputDisabled}
+							isSendPending={isSubmissionPending}
+							isInterruptPending={interruptMutation.isPending}
+							hasModelOptions={hasModelOptions}
+							selectedModel={selectedModel}
+							onModelChange={setSelectedModel}
+							modelOptions={modelOptions}
+							modelSelectorPlaceholder={modelSelectorPlaceholder}
+							inputStatusText={inputStatusText}
+							modelCatalogStatusMessage={modelCatalogStatusMessage}
+							savingMessageId={pendingEditMessageId}
+						/>
+					</div>
 				</div>
 			</div>
+			<DiffRightPanel isOpen={shouldShowDiffPanel}>
+				<FilesChangedPanel chatId={agentId} />
+			</DiffRightPanel>
 		</div>
 	);
 };

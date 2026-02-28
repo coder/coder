@@ -3,7 +3,11 @@ import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 } from "testHelpers/entities";
-import { withAuthProvider, withWebSocket } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withWebSocket,
+} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import {
@@ -14,7 +18,7 @@ import {
 } from "api/queries/chats";
 import { workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import { type FC, useRef, useState } from "react";
+import type { FC } from "react";
 import { Outlet } from "react-router";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
@@ -25,45 +29,25 @@ import AgentDetail from "./AgentDetail";
 import type { AgentsOutletContext } from "./AgentsPage";
 
 // ---------------------------------------------------------------------------
-// Layout wrapper – provides portal targets for the top-bar and right panel
-// so the component can render its portaled actions menu and diff panel.
+// Layout wrapper – provides outlet context for the child route.
 // ---------------------------------------------------------------------------
 const AgentDetailLayout: FC = () => {
-	const topBarTitleRef = useRef<HTMLDivElement>(null);
-	const topBarActionsRef = useRef<HTMLDivElement>(null);
-	const rightPanelRef = useRef<HTMLDivElement>(null);
-	const [rightPanelOpen, setRightPanelOpen] = useState(false);
-
 	return (
 		<div className="flex h-full">
-			<div className="flex min-w-0 flex-1 flex-col">
-				<div className="flex items-center gap-2 border-b border-border px-4 py-2">
-					<div ref={topBarTitleRef} className="flex-1" />
-					<div ref={topBarActionsRef} />
-				</div>
-				<div className="flex-1 overflow-hidden">
-					<Outlet
-						context={
-							{
-								chatErrorReasons: {},
-								setChatErrorReason: () => {},
-								clearChatErrorReason: () => {},
-								topBarTitleRef,
-								topBarActionsRef,
-								rightPanelRef,
-								setRightPanelOpen,
-								requestArchiveAgent: () => {},
-							} satisfies AgentsOutletContext
-						}
-					/>
-				</div>
+			<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+				<Outlet
+					context={
+						{
+							chatErrorReasons: {},
+							setChatErrorReason: () => {},
+							clearChatErrorReason: () => {},
+							requestArchiveAgent: () => {},
+							isSidebarCollapsed: false,
+							onToggleSidebarCollapsed: () => {},
+						} satisfies AgentsOutletContext
+					}
+				/>
 			</div>
-			<div
-				ref={rightPanelRef}
-				className={
-					rightPanelOpen ? "w-[400px] border-l border-border" : "hidden"
-				}
-			/>
 		</div>
 	);
 };
@@ -168,7 +152,7 @@ const wrapSSE = (payload: unknown): string =>
 const meta: Meta<typeof AgentDetailLayout> = {
 	title: "pages/AgentsPage/AgentDetail",
 	component: AgentDetailLayout,
-	decorators: [withAuthProvider, withWebSocket],
+	decorators: [withAuthProvider, withDashboardProvider, withWebSocket],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
