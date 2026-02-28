@@ -534,11 +534,11 @@ outer:
 func spliceLines(contentLines []string, start, end int, replacement string) string {
 	var b strings.Builder
 	for _, l := range contentLines[:start] {
-		b.WriteString(l)
+		_, _ = b.WriteString(l)
 	}
-	b.WriteString(replacement)
+	_, _ = b.WriteString(replacement)
 	for _, l := range contentLines[end:] {
-		b.WriteString(l)
+		_, _ = b.WriteString(l)
 	}
 	return b.String()
 }
