@@ -332,8 +332,8 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 				data-testid={`agents-tree-node-${chat.id}`}
 				className={cn(
 					"group relative flex min-w-0 items-start gap-1.5 rounded-md pr-1 text-content-secondary",
-					"transition-none hover:bg-surface-tertiary/50 hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
-					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+					"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 					isChildNode &&
 						"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
 				)}
@@ -342,7 +342,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 					<div
 						className={cn(
 							"flex h-5 w-5 items-center justify-center rounded-md",
-							hasChildren && "group-hover:invisible",
+							hasChildren && "[@media(hover:hover)]:group-hover:invisible",
 						)}
 					>
 						<StatusIcon
@@ -359,7 +359,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 							variant="subtle"
 							size="icon"
 							onClick={() => toggleExpanded(chatID)}
-							className="absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary group-hover:visible [&>svg]:size-3.5"
+							className="absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [@media(hover:hover)]:group-hover:visible [&>svg]:size-3.5"
 							data-testid={`agents-tree-toggle-${chat.id}`}
 							aria-label={isExpanded ? "Collapse" : "Expand"}
 							aria-expanded={isExpanded}
@@ -414,7 +414,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 					)}
 				</NavLink>
 				<div className="relative mr-1 mt-1 h-6 w-7 shrink-0 text-right">
-					<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity group-hover:opacity-0">
+					<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity [@media(hover:hover)]:group-hover:opacity-0">
 						{shortRelativeTime(chat.updated_at)}
 					</span>
 					<DropdownMenu>
@@ -423,7 +423,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								size="icon"
 								variant="subtle"
 								className={cn(
-									"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary group-hover:opacity-100",
+									"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100",
 									isArchivingThisChat && "opacity-100",
 								)}
 								aria-label={`Open actions for ${chat.title}`}
