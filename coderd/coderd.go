@@ -766,6 +766,7 @@ func New(options *Options) *API {
 		ProviderAPIKeys:     chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
 		AgentConn:           api.agentProvider.AgentConn,
 		CreateWorkspace:     api.chatCreateWorkspace,
+		CreateWorkspaceBuild: api.chatCreateWorkspaceBuild,
 		Pubsub:              options.Pubsub,
 	})
 	if options.DeploymentValues.Prometheus.Enable {

@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
@@ -34,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -916,6 +918,67 @@ func (api *API) chatCreateWorkspace(
 
 	sw.WriteHeader(http.StatusCreated)
 	return workspace, nil
+}
+
+// chatCreateWorkspaceBuild provides workspace build creation (start,
+// stop) for the chat processor. It uses the workspace builder to
+// create builds with proper RBAC authorization.
+func (api *API) chatCreateWorkspaceBuild(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	workspaceID uuid.UUID,
+	req codersdk.CreateWorkspaceBuildRequest,
+) (codersdk.WorkspaceBuild, error) {
+	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	if err != nil {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
+	}
+	ctx = dbauthz.As(ctx, actor)
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
+	}
+
+	transition := database.WorkspaceTransition(req.Transition)
+	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
+		Initiator(ownerID).
+		DeploymentValues(api.Options.DeploymentValues).
+		Experiments(api.Experiments).
+		BuildMetrics(api.WorkspaceBuilderMetrics)
+
+	var provisionerJob *database.ProvisionerJob
+
+	err = api.Database.InTx(func(tx database.Store) error {
+		var buildErr error
+		_, provisionerJob, _, buildErr = builder.Build(
+			ctx,
+			tx,
+			api.FileCache,
+			func(_ policy.Action, _ rbac.Objecter) bool {
+				// RBAC is already enforced via dbauthz.As above.
+				return true
+			},
+			audit.WorkspaceBuildBaggage{},
+		)
+		return buildErr
+	}, nil)
+	if err != nil {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
+	}
+
+	if provisionerJob != nil {
+		if err := provisionerjobs.PostJob(api.Pubsub, *provisionerJob); err != nil {
+			api.Logger.Error(ctx, "chat: failed to post provisioner job to pubsub", slog.Error(err))
+		}
+	}
+
+	// The chat tool only needs the build to be queued, not
+	// the full SDK representation. Return a minimal result.
+	return codersdk.WorkspaceBuild{
+		WorkspaceID: workspaceID,
+		Transition:  req.Transition,
+	}, nil
 }
 
 func chatWorkspaceAuditStatus(err error) int {

@@ -63,9 +63,10 @@ type Server struct {
 
 	remotePartsProvider RemotePartsProvider
 
-	agentConnFn       AgentConnFunc
-	createWorkspaceFn chattool.CreateWorkspaceFn
-	pubsub            pubsub.Pubsub
+	agentConnFn            AgentConnFunc
+	createWorkspaceFn      chattool.CreateWorkspaceFn
+	createWorkspaceBuildFn chattool.CreateWorkspaceBuildFn
+	pubsub                pubsub.Pubsub
 	providerAPIKeys   chatprovider.ProviderAPIKeys
 
 	// streamMu guards chatStreams which tracks in-flight chat
@@ -842,6 +843,7 @@ type Config struct {
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
 	CreateWorkspace            chattool.CreateWorkspaceFn
+	CreateWorkspaceBuild       chattool.CreateWorkspaceBuildFn
 	Pubsub                     pubsub.Pubsub
 	ProviderAPIKeys            chatprovider.ProviderAPIKeys
 }
@@ -876,6 +878,7 @@ func New(cfg Config) *Server {
 		remotePartsProvider:        cfg.RemotePartsProvider,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
+		createWorkspaceBuildFn:     cfg.CreateWorkspaceBuild,
 		pubsub:                     cfg.Pubsub,
 		providerAPIKeys:            cfg.ProviderAPIKeys,
 		chatStreams:                make(map[uuid.UUID]*chatStreamState),
@@ -1824,6 +1827,7 @@ func (p *Server) runChat(
 		chatStateMu sync.Mutex
 		workspaceMu sync.Mutex
 		conn        workspacesdk.AgentConn
+		connAgentID uuid.UUID // tracks which agent ID the cached conn belongs to
 		releaseConn func()
 	)
 	closeConn := func() {
@@ -1831,38 +1835,47 @@ func (p *Server) runChat(
 			releaseConn()
 			releaseConn = nil
 		}
+		conn = nil
+		connAgentID = uuid.Nil
 	}
 	defer closeConn()
 
 	getWorkspaceConn := func(ctx context.Context) (workspacesdk.AgentConn, error) {
+		// Reload the chat snapshot from the DB so we pick up
+		// agent ID changes from start_workspace/create_workspace.
+		refreshedChat, refreshErr := loadChatSnapshot(ctx, currentChat.ID)
+		if refreshErr == nil {
+			chatStateMu.Lock()
+			currentChat = refreshedChat
+			chatStateMu.Unlock()
+		}
+
 		chatStateMu.Lock()
-		if conn != nil {
+		chatSnapshot := currentChat
+
+		// If we have a cached connection and the agent ID
+		// hasn't changed, reuse it.
+		if conn != nil && chatSnapshot.WorkspaceAgentID.Valid &&
+			connAgentID == chatSnapshot.WorkspaceAgentID.UUID {
 			currentConn := conn
 			chatStateMu.Unlock()
 			return currentConn, nil
 		}
-		chatSnapshot := currentChat
+
+		// Agent ID changed (e.g. workspace restarted) or no
+		// cached conn — release any stale connection.
+		if conn != nil {
+			if releaseConn != nil {
+				releaseConn()
+			}
+			conn = nil
+			connAgentID = uuid.Nil
+			releaseConn = nil
+		}
 		chatStateMu.Unlock()
 
 		if p.agentConnFn == nil {
 			return nil, xerrors.New("workspace agent connector is not configured")
-		}
-
-		if !chatSnapshot.WorkspaceAgentID.Valid {
-			refreshedChat, refreshErr := refreshChatWorkspaceSnapshot(
-				ctx,
-				chatSnapshot,
-				loadChatSnapshot,
-			)
-			if refreshErr != nil {
-				return nil, refreshErr
-			}
-			if refreshedChat.WorkspaceAgentID.Valid {
-				chatStateMu.Lock()
-				currentChat = refreshedChat
-				chatSnapshot = refreshedChat
-				chatStateMu.Unlock()
-			}
 		}
 
 		if !chatSnapshot.WorkspaceAgentID.Valid {
@@ -1877,6 +1890,7 @@ func (p *Server) runChat(
 		chatStateMu.Lock()
 		if conn == nil {
 			conn = agentConn
+			connAgentID = chatSnapshot.WorkspaceAgentID.UUID
 			releaseConn = agentRelease
 			chatStateMu.Unlock()
 			return agentConn, nil
@@ -2058,6 +2072,14 @@ func (p *Server) runChat(
 			CreateFn:    p.createWorkspaceFn,
 			AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
 			WorkspaceMu: &workspaceMu,
+		}),
+		chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+			DB:                   p.db,
+			OwnerID:              chat.OwnerID,
+			ChatID:               chat.ID,
+			CreateWorkspaceBuild: p.createWorkspaceBuildFn,
+			AgentConnFn:          chattool.AgentConnFunc(p.agentConnFn),
+			WorkspaceMu:          &workspaceMu,
 		}),
 		chattool.ReadFile(chattool.ReadFileOptions{
 			GetWorkspaceConn: getWorkspaceConn,
@@ -2348,23 +2370,6 @@ func usageNullInt64(value int64, valid bool) sql.NullInt64 {
 		Int64: value,
 		Valid: valid,
 	}
-}
-
-func refreshChatWorkspaceSnapshot(
-	ctx context.Context,
-	chat database.Chat,
-	loadChat func(context.Context, uuid.UUID) (database.Chat, error),
-) (database.Chat, error) {
-	if chat.WorkspaceAgentID.Valid || loadChat == nil {
-		return chat, nil
-	}
-
-	refreshedChat, err := loadChat(ctx, chat.ID)
-	if err != nil {
-		return chat, xerrors.Errorf("reload chat workspace state: %w", err)
-	}
-
-	return refreshedChat, nil
 }
 
 // resolveInstructions returns the combined system instructions for the
