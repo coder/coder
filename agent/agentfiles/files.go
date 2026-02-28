@@ -13,9 +13,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/icholy/replace"
 	"github.com/spf13/afero"
-	"golang.org/x/text/transform"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -422,9 +420,21 @@ func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.
 		return http.StatusBadRequest, xerrors.Errorf("open %s: not a file", path)
 	}
 
-	transforms := make([]transform.Transformer, len(edits))
-	for i, edit := range edits {
-		transforms[i] = replace.String(edit.Search, edit.Replace)
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return http.StatusInternalServerError, xerrors.Errorf("read %s: %w", path, err)
+	}
+	content := string(data)
+
+	for _, edit := range edits {
+		var ok bool
+		content, ok = fuzzyReplace(content, edit.Search, edit.Replace)
+		if !ok {
+			api.logger.Warn(ctx, "edit search string not found, skipping",
+				slog.F("path", path),
+				slog.F("search_preview", truncate(edit.Search, 64)),
+			)
+		}
 	}
 
 	// Create an adjacent file to ensure it will be on the same device and can be
@@ -435,8 +445,7 @@ func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.
 	}
 	defer tmpfile.Close()
 
-	_, err = io.Copy(tmpfile, replace.Chain(f, transforms...))
-	if err != nil {
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
 		if rerr := api.filesystem.Remove(tmpfile.Name()); rerr != nil {
 			api.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
 		}
@@ -449,4 +458,94 @@ func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.
 	}
 
 	return 0, nil
+}
+
+// fuzzyReplace attempts to find `search` inside `content` and replace its first
+// occurrence with `replace`. It uses a cascading match strategy inspired by
+// openai/codex's apply_patch:
+//
+//  1. Exact substring match (byte-for-byte).
+//  2. Line-by-line match ignoring trailing whitespace on each line.
+//  3. Line-by-line match ignoring all leading/trailing whitespace (indentation-tolerant).
+//
+// When a fuzzy match is found (passes 2 or 3), the replacement is still applied
+// at the byte offsets of the original content so that surrounding text (including
+// indentation of untouched lines) is preserved.
+//
+// Returns the (possibly modified) content and a bool indicating whether a match
+// was found.
+func fuzzyReplace(content, search, replace string) (string, bool) {
+	// Pass 1 – exact substring (replace all occurrences).
+	if strings.Contains(content, search) {
+		return strings.ReplaceAll(content, search, replace), true
+	}
+
+	// For line-level fuzzy matching we split both content and search into lines.
+	contentLines := strings.SplitAfter(content, "\n")
+	searchLines := strings.SplitAfter(search, "\n")
+
+	// A trailing newline in the search produces an empty final element from
+	// SplitAfter.  Drop it so it doesn't interfere with line matching.
+	if len(searchLines) > 0 && searchLines[len(searchLines)-1] == "" {
+		searchLines = searchLines[:len(searchLines)-1]
+	}
+
+	// Pass 2 – trim trailing whitespace on each line.
+	if start, end, ok := seekLines(contentLines, searchLines, func(a, b string) bool {
+		return strings.TrimRight(a, " \t\r\n") == strings.TrimRight(b, " \t\r\n")
+	}); ok {
+		return spliceLines(contentLines, start, end, replace), true
+	}
+
+	// Pass 3 – trim all leading and trailing whitespace (indentation-tolerant).
+	if start, end, ok := seekLines(contentLines, searchLines, func(a, b string) bool {
+		return strings.TrimSpace(a) == strings.TrimSpace(b)
+	}); ok {
+		return spliceLines(contentLines, start, end, replace), true
+	}
+
+	return content, false
+}
+
+// seekLines scans contentLines looking for a contiguous subsequence that matches
+// searchLines according to the provided `eq` function. It returns the start and
+// end (exclusive) indices into contentLines of the match.
+func seekLines(contentLines, searchLines []string, eq func(a, b string) bool) (start, end int, ok bool) {
+	if len(searchLines) == 0 {
+		return 0, 0, true
+	}
+	if len(searchLines) > len(contentLines) {
+		return 0, 0, false
+	}
+outer:
+	for i := 0; i <= len(contentLines)-len(searchLines); i++ {
+		for j, sLine := range searchLines {
+			if !eq(contentLines[i+j], sLine) {
+				continue outer
+			}
+		}
+		return i, i + len(searchLines), true
+	}
+	return 0, 0, false
+}
+
+// spliceLines replaces contentLines[start:end] with replacement text, returning
+// the full content as a single string.
+func spliceLines(contentLines []string, start, end int, replacement string) string {
+	var b strings.Builder
+	for _, l := range contentLines[:start] {
+		b.WriteString(l)
+	}
+	b.WriteString(replacement)
+	for _, l := range contentLines[end:] {
+		b.WriteString(l)
+	}
+	return b.String()
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }

@@ -650,6 +650,106 @@ func TestEditFiles(t *testing.T) {
 			},
 		},
 		{
+			name:     "TrailingWhitespace",
+			contents: map[string]string{filepath.Join(tmpdir, "trailing-ws"): "foo   \nbar\t\t\nbaz"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "trailing-ws"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo\nbar\nbaz",
+							Replace: "replaced",
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "trailing-ws"): "replaced"},
+		},
+		{
+			name:     "TabsVsSpaces",
+			contents: map[string]string{filepath.Join(tmpdir, "tabs-vs-spaces"): "\tif true {\n\t\tfoo()\n\t}"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "tabs-vs-spaces"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							// Search uses spaces but file uses tabs.
+							Search:  "    if true {\n        foo()\n    }",
+							Replace: "\tif true {\n\t\tbar()\n\t}",
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "tabs-vs-spaces"): "\tif true {\n\t\tbar()\n\t}"},
+		},
+		{
+			name:     "DifferentIndentDepth",
+			contents: map[string]string{filepath.Join(tmpdir, "indent-depth"): "\t\t\tdeep()\n\t\t\tnested()"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "indent-depth"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							// Search has wrong indent depth (1 tab instead of 3).
+							Search:  "\tdeep()\n\tnested()",
+							Replace: "\t\t\tdeep()\n\t\t\tchanged()",
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "indent-depth"): "\t\t\tdeep()\n\t\t\tchanged()"},
+		},
+		{
+			name:     "ExactMatchPreferred",
+			contents: map[string]string{filepath.Join(tmpdir, "exact-preferred"): "hello world"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "exact-preferred"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "hello world",
+							Replace: "goodbye world",
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "exact-preferred"): "goodbye world"},
+		},
+		{
+			name:     "NoMatchStillSucceeds",
+			contents: map[string]string{filepath.Join(tmpdir, "no-match"): "original content"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "no-match"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "this does not exist in the file",
+							Replace: "whatever",
+						},
+					},
+				},
+			},
+			// File should remain unchanged.
+			expected: map[string]string{filepath.Join(tmpdir, "no-match"): "original content"},
+		},
+		{
+			name:     "MixedWhitespaceMultiline",
+			contents: map[string]string{filepath.Join(tmpdir, "mixed-ws"): "func main() {\n\tresult := compute()\n\tfmt.Println(result)\n}"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "mixed-ws"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							// Search uses spaces, file uses tabs.
+							Search:  "  result := compute()\n  fmt.Println(result)\n",
+							Replace: "\tresult := compute()\n\tlog.Println(result)\n",
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "mixed-ws"): "func main() {\n\tresult := compute()\n\tlog.Println(result)\n}"},
+		},
+		{
 			name: "MultiError",
 			contents: map[string]string{
 				filepath.Join(tmpdir, "file8"): "file 8",
