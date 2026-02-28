@@ -1,4 +1,3 @@
-import { getErrorMessage } from "api/errors";
 import type { ChatQueuedMessage } from "api/typesGenerated";
 import {
 	ModelSelector,
@@ -20,13 +19,14 @@ import {
 import {
 	memo,
 	type ReactNode,
+	type Ref,
 	useCallback,
 	useEffect,
+	useImperativeHandle,
 	useRef,
 	useState,
 } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
@@ -82,13 +82,11 @@ interface AgentChatInputProps {
 	// When true the entire input sticks to the bottom of the scroll
 	// container (used in the detail page).
 	sticky?: boolean;
-	// External edit request — when set, replaces the input text and
-	// focuses the textarea. Use a unique `key` to allow re-editing the
-	// same text.
-	editRequest?: { text: string; messageId?: number; key: number } | null;
 	// Called when the user cancels or completes a history edit so the
 	// parent can clear the editing highlight.
 	onEditCleared?: () => void;
+	// Imperative handle ref for the parent to trigger edit requests.
+	ref?: Ref<AgentChatInputHandle>;
 }
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -214,6 +212,10 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 );
 ContextUsageIndicator.displayName = "ContextUsageIndicator";
 
+export interface AgentChatInputHandle {
+	applyEditRequest: (text: string, messageId?: number) => void;
+}
+
 export const AgentChatInput = memo<AgentChatInputProps>(
 	({
 		onSend,
@@ -238,8 +240,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		onPromoteQueuedMessage,
 		contextUsage,
 		sticky = false,
-		editRequest = null,
 		onEditCleared,
+		ref,
 	}) => {
 		const [input, setInput] = useState(initialValue);
 		const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
@@ -250,9 +252,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		>(null);
 		const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-		// Handle external edit requests (e.g. clicking a historical
-		// user message's edit icon).
-		const lastEditKeyRef = useRef<number | null>(null);
 		const [isEditingHistoryMessage, setIsEditingHistoryMessage] =
 			useState(false);
 		const [editingHistoryMessageID, setEditingHistoryMessageID] = useState<
@@ -262,28 +261,22 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			string | null
 		>(null);
 
-		// Refs to read current values inside the editRequest effect
-		// without adding them as dependencies (which would cause the
-		// effect to re-fire on every keystroke).
-		const inputRef = useRef(input);
-		inputRef.current = input;
-		const isEditingHistoryRef = useRef(isEditingHistoryMessage);
-		isEditingHistoryRef.current = isEditingHistoryMessage;
-
-		useEffect(() => {
-			if (!editRequest || editRequest.key === lastEditKeyRef.current) {
-				return;
-			}
-			lastEditKeyRef.current = editRequest.key;
-			setDraftBeforeHistoryEdit((current) =>
-				isEditingHistoryRef.current ? current : inputRef.current,
-			);
-			setIsEditingHistoryMessage(true);
-			setEditingHistoryMessageID(editRequest.messageId ?? null);
-			setInput(editRequest.text);
-			onInputChange?.(editRequest.text);
-			textareaRef.current?.focus();
-		}, [editRequest, onInputChange]);
+		useImperativeHandle(
+			ref,
+			() => ({
+				applyEditRequest: (text: string, messageId?: number) => {
+					setDraftBeforeHistoryEdit((current) =>
+						isEditingHistoryMessage ? current : input,
+					);
+					setIsEditingHistoryMessage(true);
+					setEditingHistoryMessageID(messageId ?? null);
+					setInput(text);
+					onInputChange?.(text);
+					textareaRef.current?.focus();
+				},
+			}),
+			[input, isEditingHistoryMessage, onInputChange],
+		);
 
 		const handleCancelHistoryEdit = useCallback(() => {
 			if (!isEditingHistoryMessage) {
@@ -329,41 +322,32 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				isEditingHistoryMessage && editingHistoryMessageID !== null
 					? editingHistoryMessageID
 					: undefined;
-			// Capture the raw input before clearing so we can restore
-			// it if the request fails.
 			const capturedInput = input;
 
-			// Clear the input immediately so the user can start typing
-			// their next message without waiting for the network
-			// round-trip. Editing state is cleared only after the
-			// request succeeds so it can be restored on failure.
+			// Clear input and editing state optimistically.
 			setInput("");
 			onInputChange?.("");
+			if (queueEditID !== null) {
+				setEditingQueuedMessageID(null);
+				setDraftBeforeQueueEdit(null);
+			}
+			if (isEditingHistoryMessage) {
+				setIsEditingHistoryMessage(false);
+				setEditingHistoryMessageID(null);
+				setDraftBeforeHistoryEdit(null);
+				onEditCleared?.();
+			}
 
 			try {
 				await onSend(capturedInput, editedMessageID);
 				if (queueEditID !== null && onDeleteQueuedMessage) {
 					await onDeleteQueuedMessage(queueEditID);
 				}
-				// Clear editing state only on success so we can
-				// restore it if the request fails above.
-				if (queueEditID !== null) {
-					setEditingQueuedMessageID(null);
-					setDraftBeforeQueueEdit(null);
-				}
-				if (isEditingHistoryMessage) {
-					setIsEditingHistoryMessage(false);
-					setEditingHistoryMessageID(null);
-					setDraftBeforeHistoryEdit(null);
-					onEditCleared?.();
-				}
-			} catch (error) {
+			} catch {
 				// Restore the input so the user can retry.
 				setInput(capturedInput);
 				onInputChange?.(capturedInput);
-				toast.error(getErrorMessage(error, "Failed to send message."));
 			} finally {
-				// Re-focus the textarea so the user can keep typing.
 				textareaRef.current?.focus();
 			}
 		}, [
@@ -571,7 +555,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								variant="default"
 								className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
 								onClick={() => void handleSubmit()}
-								disabled={isDisabled || isLoading || !hasModelOptions || !input.trim()}
+								disabled={
+									isDisabled || isLoading || !hasModelOptions || !input.trim()
+								}
 							>
 								{isLoading ? (
 									<Loader2Icon className="animate-spin" />

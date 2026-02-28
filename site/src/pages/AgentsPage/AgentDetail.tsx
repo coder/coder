@@ -28,7 +28,10 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
-import { AgentChatInput } from "./AgentChatInput";
+import {
+	AgentChatInput,
+	type AgentChatInputHandle,
+} from "./AgentChatInput";
 import {
 	selectChatStatus,
 	selectHasStreamState,
@@ -198,7 +201,7 @@ interface AgentDetailInputProps {
 	modelSelectorPlaceholder: string;
 	inputStatusText: string | null;
 	modelCatalogStatusMessage: string | null;
-	editRequest?: { text: string; messageId?: number; key: number } | null;
+	inputRef?: React.Ref<AgentChatInputHandle>;
 	onEditCleared?: () => void;
 }
 
@@ -219,7 +222,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	modelSelectorPlaceholder,
 	inputStatusText,
 	modelCatalogStatusMessage,
-	editRequest,
+	inputRef,
 	onEditCleared,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
@@ -264,7 +267,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			inputStatusText={inputStatusText}
 			modelCatalogStatusMessage={modelCatalogStatusMessage}
-			editRequest={editRequest}
+			ref={inputRef}
 			onEditCleared={onEditCleared}
 			sticky
 		/>
@@ -314,21 +317,21 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 	modelCatalogStatusMessage,
 	savingMessageId,
 }) => {
-	const [editRequest, setEditRequest] = useState<{
-		text: string;
-		messageId: number;
-		key: number;
-	} | null>(null);
+	const chatInputRef = useRef<AgentChatInputHandle>(null);
+	const [editingMessageId, setEditingMessageId] = useState<number | null>(
+		null,
+	);
 
 	const handleEditUserMessage = useCallback(
 		(messageId: number, text: string) => {
-			setEditRequest({ text, messageId, key: Date.now() });
+			setEditingMessageId(messageId);
+			chatInputRef.current?.applyEditRequest(text, messageId);
 		},
 		[],
 	);
 
 	const handleEditCleared = useCallback(() => {
-		setEditRequest(null);
+		setEditingMessageId(null);
 	}, []);
 
 	return (
@@ -338,7 +341,7 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 				chatID={chatID}
 				persistedErrorReason={persistedErrorReason}
 				onEditUserMessage={handleEditUserMessage}
-				editingMessageId={editRequest?.messageId ?? null}
+				editingMessageId={editingMessageId}
 				savingMessageId={savingMessageId}
 			/>
 			<AgentDetailInput
@@ -358,7 +361,7 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				inputStatusText={inputStatusText}
 				modelCatalogStatusMessage={modelCatalogStatusMessage}
-				editRequest={editRequest}
+				inputRef={chatInputRef}
 				onEditCleared={handleEditCleared}
 			/>
 		</>
