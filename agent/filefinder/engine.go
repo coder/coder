@@ -138,7 +138,14 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 
 	e.mu.Lock()
 	// Re-check after re-acquiring the lock: another goroutine
-	// may have added this root while we were walking.
+	// may have added this root or closed the engine while we
+	// were walking.
+	if e.closed.Load() {
+		e.mu.Unlock()
+		wCancel()
+		_ = w.Close()
+		return ErrClosed
+	}
 	if _, exists := e.roots[absRoot]; exists {
 		e.mu.Unlock()
 		wCancel()
@@ -151,10 +158,11 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 	e.wg.Add(1)
 	go e.forwardEvents(wCtx, absRoot, w)
 	e.publishSnapshot()
+	fileCount := idx.Len()
 	e.mu.Unlock()
 	e.logger.Info(ctx, "added root to engine",
 		slog.F("root", absRoot),
-		slog.F("files", idx.Len()),
+		slog.F("files", fileCount),
 	)
 	return nil
 }
@@ -246,10 +254,11 @@ func (e *Engine) Rebuild(ctx context.Context, root string) error {
 	}
 	rs.index = idx
 	e.publishSnapshot()
+	fileCount := idx.Len()
 	e.mu.Unlock()
 	e.logger.Info(ctx, "rebuilt root in engine",
 		slog.F("root", absRoot),
-		slog.F("files", idx.Len()),
+		slog.F("files", fileCount),
 	)
 	return nil
 }
