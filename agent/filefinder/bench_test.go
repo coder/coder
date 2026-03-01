@@ -233,8 +233,7 @@ func BenchmarkDeltaUpdate(b *testing.B) {
 	})
 }
 
-func TestMemoryProfile(t *testing.T) {
-	t.Parallel()
+func BenchmarkMemoryProfile(b *testing.B) {
 	scales := []struct {
 		name string
 		n    int
@@ -244,30 +243,30 @@ func TestMemoryProfile(t *testing.T) {
 	}
 
 	for _, sc := range scales {
-		t.Run(sc.name, func(t *testing.T) {
-			t.Parallel()
+		b.Run(sc.name, func(b *testing.B) {
 			if sc.n >= 100_000 && testing.Short() {
-				t.Skip("skipping large-scale memory profile")
+				b.Skip("skipping large-scale memory profile")
 			}
-			dir := t.TempDir()
-			generateFileTree(t, dir, sc.n, 42)
+			dir := b.TempDir()
+			generateFileTree(b, dir, sc.n, 42)
 
-			// TotalAlloc is monotonically increasing, avoiding
-			// underflow when GC frees memory between measurements.
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				idx := buildIndex(b, dir)
+				_ = idx.Snapshot()
+			}
+			b.StopTimer()
+
+			// Report memory stats on the last iteration.
 			runtime.GC()
 			var before runtime.MemStats
 			runtime.ReadMemStats(&before)
-			idx := buildIndex(t, dir)
+			idx := buildIndex(b, dir)
 			var after runtime.MemStats
 			runtime.ReadMemStats(&after)
 
 			allocDelta := after.TotalAlloc - before.TotalAlloc
-			bytesPerFile := float64(allocDelta) / float64(idx.Len())
-			t.Logf("Scale:          %s", sc.name)
-			t.Logf("Indexed docs:   %d", idx.Len())
-			t.Logf("Total alloc:    %d bytes (%.1f MiB)",
-				allocDelta, float64(allocDelta)/(1024*1024))
-			t.Logf("Bytes per file: %.1f", bytesPerFile)
+			b.ReportMetric(float64(allocDelta)/float64(idx.Len()), "bytes/file")
 
 			runtime.GC()
 			runtime.ReadMemStats(&before)
@@ -276,11 +275,8 @@ func TestMemoryProfile(t *testing.T) {
 			runtime.GC()
 			runtime.ReadMemStats(&after)
 
-			snapTotalAlloc := after.TotalAlloc - before.TotalAlloc
-			t.Logf("Snapshot alloc:    %d bytes (%.1f MiB)",
-				snapTotalAlloc, float64(snapTotalAlloc)/(1024*1024))
-			t.Logf("Snapshot bytes/file: %.1f",
-				float64(snapTotalAlloc)/float64(idx.Len()))
+			snapAlloc := after.TotalAlloc - before.TotalAlloc
+			b.ReportMetric(float64(snapAlloc)/float64(idx.Len()), "snap-bytes/file")
 		})
 	}
 }
