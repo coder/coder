@@ -1741,10 +1741,10 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// changes made during processing (e.g. AI-generated titles
 		// from maybeGenerateChatTitle). The local `chat` variable
 		// is a value copy and won't reflect updates made in runChat.
-		if freshChat, readErr := p.db.GetChatByID(ctx, chat.ID); readErr == nil {
+		if freshChat, readErr := p.db.GetChatByID(cleanupCtx, chat.ID); readErr == nil {
 			chat = freshChat
 		} else {
-			logger.Warn(ctx, "failed to re-read chat for status event",
+			logger.Warn(cleanupCtx, "failed to re-read chat for status event",
 				slog.F("chat_id", chat.ID), slog.Error(readErr))
 		}
 		chat.Status = status
@@ -1816,7 +1816,11 @@ func (p *Server) runChat(
 	// Fire title generation asynchronously so it doesn't block the
 	// chat response. It uses a detached context so it can finish
 	// even after the chat processing context is canceled.
-	go p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, logger)
+	p.inflight.Add(1)
+	go func() {
+		defer p.inflight.Done()
+		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, logger)
+	}()
 
 	prompt, err := chatprompt.ConvertMessages(messages)
 	if err != nil {

@@ -8,6 +8,7 @@ export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chats = () => ({
 	queryKey: chatsKey,
 	queryFn: () => API.getChats(),
+	refetchOnWindowFocus: true as const,
 });
 
 export const chat = (chatId: string) => ({

@@ -267,6 +267,15 @@ const AgentsPage: FC = () => {
 
 	useEffect(() => {
 		const ws = watchChats();
+		ws.addEventListener("open", () => {
+			void queryClient.invalidateQueries({ queryKey: chatsKey });
+		});
+		ws.addEventListener("close", () => {
+			void queryClient.invalidateQueries({ queryKey: chatsKey });
+		});
+		ws.addEventListener("error", () => {
+			void queryClient.invalidateQueries({ queryKey: chatsKey });
+		});
 		ws.addEventListener("message", (event) => {
 			const sse = event.parsedMessage;
 			if (sse?.type !== "data" || !sse.data) {
