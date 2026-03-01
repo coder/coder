@@ -126,7 +126,7 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 	e.wg.Add(1)
 	go e.forwardEvents(wCtx, absRoot, w)
 	e.publishSnapshot()
-	e.logger.Info(ctx, "added root",
+	e.logger.Info(ctx, "added root to engine",
 		slog.F("root", absRoot),
 		slog.F("files", idx.Len()),
 	)
@@ -163,7 +163,7 @@ func (e *Engine) Search(_ context.Context, query string, opts SearchOptions) ([]
 	}
 	roots := *snapPtr
 	plan := newQueryPlan(query)
-	if len(plan.normalized) == 0 {
+	if len(plan.Normalized) == 0 {
 		return nil, nil
 	}
 	if opts.Limit <= 0 {
@@ -218,7 +218,7 @@ func (e *Engine) Rebuild(ctx context.Context, root string) error {
 	rs.index = idx
 	e.publishSnapshot()
 	e.mu.Unlock()
-	e.logger.Info(ctx, "rebuilt root",
+	e.logger.Info(ctx, "rebuilt root in engine",
 		slog.F("root", absRoot),
 		slog.F("files", idx.Len()),
 	)

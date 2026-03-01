@@ -140,7 +140,7 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 				flush()
 				return
 			}
-			fw.logger.Warn(ctx, "fsnotify error", slog.Error(err))
+			fw.logger.Warn(ctx, "fsnotify watcher error", slog.Error(err))
 		case <-timerC:
 			flush()
 		}

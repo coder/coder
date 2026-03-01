@@ -1,8 +1,10 @@
-package filefinder
+package filefinder_test
 
 import (
 	"slices"
 	"testing"
+
+	"github.com/coder/coder/v2/agent/filefinder"
 )
 
 func TestNewQueryPlan(t *testing.T) {
@@ -33,79 +35,71 @@ func TestNewQueryPlan(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			plan := newQueryPlan(tt.query)
-			if plan.normalized != tt.wantNorm {
-				t.Errorf("normalized = %q, want %q", plan.normalized, tt.wantNorm)
+			plan := filefinder.NewQueryPlanForTest(tt.query)
+			if plan.Normalized != tt.wantNorm {
+				t.Errorf("normalized = %q, want %q", plan.Normalized, tt.wantNorm)
 			}
-			if plan.isShort != tt.wantShort {
-				t.Errorf("isShort = %v, want %v", plan.isShort, tt.wantShort)
+			if plan.IsShort != tt.wantShort {
+				t.Errorf("isShort = %v, want %v", plan.IsShort, tt.wantShort)
 			}
-			if plan.hasSlash != tt.wantSlash {
-				t.Errorf("hasSlash = %v, want %v", plan.hasSlash, tt.wantSlash)
+			if plan.HasSlash != tt.wantSlash {
+				t.Errorf("hasSlash = %v, want %v", plan.HasSlash, tt.wantSlash)
 			}
-			if string(plan.basenameQ) != tt.wantBase {
-				t.Errorf("basenameQ = %q, want %q", plan.basenameQ, tt.wantBase)
+			if string(plan.BasenameQ) != tt.wantBase {
+				t.Errorf("basenameQ = %q, want %q", plan.BasenameQ, tt.wantBase)
 			}
 			if tt.wantTokens == nil {
-				if len(plan.tokens) != 0 {
-					t.Errorf("expected 0 tokens, got %d", len(plan.tokens))
+				if len(plan.Tokens) != 0 {
+					t.Errorf("expected 0 tokens, got %d", len(plan.Tokens))
 				}
 			} else {
-				if len(plan.tokens) != len(tt.wantTokens) {
-					t.Fatalf("tokens len = %d, want %d", len(plan.tokens), len(tt.wantTokens))
+				if len(plan.Tokens) != len(tt.wantTokens) {
+					t.Fatalf("tokens len = %d, want %d", len(plan.Tokens), len(tt.wantTokens))
 				}
-				for i, tok := range plan.tokens {
+				for i, tok := range plan.Tokens {
 					if string(tok) != tt.wantTokens[i] {
 						t.Errorf("tokens[%d] = %q, want %q", i, tok, tt.wantTokens[i])
 					}
 				}
 			}
 			if tt.wantDirTok != nil {
-				if len(plan.dirTokens) != len(tt.wantDirTok) {
-					t.Fatalf("dirTokens len = %d, want %d", len(plan.dirTokens), len(tt.wantDirTok))
+				if len(plan.DirTokens) != len(tt.wantDirTok) {
+					t.Fatalf("dirTokens len = %d, want %d", len(plan.DirTokens), len(tt.wantDirTok))
 				}
-				for i, tok := range plan.dirTokens {
+				for i, tok := range plan.DirTokens {
 					if string(tok) != tt.wantDirTok[i] {
 						t.Errorf("dirTokens[%d] = %q, want %q", i, tok, tt.wantDirTok[i])
 					}
 				}
 			}
-			if tt.wantTriCnt >= 0 && len(plan.trigrams) != tt.wantTriCnt {
-				t.Errorf("trigram count = %d, want %d", len(plan.trigrams), tt.wantTriCnt)
+			if tt.wantTriCnt >= 0 && len(plan.Trigrams) != tt.wantTriCnt {
+				t.Errorf("trigram count = %d, want %d", len(plan.Trigrams), tt.wantTriCnt)
 			}
 		})
 	}
 
 	// ThreeChars: verify the actual trigram value.
-	plan := newQueryPlan("abc")
-	if want := packTrigram('a', 'b', 'c'); plan.trigrams[0] != want {
-		t.Errorf("trigram = %x, want %x", plan.trigrams[0], want)
+	plan := filefinder.NewQueryPlanForTest("abc")
+	if want := filefinder.PackTrigramForTest('a', 'b', 'c'); plan.Trigrams[0] != want {
+		t.Errorf("trigram = %x, want %x", plan.Trigrams[0], want)
 	}
 
 	// ShortMultiToken: both tokens < 3 chars so isShort should be true.
-	plan = newQueryPlan("ab cd")
-	if !plan.isShort {
+	plan = filefinder.NewQueryPlanForTest("ab cd")
+	if !plan.IsShort {
 		t.Error("expected isShort=true when all tokens < 3 chars")
 	}
 	// One token >= 3 chars, so isShort should be false.
-	plan = newQueryPlan("ab cde")
-	if plan.isShort {
+	plan = filefinder.NewQueryPlanForTest("ab cde")
+	if plan.IsShort {
 		t.Error("expected isShort=false when any token >= 3 chars")
 	}
 }
 
-func makeTestSnapshot(paths []string) *Snapshot {
-	idx := NewIndex()
-	for _, p := range paths {
-		idx.Add(p, 0)
-	}
-	return idx.Snapshot()
-}
-
-func requireCandHasPath(t *testing.T, cands []candidate, path string) {
+func requireCandHasPath(t *testing.T, cands []filefinder.CandidateForTest, path string) {
 	t.Helper()
 	for _, c := range cands {
-		if c.path == path {
+		if c.Path == path {
 			return
 		}
 	}
@@ -114,8 +108,8 @@ func requireCandHasPath(t *testing.T, cands []candidate, path string) {
 
 func TestSearchSnapshot_TrigramMatch(t *testing.T) {
 	t.Parallel()
-	snap := makeTestSnapshot([]string{"src/handler.go", "src/router.go", "lib/utils.go"})
-	cands := searchSnapshot(newQueryPlan("handler"), snap, 100)
+	snap := filefinder.MakeTestSnapshot([]string{"src/handler.go", "src/router.go", "lib/utils.go"})
+	cands := filefinder.SearchSnapshotForTest(filefinder.NewQueryPlanForTest("handler"), snap, 100)
 	if len(cands) == 0 {
 		t.Fatal("expected at least 1 candidate for 'handler'")
 	}
@@ -124,8 +118,8 @@ func TestSearchSnapshot_TrigramMatch(t *testing.T) {
 
 func TestSearchSnapshot_ShortQuery(t *testing.T) {
 	t.Parallel()
-	snap := makeTestSnapshot([]string{"foo.go", "bar.go", "fab.go"})
-	cands := searchSnapshot(newQueryPlan("fo"), snap, 100)
+	snap := filefinder.MakeTestSnapshot([]string{"foo.go", "bar.go", "fab.go"})
+	cands := filefinder.SearchSnapshotForTest(filefinder.NewQueryPlanForTest("fo"), snap, 100)
 	if len(cands) == 0 {
 		t.Fatal("expected at least 1 candidate for 'fo'")
 	}
@@ -134,8 +128,8 @@ func TestSearchSnapshot_ShortQuery(t *testing.T) {
 
 func TestSearchSnapshot_FuzzyFallback(t *testing.T) {
 	t.Parallel()
-	snap := makeTestSnapshot([]string{"src/handler.go", "src/router.go", "lib/utils.go"})
-	cands := searchSnapshot(newQueryPlan("hndlr"), snap, 100)
+	snap := filefinder.MakeTestSnapshot([]string{"src/handler.go", "src/router.go", "lib/utils.go"})
+	cands := filefinder.SearchSnapshotForTest(filefinder.NewQueryPlanForTest("hndlr"), snap, 100)
 	if len(cands) == 0 {
 		t.Fatal("expected fuzzy fallback to find 'handler.go' for query 'hndlr'")
 	}
@@ -144,8 +138,8 @@ func TestSearchSnapshot_FuzzyFallback(t *testing.T) {
 
 func TestSearchSnapshot_FuzzyFallbackNoFirstCharMatch(t *testing.T) {
 	t.Parallel()
-	snap := makeTestSnapshot([]string{"src/xylophone.go", "lib/extra.go"})
-	cands := searchSnapshot(newQueryPlan("xylo"), snap, 100)
+	snap := filefinder.MakeTestSnapshot([]string{"src/xylophone.go", "lib/extra.go"})
+	cands := filefinder.SearchSnapshotForTest(filefinder.NewQueryPlanForTest("xylo"), snap, 100)
 	if len(cands) == 0 {
 		t.Fatal("expected at least 1 candidate for 'xylo'")
 	}
@@ -154,7 +148,7 @@ func TestSearchSnapshot_FuzzyFallbackNoFirstCharMatch(t *testing.T) {
 
 func TestSearchSnapshot_NilSnapshot(t *testing.T) {
 	t.Parallel()
-	cands := searchSnapshot(newQueryPlan("foo"), nil, 100)
+	cands := filefinder.SearchSnapshotForTest(filefinder.NewQueryPlanForTest("foo"), nil, 100)
 	if cands != nil {
 		t.Errorf("expected nil for nil snapshot, got %v", cands)
 	}
@@ -162,8 +156,8 @@ func TestSearchSnapshot_NilSnapshot(t *testing.T) {
 
 func TestSearchSnapshot_EmptyQuery(t *testing.T) {
 	t.Parallel()
-	snap := makeTestSnapshot([]string{"foo.go"})
-	cands := searchSnapshot(newQueryPlan(""), snap, 100)
+	snap := filefinder.MakeTestSnapshot([]string{"foo.go"})
+	cands := filefinder.SearchSnapshotForTest(filefinder.NewQueryPlanForTest(""), snap, 100)
 	if cands != nil {
 		t.Errorf("expected nil for empty query, got %v", cands)
 	}
@@ -171,13 +165,13 @@ func TestSearchSnapshot_EmptyQuery(t *testing.T) {
 
 func TestSearchSnapshot_DeletedDocsExcluded(t *testing.T) {
 	t.Parallel()
-	idx := NewIndex()
+	idx := filefinder.NewIndex()
 	idx.Add("handler.go", 0)
 	idx.Remove("handler.go")
 	snap := idx.Snapshot()
-	cands := searchSnapshot(newQueryPlan("handler"), snap, 100)
+	cands := filefinder.SearchSnapshotForTest(filefinder.NewQueryPlanForTest("handler"), snap, 100)
 	for _, c := range cands {
-		if c.path == "handler.go" {
+		if c.Path == "handler.go" {
 			t.Error("deleted doc should not appear in results")
 		}
 	}
@@ -189,8 +183,8 @@ func TestSearchSnapshot_Limit(t *testing.T) {
 	for i := range paths {
 		paths[i] = "handler" + string(rune('a'+i%26)) + ".go"
 	}
-	snap := makeTestSnapshot(paths)
-	cands := searchSnapshot(newQueryPlan("handler"), snap, 3)
+	snap := filefinder.MakeTestSnapshot(paths)
+	cands := filefinder.SearchSnapshotForTest(filefinder.NewQueryPlanForTest("handler"), snap, 3)
 	if len(cands) > 3 {
 		t.Errorf("expected at most 3 candidates, got %d", len(cands))
 	}
@@ -214,7 +208,7 @@ func TestIntersectSorted(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := intersectSorted(tt.a, tt.b)
+			got := filefinder.IntersectSortedForTest(tt.a, tt.b)
 			if len(tt.want) == 0 {
 				if len(got) != 0 {
 					t.Errorf("got %v, want empty/nil", got)
@@ -232,26 +226,26 @@ func TestIntersectAll(t *testing.T) {
 	t.Parallel()
 	t.Run("empty", func(t *testing.T) {
 		t.Parallel()
-		if got := intersectAll(nil); got != nil {
+		if got := filefinder.IntersectAllForTest(nil); got != nil {
 			t.Errorf("got %v, want nil", got)
 		}
 	})
 	t.Run("single", func(t *testing.T) {
 		t.Parallel()
-		if got := intersectAll([][]uint32{{1, 2, 3}}); len(got) != 3 {
+		if got := filefinder.IntersectAllForTest([][]uint32{{1, 2, 3}}); len(got) != 3 {
 			t.Fatalf("len = %d, want 3", len(got))
 		}
 	})
 	t.Run("multiple", func(t *testing.T) {
 		t.Parallel()
-		got := intersectAll([][]uint32{{1, 2, 3, 4, 5}, {2, 3, 5}, {3, 5, 7}})
+		got := filefinder.IntersectAllForTest([][]uint32{{1, 2, 3, 4, 5}, {2, 3, 5}, {3, 5, 7}})
 		if !slices.Equal(got, []uint32{3, 5}) {
 			t.Errorf("got %v, want [3 5]", got)
 		}
 	})
 	t.Run("no overlap", func(t *testing.T) {
 		t.Parallel()
-		if got := intersectAll([][]uint32{{1, 2}, {3, 4}}); got != nil {
+		if got := filefinder.IntersectAllForTest([][]uint32{{1, 2}, {3, 4}}); got != nil {
 			t.Errorf("got %v, want nil", got)
 		}
 	})
@@ -259,14 +253,14 @@ func TestIntersectAll(t *testing.T) {
 
 func TestMergeAndScore_SortedDescending(t *testing.T) {
 	t.Parallel()
-	plan := newQueryPlan("foo")
-	params := DefaultScoreParams()
-	cands := []candidate{
-		{docID: 0, path: "a/b/c/d/e/foo", baseOff: 10, baseLen: 3, depth: 5},
-		{docID: 1, path: "src/foo", baseOff: 4, baseLen: 3, depth: 1},
-		{docID: 2, path: "foo", baseOff: 0, baseLen: 3, depth: 0},
+	plan := filefinder.NewQueryPlanForTest("foo")
+	params := filefinder.DefaultScoreParams()
+	cands := []filefinder.CandidateForTest{
+		{DocID: 0, Path: "a/b/c/d/e/foo", BaseOff: 10, BaseLen: 3, Depth: 5},
+		{DocID: 1, Path: "src/foo", BaseOff: 4, BaseLen: 3, Depth: 1},
+		{DocID: 2, Path: "foo", BaseOff: 0, BaseLen: 3, Depth: 0},
 	}
-	results := mergeAndScore(cands, plan, params, 10)
+	results := filefinder.MergeAndScoreForTest(cands, plan, params, 10)
 	if len(results) == 0 {
 		t.Fatal("expected non-empty results")
 	}
@@ -280,46 +274,46 @@ func TestMergeAndScore_SortedDescending(t *testing.T) {
 
 func TestMergeAndScore_TopKLimit(t *testing.T) {
 	t.Parallel()
-	plan := newQueryPlan("f")
-	params := DefaultScoreParams()
-	var cands []candidate
+	plan := filefinder.NewQueryPlanForTest("f")
+	params := filefinder.DefaultScoreParams()
+	var cands []filefinder.CandidateForTest
 	for i := range 20 {
 		p := "f" + string(rune('a'+i))
-		cands = append(cands, candidate{docID: uint32(i), path: p, baseOff: 0, baseLen: len(p), depth: 0})
+		cands = append(cands, filefinder.CandidateForTest{DocID: uint32(i), Path: p, BaseOff: 0, BaseLen: len(p), Depth: 0}) //nolint:gosec // test index is tiny
 	}
-	if results := mergeAndScore(cands, plan, params, 5); len(results) != 5 {
+	if results := filefinder.MergeAndScoreForTest(cands, plan, params, 5); len(results) != 5 {
 		t.Errorf("expected 5 results, got %d", len(results))
 	}
 }
 
 func TestMergeAndScore_ZeroTopK(t *testing.T) {
 	t.Parallel()
-	plan := newQueryPlan("foo")
-	cands := []candidate{{docID: 0, path: "foo", baseOff: 0, baseLen: 3, depth: 0}}
-	if results := mergeAndScore(cands, plan, DefaultScoreParams(), 0); len(results) != 0 {
+	plan := filefinder.NewQueryPlanForTest("foo")
+	cands := []filefinder.CandidateForTest{{DocID: 0, Path: "foo", BaseOff: 0, BaseLen: 3, Depth: 0}}
+	if results := filefinder.MergeAndScoreForTest(cands, plan, filefinder.DefaultScoreParams(), 0); len(results) != 0 {
 		t.Errorf("expected 0 results for topK=0, got %d", len(results))
 	}
 }
 
 func TestMergeAndScore_NoMatchCandidatesDropped(t *testing.T) {
 	t.Parallel()
-	plan := newQueryPlan("xyz")
-	cands := []candidate{
-		{docID: 0, path: "abc", baseOff: 0, baseLen: 3, depth: 0},
-		{docID: 1, path: "def", baseOff: 0, baseLen: 3, depth: 0},
+	plan := filefinder.NewQueryPlanForTest("xyz")
+	cands := []filefinder.CandidateForTest{
+		{DocID: 0, Path: "abc", BaseOff: 0, BaseLen: 3, Depth: 0},
+		{DocID: 1, Path: "def", BaseOff: 0, BaseLen: 3, Depth: 0},
 	}
-	if results := mergeAndScore(cands, plan, DefaultScoreParams(), 10); len(results) != 0 {
+	if results := filefinder.MergeAndScoreForTest(cands, plan, filefinder.DefaultScoreParams(), 10); len(results) != 0 {
 		t.Errorf("expected 0 results for non-matching candidates, got %d", len(results))
 	}
 }
 
 func TestMergeAndScore_IsDirFlag(t *testing.T) {
 	t.Parallel()
-	plan := newQueryPlan("foo")
-	cands := []candidate{
-		{docID: 0, path: "foo", baseOff: 0, baseLen: 3, depth: 0, flags: uint16(FlagDir)},
+	plan := filefinder.NewQueryPlanForTest("foo")
+	cands := []filefinder.CandidateForTest{
+		{DocID: 0, Path: "foo", BaseOff: 0, BaseLen: 3, Depth: 0, Flags: uint16(filefinder.FlagDir)},
 	}
-	results := mergeAndScore(cands, plan, DefaultScoreParams(), 10)
+	results := filefinder.MergeAndScoreForTest(cands, plan, filefinder.DefaultScoreParams(), 10)
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
@@ -330,16 +324,16 @@ func TestMergeAndScore_IsDirFlag(t *testing.T) {
 
 func TestMergeAndScore_EmptyCandidates(t *testing.T) {
 	t.Parallel()
-	if results := mergeAndScore(nil, newQueryPlan("foo"), DefaultScoreParams(), 10); len(results) != 0 {
+	if results := filefinder.MergeAndScoreForTest(nil, filefinder.NewQueryPlanForTest("foo"), filefinder.DefaultScoreParams(), 10); len(results) != 0 {
 		t.Errorf("expected 0 results for nil candidates, got %d", len(results))
 	}
 }
 
 func TestSearchSnapshot_FuzzyFallbackEndToEnd(t *testing.T) {
 	t.Parallel()
-	snap := makeTestSnapshot([]string{"src/handler.go", "src/middleware.go", "pkg/config.go"})
-	plan := newQueryPlan("hndlr")
-	results := mergeAndScore(searchSnapshot(plan, snap, 100), plan, DefaultScoreParams(), 10)
+	snap := filefinder.MakeTestSnapshot([]string{"src/handler.go", "src/middleware.go", "pkg/config.go"})
+	plan := filefinder.NewQueryPlanForTest("hndlr")
+	results := filefinder.MergeAndScoreForTest(filefinder.SearchSnapshotForTest(plan, snap, 100), plan, filefinder.DefaultScoreParams(), 10)
 	if len(results) == 0 {
 		t.Fatal("expected fuzzy fallback to produce scored results for 'hndlr'")
 	}

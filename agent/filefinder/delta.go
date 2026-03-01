@@ -55,7 +55,7 @@ func (idx *Index) Add(path string, flags uint16) uint32 {
 	if oldID, ok := idx.byPath[norm]; ok {
 		idx.deleted[oldID] = true
 	}
-	id := uint32(len(idx.docs))
+	id := uint32(len(idx.docs)) //nolint:gosec // Index will never exceed 2^32 docs.
 	baseOff, baseLen := extractBasename([]byte(norm))
 	idx.docs = append(idx.docs, doc{
 		path: norm, baseOff: baseOff, baseLen: baseLen,
@@ -89,8 +89,7 @@ func (idx *Index) Remove(path string) bool {
 
 // Has reports whether path exists (not deleted) in the index.
 func (idx *Index) Has(path string) bool {
-	norm := string(normalizePathBytes([]byte(path)))
-	_, ok := idx.byPath[norm]
+	_, ok := idx.byPath[string(normalizePathBytes([]byte(path)))]
 	return ok
 }
 

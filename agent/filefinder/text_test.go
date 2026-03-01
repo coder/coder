@@ -1,8 +1,10 @@
-package filefinder
+package filefinder_test
 
 import (
 	"slices"
 	"testing"
+
+	"github.com/coder/coder/v2/agent/filefinder"
 )
 
 func TestNormalizeQuery(t *testing.T) {
@@ -26,7 +28,7 @@ func TestNormalizeQuery(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := normalizeQuery(tt.input)
+			got := filefinder.NormalizeQueryForTest(tt.input)
 			if got != tt.want {
 				t.Errorf("normalizeQuery(%q) = %q, want %q", tt.input, got, tt.want)
 			}
@@ -53,7 +55,7 @@ func TestExtractTrigrams(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := extractTrigrams([]byte(tt.input))
+			got := filefinder.ExtractTrigramsForTest([]byte(tt.input))
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("extractTrigrams(%q) = %v, want %v", tt.input, got, tt.want)
 			}
@@ -79,7 +81,7 @@ func TestExtractBasename(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			off, length := extractBasename([]byte(tt.path))
+			off, length := filefinder.ExtractBasenameForTest([]byte(tt.path))
 			if off != tt.wantOff {
 				t.Errorf("extractBasename(%q) offset = %d, want %d", tt.path, off, tt.wantOff)
 			}
@@ -108,7 +110,7 @@ func TestExtractSegments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := extractSegments([]byte(tt.path))
+			got := filefinder.ExtractSegmentsForTest([]byte(tt.path))
 			if len(got) != len(tt.want) {
 				t.Fatalf("extractSegments(%q) got %d segments, want %d", tt.path, len(got), len(tt.want))
 			}
@@ -136,7 +138,7 @@ func TestPrefix1(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := prefix1([]byte(tt.in))
+			got := filefinder.Prefix1ForTest([]byte(tt.in))
 			if got != tt.want {
 				t.Errorf("prefix1(%q) = %d (%c), want %d (%c)", tt.in, got, got, tt.want, tt.want)
 			}
@@ -160,7 +162,7 @@ func TestPrefix2(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := prefix2([]byte(tt.in))
+			got := filefinder.Prefix2ForTest([]byte(tt.in))
 			if got != tt.want {
 				t.Errorf("prefix2(%q) = %d, want %d", tt.in, got, tt.want)
 			}
@@ -184,7 +186,7 @@ func TestNormalizePathBytes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			buf := []byte(tt.input)
-			got := string(normalizePathBytes(buf))
+			got := string(filefinder.NormalizePathBytesForTest(buf))
 			if got != tt.want {
 				t.Errorf("normalizePathBytes(%q) = %q, want %q", tt.input, got, tt.want)
 			}
@@ -220,7 +222,7 @@ func TestIsSubsequence(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := isSubsequence([]byte(tt.haystack), []byte(tt.needle))
+			got := filefinder.IsSubsequenceForTest([]byte(tt.haystack), []byte(tt.needle))
 			if got != tt.want {
 				t.Errorf("isSubsequence(%q, %q) = %v, want %v", tt.haystack, tt.needle, got, tt.want)
 			}
@@ -252,7 +254,7 @@ func TestLongestContiguousMatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := longestContiguousMatch([]byte(tt.haystack), []byte(tt.needle))
+			got := filefinder.LongestContiguousMatchForTest([]byte(tt.haystack), []byte(tt.needle))
 			if got != tt.want {
 				t.Errorf("longestContiguousMatch(%q, %q) = %d, want %d", tt.haystack, tt.needle, got, tt.want)
 			}
@@ -263,12 +265,12 @@ func TestLongestContiguousMatch(t *testing.T) {
 func TestIsBoundary(t *testing.T) {
 	t.Parallel()
 	for _, b := range []byte{'/', '.', '_', '-'} {
-		if !isBoundary(b) {
+		if !filefinder.IsBoundaryForTest(b) {
 			t.Errorf("isBoundary(%q) = false, want true", b)
 		}
 	}
 	for _, b := range []byte{'a', 'Z', '0', ' ', '('} {
-		if isBoundary(b) {
+		if filefinder.IsBoundaryForTest(b) {
 			t.Errorf("isBoundary(%q) = true, want false", b)
 		}
 	}
@@ -293,7 +295,7 @@ func TestCountBoundaryHits(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := countBoundaryHits([]byte(tt.path), []byte(tt.query))
+			got := filefinder.CountBoundaryHitsForTest([]byte(tt.path), []byte(tt.query))
 			if got != tt.want {
 				t.Errorf("countBoundaryHits(%q, %q) = %d, want %d", tt.path, tt.query, got, tt.want)
 			}
@@ -306,8 +308,8 @@ func TestScorePath_NoSubsequenceReturnsZero(t *testing.T) {
 	path := []byte("src/internal/handler.go")
 	query := []byte("zzz")
 	tokens := [][]byte{[]byte("zzz")}
-	params := DefaultScoreParams()
-	s := scorePath(path, 13, 10, 2, query, tokens, params)
+	params := filefinder.DefaultScoreParams()
+	s := filefinder.ScorePathForTest(path, 13, 10, 2, query, tokens, params)
 	if s != 0 {
 		t.Errorf("expected 0 for no subsequence match, got %f", s)
 	}
@@ -315,13 +317,13 @@ func TestScorePath_NoSubsequenceReturnsZero(t *testing.T) {
 
 func TestScorePath_ExactBasenameOverPartial(t *testing.T) {
 	t.Parallel()
-	params := DefaultScoreParams()
+	params := filefinder.DefaultScoreParams()
 	query := []byte("main")
 	tokens := [][]byte{query}
 	pathExact := []byte("src/main")
-	scoreExact := scorePath(pathExact, 4, 4, 1, query, tokens, params)
+	scoreExact := filefinder.ScorePathForTest(pathExact, 4, 4, 1, query, tokens, params)
 	pathPartial := []byte("module/amazing")
-	scorePartial := scorePath(pathPartial, 7, 7, 1, query, tokens, params)
+	scorePartial := filefinder.ScorePathForTest(pathPartial, 7, 7, 1, query, tokens, params)
 	if scoreExact <= scorePartial {
 		t.Errorf("exact basename (%f) should score higher than partial (%f)", scoreExact, scorePartial)
 	}
@@ -329,13 +331,13 @@ func TestScorePath_ExactBasenameOverPartial(t *testing.T) {
 
 func TestScorePath_BasenamePrefixOverScattered(t *testing.T) {
 	t.Parallel()
-	params := DefaultScoreParams()
+	params := filefinder.DefaultScoreParams()
 	query := []byte("han")
 	tokens := [][]byte{query}
 	pathPrefix := []byte("src/handler.go")
-	scorePrefix := scorePath(pathPrefix, 4, 10, 1, query, tokens, params)
+	scorePrefix := filefinder.ScorePathForTest(pathPrefix, 4, 10, 1, query, tokens, params)
 	pathScattered := []byte("has/another/thing")
-	scoreScattered := scorePath(pathScattered, 12, 5, 2, query, tokens, params)
+	scoreScattered := filefinder.ScorePathForTest(pathScattered, 12, 5, 2, query, tokens, params)
 	if scorePrefix <= scoreScattered {
 		t.Errorf("basename prefix (%f) should score higher than scattered (%f)", scorePrefix, scoreScattered)
 	}
@@ -343,13 +345,13 @@ func TestScorePath_BasenamePrefixOverScattered(t *testing.T) {
 
 func TestScorePath_ShallowOverDeep(t *testing.T) {
 	t.Parallel()
-	params := DefaultScoreParams()
+	params := filefinder.DefaultScoreParams()
 	query := []byte("foo")
 	tokens := [][]byte{query}
 	pathShallow := []byte("src/foo.go")
-	scoreShallow := scorePath(pathShallow, 4, 6, 1, query, tokens, params)
+	scoreShallow := filefinder.ScorePathForTest(pathShallow, 4, 6, 1, query, tokens, params)
 	pathDeep := []byte("a/b/c/d/e/foo.go")
-	scoreDeep := scorePath(pathDeep, 10, 6, 5, query, tokens, params)
+	scoreDeep := filefinder.ScorePathForTest(pathDeep, 10, 6, 5, query, tokens, params)
 	if scoreShallow <= scoreDeep {
 		t.Errorf("shallow path (%f) should score higher than deep (%f)", scoreShallow, scoreDeep)
 	}
@@ -357,13 +359,13 @@ func TestScorePath_ShallowOverDeep(t *testing.T) {
 
 func TestScorePath_ShorterOverLongerSameMatch(t *testing.T) {
 	t.Parallel()
-	params := DefaultScoreParams()
+	params := filefinder.DefaultScoreParams()
 	query := []byte("foo")
 	tokens := [][]byte{query}
 	pathShort := []byte("x/foo")
-	scoreShort := scorePath(pathShort, 2, 3, 1, query, tokens, params)
+	scoreShort := filefinder.ScorePathForTest(pathShort, 2, 3, 1, query, tokens, params)
 	pathLong := []byte("x/foo_extremely_long_suffix_name")
-	scoreLong := scorePath(pathLong, 2, 29, 1, query, tokens, params)
+	scoreLong := filefinder.ScorePathForTest(pathLong, 2, 29, 1, query, tokens, params)
 	if scoreShort <= scoreLong {
 		t.Errorf("shorter path (%f) should score higher than longer (%f)", scoreShort, scoreLong)
 	}
@@ -373,14 +375,14 @@ func BenchmarkScorePath(b *testing.B) {
 	path := []byte("src/internal/coderd/database/queries/workspaces.sql")
 	query := []byte("workspace")
 	tokens := [][]byte{query}
-	params := DefaultScoreParams()
-	baseOff, baseLen := extractBasename(path)
-	s := scorePath(path, baseOff, baseLen, 4, query, tokens, params)
+	params := filefinder.DefaultScoreParams()
+	baseOff, baseLen := filefinder.ExtractBasenameForTest(path)
+	s := filefinder.ScorePathForTest(path, baseOff, baseLen, 4, query, tokens, params)
 	if s == 0 {
 		b.Fatal("expected non-zero score for benchmark path")
 	}
 	b.ResetTimer()
 	for b.Loop() {
-		scorePath(path, baseOff, baseLen, 4, query, tokens, params)
+		filefinder.ScorePathForTest(path, baseOff, baseLen, 4, query, tokens, params)
 	}
 }

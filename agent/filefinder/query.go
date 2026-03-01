@@ -7,12 +7,12 @@ import (
 )
 
 type candidate struct {
-	docID   uint32
-	path    string
-	baseOff int
-	baseLen int
-	depth   int
-	flags   uint16
+	DocID   uint32
+	Path    string
+	BaseOff int
+	BaseLen int
+	Depth   int
+	Flags   uint16
 }
 
 // Result is a scored search result returned to callers.
@@ -23,44 +23,44 @@ type Result struct {
 }
 
 type queryPlan struct {
-	original   string
-	normalized string
-	tokens     [][]byte
-	trigrams   []uint32
-	isShort    bool
-	hasSlash   bool
-	basenameQ  []byte
-	dirTokens  [][]byte
+	Original   string
+	Normalized string
+	Tokens     [][]byte
+	Trigrams   []uint32
+	IsShort    bool
+	HasSlash   bool
+	BasenameQ  []byte
+	DirTokens  [][]byte
 }
 
 func newQueryPlan(q string) *queryPlan {
 	norm := normalizeQuery(q)
-	p := &queryPlan{original: q, normalized: norm}
+	p := &queryPlan{Original: q, Normalized: norm}
 	if len(norm) == 0 {
-		p.isShort = true
+		p.IsShort = true
 		return p
 	}
 	raw := strings.ReplaceAll(norm, "/", " ")
 	parts := strings.Fields(raw)
-	p.hasSlash = strings.ContainsRune(norm, '/')
+	p.HasSlash = strings.ContainsRune(norm, '/')
 	for _, part := range parts {
-		p.tokens = append(p.tokens, []byte(part))
+		p.Tokens = append(p.Tokens, []byte(part))
 	}
-	if len(p.tokens) > 0 {
-		p.basenameQ = p.tokens[len(p.tokens)-1]
-		if len(p.tokens) > 1 {
-			p.dirTokens = p.tokens[:len(p.tokens)-1]
+	if len(p.Tokens) > 0 {
+		p.BasenameQ = p.Tokens[len(p.Tokens)-1]
+		if len(p.Tokens) > 1 {
+			p.DirTokens = p.Tokens[:len(p.Tokens)-1]
 		}
 	}
-	p.isShort = true
-	for _, tok := range p.tokens {
+	p.IsShort = true
+	for _, tok := range p.Tokens {
 		if len(tok) >= 3 {
-			p.isShort = false
+			p.IsShort = false
 			break
 		}
 	}
-	if !p.isShort {
-		p.trigrams = extractQueryTrigrams(p.tokens)
+	if !p.IsShort {
+		p.Trigrams = extractQueryTrigrams(p.Tokens)
 	}
 	return p
 }
@@ -87,15 +87,15 @@ func packTrigram(a, b, c byte) uint32 {
 	return uint32(toLowerASCII(a))<<16 | uint32(toLowerASCII(b))<<8 | uint32(toLowerASCII(c))
 }
 func searchSnapshot(plan *queryPlan, snap *Snapshot, limit int) []candidate {
-	if snap == nil || snap.count == 0 || len(plan.normalized) == 0 {
+	if snap == nil || snap.count == 0 || len(plan.Normalized) == 0 {
 		return nil
 	}
 	var ids []uint32
-	if plan.isShort {
+	if plan.IsShort {
 		ids = searchShort(plan, snap)
 	} else {
 		ids = searchTrigrams(plan, snap)
-		if len(ids) == 0 && len(plan.basenameQ) > 0 {
+		if len(ids) == 0 && len(plan.BasenameQ) > 0 {
 			ids = searchFuzzyFallback(plan, snap)
 		}
 	}
@@ -109,8 +109,8 @@ func searchSnapshot(plan *queryPlan, snap *Snapshot, limit int) []candidate {
 		}
 		d := snap.docs[id]
 		cands = append(cands, candidate{
-			docID: id, path: d.path, baseOff: d.baseOff,
-			baseLen: d.baseLen, depth: d.depth, flags: d.flags,
+			DocID: id, Path: d.path, BaseOff: d.baseOff,
+			BaseLen: d.baseLen, Depth: d.depth, Flags: d.flags,
 		})
 		if len(cands) >= limit {
 			break
@@ -119,22 +119,22 @@ func searchSnapshot(plan *queryPlan, snap *Snapshot, limit int) []candidate {
 	return cands
 }
 func searchShort(plan *queryPlan, snap *Snapshot) []uint32 {
-	if len(plan.basenameQ) == 0 {
+	if len(plan.BasenameQ) == 0 {
 		return nil
 	}
-	if len(plan.basenameQ) >= 2 {
-		if ids := snap.byPrefix2[prefix2(plan.basenameQ)]; len(ids) > 0 {
+	if len(plan.BasenameQ) >= 2 {
+		if ids := snap.byPrefix2[prefix2(plan.BasenameQ)]; len(ids) > 0 {
 			return ids
 		}
 	}
-	return snap.byPrefix1[prefix1(plan.basenameQ)]
+	return snap.byPrefix1[prefix1(plan.BasenameQ)]
 }
 func searchTrigrams(plan *queryPlan, snap *Snapshot) []uint32 {
-	if len(plan.trigrams) == 0 {
+	if len(plan.Trigrams) == 0 {
 		return nil
 	}
-	lists := make([][]uint32, 0, len(plan.trigrams))
-	for _, g := range plan.trigrams {
+	lists := make([][]uint32, 0, len(plan.Trigrams))
+	for _, g := range plan.Trigrams {
 		ids, ok := snap.byGram[g]
 		if !ok || len(ids) == 0 {
 			return nil
@@ -144,10 +144,10 @@ func searchTrigrams(plan *queryPlan, snap *Snapshot) []uint32 {
 	return intersectAll(lists)
 }
 func searchFuzzyFallback(plan *queryPlan, snap *Snapshot) []uint32 {
-	if len(plan.basenameQ) == 0 {
+	if len(plan.BasenameQ) == 0 {
 		return nil
 	}
-	bucket := snap.byPrefix1[prefix1(plan.basenameQ)]
+	bucket := snap.byPrefix1[prefix1(plan.BasenameQ)]
 	if len(bucket) == 0 {
 		return searchSubsequenceScan(plan, snap, 5000)
 	}
@@ -156,7 +156,7 @@ func searchFuzzyFallback(plan *queryPlan, snap *Snapshot) []uint32 {
 		if snap.deleted[id] || int(id) >= len(snap.docs) {
 			continue
 		}
-		if isSubsequence([]byte(snap.docs[id].path), plan.basenameQ) {
+		if isSubsequence([]byte(snap.docs[id].path), plan.BasenameQ) {
 			ids = append(ids, id)
 		}
 	}
@@ -166,18 +166,18 @@ func searchFuzzyFallback(plan *queryPlan, snap *Snapshot) []uint32 {
 	return ids
 }
 func searchSubsequenceScan(plan *queryPlan, snap *Snapshot, maxCheck int) []uint32 {
-	if len(plan.basenameQ) == 0 {
+	if len(plan.BasenameQ) == 0 {
 		return nil
 	}
 	var ids []uint32
 	checked := 0
 	for id := 0; id < snap.count && checked < maxCheck; id++ {
-		uid := uint32(id)
+		uid := uint32(id) //nolint:gosec // Snapshot count is bounded well below 2^32.
 		if snap.deleted[uid] {
 			continue
 		}
 		checked++
-		if isSubsequence([]byte(snap.docs[id].path), plan.basenameQ) {
+		if isSubsequence([]byte(snap.docs[id].path), plan.BasenameQ) {
 			ids = append(ids, uid)
 		}
 	}
@@ -221,18 +221,18 @@ func mergeAndScore(cands []candidate, plan *queryPlan, params ScoreParams, topK 
 	if topK <= 0 || len(cands) == 0 {
 		return nil
 	}
-	query := []byte(plan.normalized)
+	query := []byte(plan.Normalized)
 	h := &resultHeap{}
 	heap.Init(h)
 	for i := range cands {
 		c := &cands[i]
-		s := scorePath([]byte(c.path), c.baseOff, c.baseLen, c.depth, query, plan.tokens, params)
+		s := scorePath([]byte(c.Path), c.BaseOff, c.BaseLen, c.Depth, query, plan.Tokens, params)
 		if s <= 0 {
 			continue
 		}
-		if len(plan.dirTokens) > 0 {
-			segments := extractSegments([]byte(c.path))
-			for _, dt := range plan.dirTokens {
+		if len(plan.DirTokens) > 0 {
+			segments := extractSegments([]byte(c.Path))
+			for _, dt := range plan.DirTokens {
 				for _, seg := range segments {
 					if equalFoldASCII(seg, dt) {
 						s += params.DirTokenHit
@@ -241,7 +241,7 @@ func mergeAndScore(cands []candidate, plan *queryPlan, params ScoreParams, topK 
 				}
 			}
 		}
-		r := Result{Path: c.path, Score: s, IsDir: c.flags == uint16(FlagDir)}
+		r := Result{Path: c.Path, Score: s, IsDir: c.Flags == uint16(FlagDir)}
 		if h.Len() < topK {
 			heap.Push(h, r)
 		} else if s > (*h)[0].Score {
@@ -252,17 +252,25 @@ func mergeAndScore(cands []candidate, plan *queryPlan, params ScoreParams, topK 
 	n := h.Len()
 	results := make([]Result, n)
 	for i := n - 1; i >= 0; i-- {
-		results[i] = heap.Pop(h).(Result)
+		v := heap.Pop(h)
+		if r, ok := v.(Result); ok {
+			results[i] = r
+		}
 	}
 	return results
 }
 
 type resultHeap []Result
 
-func (h resultHeap) Len() int            { return len(h) }
-func (h resultHeap) Less(i, j int) bool   { return h[i].Score < h[j].Score }
-func (h resultHeap) Swap(i, j int)        { h[i], h[j] = h[j], h[i] }
-func (h *resultHeap) Push(x interface{}) { *h = append(*h, x.(Result)) }
+func (h resultHeap) Len() int           { return len(h) }
+func (h resultHeap) Less(i, j int) bool { return h[i].Score < h[j].Score }
+func (h resultHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h *resultHeap) Push(x interface{}) {
+	r, ok := x.(Result)
+	if ok {
+		*h = append(*h, r)
+	}
+}
 func (h *resultHeap) Pop() interface{} {
 	old := *h
 	n := len(old)

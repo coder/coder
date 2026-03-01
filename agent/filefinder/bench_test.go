@@ -1,4 +1,4 @@
-package filefinder
+package filefinder_test
 
 import (
 	"context"
@@ -14,6 +14,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+
+	"github.com/coder/coder/v2/agent/filefinder"
 )
 
 var (
@@ -69,17 +71,17 @@ func generateFileTree(t testing.TB, root string, n int, seed int64) {
 		full := filepath.Join(root, dir, name)
 		f, err := os.Create(full)
 		require.NoError(t, err)
-		f.Close()
+		_ = f.Close()
 	}
 }
 
 // buildIndex walks root and returns a populated Index, the same
 // way Engine.AddRoot does but without starting a watcher.
-func buildIndex(t testing.TB, root string) *Index {
+func buildIndex(t testing.TB, root string) *filefinder.Index {
 	t.Helper()
 	absRoot, err := filepath.Abs(root)
 	require.NoError(t, err)
-	idx, err := walkRoot(absRoot)
+	idx, err := filefinder.BuildTestIndex(absRoot)
 	require.NoError(t, err)
 	return idx
 }
@@ -146,15 +148,14 @@ func BenchmarkSearch_ByScale(b *testing.B) {
 			generateFileTree(b, dir, sc.n, 42)
 			idx := buildIndex(b, dir)
 			snap := idx.Snapshot()
-			plan := func(q string) *queryPlan { return newQueryPlan(q) }
-			opts := DefaultSearchOptions()
+			opts := filefinder.DefaultSearchOptions()
 
 			for _, q := range queries {
 				b.Run(q.name, func(b *testing.B) {
-					p := plan(q.query)
+					p := filefinder.NewQueryPlanForTest(q.query)
 					b.ResetTimer()
 					for i := 0; i < b.N; i++ {
-						_ = searchSnapshot(p, snap, opts.MaxCandidates)
+						_ = filefinder.SearchSnapshotForTest(p, snap, opts.MaxCandidates)
 					}
 				})
 			}
@@ -168,11 +169,11 @@ func BenchmarkSearch_ConcurrentReads(b *testing.B) {
 
 	logger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelError)
 	ctx := context.Background()
-	eng := NewEngine(logger)
+	eng := filefinder.NewEngine(logger)
 	require.NoError(b, eng.AddRoot(ctx, dir))
 	b.Cleanup(func() { _ = eng.Close() })
 
-	opts := DefaultSearchOptions()
+	opts := filefinder.DefaultSearchOptions()
 	goroutines := []int{1, 4, 16, 64}
 
 	for _, g := range goroutines {
@@ -223,17 +224,18 @@ func BenchmarkDeltaUpdate(b *testing.B) {
 			idx.Add(fmt.Sprintf("injected/extra/file_%d.go", i), 0)
 		}
 		snap := idx.Snapshot()
-		plan := newQueryPlan("handler")
-		opts := DefaultSearchOptions()
+		plan := filefinder.NewQueryPlanForTest("handler")
+		opts := filefinder.DefaultSearchOptions()
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_ = searchSnapshot(plan, snap, opts.MaxCandidates)
+			_ = filefinder.SearchSnapshotForTest(plan, snap, opts.MaxCandidates)
 		}
 	})
 }
 
 func TestMemoryProfile(t *testing.T) {
+	t.Parallel()
 	scales := []struct {
 		name string
 		n    int
@@ -243,7 +245,9 @@ func TestMemoryProfile(t *testing.T) {
 	}
 
 	for _, sc := range scales {
+		sc := sc
 		t.Run(sc.name, func(t *testing.T) {
+			t.Parallel()
 			if sc.n >= 100_000 && testing.Short() {
 				t.Skip("skipping large-scale memory profile")
 			}
@@ -290,8 +294,8 @@ func BenchmarkSearch_ConcurrentReads_Throughput(b *testing.B) {
 	snap := idx.Snapshot()
 
 	goroutines := []int{1, 4, 16, 64}
-	plan := newQueryPlan("handler.go")
-	maxCands := DefaultSearchOptions().MaxCandidates
+	plan := filefinder.NewQueryPlanForTest("handler.go")
+	maxCands := filefinder.DefaultSearchOptions().MaxCandidates
 
 	for _, g := range goroutines {
 		b.Run(fmt.Sprintf("goroutines_%d", g), func(b *testing.B) {
@@ -306,7 +310,7 @@ func BenchmarkSearch_ConcurrentReads_Throughput(b *testing.B) {
 				go func() {
 					defer wg.Done()
 					for j := 0; j < perGoroutine; j++ {
-						_ = searchSnapshot(plan, snap, maxCands)
+						_ = filefinder.SearchSnapshotForTest(plan, snap, maxCands)
 					}
 				}()
 			}
