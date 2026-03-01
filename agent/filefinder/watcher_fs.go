@@ -54,6 +54,7 @@ func newFSWatcher(root string, logger slog.Logger) (*fsWatcher, error) {
 		done:   make(chan struct{}),
 	}, nil
 }
+
 func (fw *fsWatcher) Start(ctx context.Context) {
 	initEvents := fw.addRecursive(fw.root)
 	if len(initEvents) > 0 {
@@ -79,6 +80,7 @@ func (fw *fsWatcher) Close() error {
 	<-fw.done
 	return err
 }
+
 func (fw *fsWatcher) loop(ctx context.Context) {
 	defer close(fw.done)
 	const batchWindow = 50 * time.Millisecond
@@ -146,6 +148,7 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 		}
 	}
 }
+
 func (fw *fsWatcher) addRecursive(dir string) []FSEvent {
 	var events []FSEvent
 	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -171,6 +174,7 @@ func (fw *fsWatcher) addRecursive(dir string) []FSEvent {
 	})
 	return events
 }
+
 func translateEvent(ev fsnotify.Event) *FSEvent {
 	var op FSEventOp
 	switch {

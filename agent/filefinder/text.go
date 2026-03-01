@@ -8,6 +8,7 @@ func toLowerASCII(b byte) byte {
 	}
 	return b
 }
+
 func normalizeQuery(q string) string {
 	b := make([]byte, 0, len(q))
 	prevSpace := true
@@ -32,6 +33,7 @@ func normalizeQuery(q string) string {
 	}
 	return string(b)
 }
+
 func normalizePathBytes(p []byte) []byte {
 	j := 0
 	prevSlash := false
@@ -54,6 +56,7 @@ func normalizePathBytes(p []byte) []byte {
 	}
 	return p[:j]
 }
+
 func extractTrigrams(s []byte) []uint32 {
 	if len(s) < 3 {
 		return nil
@@ -73,6 +76,7 @@ func extractTrigrams(s []byte) []uint32 {
 	slices.Sort(result)
 	return result
 }
+
 func extractBasename(path []byte) (offset int, length int) {
 	end := len(path)
 	if end > 0 && path[end-1] == '/' {
@@ -88,6 +92,7 @@ func extractBasename(path []byte) (offset int, length int) {
 	start := i + 1
 	return start, end - start
 }
+
 func extractSegments(path []byte) [][]byte {
 	var segments [][]byte
 	start := 0
@@ -101,12 +106,14 @@ func extractSegments(path []byte) [][]byte {
 	}
 	return segments
 }
+
 func prefix1(name []byte) byte {
 	if len(name) == 0 {
 		return 0
 	}
 	return toLowerASCII(name[0])
 }
+
 func prefix2(name []byte) uint16 {
 	if len(name) == 0 {
 		return 0
@@ -142,6 +149,7 @@ func DefaultScoreParams() ScoreParams {
 		LengthPenalty:  0.01,
 	}
 }
+
 func isSubsequence(haystack, needle []byte) bool {
 	if len(needle) == 0 {
 		return true
@@ -157,6 +165,7 @@ func isSubsequence(haystack, needle []byte) bool {
 	}
 	return false
 }
+
 func longestContiguousMatch(haystack, needle []byte) int {
 	if len(needle) == 0 || len(haystack) == 0 {
 		return 0
@@ -185,9 +194,11 @@ func longestContiguousMatch(haystack, needle []byte) int {
 	}
 	return best
 }
+
 func isBoundary(b byte) bool {
 	return b == '/' || b == '.' || b == '_' || b == '-'
 }
+
 func countBoundaryHits(path []byte, query []byte) int {
 	if len(query) == 0 || len(path) == 0 {
 		return 0
@@ -203,6 +214,7 @@ func countBoundaryHits(path []byte, query []byte) int {
 	}
 	return hits
 }
+
 func equalFoldASCII(a, b []byte) bool {
 	if len(a) != len(b) {
 		return false
@@ -214,6 +226,7 @@ func equalFoldASCII(a, b []byte) bool {
 	}
 	return true
 }
+
 func hasPrefixFoldASCII(haystack, prefix []byte) bool {
 	if len(prefix) > len(haystack) {
 		return false
@@ -225,6 +238,7 @@ func hasPrefixFoldASCII(haystack, prefix []byte) bool {
 	}
 	return true
 }
+
 func scorePath(
 	path []byte,
 	baseOff int,

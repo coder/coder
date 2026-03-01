@@ -224,6 +224,7 @@ func (e *Engine) Rebuild(ctx context.Context, root string) error {
 	)
 	return nil
 }
+
 func (e *Engine) start() {
 	defer e.wg.Done()
 	for {
@@ -238,6 +239,7 @@ func (e *Engine) start() {
 		}
 	}
 }
+
 func (e *Engine) forwardEvents(ctx context.Context, root string, w *fsWatcher) {
 	defer e.wg.Done()
 	for {
@@ -260,6 +262,7 @@ func (e *Engine) forwardEvents(ctx context.Context, root string, w *fsWatcher) {
 		}
 	}
 }
+
 func (e *Engine) applyEvents(re rootEvent) {
 	e.mu.Lock()
 	defer e.mu.Unlock()

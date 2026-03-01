@@ -11,10 +11,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
-	"github.com/coder/coder/v2/testutil"
-
 	"github.com/coder/coder/v2/agent/filefinder"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func newTestEngine(t *testing.T) (*filefinder.Engine, context.Context) {

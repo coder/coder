@@ -64,6 +64,7 @@ func newQueryPlan(q string) *queryPlan {
 	}
 	return p
 }
+
 func extractQueryTrigrams(tokens [][]byte) []uint32 {
 	seen := make(map[uint32]struct{})
 	for _, tok := range tokens {
@@ -83,9 +84,11 @@ func extractQueryTrigrams(tokens [][]byte) []uint32 {
 	}
 	return result
 }
+
 func packTrigram(a, b, c byte) uint32 {
 	return uint32(toLowerASCII(a))<<16 | uint32(toLowerASCII(b))<<8 | uint32(toLowerASCII(c))
 }
+
 func searchSnapshot(plan *queryPlan, snap *Snapshot, limit int) []candidate {
 	if snap == nil || snap.count == 0 || len(plan.Normalized) == 0 {
 		return nil
@@ -118,6 +121,7 @@ func searchSnapshot(plan *queryPlan, snap *Snapshot, limit int) []candidate {
 	}
 	return cands
 }
+
 func searchShort(plan *queryPlan, snap *Snapshot) []uint32 {
 	if len(plan.BasenameQ) == 0 {
 		return nil
@@ -129,6 +133,7 @@ func searchShort(plan *queryPlan, snap *Snapshot) []uint32 {
 	}
 	return snap.byPrefix1[prefix1(plan.BasenameQ)]
 }
+
 func searchTrigrams(plan *queryPlan, snap *Snapshot) []uint32 {
 	if len(plan.Trigrams) == 0 {
 		return nil
@@ -143,6 +148,7 @@ func searchTrigrams(plan *queryPlan, snap *Snapshot) []uint32 {
 	}
 	return intersectAll(lists)
 }
+
 func searchFuzzyFallback(plan *queryPlan, snap *Snapshot) []uint32 {
 	if len(plan.BasenameQ) == 0 {
 		return nil
@@ -165,6 +171,7 @@ func searchFuzzyFallback(plan *queryPlan, snap *Snapshot) []uint32 {
 	}
 	return ids
 }
+
 func searchSubsequenceScan(plan *queryPlan, snap *Snapshot, maxCheck int) []uint32 {
 	if len(plan.BasenameQ) == 0 {
 		return nil
@@ -183,6 +190,7 @@ func searchSubsequenceScan(plan *queryPlan, snap *Snapshot, maxCheck int) []uint
 	}
 	return ids
 }
+
 func intersectSorted(a, b []uint32) []uint32 {
 	if len(a) == 0 || len(b) == 0 {
 		return nil
@@ -203,6 +211,7 @@ func intersectSorted(a, b []uint32) []uint32 {
 	}
 	return result
 }
+
 func intersectAll(lists [][]uint32) []uint32 {
 	if len(lists) == 0 {
 		return nil
@@ -217,6 +226,7 @@ func intersectAll(lists [][]uint32) []uint32 {
 	}
 	return result
 }
+
 func mergeAndScore(cands []candidate, plan *queryPlan, params ScoreParams, topK int) []Result {
 	if topK <= 0 || len(cands) == 0 {
 		return nil
@@ -271,6 +281,7 @@ func (h *resultHeap) Push(x interface{}) {
 		*h = append(*h, r)
 	}
 }
+
 func (h *resultHeap) Pop() interface{} {
 	old := *h
 	n := len(old)
