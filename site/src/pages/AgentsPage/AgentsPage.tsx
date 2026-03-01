@@ -53,6 +53,7 @@ import {
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
+import { WebPushButton } from "./WebPushButton";
 
 const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
@@ -434,6 +435,7 @@ const AgentsPage: FC = () => {
 							)}
 							<div className="flex min-w-0 flex-1 items-center" />
 							<div className="flex items-center gap-2">
+								<WebPushButton />
 								{isAgentsAdmin && (
 									<Button
 										variant="subtle"

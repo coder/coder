@@ -20,6 +20,7 @@ import {
 	PanelRightOpenIcon,
 } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
+import { WebPushButton } from "../WebPushButton";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
@@ -200,6 +201,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
+				<WebPushButton />
 			</div>
 			<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
 				<UserDropdown

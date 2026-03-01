@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -63,10 +64,11 @@ type Server struct {
 
 	remotePartsProvider RemotePartsProvider
 
-	agentConnFn       AgentConnFunc
-	createWorkspaceFn chattool.CreateWorkspaceFn
-	pubsub            pubsub.Pubsub
-	providerAPIKeys   chatprovider.ProviderAPIKeys
+	agentConnFn        AgentConnFunc
+	createWorkspaceFn  chattool.CreateWorkspaceFn
+	pubsub             pubsub.Pubsub
+	webpushDispatcher  webpush.Dispatcher
+	providerAPIKeys    chatprovider.ProviderAPIKeys
 
 	// streamMu guards chatStreams which tracks in-flight chat
 	// stream state for broadcasting ephemeral events.
@@ -842,6 +844,7 @@ type Config struct {
 	CreateWorkspace            chattool.CreateWorkspaceFn
 	Pubsub                     pubsub.Pubsub
 	ProviderAPIKeys            chatprovider.ProviderAPIKeys
+	WebpushDispatcher          webpush.Dispatcher
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -875,6 +878,7 @@ func New(cfg Config) *Server {
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
 		pubsub:                     cfg.Pubsub,
+		webpushDispatcher:          cfg.WebpushDispatcher,
 		providerAPIKeys:            cfg.ProviderAPIKeys,
 		chatStreams:                make(map[uuid.UUID]*chatStreamState),
 		instructionCache:           make(map[uuid.UUID]cachedInstruction),
@@ -1749,6 +1753,34 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 		chat.Status = status
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
+
+		// Send a web push notification when the agent finishes
+		// processing. We only notify for terminal states (waiting
+		// = success, error = failure) and skip sub-agent chats to
+		// avoid spamming the user with notifications for internal
+		// delegation.
+		if p.webpushDispatcher != nil && !chat.ParentChatID.Valid {
+			if status == database.ChatStatusWaiting || status == database.ChatStatusError {
+				pushMsg := codersdk.WebpushMessage{
+					Title: chat.Title,
+					Body:  "Agent has finished running.",
+					Icon:  "/favicon.ico",
+				}
+				if status == database.ChatStatusError {
+					pushMsg.Body = "Agent encountered an error."
+					if lastError != "" {
+						pushMsg.Body = lastError
+					}
+				}
+				if err := p.webpushDispatcher.Dispatch(cleanupCtx, chat.OwnerID, pushMsg); err != nil {
+					logger.Warn(cleanupCtx, "failed to send chat completion web push",
+						slog.F("chat_id", chat.ID),
+						slog.F("status", status),
+						slog.Error(err),
+					)
+				}
+			}
+		}
 	}()
 
 	if err := p.runChat(chatCtx, chat, logger); err != nil {

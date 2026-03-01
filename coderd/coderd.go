@@ -767,6 +767,7 @@ func New(options *Options) *API {
 		AgentConn:           api.agentProvider.AgentConn,
 		CreateWorkspace:     api.chatCreateWorkspace,
 		Pubsub:              options.Pubsub,
+		WebpushDispatcher:   options.WebPushDispatcher,
 	})
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
