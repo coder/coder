@@ -88,11 +88,13 @@ export const useWebpushNotifications = (): WebpushNotifications => {
 			const registration = await navigator.serviceWorker.ready;
 			const subscription = await registration.pushManager.getSubscription();
 
-			if (subscription) {
-				await subscription.unsubscribe();
-				setSubscribed(false);
-			}
-		} catch (error) {
+        if (subscription) {
+            await API.deleteWebPushSubscription("me", {
+                endpoint: subscription.endpoint,
+            });
+            await subscription.unsubscribe();
+            setSubscribed(false);
+        }		} catch (error) {
 			console.error("Unsubscription failed:", error);
 			throw error;
 		} finally {

@@ -1759,7 +1759,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// = success, error = failure) and skip sub-agent chats to
 		// avoid spamming the user with notifications for internal
 		// delegation.
-		if p.webpushDispatcher != nil && !chat.ParentChatID.Valid {
+		if p.webpushDispatcher != nil && p.webpushDispatcher.PublicKey() != "" && !chat.ParentChatID.Valid {
 			if status == database.ChatStatusWaiting || status == database.ChatStatusError {
 				pushMsg := codersdk.WebpushMessage{
 					Title: chat.Title,
