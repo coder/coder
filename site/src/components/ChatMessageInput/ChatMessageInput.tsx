@@ -159,6 +159,35 @@ const ContentChangePlugin: FC<{
 	return null;
 });
 
+// Seeds the editor with an initial value on first mount.
+const ValueSyncPlugin: FC<{ initialValue?: string }> = memo(
+	function ValueSyncPlugin({ initialValue }) {
+		const [editor] = useLexicalComposerContext();
+		const hasInitialized = useRef(false);
+
+		useEffect(() => {
+			if (!hasInitialized.current && initialValue !== undefined) {
+				hasInitialized.current = true;
+
+				if (initialValue === "") {
+					return;
+				}
+
+				editor.update(() => {
+					const root = $getRoot();
+					root.clear();
+					const paragraph = $createParagraphNode();
+					const textNode = $createTextNode(initialValue);
+					paragraph.append(textNode);
+					root.append(paragraph);
+				});
+			}
+		}, [editor, initialValue]);
+
+		return null;
+	},
+);
+
 // Exposes the LexicalEditor instance to the parent via a callback
 // so it can be stored in a ref for imperative access.
 const InsertTextPlugin: FC<{
@@ -206,7 +235,6 @@ const ChatMessageInput = memo(
 		ref,
 		...props
 	}: ChatMessageInputProps & { ref?: React.Ref<ChatMessageInputRef> }) => {
-		// biome-ignore lint/correctness/useExhaustiveDependencies: initialValue is handled by key={initialValue} on LexicalComposer which remounts the editor.
 		const initialConfig = useMemo(
 			() => ({
 				namespace: "ChatMessageInput",
@@ -215,17 +243,6 @@ const ChatMessageInput = memo(
 				},
 				onError: (error: Error) => console.error("Lexical error:", error),
 				nodes: [],
-				// Seed the editor synchronously so the content is available
-				// on the very first render (no async useEffect needed).
-				editorState: initialValue
-					? () => {
-							const root = $getRoot();
-							const paragraph = $createParagraphNode();
-							const textNode = $createTextNode(initialValue);
-							paragraph.append(textNode);
-							root.append(paragraph);
-						}
-					: undefined,
 			}),
 			[],
 		);
@@ -302,15 +319,17 @@ const ChatMessageInput = memo(
 					const editor = editorRef.current;
 					if (!editor) return;
 					editor.focus(() => {
-						const root = $getRoot();
-						const last = root.getLastChild();
-						if (!last) {
-							const paragraph = $createParagraphNode();
-							root.append(paragraph);
-							paragraph.select();
-							return;
-						}
-						last.selectEnd();
+						editor.update(() => {
+							const root = $getRoot();
+							const last = root.getLastChild();
+							if (!last) {
+								const paragraph = $createParagraphNode();
+								root.append(paragraph);
+								paragraph.select();
+								return;
+							}
+							last.selectEnd();
+						});
 					});
 				},
 				getValue: () => {
@@ -359,6 +378,7 @@ const ChatMessageInput = memo(
 					<PasteSanitizationPlugin />
 					<EnterKeyPlugin onEnter={disabled ? undefined : onEnter} />
 					<ContentChangePlugin onChange={handleContentChange} />
+					<ValueSyncPlugin initialValue={initialValue} />
 					<InsertTextPlugin onEditorReady={handleEditorReady} />
 					{autoFocus && <AutoFocusPlugin />}
 				</div>

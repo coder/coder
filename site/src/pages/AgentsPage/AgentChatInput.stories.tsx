@@ -52,8 +52,13 @@ export const SendsAndClearsInput: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		// Wait for the Lexical editor to initialize with the initial value
-		// so the Send button becomes enabled.
+		// Wait for the Lexical editor to initialize and render the
+		// initial value text into the DOM before interacting.
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("Run focused tests");
+		});
+
 		const sendButton = canvas.getByRole("button", { name: "Send" });
 		await waitFor(() => {
 			expect(sendButton).toBeEnabled();
