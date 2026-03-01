@@ -14,90 +14,67 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 )
 
+func newTestEngine(t *testing.T) (*Engine, context.Context) {
+	t.Helper()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	eng := NewEngine(logger)
+	t.Cleanup(func() { _ = eng.Close() })
+	return eng, context.Background()
+}
+
+func requireResultHasPath(t *testing.T, results []Result, path string) {
+	t.Helper()
+	for _, r := range results {
+		if r.Path == path {
+			return
+		}
+	}
+	t.Errorf("expected %q in results, got %v", path, resultPaths(results))
+}
+
 func TestEngine_SearchFindsKnownFile(t *testing.T) {
 	t.Parallel()
-
 	dir := t.TempDir()
 	createFile(t, dir, "src/main.go", "package main")
 	createFile(t, dir, "src/handler.go", "package main")
 	createFile(t, dir, "README.md", "# hello")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx := context.Background()
-
-	eng := NewEngine(logger)
-	defer func() { _ = eng.Close() }()
-
-	err := eng.AddRoot(ctx, dir)
-	require.NoError(t, err)
+	eng, ctx := newTestEngine(t)
+	require.NoError(t, eng.AddRoot(ctx, dir))
 
 	results, err := eng.Search(ctx, "main.go", DefaultSearchOptions())
 	require.NoError(t, err)
 	require.NotEmpty(t, results, "expected to find main.go")
-
-	found := false
-	for _, r := range results {
-		if r.Path == "src/main.go" {
-			found = true
-			break
-		}
-	}
-	require.True(t, found, "expected src/main.go in results, got %v", resultPaths(results))
+	requireResultHasPath(t, results, "src/main.go")
 }
 
 func TestEngine_SearchFuzzyMatch(t *testing.T) {
 	t.Parallel()
-
 	dir := t.TempDir()
 	createFile(t, dir, "src/controllers/user_handler.go", "package controllers")
 	createFile(t, dir, "src/models/user.go", "package models")
 	createFile(t, dir, "docs/api.md", "# API")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx := context.Background()
-
-	eng := NewEngine(logger)
-	defer func() { _ = eng.Close() }()
-
-	err := eng.AddRoot(ctx, dir)
-	require.NoError(t, err)
+	eng, ctx := newTestEngine(t)
+	require.NoError(t, eng.AddRoot(ctx, dir))
 
 	// "handler" should match "user_handler.go".
 	results, err := eng.Search(ctx, "handler", DefaultSearchOptions())
 	require.NoError(t, err)
-
 	// The query is a subsequence of "user_handler.go" so it
 	// should appear somewhere in the results.
-	found := false
-	for _, r := range results {
-		if r.Path == "src/controllers/user_handler.go" {
-			found = true
-			break
-		}
-	}
-	require.True(t, found, "expected fuzzy match for user_handler.go, got %v", resultPaths(results))
+	requireResultHasPath(t, results, "src/controllers/user_handler.go")
 }
 
 func TestEngine_IndexPicksUpNewFile(t *testing.T) {
 	t.Parallel()
-
 	dir := t.TempDir()
 	createFile(t, dir, "existing.txt", "hello")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx := context.Background()
-
-	eng := NewEngine(logger)
-	defer func() { _ = eng.Close() }()
-
-	err := eng.AddRoot(ctx, dir)
-	require.NoError(t, err)
-
-	// Create a new file after the root was added.
+	eng, ctx := newTestEngine(t)
+	require.NoError(t, eng.AddRoot(ctx, dir))
 	createFile(t, dir, "newfile_unique.txt", "world")
 
-	// Wait for the watcher to pick it up. The watcher batches
-	// events every 50 ms; give it a reasonable window.
 	require.Eventually(t, func() bool {
 		results, sErr := eng.Search(ctx, "newfile_unique", DefaultSearchOptions())
 		if sErr != nil {
@@ -114,29 +91,19 @@ func TestEngine_IndexPicksUpNewFile(t *testing.T) {
 
 func TestEngine_IndexRemovesDeletedFile(t *testing.T) {
 	t.Parallel()
-
 	dir := t.TempDir()
 	createFile(t, dir, "deleteme_unique.txt", "goodbye")
 	createFile(t, dir, "keeper.txt", "stay")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx := context.Background()
+	eng, ctx := newTestEngine(t)
+	require.NoError(t, eng.AddRoot(ctx, dir))
 
-	eng := NewEngine(logger)
-	defer func() { _ = eng.Close() }()
-
-	err := eng.AddRoot(ctx, dir)
-	require.NoError(t, err)
-
-	// Verify the file is found initially.
 	results, err := eng.Search(ctx, "deleteme_unique", DefaultSearchOptions())
 	require.NoError(t, err)
 	require.NotEmpty(t, results, "expected to find deleteme_unique.txt initially")
 
-	// Delete the file.
 	require.NoError(t, os.Remove(filepath.Join(dir, "deleteme_unique.txt")))
 
-	// Wait for the watcher to process the removal.
 	require.Eventually(t, func() bool {
 		results, sErr := eng.Search(ctx, "deleteme_unique", DefaultSearchOptions())
 		if sErr != nil {
@@ -153,58 +120,30 @@ func TestEngine_IndexRemovesDeletedFile(t *testing.T) {
 
 func TestEngine_MultipleRoots(t *testing.T) {
 	t.Parallel()
-
 	dir1 := t.TempDir()
 	dir2 := t.TempDir()
 	createFile(t, dir1, "alpha_unique.go", "package alpha")
 	createFile(t, dir2, "beta_unique.go", "package beta")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx := context.Background()
-
-	eng := NewEngine(logger)
-	defer func() { _ = eng.Close() }()
-
+	eng, ctx := newTestEngine(t)
 	require.NoError(t, eng.AddRoot(ctx, dir1))
 	require.NoError(t, eng.AddRoot(ctx, dir2))
 
-	// Search for alpha.
 	results, err := eng.Search(ctx, "alpha_unique", DefaultSearchOptions())
 	require.NoError(t, err)
-	foundAlpha := false
-	for _, r := range results {
-		if r.Path == "alpha_unique.go" {
-			foundAlpha = true
-			break
-		}
-	}
-	require.True(t, foundAlpha, "expected alpha_unique.go, got %v", resultPaths(results))
+	requireResultHasPath(t, results, "alpha_unique.go")
 
-	// Search for beta.
 	results, err = eng.Search(ctx, "beta_unique", DefaultSearchOptions())
 	require.NoError(t, err)
-	foundBeta := false
-	for _, r := range results {
-		if r.Path == "beta_unique.go" {
-			foundBeta = true
-			break
-		}
-	}
-	require.True(t, foundBeta, "expected beta_unique.go, got %v", resultPaths(results))
+	requireResultHasPath(t, results, "beta_unique.go")
 }
 
 func TestEngine_EmptyQueryReturnsEmpty(t *testing.T) {
 	t.Parallel()
-
 	dir := t.TempDir()
 	createFile(t, dir, "something.txt", "data")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx := context.Background()
-
-	eng := NewEngine(logger)
-	defer func() { _ = eng.Close() }()
-
+	eng, ctx := newTestEngine(t)
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
 	results, err := eng.Search(ctx, "", DefaultSearchOptions())
@@ -214,38 +153,26 @@ func TestEngine_EmptyQueryReturnsEmpty(t *testing.T) {
 
 func TestEngine_CloseIsClean(t *testing.T) {
 	t.Parallel()
-
 	dir := t.TempDir()
 	createFile(t, dir, "file.txt", "data")
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	ctx := context.Background()
-
 	eng := NewEngine(logger)
 	require.NoError(t, eng.AddRoot(ctx, dir))
-
-	// Close should not panic or hang.
 	require.NoError(t, eng.Close())
 
-	// Search after close should return error.
 	_, err := eng.Search(ctx, "file", DefaultSearchOptions())
 	require.Error(t, err)
 }
 
 func TestEngine_AddRootIdempotent(t *testing.T) {
 	t.Parallel()
-
 	dir := t.TempDir()
 	createFile(t, dir, "file.txt", "data")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx := context.Background()
-
-	eng := NewEngine(logger)
-	defer func() { _ = eng.Close() }()
-
+	eng, ctx := newTestEngine(t)
 	require.NoError(t, eng.AddRoot(ctx, dir))
-	// Adding the same root again should be a no-op.
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
 	snapPtr := eng.snap.Load()
@@ -255,26 +182,18 @@ func TestEngine_AddRootIdempotent(t *testing.T) {
 
 func TestEngine_RemoveRoot(t *testing.T) {
 	t.Parallel()
-
 	dir := t.TempDir()
 	createFile(t, dir, "file.txt", "data")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx := context.Background()
-
-	eng := NewEngine(logger)
-	defer func() { _ = eng.Close() }()
-
+	eng, ctx := newTestEngine(t)
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
-	// Files should be findable.
 	results, err := eng.Search(ctx, "file", DefaultSearchOptions())
 	require.NoError(t, err)
 	require.NotEmpty(t, results)
 
 	require.NoError(t, eng.RemoveRoot(dir))
 
-	// After removal the root's files should not be found.
 	results, err = eng.Search(ctx, "file", DefaultSearchOptions())
 	require.NoError(t, err)
 	require.Empty(t, results)
@@ -282,36 +201,21 @@ func TestEngine_RemoveRoot(t *testing.T) {
 
 func TestEngine_Rebuild(t *testing.T) {
 	t.Parallel()
-
 	dir := t.TempDir()
 	createFile(t, dir, "original.txt", "data")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx := context.Background()
-
-	eng := NewEngine(logger)
-	defer func() { _ = eng.Close() }()
-
+	eng, ctx := newTestEngine(t)
 	require.NoError(t, eng.AddRoot(ctx, dir))
 
-	// Add a file directly (bypass watcher) and rebuild.
 	createFile(t, dir, "sneaky_rebuild.txt", "hidden")
 	require.NoError(t, eng.Rebuild(ctx, dir))
 
 	results, err := eng.Search(ctx, "sneaky_rebuild", DefaultSearchOptions())
 	require.NoError(t, err)
-	found := false
-	for _, r := range results {
-		if r.Path == "sneaky_rebuild.txt" {
-			found = true
-			break
-		}
-	}
-	require.True(t, found, "expected sneaky_rebuild.txt after rebuild, got %v", resultPaths(results))
+	requireResultHasPath(t, results, "sneaky_rebuild.txt")
 }
 
-// createFile is a test helper that creates a file (and parent
-// directories) at the given path relative to dir.
+// createFile creates a file (and parent dirs) at relPath under dir.
 func createFile(t *testing.T, dir, relPath, content string) {
 	t.Helper()
 	full := filepath.Join(dir, relPath)
@@ -319,8 +223,6 @@ func createFile(t *testing.T, dir, relPath, content string) {
 	require.NoError(t, os.WriteFile(full, []byte(content), 0o644))
 }
 
-// resultPaths extracts the path strings from a result slice for
-// diagnostic messages.
 func resultPaths(results []Result) []string {
 	paths := make([]string, len(results))
 	for i, r := range results {
