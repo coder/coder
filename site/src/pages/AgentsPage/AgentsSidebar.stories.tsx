@@ -197,6 +197,49 @@ export const ExpandCollapse: Story = {
 	},
 };
 
+export const RunningChatPreservesSpinner: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "root-running",
+				title: "Running root agent",
+				status: "running",
+			}),
+			buildChat({
+				id: "child-of-running",
+				title: "Child of running",
+				parent_chat_id: "root-running",
+				root_chat_id: "root-running",
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/child-of-running",
+				pathParams: { agentId: "child-of-running" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The root chat is running and has children, so a spinning
+		// Loader2Icon should be rendered inside the icon wrapper.
+		const node = canvas.getByTestId("agents-tree-node-root-running");
+		const spinner = node.querySelector(".animate-spin");
+		await expect(spinner).toBeInTheDocument();
+
+		// The toggle button should exist (the node has children) but
+		// must be invisible by default — it only appears on hover of
+		// the icon area itself, not the whole row.
+		const toggle = canvas.getByTestId("agents-tree-toggle-root-running");
+		await expect(toggle).toBeInTheDocument();
+		await expect(toggle.className).toMatch(/\binvisible\b/);
+	},
+};
+
 export const ActiveChatAncestryExpanded: Story = {
 	args: {
 		chats: [

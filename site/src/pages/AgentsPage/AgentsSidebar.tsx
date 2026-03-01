@@ -327,6 +327,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	}`;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
+	const isExecuting = chat.status === "pending" || chat.status === "running";
 
 	return (
 		<div className="flex min-w-0 flex-col">
@@ -340,11 +341,21 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 						"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
 				)}
 			>
-				<div className="relative mt-1.5 h-5 w-5 shrink-0">
+				<div
+					className={cn(
+						"group/icon relative mt-1.5 h-5 w-5 shrink-0",
+						hasChildren && "cursor-pointer",
+					)}
+				>
 					<div
 						className={cn(
 							"flex h-5 w-5 items-center justify-center rounded-md",
-							hasChildren && "[@media(hover:hover)]:group-hover:invisible",
+							hasChildren &&
+								!isExecuting &&
+								"[@media(hover:hover)]:group-hover:invisible",
+							hasChildren &&
+								isExecuting &&
+								"[@media(hover:hover)]:group-hover/icon:invisible",
 						)}
 					>
 						<StatusIcon
@@ -361,7 +372,12 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 							variant="subtle"
 							size="icon"
 							onClick={() => toggleExpanded(chatID)}
-							className="absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [@media(hover:hover)]:group-hover:visible [&>svg]:size-3.5"
+							className={cn(
+								"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
+								isExecuting
+									? "[@media(hover:hover)]:group-hover/icon:visible"
+									: "[@media(hover:hover)]:group-hover:visible",
+							)}
 							data-testid={`agents-tree-toggle-${chat.id}`}
 							aria-label={isExpanded ? "Collapse" : "Expand"}
 							aria-expanded={isExpanded}
