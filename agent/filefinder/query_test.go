@@ -254,7 +254,7 @@ func TestIntersectAll(t *testing.T) {
 func TestMergeAndScore_SortedDescending(t *testing.T) {
 	t.Parallel()
 	plan := filefinder.NewQueryPlanForTest("foo")
-	params := filefinder.DefaultScoreParams()
+	params := filefinder.DefaultScoreParamsForTest()
 	cands := []filefinder.CandidateForTest{
 		{DocID: 0, Path: "a/b/c/d/e/foo", BaseOff: 10, BaseLen: 3, Depth: 5},
 		{DocID: 1, Path: "src/foo", BaseOff: 4, BaseLen: 3, Depth: 1},
@@ -275,7 +275,7 @@ func TestMergeAndScore_SortedDescending(t *testing.T) {
 func TestMergeAndScore_TopKLimit(t *testing.T) {
 	t.Parallel()
 	plan := filefinder.NewQueryPlanForTest("f")
-	params := filefinder.DefaultScoreParams()
+	params := filefinder.DefaultScoreParamsForTest()
 	var cands []filefinder.CandidateForTest
 	for i := range 20 {
 		p := "f" + string(rune('a'+i))
@@ -290,7 +290,7 @@ func TestMergeAndScore_ZeroTopK(t *testing.T) {
 	t.Parallel()
 	plan := filefinder.NewQueryPlanForTest("foo")
 	cands := []filefinder.CandidateForTest{{DocID: 0, Path: "foo", BaseOff: 0, BaseLen: 3, Depth: 0}}
-	if results := filefinder.MergeAndScoreForTest(cands, plan, filefinder.DefaultScoreParams(), 0); len(results) != 0 {
+	if results := filefinder.MergeAndScoreForTest(cands, plan, filefinder.DefaultScoreParamsForTest(), 0); len(results) != 0 {
 		t.Errorf("expected 0 results for topK=0, got %d", len(results))
 	}
 }
@@ -302,7 +302,7 @@ func TestMergeAndScore_NoMatchCandidatesDropped(t *testing.T) {
 		{DocID: 0, Path: "abc", BaseOff: 0, BaseLen: 3, Depth: 0},
 		{DocID: 1, Path: "def", BaseOff: 0, BaseLen: 3, Depth: 0},
 	}
-	if results := filefinder.MergeAndScoreForTest(cands, plan, filefinder.DefaultScoreParams(), 10); len(results) != 0 {
+	if results := filefinder.MergeAndScoreForTest(cands, plan, filefinder.DefaultScoreParamsForTest(), 10); len(results) != 0 {
 		t.Errorf("expected 0 results for non-matching candidates, got %d", len(results))
 	}
 }
@@ -313,7 +313,7 @@ func TestMergeAndScore_IsDirFlag(t *testing.T) {
 	cands := []filefinder.CandidateForTest{
 		{DocID: 0, Path: "foo", BaseOff: 0, BaseLen: 3, Depth: 0, Flags: uint16(filefinder.FlagDir)},
 	}
-	results := filefinder.MergeAndScoreForTest(cands, plan, filefinder.DefaultScoreParams(), 10)
+	results := filefinder.MergeAndScoreForTest(cands, plan, filefinder.DefaultScoreParamsForTest(), 10)
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
@@ -324,7 +324,7 @@ func TestMergeAndScore_IsDirFlag(t *testing.T) {
 
 func TestMergeAndScore_EmptyCandidates(t *testing.T) {
 	t.Parallel()
-	if results := filefinder.MergeAndScoreForTest(nil, filefinder.NewQueryPlanForTest("foo"), filefinder.DefaultScoreParams(), 10); len(results) != 0 {
+	if results := filefinder.MergeAndScoreForTest(nil, filefinder.NewQueryPlanForTest("foo"), filefinder.DefaultScoreParamsForTest(), 10); len(results) != 0 {
 		t.Errorf("expected 0 results for nil candidates, got %d", len(results))
 	}
 }
@@ -333,7 +333,7 @@ func TestSearchSnapshot_FuzzyFallbackEndToEnd(t *testing.T) {
 	t.Parallel()
 	snap := filefinder.MakeTestSnapshot([]string{"src/handler.go", "src/middleware.go", "pkg/config.go"})
 	plan := filefinder.NewQueryPlanForTest("hndlr")
-	results := filefinder.MergeAndScoreForTest(filefinder.SearchSnapshotForTest(plan, snap, 100), plan, filefinder.DefaultScoreParams(), 10)
+	results := filefinder.MergeAndScoreForTest(filefinder.SearchSnapshotForTest(plan, snap, 100), plan, filefinder.DefaultScoreParamsForTest(), 10)
 	if len(results) == 0 {
 		t.Fatal("expected fuzzy fallback to produce scored results for 'hndlr'")
 	}

@@ -57,6 +57,10 @@ func normalizePathBytes(p []byte) []byte {
 	return p[:j]
 }
 
+// extractTrigrams returns deduplicated, sorted trigrams (three-byte
+// subsequences) from s. Trigrams are the primary index key: a
+// document matches a query only if every query trigram appears in
+// the document, giving O(1) candidate filtering per trigram.
 func extractTrigrams(s []byte) []uint32 {
 	if len(s) < 3 {
 		return nil
@@ -125,8 +129,8 @@ func prefix2(name []byte) uint16 {
 	return hi | uint16(toLowerASCII(name[1]))
 }
 
-// ScoreParams controls the weights for each scoring signal.
-type ScoreParams struct {
+// scoreParams controls the weights for each scoring signal.
+type scoreParams struct {
 	BasenameMatch  float32
 	BasenamePrefix float32
 	ExactSegment   float32
@@ -137,8 +141,8 @@ type ScoreParams struct {
 	LengthPenalty  float32
 }
 
-func DefaultScoreParams() ScoreParams {
-	return ScoreParams{
+func defaultScoreParams() scoreParams {
+	return scoreParams{
 		BasenameMatch:  6.0,
 		BasenamePrefix: 3.5,
 		ExactSegment:   2.5,
@@ -239,6 +243,12 @@ func hasPrefixFoldASCII(haystack, prefix []byte) bool {
 	return true
 }
 
+// scorePath computes a relevance score for a candidate path
+// against a query. The score combines several signals:
+// basename match, basename prefix, exact segment match,
+// word-boundary hits, longest contiguous run, and penalties
+// for depth and length. A return value of 0 means no match
+// (the query is not a subsequence of the path).
 func scorePath(
 	path []byte,
 	baseOff int,
@@ -246,7 +256,7 @@ func scorePath(
 	depth int,
 	query []byte,
 	queryTokens [][]byte,
-	params ScoreParams,
+	params scoreParams,
 ) float32 {
 	if !isSubsequence(path, query) {
 		return 0

@@ -244,7 +244,6 @@ func TestMemoryProfile(t *testing.T) {
 	}
 
 	for _, sc := range scales {
-		sc := sc
 		t.Run(sc.name, func(t *testing.T) {
 			t.Parallel()
 			if sc.n >= 100_000 && testing.Short() {

@@ -308,7 +308,7 @@ func TestScorePath_NoSubsequenceReturnsZero(t *testing.T) {
 	path := []byte("src/internal/handler.go")
 	query := []byte("zzz")
 	tokens := [][]byte{[]byte("zzz")}
-	params := filefinder.DefaultScoreParams()
+	params := filefinder.DefaultScoreParamsForTest()
 	s := filefinder.ScorePathForTest(path, 13, 10, 2, query, tokens, params)
 	if s != 0 {
 		t.Errorf("expected 0 for no subsequence match, got %f", s)
@@ -317,7 +317,7 @@ func TestScorePath_NoSubsequenceReturnsZero(t *testing.T) {
 
 func TestScorePath_ExactBasenameOverPartial(t *testing.T) {
 	t.Parallel()
-	params := filefinder.DefaultScoreParams()
+	params := filefinder.DefaultScoreParamsForTest()
 	query := []byte("main")
 	tokens := [][]byte{query}
 	pathExact := []byte("src/main")
@@ -331,7 +331,7 @@ func TestScorePath_ExactBasenameOverPartial(t *testing.T) {
 
 func TestScorePath_BasenamePrefixOverScattered(t *testing.T) {
 	t.Parallel()
-	params := filefinder.DefaultScoreParams()
+	params := filefinder.DefaultScoreParamsForTest()
 	query := []byte("han")
 	tokens := [][]byte{query}
 	pathPrefix := []byte("src/handler.go")
@@ -345,7 +345,7 @@ func TestScorePath_BasenamePrefixOverScattered(t *testing.T) {
 
 func TestScorePath_ShallowOverDeep(t *testing.T) {
 	t.Parallel()
-	params := filefinder.DefaultScoreParams()
+	params := filefinder.DefaultScoreParamsForTest()
 	query := []byte("foo")
 	tokens := [][]byte{query}
 	pathShallow := []byte("src/foo.go")
@@ -359,7 +359,7 @@ func TestScorePath_ShallowOverDeep(t *testing.T) {
 
 func TestScorePath_ShorterOverLongerSameMatch(t *testing.T) {
 	t.Parallel()
-	params := filefinder.DefaultScoreParams()
+	params := filefinder.DefaultScoreParamsForTest()
 	query := []byte("foo")
 	tokens := [][]byte{query}
 	pathShort := []byte("x/foo")
@@ -375,7 +375,7 @@ func BenchmarkScorePath(b *testing.B) {
 	path := []byte("src/internal/coderd/database/queries/workspaces.sql")
 	query := []byte("workspace")
 	tokens := [][]byte{query}
-	params := filefinder.DefaultScoreParams()
+	params := filefinder.DefaultScoreParamsForTest()
 	baseOff, baseLen := filefinder.ExtractBasenameForTest(path)
 	s := filefinder.ScorePathForTest(path, baseOff, baseLen, 4, query, tokens, params)
 	if s == 0 {

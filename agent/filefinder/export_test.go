@@ -34,9 +34,9 @@ func IndexByPrefix1Len(idx *Index, b byte) int {
 	return len(idx.byPrefix1[b])
 }
 
-// SnapshotCount returns the internal count field of a Snapshot.
+// SnapshotCount returns the number of documents in a Snapshot.
 func SnapshotCount(snap *Snapshot) int {
-	return snap.count
+	return len(snap.docs)
 }
 
 // EngineSnapLen returns the number of root snapshots currently held
@@ -48,6 +48,12 @@ func EngineSnapLen(eng *Engine) int {
 	}
 	return len(*p)
 }
+
+// DefaultScoreParamsForTest exposes defaultScoreParams for tests.
+var DefaultScoreParamsForTest = defaultScoreParams
+
+// ScoreParamsForTest is a type alias for scoreParams.
+type ScoreParamsForTest = scoreParams
 
 // Exported aliases for internal functions used in tests.
 var (

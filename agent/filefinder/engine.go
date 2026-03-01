@@ -1,3 +1,6 @@
+// Package filefinder provides an in-memory file index with trigram
+// matching, fuzzy search, and filesystem watching. It is designed
+// to power file-finding features on workspace agents.
 package filefinder
 
 import (
@@ -20,6 +23,7 @@ type SearchOptions struct {
 	MaxCandidates int
 }
 
+// DefaultSearchOptions returns sensible default search options.
 func DefaultSearchOptions() SearchOptions {
 	return SearchOptions{Limit: 100, MaxCandidates: 10000}
 }
@@ -51,6 +55,8 @@ type rootEvent struct {
 	events []FSEvent
 }
 
+// walkRoot performs a full filesystem walk of absRoot and returns
+// a populated Index containing all discovered files and directories.
 func walkRoot(absRoot string) (*Index, error) {
 	idx := NewIndex()
 	err := filepath.Walk(absRoot, func(path string, info os.FileInfo, walkErr error) error {
@@ -96,6 +102,10 @@ func NewEngine(logger slog.Logger) *Engine {
 	return e
 }
 
+// ErrClosed is returned when operations are attempted on a
+// closed engine.
+var ErrClosed = xerrors.New("engine is closed")
+
 // AddRoot adds a directory root to the engine.
 func (e *Engine) AddRoot(ctx context.Context, root string) error {
 	absRoot, err := filepath.Abs(root)
@@ -103,22 +113,37 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 		return xerrors.Errorf("resolve root: %w", err)
 	}
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	if e.closed.Load() {
-		return xerrors.New("engine is closed")
+		e.mu.Unlock()
+		return ErrClosed
 	}
 	if _, exists := e.roots[absRoot]; exists {
+		e.mu.Unlock()
 		return nil
 	}
+	e.mu.Unlock()
+
+	// Walk and create the watcher outside the lock to avoid
+	// blocking the event pipeline on filesystem I/O.
 	idx, walkErr := walkRoot(absRoot)
 	if walkErr != nil {
 		return xerrors.Errorf("walk root: %w", walkErr)
 	}
-	wCtx, wCancel := context.WithCancel(ctx)
+	wCtx, wCancel := context.WithCancel(context.Background())
 	w, wErr := newFSWatcher(absRoot, e.logger)
 	if wErr != nil {
 		wCancel()
 		return xerrors.Errorf("create watcher: %w", wErr)
+	}
+
+	e.mu.Lock()
+	// Re-check after re-acquiring the lock: another goroutine
+	// may have added this root while we were walking.
+	if _, exists := e.roots[absRoot]; exists {
+		e.mu.Unlock()
+		wCancel()
+		_ = w.Close()
+		return nil
 	}
 	rs := &rootState{root: absRoot, index: idx, watcher: w, cancel: wCancel}
 	e.roots[absRoot] = rs
@@ -126,6 +151,7 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 	e.wg.Add(1)
 	go e.forwardEvents(wCtx, absRoot, w)
 	e.publishSnapshot()
+	e.mu.Unlock()
 	e.logger.Info(ctx, "added root to engine",
 		slog.F("root", absRoot),
 		slog.F("files", idx.Len()),
@@ -155,7 +181,7 @@ func (e *Engine) RemoveRoot(root string) error {
 // Search performs a fuzzy file search across all roots.
 func (e *Engine) Search(_ context.Context, query string, opts SearchOptions) ([]Result, error) {
 	if e.closed.Load() {
-		return nil, xerrors.New("engine is closed")
+		return nil, ErrClosed
 	}
 	snapPtr := e.snap.Load()
 	if snapPtr == nil || len(*snapPtr) == 0 {
@@ -172,7 +198,7 @@ func (e *Engine) Search(_ context.Context, query string, opts SearchOptions) ([]
 	if opts.MaxCandidates <= 0 {
 		opts.MaxCandidates = 10000
 	}
-	params := DefaultScoreParams()
+	params := defaultScoreParams()
 	var allCands []candidate
 	for _, rs := range roots {
 		allCands = append(allCands, searchSnapshot(plan, rs.snap, opts.MaxCandidates)...)
@@ -204,16 +230,19 @@ func (e *Engine) Rebuild(ctx context.Context, root string) error {
 	if err != nil {
 		return xerrors.Errorf("resolve root: %w", err)
 	}
+
+	// Walk outside the lock to avoid blocking the event
+	// pipeline on potentially slow filesystem I/O.
+	idx, walkErr := walkRoot(absRoot)
+	if walkErr != nil {
+		return xerrors.Errorf("rebuild walk: %w", walkErr)
+	}
+
 	e.mu.Lock()
 	rs, exists := e.roots[absRoot]
 	if !exists {
 		e.mu.Unlock()
 		return xerrors.Errorf("root %q not found", absRoot)
-	}
-	idx, walkErr := walkRoot(absRoot)
-	if walkErr != nil {
-		e.mu.Unlock()
-		return xerrors.Errorf("rebuild walk: %w", walkErr)
 	}
 	rs.index = idx
 	e.publishSnapshot()

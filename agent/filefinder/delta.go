@@ -32,7 +32,6 @@ type Index struct {
 // Snapshot is a frozen, read-only view of the index at a point in time.
 type Snapshot struct {
 	docs      []doc
-	count     int
 	deleted   map[uint32]bool
 	byGram    map[uint32][]uint32
 	byPrefix1 [256][]uint32
@@ -118,7 +117,6 @@ func (idx *Index) Snapshot() *Snapshot {
 	}
 	return &Snapshot{
 		docs:      idx.docs[:len(idx.docs):len(idx.docs)],
-		count:     len(idx.docs),
 		deleted:   del,
 		byGram:    copyPostings(idx.byGram),
 		byPrefix1: p1Copy,

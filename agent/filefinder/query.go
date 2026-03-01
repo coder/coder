@@ -89,8 +89,12 @@ func packTrigram(a, b, c byte) uint32 {
 	return uint32(toLowerASCII(a))<<16 | uint32(toLowerASCII(b))<<8 | uint32(toLowerASCII(c))
 }
 
+// searchSnapshot runs the full search pipeline against a single
+// root snapshot: it selects a strategy (prefix, trigram, or
+// fuzzy fallback) based on query length, retrieves candidate
+// doc IDs, and converts them into candidate structs.
 func searchSnapshot(plan *queryPlan, snap *Snapshot, limit int) []candidate {
-	if snap == nil || snap.count == 0 || len(plan.Normalized) == 0 {
+	if snap == nil || len(snap.docs) == 0 || len(plan.Normalized) == 0 {
 		return nil
 	}
 	var ids []uint32
@@ -178,7 +182,7 @@ func searchSubsequenceScan(plan *queryPlan, snap *Snapshot, maxCheck int) []uint
 	}
 	var ids []uint32
 	checked := 0
-	for id := 0; id < snap.count && checked < maxCheck; id++ {
+	for id := 0; id < len(snap.docs) && checked < maxCheck; id++ {
 		uid := uint32(id) //nolint:gosec // Snapshot count is bounded well below 2^32.
 		if snap.deleted[uid] {
 			continue
@@ -227,7 +231,7 @@ func intersectAll(lists [][]uint32) []uint32 {
 	return result
 }
 
-func mergeAndScore(cands []candidate, plan *queryPlan, params ScoreParams, topK int) []Result {
+func mergeAndScore(cands []candidate, plan *queryPlan, params scoreParams, topK int) []Result {
 	if topK <= 0 || len(cands) == 0 {
 		return nil
 	}
@@ -240,6 +244,10 @@ func mergeAndScore(cands []candidate, plan *queryPlan, params ScoreParams, topK 
 		if s <= 0 {
 			continue
 		}
+		// DirTokenHit is applied here rather than in scorePath because
+		// it depends on the query plan's directory tokens, which are
+		// split from the full query during planning. scorePath operates
+		// on raw query bytes without knowledge of token boundaries.
 		if len(plan.DirTokens) > 0 {
 			segments := extractSegments([]byte(c.Path))
 			for _, dt := range plan.DirTokens {

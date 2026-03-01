@@ -12,13 +12,17 @@ import (
 	"cdr.dev/slog/v3"
 )
 
+// FSEvent represents a filesystem change event.
 type FSEvent struct {
 	Op    FSEventOp
 	Path  string
 	IsDir bool
 }
+
+// FSEventOp represents the type of filesystem operation.
 type FSEventOp uint8
 
+// Filesystem operations reported by the watcher.
 const (
 	OpCreate FSEventOp = iota
 	OpRemove
@@ -104,6 +108,7 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 		if timer != nil {
 			timer.Stop()
 		}
+		timer = nil
 		timerC = nil
 	}
 	addToBatch := func(ev FSEvent) {
