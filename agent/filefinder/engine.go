@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,7 +29,6 @@ func DefaultSearchOptions() SearchOptions {
 	}
 }
 
-// rootSnapshot is the atomic snapshot for a single root.
 type rootSnapshot struct {
 	root string
 	snap *Snapshot
@@ -37,11 +36,9 @@ type rootSnapshot struct {
 
 // Engine is the main file finder. Safe for concurrent use.
 type Engine struct {
-	// snap holds []*rootSnapshot atomically for lock-free reads.
-	snap atomic.Pointer[[]*rootSnapshot]
-
+	snap    atomic.Pointer[[]*rootSnapshot]
 	logger  slog.Logger
-	mu      sync.Mutex // protects roots
+	mu      sync.Mutex
 	roots   map[string]*rootState
 	eventCh chan rootEvent
 	closeCh chan struct{}
@@ -61,44 +58,10 @@ type rootEvent struct {
 	events []FSEvent
 }
 
-// NewEngine creates a new Engine.
-func NewEngine(logger slog.Logger) *Engine {
-	e := &Engine{
-		logger:  logger,
-		roots:   make(map[string]*rootState),
-		eventCh: make(chan rootEvent, 256),
-		closeCh: make(chan struct{}),
-	}
-	// Store empty snapshot so Load never returns nil.
-	empty := make([]*rootSnapshot, 0)
-	e.snap.Store(&empty)
-	e.wg.Add(1)
-	go e.start()
-	return e
-}
-
-// AddRoot adds a directory root to the engine. It walks the
-// directory to build an index and starts a filesystem watcher.
-func (e *Engine) AddRoot(ctx context.Context, root string) error {
-	absRoot, err := filepath.Abs(root)
-	if err != nil {
-		return xerrors.Errorf("resolve root: %w", err)
-	}
-
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if e.closed.Load() {
-		return xerrors.New("engine is closed")
-	}
-
-	if _, exists := e.roots[absRoot]; exists {
-		return nil
-	}
-
-	// Build index by walking the directory.
+// walkRoot walks absRoot and returns a populated Index.
+func walkRoot(absRoot string) (*Index, error) {
 	idx := NewIndex()
-	walkErr := filepath.Walk(absRoot, func(path string, info os.FileInfo, walkErr error) error {
+	err := filepath.Walk(absRoot, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return nil //nolint:nilerr
 		}
@@ -123,11 +86,46 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 		idx.Add(relPath, flags)
 		return nil
 	})
+	return idx, err
+}
+
+// NewEngine creates a new Engine.
+func NewEngine(logger slog.Logger) *Engine {
+	e := &Engine{
+		logger:  logger,
+		roots:   make(map[string]*rootState),
+		eventCh: make(chan rootEvent, 256),
+		closeCh: make(chan struct{}),
+	}
+	empty := make([]*rootSnapshot, 0)
+	e.snap.Store(&empty)
+	e.wg.Add(1)
+	go e.start()
+	return e
+}
+
+// AddRoot adds a directory root to the engine.
+func (e *Engine) AddRoot(ctx context.Context, root string) error {
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return xerrors.Errorf("resolve root: %w", err)
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.closed.Load() {
+		return xerrors.New("engine is closed")
+	}
+	if _, exists := e.roots[absRoot]; exists {
+		return nil
+	}
+
+	idx, walkErr := walkRoot(absRoot)
 	if walkErr != nil {
 		return xerrors.Errorf("walk root: %w", walkErr)
 	}
 
-	// Start watcher.
 	wCtx, wCancel := context.WithCancel(ctx)
 	w, wErr := newFSWatcher(absRoot, e.logger)
 	if wErr != nil {
@@ -146,7 +144,6 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 	w.Start(wCtx)
 	e.wg.Add(1)
 	go e.forwardEvents(wCtx, absRoot, w)
-
 	e.publishSnapshot()
 
 	e.logger.Info(ctx, "added root",
@@ -185,13 +182,10 @@ func (e *Engine) Search(_ context.Context, query string, opts SearchOptions) ([]
 	}
 
 	snapPtr := e.snap.Load()
-	if snapPtr == nil {
+	if snapPtr == nil || len(*snapPtr) == 0 {
 		return nil, nil
 	}
 	roots := *snapPtr
-	if len(roots) == 0 {
-		return nil, nil
-	}
 
 	plan := newQueryPlan(query)
 	if len(plan.normalized) == 0 {
@@ -253,33 +247,7 @@ func (e *Engine) Rebuild(ctx context.Context, root string) error {
 		return xerrors.Errorf("root %q not found", absRoot)
 	}
 
-	// Build fresh index.
-	idx := NewIndex()
-	walkErr := filepath.Walk(absRoot, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return nil //nolint:nilerr
-		}
-		base := filepath.Base(path)
-		if _, skip := skipDirs[base]; skip && info.IsDir() {
-			return filepath.SkipDir
-		}
-		if path == absRoot {
-			return nil
-		}
-		relPath, relErr := filepath.Rel(absRoot, path)
-		if relErr != nil {
-			return nil //nolint:nilerr
-		}
-		relPath = filepath.ToSlash(relPath)
-		var flags uint16
-		if info.IsDir() {
-			flags = uint16(FlagDir)
-		} else if info.Mode()&os.ModeSymlink != 0 {
-			flags = uint16(FlagSymlink)
-		}
-		idx.Add(relPath, flags)
-		return nil
-	})
+	idx, walkErr := walkRoot(absRoot)
 	if walkErr != nil {
 		e.mu.Unlock()
 		return xerrors.Errorf("rebuild walk: %w", walkErr)
@@ -296,7 +264,6 @@ func (e *Engine) Rebuild(ctx context.Context, root string) error {
 	return nil
 }
 
-// start processes watcher events.
 func (e *Engine) start() {
 	defer e.wg.Done()
 	for {
@@ -312,7 +279,6 @@ func (e *Engine) start() {
 	}
 }
 
-// forwardEvents sends watcher events to the engine.
 func (e *Engine) forwardEvents(ctx context.Context, root string, w *fsWatcher) {
 	defer e.wg.Done()
 	for {
@@ -336,7 +302,6 @@ func (e *Engine) forwardEvents(ctx context.Context, root string, w *fsWatcher) {
 	}
 }
 
-// applyEvents processes a batch of FS events.
 func (e *Engine) applyEvents(re rootEvent) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -370,11 +335,8 @@ func (e *Engine) applyEvents(re rootEvent) {
 			if rs.index.Remove(relPath) {
 				changed = true
 			}
-			// Also remove children for directory removes.
 			if ev.IsDir || ev.Op == OpRename {
 				prefix := strings.ToLower(filepath.ToSlash(relPath)) + "/"
-				// Scan for children. This is O(n) but only
-				// happens on directory delete which is rare.
 				for path := range rs.index.byPath {
 					if strings.HasPrefix(path, prefix) {
 						rs.index.Remove(path)
@@ -384,7 +346,6 @@ func (e *Engine) applyEvents(re rootEvent) {
 			}
 
 		case OpModify:
-			// No structural change.
 		}
 	}
 
@@ -400,11 +361,11 @@ func (e *Engine) publishSnapshot() {
 	for _, rs := range e.roots {
 		roots = append(roots, &rootSnapshot{
 			root: rs.root,
-			snap: rs.index.Snapshot(), // O(1), no copy
+			snap: rs.index.Snapshot(),
 		})
 	}
-	sort.Slice(roots, func(i, j int) bool {
-		return roots[i].root < roots[j].root
+	slices.SortFunc(roots, func(a, b *rootSnapshot) int {
+		return strings.Compare(a.root, b.root)
 	})
 	e.snap.Store(&roots)
 }

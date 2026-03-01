@@ -244,31 +244,6 @@ func TestExtractSegments(t *testing.T) {
 	}
 }
 
-func TestHashBasename(t *testing.T) {
-	t.Parallel()
-
-	// Consistency: same input always returns same hash.
-	h1 := hashBasename([]byte("main.go"))
-	h2 := hashBasename([]byte("main.go"))
-	if h1 != h2 {
-		t.Errorf("hashBasename not consistent: %d != %d", h1, h2)
-	}
-
-	// Different inputs should (almost certainly) differ.
-	h3 := hashBasename([]byte("test.go"))
-	if h1 == h3 {
-		t.Errorf("hashBasename collision between 'main.go' and 'test.go'")
-	}
-
-	// Empty input should not panic.
-	h4 := hashBasename([]byte{})
-	if h4 == 0 {
-		// FNV-64a of empty input is the offset basis, not 0.
-		// This is just a smoke test.
-		t.Logf("hashBasename of empty = %d (offset basis)", h4)
-	}
-}
-
 func TestPrefix1(t *testing.T) {
 	t.Parallel()
 

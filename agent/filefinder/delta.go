@@ -1,51 +1,40 @@
 package filefinder
 
+import "strings"
+
+// FileFlag represents the type of filesystem entry.
+type FileFlag uint16
+
+const (
+	FlagFile    FileFlag = 0
+	FlagDir     FileFlag = 1
+	FlagSymlink FileFlag = 2
+)
+
 // doc is a single indexed document (file or directory).
-// Once appended to the docs slice, all fields are immutable.
 type doc struct {
-	path    string // normalized relative path (lowercase, forward slashes)
-	baseOff int    // offset of basename in path
-	baseLen int    // length of basename
-	depth   int    // number of '/' separators
-	flags   uint16 // FileFlag bits
+	path    string
+	baseOff int
+	baseLen int
+	depth   int
+	flags   uint16
 }
 
-// Index is an in-memory file index. The writer (engine) must
-// synchronize mutations externally. Readers use Snapshot() which
-// returns a frozen, race-free view.
-//
-// The docs slice is strictly append-only — entries are never
-// modified after creation. Deletions are tracked separately in
-// the deleted map so that Snapshot can cheaply capture a frozen
-// copy of just the (typically small) deletion set.
+// Index is an append-only in-memory file index with snapshot support.
 type Index struct {
-	docs []doc
-
-	// Trigram index: gram -> list of doc IDs (append-only).
-	byGram map[uint32][]uint32
-
-	// Prefix indexes for short queries.
-	byPrefix1 [256][]uint32       // first byte of basename (lowered)
-	byPrefix2 map[uint16][]uint32 // first two bytes of basename
-
-	// Path -> doc ID for O(1) lookup/delete. Maps normalized
-	// path to the LAST (most recent) doc ID for that path.
-	byPath map[string]uint32
-
-	// Deleted doc IDs. Tracked separately from docs so the docs
-	// slice stays truly immutable and can be shared with
-	// snapshots without races.
-	deleted map[uint32]bool
+	docs      []doc
+	byGram    map[uint32][]uint32
+	byPrefix1 [256][]uint32
+	byPrefix2 map[uint16][]uint32
+	byPath    map[string]uint32
+	deleted   map[uint32]bool
 }
 
-// Snapshot is a frozen, read-only view of the index at a point
-// in time. The docs slice is shared with the Index (safe because
-// docs are immutable). The deleted set and index maps are
-// shallow-copied at snapshot time.
+// Snapshot is a frozen, read-only view of the index at a point in time.
 type Snapshot struct {
-	docs      []doc              // shared backing array (immutable entries)
-	count     int                // number of docs visible to this snapshot
-	deleted   map[uint32]bool    // frozen copy of deleted set
+	docs      []doc
+	count     int
+	deleted   map[uint32]bool
 	byGram    map[uint32][]uint32
 	byPrefix1 [256][]uint32
 	byPrefix2 map[uint16][]uint32
@@ -61,52 +50,35 @@ func NewIndex() *Index {
 	}
 }
 
-// Add inserts a path into the index. If the path already exists
-// (exact match after normalization), the old entry is tombstoned
-// and a new one appended. Returns the doc ID.
-//
-// Not safe for concurrent use — caller must synchronize.
+// Add inserts a path into the index, tombstoning any previous entry. Returns the doc ID.
 func (idx *Index) Add(path string, flags uint16) uint32 {
-	// Normalize path.
 	norm := string(normalizePathBytes([]byte(path)))
 
-	// Tombstone any existing entry for this path.
 	if oldID, ok := idx.byPath[norm]; ok {
 		idx.deleted[oldID] = true
 	}
 
 	id := uint32(len(idx.docs))
-
 	baseOff, baseLen := extractBasename([]byte(norm))
-	depth := 0
-	for _, c := range norm {
-		if c == '/' {
-			depth++
-		}
-	}
 
 	idx.docs = append(idx.docs, doc{
 		path:    norm,
 		baseOff: baseOff,
 		baseLen: baseLen,
-		depth:   depth,
+		depth:   strings.Count(norm, "/"),
 		flags:   flags,
 	})
 
-	// Update path map.
 	idx.byPath[norm] = id
 
-	// Trigram index.
 	for _, g := range extractTrigrams([]byte(norm)) {
 		idx.byGram[g] = append(idx.byGram[g], id)
 	}
 
-	// Prefix indexes from basename.
 	if baseLen > 0 {
 		basename := []byte(norm[baseOff : baseOff+baseLen])
 		p1 := prefix1(basename)
 		idx.byPrefix1[p1] = append(idx.byPrefix1[p1], id)
-
 		p2 := prefix2(basename)
 		idx.byPrefix2[p2] = append(idx.byPrefix2[p2], id)
 	}
@@ -114,10 +86,7 @@ func (idx *Index) Add(path string, flags uint16) uint32 {
 	return id
 }
 
-// Remove marks the entry for path as deleted. Returns true if
-// found.
-//
-// Not safe for concurrent use — caller must synchronize.
+// Remove marks the entry for path as deleted. Returns true if found.
 func (idx *Index) Remove(path string) bool {
 	norm := string(normalizePathBytes([]byte(path)))
 	id, ok := idx.byPath[norm]
@@ -130,8 +99,6 @@ func (idx *Index) Remove(path string) bool {
 }
 
 // Has reports whether path exists (not deleted) in the index.
-//
-// Not safe for concurrent use — caller must synchronize.
 func (idx *Index) Has(path string) bool {
 	norm := string(normalizePathBytes([]byte(path)))
 	_, ok := idx.byPath[norm]
@@ -139,35 +106,17 @@ func (idx *Index) Has(path string) bool {
 }
 
 // Len returns the number of live (non-deleted) documents.
-//
-// Not safe for concurrent use — caller must synchronize.
 func (idx *Index) Len() int {
 	return len(idx.byPath)
 }
 
-// Snapshot returns a frozen read-only view of the index. The
-// docs slice is shared (entries are immutable). The deleted set
-// is shallow-copied (typically small). The trigram and prefix
-// maps are also shared — this is safe because the search path
-// only reads map values that existed at snapshot time (values
-// are []uint32 slices that may grow after the snapshot, but Go
-// slice headers captured here won't see appended elements).
-//
-// Not safe for concurrent use — caller must synchronize.
+// Snapshot returns a frozen read-only view of the index.
 func (idx *Index) Snapshot() *Snapshot {
-	// Copy the deleted set. This is the only allocation.
-	// Typically very small (only files removed since last
-	// rebuild).
 	del := make(map[uint32]bool, len(idx.deleted))
 	for id := range idx.deleted {
 		del[id] = true
 	}
 
-	// Copy the index maps by capturing current slice headers.
-	// The backing arrays are shared but reads are safe: a
-	// snapshot's copy of a []uint32 slice has a fixed length,
-	// so even if the Index appends more elements later, the
-	// snapshot won't see them (Go slice semantics).
 	gramCopy := make(map[uint32][]uint32, len(idx.byGram))
 	for g, ids := range idx.byGram {
 		gramCopy[g] = ids[:len(ids):len(ids)]
