@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-// candidate is a raw search hit before scoring.
 type candidate struct {
 	docID   uint32
 	path    string
@@ -23,7 +22,6 @@ type Result struct {
 	IsDir bool
 }
 
-// queryPlan holds a pre-processed query for reuse across multiple snapshot searches.
 type queryPlan struct {
 	original   string
 	normalized string
@@ -35,34 +33,25 @@ type queryPlan struct {
 	dirTokens  [][]byte
 }
 
-// newQueryPlan normalizes the query string and extracts tokens, trigrams, and other metadata.
 func newQueryPlan(q string) *queryPlan {
 	norm := normalizeQuery(q)
-	p := &queryPlan{
-		original:   q,
-		normalized: norm,
-	}
-
+	p := &queryPlan{original: q, normalized: norm}
 	if len(norm) == 0 {
 		p.isShort = true
 		return p
 	}
-
 	raw := strings.ReplaceAll(norm, "/", " ")
 	parts := strings.Fields(raw)
 	p.hasSlash = strings.ContainsRune(norm, '/')
-
 	for _, part := range parts {
 		p.tokens = append(p.tokens, []byte(part))
 	}
-
 	if len(p.tokens) > 0 {
 		p.basenameQ = p.tokens[len(p.tokens)-1]
 		if len(p.tokens) > 1 {
 			p.dirTokens = p.tokens[:len(p.tokens)-1]
 		}
 	}
-
 	p.isShort = true
 	for _, tok := range p.tokens {
 		if len(tok) >= 3 {
@@ -70,15 +59,11 @@ func newQueryPlan(q string) *queryPlan {
 			break
 		}
 	}
-
 	if !p.isShort {
 		p.trigrams = extractQueryTrigrams(p.tokens)
 	}
-
 	return p
 }
-
-// extractQueryTrigrams extracts unique trigrams from query tokens.
 func extractQueryTrigrams(tokens [][]byte) []uint32 {
 	seen := make(map[uint32]struct{})
 	for _, tok := range tokens {
@@ -98,20 +83,13 @@ func extractQueryTrigrams(tokens [][]byte) []uint32 {
 	}
 	return result
 }
-
-// packTrigram packs three bytes into a uint32 trigram key, lowered for case-insensitive matching.
 func packTrigram(a, b, c byte) uint32 {
-	return uint32(toLowerASCII(a))<<16 |
-		uint32(toLowerASCII(b))<<8 |
-		uint32(toLowerASCII(c))
+	return uint32(toLowerASCII(a))<<16 | uint32(toLowerASCII(b))<<8 | uint32(toLowerASCII(c))
 }
-
-// searchSnapshot searches a frozen snapshot for candidates matching the query plan.
 func searchSnapshot(plan *queryPlan, snap *Snapshot, limit int) []candidate {
 	if snap == nil || snap.count == 0 || len(plan.normalized) == 0 {
 		return nil
 	}
-
 	var ids []uint32
 	if plan.isShort {
 		ids = searchShort(plan, snap)
@@ -121,11 +99,9 @@ func searchSnapshot(plan *queryPlan, snap *Snapshot, limit int) []candidate {
 			ids = searchFuzzyFallback(plan, snap)
 		}
 	}
-
 	if len(ids) == 0 {
 		return nil
 	}
-
 	cands := make([]candidate, 0, min(len(ids), limit))
 	for _, id := range ids {
 		if snap.deleted[id] || int(id) >= len(snap.docs) {
@@ -142,7 +118,6 @@ func searchSnapshot(plan *queryPlan, snap *Snapshot, limit int) []candidate {
 	}
 	return cands
 }
-
 func searchShort(plan *queryPlan, snap *Snapshot) []uint32 {
 	if len(plan.basenameQ) == 0 {
 		return nil
@@ -154,7 +129,6 @@ func searchShort(plan *queryPlan, snap *Snapshot) []uint32 {
 	}
 	return snap.byPrefix1[prefix1(plan.basenameQ)]
 }
-
 func searchTrigrams(plan *queryPlan, snap *Snapshot) []uint32 {
 	if len(plan.trigrams) == 0 {
 		return nil
@@ -169,7 +143,6 @@ func searchTrigrams(plan *queryPlan, snap *Snapshot) []uint32 {
 	}
 	return intersectAll(lists)
 }
-
 func searchFuzzyFallback(plan *queryPlan, snap *Snapshot) []uint32 {
 	if len(plan.basenameQ) == 0 {
 		return nil
@@ -192,7 +165,6 @@ func searchFuzzyFallback(plan *queryPlan, snap *Snapshot) []uint32 {
 	}
 	return ids
 }
-
 func searchSubsequenceScan(plan *queryPlan, snap *Snapshot, maxCheck int) []uint32 {
 	if len(plan.basenameQ) == 0 {
 		return nil
@@ -211,7 +183,6 @@ func searchSubsequenceScan(plan *queryPlan, snap *Snapshot, maxCheck int) []uint
 	}
 	return ids
 }
-
 func intersectSorted(a, b []uint32) []uint32 {
 	if len(a) == 0 || len(b) == 0 {
 		return nil
@@ -232,7 +203,6 @@ func intersectSorted(a, b []uint32) []uint32 {
 	}
 	return result
 }
-
 func intersectAll(lists [][]uint32) []uint32 {
 	if len(lists) == 0 {
 		return nil
@@ -247,17 +217,13 @@ func intersectAll(lists [][]uint32) []uint32 {
 	}
 	return result
 }
-
-// mergeAndScore scores candidates and returns the top-K results sorted by score descending.
 func mergeAndScore(cands []candidate, plan *queryPlan, params ScoreParams, topK int) []Result {
 	if topK <= 0 || len(cands) == 0 {
 		return nil
 	}
-
 	query := []byte(plan.normalized)
 	h := &resultHeap{}
 	heap.Init(h)
-
 	for i := range cands {
 		c := &cands[i]
 		s := scorePath([]byte(c.path), c.baseOff, c.baseLen, c.depth, query, plan.tokens, params)
@@ -283,7 +249,6 @@ func mergeAndScore(cands []candidate, plan *queryPlan, params ScoreParams, topK 
 			heap.Fix(h, 0)
 		}
 	}
-
 	n := h.Len()
 	results := make([]Result, n)
 	for i := n - 1; i >= 0; i-- {

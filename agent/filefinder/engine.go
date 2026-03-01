@@ -16,17 +16,12 @@ import (
 
 // SearchOptions controls search behavior.
 type SearchOptions struct {
-	Limit         int  // max results (default 100)
-	IncludeHidden bool // include hidden files
-	MaxCandidates int  // max candidates before scoring (default 10000)
+	Limit         int
+	MaxCandidates int
 }
 
-// DefaultSearchOptions returns sensible defaults.
 func DefaultSearchOptions() SearchOptions {
-	return SearchOptions{
-		Limit:         100,
-		MaxCandidates: 10000,
-	}
+	return SearchOptions{Limit: 100, MaxCandidates: 10000}
 }
 
 type rootSnapshot struct {
@@ -45,20 +40,17 @@ type Engine struct {
 	closed  atomic.Bool
 	wg      sync.WaitGroup
 }
-
 type rootState struct {
 	root    string
 	index   *Index
 	watcher *fsWatcher
 	cancel  context.CancelFunc
 }
-
 type rootEvent struct {
 	root   string
 	events []FSEvent
 }
 
-// walkRoot walks absRoot and returns a populated Index.
 func walkRoot(absRoot string) (*Index, error) {
 	idx := NewIndex()
 	err := filepath.Walk(absRoot, func(path string, info os.FileInfo, walkErr error) error {
@@ -110,42 +102,30 @@ func (e *Engine) AddRoot(ctx context.Context, root string) error {
 	if err != nil {
 		return xerrors.Errorf("resolve root: %w", err)
 	}
-
 	e.mu.Lock()
 	defer e.mu.Unlock()
-
 	if e.closed.Load() {
 		return xerrors.New("engine is closed")
 	}
 	if _, exists := e.roots[absRoot]; exists {
 		return nil
 	}
-
 	idx, walkErr := walkRoot(absRoot)
 	if walkErr != nil {
 		return xerrors.Errorf("walk root: %w", walkErr)
 	}
-
 	wCtx, wCancel := context.WithCancel(ctx)
 	w, wErr := newFSWatcher(absRoot, e.logger)
 	if wErr != nil {
 		wCancel()
 		return xerrors.Errorf("create watcher: %w", wErr)
 	}
-
-	rs := &rootState{
-		root:    absRoot,
-		index:   idx,
-		watcher: w,
-		cancel:  wCancel,
-	}
+	rs := &rootState{root: absRoot, index: idx, watcher: w, cancel: wCancel}
 	e.roots[absRoot] = rs
-
 	w.Start(wCtx)
 	e.wg.Add(1)
 	go e.forwardEvents(wCtx, absRoot, w)
 	e.publishSnapshot()
-
 	e.logger.Info(ctx, "added root",
 		slog.F("root", absRoot),
 		slog.F("files", idx.Len()),
@@ -159,15 +139,12 @@ func (e *Engine) RemoveRoot(root string) error {
 	if err != nil {
 		return xerrors.Errorf("resolve root: %w", err)
 	}
-
 	e.mu.Lock()
 	defer e.mu.Unlock()
-
 	rs, exists := e.roots[absRoot]
 	if !exists {
 		return xerrors.Errorf("root %q not found", absRoot)
 	}
-
 	rs.cancel()
 	_ = rs.watcher.Close()
 	delete(e.roots, absRoot)
@@ -180,36 +157,27 @@ func (e *Engine) Search(_ context.Context, query string, opts SearchOptions) ([]
 	if e.closed.Load() {
 		return nil, xerrors.New("engine is closed")
 	}
-
 	snapPtr := e.snap.Load()
 	if snapPtr == nil || len(*snapPtr) == 0 {
 		return nil, nil
 	}
 	roots := *snapPtr
-
 	plan := newQueryPlan(query)
 	if len(plan.normalized) == 0 {
 		return nil, nil
 	}
-
-	limit := opts.Limit
-	if limit <= 0 {
-		limit = 100
+	if opts.Limit <= 0 {
+		opts.Limit = 100
 	}
-	maxCands := opts.MaxCandidates
-	if maxCands <= 0 {
-		maxCands = 10000
+	if opts.MaxCandidates <= 0 {
+		opts.MaxCandidates = 10000
 	}
-
 	params := DefaultScoreParams()
-
 	var allCands []candidate
 	for _, rs := range roots {
-		cands := searchSnapshot(plan, rs.snap, maxCands)
-		allCands = append(allCands, cands...)
+		allCands = append(allCands, searchSnapshot(plan, rs.snap, opts.MaxCandidates)...)
 	}
-
-	results := mergeAndScore(allCands, plan, params, limit)
+	results := mergeAndScore(allCands, plan, params, opts.Limit)
 	return results, nil
 }
 
@@ -218,9 +186,7 @@ func (e *Engine) Close() error {
 	if e.closed.Swap(true) {
 		return nil
 	}
-
 	close(e.closeCh)
-
 	e.mu.Lock()
 	for _, rs := range e.roots {
 		rs.cancel()
@@ -228,7 +194,6 @@ func (e *Engine) Close() error {
 	}
 	e.roots = make(map[string]*rootState)
 	e.mu.Unlock()
-
 	e.wg.Wait()
 	return nil
 }
@@ -239,31 +204,26 @@ func (e *Engine) Rebuild(ctx context.Context, root string) error {
 	if err != nil {
 		return xerrors.Errorf("resolve root: %w", err)
 	}
-
 	e.mu.Lock()
 	rs, exists := e.roots[absRoot]
 	if !exists {
 		e.mu.Unlock()
 		return xerrors.Errorf("root %q not found", absRoot)
 	}
-
 	idx, walkErr := walkRoot(absRoot)
 	if walkErr != nil {
 		e.mu.Unlock()
 		return xerrors.Errorf("rebuild walk: %w", walkErr)
 	}
-
 	rs.index = idx
 	e.publishSnapshot()
 	e.mu.Unlock()
-
 	e.logger.Info(ctx, "rebuilt root",
 		slog.F("root", absRoot),
 		slog.F("files", idx.Len()),
 	)
 	return nil
 }
-
 func (e *Engine) start() {
 	defer e.wg.Done()
 	for {
@@ -278,7 +238,6 @@ func (e *Engine) start() {
 		}
 	}
 }
-
 func (e *Engine) forwardEvents(ctx context.Context, root string, w *fsWatcher) {
 	defer e.wg.Done()
 	for {
@@ -301,16 +260,13 @@ func (e *Engine) forwardEvents(ctx context.Context, root string, w *fsWatcher) {
 		}
 	}
 }
-
 func (e *Engine) applyEvents(re rootEvent) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-
 	rs, exists := e.roots[re.root]
 	if !exists {
 		return
 	}
-
 	changed := false
 	for _, ev := range re.events {
 		relPath, err := filepath.Rel(rs.root, ev.Path)
@@ -318,7 +274,6 @@ func (e *Engine) applyEvents(re rootEvent) {
 			continue
 		}
 		relPath = filepath.ToSlash(relPath)
-
 		switch ev.Op {
 		case OpCreate:
 			if rs.index.Has(relPath) {
@@ -330,7 +285,6 @@ func (e *Engine) applyEvents(re rootEvent) {
 			}
 			rs.index.Add(relPath, flags)
 			changed = true
-
 		case OpRemove, OpRename:
 			if rs.index.Remove(relPath) {
 				changed = true
@@ -344,11 +298,9 @@ func (e *Engine) applyEvents(re rootEvent) {
 					}
 				}
 			}
-
 		case OpModify:
 		}
 	}
-
 	if changed {
 		e.publishSnapshot()
 	}

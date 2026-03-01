@@ -17,7 +17,6 @@ type FSEvent struct {
 	Path  string
 	IsDir bool
 }
-
 type FSEventOp uint8
 
 const (
@@ -55,7 +54,6 @@ func newFSWatcher(root string, logger slog.Logger) (*fsWatcher, error) {
 		done:   make(chan struct{}),
 	}, nil
 }
-
 func (fw *fsWatcher) Start(ctx context.Context) {
 	initEvents := fw.addRecursive(fw.root)
 	if len(initEvents) > 0 {
@@ -65,15 +63,10 @@ func (fw *fsWatcher) Start(ctx context.Context) {
 			return
 		}
 	}
-
 	fw.logger.Debug(ctx, "fs watcher started", slog.F("root", fw.root))
 	go fw.loop(ctx)
 }
-
-func (fw *fsWatcher) Events() <-chan []FSEvent {
-	return fw.events
-}
-
+func (fw *fsWatcher) Events() <-chan []FSEvent { return fw.events }
 func (fw *fsWatcher) Close() error {
 	fw.mu.Lock()
 	if fw.closed {
@@ -82,24 +75,19 @@ func (fw *fsWatcher) Close() error {
 	}
 	fw.closed = true
 	fw.mu.Unlock()
-
 	err := fw.w.Close()
 	<-fw.done
 	return err
 }
-
 func (fw *fsWatcher) loop(ctx context.Context) {
 	defer close(fw.done)
-
 	const batchWindow = 50 * time.Millisecond
-
 	var (
 		batch  []FSEvent
 		seen   = make(map[string]struct{})
 		timer  *time.Timer
 		timerC <-chan time.Time
 	)
-
 	flush := func() {
 		if len(batch) == 0 {
 			return
@@ -116,7 +104,6 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 		}
 		timerC = nil
 	}
-
 	addToBatch := func(ev FSEvent) {
 		if _, dup := seen[ev.Path]; dup {
 			return
@@ -128,13 +115,11 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 			timerC = timer.C
 		}
 	}
-
 	for {
 		select {
 		case <-ctx.Done():
 			flush()
 			return
-
 		case ev, ok := <-fw.w.Events:
 			if !ok {
 				flush()
@@ -150,20 +135,17 @@ func (fw *fsWatcher) loop(ctx context.Context) {
 				}
 			}
 			addToBatch(*fsev)
-
 		case err, ok := <-fw.w.Errors:
 			if !ok {
 				flush()
 				return
 			}
 			fw.logger.Warn(ctx, "fsnotify error", slog.Error(err))
-
 		case <-timerC:
 			flush()
 		}
 	}
 }
-
 func (fw *fsWatcher) addRecursive(dir string) []FSEvent {
 	var events []FSEvent
 	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -189,7 +171,6 @@ func (fw *fsWatcher) addRecursive(dir string) []FSEvent {
 	})
 	return events
 }
-
 func translateEvent(ev fsnotify.Event) *FSEvent {
 	var op FSEventOp
 	switch {
@@ -204,7 +185,6 @@ func translateEvent(ev fsnotify.Event) *FSEvent {
 	default:
 		return nil
 	}
-
 	isDir := false
 	if op == OpCreate || op == OpModify {
 		fi, err := os.Lstat(ev.Name)
@@ -212,12 +192,10 @@ func translateEvent(ev fsnotify.Event) *FSEvent {
 			isDir = fi.IsDir()
 		}
 	}
-
 	if isDir {
 		if _, skip := skipDirs[filepath.Base(ev.Name)]; skip {
 			return nil
 		}
 	}
-
 	return &FSEvent{Op: op, Path: ev.Name, IsDir: isDir}
 }
