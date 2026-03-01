@@ -10,7 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"net/url"
+	neturl "net/url"
 	"strconv"
 	"time"
 
@@ -629,7 +629,8 @@ func (c *agentConn) FileSearch(ctx context.Context, query string) (FileSearchRes
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf("/api/v0/file-search?query=%s", url.QueryEscape(query)), nil)
+	qv := neturl.Values{"query": {query}}
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/file-search?"+qv.Encode(), nil)
 	if err != nil {
 		return FileSearchResponse{}, xerrors.Errorf("do request: %w", err)
 	}
