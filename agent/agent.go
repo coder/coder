@@ -377,7 +377,7 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem)
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer)
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),

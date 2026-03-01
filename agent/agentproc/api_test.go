@@ -88,11 +88,18 @@ func postSignal(t *testing.T, handler http.Handler, id string, req workspacesdk.
 // execer, returning the handler and API.
 func newTestAPI(t *testing.T) http.Handler {
 	t.Helper()
+	return newTestAPIWithUpdateEnv(t, nil)
+}
+
+// newTestAPIWithUpdateEnv creates a new API with an optional
+// updateEnv hook for testing environment injection.
+func newTestAPIWithUpdateEnv(t *testing.T, updateEnv func([]string) ([]string, error)) http.Handler {
+	t.Helper()
 
 	logger := slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
 	}).Leveled(slog.LevelDebug)
-	api := agentproc.NewAPI(logger, agentexec.DefaultExecer)
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, updateEnv)
 	t.Cleanup(func() {
 		_ = api.Close()
 	})
@@ -256,6 +263,54 @@ func TestStartProcess(t *testing.T) {
 		require.NotNil(t, resp.ExitCode)
 		require.Equal(t, 0, *resp.ExitCode)
 		require.Contains(t, strings.TrimSpace(resp.Output), envVal)
+	})
+
+	t.Run("UpdateEnvHook", func(t *testing.T) {
+		t.Parallel()
+
+		envKey := fmt.Sprintf("TEST_UPDATE_ENV_%d", time.Now().UnixNano())
+		envVal := "injected_by_hook"
+
+		handler := newTestAPIWithUpdateEnv(t, func(current []string) ([]string, error) {
+			return append(current, fmt.Sprintf("%s=%s", envKey, envVal)), nil
+		})
+
+		// The process should see the variable even though it
+		// was not passed in req.Env.
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command: fmt.Sprintf("printenv %s", envKey),
+		})
+
+		resp := waitForExit(t, handler, id)
+		require.NotNil(t, resp.ExitCode)
+		require.Equal(t, 0, *resp.ExitCode)
+		require.Contains(t, strings.TrimSpace(resp.Output), envVal)
+	})
+
+	t.Run("UpdateEnvHookOverriddenByReqEnv", func(t *testing.T) {
+		t.Parallel()
+
+		envKey := fmt.Sprintf("TEST_OVERRIDE_%d", time.Now().UnixNano())
+		hookVal := "from_hook"
+		reqVal := "from_request"
+
+		handler := newTestAPIWithUpdateEnv(t, func(current []string) ([]string, error) {
+			return append(current, fmt.Sprintf("%s=%s", envKey, hookVal)), nil
+		})
+
+		// req.Env should take precedence over the hook.
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command: fmt.Sprintf("printenv %s", envKey),
+			Env:     map[string]string{envKey: reqVal},
+		})
+
+		resp := waitForExit(t, handler, id)
+		require.NotNil(t, resp.ExitCode)
+		require.Equal(t, 0, *resp.ExitCode)
+		// When duplicate env vars exist, shells use the last
+		// value. Since req.Env is appended after the hook,
+		// the request value wins.
+		require.Contains(t, strings.TrimSpace(resp.Output), reqVal)
 	})
 }
 

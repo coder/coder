@@ -65,21 +65,23 @@ func (p *process) output() (string, *workspacesdk.ProcessTruncation) {
 
 // manager tracks processes spawned by the agent.
 type manager struct {
-	mu     sync.Mutex
-	logger slog.Logger
-	execer agentexec.Execer
-	clock  quartz.Clock
-	procs  map[string]*process
-	closed bool
+	mu        sync.Mutex
+	logger    slog.Logger
+	execer    agentexec.Execer
+	clock     quartz.Clock
+	procs     map[string]*process
+	closed    bool
+	updateEnv func(current []string) (updated []string, err error)
 }
 
 // newManager creates a new process manager.
-func newManager(logger slog.Logger, execer agentexec.Execer) *manager {
+func newManager(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error)) *manager {
 	return &manager{
-		logger: logger,
-		execer: execer,
-		clock:  quartz.NewReal(),
-		procs:  make(map[string]*process),
+		logger:    logger,
+		execer:    execer,
+		clock:     quartz.NewReal(),
+		procs:     make(map[string]*process),
+		updateEnv: updateEnv,
 	}
 }
 
@@ -116,11 +118,29 @@ func (m *manager) start(req workspacesdk.StartProcessRequest) (*process, error) 
 	cmd.Stdout = buf
 	cmd.Stderr = buf
 
-	if len(req.Env) > 0 {
-		cmd.Env = os.Environ()
-		for k, v := range req.Env {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+	// Build the process environment. If the manager has an
+	// updateEnv hook (provided by the agent), use it to get the
+	// full agent environment including GIT_ASKPASS, CODER_* vars,
+	// etc. Otherwise fall back to the current process env.
+	baseEnv := os.Environ()
+	if m.updateEnv != nil {
+		updated, err := m.updateEnv(baseEnv)
+		if err != nil {
+			m.logger.Warn(
+				context.Background(),
+				"failed to update command environment, falling back to os env",
+				slog.Error(err),
+			)
+		} else {
+			baseEnv = updated
 		}
+	}
+
+	// Always set cmd.Env explicitly so that req.Env overrides
+	// are applied on top of the full agent environment.
+	cmd.Env = baseEnv
+	for k, v := range req.Env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	if err := cmd.Start(); err != nil {
