@@ -29,6 +29,7 @@ func (api *API) Routes() http.Handler {
 
 	r.Post("/list-directory", api.HandleLS)
 	r.Get("/read-file", api.HandleReadFile)
+	r.Get("/read-file-lines", api.HandleReadFileLines)
 	r.Post("/write-file", api.HandleWriteFile)
 	r.Post("/edit-files", api.HandleEditFiles)
 
