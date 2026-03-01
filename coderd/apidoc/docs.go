@@ -10179,6 +10179,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/file-search": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Search files in workspace agent",
+                "operationId": "search-files-in-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query",
+                        "name": "query",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/workspacesdk.FileSearchResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/listening-ports": {
             "get": {
                 "security": [
@@ -23360,6 +23402,28 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "hostname_suffix": {
+                    "type": "string"
+                }
+            }
+        },
+        "workspacesdk.FileSearchResponse": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/workspacesdk.FileSearchResult"
+                    }
+                }
+            }
+        },
+        "workspacesdk.FileSearchResult": {
+            "type": "object",
+            "properties": {
+                "is_dir": {
+                    "type": "boolean"
+                },
+                "path": {
                     "type": "string"
                 }
             }

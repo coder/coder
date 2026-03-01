@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/afero"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/agent/filefinder"
 )
 

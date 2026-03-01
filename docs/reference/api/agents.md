@@ -1066,6 +1066,49 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/coo
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Search files in workspace agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/file-search?query=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/file-search`
+
+### Parameters
+
+| Name             | In    | Type         | Required | Description        |
+|------------------|-------|--------------|----------|--------------------|
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID |
+| `query`          | query | string       | true     | Search query       |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "results": [
+    {
+      "is_dir": true,
+      "path": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [workspacesdk.FileSearchResponse](schemas.md#workspacesdkfilesearchresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get listening ports for workspace agent
 
 ### Code samples

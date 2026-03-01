@@ -14648,6 +14648,41 @@ None
 | `disable_direct_connections` | boolean                            | false    |              |             |
 | `hostname_suffix`            | string                             | false    |              |             |
 
+## workspacesdk.FileSearchResponse
+
+```json
+{
+  "results": [
+    {
+      "is_dir": true,
+      "path": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                    | Required | Restrictions | Description |
+|-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
+| `results` | array of [workspacesdk.FileSearchResult](#workspacesdkfilesearchresult) | false    |              |             |
+
+## workspacesdk.FileSearchResult
+
+```json
+{
+  "is_dir": true,
+  "path": "string"
+}
+```
+
+### Properties
+
+| Name     | Type    | Required | Restrictions | Description |
+|----------|---------|----------|--------------|-------------|
+| `is_dir` | boolean | false    |              |             |
+| `path`   | string  | false    |              |             |
+
 ## wsproxysdk.CryptoKeysResponse
 
 ```json

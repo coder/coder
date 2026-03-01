@@ -1,6 +1,5 @@
 import {
 	$applyNodeReplacement,
-	TextNode,
 	type DOMConversionMap,
 	type DOMExportOutput,
 	type EditorConfig,
@@ -8,9 +7,10 @@ import {
 	type NodeKey,
 	type SerializedTextNode,
 	type Spread,
+	TextNode,
 } from "lexical";
 
-export type SerializedFileMentionNode = Spread<
+type SerializedFileMentionNode = Spread<
 	{
 		filePath: string;
 		fileName: string;

@@ -1,7 +1,6 @@
 package agentfiles
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/coder/coder/v2/agent/filefinder"
@@ -49,8 +48,7 @@ func (api *API) HandleFileSearch(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	rw.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(rw).Encode(fileSearchResponse{Results: resp})
+	httpapi.Write(ctx, rw, http.StatusOK, fileSearchResponse{Results: resp})
 }
 
 type fileSearchResponse struct {

@@ -1,14 +1,14 @@
-import { createPortal } from "react-dom";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
 	LexicalTypeaheadMenuPlugin,
 	MenuOption,
 	useBasicTypeaheadTriggerMatch,
 } from "@lexical/react/LexicalTypeaheadMenuPlugin";
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
+import { API } from "api/api";
 import type { TextNode } from "lexical";
 import { FileIcon, FolderIcon, Loader2Icon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { API } from "api/api";
+import { createPortal } from "react-dom";
 import { $createFileMentionNode } from "./FileMentionNode";
 
 class FileSearchOption extends MenuOption {

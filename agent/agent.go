@@ -40,13 +40,13 @@ import (
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
-	"github.com/coder/coder/v2/agent/filefinder"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
+	"github.com/coder/coder/v2/agent/filefinder"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
@@ -304,9 +304,9 @@ type agent struct {
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
 
-	filesAPI        *agentfiles.API
+	filesAPI         *agentfiles.API
 	fileFinderEngine *filefinder.Engine
-	processAPI      *agentproc.API
+	processAPI       *agentproc.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -2045,16 +2045,17 @@ func (a *agent) Close() error {
 	}
 
 	if err := a.processAPI.Close(); err != nil {
-			a.logger.Error(a.hardCtx, "process API close", slog.Error(err))
-		}
+		a.logger.Error(a.hardCtx, "process API close", slog.Error(err))
+	}
 
-		if a.fileFinderEngine != nil {
-			if err := a.fileFinderEngine.Close(); err != nil {
-				a.logger.Error(a.hardCtx, "file finder engine close", slog.Error(err))
-			}
+	if a.fileFinderEngine != nil {
+		if err := a.fileFinderEngine.Close(); err != nil {
+			a.logger.Error(a.hardCtx, "file finder engine close", slog.Error(err))
 		}
+	}
 
-		if a.boundaryLogProxy != nil {		err = a.boundaryLogProxy.Close()
+	if a.boundaryLogProxy != nil {
+		err = a.boundaryLogProxy.Close()
 		if err != nil {
 			a.logger.Warn(context.Background(), "close boundary log proxy", slog.Error(err))
 		}
