@@ -44,6 +44,7 @@ interface AgentChatInputProps {
 	placeholder?: string;
 	isDisabled: boolean;
 	isLoading: boolean;
+	agentId?: string;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	// Initial text to seed the editor with.
@@ -216,6 +217,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		placeholder = "Type a message...",
 		isDisabled,
 		isLoading,
+		agentId,
 		inputRef,
 		initialValue,
 		onContentChange,
@@ -390,6 +392,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					)}
 					<ChatMessageInput
 						ref={setRef}
+						agentId={agentId}
 						aria-label="Chat message"
 						className="min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}

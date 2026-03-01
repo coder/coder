@@ -169,6 +169,21 @@ func (mr *MockAgentConnMockRecorder) EditFiles(ctx, edits any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditFiles", reflect.TypeOf((*MockAgentConn)(nil).EditFiles), ctx, edits)
 }
 
+// FileSearch mocks base method.
+func (m *MockAgentConn) FileSearch(ctx context.Context, query string) (workspacesdk.FileSearchResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FileSearch", ctx, query)
+	ret0, _ := ret[0].(workspacesdk.FileSearchResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FileSearch indicates an expected call of FileSearch.
+func (mr *MockAgentConnMockRecorder) FileSearch(ctx, query any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FileSearch", reflect.TypeOf((*MockAgentConn)(nil).FileSearch), ctx, query)
+}
+
 // GetPeerDiagnostics mocks base method.
 func (m *MockAgentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
 	m.ctrl.T.Helper()

@@ -31,6 +31,8 @@ import {
 	useRef,
 } from "react";
 import { cn } from "utils/cn";
+import { $isFileMentionNode, FileMentionNode } from "./FileMentionNode";
+import { FileMentionPlugin } from "./FileMentionPlugin";
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
@@ -207,6 +209,7 @@ export interface ChatMessageInputRef {
 	clear: () => void;
 	focus: () => void;
 	getValue: () => string;
+	getFileMentions: () => Array<{ path: string; fileName: string }>;
 }
 
 interface ChatMessageInputProps
@@ -219,6 +222,7 @@ interface ChatMessageInputProps
 	disabled?: boolean;
 	autoFocus?: boolean;
 	"aria-label"?: string;
+	agentId?: string;
 }
 
 const ChatMessageInput = memo(
@@ -232,6 +236,7 @@ const ChatMessageInput = memo(
 		disabled,
 		autoFocus,
 		"aria-label": ariaLabel,
+		agentId,
 		ref,
 		...props
 	}: ChatMessageInputProps & { ref?: React.Ref<ChatMessageInputRef> }) => {
@@ -242,7 +247,7 @@ const ChatMessageInput = memo(
 					paragraph: "m-0",
 				},
 				onError: (error: Error) => console.error("Lexical error:", error),
-				nodes: [],
+				nodes: [FileMentionNode],
 			}),
 			[],
 		);
@@ -341,6 +346,24 @@ const ChatMessageInput = memo(
 					});
 					return content;
 				},
+				getFileMentions: () => {
+					const editor = editorRef.current;
+					if (!editor) return [];
+					const mentions: Array<{ path: string; fileName: string }> = [];
+					editor.getEditorState().read(() => {
+						const root = $getRoot();
+						const textNodes = root.getAllTextNodes();
+						for (const node of textNodes) {
+							if ($isFileMentionNode(node)) {
+								mentions.push({
+									path: node.getFilePath(),
+									fileName: node.getFileName(),
+								});
+							}
+						}
+					});
+					return mentions;
+				},
 			}),
 			[],
 		);
@@ -380,6 +403,7 @@ const ChatMessageInput = memo(
 					<ContentChangePlugin onChange={handleContentChange} />
 					<ValueSyncPlugin initialValue={initialValue} />
 					<InsertTextPlugin onEditorReady={handleEditorReady} />
+					{agentId && <FileMentionPlugin agentId={agentId} />}
 					{autoFocus && <AutoFocusPlugin />}
 				</div>
 			</LexicalComposer>

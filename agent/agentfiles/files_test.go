@@ -116,7 +116,7 @@ func TestReadFile(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs)
+	api := agentfiles.NewAPI(logger, fs, nil)
 
 	dirPath := filepath.Join(tmpdir, "a-directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -296,7 +296,7 @@ func TestWriteFile(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs)
+	api := agentfiles.NewAPI(logger, fs, nil)
 
 	dirPath := filepath.Join(tmpdir, "directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -414,7 +414,7 @@ func TestEditFiles(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs)
+	api := agentfiles.NewAPI(logger, fs, nil)
 
 	dirPath := filepath.Join(tmpdir, "directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -851,7 +851,7 @@ func TestReadFileLines(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs)
+	api := agentfiles.NewAPI(logger, fs, nil)
 
 	dirPath := filepath.Join(tmpdir, "a-directory-lines")
 	err := fs.MkdirAll(dirPath, 0o755)

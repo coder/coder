@@ -2762,6 +2762,17 @@ class ApiMethods {
 		return res.data;
 	};
 
+	getAgentFileSearch = async (
+		agentId: string,
+		query: string,
+	): Promise<{ results: { path: string; is_dir: boolean }[] }> => {
+		const response = await this.axios.get(
+			`/api/v2/workspaceagents/${agentId}/file-search`,
+			{ params: { query } },
+		);
+		return response.data;
+	};
+
 	getInboxNotifications = async (startingBeforeId?: string) => {
 		const params = new URLSearchParams();
 		if (startingBeforeId) {

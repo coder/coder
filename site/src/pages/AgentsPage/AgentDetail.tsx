@@ -82,11 +82,20 @@ const isChatMessage = (
 
 const toOptimisticMessageParts = (
 	inputParts: readonly TypesGen.ChatInputPart[],
-): readonly TypesGen.ChatMessagePart[] =>
-	inputParts.map((part) => ({
-		type: "text",
-		...(part.text !== undefined ? { text: part.text } : {}),
-	}));
+): readonly TypesGen.ChatMessagePart[] => {
+	const textParts: string[] = [];
+	for (const part of inputParts) {
+		if (part.type === "text" && part.text) {
+			textParts.push(part.text);
+		} else if (part.type === "file_reference" && part.file_path) {
+			textParts.push(`[File: ${part.file_path}]`);
+		}
+	}
+	if (textParts.length === 0) {
+		return [];
+	}
+	return [{ type: "text", text: textParts.join("\n") }];
+};
 
 const getOrderedMessagesFromStore = (
 	store: ChatStoreHandle,
@@ -189,6 +198,7 @@ interface AgentDetailInputProps {
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
 	onSend: (message: string) => void;
+	agentId?: string;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -218,6 +228,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	store,
 	compressionThreshold,
 	onSend,
+	agentId: workspaceAgentId,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	onInterrupt,
@@ -266,6 +277,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	return (
 		<AgentChatInput
 			onSend={onSend}
+			agentId={workspaceAgentId}
 			inputRef={inputRef}
 			initialValue={initialValue}
 			onContentChange={onContentChange}
@@ -302,7 +314,12 @@ interface AgentDetailConversationProps {
 	compressionThreshold: number | undefined;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
-	onSend: (message: string, editedMessageID?: number) => Promise<void>;
+	onSend: (
+		message: string,
+		editedMessageID?: number,
+		fileMentions?: Array<{ path: string }>,
+	) => Promise<void>;
+	agentId?: string;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isSendPending: boolean;
@@ -325,6 +342,7 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	onSend,
+	agentId: workspaceAgentId,
 	onInterrupt,
 	isInputDisabled,
 	isSendPending,
@@ -414,7 +432,8 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 				setDraftBeforeQueueEdit(null);
 			}
 
-			void onSend(message, editedMessageID)
+			const mentions = chatInputRef.current?.getFileMentions() ?? [];
+			void onSend(message, editedMessageID, mentions)
 				.then(() => {
 					if (queueEditID !== null) {
 						void onDeleteQueuedMessage(queueEditID);
@@ -443,6 +462,7 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 				store={store}
 				compressionThreshold={compressionThreshold}
 				onSend={handleSendFromInput}
+				agentId={workspaceAgentId}
 				onDeleteQueuedMessage={onDeleteQueuedMessage}
 				onPromoteQueuedMessage={onPromoteQueuedMessage}
 				onInterrupt={onInterrupt}
@@ -639,7 +659,11 @@ const AgentDetail: FC = () => {
 		interruptMutation.isPending;
 	const isInputDisabled = !hasModelOptions;
 
-	const handleSend = async (message: string, editedMessageID?: number) => {
+	const handleSend = async (
+		message: string,
+		editedMessageID?: number,
+		fileMentions?: Array<{ path: string }>,
+	) => {
 		if (
 			!message.trim() ||
 			isSubmissionPending ||
@@ -648,7 +672,13 @@ const AgentDetail: FC = () => {
 		) {
 			return;
 		}
-		const content: TypesGen.ChatInputPart[] = [{ type: "text", text: message }];
+		const content: TypesGen.ChatInputPart[] = [
+			{ type: "text", text: message },
+			...(fileMentions ?? []).map((m) => ({
+				type: "file_reference" as TypesGen.ChatInputPartType,
+				file_path: m.path,
+			})),
+		];
 		if (editedMessageID !== undefined) {
 			const request: TypesGen.EditChatMessageRequest = { content };
 			clearChatErrorReason(agentId);
@@ -1011,6 +1041,7 @@ const AgentDetail: FC = () => {
 							onDeleteQueuedMessage={handleDeleteQueuedMessage}
 							onPromoteQueuedMessage={handlePromoteQueuedMessage}
 							onSend={handleSend}
+							agentId={workspaceAgent?.id}
 							onInterrupt={handleInterrupt}
 							isInputDisabled={isInputDisabled}
 							isSendPending={isSubmissionPending}

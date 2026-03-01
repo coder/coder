@@ -1118,12 +1118,16 @@ export interface ChatGitChange {
 export interface ChatInputPart {
 	readonly type: ChatInputPartType;
 	readonly text?: string;
+	readonly file_path?: string;
 }
 
 // From codersdk/chats.go
-export type ChatInputPartType = "text";
+export type ChatInputPartType = "file_reference" | "text";
 
-export const ChatInputPartTypes: ChatInputPartType[] = ["text"];
+export const ChatInputPartTypes: ChatInputPartType[] = [
+	"file_reference",
+	"text",
+];
 
 // From codersdk/chats.go
 /**

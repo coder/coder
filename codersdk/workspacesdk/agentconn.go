@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -66,6 +67,7 @@ type AgentConn interface {
 	SignalProcess(ctx context.Context, id string, signal string) error
 	StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
+	FileSearch(ctx context.Context, query string) (FileSearchResponse, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
@@ -590,6 +592,17 @@ type LSFile struct {
 	IsDir              bool   `json:"is_dir"`
 }
 
+// FileSearchResponse is the response from a file search request.
+type FileSearchResponse struct {
+	Results []FileSearchResult `json:"results"`
+}
+
+// FileSearchResult is a single file search result.
+type FileSearchResult struct {
+	Path  string `json:"path"`
+	IsDir bool   `json:"is_dir"`
+}
+
 // LS lists a directory.
 func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
@@ -607,6 +620,27 @@ func (c *agentConn) LS(ctx context.Context, path string, req LSRequest) (LSRespo
 	var m LSResponse
 	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
 		return LSResponse{}, xerrors.Errorf("decode response body: %w", err)
+	}
+	return m, nil
+}
+
+// FileSearch searches for files matching a query.
+func (c *agentConn) FileSearch(ctx context.Context, query string) (FileSearchResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodGet, fmt.Sprintf("/api/v0/file-search?query=%s", url.QueryEscape(query)), nil)
+	if err != nil {
+		return FileSearchResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return FileSearchResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var m FileSearchResponse
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return FileSearchResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
 	return m, nil
 }

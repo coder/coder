@@ -1976,6 +1976,19 @@ func createChatInputFromParts(
 			}
 			content = append(content, fantasy.TextContent{Text: text})
 			textParts = append(textParts, text)
+		case string(codersdk.ChatInputPartTypeFileReference):
+			filePath := strings.TrimSpace(part.FilePath)
+			if filePath == "" {
+				return nil, "", &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_path cannot be empty.", fieldName, i),
+				}
+			}
+			// Inject the file path as a text reference for the LLM.
+			// File references are not appended to textParts so they
+			// do not influence the auto-generated chat title.
+			referenceText := fmt.Sprintf("[File: %s]", filePath)
+			content = append(content, fantasy.TextContent{Text: referenceText})
 		default:
 			return nil, "", &codersdk.Response{
 				Message: "Invalid input part.",

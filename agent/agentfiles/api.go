@@ -7,18 +7,22 @@ import (
 	"github.com/spf13/afero"
 
 	"cdr.dev/slog/v3"
+
+	"github.com/coder/coder/v2/agent/filefinder"
 )
 
 // API exposes file-related operations performed through the agent.
 type API struct {
 	logger     slog.Logger
 	filesystem afero.Fs
+	filefinder *filefinder.Engine
 }
 
-func NewAPI(logger slog.Logger, filesystem afero.Fs) *API {
+func NewAPI(logger slog.Logger, filesystem afero.Fs, ff *filefinder.Engine) *API {
 	api := &API{
 		logger:     logger,
 		filesystem: filesystem,
+		filefinder: ff,
 	}
 	return api
 }
@@ -32,6 +36,7 @@ func (api *API) Routes() http.Handler {
 	r.Get("/read-file-lines", api.HandleReadFileLines)
 	r.Post("/write-file", api.HandleWriteFile)
 	r.Post("/edit-files", api.HandleEditFiles)
+	r.Get("/file-search", api.HandleFileSearch)
 
 	return r
 }

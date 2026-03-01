@@ -40,6 +40,7 @@ import (
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/filefinder"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
@@ -303,8 +304,9 @@ type agent struct {
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
 
-	filesAPI   *agentfiles.API
-	processAPI *agentproc.API
+	filesAPI        *agentfiles.API
+	fileFinderEngine *filefinder.Engine
+	processAPI      *agentproc.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -376,7 +378,8 @@ func (a *agent) init() {
 
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem)
+	a.fileFinderEngine = filefinder.NewEngine(a.logger.Named("file-finder"))
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, a.fileFinderEngine)
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
@@ -1230,6 +1233,14 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		}
 
 		oldManifest := a.manifest.Swap(&manifest)
+
+		// Start indexing the workspace directory for file search.
+		if manifest.Directory != "" {
+			if err := a.fileFinderEngine.AddRoot(ctx, manifest.Directory); err != nil {
+				a.logger.Warn(ctx, "file finder failed to add root", slog.Error(err))
+			}
+		}
+
 		manifestOK.complete(nil)
 		sentResult = true
 
@@ -2034,11 +2045,16 @@ func (a *agent) Close() error {
 	}
 
 	if err := a.processAPI.Close(); err != nil {
-		a.logger.Error(a.hardCtx, "process API close", slog.Error(err))
-	}
+			a.logger.Error(a.hardCtx, "process API close", slog.Error(err))
+		}
 
-	if a.boundaryLogProxy != nil {
-		err = a.boundaryLogProxy.Close()
+		if a.fileFinderEngine != nil {
+			if err := a.fileFinderEngine.Close(); err != nil {
+				a.logger.Error(a.hardCtx, "file finder engine close", slog.Error(err))
+			}
+		}
+
+		if a.boundaryLogProxy != nil {		err = a.boundaryLogProxy.Close()
 		if err != nil {
 			a.logger.Warn(context.Background(), "close boundary log proxy", slog.Error(err))
 		}

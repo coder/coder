@@ -101,13 +101,15 @@ type ChatMessagePart struct {
 type ChatInputPartType string
 
 const (
-	ChatInputPartTypeText ChatInputPartType = "text"
+	ChatInputPartTypeText          ChatInputPartType = "text"
+	ChatInputPartTypeFileReference ChatInputPartType = "file_reference"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
 type ChatInputPart struct {
-	Type ChatInputPartType `json:"type"`
-	Text string            `json:"text,omitempty"`
+	Type     ChatInputPartType `json:"type"`
+	Text     string            `json:"text,omitempty"`
+	FilePath string            `json:"file_path,omitempty"`
 }
 
 // CreateChatRequest is the request to create a new chat.

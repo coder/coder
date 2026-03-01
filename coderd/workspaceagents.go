@@ -780,6 +780,70 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, portsResponse)
 }
 
+// @Summary Search files in workspace agent
+// @ID search-files-in-workspace-agent
+// @Security CoderSessionToken
+// @Tags Agents
+// @Produce json
+// @Param workspaceagent path string true "Workspace agent ID" format(uuid)
+// @Param query query string true "Search query"
+// @Success 200 {object} workspacesdk.FileSearchResponse
+// @Router /workspaceagents/{workspaceagent}/file-search [get]
+func (api *API) workspaceAgentFileSearch(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
+
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing query parameter.",
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	agentConn, release, err := api.agentProvider.AgentConn(ctx, waws.WorkspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	resp, err := agentConn.FileSearch(ctx, query)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error searching files.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
 // @Summary Watch workspace agent for container updates.
 // @ID watch-workspace-agent-for-container-updates
 // @Security CoderSessionToken
