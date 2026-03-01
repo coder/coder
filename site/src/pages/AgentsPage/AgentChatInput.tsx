@@ -5,6 +5,10 @@ import {
 } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
+	ChatMessageInput,
+	type ChatMessageInputRef,
+} from "components/ChatMessageInput/ChatMessageInput";
+import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
@@ -16,11 +20,12 @@ import {
 	Square,
 	XIcon,
 } from "lucide-react";
-import { memo, type ReactNode, useRef } from "react";
-import TextareaAutosize from "react-textarea-autosize";
+import { memo, type ReactNode, useCallback, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
+
+export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
 
 export interface AgentContextUsage {
 	readonly usedTokens?: number;
@@ -39,9 +44,12 @@ interface AgentChatInputProps {
 	placeholder?: string;
 	isDisabled: boolean;
 	isLoading: boolean;
-	// Controlled input value. The parent owns the text state.
-	value: string;
-	onChange: (value: string) => void;
+	// Ref for the Lexical editor, exposed for imperative access.
+	inputRef?: React.Ref<ChatMessageInputRef>;
+	// Initial text to seed the editor with.
+	initialValue?: string;
+	// Called on every text change inside the editor.
+	onContentChange?: (content: string) => void;
 	// Model selector.
 	selectedModel: string;
 	onModelChange: (value: string) => void;
@@ -208,8 +216,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		placeholder = "Type a message...",
 		isDisabled,
 		isLoading,
-		value,
-		onChange,
+		inputRef,
+		initialValue,
+		onContentChange,
 		selectedModel,
 		onModelChange,
 		modelOptions,
@@ -232,18 +241,71 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		contextUsage,
 		sticky = false,
 	}) => {
-		const textareaRef = useRef<HTMLTextAreaElement>(null);
+		const internalRef = useRef<ChatMessageInputRef>(null);
 
-		const canSend =
-			!isDisabled && !isLoading && hasModelOptions && !!value.trim();
+		// Merge the external inputRef with our internal ref so both
+		// point to the same ChatMessageInputRef instance.
+		const setRef = useCallback(
+			(instance: ChatMessageInputRef | null) => {
+				(
+					internalRef as React.MutableRefObject<ChatMessageInputRef | null>
+				).current = instance;
+				if (typeof inputRef === "function") {
+					inputRef(instance);
+				} else if (inputRef && typeof inputRef === "object") {
+					(
+						inputRef as React.MutableRefObject<ChatMessageInputRef | null>
+					).current = instance;
+				}
+			},
+			[inputRef],
+		);
 
-		const handleSubmit = () => {
-			if (!canSend) {
+		// Track whether the editor has content so we can gate the
+		// send button without a controlled value prop.
+		const [hasContent, setHasContent] = useState(() => !!initialValue?.trim());
+
+		const handleContentChange = useCallback(
+			(content: string) => {
+				setHasContent(!!content.trim());
+				onContentChange?.(content);
+			},
+			[onContentChange],
+		);
+
+		const canSend = !isDisabled && !isLoading && hasModelOptions && hasContent;
+
+		const handleSubmit = useCallback(() => {
+			const text = internalRef.current?.getValue()?.trim() ?? "";
+
+			// If the input is empty and there are queued messages,
+			// promote the first one instead of submitting.
+			if (
+				!text &&
+				!isDisabled &&
+				!isLoading &&
+				queuedMessages.length > 0 &&
+				onPromoteQueuedMessage
+			) {
+				void onPromoteQueuedMessage(queuedMessages[0].id);
 				return;
 			}
-			onSend(value.trim());
-			textareaRef.current?.focus();
-		};
+
+			if (!text || isDisabled || isLoading || !hasModelOptions) {
+				return;
+			}
+
+			onSend(text);
+			internalRef.current?.clear();
+			internalRef.current?.focus();
+		}, [
+			isDisabled,
+			isLoading,
+			hasModelOptions,
+			onSend,
+			queuedMessages,
+			onPromoteQueuedMessage,
+		]);
 
 		const handleKeyDown = (e: React.KeyboardEvent) => {
 			if (e.key === "Escape") {
@@ -257,23 +319,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					e.preventDefault();
 					onInterrupt();
 				}
-				return;
-			}
-			if (e.key === "Enter" && !e.shiftKey) {
-				e.preventDefault();
-				// If the input is empty and there are queued messages,
-				// promote the first one instead of submitting.
-				if (
-					!value.trim() &&
-					!isDisabled &&
-					!isLoading &&
-					queuedMessages.length > 0 &&
-					onPromoteQueuedMessage
-				) {
-					void onPromoteQueuedMessage(queuedMessages[0].id);
-					return;
-				}
-				handleSubmit();
 			}
 		};
 
@@ -302,7 +347,10 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						className="mb-2"
 					/>
 				)}
-				<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
+				<div
+					className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40"
+					onKeyDown={handleKeyDown}
+				>
 					{editingQueuedMessageID !== null && (
 						<div className="flex items-center justify-between border-b border-border-default/70 bg-surface-primary/25 px-3 py-1.5">
 							<span className="text-sm text-content-secondary">
@@ -340,16 +388,17 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 							</Button>
 						</div>
 					)}
-					<TextareaAutosize
-						ref={textareaRef}
+					<ChatMessageInput
+						ref={setRef}
 						aria-label="Chat message"
-						className="min-h-[120px] w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						className="min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
-						value={value}
-						onChange={(e) => onChange(e.target.value)}
-						onKeyDown={handleKeyDown}
+						initialValue={initialValue}
+						onChange={handleContentChange}
+						onEnter={handleSubmit}
 						disabled={isDisabled}
-						minRows={4}
+						rows={4}
+						autoFocus
 					/>
 					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 						<div className="flex min-w-0 items-center gap-2">

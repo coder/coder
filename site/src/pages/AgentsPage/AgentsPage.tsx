@@ -502,12 +502,13 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	isConfigureAgentsDialogOpen,
 	onConfigureAgentsDialogOpenChange,
 }) => {
-	const [inputValue, setInputValue] = useState(() => {
+	const [initialInputValue] = useState(() => {
 		if (typeof window === "undefined") {
 			return "";
 		}
 		return localStorage.getItem(emptyInputStorageKey) ?? "";
 	});
+	const inputValueRef = useRef(initialInputValue);
 	const initialSystemPrompt = () => {
 		if (typeof window === "undefined") {
 			return "";
@@ -650,10 +651,10 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 	};
 
-	const handleInputChange = useCallback((value: string) => {
-		setInputValue(value);
+	const handleContentChange = useCallback((content: string) => {
+		inputValueRef.current = content;
 		if (typeof window !== "undefined") {
-			localStorage.setItem(emptyInputStorageKey, value);
+			localStorage.setItem(emptyInputStorageKey, content);
 		}
 	}, []);
 	const handleModelChange = useCallback((value: string) => {
@@ -711,8 +712,8 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
 					isDisabled={isCreating}
 					isLoading={isCreating}
-					value={inputValue}
-					onChange={handleInputChange}
+					initialValue={initialInputValue}
+					onContentChange={handleContentChange}
 					selectedModel={selectedModel}
 					onModelChange={handleModelChange}
 					modelOptions={modelOptions}
