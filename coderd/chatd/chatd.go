@@ -64,11 +64,11 @@ type Server struct {
 
 	remotePartsProvider RemotePartsProvider
 
-	agentConnFn        AgentConnFunc
-	createWorkspaceFn  chattool.CreateWorkspaceFn
-	pubsub             pubsub.Pubsub
-	webpushDispatcher  webpush.Dispatcher
-	providerAPIKeys    chatprovider.ProviderAPIKeys
+	agentConnFn       AgentConnFunc
+	createWorkspaceFn chattool.CreateWorkspaceFn
+	pubsub            pubsub.Pubsub
+	webpushDispatcher webpush.Dispatcher
+	providerAPIKeys   chatprovider.ProviderAPIKeys
 
 	// streamMu guards chatStreams which tracks in-flight chat
 	// stream state for broadcasting ephemeral events.

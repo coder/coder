@@ -28,13 +28,9 @@ export const WebPushButton: FC = () => {
 			}
 		} catch (error) {
 			if (webPush.subscribed) {
-				toast.error(
-					getErrorMessage(error, "Failed to disable notifications."),
-				);
+				toast.error(getErrorMessage(error, "Failed to disable notifications."));
 			} else {
-				toast.error(
-					getErrorMessage(error, "Failed to enable notifications."),
-				);
+				toast.error(getErrorMessage(error, "Failed to enable notifications."));
 			}
 		}
 	};
@@ -59,9 +55,7 @@ export const WebPushButton: FC = () => {
 				</Button>
 			</TooltipTrigger>
 			<TooltipContent>
-				{webPush.subscribed
-					? "Disable notifications"
-					: "Enable notifications"}
+				{webPush.subscribed ? "Disable notifications" : "Enable notifications"}
 			</TooltipContent>
 		</Tooltip>
 	);

@@ -20,10 +20,10 @@ import {
 	PanelRightOpenIcon,
 } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
-import { WebPushButton } from "../WebPushButton";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import { WebPushButton } from "../WebPushButton";
 
 interface DiffStatsBadgeProps {
 	status: ChatDiffStatusResponse;
