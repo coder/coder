@@ -27,11 +27,7 @@ export class FileMentionNode extends TextNode {
 	}
 
 	static clone(node: FileMentionNode): FileMentionNode {
-		return new FileMentionNode(
-			node.__filePath,
-			node.__fileName,
-			node.__key,
-		);
+		return new FileMentionNode(node.__filePath, node.__fileName, node.__key);
 	}
 
 	constructor(filePath: string, fileName: string, key?: NodeKey) {
@@ -48,10 +44,7 @@ export class FileMentionNode extends TextNode {
 		dom.setAttribute("spellcheck", "false");
 
 		// Prepend a file icon using an SVG element.
-		const icon = document.createElementNS(
-			"http://www.w3.org/2000/svg",
-			"svg",
-		);
+		const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 		icon.setAttribute("width", "14");
 		icon.setAttribute("height", "14");
 		icon.setAttribute("viewBox", "0 0 24 24");
@@ -63,10 +56,7 @@ export class FileMentionNode extends TextNode {
 		icon.style.display = "inline";
 		icon.style.verticalAlign = "middle";
 		icon.style.flexShrink = "0";
-		const path = document.createElementNS(
-			"http://www.w3.org/2000/svg",
-			"path",
-		);
+		const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
 		path.setAttribute(
 			"d",
 			"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",

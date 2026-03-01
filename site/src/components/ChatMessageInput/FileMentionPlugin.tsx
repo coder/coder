@@ -7,14 +7,7 @@ import {
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import type { TextNode } from "lexical";
 import { FileIcon, FolderIcon, Loader2Icon } from "lucide-react";
-import {
-	memo,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API } from "api/api";
 import { $createFileMentionNode } from "./FileMentionNode";
 
@@ -159,46 +152,51 @@ const FileMentionPlugin = memo<FileMentionPluginProps>(
 											Searching files...
 										</div>
 									) : (
-											<div role="listbox" className="max-h-[200px] overflow-y-auto py-1">
-												{options.map((option, index) => (
-													<div
-														key={option.key}
-														role="option"
-														tabIndex={-1}
-														aria-selected={selectedIndex === index}
-														className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm ${
-															selectedIndex === index
-																? "bg-surface-secondary text-content-primary"
-																: "text-content-secondary hover:bg-surface-secondary/50"
-														}`}
-														onMouseEnter={() => setHighlightedIndex(index)}
-														onClick={() => {
+										<div
+											role="listbox"
+											className="max-h-[200px] overflow-y-auto py-1"
+										>
+											{options.map((option, index) => (
+												<div
+													key={option.key}
+													role="option"
+													tabIndex={-1}
+													aria-selected={selectedIndex === index}
+													className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm ${
+														selectedIndex === index
+															? "bg-surface-secondary text-content-primary"
+															: "text-content-secondary hover:bg-surface-secondary/50"
+													}`}
+													onMouseEnter={() => setHighlightedIndex(index)}
+													onClick={() => {
+														selectOptionAndCleanUp(option);
+													}}
+													onKeyDown={(e) => {
+														if (e.key === "Enter" || e.key === " ") {
+															e.preventDefault();
 															selectOptionAndCleanUp(option);
-														}}
-														onKeyDown={(e) => {
-															if (e.key === "Enter" || e.key === " ") {
-																e.preventDefault();
-																selectOptionAndCleanUp(option);
-															}
-														}}
-														ref={(el) => {
-															option.setRefElement(el);
-														}}
-													>
-														{option.isDir ? (
-															<FolderIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-														) : (
-															<FileIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-														)}
-														<span className="truncate">{option.path}</span>
-													</div>
-												))}											{isLoading && results.length > 0 && (
+														}
+													}}
+													ref={(el) => {
+														option.setRefElement(el);
+													}}
+												>
+													{option.isDir ? (
+														<FolderIcon className="h-4 w-4 shrink-0 text-content-secondary" />
+													) : (
+														<FileIcon className="h-4 w-4 shrink-0 text-content-secondary" />
+													)}
+													<span className="truncate">{option.path}</span>
+												</div>
+											))}{" "}
+											{isLoading && results.length > 0 && (
 												<li className="flex items-center gap-2 px-3 py-1.5 text-sm text-content-secondary">
 													<Loader2Icon className="h-4 w-4 animate-spin" />
 													Searching...
 												</li>
 											)}
-											</div>									)}
+										</div>
+									)}
 								</div>,
 								anchorElementRef.current,
 							)
