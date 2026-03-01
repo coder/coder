@@ -125,20 +125,7 @@ const EnterKeyPlugin: FC<{ onEnter?: () => void }> = memo(
 					}
 					if (onEnter) {
 						event?.preventDefault();
-
-						editor.update(() => {
-							const root = $getRoot();
-							root.clear();
-							const paragraph = $createParagraphNode();
-							root.append(paragraph);
-							paragraph.select();
-						});
-
 						onEnter();
-
-						setTimeout(() => {
-							editor.focus();
-						}, 50);
 					}
 					return true;
 				},
