@@ -337,7 +337,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.3.0"
+  version  = "1.3.2"
   agent_id = coder_agent.dev.id
 }
 
@@ -375,7 +375,7 @@ module "personalize" {
 module "mux" {
   count           = data.coder_workspace.me.start_count
   source          = "registry.coder.com/coder/mux/coder"
-  version         = "1.3.0"
+  version         = "1.3.1"
   agent_id        = coder_agent.dev.id
   subdomain       = true
   display_name    = "Mux"
@@ -387,7 +387,7 @@ module "mux" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.2"
+  version                 = "1.4.3"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -435,7 +435,7 @@ module "coder-login" {
 module "cursor" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.4.0"
+  version  = "1.4.1"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -443,7 +443,7 @@ module "cursor" {
 module "windsurf" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.3.0"
+  version  = "1.3.1"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
