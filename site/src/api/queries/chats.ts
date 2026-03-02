@@ -187,7 +187,7 @@ export const deleteChatModelConfig = (queryClient: QueryClient) => ({
 	},
 });
 
-export const chatConfigSettingsKey = ["chat-config-settings"] as const;
+const chatConfigSettingsKey = ["chat-config-settings"] as const;
 
 export const chatConfigSettings = () => ({
 	queryKey: chatConfigSettingsKey,
