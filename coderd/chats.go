@@ -368,7 +368,10 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	messages, err := api.Database.GetChatMessagesByChatID(ctx, chatID)
+	messages, err := api.Database.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: 0,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat messages.",
@@ -681,7 +684,20 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		<-senderClosed
 	}()
 
-	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header)
+	var afterMessageID int64
+	if v := r.URL.Query().Get("after_id"); v != "" {
+		var err error
+		afterMessageID, err = strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid after_id parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat streaming is not available.",

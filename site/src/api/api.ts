@@ -140,9 +140,16 @@ export const watchWorkspace = (
 
 export const watchChat = (
 	chatId: string,
+	afterMessageId?: number,
 ): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+	const params = new URLSearchParams();
+	if (afterMessageId !== undefined && afterMessageId > 0) {
+		params.set("after_id", afterMessageId.toString());
+	}
+	const query = params.toString();
+	const route = `/api/experimental/chats/${chatId}/stream${query ? `?${query}` : ""}`;
 	return new OneWayWebSocket({
-		apiRoute: `/api/experimental/chats/${chatId}/stream`,
+		apiRoute: route,
 	});
 };
 

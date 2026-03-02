@@ -397,7 +397,10 @@ func latestSubagentAssistantMessage(
 	store database.Store,
 	chatID uuid.UUID,
 ) (string, error) {
-	messages, err := store.GetChatMessagesByChatID(ctx, chatID)
+	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: 0,
+	})
 	if err != nil {
 		return "", xerrors.Errorf("get chat messages: %w", err)
 	}
