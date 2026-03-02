@@ -23,6 +23,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -82,6 +83,10 @@ type Config struct {
 	// a Git clone. e.g. "Username for 'https://github.com':"
 	// The regex would be `github\.com`..
 	Regex *regexp.Regexp
+	// APIBaseURL is the base URL for provider REST API calls
+	// (e.g., "https://api.github.com" for GitHub). Derived from
+	// defaults when not explicitly configured.
+	APIBaseURL string
 	// AppInstallURL is for GitHub App's (and hopefully others eventually)
 	// to provide a link to install the app. There's installation
 	// of the application, and user authentication. It's possible
@@ -104,6 +109,16 @@ type Config struct {
 	// This field can be nil if unspecified in the config.
 	MCPToolDenyRegex              *regexp.Regexp
 	CodeChallengeMethodsSupported []promoauth.Oauth2PKCEChallengeMethod
+}
+
+// Git returns a GitProvider for this config if the provider type
+// is a supported git hosting provider. Returns nil for non-git
+// providers (e.g. Slack, JFrog).
+func (c *Config) Git() *gitprovider.GitProvider {
+	if !codersdk.EnhancedExternalAuthProvider(c.Type).Git() {
+		return nil
+	}
+	return gitprovider.New(strings.ToLower(c.Type), c.APIBaseURL, nil)
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
@@ -729,6 +744,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 			ClientID:                      entry.ClientID,
 			ClientSecret:                  entry.ClientSecret,
 			Regex:                         regex,
+			APIBaseURL:                    entry.APIBaseURL,
 			Type:                          entry.Type,
 			NoRefresh:                     entry.NoRefresh,
 			ValidateURL:                   entry.ValidateURL,
@@ -862,6 +878,18 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	}
 	if config.CodeChallengeMethodsSupported == nil {
 		config.CodeChallengeMethodsSupported = []string{string(promoauth.PKCEChallengeMethodSha256)}
+	}
+
+	// Set default API base URL for providers that need one.
+	if config.APIBaseURL == "" {
+		switch codersdk.EnhancedExternalAuthProvider(config.Type) {
+		case codersdk.EnhancedExternalAuthProviderGitHub:
+			config.APIBaseURL = "https://api.github.com"
+		case codersdk.EnhancedExternalAuthProviderGitLab:
+			config.APIBaseURL = "https://gitlab.com/api/v4"
+		case codersdk.EnhancedExternalAuthProviderGitea:
+			config.APIBaseURL = "https://gitea.com/api/v1"
+		}
 	}
 }
 

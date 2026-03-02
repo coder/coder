@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
 
@@ -105,7 +104,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 
 	var gitAuthConfigs uint32
 	for _, cfg := range a.ExternalAuthConfigs {
-		if codersdk.EnhancedExternalAuthProvider(cfg.Type).Git() {
+		if cfg.Git() != nil {
 			gitAuthConfigs++
 		}
 	}

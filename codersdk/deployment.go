@@ -980,6 +980,10 @@ type ExternalAuthConfig struct {
 	// 'Username for "https://github.com":'
 	// And sending it to the Coder server to match against the Regex.
 	Regex string `json:"regex" yaml:"regex"`
+	// APIBaseURL is the base URL for provider REST API calls
+	// (e.g., "https://api.github.com" for GitHub). Derived from
+	// defaults when not explicitly configured.
+	APIBaseURL string `json:"api_base_url" yaml:"api_base_url"`
 	// DisplayName is shown in the UI to identify the auth config.
 	DisplayName string `json:"display_name" yaml:"display_name"`
 	// DisplayIcon is a URL to an icon to display in the UI.
