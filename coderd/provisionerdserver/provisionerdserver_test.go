@@ -3170,6 +3170,14 @@ func TestCompleteJob(t *testing.T) {
 					build, err = db.GetWorkspaceBuildByID(ctx, build.ID)
 					require.NoError(t, err)
 
+					tasks, err := db.GetTaskByWorkspaceID(ctx, build.WorkspaceID)
+					require.NoError(t, err)
+					if tc.expectHasAiTask {
+						require.NotEmpty(t, tasks)
+					} else {
+						require.Empty(t, tasks)
+					}
+
 					completedJob := proto.CompletedJob{
 						JobId: job.ID.String(),
 						Type: &proto.CompletedJob_WorkspaceBuild_{

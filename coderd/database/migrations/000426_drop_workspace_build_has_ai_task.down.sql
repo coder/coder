@@ -1,7 +1,7 @@
+DROP VIEW workspace_build_with_user;
+
 ALTER TABLE workspace_builds
 	ADD COLUMN has_ai_task boolean;
-
-DROP VIEW workspace_build_with_user;
 
 CREATE VIEW workspace_build_with_user AS
 SELECT
