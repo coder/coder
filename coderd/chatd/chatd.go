@@ -2036,28 +2036,19 @@ func (p *Server) runChat(
 		return nil
 	}
 
-	streamCall := fantasy.AgentStreamCall{
-		MaxOutputTokens:  callConfig.MaxOutputTokens,
-		Temperature:      callConfig.Temperature,
-		TopP:             callConfig.TopP,
-		TopK:             callConfig.TopK,
-		PresencePenalty:  callConfig.PresencePenalty,
-		FrequencyPenalty: callConfig.FrequencyPenalty,
-		ProviderOptions:  chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions),
-	}
-
-	if streamCall.MaxOutputTokens == nil {
+	// Apply the default MaxOutputTokens if the model config
+	// does not specify one.
+	if callConfig.MaxOutputTokens == nil {
 		maxOutputTokens := int64(32_000)
-		streamCall.MaxOutputTokens = &maxOutputTokens
+		callConfig.MaxOutputTokens = &maxOutputTokens
 	}
 
-	// Generate the tool call ID up front so that the OnStart
-	// streaming part and the Persist durable messages share
-	// the same identifier. Without this the client cannot
-	// correlate the "Summarizing..." tool call with the
-	// "Summarized" tool result.
+	// Generate the tool call ID up front so that the streaming
+	// parts and durable messages share the same identifier.
+	// Without this the client cannot correlate the
+	// "Summarizing..." tool call with the "Summarized" tool
+	// result.
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()
-
 	compactionOptions := &chatloop.CompactionOptions{
 		ThresholdPercent: modelConfig.CompressionThreshold,
 		ContextLimit:     modelConfig.ContextLimit,
@@ -2083,15 +2074,10 @@ func (p *Server) runChat(
 			)
 			return nil
 		},
-		OnStart: func() {
-			// Publish a streaming tool-call part immediately so
-			// connected clients see "Summarizing..." while the
-			// LLM generates the summary.
-			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: compactionToolCallID,
-				ToolName:   "chat_summarized",
-			})
+		ToolCallID: compactionToolCallID,
+		ToolName:   "chat_summarized",
+		PublishMessagePart: func(role fantasy.MessageRole, part codersdk.ChatMessagePart) {
+			p.publishMessagePart(chat.ID, string(role), part)
 		},
 		OnError: func(err error) {
 			logger.Warn(ctx, "failed to compact chat context", slog.Error(err))
@@ -2147,12 +2133,14 @@ func (p *Server) runChat(
 		})...)
 	}
 
-	_, err = chatloop.Run(ctx, chatloop.RunOptions{
-		Model:      model,
-		Messages:   prompt,
-		Tools:      tools,
-		StreamCall: streamCall,
-		MaxSteps:   maxChatSteps,
+	err = chatloop.Run(ctx, chatloop.RunOptions{
+		Model:    model,
+		Messages: prompt,
+		Tools:    tools,
+		MaxSteps: maxChatSteps,
+
+		ModelConfig:     callConfig,
+		ProviderOptions: chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions),
 
 		ContextLimitFallback: modelConfigContextLimit,
 
@@ -2314,16 +2302,6 @@ func (p *Server) persistChatContextSummary(
 	if err != nil {
 		return xerrors.Errorf("insert summary tool result message: %w", err)
 	}
-
-	// Publish a streaming tool-result part so connected clients
-	// transition from "Summarizing..." to "Summarized" before the
-	// durable messages and status change arrive.
-	p.publishMessagePart(chatID, string(fantasy.MessageRoleTool), codersdk.ChatMessagePart{
-		Type:       codersdk.ChatMessagePartTypeToolResult,
-		ToolCallID: toolCallID,
-		ToolName:   "chat_summarized",
-		Result:     summaryResult,
-	})
 
 	p.publishMessage(chatID, assistantMessage)
 	p.publishMessage(chatID, toolMessage)
