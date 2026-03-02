@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -10,7 +9,7 @@ import {
 } from "components/StatusIndicator/StatusIndicator";
 import { TableCell, TableRow } from "components/Table/Table";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import { cn } from "utils/cn";
 import { getLatencyColor } from "utils/latency";
 
@@ -73,6 +72,7 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 				<TableCell className="status">
 					<div className="flex items-center justify-end">{statusBadge}</div>
 				</TableCell>
+
 				<TableCell
 					className={cn(
 						"text-sm text-right",
@@ -86,7 +86,10 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 			</TableRow>
 			{shouldShowMessages && (
 				<TableRow>
-					<TableCell colSpan={4} className="!p-0 border-b-0">
+					<TableCell
+						colSpan={4}
+						className="!p-0 border-b-0 divide-y divide-solid overflow-clip"
+					>
 						<ProxyMessagesRow
 							proxy={proxy as WorkspaceProxy}
 							extraWarnings={extraWarnings}
@@ -107,18 +110,16 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
 	proxy,
 	extraWarnings,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<>
 			<ProxyMessagesList
-				title={<span css={{ color: theme.palette.error.light }}>Errors</span>}
+				title="Errors"
+				titleClassName="text-content-destructive"
 				messages={proxy.status?.report?.errors}
 			/>
 			<ProxyMessagesList
-				title={
-					<span css={{ color: theme.palette.warning.light }}>Warnings</span>
-				}
+				title="Warnings"
+				titleClassName="text-content-warning"
 				messages={[...(proxy.status?.report?.warnings ?? []), ...extraWarnings]}
 			/>
 		</>
@@ -126,44 +127,27 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
 };
 
 interface ProxyMessagesListProps {
-	title: ReactNode;
+	title: string;
+	titleClassName: string;
 	messages?: readonly string[];
 }
 
-const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
-	const theme = useTheme();
-
+const ProxyMessagesList: FC<ProxyMessagesListProps> = ({
+	title,
+	titleClassName,
+	messages,
+}) => {
 	if (!messages) {
 		return null;
 	}
 
 	return (
-		<div
-			css={{
-				borderBottom: `1px solid ${theme.palette.divider}`,
-				backgroundColor: theme.palette.background.default,
-				padding: "16px 64px",
-			}}
-		>
-			<div
-				id="nested-list-subheader"
-				css={{
-					marginBottom: 4,
-					fontSize: 13,
-					fontWeight: 600,
-				}}
-			>
+		<div className="bg-surface-primary px-12 py-4 border-0">
+			<div className={cn("mb-1 text-xs font-semibold", titleClassName)}>
 				{title}
 			</div>
 			{messages.map((error, index) => (
-				<pre
-					key={index}
-					css={{
-						margin: "0 0 8px",
-						fontSize: 14,
-						whiteSpace: "pre-wrap",
-					}}
-				>
+				<pre key={index} className="m-0 text-sm whitespace-pre-wrap">
 					{error}
 				</pre>
 			))}

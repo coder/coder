@@ -3,7 +3,7 @@ import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
@@ -13,14 +13,16 @@ import { useProviderFilterMenu } from "./RequestLogsFilter/ProviderFilter";
 import { RequestLogsPageView } from "./RequestLogsPageView";
 
 const RequestLogsPage: FC = () => {
-	const feats = useFeatureVisibility();
 	const { permissions } = useAuthenticated();
+	const { entitlements } = useDashboard();
 
 	// Users are allowed to view their own request logs via the API,
 	// but this page is only visible if the feature is enabled and the user
 	// has the `viewAnyAIBridgeInterception` permission.
 	// (as its defined in the Admin settings dropdown).
-	const isEntitled = Boolean(feats.aibridge);
+	const isEntitled =
+		entitlements.features.aibridge.entitlement === "entitled" ||
+		entitlements.features.aibridge.entitlement === "grace_period";
 	const hasPermission = permissions.viewAnyAIBridgeInterception;
 	const canViewRequestLogs = isEntitled && hasPermission;
 
@@ -68,7 +70,7 @@ const RequestLogsPage: FC = () => {
 
 			<RequestLogsPageView
 				isLoading={interceptionsQuery.isLoading}
-				isRequestLogsVisible={isEntitled}
+				isRequestLogsEntitled={isEntitled}
 				interceptions={interceptionsQuery.data?.results}
 				interceptionsQuery={interceptionsQuery}
 				filterProps={{

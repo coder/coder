@@ -1,4 +1,3 @@
-import { type CSSObject, useTheme } from "@emotion/react";
 import { Button } from "components/Button/Button";
 import type { FC, FormEventHandler, JSX, ReactNode } from "react";
 
@@ -21,56 +20,20 @@ export const Fieldset: FC<FieldsetProps> = ({
 	onSubmit,
 	isSubmitting,
 }) => {
-	const theme = useTheme();
-
 	return (
 		<form
-			css={{
-				borderRadius: 8,
-				border: `1px solid ${theme.palette.divider}`,
-				marginTop: 32,
-				overflow: "hidden",
-			}}
+			className="mt-8 overflow-hidden rounded-lg border border-solid border-border"
 			onSubmit={onSubmit}
 		>
-			<header css={{ padding: 24 }}>
-				<div
-					css={{
-						fontSize: 20,
-						margin: 0,
-						fontWeight: 600,
-					}}
-				>
-					{title}
-				</div>
+			<header className="p-6">
+				<div className="text-xl font-semibold">{title}</div>
 				{subtitle && (
-					<div
-						css={{
-							color: theme.palette.text.secondary,
-							fontSize: 14,
-							marginTop: 8,
-						}}
-					>
-						{subtitle}
-					</div>
+					<div className="mt-2 text-sm text-content-secondary">{subtitle}</div>
 				)}
-				<div css={[theme.typography.body2 as CSSObject, { paddingTop: 16 }]}>
-					{children}
-				</div>
+				<div className="pt-4 text-sm">{children}</div>
 			</header>
-			<footer
-				css={[
-					theme.typography.body2 as CSSObject,
-					{
-						background: theme.palette.background.paper,
-						padding: "16px 24px",
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "space-between",
-					},
-				]}
-			>
-				<div css={{ color: theme.palette.text.secondary }}>{validation}</div>
+			<footer className="flex items-center justify-between bg-surface-secondary px-6 py-4 text-sm">
+				<div className="text-content-secondary">{validation}</div>
 				{button || (
 					<Button type="submit" disabled={isSubmitting}>
 						Submit

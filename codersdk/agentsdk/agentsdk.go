@@ -638,6 +638,14 @@ type ExternalAuthRequest struct {
 	ID string
 	// Match is an arbitrary string matched against the regex of the provider.
 	Match string
+	// GitBranch is the current git branch in the working directory.
+	// Sent by the agent so the control plane can resolve diffs
+	// without SSHing into the workspace.
+	GitBranch string
+	// GitRemoteOrigin is the remote origin URL of the git repository.
+	// Sent by the agent so the control plane can resolve diffs
+	// without SSHing into the workspace.
+	GitRemoteOrigin string
 	// Listen indicates that the request should be long-lived and listen for
 	// a new token to be requested.
 	Listen bool
@@ -652,6 +660,12 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 	}
 	if req.Listen {
 		q.Set("listen", "true")
+	}
+	if req.GitBranch != "" {
+		q.Set("git_branch", req.GitBranch)
+	}
+	if req.GitRemoteOrigin != "" {
+		q.Set("git_remote_origin", req.GitRemoteOrigin)
 	}
 	reqURL := "/api/v2/workspaceagents/me/external-auth?" + q.Encode()
 	res, err := c.SDK.Request(ctx, http.MethodGet, reqURL, nil)

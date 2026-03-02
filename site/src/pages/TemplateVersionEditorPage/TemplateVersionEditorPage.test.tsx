@@ -147,11 +147,16 @@ test("Use custom name, message and set it as active when publishing", async () =
 			name: "v1.0",
 			message: "Informative message",
 		});
+		expect(updateActiveTemplateVersion).toBeCalledWith("test-template", {
+			id: "new-version-id",
+		});
 	});
-	expect(updateActiveTemplateVersion).toBeCalledWith("test-template", {
-		id: "new-version-id",
+	// Wait for the dialog to close so all async state updates (setIsPublishingDialogOpen,
+	// setLastSuccessfulPublishedVersion, navigation) settle before the test ends.
+	await waitFor(() => {
+		expect(screen.queryByTestId("dialog")).not.toBeInTheDocument();
 	});
-});
+}, 20_000);
 
 test("Do not mark as active if promote is not checked", async () => {
 	const user = userEvent.setup();
@@ -195,6 +200,11 @@ test("Do not mark as active if promote is not checked", async () => {
 		});
 	});
 	expect(updateActiveTemplateVersion).toBeCalledTimes(0);
+	// Wait for the dialog to close so all async state updates settle before the
+	// test ends, preventing act() warnings from pending state mutations.
+	await waitFor(() => {
+		expect(screen.queryByTestId("dialog")).not.toBeInTheDocument();
+	});
 });
 
 test("Patch request is not send when there are no changes", async () => {

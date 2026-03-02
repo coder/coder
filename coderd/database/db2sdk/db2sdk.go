@@ -2,6 +2,7 @@
 package db2sdk
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/sqlc-dev/pqtype"
@@ -18,6 +20,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -1049,4 +1052,346 @@ func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {
 		return map[string]any{}
 	}
 	return m
+}
+
+func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
+	modelConfigID := &m.ModelConfigID.UUID
+	if !m.ModelConfigID.Valid {
+		modelConfigID = nil
+	}
+	msg := codersdk.ChatMessage{
+		ID:            m.ID,
+		ChatID:        m.ChatID,
+		ModelConfigID: modelConfigID,
+		CreatedAt:     m.CreatedAt,
+		Role:          m.Role,
+	}
+	if m.Content.Valid {
+		parts, err := chatMessageParts(m.Role, m.Content)
+		if err == nil {
+			msg.Content = parts
+		}
+	}
+	usage := chatMessageUsage(m)
+	if usage != nil {
+		msg.Usage = usage
+	}
+	return msg
+}
+
+// chatMessageUsage builds a ChatMessageUsage from the database row,
+// returning nil when no token fields are populated.
+func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
+	inputTokens := nullInt64Ptr(m.InputTokens)
+	outputTokens := nullInt64Ptr(m.OutputTokens)
+	totalTokens := nullInt64Ptr(m.TotalTokens)
+	reasoningTokens := nullInt64Ptr(m.ReasoningTokens)
+	cacheCreationTokens := nullInt64Ptr(m.CacheCreationTokens)
+	cacheReadTokens := nullInt64Ptr(m.CacheReadTokens)
+	contextLimit := nullInt64Ptr(m.ContextLimit)
+
+	if inputTokens == nil && outputTokens == nil && totalTokens == nil &&
+		reasoningTokens == nil && cacheCreationTokens == nil &&
+		cacheReadTokens == nil && contextLimit == nil {
+		return nil
+	}
+
+	return &codersdk.ChatMessageUsage{
+		InputTokens:         inputTokens,
+		OutputTokens:        outputTokens,
+		TotalTokens:         totalTokens,
+		ReasoningTokens:     reasoningTokens,
+		CacheCreationTokens: cacheCreationTokens,
+		CacheReadTokens:     cacheReadTokens,
+		ContextLimit:        contextLimit,
+	}
+}
+
+// ChatQueuedMessage converts a queued message to its SDK representation.
+func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
+	parts, err := chatMessageParts(string(fantasy.MessageRoleUser), pqtype.NullRawMessage{
+		RawMessage: message.Content,
+		Valid:      len(message.Content) > 0,
+	})
+	if err != nil {
+		parts = nil
+	}
+
+	return codersdk.ChatQueuedMessage{
+		ID:        message.ID,
+		ChatID:    message.ChatID,
+		Content:   parts,
+		CreatedAt: message.CreatedAt,
+	}
+}
+
+// ChatQueuedMessages converts a slice of database queued messages
+// to their SDK representation.
+func ChatQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
+	out := make([]codersdk.ChatQueuedMessage, 0, len(messages))
+	for _, message := range messages {
+		out = append(out, ChatQueuedMessage(message))
+	}
+	return out
+}
+
+func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
+	switch role {
+	case string(fantasy.MessageRoleSystem):
+		content, err := parseSystemContent(raw)
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(content) == "" {
+			return nil, nil
+		}
+		return []codersdk.ChatMessagePart{{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: content,
+		}}, nil
+	case string(fantasy.MessageRoleUser), string(fantasy.MessageRoleAssistant):
+		content, err := parseContentBlocks(role, raw)
+		if err != nil {
+			return nil, err
+		}
+
+		var rawBlocks []json.RawMessage
+		if role == string(fantasy.MessageRoleAssistant) {
+			_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
+		}
+
+		parts := make([]codersdk.ChatMessagePart, 0, len(content))
+		for i, block := range content {
+			part := contentBlockToPart(block)
+			if part.Type == "" {
+				continue
+			}
+			if part.Type == codersdk.ChatMessagePartTypeReasoning {
+				part.Title = ""
+				if i < len(rawBlocks) {
+					part.Title = reasoningStoredTitle(rawBlocks[i])
+				}
+			}
+			parts = append(parts, part)
+		}
+		return parts, nil
+	case string(fantasy.MessageRoleTool):
+		results, err := parseToolResults(raw)
+		if err != nil {
+			return nil, err
+		}
+		parts := make([]codersdk.ChatMessagePart, 0, len(results))
+		for _, result := range results {
+			parts = append(parts, codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID: result.ToolCallID,
+				ToolName:   result.ToolName,
+				Result:     result.Result,
+				IsError:    result.IsError,
+			})
+		}
+		return parts, nil
+	default:
+		return nil, nil
+	}
+}
+
+func parseSystemContent(raw pqtype.NullRawMessage) (string, error) {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return "", nil
+	}
+	var content string
+	if err := json.Unmarshal(raw.RawMessage, &content); err != nil {
+		return "", xerrors.Errorf("parse system content: %w", err)
+	}
+	return content, nil
+}
+
+func parseContentBlocks(role string, raw pqtype.NullRawMessage) ([]fantasy.Content, error) {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return nil, nil
+	}
+
+	if role == string(fantasy.MessageRoleUser) {
+		var text string
+		if err := json.Unmarshal(raw.RawMessage, &text); err == nil {
+			return []fantasy.Content{
+				fantasy.TextContent{Text: text},
+			}, nil
+		}
+	}
+
+	var blocks []json.RawMessage
+	if err := json.Unmarshal(raw.RawMessage, &blocks); err != nil {
+		return nil, xerrors.Errorf("parse content blocks: %w", err)
+	}
+
+	content := make([]fantasy.Content, 0, len(blocks))
+	for _, block := range blocks {
+		decoded, err := fantasy.UnmarshalContent(block)
+		if err != nil {
+			return nil, xerrors.Errorf("parse content block: %w", err)
+		}
+		content = append(content, decoded)
+	}
+
+	return content, nil
+}
+
+// toolResultRow is used only for extracting top-level fields from
+// persisted tool result JSON. The result payload is kept as raw JSON.
+type toolResultRow struct {
+	ToolCallID string          `json:"tool_call_id"`
+	ToolName   string          `json:"tool_name"`
+	Result     json.RawMessage `json:"result"`
+	IsError    bool            `json:"is_error,omitempty"`
+}
+
+func parseToolResults(raw pqtype.NullRawMessage) ([]toolResultRow, error) {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return nil, nil
+	}
+
+	var results []toolResultRow
+	if err := json.Unmarshal(raw.RawMessage, &results); err != nil {
+		return nil, xerrors.Errorf("parse tool results: %w", err)
+	}
+	return results, nil
+}
+
+func reasoningStoredTitle(raw json.RawMessage) string {
+	var envelope struct {
+		Type string `json:"type"`
+		Data struct {
+			Title string `json:"title"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return ""
+	}
+	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeReasoning)) {
+		return ""
+	}
+	return strings.TrimSpace(envelope.Data.Title)
+}
+
+func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
+	switch value := block.(type) {
+	case fantasy.TextContent:
+		return codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: value.Text,
+		}
+	case *fantasy.TextContent:
+		return codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: value.Text,
+		}
+	case fantasy.ReasoningContent:
+		return codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
+		}
+	case *fantasy.ReasoningContent:
+		return codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
+		}
+	case fantasy.ToolCallContent:
+		return codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: value.ToolCallID,
+			ToolName:   value.ToolName,
+			Args:       []byte(value.Input),
+		}
+	case *fantasy.ToolCallContent:
+		return codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: value.ToolCallID,
+			ToolName:   value.ToolName,
+			Args:       []byte(value.Input),
+		}
+	case fantasy.SourceContent:
+		return codersdk.ChatMessagePart{
+			Type:     codersdk.ChatMessagePartTypeSource,
+			SourceID: value.ID,
+			URL:      value.URL,
+			Title:    value.Title,
+		}
+	case *fantasy.SourceContent:
+		return codersdk.ChatMessagePart{
+			Type:     codersdk.ChatMessagePartTypeSource,
+			SourceID: value.ID,
+			URL:      value.URL,
+			Title:    value.Title,
+		}
+	case fantasy.FileContent:
+		return codersdk.ChatMessagePart{
+			Type:      codersdk.ChatMessagePartTypeFile,
+			MediaType: value.MediaType,
+			Data:      value.Data,
+		}
+	case *fantasy.FileContent:
+		return codersdk.ChatMessagePart{
+			Type:      codersdk.ChatMessagePartTypeFile,
+			MediaType: value.MediaType,
+			Data:      value.Data,
+		}
+	case fantasy.ToolResultContent:
+		return chatprompt.ToolResultToPart(
+			value.ToolCallID,
+			value.ToolName,
+			toolResultOutputToRawJSON(value.Result),
+			toolResultOutputIsError(value.Result),
+		)
+	case *fantasy.ToolResultContent:
+		return chatprompt.ToolResultToPart(
+			value.ToolCallID,
+			value.ToolName,
+			toolResultOutputToRawJSON(value.Result),
+			toolResultOutputIsError(value.Result),
+		)
+	default:
+		return codersdk.ChatMessagePart{}
+	}
+}
+
+func toolResultOutputToRawJSON(output fantasy.ToolResultOutputContent) json.RawMessage {
+	switch v := output.(type) {
+	case fantasy.ToolResultOutputContentError:
+		if v.Error != nil {
+			data, _ := json.Marshal(map[string]any{"error": v.Error.Error()})
+			return data
+		}
+		return json.RawMessage(`{"error":""}`)
+	case fantasy.ToolResultOutputContentText:
+		raw := json.RawMessage(v.Text)
+		if json.Valid(raw) {
+			return raw
+		}
+		data, _ := json.Marshal(map[string]any{"output": v.Text})
+		return data
+	case fantasy.ToolResultOutputContentMedia:
+		data, _ := json.Marshal(map[string]any{
+			"data":      v.Data,
+			"mime_type": v.MediaType,
+			"text":      v.Text,
+		})
+		return data
+	default:
+		return json.RawMessage(`{}`)
+	}
+}
+
+func toolResultOutputIsError(output fantasy.ToolResultOutputContent) bool {
+	_, ok := output.(fantasy.ToolResultOutputContentError)
+	return ok
+}
+
+func nullInt64Ptr(v sql.NullInt64) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	value := v.Int64
+	return &value
 }
