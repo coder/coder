@@ -7,13 +7,13 @@ import {
 	mockApiError,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { getWorkspaceSharingSettingsKey } from "api/queries/organizations";
 import type {
 	WorkspaceACL,
 	WorkspaceGroup,
 	WorkspaceUser,
 } from "api/typesGenerated";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
-import { getWorkspaceSharingSettingsKey } from "api/queries/organizations";
 
 const mockWorkspaceUser: WorkspaceUser = {
 	id: MockUserMember.id,
