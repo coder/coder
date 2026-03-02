@@ -13,9 +13,9 @@ import (
 
 	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
@@ -5359,6 +5359,7 @@ func TestGetWorkspaceAgentByID_FastPath(t *testing.T) {
 		require.Equal(t, agent, result)
 	})
 }
+
 func TestAsChatd(t *testing.T) {
 	t.Parallel()
 
@@ -5413,4 +5414,3 @@ func TestAsChatd(t *testing.T) {
 		require.Error(t, err, "provisioner daemon read should be denied")
 	})
 }
-
