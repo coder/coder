@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 // Smooth streaming presentation constants. These control the jitter
 // buffer that makes streamed text appear at a steady cadence instead
@@ -54,8 +54,11 @@ function getAdaptiveRate(backlog: number): number {
  * Deterministic text reveal engine for smoothing streamed output.
  *
  * The ingestion clock (incoming full text) is external; this class
- * manages only the presentation clock (visible prefix length) using
- * a character budget model.
+ * manages the presentation clock (visible prefix length) using a
+ * character budget model, and owns the RAF loop that drives it.
+ *
+ * Implements a subscribe/getSnapshot contract for use with
+ * useSyncExternalStore.
  */
 export class SmoothTextEngine {
 	private fullLength = 0;
@@ -63,6 +66,10 @@ export class SmoothTextEngine {
 	private charBudget = 0;
 	private isStreaming = false;
 	private bypassSmoothing = false;
+
+	private rafId: number | null = null;
+	private previousTimestamp: number | null = null;
+	private listeners = new Set<() => void>();
 
 	private enforceMaxVisualLag(): void {
 		if (!this.isStreaming || this.bypassSmoothing) {
@@ -81,14 +88,59 @@ export class SmoothTextEngine {
 		}
 	}
 
+	private notify(): void {
+		for (const listener of this.listeners) {
+			listener();
+		}
+	}
+
+	private stopLoop(): void {
+		if (this.rafId !== null) {
+			cancelAnimationFrame(this.rafId);
+			this.rafId = null;
+		}
+		this.previousTimestamp = null;
+	}
+
+	private startLoop(): void {
+		if (this.rafId !== null) {
+			return;
+		}
+		this.rafId = requestAnimationFrame(this.frame);
+	}
+
+	private frame = (timestampMs: number): void => {
+		if (this.previousTimestamp !== null) {
+			const dtMs = timestampMs - this.previousTimestamp;
+			const prevLength = this.visibleLengthValue;
+			this.tick(dtMs);
+			if (this.visibleLengthValue !== prevLength) {
+				this.notify();
+			}
+		}
+		this.previousTimestamp = timestampMs;
+
+		if (!this.isCaughtUp) {
+			this.rafId = requestAnimationFrame(this.frame);
+		} else {
+			this.rafId = null;
+			this.previousTimestamp = null;
+		}
+	};
+
 	/**
-	 * Update the ingested text and stream state.
+	 * Update the ingested text and stream state. Starts or stops the
+	 * internal RAF loop as needed, and notifies subscribers when the
+	 * visible length changes synchronously (e.g. bypass, stream end,
+	 * content shrink).
 	 */
 	update(
 		fullText: string,
 		isStreaming: boolean,
 		bypassSmoothing: boolean,
 	): void {
+		const prevVisible = this.visibleLengthValue;
+
 		this.fullLength = fullText.length;
 		this.isStreaming = isStreaming;
 		this.bypassSmoothing = bypassSmoothing;
@@ -101,10 +153,17 @@ export class SmoothTextEngine {
 		if (!isStreaming || bypassSmoothing) {
 			this.visibleLengthValue = this.fullLength;
 			this.charBudget = 0;
-			return;
+			this.stopLoop();
+		} else {
+			this.enforceMaxVisualLag();
+			if (!this.isCaughtUp) {
+				this.startLoop();
+			}
 		}
 
-		this.enforceMaxVisualLag();
+		if (this.visibleLengthValue !== prevVisible) {
+			this.notify();
+		}
 	}
 
 	/**
@@ -162,14 +221,35 @@ export class SmoothTextEngine {
 	}
 
 	/**
+	 * Subscribe to visible length changes. Returns an unsubscribe
+	 * function, matching the contract useSyncExternalStore expects.
+	 */
+	subscribe = (listener: () => void): (() => void) => {
+		this.listeners.add(listener);
+		return () => {
+			this.listeners.delete(listener);
+		};
+	};
+
+	/**
 	 * Reset all engine state, typically when a new stream starts.
 	 */
 	reset(): void {
+		this.stopLoop();
 		this.fullLength = 0;
 		this.visibleLengthValue = 0;
 		this.charBudget = 0;
 		this.isStreaming = false;
 		this.bypassSmoothing = false;
+	}
+
+	/**
+	 * Stop the animation loop and release resources. Call when the
+	 * engine instance is being discarded.
+	 */
+	dispose(): void {
+		this.stopLoop();
+		this.listeners.clear();
 	}
 }
 
@@ -274,96 +354,39 @@ function sliceAtGraphemeBoundary(
 export function useSmoothStreamingText(
 	options: UseSmoothStreamingTextOptions,
 ): UseSmoothStreamingTextResult {
-	const engineRef = useRef(new SmoothTextEngine());
-	const previousStreamKeyRef = useRef(options.streamKey);
+	// Store the engine and the streamKey it was created for together
+	// in a single useState. When the streamKey changes during render,
+	// we dispose the old engine and create a fresh one inline — this
+	// is the "derive state from props" pattern React documents for
+	// useState, avoiding useEffect for reset logic.
+	const [{ engine, streamKey }, setEngineState] = useState(() => ({
+		engine: new SmoothTextEngine(),
+		streamKey: options.streamKey,
+	}));
 
-	if (previousStreamKeyRef.current !== options.streamKey) {
-		engineRef.current.reset();
-		previousStreamKeyRef.current = options.streamKey;
+	if (streamKey !== options.streamKey) {
+		engine.dispose();
+		const next = new SmoothTextEngine();
+		setEngineState({ engine: next, streamKey: options.streamKey });
+		// Use the new engine for the rest of this render.
+		next.update(options.fullText, options.isStreaming, options.bypassSmoothing);
+	} else {
+		engine.update(
+			options.fullText,
+			options.isStreaming,
+			options.bypassSmoothing,
+		);
 	}
 
-	const engine = engineRef.current;
-	engine.update(options.fullText, options.isStreaming, options.bypassSmoothing);
+	// Dispose on unmount.
+	useEffect(() => {
+		return () => engine.dispose();
+	}, [engine]);
 
-	const [visibleLength, setVisibleLength] = useState(
+	const visibleLength = useSyncExternalStore(
+		engine.subscribe,
 		() => engine.visibleLength,
 	);
-	const visibleLengthRef = useRef(visibleLength);
-	visibleLengthRef.current = visibleLength;
-
-	const rafIdRef = useRef<number | null>(null);
-	const previousTimestampRef = useRef<number | null>(null);
-
-	// Frame callback stored as a ref so effects don't depend on it,
-	// preventing teardown/restart of the RAF loop on every text
-	// delta. Reads from refs and the stable engine instance, so the
-	// captured closure is always correct.
-	const frameRef = useRef<FrameRequestCallback>(null!);
-	frameRef.current = (timestampMs: number) => {
-		if (previousTimestampRef.current !== null) {
-			const nextLength = engine.tick(
-				timestampMs - previousTimestampRef.current,
-			);
-			if (nextLength !== visibleLengthRef.current) {
-				visibleLengthRef.current = nextLength;
-				setVisibleLength(nextLength);
-			}
-		}
-		previousTimestampRef.current = timestampMs;
-		if (!engine.isCaughtUp) {
-			rafIdRef.current = requestAnimationFrame(frameRef.current);
-		} else {
-			rafIdRef.current = null;
-			previousTimestampRef.current = null;
-		}
-	};
-
-	// Sync engine state → React and re-arm RAF when new deltas
-	// arrive after catch-up. No cleanup: this effect only observes +
-	// one-shot starts; the lifecycle effect below owns resource
-	// teardown.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: fullText and streamKey are intentional triggers to re-arm the RAF loop when new text arrives or the stream resets
-	useEffect(() => {
-		if (visibleLengthRef.current !== engine.visibleLength) {
-			visibleLengthRef.current = engine.visibleLength;
-			setVisibleLength(engine.visibleLength);
-		}
-
-		if (
-			rafIdRef.current === null &&
-			options.isStreaming &&
-			!options.bypassSmoothing &&
-			!engine.isCaughtUp
-		) {
-			rafIdRef.current = requestAnimationFrame(frameRef.current);
-		}
-	}, [
-		engine,
-		options.fullText,
-		options.isStreaming,
-		options.bypassSmoothing,
-		options.streamKey,
-	]);
-
-	// Lifecycle: stop RAF when streaming ends or stream key changes,
-	// and on unmount.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: streamKey is an intentional trigger to reset RAF state on new streams
-	useEffect(() => {
-		if (!options.isStreaming || options.bypassSmoothing) {
-			if (rafIdRef.current !== null) {
-				cancelAnimationFrame(rafIdRef.current);
-			}
-			rafIdRef.current = null;
-			previousTimestampRef.current = null;
-		}
-		return () => {
-			if (rafIdRef.current !== null) {
-				cancelAnimationFrame(rafIdRef.current);
-			}
-			rafIdRef.current = null;
-			previousTimestampRef.current = null;
-		};
-	}, [options.isStreaming, options.bypassSmoothing, options.streamKey]);
 
 	if (!options.isStreaming || options.bypassSmoothing) {
 		return {
