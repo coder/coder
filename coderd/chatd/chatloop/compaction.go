@@ -2,11 +2,14 @@ package chatloop
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -30,8 +33,18 @@ type CompactionOptions struct {
 	SystemSummaryPrefix string
 	Timeout             time.Duration
 	Persist             func(context.Context, CompactionResult) error
-	OnStart             func()
-	OnError             func(error)
+
+	// ToolCallID and ToolName identify the synthetic tool call
+	// used to represent compaction in the message stream.
+	ToolCallID string
+	ToolName   string
+
+	// PublishMessagePart publishes streaming parts to connected
+	// clients so they see "Summarizing..." / "Summarized" UI
+	// transitions during compaction.
+	PublishMessagePart func(fantasy.MessageRole, codersdk.ChatMessagePart)
+
+	OnError func(error)
 }
 
 type CompactionResult struct {
@@ -80,8 +93,17 @@ func tryCompact(
 		return false, nil
 	}
 
-	if config.OnStart != nil {
-		config.OnStart()
+	// Publish the "Summarizing..." tool-call indicator so
+	// connected clients see activity during summary generation.
+	if config.PublishMessagePart != nil && config.ToolCallID != "" {
+		config.PublishMessagePart(
+			fantasy.MessageRoleAssistant,
+			codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: config.ToolCallID,
+				ToolName:   config.ToolName,
+			},
+		)
 	}
 
 	summary, err := generateCompactionSummary(
@@ -109,6 +131,30 @@ func tryCompact(
 	if err != nil {
 		return false, err
 	}
+
+	// Publish the "Summarized" tool-result part so the client
+	// transitions from the in-progress indicator to the final
+	// state.
+	if config.PublishMessagePart != nil && config.ToolCallID != "" {
+		resultJSON, _ := json.Marshal(map[string]any{
+			"summary":              summary,
+			"source":               "automatic",
+			"threshold_percent":    config.ThresholdPercent,
+			"usage_percent":        usagePercent,
+			"context_tokens":       contextTokens,
+			"context_limit_tokens": contextLimit,
+		})
+		config.PublishMessagePart(
+			fantasy.MessageRoleTool,
+			codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID: config.ToolCallID,
+				ToolName:   config.ToolName,
+				Result:     resultJSON,
+			},
+		)
+	}
+
 	return true, nil
 }
 

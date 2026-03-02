@@ -203,7 +203,13 @@ func Run(ctx context.Context, opts RunOptions) error {
 	var lastProviderMetadata fantasy.ProviderMetadata
 
 	for step := 0; step < opts.MaxSteps; step++ {
-		prepared := prepareMessages(messages, opts.ActiveTools, applyAnthropicCaching)
+		// Copy messages and apply provider-specific caching
+		// for the current step.
+		prepared := make([]fantasy.Message, len(messages))
+		copy(prepared, messages)
+		if applyAnthropicCaching {
+			prepared = addAnthropicPromptCaching(prepared)
+		}
 
 		call := fantasy.Call{
 			Prompt:           prepared,
@@ -292,14 +298,19 @@ func Run(ctx context.Context, opts RunOptions) error {
 			break
 		}
 
-			// Execute tools sequentially and add results to messages.
-			toolResults := executeTools(ctx, opts.Tools, result.toolCalls, func(tr fantasy.ToolResultContent) {
-				publishMessagePart(
-					fantasy.MessageRoleTool,
-					chatprompt.PartFromContent(tr),
-				)
-			})
+		// Execute tools sequentially and add results to messages.
+		toolResults := executeTools(ctx, opts.Tools, result.toolCalls, func(tr fantasy.ToolResultContent) {
+			publishMessagePart(
+				fantasy.MessageRoleTool,
+				chatprompt.PartFromContent(tr),
+			)
+		})
+
 		// Build messages from the step for the next iteration.
+		// toResponseMessages produces assistant-role content (text,
+		// reasoning, tool calls). Tool results come exclusively
+		// from executeTools above — result.content does not contain
+		// tool results during normal (non-interrupted) flow.
 		stepMessages := result.toResponseMessages()
 		if len(toolResults) > 0 {
 			toolResultParts := make([]fantasy.MessagePart, 0, len(toolResults))
@@ -756,26 +767,6 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string) []fan
 		})
 	}
 	return prepared
-}
-
-// prepareMessages applies anthropic caching and returns a copy of
-// the messages ready for a single step. Replaces the old
-// prepareStepResult + sentinel-stripping flow.
-//
-//nolint:revive // Boolean controls Anthropic-specific caching behavior.
-func prepareMessages(
-	messages []fantasy.Message,
-	_ []string,
-	anthropicCaching bool,
-) []fantasy.Message {
-	filtered := make([]fantasy.Message, len(messages))
-	copy(filtered, messages)
-
-	if anthropicCaching {
-		filtered = addAnthropicPromptCaching(filtered)
-	}
-
-	return filtered
 }
 
 func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {

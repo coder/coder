@@ -8,6 +8,8 @@ import (
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestRun_Compaction(t *testing.T) {
@@ -84,14 +86,14 @@ func TestRun_Compaction(t *testing.T) {
 		require.InDelta(t, 80.0, persistedCompaction.UsagePercent, 0.0001)
 	})
 
-	t.Run("OnStartFiresBeforePersist", func(t *testing.T) {
+	t.Run("PublishesPartsBeforeAndAfterPersist", func(t *testing.T) {
 		t.Parallel()
 
 		const summaryText = "compaction summary for ordering test"
 
-		// Track the order of callbacks to verify OnStart fires
-		// before the Generate call (summary generation) and
-		// before Persist.
+		// Track the order of callbacks to verify the tool-call
+		// part publishes before Generate (summary generation)
+		// and the tool-result part publishes after Persist.
 		var callOrder []string
 
 		model := &loopTestModel{
@@ -134,8 +136,15 @@ func TestRun_Compaction(t *testing.T) {
 			Compaction: &CompactionOptions{
 				ThresholdPercent: 70,
 				SummaryPrompt:    "summarize now",
-				OnStart: func() {
-					callOrder = append(callOrder, "on_start")
+				ToolCallID:       "test-tool-call-id",
+				ToolName:         "chat_summarized",
+				PublishMessagePart: func(role fantasy.MessageRole, part codersdk.ChatMessagePart) {
+					switch part.Type {
+					case codersdk.ChatMessagePartTypeToolCall:
+						callOrder = append(callOrder, "publish_tool_call")
+					case codersdk.ChatMessagePartTypeToolResult:
+						callOrder = append(callOrder, "publish_tool_result")
+					}
 				},
 				Persist: func(_ context.Context, _ CompactionResult) error {
 					callOrder = append(callOrder, "persist")
@@ -144,13 +153,18 @@ func TestRun_Compaction(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, []string{"on_start", "generate", "persist"}, callOrder)
+		require.Equal(t, []string{
+			"publish_tool_call",
+			"generate",
+			"persist",
+			"publish_tool_result",
+		}, callOrder)
 	})
 
-	t.Run("OnStartNotCalledBelowThreshold", func(t *testing.T) {
+	t.Run("PublishNotCalledBelowThreshold", func(t *testing.T) {
 		t.Parallel()
 
-		onStartCalled := false
+		publishCalled := false
 
 		model := &loopTestModel{
 			provider: "fake",
@@ -179,8 +193,10 @@ func TestRun_Compaction(t *testing.T) {
 			ContextLimitFallback: 100,
 			Compaction: &CompactionOptions{
 				ThresholdPercent: 70,
-				OnStart: func() {
-					onStartCalled = true
+				ToolCallID:       "test-tool-call-id",
+				ToolName:         "chat_summarized",
+				PublishMessagePart: func(_ fantasy.MessageRole, _ codersdk.ChatMessagePart) {
+					publishCalled = true
 				},
 				Persist: func(_ context.Context, _ CompactionResult) error {
 					return nil
@@ -188,7 +204,7 @@ func TestRun_Compaction(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.False(t, onStartCalled, "OnStart should not fire when usage is below threshold")
+		require.False(t, publishCalled, "PublishMessagePart should not fire when usage is below threshold")
 	})
 
 	t.Run("MidLoopCompactionReloadsMessages", func(t *testing.T) {
