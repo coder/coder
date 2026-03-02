@@ -10,7 +10,6 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -84,44 +83,43 @@ const GroupPage: FC = () => {
 				</SettingsHeader>
 
 				{canUpdateGroup && (
-					<Stack direction="row" spacing={2}>
-						<Button
-							variant="destructive"
-							disabled={groupData.id === groupData.organization_id}
-							onClick={() => {
-								setIsDeletingGroup(true);
-							}}
-						>
-							<TrashIcon />
-							Delete&hellip;
-						</Button>
-					</Stack>
+					<Button
+						variant="destructive"
+						disabled={groupData.id === groupData.organization_id}
+						onClick={() => {
+							setIsDeletingGroup(true);
+						}}
+					>
+						<TrashIcon />
+						Delete&hellip;
+					</Button>
 				)}
 			</div>
-
-			<Tabs active={activeTab}>
-				<TabsList>
-					<TabLink to="." value="members">
-						Group members
-					</TabLink>
-					{canUpdateGroup && (
-						<TabLink to="settings" value="settings">
-							Group settings
+			<div className="flex flex-col gap-10 w-full">
+				<Tabs active={activeTab}>
+					<TabsList className="w-full justify-start">
+						<TabLink to="." value="members">
+							Group members
 						</TabLink>
-					)}
-				</TabsList>
-			</Tabs>
+						{canUpdateGroup && (
+							<TabLink to="settings" value="settings">
+								Group settings
+							</TabLink>
+						)}
+					</TabsList>
+				</Tabs>
 
-			<Outlet
-				context={
-					{
-						group: groupData,
-						permissions: { canUpdateGroup },
-						organization,
-						groupQuery,
-					} satisfies GroupPageOutletContext
-				}
-			/>
+				<Outlet
+					context={
+						{
+							group: groupData,
+							permissions: { canUpdateGroup },
+							organization,
+							groupQuery,
+						} satisfies GroupPageOutletContext
+					}
+				/>
+			</div>
 
 			{groupQuery.data && (
 				<DeleteDialog

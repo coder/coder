@@ -14,7 +14,7 @@ const GroupSettingsPage: FC = () => {
 	};
 	const { group: groupData } = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
-	const patchGroupMutation = useMutation(patchGroup(queryClient));
+	const patchGroupMutation = useMutation(patchGroup(queryClient, organization));
 	const navigate = useNavigate();
 
 	return (

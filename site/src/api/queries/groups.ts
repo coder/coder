@@ -127,7 +127,7 @@ export const createGroup = (queryClient: QueryClient, organization: string) => {
 	};
 };
 
-export const patchGroup = (queryClient: QueryClient) => {
+export const patchGroup = (queryClient: QueryClient, organization: string) => {
 	return {
 		mutationFn: ({
 			groupId,
@@ -135,7 +135,7 @@ export const patchGroup = (queryClient: QueryClient) => {
 		}: PatchGroupRequest & { groupId: string }) =>
 			API.patchGroup(groupId, request),
 		onSuccess: async (updatedGroup: Group) =>
-			invalidateGroup(queryClient, "default", updatedGroup.id),
+			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};
 };
 

@@ -53,7 +53,7 @@ const GroupMembersPage: FC = () => {
 	const groupId = groupData.id;
 
 	return (
-		<div className="flex flex-col w-full gap-1">
+		<div className="flex flex-col w-full gap-1 pb-8">
 			{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
 				<AddGroupMember
 					isLoading={addMemberMutation.isPending}
