@@ -72,8 +72,9 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 
 // Deps provides access to tool dependencies.
 type Deps struct {
-	coderClient *codersdk.Client
-	report      func(ReportTaskArgs) error
+	coderClient  *codersdk.Client
+	report       func(ReportTaskArgs) error
+	agentConnFn  func() workspacesdk.AgentConn
 }
 
 func (d Deps) ServerURL() string {
@@ -87,6 +88,24 @@ func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
 	return func(d *Deps) {
 		d.report = fn
 	}
+}
+
+// WithAgentConn configures a Deps with a function that returns
+// an agent connection. The function is called each time a tool
+// needs to interact with the workspace agent.
+func WithAgentConn(fn func() workspacesdk.AgentConn) func(*Deps) {
+	return func(d *Deps) {
+		d.agentConnFn = fn
+	}
+}
+
+// AgentConn returns the agent connection by calling the stored
+// function. It returns nil if no agent connection was configured.
+func (d Deps) AgentConn() workspacesdk.AgentConn {
+	if d.agentConnFn == nil {
+		return nil
+	}
+	return d.agentConnFn()
 }
 
 // HandlerFunc is a typed function that handles a tool call.

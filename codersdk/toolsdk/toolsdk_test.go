@@ -1850,6 +1850,24 @@ func TestMain(m *testing.M) {
 		println("NOTE: if you just ran an individual test, this is expected.")
 	}
 
+	// Check chat tools coverage.
+	var untestedChat []string
+	for _, tool := range toolsdk.ChatTools {
+		if tested, ok := testedChatTools.Load(tool.Name); !ok || !tested.(bool) {
+			untestedChat = append(untestedChat, tool.Name)
+		}
+	}
+
+	if len(untestedChat) > 0 && code == 0 {
+		code = 1
+		println("The following ChatTools were not tested:")
+		for _, tool := range untestedChat {
+			println(" - " + tool)
+		}
+		println("Please add tests for all ChatTools.")
+		println("NOTE: if you just ran an individual test, this is expected.")
+	}
+
 	// Check for goroutine leaks. Below is adapted from goleak.VerifyTestMain:
 	if code == 0 {
 		if err := goleak.Find(testutil.GoleakOptions...); err != nil {
