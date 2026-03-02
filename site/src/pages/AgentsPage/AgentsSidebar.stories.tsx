@@ -240,6 +240,46 @@ export const RunningChatPreservesSpinner: Story = {
 	},
 };
 
+// When a root chat is idle but has a running child, the chevron
+// should still be scoped to the icon area hover, not the full row.
+export const IdleParentWithRunningChild: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "idle-parent",
+				title: "Idle parent agent",
+				status: "waiting",
+			}),
+			buildChat({
+				id: "running-child",
+				title: "Running sub-agent",
+				status: "running",
+				parent_chat_id: "idle-parent",
+				root_chat_id: "idle-parent",
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/running-child",
+				pathParams: { agentId: "running-child" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The parent's toggle should use icon-only hover scope because
+		// its child is actively running.
+		const toggle = canvas.getByTestId("agents-tree-toggle-idle-parent");
+		await expect(toggle).toBeInTheDocument();
+		await expect(toggle.className).toMatch(/\binvisible\b/);
+		await expect(toggle.className).toContain("group-hover/icon:visible");
+	},
+};
+
 export const ActiveChatAncestryExpanded: Story = {
 	args: {
 		chats: [

@@ -1209,6 +1209,67 @@ func TestArchiveChat(t *testing.T) {
 		err := client.ArchiveChat(ctx, uuid.New())
 		requireSDKError(t, err, http.StatusNotFound)
 	})
+
+	t.Run("ArchivesChildren", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create a parent chat via the API.
+		parentChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "parent chat",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Insert child chats directly via the database.
+		child1, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child 1",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		child2, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child 2",
+			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		// Archive the parent via the API.
+		err = client.ArchiveChat(ctx, parentChat.ID)
+		require.NoError(t, err)
+
+		// List chats — none of the family should appear.
+		chats, err := client.ListChats(ctx)
+		require.NoError(t, err)
+		for _, c := range chats {
+			require.NotEqual(t, parentChat.ID, c.ID, "parent should not appear")
+			require.NotEqual(t, child1.ID, c.ID, "child1 should not appear")
+			require.NotEqual(t, child2.ID, c.ID, "child2 should not appear")
+		}
+
+		// Verify children are archived directly in the DB.
+		dbChild1, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child1.ID)
+		require.NoError(t, err)
+		require.True(t, dbChild1.Archived, "child1 should be archived")
+
+		dbChild2, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child2.ID)
+		require.NoError(t, err)
+		require.True(t, dbChild2.Archived, "child2 should be archived")
+	})
 }
 
 func TestPostChatMessages(t *testing.T) {

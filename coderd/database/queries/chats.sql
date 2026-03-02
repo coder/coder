@@ -1,5 +1,6 @@
 -- name: ArchiveChatByID :exec
-UPDATE chats SET archived = true, updated_at = NOW() WHERE id = @id::uuid;
+UPDATE chats SET archived = true, updated_at = NOW()
+WHERE id = @id OR root_chat_id = @id;
 
 -- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;

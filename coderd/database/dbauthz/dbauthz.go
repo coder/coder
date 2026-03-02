@@ -694,6 +694,26 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectChatd = rbac.Subject{
+		Type:         rbac.SubjectTypeChatd,
+		FriendlyName: "Chatd",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "chatd"},
+				DisplayName: "Chat Daemon",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceWorkspace.Type:        {policy.ActionRead},
+					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -806,6 +826,13 @@ func AsBoundaryUsageTracker(ctx context.Context) context.Context {
 // reading provisioner state (which requires template update permission).
 func AsWorkspaceBuilder(ctx context.Context) context.Context {
 	return As(ctx, subjectWorkspaceBuilder)
+}
+
+// AsChatd returns a context with an actor scoped to the chat
+// daemon's background worker. It can manage chats and read
+// workspaces and deployment config, but nothing else.
+func AsChatd(ctx context.Context) context.Context {
+	return As(ctx, subjectChatd)
 }
 
 var AsRemoveActor = rbac.Subject{
