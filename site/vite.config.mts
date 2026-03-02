@@ -107,6 +107,12 @@ export default defineConfig({
 								"origin",
 								process.env.CODER_HOST || "http://localhost:3000",
 							);
+							if (process.env.CODER_SESSION_TOKEN) {
+								proxyReq.setHeader(
+									"Coder-Session-Token",
+									process.env.CODER_SESSION_TOKEN!,
+								);
+							}
 						}
 
 						socket.on("error", (error) => {
