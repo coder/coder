@@ -656,15 +656,13 @@ export const TaskFollowUpResumeBuildFailure: Story = {
 			await dialog.findByRole("button", { name: /send follow-up/i }),
 		);
 
-		await waitFor(async () => {
-			expect(
-				await canvas.findByText(
-					"Failed to resume task because the workspace build did not complete successfully.",
-				),
-			).toBeInTheDocument();
-			const pendingLabel = await canvas.findByText(/Pending follow-up:/i);
-			expect(pendingLabel.parentElement).toHaveTextContent("Continue task");
+		await waitFor(() => {
+			expect(API.resumeTask).toHaveBeenCalled();
 		});
+		expect(await canvas.findByText("Task build failed")).toBeInTheDocument();
+		expect(
+			await canvas.findByText("Please check the logs for more details."),
+		).toBeInTheDocument();
 	},
 };
 
