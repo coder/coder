@@ -824,8 +824,7 @@ latest_status_before_range AS (
     SELECT
         DISTINCT usc.user_id,
         usc.new_status,
-        usc.changed_at,
-        ud.deleted
+        usc.changed_at
     FROM user_status_changes usc
 	LEFT JOIN LATERAL (
 		SELECT COUNT(*) > 0 AS deleted
@@ -833,6 +832,7 @@ latest_status_before_range AS (
 		WHERE ud.user_id = usc.user_id AND (ud.deleted_at < usc.changed_at OR ud.deleted_at < @start_time)
 	) AS ud ON true
     WHERE usc.user_id NOT IN (SELECT id FROM system_users)
+        AND NOT ud.deleted
         AND usc.changed_at < @start_time::timestamptz
     ORDER BY usc.user_id, usc.changed_at DESC
 ),
@@ -841,8 +841,7 @@ status_changes_during_range AS (
     SELECT
         usc.user_id,
         usc.new_status,
-        usc.changed_at,
-        ud.deleted
+        usc.changed_at
     FROM user_status_changes usc
 	LEFT JOIN LATERAL (
 		SELECT COUNT(*) > 0 AS deleted
@@ -850,25 +849,18 @@ status_changes_during_range AS (
 		WHERE ud.user_id = usc.user_id AND ud.deleted_at < usc.changed_at
 	) AS ud ON true
     WHERE usc.user_id NOT IN (SELECT id FROM system_users)
+        AND NOT ud.deleted
         AND usc.changed_at >= @start_time::timestamptz
         AND usc.changed_at <= @end_time::timestamptz
 ),
 relevant_status_changes AS (
-    SELECT
-        user_id,
-        new_status,
-        changed_at
+    SELECT user_id, new_status, changed_at
     FROM latest_status_before_range
-    WHERE NOT deleted -- TODO(sasswart): move this clause to the CTE above.
 
     UNION ALL
 
-    SELECT
-        user_id,
-        new_status,
-        changed_at
+    SELECT user_id, new_status, changed_at
     FROM status_changes_during_range
-    WHERE NOT deleted -- TODO(sasswart): move this clause to the CTE above.
 ),
 	-- statuses selects all the distinct statuses that were present just before and during the time range.
 	-- Each status will have a series on the chart.
