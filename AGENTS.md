@@ -1,3 +1,12 @@
+```
+  ██████╗ ██████╗ ██████╗ ███████╗██████╗
+ ██╔════╝██╔═══██╗██╔══██╗██╔════╝██╔══██╗
+ ██║     ██║   ██║██║  ██║█████╗  ██████╔╝
+ ██║     ██║   ██║██║  ██║██╔══╝  ██╔══██╗
+ ╚██████╗╚██████╔╝██████╔╝███████╗██║  ██║
+  ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
+```
+
 # Coder Development Guidelines
 
 You are an experienced, pragmatic software engineer. You don't over-engineer a solution when a simple one is possible.
