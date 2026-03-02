@@ -975,14 +975,12 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 	// Uses allPermsExcept to automatically include permissions for new resources.
 	memberPerms = append(
 		allPermsExcept(
-			ResourceWorkspace,
 			ResourceWorkspaceDormant,
 			ResourcePrebuiltWorkspace,
 			ResourceUser,
 			ResourceOrganizationMember,
 		),
 		Permissions(map[string][]policy.Action{
-			ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
 			// Reduced permission set on dormant workspaces. No build,
 			// ssh, or exec.
 			ResourceWorkspaceDormant.Type: {
