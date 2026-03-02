@@ -1013,7 +1013,20 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 		return workspace, codersdk.WorkspaceAgent{}, otherWorkspaceAgents, xerrors.Errorf("workspace %q is in failed state", workspace.Name)
 	}
 
-	// User confirmed retry — reuse the full autostart flow which handles
+	// Stop the workspace first to clean up any partially provisioned
+	// resources before retrying (see #22043).
+	_, _ = fmt.Fprintf(inv.Stderr, "Stopping workspace %q before retrying...\n", workspace.Name)
+	stopBuild, err := stopWorkspace(inv, client, workspace, buildFlags{})
+	if err != nil {
+		return workspace, codersdk.WorkspaceAgent{}, otherWorkspaceAgents, xerrors.Errorf("stop workspace before retry: %w", err)
+	}
+	// Wait for the stop build to complete.
+	err = cliui.WorkspaceBuild(ctx, inv.Stderr, client, stopBuild.ID)
+	if err != nil {
+		return workspace, codersdk.WorkspaceAgent{}, otherWorkspaceAgents, xerrors.Errorf("wait for workspace stop: %w", err)
+	}
+
+	// Now start the workspace. Reuse the full autostart flow which handles
 	// conflicts, forbidden errors, template version updates, etc.
 	// Pass retry=false to prevent infinite recursion.
 	return GetWorkspaceAndAgent(ctx, inv, client, true, false, input)
