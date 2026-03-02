@@ -128,18 +128,8 @@ When `enable_state_persistence` is `false`, the shutdown script still runs to
 capture log snapshots, but skips saving AgentAPI state. On resume, chat
 history is not restored.
 
-If you are building a [custom agent](./custom-agents.md), you can set this
-variable on the agentapi module directly:
-
-```hcl
-module "agentapi" {
-  source                   = "registry.coder.com/coder/agentapi/coder"
-  version                  = ">= 2.2.0"
-  agent_id                 = coder_agent.main.id
-  enable_state_persistence = true
-  # ...
-}
-```
+If you are building a [custom agent](./custom-agents.md#pause-and-resume),
+set this variable on the agentapi module directly.
 
 ### Graceful shutdown timeout
 
