@@ -1,7 +1,7 @@
 import { getErrorDetail, getErrorMessage, getErrorStatus } from "api/errors";
 import type { FC } from "react";
 import { Link } from "../Link/Link";
-import { Alert, AlertDetail, type AlertProps, AlertTitle } from "./Alert";
+import { Alert, AlertDescription, type AlertProps, AlertTitle } from "./Alert";
 
 type ErrorAlertProps = Readonly<
 	Omit<AlertProps, "severity" | "children"> & { error: unknown }
@@ -13,33 +13,23 @@ export const ErrorAlert: FC<ErrorAlertProps> = ({ error, ...alertProps }) => {
 	const status = getErrorStatus(error);
 
 	// For some reason, the message and detail can be the same on the BE, but does
-	// not make sense in the FE to showing them duplicated
-	const shouldDisplayDetail = message !== detail;
+	// not make sense in the FE to showing them duplicated. However, we should always
+	// display the detail if its a 403 Forbidden response.
+	const shouldDisplayDetail = status === 403 || message !== detail;
 
 	return (
 		<Alert severity="error" prominent {...alertProps}>
-			{
-				// When the error is a Forbidden response we include a link for the user to
-				// go back to a known viewable page.
-				status === 403 ? (
-					<>
-						<AlertTitle>{message}</AlertTitle>
-						<AlertDetail>
-							{detail}{" "}
-							<Link href="/workspaces" className="w-fit">
-								Go to workspaces
-							</Link>
-						</AlertDetail>
-					</>
-				) : detail ? (
-					<>
-						<AlertTitle>{message}</AlertTitle>
-						{shouldDisplayDetail && <AlertDetail>{detail}</AlertDetail>}
-					</>
-				) : (
-					message
-				)
-			}
+			<AlertTitle>{message}</AlertTitle>
+			<AlertDescription>
+				{shouldDisplayDetail && detail}
+				{status === 403 && (
+					// When the error is a Forbidden response we include a link for the user to
+					// go back to a known viewable page.
+					<Link href="/workspaces" className="w-fit">
+						Go to workspaces
+					</Link>
+				)}
+			</AlertDescription>
 		</Alert>
 	);
 };

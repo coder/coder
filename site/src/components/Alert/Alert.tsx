@@ -125,7 +125,7 @@ export const Alert: FC<AlertProps> = ({
 	);
 };
 
-export const AlertDetail: React.FC<React.PropsWithChildren> = ({
+export const AlertDescription: React.FC<React.PropsWithChildren> = ({
 	children,
 }) => {
 	return (
