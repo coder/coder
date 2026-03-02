@@ -198,8 +198,7 @@ reviewer time and clutters the diff.
 **Don't delete existing comments** that explain non-obvious behavior. These
 comments preserve important context about why code works a certain way.
 
-**When adding tests for new behavior**, do not introduce new tests if they
-would duplicate coverage of existing tests. Check coverage if you are unsure.
+**When adding tests for new behavior**, first check if the existing tests cover this behavior to prevent duplication.
 
 ## Detailed Development Guides
 
