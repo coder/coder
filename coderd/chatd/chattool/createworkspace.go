@@ -37,6 +37,13 @@ const (
 	// agentPingTimeout is the timeout for a single agent ping
 	// when checking whether an existing workspace is alive.
 	agentPingTimeout = 5 * time.Second
+	// startupScriptTimeout is the maximum time to wait for the
+	// workspace agent's startup scripts to finish after the agent
+	// is reachable.
+	startupScriptTimeout = 10 * time.Minute
+	// startupScriptPollInterval is how often we check the agent's
+	// lifecycle state while waiting for startup scripts.
+	startupScriptPollInterval = 2 * time.Second
 )
 
 // CreateWorkspaceFn creates a workspace for the given owner.
@@ -205,6 +212,31 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 						"workspace_name": workspace.FullName(),
 						"agent_status":   "not_ready",
 						"agent_error":    err.Error(),
+					}), nil
+				}
+			}
+
+			// Wait for startup scripts (e.g. git clone) to
+			// finish so the workspace is fully usable.
+			if workspaceAgentID != uuid.Nil && options.DB != nil {
+				lifecycle, err := waitForStartupScripts(ctx, options.DB, workspaceAgentID)
+				if err != nil {
+					// Non-fatal: workspace was created and
+					// agent connected, but we couldn't
+					// confirm scripts finished.
+					return toolResponse(map[string]any{
+						"created":        true,
+						"workspace_name": workspace.FullName(),
+						"agent_status":   "startup_scripts_unknown",
+						"agent_error":    err.Error(),
+					}), nil
+				}
+				if lifecycle != database.WorkspaceAgentLifecycleStateReady {
+					return toolResponse(map[string]any{
+						"created":         true,
+						"workspace_name":  workspace.FullName(),
+						"agent_status":    "startup_scripts_failed",
+						"lifecycle_state": string(lifecycle),
 					}), nil
 				}
 			}
@@ -395,6 +427,52 @@ func waitForAgent(
 			return xerrors.Errorf(
 				"timed out waiting for workspace agent: %w",
 				lastErr,
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
+// waitForStartupScripts polls the agent's lifecycle state until
+// startup scripts have finished running. This ensures that init
+// tasks like git clone complete before the tool returns. Returns
+// the terminal lifecycle state.
+func waitForStartupScripts(
+	ctx context.Context,
+	db database.Store,
+	agentID uuid.UUID,
+) (database.WorkspaceAgentLifecycleState, error) {
+	scriptCtx, cancel := context.WithTimeout(ctx, startupScriptTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(startupScriptPollInterval)
+	defer ticker.Stop()
+
+	for {
+		row, err := db.GetWorkspaceAgentLifecycleStateByID(scriptCtx, agentID)
+		if err != nil {
+			return "", xerrors.Errorf("get agent lifecycle state: %w", err)
+		}
+
+		switch row.LifecycleState {
+		case database.WorkspaceAgentLifecycleStateReady,
+			database.WorkspaceAgentLifecycleStateStartError,
+			database.WorkspaceAgentLifecycleStateStartTimeout:
+			// Scripts finished (successfully or not).
+			return row.LifecycleState, nil
+		case database.WorkspaceAgentLifecycleStateCreated,
+			database.WorkspaceAgentLifecycleStateStarting:
+			// Still running — keep waiting.
+		default:
+			// Shutting down, off, etc. — no point waiting.
+			return row.LifecycleState, nil
+		}
+
+		select {
+		case <-scriptCtx.Done():
+			return row.LifecycleState, xerrors.Errorf(
+				"timed out waiting for startup scripts (state: %s): %w",
+				row.LifecycleState, scriptCtx.Err(),
 			)
 		case <-ticker.C:
 		}
