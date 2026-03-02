@@ -1,13 +1,13 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import set from "lodash/set";
 import { EditIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback, useMemo } from "react";
-import { Link } from "react-router";
+import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
+import { getTemplateFileIcon } from "./TemplateFileIcon";
 import { TemplateFileTree } from "./TemplateFileTree";
 
 interface TemplateFilesProps {
@@ -29,7 +29,6 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 	baseFiles,
 }) => {
 	const getLink = useLinks();
-	const theme = useTheme();
 
 	const fileInfo = useCallback(
 		(filename: string) => {
@@ -61,8 +60,8 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 
 	return (
 		<div>
-			<div css={{ display: "flex", alignItems: "flex-start", gap: 32 }}>
-				<div css={styles.sidebar}>
+			<div className="flex items-start gap-8">
+				<div className="sticky top-8 w-[240px] shrink-0 overflow-auto rounded-lg border border-solid border-surface-quaternary py-1">
 					<TemplateFileTree
 						fileTree={fileTree}
 						onSelect={(path: string) => {
@@ -75,9 +74,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 
 							const hasDiff = fileInfo(path).hasDiff;
 							return (
-								<span
-									css={hasDiff && { color: theme.roles.warning.fill.outline }}
-								>
+								<span className={cn(hasDiff && "text-content-warning")}>
 									{filename}
 								</span>
 							);
@@ -85,42 +82,42 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 					/>
 				</div>
 
-				<div css={styles.files} data-testid="template-files-content">
+				<div
+					className="flex flex-1 flex-col gap-4"
+					data-testid="template-files-content"
+				>
 					{Object.keys(currentFiles)
 						.sort((a, b) => a.localeCompare(b))
 						.map((filename) => {
+							const TemplateFileIcon = getTemplateFileIcon(filename, false);
 							const info = fileInfo(filename);
 
 							return (
-								<div key={filename} css={styles.filePanel} id={filename}>
-									<header css={styles.fileHeader}>
-										<span
-											className={cn({
-												"text-content-warning": info.hasDiff,
-											})}
-										>
-											{filename}
-										</span>
+								<div
+									key={filename}
+									id={filename}
+									className="overflow-hidden rounded-lg border border-solid border-surface-quaternary"
+								>
+									<header className="flex items-center gap-2 border-0 border-b border-solid border-surface-quaternary px-4 py-2 text-[13px] font-medium">
+										<div className="flex items-center gap-2">
+											<TemplateFileIcon className="text-content-secondary size-icon-xs" />
+											<span
+												className={cn({
+													"text-content-warning": info.hasDiff,
+												})}
+											>
+												{filename}
+											</span>
+										</div>
 
-										<div css={{ marginLeft: "auto" }}>
-											<Link
+										<div className="ml-auto">
+											<RouterLink
 												to={`${versionLink}/edit?path=${filename}`}
-												css={{
-													display: "flex",
-													gap: 4,
-													alignItems: "center",
-													fontSize: 14,
-													color: theme.palette.text.secondary,
-													textDecoration: "none",
-
-													"&:hover": {
-														color: theme.palette.text.primary,
-													},
-												}}
+												className="flex items-center gap-1 text-sm no-underline text-content-secondary hover:text-content-primary"
 											>
 												<EditIcon className="text-inherit size-icon-xs" />
 												Edit
-											</Link>
+											</RouterLink>
 										</div>
 									</header>
 									<SyntaxHighlighter
@@ -170,39 +167,3 @@ const getLanguage = (filename: string) => {
 const numberOfLines = (content: string) => {
 	return content.split("\n").length;
 };
-
-const styles = {
-	sidebar: (theme) => ({
-		width: 240,
-		flexShrink: 0,
-		borderRadius: 8,
-		overflow: "auto",
-		border: `1px solid ${theme.palette.divider}`,
-		padding: "4px 0",
-		position: "sticky",
-		top: 32,
-	}),
-
-	files: {
-		display: "flex",
-		flexDirection: "column",
-		gap: 16,
-		flex: 1,
-	},
-
-	filePanel: (theme) => ({
-		borderRadius: 8,
-		border: `1px solid ${theme.palette.divider}`,
-		overflow: "hidden",
-	}),
-
-	fileHeader: (theme) => ({
-		padding: "8px 16px",
-		borderBottom: `1px solid ${theme.palette.divider}`,
-		fontSize: 13,
-		fontWeight: 500,
-		display: "flex",
-		gap: 8,
-		alignItems: "center",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

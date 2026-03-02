@@ -1,8 +1,10 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { appearanceConfigKey, updateAppearance } from "api/queries/appearance";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
+import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -18,6 +20,8 @@ const AppearanceSettingsPage: FC = () => {
 	const { multiple_organizations: hasPremiumLicense } = useFeatureVisibility();
 	const queryClient = useQueryClient();
 	const updateAppearanceMutation = useMutation(updateAppearance(queryClient));
+	const { permissions } = useAuthenticated();
+	const canEditAppearance = permissions.editDeploymentConfig;
 
 	const onSaveAppearance = async (
 		newConfig: Partial<UpdateAppearanceConfig>,
@@ -47,14 +51,16 @@ const AppearanceSettingsPage: FC = () => {
 		<>
 			<title>{pageTitle("Appearance Settings")}</title>
 
-			<AppearanceSettingsPageView
-				appearance={appearance}
-				onSaveAppearance={onSaveAppearance}
-				isEntitled={
-					entitlements.features.appearance.entitlement !== "not_entitled"
-				}
-				isPremium={hasPremiumLicense}
-			/>
+			<RequirePermission isFeatureVisible={canEditAppearance}>
+				<AppearanceSettingsPageView
+					appearance={appearance}
+					onSaveAppearance={onSaveAppearance}
+					isEntitled={
+						entitlements.features.appearance.entitlement !== "not_entitled"
+					}
+					isPremium={hasPremiumLicense}
+				/>
+			</RequirePermission>
 		</>
 	);
 };

@@ -1,6 +1,6 @@
 import type { GetLicensesResponse } from "api/api";
 import { Button } from "components/Button/Button";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Pill } from "components/Pill/Pill";
 import dayjs from "dayjs";
 import { type FC, useState } from "react";
@@ -25,6 +25,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	>(undefined);
 
 	const currentUserLimit = license.claims.features.user_limit || userLimitLimit;
+	const confirmationName = licenseIDMarkedForRemoval?.toString() ?? "";
 
 	const isExpired = dayjs
 		.unix(license.claims.license_expires)
@@ -41,26 +42,27 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 			key={license.id}
 			className="license-card rounded-lg border border-solid border-border bg-surface-secondary p-4 text-sm shadow-sm"
 		>
-			<ConfirmDialog
-				type="delete"
-				hideCancel={false}
-				open={licenseIDMarkedForRemoval !== undefined}
+			<DeleteDialog
+				key={licenseIDMarkedForRemoval}
+				isOpen={licenseIDMarkedForRemoval !== undefined}
 				onConfirm={() => {
-					if (!licenseIDMarkedForRemoval) {
-						return;
-					}
+					if (!licenseIDMarkedForRemoval) return;
 					onRemove(licenseIDMarkedForRemoval);
 					setLicenseIDMarkedForRemoval(undefined);
 				}}
-				onClose={() => setLicenseIDMarkedForRemoval(undefined)}
-				title="Confirm License Removal"
-				confirmLoading={isRemoving}
+				onCancel={() => setLicenseIDMarkedForRemoval(undefined)}
+				entity="license"
+				name={confirmationName}
+				label="ID of the license to remove"
+				title="Confirm license removal"
+				verb="Removing"
 				confirmText="Remove"
-				description={
+				info={
 					isExpired
 						? "This license has already expired and is not providing any features. Removing it will not affect your current entitlements."
 						: "Removing this license will disable all Premium features. You can add a new license at any time."
 				}
+				confirmLoading={isRemoving}
 			/>
 			<div className="flex flex-row gap-4 items-center">
 				<span className="text-content-secondary text-lg font-semibold">

@@ -47,13 +47,13 @@ type Story = StoryObj<typeof RequestLogsPageView>;
 
 export const Paywall: Story = {
 	args: {
-		isRequestLogsVisible: false,
+		isRequestLogsEntitled: false,
 	},
 };
 
 export const Loaded: Story = {
 	args: {
-		isRequestLogsVisible: true,
+		isRequestLogsEntitled: true,
 		interceptions,
 		filterProps: {
 			...defaultFilterProps,
@@ -64,7 +64,7 @@ export const Loaded: Story = {
 
 export const Empty: Story = {
 	args: {
-		isRequestLogsVisible: true,
+		isRequestLogsEntitled: true,
 		interceptions: [],
 		filterProps: {
 			...defaultFilterProps,
@@ -76,7 +76,7 @@ export const Empty: Story = {
 export const Loading: Story = {
 	args: {
 		isLoading: true,
-		isRequestLogsVisible: true,
+		isRequestLogsEntitled: true,
 		interceptions: [],
 		filterProps: {
 			...defaultFilterProps,

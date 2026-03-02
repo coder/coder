@@ -48,6 +48,10 @@ func prepareEnv() {
 	if err != nil {
 		panic(err)
 	}
+	err = os.Setenv("TMPDIR", "/tmp")
+	if err != nil {
+		panic(err)
+	}
 }
 
 func deleteEmptyDirs(dir string) error {

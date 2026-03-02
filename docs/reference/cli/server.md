@@ -1067,7 +1067,7 @@ Controls the 'SameSite' property is set on browser session cookies.
 | YAML        | <code>networking.hostPrefixCookie</code> |
 | Default     | <code>false</code>                       |
 
-Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain.
+Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain. This change is disruptive to any workspaces built before release 2.31, requiring a workspace restart.
 
 ### --terms-of-service-url
 
@@ -1257,6 +1257,17 @@ The upgrade message to display to users when a client/server mismatch is detecte
 | YAML        | <code>supportLinks</code>                  |
 
 Support links to display in the top right drop down menu.
+
+### --external-auth-github-default-provider-enable
+
+|             |                                                                  |
+|-------------|------------------------------------------------------------------|
+| Type        | <code>bool</code>                                                |
+| Environment | <code>$CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE</code> |
+| YAML        | <code>externalAuthGithubDefaultProviderEnable</code>             |
+| Default     | <code>true</code>                                                |
+
+Enable the default GitHub external auth provider managed by Coder.
 
 ### --proxy-health-interval
 
