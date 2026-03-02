@@ -1116,34 +1116,34 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatProvider)
 				})
 			})
-				r.Route("/model-configs", func(r chi.Router) {
-					r.Get("/", api.listChatModelConfigs)
-					r.Post("/", api.createChatModelConfig)
-					r.Route("/{modelConfig}", func(r chi.Router) {
-						r.Patch("/", api.updateChatModelConfig)
-						r.Delete("/", api.deleteChatModelConfig)
-					})
+			r.Route("/model-configs", func(r chi.Router) {
+				r.Get("/", api.listChatModelConfigs)
+				r.Post("/", api.createChatModelConfig)
+				r.Route("/{modelConfig}", func(r chi.Router) {
+					r.Patch("/", api.updateChatModelConfig)
+					r.Delete("/", api.deleteChatModelConfig)
 				})
-				r.Route("/config", func(r chi.Router) {
-					r.Get("/", api.chatConfigSettings)
-					r.Put("/", api.putChatConfigSettings)
+			})
+			r.Route("/config", func(r chi.Router) {
+				r.Get("/", api.chatConfigSettings)
+				r.Put("/", api.putChatConfigSettings)
+			})
+			r.Route("/{chat}", func(r chi.Router) {
+				r.Use(httpmw.ExtractChatParam(options.Database))
+				r.Get("/", api.getChat)
+				r.Post("/archive", api.archiveChat)
+				r.Post("/unarchive", api.unarchiveChat)
+				r.Post("/messages", api.postChatMessages)
+				r.Patch("/messages/{message}", api.patchChatMessage)
+				r.Get("/stream", api.streamChat)
+				r.Post("/interrupt", api.interruptChat)
+				r.Get("/diff-status", api.getChatDiffStatus)
+				r.Get("/diff", api.getChatDiffContents)
+				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
+					r.Delete("/", api.deleteChatQueuedMessage)
+					r.Post("/promote", api.promoteChatQueuedMessage)
 				})
-				r.Route("/{chat}", func(r chi.Router) {
-					r.Use(httpmw.ExtractChatParam(options.Database))
-					r.Get("/", api.getChat)
-					r.Post("/archive", api.archiveChat)
-					r.Post("/unarchive", api.unarchiveChat)
-					r.Post("/messages", api.postChatMessages)
-					r.Patch("/messages/{message}", api.patchChatMessage)
-					r.Get("/stream", api.streamChat)
-					r.Post("/interrupt", api.interruptChat)
-					r.Get("/diff-status", api.getChatDiffStatus)
-					r.Get("/diff", api.getChatDiffContents)
-					r.Route("/queue/{queuedMessage}", func(r chi.Router) {
-						r.Delete("/", api.deleteChatQueuedMessage)
-						r.Post("/promote", api.promoteChatQueuedMessage)
-					})
-				})
+			})
 		})
 
 		r.Route("/mcp", func(r chi.Router) {
