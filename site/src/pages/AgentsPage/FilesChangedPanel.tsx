@@ -77,7 +77,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 	if (diffContentsQuery.isLoading || diffStatusQuery.isLoading) {
 		return (
 			<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-l border-solid bg-surface-primary">
-				<div className="flex items-center gap-2 border-0 border-b border-l border-solid px-4 py-3">
+				<div className="flex items-center gap-2 border-0 border-b border-solid px-4 py-3">
 					<Skeleton className="h-4 w-4 rounded" />
 					<Skeleton className="h-4 w-28" />
 				</div>
@@ -106,7 +106,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 	return (
 		<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-l border-solid bg-surface-primary">
 			{/* Header */}
-			<div className="flex items-center justify-between gap-3 border-0 border-b border-l border-solid px-4 py-3">
+			<div className="flex items-center justify-between gap-3 border-0 border-b border-solid px-4 py-3">
 				<div className="flex min-w-0 items-center gap-2">
 					{pullRequestUrl ? (
 						<>
