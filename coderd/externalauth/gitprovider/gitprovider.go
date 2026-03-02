@@ -73,12 +73,16 @@ type Provider interface {
 	ResolveBranchPullRequest(ctx context.Context, token string, ref BranchRef) (*PRRef, error)
 
 	// FetchPullRequestDiff returns the raw unified diff for a
-	// PR. Separate from FetchPullRequestStatus because diffs
-	// can be large and are not always needed.
+	// pull request. This uses the PR's actual base branch (which
+	// may differ from the repo default branch, e.g. a PR
+	// targeting "staging" instead of "main"), so it matches what
+	// the provider shows on the PR's "Files changed" tab.
 	FetchPullRequestDiff(ctx context.Context, token string, ref PRRef) (string, error)
 
 	// FetchBranchDiff returns the diff of a branch compared
-	// against the repository's default branch.
+	// against the repository's default branch. This is the
+	// fallback when no pull request exists yet (e.g. the agent
+	// pushed a branch but hasn't opened a PR).
 	FetchBranchDiff(ctx context.Context, token string, ref BranchRef) (string, error)
 
 	// ParseRepositoryOrigin parses a remote origin URL (HTTPS
