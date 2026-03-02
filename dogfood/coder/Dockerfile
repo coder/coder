@@ -6,7 +6,7 @@ ENV CARGO_INSTALL_ROOT=/tmp/
 RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian|g' /etc/apt/sources.list && \
 	apt-get update || true
 RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
-RUN cargo install jj-cli typos-cli watchexec-cli
+RUN cargo install jj-cli typos-cli watchexec-cli@2.3.2
 
 FROM ubuntu:jammy@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb AS go
 
