@@ -33,6 +33,9 @@ func newGitHub(apiBaseURL string, httpClient HTTPClient) *githubProvider {
 		apiBaseURL = defaultGitHubAPIBaseURL
 	}
 	apiBaseURL = strings.TrimRight(apiBaseURL, "/")
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
 
 	// Derive the web base URL from the API base URL.
 	// github.com: api.github.com → github.com
@@ -160,6 +163,15 @@ func (g *githubProvider) BuildBranchURL(owner string, repo string, branch string
 		repo,
 		url.PathEscape(branch),
 	)
+}
+
+func (g *githubProvider) BuildRepositoryURL(owner string, repo string) string {
+	owner = strings.TrimSpace(owner)
+	repo = strings.TrimSpace(repo)
+	if owner == "" || repo == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/%s/%s", g.webBaseURL, owner, repo)
 }
 
 func (g *githubProvider) BuildPullRequestURL(ref PRRef) string {
@@ -346,12 +358,7 @@ func (g *githubProvider) decodeJSON(
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	httpClient := g.httpClient
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
-
-	resp, err := httpClient.Do(req)
+	resp, err := g.httpClient.Do(req)
 	if err != nil {
 		return xerrors.Errorf("execute github request: %w", err)
 	}
@@ -394,12 +401,7 @@ func (g *githubProvider) fetchDiff(
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	httpClient := g.httpClient
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
-
-	resp, err := httpClient.Do(req)
+	resp, err := g.httpClient.Do(req)
 	if err != nil {
 		return "", xerrors.Errorf("execute github diff request: %w", err)
 	}

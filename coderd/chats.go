@@ -1177,7 +1177,7 @@ func (api *API) resolveChatDiffContents(
 		return result, nil
 	}
 
-	token := api.resolveChatGitHubAccessToken(ctx, chat.OwnerID)
+	token := api.resolveChatGitAccessToken(ctx, chat.OwnerID)
 
 	if reference.PullRequestURL != "" {
 		ref, ok := gp.ParsePullRequestURL(reference.PullRequestURL)
@@ -1233,7 +1233,7 @@ func (api *API) resolveChatDiffReference(
 	if reference.RepositoryRef != nil && reference.RepositoryRef.Owner != "" {
 		gp := api.resolveGitProvider(reference.RepositoryRef.RemoteOrigin)
 		if gp != nil {
-			token := api.resolveChatGitHubAccessToken(ctx, chat.OwnerID)
+			token := api.resolveChatGitAccessToken(ctx, chat.OwnerID)
 			prRef, lookupErr := gp.ResolveBranchPR(ctx, token, gitprovider.BranchRef{
 				Owner:  reference.RepositoryRef.Owner,
 				Repo:   reference.RepositoryRef.Repo,
@@ -1247,9 +1247,9 @@ func (api *API) resolveChatDiffReference(
 					slog.F("branch", reference.RepositoryRef.Branch),
 					slog.Error(lookupErr),
 				)
-				} else if prRef != nil {
-					reference.PullRequestURL = gp.BuildPullRequestURL(*prRef)
-				}
+			} else if prRef != nil {
+				reference.PullRequestURL = gp.BuildPullRequestURL(*prRef)
+			}
 			reference.PullRequestURL = gp.NormalizePullRequestURL(reference.PullRequestURL)
 		}
 	}
@@ -1265,9 +1265,10 @@ func (api *API) resolveChatDiffReference(
 			}
 			if parsed, ok := gp.ParsePullRequestURL(reference.PullRequestURL); ok {
 				reference.RepositoryRef = &chatRepositoryRef{
-					Provider: strings.ToLower(extAuth.Type),
-					Owner:    parsed.Owner,
-					Repo:     parsed.Repo,
+					Provider:     strings.ToLower(extAuth.Type),
+					Owner:        parsed.Owner,
+					Repo:         parsed.Repo,
+					RemoteOrigin: gp.BuildRepositoryURL(parsed.Owner, parsed.Repo),
 				}
 				break
 			}
@@ -1370,8 +1371,8 @@ func (api *API) resolveExternalAuthProviderType(match string) string {
 }
 
 // resolveGitProvider finds the external auth config matching the
-// given remote origin URL and returns its GitProvider. Returns nil
-// if no matching git provider is configured.
+// given remote origin URL and returns its git provider. Returns
+// nil if no matching git provider is configured.
 func (api *API) resolveGitProvider(origin string) gitprovider.Provider {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {
@@ -1419,7 +1420,7 @@ func (api *API) refreshChatDiffStatus(
 		return database.ChatDiffStatus{}, xerrors.Errorf("no git provider found for PR URL %q", pullRequestURL)
 	}
 
-	token := api.resolveChatGitHubAccessToken(ctx, chatOwnerID)
+	token := api.resolveChatGitAccessToken(ctx, chatOwnerID)
 	status, err := gp.FetchPRStatus(ctx, token, ref)
 	if err != nil {
 		return database.ChatDiffStatus{}, err
@@ -1449,7 +1450,7 @@ func (api *API) refreshChatDiffStatus(
 	return refreshedStatus, nil
 }
 
-func (api *API) resolveChatGitHubAccessToken(
+func (api *API) resolveChatGitAccessToken(
 	ctx context.Context,
 	userID uuid.UUID,
 ) string {

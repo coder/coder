@@ -102,6 +102,10 @@ type Provider interface {
 	// the provider's web UI.
 	BuildBranchURL(owner, repo, branch string) string
 
+	// BuildRepositoryURL constructs a URL to view a repository
+	// on the provider's web UI.
+	BuildRepositoryURL(owner, repo string) string
+
 	// BuildPullRequestURL constructs a URL to view a pull
 	// request on the provider's web UI.
 	BuildPullRequestURL(ref PRRef) string
