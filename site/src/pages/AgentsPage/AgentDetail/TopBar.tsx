@@ -200,6 +200,29 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							Open in VS Code
 						</DropdownMenuItem>
 						<DropdownMenuItem
+							disabled={!workspace.canOpenTerminal}
+							onSelect={workspace.onOpenTerminal}
+						>
+							<TerminalIcon className="h-3.5 w-3.5" />
+							Open Terminal
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							disabled={!workspace.sshCommand}
+							onSelect={async () => {
+								if (!workspace.sshCommand) return;
+								try {
+									await navigator.clipboard.writeText(workspace.sshCommand);
+									toast.success("SSH command copied to clipboard");
+								} catch {
+									toast.error("Failed to copy SSH command");
+								}
+							}}
+						>
+							<CopyIcon className="h-3.5 w-3.5" />
+							Copy SSH Command
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
 							disabled={!workspace.canOpenWorkspace}
 							onSelect={workspace.onViewWorkspace}
 						>
@@ -207,24 +230,6 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							View Workspace
 						</DropdownMenuItem>
 						<DropdownMenuSeparator />
-						<DropdownMenuItem
-							disabled={!workspace.canOpenTerminal}
-							onSelect={workspace.onOpenTerminal}
-						>
-							<TerminalIcon className="h-3.5 w-3.5" />
-							Open Terminal
-						</DropdownMenuItem>
-						{workspace.sshCommand && (
-							<DropdownMenuItem
-								onSelect={() => {
-									void navigator.clipboard.writeText(workspace.sshCommand!);
-									toast.success("SSH command copied to clipboard");
-								}}
-							>
-								<CopyIcon className="h-3.5 w-3.5" />
-								Copy SSH Command
-							</DropdownMenuItem>
-						)}
 						{!isArchived && (
 							<DropdownMenuItem
 								className="text-content-destructive focus:text-content-destructive"
