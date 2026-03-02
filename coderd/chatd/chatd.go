@@ -2028,19 +2028,11 @@ func (p *Server) runChat(
 		return nil
 	}
 
-	streamCall := fantasy.AgentStreamCall{
-		MaxOutputTokens:  callConfig.MaxOutputTokens,
-		Temperature:      callConfig.Temperature,
-		TopP:             callConfig.TopP,
-		TopK:             callConfig.TopK,
-		PresencePenalty:  callConfig.PresencePenalty,
-		FrequencyPenalty: callConfig.FrequencyPenalty,
-		ProviderOptions:  chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions),
-	}
-
-	if streamCall.MaxOutputTokens == nil {
+	// Apply the default MaxOutputTokens if the model config
+	// does not specify one.
+	if callConfig.MaxOutputTokens == nil {
 		maxOutputTokens := int64(32_000)
-		streamCall.MaxOutputTokens = &maxOutputTokens
+		callConfig.MaxOutputTokens = &maxOutputTokens
 	}
 
 	// Generate the tool call ID up front so that the OnStart
@@ -2139,12 +2131,14 @@ func (p *Server) runChat(
 		})...)
 	}
 
-	_, err = chatloop.Run(ctx, chatloop.RunOptions{
-		Model:      model,
-		Messages:   prompt,
-		Tools:      tools,
-		StreamCall: streamCall,
-		MaxSteps:   maxChatSteps,
+	err = chatloop.Run(ctx, chatloop.RunOptions{
+		Model:    model,
+		Messages: prompt,
+		Tools:    tools,
+		MaxSteps: maxChatSteps,
+
+		ModelConfig:     callConfig,
+		ProviderOptions: chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions),
 
 		ContextLimitFallback: modelConfigContextLimit,
 

@@ -2,6 +2,7 @@ package chatloop //nolint:testpackage // Uses internal symbols.
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"charm.land/fantasy"
@@ -54,7 +55,7 @@ func TestRun_Compaction(t *testing.T) {
 			},
 		}
 
-		_, err := Run(context.Background(), RunOptions{
+		err := Run(context.Background(), RunOptions{
 			Model: model,
 			Messages: []fantasy.Message{
 				textMessage(fantasy.MessageRoleUser, "hello"),
@@ -120,7 +121,7 @@ func TestRun_Compaction(t *testing.T) {
 			},
 		}
 
-		_, err := Run(context.Background(), RunOptions{
+		err := Run(context.Background(), RunOptions{
 			Model: model,
 			Messages: []fantasy.Message{
 				textMessage(fantasy.MessageRoleUser, "hello"),
@@ -166,7 +167,7 @@ func TestRun_Compaction(t *testing.T) {
 			},
 		}
 
-		_, err := Run(context.Background(), RunOptions{
+		err := Run(context.Background(), RunOptions{
 			Model: model,
 			Messages: []fantasy.Message{
 				textMessage(fantasy.MessageRoleUser, "hello"),
@@ -190,8 +191,216 @@ func TestRun_Compaction(t *testing.T) {
 		require.False(t, onStartCalled, "OnStart should not fire when usage is below threshold")
 	})
 
-	t.Run("ErrorsAreReported", func(t *testing.T) {
+	t.Run("MidLoopCompactionReloadsMessages", func(t *testing.T) {
 		t.Parallel()
+
+		var mu sync.Mutex
+		var streamCallCount int
+		persistCompactionCalls := 0
+		reloadCalls := 0
+
+		const summaryText = "compacted summary"
+
+		model := &loopTestModel{
+			provider: "fake",
+			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				mu.Lock()
+				step := streamCallCount
+				streamCallCount++
+				mu.Unlock()
+
+				switch step {
+				case 0:
+					// Step 0: tool call with high usage (80/100 = 80% > 70%).
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "read_file"},
+						{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{}`},
+						{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+						{
+							Type:          fantasy.StreamPartTypeToolCall,
+							ID:            "tc-1",
+							ToolCallName:  "read_file",
+							ToolCallInput: `{}`,
+						},
+						{
+							Type:         fantasy.StreamPartTypeFinish,
+							FinishReason: fantasy.FinishReasonToolCalls,
+							Usage: fantasy.Usage{
+								InputTokens: 80,
+								TotalTokens: 85,
+							},
+						},
+					}), nil
+				default:
+					// Step 1: text with low usage (30/100 = 30% < 70%).
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+						{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+						{
+							Type:         fantasy.StreamPartTypeFinish,
+							FinishReason: fantasy.FinishReasonStop,
+							Usage: fantasy.Usage{
+								InputTokens: 30,
+								TotalTokens: 35,
+							},
+						},
+					}), nil
+				}
+			},
+			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				return &fantasy.Response{
+					Content: []fantasy.Content{
+						fantasy.TextContent{Text: summaryText},
+					},
+				}, nil
+			},
+		}
+
+		compactedMessages := []fantasy.Message{
+			textMessage(fantasy.MessageRoleSystem, "compacted system"),
+			textMessage(fantasy.MessageRoleUser, "compacted user"),
+		}
+
+		err := Run(context.Background(), RunOptions{
+			Model: model,
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "hello"),
+			},
+			Tools: []fantasy.AgentTool{
+				newNoopTool("read_file"),
+			},
+			MaxSteps: 5,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			ContextLimitFallback: 100,
+			Compaction: &CompactionOptions{
+				ThresholdPercent: 70,
+				SummaryPrompt:    "summarize now",
+				Persist: func(_ context.Context, _ CompactionResult) error {
+					persistCompactionCalls++
+					return nil
+				},
+			},
+			ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+				reloadCalls++
+				return compactedMessages, nil
+			},
+		})
+		require.NoError(t, err)
+
+		// Compaction fired after step 0 (above threshold).
+		require.GreaterOrEqual(t, persistCompactionCalls, 1)
+		// ReloadMessages was called after mid-loop compaction.
+		require.GreaterOrEqual(t, reloadCalls, 1)
+		// Both steps ran (tool-call step + follow-up text step).
+		require.Equal(t, 2, streamCallCount)
+	})
+
+	t.Run("PostRunCompactionSkippedAfterMidLoop", func(t *testing.T) {
+		t.Parallel()
+
+		var mu sync.Mutex
+		var streamCallCount int
+		persistCompactionCalls := 0
+
+		const summaryText = "compacted summary for skip test"
+
+		model := &loopTestModel{
+			provider: "fake",
+			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				mu.Lock()
+				step := streamCallCount
+				streamCallCount++
+				mu.Unlock()
+
+				switch step {
+				case 0:
+					// Step 0: tool call with high usage (80/100 = 80% > 70%).
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "read_file"},
+						{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{}`},
+						{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+						{
+							Type:          fantasy.StreamPartTypeToolCall,
+							ID:            "tc-1",
+							ToolCallName:  "read_file",
+							ToolCallInput: `{}`,
+						},
+						{
+							Type:         fantasy.StreamPartTypeFinish,
+							FinishReason: fantasy.FinishReasonToolCalls,
+							Usage: fantasy.Usage{
+								InputTokens: 80,
+								TotalTokens: 85,
+							},
+						},
+					}), nil
+				default:
+					// Step 1: text with low usage (20/100 = 20% < 70%).
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+						{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+						{
+							Type:         fantasy.StreamPartTypeFinish,
+							FinishReason: fantasy.FinishReasonStop,
+							Usage: fantasy.Usage{
+								InputTokens: 20,
+								TotalTokens: 25,
+							},
+						},
+					}), nil
+				}
+			},
+			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				return &fantasy.Response{
+					Content: []fantasy.Content{
+						fantasy.TextContent{Text: summaryText},
+					},
+				}, nil
+			},
+		}
+
+		compactedMessages := []fantasy.Message{
+			textMessage(fantasy.MessageRoleSystem, "compacted system"),
+			textMessage(fantasy.MessageRoleUser, "compacted user"),
+		}
+
+		err := Run(context.Background(), RunOptions{
+			Model: model,
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "hello"),
+			},
+			Tools: []fantasy.AgentTool{
+				newNoopTool("read_file"),
+			},
+			MaxSteps: 5,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			ContextLimitFallback: 100,
+			Compaction: &CompactionOptions{
+				ThresholdPercent: 70,
+				SummaryPrompt:    "summarize now",
+				Persist: func(_ context.Context, _ CompactionResult) error {
+					persistCompactionCalls++
+					return nil
+				},
+			},
+			ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+				return compactedMessages, nil
+			},
+		})
+		require.NoError(t, err)
+
+		// Only mid-loop compaction fires after step 0. The post-run
+		// safety net is skipped because alreadyCompacted is true.
+		require.Equal(t, 1, persistCompactionCalls)
+	})
+
+	t.Run("ErrorsAreReported", func(t *testing.T) {		t.Parallel()
 
 		model := &loopTestModel{
 			provider: "fake",
@@ -212,7 +421,7 @@ func TestRun_Compaction(t *testing.T) {
 		}
 
 		compactionErr := xerrors.New("unset")
-		_, err := Run(context.Background(), RunOptions{
+		err := Run(context.Background(), RunOptions{
 			Model: model,
 			Messages: []fantasy.Message{
 				textMessage(fantasy.MessageRoleUser, "hello"),
