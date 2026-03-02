@@ -371,6 +371,7 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 	wsHTTPClient.Jar = nil
 
 	headers := http.Header{}
+	// If we're not using a signed token, set the session token header.
 	if opts.SignedToken == "" {
 		headers.Set(codersdk.SessionTokenHeader, c.client.SessionToken())
 	}
