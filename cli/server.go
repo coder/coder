@@ -845,7 +845,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// Manage push notifications.
 			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
-			if experiments.Enabled(codersdk.ExperimentWebPush) {
+			if experiments.Enabled(codersdk.ExperimentWebPush) || buildinfo.IsDev() {
 				if !strings.HasPrefix(options.AccessURL.String(), "https://") {
 					options.Logger.Warn(ctx, "access URL is not HTTPS, so web push notifications may not work on some browsers", slog.F("access_url", options.AccessURL.String()))
 				}

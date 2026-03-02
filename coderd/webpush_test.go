@@ -30,11 +30,7 @@ func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWebPush)}
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: dv,
-	})
+	client := coderdtest.New(t, &coderdtest.Options{})
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 	_, anotherMember := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -112,12 +108,9 @@ func TestDeleteWebpushSubscription(t *testing.T) {
 		store, ps := dbtestutil.NewDB(t)
 		wrappedStore := &testWebpushErrorStore{Store: store}
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWebPush)}
 		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues: dv,
-			Database:         wrappedStore,
-			Pubsub:           ps,
+			Database: wrappedStore,
+			Pubsub:   ps,
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
