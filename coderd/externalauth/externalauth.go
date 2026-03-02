@@ -111,10 +111,10 @@ type Config struct {
 	CodeChallengeMethodsSupported []promoauth.Oauth2PKCEChallengeMethod
 }
 
-// Git returns a GitProvider for this config if the provider type
+// Git returns a Provider for this config if the provider type
 // is a supported git hosting provider. Returns nil for non-git
 // providers (e.g. Slack, JFrog).
-func (c *Config) Git() *gitprovider.GitProvider {
+func (c *Config) Git() gitprovider.Provider {
 	if !codersdk.EnhancedExternalAuthProvider(c.Type).Git() {
 		return nil
 	}

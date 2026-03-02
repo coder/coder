@@ -107,76 +107,22 @@ type Provider interface {
 	BuildPullRequestURL(ref PRRef) string
 }
 
-// GitProvider wraps an external auth config and provides
-// Git hosting operations. Use externalauth.Config.Git() to
-// obtain an instance.
-type GitProvider struct {
-	provider Provider
-}
-
-// New creates a GitProvider for the given provider type and
-// API base URL. Returns nil if the provider type is not a
-// supported git provider.
-func New(providerType string, apiBaseURL string, httpClient HTTPClient) *GitProvider {
-	var p Provider
-	switch providerType {
-	case "github":
-		p = newGitHub(apiBaseURL, httpClient)
-	default:
-		// Other providers (gitlab, bitbucket-cloud, etc.) will be
-		// added here as they are implemented.
-		return nil
-	}
-	return &GitProvider{provider: p}
-}
-
 // HTTPClient is the interface for making HTTP requests. This
 // allows injecting instrumented clients or test mocks.
 type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// FetchPRStatus delegates to the underlying provider.
-func (g *GitProvider) FetchPRStatus(ctx context.Context, token string, ref PRRef) (*PRStatus, error) {
-	return g.provider.FetchPRStatus(ctx, token, ref)
-}
-
-// ResolveBranchPR delegates to the underlying provider.
-func (g *GitProvider) ResolveBranchPR(ctx context.Context, token string, ref BranchRef) (*PRRef, error) {
-	return g.provider.ResolveBranchPR(ctx, token, ref)
-}
-
-// FetchPRDiff delegates to the underlying provider.
-func (g *GitProvider) FetchPRDiff(ctx context.Context, token string, ref PRRef) (string, error) {
-	return g.provider.FetchPRDiff(ctx, token, ref)
-}
-
-// FetchBranchDiff delegates to the underlying provider.
-func (g *GitProvider) FetchBranchDiff(ctx context.Context, token string, ref BranchRef) (string, error) {
-	return g.provider.FetchBranchDiff(ctx, token, ref)
-}
-
-// ParseRepositoryOrigin delegates to the underlying provider.
-func (g *GitProvider) ParseRepositoryOrigin(raw string) (owner, repo, normalizedOrigin string, ok bool) {
-	return g.provider.ParseRepositoryOrigin(raw)
-}
-
-// ParsePullRequestURL delegates to the underlying provider.
-func (g *GitProvider) ParsePullRequestURL(raw string) (PRRef, bool) {
-	return g.provider.ParsePullRequestURL(raw)
-}
-
-// NormalizePullRequestURL delegates to the underlying provider.
-func (g *GitProvider) NormalizePullRequestURL(raw string) string {
-	return g.provider.NormalizePullRequestURL(raw)
-}
-
-// BuildBranchURL delegates to the underlying provider.
-func (g *GitProvider) BuildBranchURL(owner, repo, branch string) string {
-	return g.provider.BuildBranchURL(owner, repo, branch)
-}
-
-// BuildPullRequestURL delegates to the underlying provider.
-func (g *GitProvider) BuildPullRequestURL(ref PRRef) string {
-	return g.provider.BuildPullRequestURL(ref)
+// New creates a Provider for the given provider type and API base
+// URL. Returns nil if the provider type is not a supported git
+// provider.
+func New(providerType string, apiBaseURL string, httpClient HTTPClient) Provider {
+	switch providerType {
+	case "github":
+		return newGitHub(apiBaseURL, httpClient)
+	default:
+		// Other providers (gitlab, bitbucket-cloud, etc.) will be
+		// added here as they are implemented.
+		return nil
+	}
 }

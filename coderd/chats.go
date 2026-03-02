@@ -1372,7 +1372,7 @@ func (api *API) resolveExternalAuthProviderType(match string) string {
 // resolveGitProvider finds the external auth config matching the
 // given remote origin URL and returns its GitProvider. Returns nil
 // if no matching git provider is configured.
-func (api *API) resolveGitProvider(origin string) *gitprovider.GitProvider {
+func (api *API) resolveGitProvider(origin string) gitprovider.Provider {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {
 		return nil
@@ -1402,7 +1402,7 @@ func (api *API) refreshChatDiffStatus(
 	pullRequestURL string,
 ) (database.ChatDiffStatus, error) {
 	// Find a provider that can handle this PR URL.
-	var gp *gitprovider.GitProvider
+	var gp gitprovider.Provider
 	var ref gitprovider.PRRef
 	for _, extAuth := range api.ExternalAuthConfigs {
 		p := extAuth.Git()
