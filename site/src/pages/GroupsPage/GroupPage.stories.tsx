@@ -10,6 +10,7 @@ import { getGroupQueryKey, groupPermissionsKey } from "api/queries/groups";
 import { organizationMembersKey } from "api/queries/organizations";
 import { spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import GroupMembersPage from "./GroupMembersPage";
 import GroupPage from "./GroupPage";
 
 const meta: Meta<typeof GroupPage> = {
@@ -23,7 +24,15 @@ const meta: Meta<typeof GroupPage> = {
 					groupName: MockGroup.name,
 				},
 			},
-			routing: { path: "/organizations/:organization/groups/:groupName" },
+			routing: {
+				path: "/organizations/:organization/groups/:groupName",
+				children: [
+					{
+						index: true,
+						element: <GroupMembersPage />,
+					},
+				],
+			},
 		}),
 	},
 };
