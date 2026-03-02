@@ -5572,6 +5572,10 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 	})
 
 	t.Run("NoAccessWhenDisabled", func(t *testing.T) {
+		t.Cleanup(func() {
+			rbac.ReloadBuiltinRoles(nil)
+		})
+
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
