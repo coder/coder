@@ -27,11 +27,11 @@
           "schema_version": 1,
           "values": {
             "access_port": 443,
-            "access_url": "https://dev.coder.com/",
+            "access_url": "https://mydeployment.coder.com",
             "id": "b6713709-6736-4d2f-b3da-7b5b242df5f4",
             "is_prebuild": false,
             "is_prebuild_claim": false,
-            "name": "sebenza-nonix",
+            "name": "default",
             "prebuild_count": 0,
             "start_count": 1,
             "template_id": "",
@@ -63,7 +63,9 @@
           },
           "sensitive_values": {
             "groups": [],
+            "oidc_access_token": true,
             "rbac_roles": [],
+            "session_token": true,
             "ssh_private_key": true
           }
         },
@@ -77,8 +79,9 @@
           "schema_version": 1,
           "values": {
             "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+            "enabled": false,
             "id": "89e6ab36-2e98-4d13-9b4c-69b7588b7e1d",
-            "prompt": "default",
+            "prompt": null,
             "sidebar_app": [
               {
                 "id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"

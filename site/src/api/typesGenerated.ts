@@ -2066,12 +2066,6 @@ export interface Feature {
 	readonly limit?: number;
 	readonly actual?: number;
 	/**
-	 * SoftLimit is the soft limit of the feature, and is only used for showing
-	 * included limits in the dashboard. No license validation or warnings are
-	 * generated from this value.
-	 */
-	readonly soft_limit?: number;
-	/**
 	 * UsagePeriod denotes that the usage is a counter that accumulates over
 	 * this period (and most likely resets with the issuance of the next
 	 * license).
@@ -2529,6 +2523,10 @@ export interface License {
 
 // From codersdk/licenses.go
 export const LicenseExpiryClaim = "license_expires";
+
+// From codersdk/licenses.go
+export const LicenseManagedAgentLimitExceededWarningText =
+	"You have built more workspaces with managed agents than your license allows.";
 
 // From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
