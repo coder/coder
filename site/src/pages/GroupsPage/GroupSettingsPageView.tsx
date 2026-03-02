@@ -8,8 +8,6 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import { Loader } from "components/Loader/Loader";
-import { ResourcePageHeader } from "components/PageHeader/PageHeader";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { isEveryoneGroup } from "modules/groups";
@@ -146,28 +144,16 @@ const GroupSettingsPageView: FC<SettingsGroupPageViewProps> = ({
 	onSubmit,
 	group,
 	formErrors,
-	isLoading,
 	isUpdating,
 }) => {
-	if (isLoading) {
-		return <Loader />;
-	}
-
 	return (
-		<>
-			<ResourcePageHeader
-				displayName={group!.display_name}
-				name={group!.name}
-				css={{ paddingTop: 8 }}
-			/>
-			<UpdateGroupForm
-				group={group!}
-				onCancel={onCancel}
-				errors={formErrors}
-				isLoading={isUpdating}
-				onSubmit={onSubmit}
-			/>
-		</>
+		<UpdateGroupForm
+			group={group!}
+			onCancel={onCancel}
+			errors={formErrors}
+			isLoading={isUpdating}
+			onSubmit={onSubmit}
+		/>
 	);
 };
 
