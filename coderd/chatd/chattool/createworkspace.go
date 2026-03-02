@@ -245,8 +245,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				"created":        true,
 				"workspace_name": workspace.FullName(),
 			}), nil
-		},
-	)
+		})
 }
 
 // checkExistingWorkspace checks whether the chat already has a usable
