@@ -988,6 +988,7 @@ func (p *Server) Subscribe(
 	ctx context.Context,
 	chatID uuid.UUID,
 	requestHeader http.Header,
+	afterMessageID int64,
 ) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
@@ -1013,8 +1014,14 @@ func (p *Server) Subscribe(
 		}
 	}
 
-	// Load initial messages from DB
-	messages, err := p.db.GetChatMessagesByChatID(ctx, chatID)
+	// Load initial messages from DB. When afterMessageID > 0 the
+	// caller already has messages up to that ID (e.g. from the REST
+	// endpoint), so we only fetch newer ones to avoid sending
+	// duplicate data.
+	messages, err := p.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: afterMessageID,
+	})
 	if err == nil {
 		for _, msg := range messages {
 			sdkMsg := db2sdk.ChatMessage(msg)
@@ -1191,23 +1198,24 @@ func (p *Server) Subscribe(
 				case notify := <-notifications:
 					// Handle different notification types
 					if notify.AfterMessageID > 0 {
-						// Read new messages from DB
-						messages, err := p.db.GetChatMessagesByChatID(mergedCtx, chatID)
+						// Read only new messages from DB.
+						messages, err := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
+							ChatID:  chatID,
+							AfterID: lastMessageID,
+						})
 						if err == nil {
 							for _, msg := range messages {
-								if msg.ID > lastMessageID {
-									sdkMsg := db2sdk.ChatMessage(msg)
-									select {
-									case <-mergedCtx.Done():
-										return
-									case mergedEvents <- codersdk.ChatStreamEvent{
-										Type:    codersdk.ChatStreamEventTypeMessage,
-										ChatID:  chatID,
-										Message: &sdkMsg,
-									}:
-									}
-									lastMessageID = msg.ID
+								sdkMsg := db2sdk.ChatMessage(msg)
+								select {
+								case <-mergedCtx.Done():
+									return
+								case mergedEvents <- codersdk.ChatStreamEvent{
+									Type:    codersdk.ChatStreamEventTypeMessage,
+									ChatID:  chatID,
+									Message: &sdkMsg,
+								}:
 								}
+								lastMessageID = msg.ID
 							}
 						}
 					}

@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
@@ -60,7 +61,7 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, events, cancel, ok := replicaB.Subscribe(ctx, chat.ID, nil)
+	_, events, cancel, ok := replicaB.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -202,7 +203,10 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queued, 1)
 
-	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 }
@@ -252,7 +256,10 @@ func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queued, 0)
 
-	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, messages, 2)
 	require.Equal(t, messages[len(messages)-1].ID, result.Message.ID)
@@ -275,7 +282,10 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	initialMessages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	initialMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, initialMessages, 1)
 	editedMessageID := initialMessages[0].ID
@@ -322,7 +332,10 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.Len(t, editedSDK.Content, 1)
 	require.Equal(t, "edited", editedSDK.Content[0].Text)
 
-	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, editedMessageID, messages[0].ID)
@@ -657,7 +670,7 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -686,7 +699,7 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil)
+	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -706,6 +719,87 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 		// No events — correct behavior.
 	}
+}
+
+func TestSubscribeAfterMessageID(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Create a chat — this inserts one initial "user" message.
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "after-id-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "first"}},
+	})
+	require.NoError(t, err)
+
+	// Insert two more messages so we have three total visible
+	// messages (the initial user message plus these two).
+	msg2, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:                "assistant",
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`"second"`), Valid: true},
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:                "user",
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`"third"`), Valid: true},
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
+	})
+	require.NoError(t, err)
+
+	// Control: Subscribe with afterMessageID=0 returns ALL messages.
+	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	cancelAll()
+
+	allMessages := filterMessageEvents(allSnapshot)
+	require.Len(t, allMessages, 3, "afterMessageID=0 should return all three messages")
+
+	// Subscribe with afterMessageID set to the second message's ID.
+	// Only the third message (inserted after msg2) should appear.
+	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	require.True(t, ok)
+	cancelPartial()
+
+	partialMessages := filterMessageEvents(partialSnapshot)
+	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
+	require.Equal(t, "user", partialMessages[0].Message.Role)
+}
+
+// filterMessageEvents returns only the Message-type events from a
+// snapshot slice, which is useful for ignoring status / queue events.
+func filterMessageEvents(events []codersdk.ChatStreamEvent) []codersdk.ChatStreamEvent {
+	return slice.Filter(events, func(e codersdk.ChatStreamEvent) bool {
+		return e.Type == codersdk.ChatStreamEventTypeMessage
+	})
 }
 
 func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
