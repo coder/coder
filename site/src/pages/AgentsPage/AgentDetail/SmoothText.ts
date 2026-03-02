@@ -143,10 +143,7 @@ export class SmoothTextEngine {
 			return this.visibleLengthValue;
 		}
 
-		const reveal = Math.min(
-			wholeCharsReady,
-			STREAM_SMOOTHING.MAX_FRAME_CHARS,
-		);
+		const reveal = Math.min(wholeCharsReady, STREAM_SMOOTHING.MAX_FRAME_CHARS);
 		this.visibleLengthValue = Math.min(
 			this.fullLength,
 			this.visibleLengthValue + reveal,
@@ -210,10 +207,12 @@ const graphemeSegmenter: GraphemeSegmenterInstance | null = (() => {
 	try {
 		const Seg = (Intl as Record<string, unknown>).Segmenter;
 		if (typeof Seg === "function") {
-			return new (Seg as new (
-				locales?: string,
-				options?: { granularity?: string },
-			) => GraphemeSegmenterInstance)(undefined, {
+			return new (
+				Seg as new (
+					locales?: string,
+					options?: { granularity?: string },
+				) => GraphemeSegmenterInstance
+			)(undefined, {
 				granularity: "grapheme",
 			});
 		}
@@ -284,11 +283,7 @@ export function useSmoothStreamingText(
 	}
 
 	const engine = engineRef.current;
-	engine.update(
-		options.fullText,
-		options.isStreaming,
-		options.bypassSmoothing,
-	);
+	engine.update(options.fullText, options.isStreaming, options.bypassSmoothing);
 
 	const [visibleLength, setVisibleLength] = useState(
 		() => engine.visibleLength,
@@ -327,6 +322,7 @@ export function useSmoothStreamingText(
 	// arrive after catch-up. No cleanup: this effect only observes +
 	// one-shot starts; the lifecycle effect below owns resource
 	// teardown.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: fullText and streamKey are intentional triggers to re-arm the RAF loop when new text arrives or the stream resets
 	useEffect(() => {
 		if (visibleLengthRef.current !== engine.visibleLength) {
 			visibleLengthRef.current = engine.visibleLength;
@@ -351,6 +347,7 @@ export function useSmoothStreamingText(
 
 	// Lifecycle: stop RAF when streaming ends or stream key changes,
 	// and on unmount.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: streamKey is an intentional trigger to reset RAF state on new streams
 	useEffect(() => {
 		if (!options.isStreaming || options.bypassSmoothing) {
 			if (rafIdRef.current !== null) {

@@ -7,7 +7,6 @@ import {
 	Shimmer,
 	Tool,
 } from "components/ai-elements";
-import { useSmoothStreamingText } from "./SmoothText";
 import { ChevronDownIcon, Loader2Icon } from "lucide-react";
 import {
 	type FC,
@@ -19,6 +18,7 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
 	ParsedMessageContent,

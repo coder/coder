@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STREAM_SMOOTHING, SmoothTextEngine } from "./SmoothText";
+import { SmoothTextEngine, STREAM_SMOOTHING } from "./SmoothText";
 
 function makeText(length: number): string {
 	return "x".repeat(length);
