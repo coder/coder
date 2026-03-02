@@ -39,7 +39,9 @@ const GroupPage: FC = () => {
 		...groupPermissions(groupData?.id ?? ""),
 		enabled: !!groupData,
 	});
-	const deleteGroupMutation = useMutation(deleteGroup(queryClient));
+	const deleteGroupMutation = useMutation(
+		deleteGroup(queryClient, organization),
+	);
 	const [isDeletingGroup, setIsDeletingGroup] = useState(false);
 	const isLoading = groupQuery.isLoading || !groupData || !permissions;
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
@@ -129,7 +131,10 @@ const GroupPage: FC = () => {
 					entity="group"
 					onConfirm={async () => {
 						try {
-							await deleteGroupMutation.mutateAsync(groupId);
+							await deleteGroupMutation.mutateAsync({
+								groupId,
+								groupName: groupData.name,
+							});
 							toast.success(
 								`Group "${groupQuery.data.name}" deleted successfully.`,
 							);

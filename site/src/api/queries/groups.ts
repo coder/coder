@@ -139,36 +139,42 @@ export const patchGroup = (queryClient: QueryClient, organization: string) => {
 	};
 };
 
-export const deleteGroup = (queryClient: QueryClient) => {
+export const deleteGroup = (queryClient: QueryClient, organization: string) => {
 	return {
-		mutationFn: API.deleteGroup,
-		onSuccess: async (_: unknown, groupId: string) =>
-			invalidateGroup(queryClient, "default", groupId),
+		mutationFn: ({ groupId }: { groupId: string; groupName: string }) =>
+			API.deleteGroup(groupId),
+		onSuccess: async (
+			_: unknown,
+			{ groupName }: { groupId: string; groupName: string },
+		) => invalidateGroup(queryClient, organization, groupName),
 	};
 };
 
-export const addMember = (queryClient: QueryClient) => {
+export const addMember = (queryClient: QueryClient, organization: string) => {
 	return {
 		mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
 			API.addMember(groupId, userId),
 		onSuccess: async (updatedGroup: Group) =>
-			invalidateGroup(queryClient, "default", updatedGroup.id),
+			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};
 };
 
-export const removeMember = (queryClient: QueryClient) => {
+export const removeMember = (
+	queryClient: QueryClient,
+	organization: string,
+) => {
 	return {
 		mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
 			API.removeMember(groupId, userId),
 		onSuccess: async (updatedGroup: Group) =>
-			invalidateGroup(queryClient, "default", updatedGroup.id),
+			invalidateGroup(queryClient, organization, updatedGroup.name),
 	};
 };
 
 const invalidateGroup = (
 	queryClient: QueryClient,
 	organization: string,
-	groupId: string,
+	groupName: string,
 ) =>
 	Promise.all([
 		queryClient.invalidateQueries({ queryKey: groupsQueryKey }),
@@ -176,7 +182,7 @@ const invalidateGroup = (
 			queryKey: getGroupsByOrganizationQueryKey(organization),
 		}),
 		queryClient.invalidateQueries({
-			queryKey: getGroupQueryKey(organization, groupId),
+			queryKey: getGroupQueryKey(organization, groupName),
 		}),
 	]);
 

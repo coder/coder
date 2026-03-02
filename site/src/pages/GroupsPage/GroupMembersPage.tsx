@@ -43,12 +43,15 @@ import type { GroupPageOutletContext } from "./GroupPage";
 const GroupMembersPage: FC = () => {
 	const {
 		group: groupData,
+		organization,
 		permissions,
 		groupQuery,
 	} = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
-	const addMemberMutation = useMutation(addMember(queryClient));
-	const removeMemberMutation = useMutation(removeMember(queryClient));
+	const addMemberMutation = useMutation(addMember(queryClient, organization));
+	const removeMemberMutation = useMutation(
+		removeMember(queryClient, organization),
+	);
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
 	const groupId = groupData.id;
 
