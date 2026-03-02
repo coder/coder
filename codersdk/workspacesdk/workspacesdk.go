@@ -362,14 +362,21 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 	}
 	serverURL.RawQuery = q.Encode()
 
-	httpClient := c.client.HTTPClient
+	// Shallow-clone the HTTP client so we never inherit a caller-provided
+	// cookie jar. Non-browser websocket auth uses the Coder-Session-Token
+	// header or a signed-token query param — never cookies. A stale jar
+	// cookie would take precedence on the server (cookies are checked
+	// before headers) and cause spurious 401s.
+	wsHTTPClient := *c.client.HTTPClient
+	wsHTTPClient.Jar = nil
+
 	headers := http.Header{}
 	if opts.SignedToken == "" {
 		headers.Set(codersdk.SessionTokenHeader, c.client.SessionToken())
 	}
 	//nolint:bodyclose
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
+		HTTPClient: &wsHTTPClient,
 		HTTPHeader: headers,
 	})
 	if err != nil {
