@@ -286,6 +286,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			policy.ActionApplicationConnect, policy.ActionSSH,
 		)
 	}
+
 	// Static roles that never change should be allocated in a closure.
 	// This is to ensure these data structures are only allocated once and not
 	// on every authorize call. 'withCachedRegoValue' can be used as well to
