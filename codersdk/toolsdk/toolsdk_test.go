@@ -414,18 +414,28 @@ func TestTools(t *testing.T) {
 	t.Run("CreateWorkspace", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
-		// We need a template version ID to create a workspace
+		workspaceName := testutil.GetRandomNameHyphenated(t)
 		res, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
 			User:              "me",
 			TemplateVersionID: r.TemplateVersion.ID.String(),
-			Name:              testutil.GetRandomNameHyphenated(t),
+			Name:              workspaceName,
 			RichParameters:    map[string]string{},
 		})
 
-		// The creation might fail for various reasons, but the important thing is
-		// to mark it as tested
 		require.NoError(t, err)
-		require.NotEmpty(t, res.ID, "expected a workspace ID")
+		// The tool should return a human/LLM-friendly message
+		// indicating the workspace is being built, not the raw
+		// workspace object.
+		require.Contains(t, res.Message, workspaceName)
+		require.Contains(t, res.Message, "is being built")
+		require.Contains(t, res.Message, "coder_get_workspace_build_logs")
+
+		// Verify the message contains the workspace build ID so
+		// the caller can use it directly with
+		// coder_get_workspace_build_logs.
+		ws, err := client.WorkspaceByOwnerAndName(t.Context(), "me", workspaceName, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Contains(t, res.Message, ws.LatestBuild.ID.String())
 	})
 
 	t.Run("WorkspaceSSHExec", func(t *testing.T) {

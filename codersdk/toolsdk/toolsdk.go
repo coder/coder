@@ -346,7 +346,7 @@ type CreateWorkspaceArgs struct {
 	User              string            `json:"user"`
 }
 
-var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
+var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
 		Name: ToolNameCreateWorkspace,
 		Description: `Create a new workspace in Coder.
@@ -364,8 +364,11 @@ Before creating a workspace, always confirm the template choice with the user by
 It is important to not create a workspace without confirming the template
 choice with the user.
 
-After creating a workspace, watch the build logs and wait for the workspace to
-be ready before trying to use or connect to the workspace.
+Workspace creation is asynchronous. After this tool returns, the workspace
+will be in a "starting" or "pending" state. You MUST use
+coder_get_workspace_build_logs to monitor build progress and wait until
+the workspace is "running" before attempting to execute commands or
+access the workspace.
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -389,10 +392,10 @@ be ready before trying to use or connect to the workspace.
 			Required: []string{"user", "template_version_id", "name", "rich_parameters"},
 		},
 	},
-	Handler: func(ctx context.Context, deps Deps, args CreateWorkspaceArgs) (codersdk.Workspace, error) {
+	Handler: func(ctx context.Context, deps Deps, args CreateWorkspaceArgs) (codersdk.Response, error) {
 		tvID, err := uuid.Parse(args.TemplateVersionID)
 		if err != nil {
-			return codersdk.Workspace{}, xerrors.New("template_version_id must be a valid UUID")
+			return codersdk.Response{}, xerrors.New("template_version_id must be a valid UUID")
 		}
 		if args.User == "" {
 			args.User = codersdk.Me
@@ -410,9 +413,12 @@ be ready before trying to use or connect to the workspace.
 			RichParameterValues: buildParams,
 		})
 		if err != nil {
-			return codersdk.Workspace{}, err
+			return codersdk.Response{}, err
 		}
-		return workspace, nil
+		return codersdk.Response{
+			Message: fmt.Sprintf("Workspace %q is being built (workspace_id: %s, workspace_build_id: %s, build status: %s). Use coder_get_workspace_build_logs with the workspace_build_id to monitor build progress and wait for the workspace to be running before executing commands.",
+				workspace.Name, workspace.ID.String(), workspace.LatestBuild.ID.String(), workspace.LatestBuild.Status),
+		}, nil
 	},
 }
 
