@@ -16,6 +16,10 @@ import {
 } from "storybook-addon-remix-react-router";
 import { WorkspaceSettingsLayout } from "../WorkspaceSettingsLayout";
 import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
+import {
+	workspaceChecks,
+	WorkspacePermissions,
+} from "modules/workspaces/permissions";
 
 const meta = {
 	title: "pages/WorkspaceSchedulePage",
@@ -68,19 +72,14 @@ function workspaceQueries(workspace: Workspace) {
 			data: workspace,
 		},
 		{
-			key: getAuthorizationKey({
-				checks: {
-					updateWorkspace: {
-						object: {
-							resource_type: "workspace",
-							resource_id: MockWorkspace.id,
-							owner_id: MockWorkspace.owner_id,
-						},
-						action: "update",
-					},
-				},
-			}),
-			data: { updateWorkspace: true },
+			key: ["workspaces", workspace.id, "permissions"],
+			data: {
+				readWorkspace: true,
+				shareWorkspace: true,
+				updateWorkspace: true,
+				updateWorkspaceVersion: true,
+				deleteFailedWorkspace: true,
+			} satisfies WorkspacePermissions,
 		},
 		{
 			key: templateByNameKey(
