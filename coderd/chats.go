@@ -260,7 +260,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
 		ModelConfigID:      modelConfigID,
-		SystemPrompt:       defaultChatSystemPrompt(),
+		SystemPrompt:       api.defaultChatSystemPrompt(ctx),
 		InitialUserContent: contentBlocks,
 	})
 	if err != nil {
@@ -1939,7 +1939,14 @@ func normalizeChatCompressionThreshold(
 	return threshold, nil
 }
 
-func defaultChatSystemPrompt() string {
+func (api *API) defaultChatSystemPrompt(ctx context.Context) string {
+	settingsJSON, err := api.Database.GetChatConfigSettings(ctx)
+	if err == nil && len(settingsJSON) > 0 {
+		var settings codersdk.ChatConfigSettings
+		if err := json.Unmarshal([]byte(settingsJSON), &settings); err == nil && settings.SystemPrompt != "" {
+			return settings.SystemPrompt
+		}
+	}
 	return chatd.DefaultSystemPrompt
 }
 

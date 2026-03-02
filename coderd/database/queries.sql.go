@@ -14319,6 +14319,18 @@ func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getChatConfigSettings = `-- name: GetChatConfigSettings :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'chat_config_settings'), '{}') :: text AS chat_config_settings
+`
+
+func (q *sqlQuerier) GetChatConfigSettings(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatConfigSettings)
+	var chat_config_settings string
+	err := row.Scan(&chat_config_settings)
+	return chat_config_settings, err
+}
+
 const getCoordinatorResumeTokenSigningKey = `-- name: GetCoordinatorResumeTokenSigningKey :one
 SELECT value FROM site_configs WHERE key = 'coordinator_resume_token_signing_key'
 `
@@ -14530,6 +14542,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 
 func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertApplicationName, value)
+	return err
+}
+
+const upsertChatConfigSettings = `-- name: UpsertChatConfigSettings :exec
+INSERT INTO site_configs (key, value) VALUES ('chat_config_settings', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'chat_config_settings'
+`
+
+func (q *sqlQuerier) UpsertChatConfigSettings(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatConfigSettings, value)
 	return err
 }
 

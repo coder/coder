@@ -928,3 +928,41 @@ func formatChatStreamResponseError(response Response) string {
 		return fmt.Sprintf("%s: %s", message, detail)
 	}
 }
+
+// ChatConfigSettings are deployment-wide settings that control chat behavior.
+type ChatConfigSettings struct {
+	// SystemPrompt is the deployment-wide system prompt prepended to all
+	// new chat conversations. When empty, the built-in default is used.
+	SystemPrompt string `json:"system_prompt"`
+}
+
+// ChatConfigSettings retrieves the deployment-wide chat config settings.
+func (c *Client) ChatConfigSettings(ctx context.Context) (ChatConfigSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config", nil)
+	if err != nil {
+		return ChatConfigSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatConfigSettings{}, ReadBodyAsError(res)
+	}
+	var settings ChatConfigSettings
+	return settings, json.NewDecoder(res.Body).Decode(&settings)
+}
+
+// PutChatConfigSettings updates the deployment-wide chat config settings.
+func (c *Client) PutChatConfigSettings(ctx context.Context, settings ChatConfigSettings) (ChatConfigSettings, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config", settings)
+	if err != nil {
+		return ChatConfigSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotModified {
+		return settings, nil
+	}
+	if res.StatusCode != http.StatusOK {
+		return ChatConfigSettings{}, ReadBodyAsError(res)
+	}
+	var updated ChatConfigSettings
+	return updated, json.NewDecoder(res.Body).Decode(&updated)
+}

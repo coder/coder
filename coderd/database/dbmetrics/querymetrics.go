@@ -983,6 +983,14 @@ func (m queryMetricsStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatConfigSettings(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatConfigSettings(ctx)
+	m.queryLatencies.WithLabelValues("GetChatConfigSettings").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatConfigSettings").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatDiffStatusByChatID(ctx, chatID)
@@ -4476,6 +4484,14 @@ func (m queryMetricsStore) UpsertBoundaryUsageStats(ctx context.Context, arg dat
 	m.queryLatencies.WithLabelValues("UpsertBoundaryUsageStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertBoundaryUsageStats").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertChatConfigSettings(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatConfigSettings(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatConfigSettings").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatConfigSettings").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpsertChatDiffStatus(ctx context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {

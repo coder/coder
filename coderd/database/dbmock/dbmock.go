@@ -1792,6 +1792,21 @@ func (mr *MockStoreMockRecorder) GetChatByIDForUpdate(ctx, id any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatByIDForUpdate), ctx, id)
 }
 
+// GetChatConfigSettings mocks base method.
+func (m *MockStore) GetChatConfigSettings(ctx context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatConfigSettings", ctx)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatConfigSettings indicates an expected call of GetChatConfigSettings.
+func (mr *MockStoreMockRecorder) GetChatConfigSettings(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatConfigSettings", reflect.TypeOf((*MockStore)(nil).GetChatConfigSettings), ctx)
+}
+
 // GetChatDiffStatusByChatID mocks base method.
 func (m *MockStore) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
 	m.ctrl.T.Helper()
@@ -8371,6 +8386,20 @@ func (m *MockStore) UpsertBoundaryUsageStats(ctx context.Context, arg database.U
 func (mr *MockStoreMockRecorder) UpsertBoundaryUsageStats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertBoundaryUsageStats", reflect.TypeOf((*MockStore)(nil).UpsertBoundaryUsageStats), ctx, arg)
+}
+
+// UpsertChatConfigSettings mocks base method.
+func (m *MockStore) UpsertChatConfigSettings(ctx context.Context, value string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatConfigSettings", ctx, value)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertChatConfigSettings indicates an expected call of UpsertChatConfigSettings.
+func (mr *MockStoreMockRecorder) UpsertChatConfigSettings(ctx, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatConfigSettings", reflect.TypeOf((*MockStore)(nil).UpsertChatConfigSettings), ctx, value)
 }
 
 // UpsertChatDiffStatus mocks base method.

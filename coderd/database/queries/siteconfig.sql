@@ -153,3 +153,12 @@ DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key;
 SELECT
     COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_public_key'), '') :: text AS vapid_public_key,
     COALESCE((SELECT value FROM site_configs WHERE key = 'webpush_vapid_private_key'), '') :: text AS vapid_private_key;
+
+-- name: GetChatConfigSettings :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'chat_config_settings'), '{}') :: text AS chat_config_settings
+;
+
+-- name: UpsertChatConfigSettings :exec
+INSERT INTO site_configs (key, value) VALUES ('chat_config_settings', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'chat_config_settings';

@@ -1068,6 +1068,18 @@ export interface Chat {
 
 // From codersdk/chats.go
 /**
+ * ChatConfigSettings are deployment-wide settings that control chat behavior.
+ */
+export interface ChatConfigSettings {
+	/**
+	 * SystemPrompt is the deployment-wide system prompt prepended to all
+	 * new chat conversations. When empty, the built-in default is used.
+	 */
+	readonly system_prompt: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatDiffContents represents the resolved diff text for a chat.
  */
 export interface ChatDiffContents {
@@ -4905,6 +4917,7 @@ export interface ResolveAutostartResponse {
 // From codersdk/audit.go
 export type ResourceType =
 	| "api_key"
+	| "chat_config_settings"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -4933,6 +4946,7 @@ export type ResourceType =
 
 export const ResourceTypes: ResourceType[] = [
 	"api_key",
+	"chat_config_settings",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",

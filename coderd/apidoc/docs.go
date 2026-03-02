@@ -481,6 +481,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/chats/config": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Get chat config settings",
+                "operationId": "get-chat-config-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatConfigSettings"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Update chat config settings",
+                "operationId": "update-chat-config-settings",
+                "parameters": [
+                    {
+                        "description": "Chat config settings request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatConfigSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatConfigSettings"
+                        }
+                    },
+                    "304": {
+                        "description": "Not Modified"
+                    }
+                }
+            }
+        },
         "/chats/{chat}/archive": {
             "post": {
                 "tags": [
@@ -13740,6 +13805,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatConfigSettings": {
+            "type": "object",
+            "properties": {
+                "system_prompt": {
+                    "description": "SystemPrompt is the deployment-wide system prompt prepended to all\nnew chat conversations. When empty, the built-in default is used.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -18421,6 +18495,7 @@ const docTemplate = `{
                 "health_settings",
                 "notifications_settings",
                 "prebuilds_settings",
+                "chat_config_settings",
                 "workspace_proxy",
                 "organization",
                 "oauth2_provider_app",
@@ -18449,6 +18524,7 @@ const docTemplate = `{
                 "ResourceTypeHealthSettings",
                 "ResourceTypeNotificationsSettings",
                 "ResourceTypePrebuildsSettings",
+                "ResourceTypeChatConfigSettings",
                 "ResourceTypeWorkspaceProxy",
                 "ResourceTypeOrganization",
                 "ResourceTypeOAuth2ProviderApp",

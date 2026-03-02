@@ -246,6 +246,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"id":                    ActionIgnore,
 		"reconciliation_paused": ActionTrack,
 	},
+	&database.ChatConfigSettings{}: {
+		"id":            ActionIgnore,
+		"system_prompt": ActionTrack,
+	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
 	&database.License{}: {

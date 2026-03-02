@@ -44,6 +44,11 @@ type PrebuildsSettings struct {
 	ReconciliationPaused bool      `db:"reconciliation_paused" json:"reconciliation_paused"`
 }
 
+type ChatConfigSettings struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	SystemPrompt string    `db:"system_prompt" json:"system_prompt"`
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {
