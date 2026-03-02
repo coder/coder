@@ -718,7 +718,16 @@ const AgentDetail: FC = () => {
 		store.setChatStatus("pending");
 
 		try {
-			await sendMutation.mutateAsync(request);
+			const response = await sendMutation.mutateAsync(request);
+			if (response.queued) {
+				// The server queued the message instead of processing
+				// it immediately (the agent is already busy). Roll back
+				// the optimistic timeline message so it doesn't appear
+				// as a sent message. The queue_update SSE event will
+				// add it to the queued messages list.
+				store.replaceMessages(previousMessages);
+				store.setChatStatus(previousChatStatus);
+			}
 		} catch (error) {
 			// Roll back the optimistic message so the timeline
 			// returns to its previous state.
