@@ -277,8 +277,16 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		})
 	}
 
-	deploymentOwnerWorkspacePermissions := ResourceWorkspace.AvailableActions()
+	ownerWorkspaceActions := ResourceWorkspace.AvailableActions()
 
+	if opts.NoOwnerWorkspaceExec {
+		// Remove ssh and application connect from the owner role. This
+		// prevents owners from have exec access to all workspaces.
+		ownerWorkspaceActions = slice.Omit(
+			ownerWorkspaceActions,
+			policy.ActionApplicationConnect, policy.ActionSSH,
+		)
+	}
 	// Static roles that never change should be allocated in a closure.
 	// This is to ensure these data structures are only allocated once and not
 	// on every authorize call. 'withCachedRegoValue' can be used as well to
@@ -296,7 +304,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
-				ResourceWorkspace.Type:        deploymentOwnerWorkspacePermissions,
+				ResourceWorkspace.Type:        ownerWorkspaceActions,
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 				// PrebuiltWorkspaces are a subset of Workspaces.
 				// Explicitly setting PrebuiltWorkspace permissions for clarity.
