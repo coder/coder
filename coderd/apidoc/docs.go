@@ -1751,15 +1751,13 @@ const docTemplate = `{
                         "type": "string",
                         "description": "IANA timezone name (e.g. America/St_Johns)",
                         "name": "timezone",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "Time-zone offset (e.g. -2)",
+                        "description": "Deprecated: Time-zone offset (e.g. -2). Use timezone instead.",
                         "name": "tz_offset",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     }
                 ],
                 "responses": {

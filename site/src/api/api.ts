@@ -2467,13 +2467,14 @@ class ApiMethods {
 		return response.data;
 	};
 
+	// Intl.DateTimeFormat().resolvedOptions().timeZone returns an IANA timezone
+	// name (e.g. "America/New_York") per ECMA-402. Go's time.LoadLocation and
+	// PostgreSQL's timezone() both accept IANA names, so these are compatible.
 	getInsightsUserStatusCounts = async (
 		timezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
-		offset = Math.trunc(new Date().getTimezoneOffset() / 60),
 	): Promise<TypesGen.GetUserStatusCountsResponse> => {
 		const searchParams = new URLSearchParams({
 			timezone,
-			tz_offset: offset.toString(),
 		});
 		const response = await this.axios.get(
 			`/api/v2/insights/user-status-counts?${searchParams}`,

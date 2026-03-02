@@ -5076,6 +5076,9 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 
 const getUserStatusCounts = `-- name: GetUserStatusCounts :many
 WITH
+system_users AS (
+    SELECT id FROM users WHERE is_system = TRUE
+),
 	-- dates_of_interest generates the dates that will represent the horizontal axis of the chart.
 dates_of_interest AS (
   SELECT timezone($1::text, gs_local) AS date
@@ -5094,13 +5097,13 @@ latest_status_before_range AS (
         usc.changed_at,
         ud.deleted
     FROM user_status_changes usc
-	INNER JOIN users u ON u.id = usc.user_id AND NOT u.is_system
 	LEFT JOIN LATERAL (
 		SELECT COUNT(*) > 0 AS deleted
 		FROM user_deleted ud
 		WHERE ud.user_id = usc.user_id AND (ud.deleted_at < usc.changed_at OR ud.deleted_at < $2)
 	) AS ud ON true
-    WHERE usc.changed_at < $2::timestamptz
+    WHERE usc.user_id NOT IN (SELECT id FROM system_users)
+        AND usc.changed_at < $2::timestamptz
     ORDER BY usc.user_id, usc.changed_at DESC
 ),
 	-- status_changes_during_range selects the statuses of each user during the start_time and end_time.
@@ -5111,13 +5114,13 @@ status_changes_during_range AS (
         usc.changed_at,
         ud.deleted
     FROM user_status_changes usc
-	INNER JOIN users u ON u.id = usc.user_id AND NOT u.is_system
 	LEFT JOIN LATERAL (
 		SELECT COUNT(*) > 0 AS deleted
 		FROM user_deleted ud
 		WHERE ud.user_id = usc.user_id AND ud.deleted_at < usc.changed_at
 	) AS ud ON true
-    WHERE usc.changed_at >= $2::timestamptz
+    WHERE usc.user_id NOT IN (SELECT id FROM system_users)
+        AND usc.changed_at >= $2::timestamptz
         AND usc.changed_at <= $3::timestamptz
 ),
 relevant_status_changes AS (

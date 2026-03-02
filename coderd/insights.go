@@ -298,8 +298,8 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
-// @Param timezone query string true "IANA timezone name (e.g. America/St_Johns)"
-// @Param tz_offset query int true "Time-zone offset (e.g. -2)"
+// @Param timezone query string false "IANA timezone name (e.g. America/St_Johns)"
+// @Param tz_offset query int false "Deprecated: Time-zone offset (e.g. -2). Use timezone instead."
 // @Success 200 {object} codersdk.GetUserStatusCountsResponse
 // @Router /insights/user-status-counts [get]
 func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request) {
@@ -309,12 +309,20 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 	vals := r.URL.Query()
 	timezone := p.String(vals, "", "timezone")
 	tzOffset := p.Int(vals, 0, "tz_offset")
+	_ = p.Int(vals, 0, "interval") // Deprecated: ignored, kept for backward compatibility.
 	p.ErrorExcessParams(vals)
 
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
 			Validations: p.Errors,
+		})
+		return
+	}
+
+	if timezone != "" && tzOffset != 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Provide either \"timezone\" or \"tz_offset\", not both.",
 		})
 		return
 	}
@@ -344,7 +352,11 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 	queryParams := database.GetUserStatusCountsParams{
 		StartTime: sixtyDaysAgo,
 		EndTime:   nextHourInLoc,
-		Tz:        loc.String(),
+		// loc.String() returns an IANA timezone name (e.g. "America/New_York").
+		// Both Go and PostgreSQL use the IANA Time Zone Database, so names are
+		// compatible. The Etc/GMT±N names used for offset fallback are also valid
+		// in both systems.
+		Tz: loc.String(),
 	}
 	rows, err := api.Database.GetUserStatusCounts(ctx, queryParams)
 	if err != nil {
