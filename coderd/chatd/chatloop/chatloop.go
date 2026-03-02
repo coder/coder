@@ -597,7 +597,7 @@ func executeSingleTool(
 	tool, exists := toolMap[tc.ToolName]
 	if !exists {
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: errors.New("Tool not found: " + tc.ToolName),
+			Error: xerrors.New("Tool not found: " + tc.ToolName),
 		}
 		return result
 	}
@@ -616,17 +616,18 @@ func executeSingleTool(
 	}
 
 	result.ClientMetadata = resp.Metadata
-	if resp.IsError {
+	switch {
+	case resp.IsError:
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: errors.New(resp.Content),
+			Error: xerrors.New(resp.Content),
 		}
-	} else if resp.Type == "image" || resp.Type == "media" {
+	case resp.Type == "image" || resp.Type == "media":
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      string(resp.Data),
 			MediaType: resp.MediaType,
 			Text:      resp.Content,
 		}
-	} else {
+	default:
 		result.Result = fantasy.ToolResultOutputContentText{
 			Text: resp.Content,
 		}

@@ -2035,12 +2035,12 @@ func (p *Server) runChat(
 		callConfig.MaxOutputTokens = &maxOutputTokens
 	}
 
-		// Generate the tool call ID up front so that the streaming
-		// parts and durable messages share the same identifier.
-		// Without this the client cannot correlate the
-		// "Summarizing..." tool call with the "Summarized" tool
-		// result.
-		compactionToolCallID := "chat_summarized_" + uuid.NewString()
+	// Generate the tool call ID up front so that the streaming
+	// parts and durable messages share the same identifier.
+	// Without this the client cannot correlate the
+	// "Summarizing..." tool call with the "Summarized" tool
+	// result.
+	compactionToolCallID := "chat_summarized_" + uuid.NewString()
 	compactionOptions := &chatloop.CompactionOptions{
 		ThresholdPercent: modelConfig.CompressionThreshold,
 		ContextLimit:     modelConfig.ContextLimit,

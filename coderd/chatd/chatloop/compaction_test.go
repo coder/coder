@@ -416,7 +416,8 @@ func TestRun_Compaction(t *testing.T) {
 		require.Equal(t, 1, persistCompactionCalls)
 	})
 
-	t.Run("ErrorsAreReported", func(t *testing.T) {		t.Parallel()
+	t.Run("ErrorsAreReported", func(t *testing.T) {
+		t.Parallel()
 
 		model := &loopTestModel{
 			provider: "fake",
