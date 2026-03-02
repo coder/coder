@@ -1247,13 +1247,9 @@ func (api *API) resolveChatDiffReference(
 					slog.F("branch", reference.RepositoryRef.Branch),
 					slog.Error(lookupErr),
 				)
-			} else if prRef != nil {
-				reference.PullRequestURL = fmt.Sprintf(
-					"https://github.com/%s/%s/pull/%d",
-					prRef.Owner, prRef.Repo, prRef.Number,
-				)
-			}
-
+				} else if prRef != nil {
+					reference.PullRequestURL = gp.BuildPullRequestURL(*prRef)
+				}
 			reference.PullRequestURL = gp.NormalizePullRequestURL(reference.PullRequestURL)
 		}
 	}
@@ -1801,6 +1797,10 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 		// Since convertChatDiffStatus does not have access to
 		// the API instance, we construct a GitHub provider
 		// directly as a best-effort fallback.
+		// TODO: This uses the default github.com API base URL,
+		// so branch URLs for GitHub Enterprise instances will
+		// be incorrect. To fix this, convertChatDiffStatus
+		// would need access to the external auth configs.
 		gp := gitprovider.New("github", "", nil)
 		if gp != nil {
 			if owner, repo, _, ok := gp.ParseRepositoryOrigin(status.GitRemoteOrigin); ok {

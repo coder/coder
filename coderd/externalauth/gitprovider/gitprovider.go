@@ -101,6 +101,10 @@ type Provider interface {
 	// BuildBranchURL constructs a URL to view a branch on
 	// the provider's web UI.
 	BuildBranchURL(owner, repo, branch string) string
+
+	// BuildPullRequestURL constructs a URL to view a pull
+	// request on the provider's web UI.
+	BuildPullRequestURL(ref PRRef) string
 }
 
 // GitProvider wraps an external auth config and provides
@@ -170,4 +174,9 @@ func (g *GitProvider) NormalizePullRequestURL(raw string) string {
 // BuildBranchURL delegates to the underlying provider.
 func (g *GitProvider) BuildBranchURL(owner, repo, branch string) string {
 	return g.provider.BuildBranchURL(owner, repo, branch)
+}
+
+// BuildPullRequestURL delegates to the underlying provider.
+func (g *GitProvider) BuildPullRequestURL(ref PRRef) string {
+	return g.provider.BuildPullRequestURL(ref)
 }

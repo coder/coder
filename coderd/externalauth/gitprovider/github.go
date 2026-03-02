@@ -17,31 +17,79 @@ import (
 
 const defaultGitHubAPIBaseURL = "https://api.github.com"
 
-var (
-	githubPullRequestPathPattern = regexp.MustCompile(
-		`^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pull/([0-9]+)(?:[/?#].*)?$`,
-	)
-	githubRepositoryHTTPSPattern = regexp.MustCompile(
-		`^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$`,
-	)
-	githubRepositorySSHPathPattern = regexp.MustCompile(
-		`^(?:ssh://)?git@github\.com[:/]([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$`,
-	)
-)
-
 type githubProvider struct {
 	apiBaseURL string
+	webBaseURL string
 	httpClient HTTPClient
+
+	// Compiled per-instance to support GitHub Enterprise hosts.
+	pullRequestPathPattern   *regexp.Regexp
+	repositoryHTTPSPattern   *regexp.Regexp
+	repositorySSHPathPattern *regexp.Regexp
 }
 
 func newGitHub(apiBaseURL string, httpClient HTTPClient) *githubProvider {
 	if apiBaseURL == "" {
 		apiBaseURL = defaultGitHubAPIBaseURL
 	}
+	apiBaseURL = strings.TrimRight(apiBaseURL, "/")
+
+	// Derive the web base URL from the API base URL.
+	// github.com: api.github.com → github.com
+	// GHE: ghes.corp.com/api/v3 → ghes.corp.com
+	webBaseURL := deriveWebBaseURL(apiBaseURL)
+
+	// Parse the host for regex construction.
+	host := extractHost(webBaseURL)
+
+	// Escape the host for use in regex patterns.
+	escapedHost := regexp.QuoteMeta(host)
+
 	return &githubProvider{
-		apiBaseURL: strings.TrimRight(apiBaseURL, "/"),
+		apiBaseURL: apiBaseURL,
+		webBaseURL: webBaseURL,
 		httpClient: httpClient,
+		pullRequestPathPattern: regexp.MustCompile(
+			`^https://` + escapedHost + `/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pull/([0-9]+)(?:[/?#].*)?$`,
+		),
+		repositoryHTTPSPattern: regexp.MustCompile(
+			`^https://` + escapedHost + `/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$`,
+		),
+		repositorySSHPathPattern: regexp.MustCompile(
+			`^(?:ssh://)?git@` + escapedHost + `[:/]([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$`,
+		),
 	}
+}
+
+// deriveWebBaseURL converts a GitHub API base URL to the
+// corresponding web base URL.
+//
+// github.com:  https://api.github.com       → https://github.com
+// GHE:         https://ghes.corp.com/api/v3 → https://ghes.corp.com
+func deriveWebBaseURL(apiBaseURL string) string {
+	u, err := url.Parse(apiBaseURL)
+	if err != nil {
+		return "https://github.com"
+	}
+
+	// Standard github.com: API host is api.github.com.
+	if strings.EqualFold(u.Host, "api.github.com") {
+		return "https://github.com"
+	}
+
+	// GHE: strip /api/v3 path suffix.
+	u.Path = strings.TrimSuffix(u.Path, "/api/v3")
+	u.Path = strings.TrimSuffix(u.Path, "/")
+	return u.String()
+}
+
+// extractHost returns the host portion of a URL.
+func extractHost(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "github.com"
+	}
+	return u.Host
 }
 
 func (g *githubProvider) ParseRepositoryOrigin(raw string) (owner string, repo string, normalizedOrigin string, ok bool) {
@@ -50,9 +98,9 @@ func (g *githubProvider) ParseRepositoryOrigin(raw string) (owner string, repo s
 		return "", "", "", false
 	}
 
-	matches := githubRepositoryHTTPSPattern.FindStringSubmatch(raw)
+	matches := g.repositoryHTTPSPattern.FindStringSubmatch(raw)
 	if len(matches) != 3 {
-		matches = githubRepositorySSHPathPattern.FindStringSubmatch(raw)
+		matches = g.repositorySSHPathPattern.FindStringSubmatch(raw)
 	}
 	if len(matches) != 3 {
 		return "", "", "", false
@@ -65,11 +113,11 @@ func (g *githubProvider) ParseRepositoryOrigin(raw string) (owner string, repo s
 		return "", "", "", false
 	}
 
-	return owner, repo, fmt.Sprintf("https://github.com/%s/%s", owner, repo), true
+	return owner, repo, fmt.Sprintf("%s/%s/%s", g.webBaseURL, owner, repo), true
 }
 
 func (g *githubProvider) ParsePullRequestURL(raw string) (PRRef, bool) {
-	matches := githubPullRequestPathPattern.FindStringSubmatch(strings.TrimSpace(raw))
+	matches := g.pullRequestPathPattern.FindStringSubmatch(strings.TrimSpace(raw))
 	if len(matches) != 4 {
 		return PRRef{}, false
 	}
@@ -94,7 +142,7 @@ func (g *githubProvider) NormalizePullRequestURL(raw string) string {
 	if !ok {
 		return ""
 	}
-	return fmt.Sprintf("https://github.com/%s/%s/pull/%d", ref.Owner, ref.Repo, ref.Number)
+	return fmt.Sprintf("%s/%s/%s/pull/%d", g.webBaseURL, ref.Owner, ref.Repo, ref.Number)
 }
 
 func (g *githubProvider) BuildBranchURL(owner string, repo string, branch string) string {
@@ -106,11 +154,19 @@ func (g *githubProvider) BuildBranchURL(owner string, repo string, branch string
 	}
 
 	return fmt.Sprintf(
-		"https://github.com/%s/%s/tree/%s",
+		"%s/%s/%s/tree/%s",
+		g.webBaseURL,
 		owner,
 		repo,
 		url.PathEscape(branch),
 	)
+}
+
+func (g *githubProvider) BuildPullRequestURL(ref PRRef) string {
+	if ref.Owner == "" || ref.Repo == "" || ref.Number <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s/%s/%s/pull/%d", g.webBaseURL, ref.Owner, ref.Repo, ref.Number)
 }
 
 func (g *githubProvider) ResolveBranchPR(

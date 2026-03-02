@@ -291,6 +291,115 @@ func TestGitHubBuildBranchURL(t *testing.T) {
 	}
 }
 
+func TestGitHubBuildPullRequestURL(t *testing.T) {
+	t.Parallel()
+	gp := gitprovider.New("github", "", nil)
+	require.NotNil(t, gp)
+
+	tests := []struct {
+		name     string
+		ref      gitprovider.PRRef
+		expected string
+	}{
+		{
+			name:     "Valid PR ref",
+			ref:      gitprovider.PRRef{Owner: "coder", Repo: "coder", Number: 123},
+			expected: "https://github.com/coder/coder/pull/123",
+		},
+		{
+			name:     "Empty owner",
+			ref:      gitprovider.PRRef{Owner: "", Repo: "coder", Number: 123},
+			expected: "",
+		},
+		{
+			name:     "Empty repo",
+			ref:      gitprovider.PRRef{Owner: "coder", Repo: "", Number: 123},
+			expected: "",
+		},
+		{
+			name:     "Zero number",
+			ref:      gitprovider.PRRef{Owner: "coder", Repo: "coder", Number: 0},
+			expected: "",
+		},
+		{
+			name:     "Negative number",
+			ref:      gitprovider.PRRef{Owner: "coder", Repo: "coder", Number: -1},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := gp.BuildPullRequestURL(tt.ref)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGitHubEnterpriseURLs(t *testing.T) {
+	t.Parallel()
+	gp := gitprovider.New("github", "https://ghes.corp.com/api/v3", nil)
+	require.NotNil(t, gp)
+
+	t.Run("ParseRepositoryOrigin HTTPS", func(t *testing.T) {
+		t.Parallel()
+		owner, repo, normalized, ok := gp.ParseRepositoryOrigin("https://ghes.corp.com/org/repo.git")
+		assert.True(t, ok)
+		assert.Equal(t, "org", owner)
+		assert.Equal(t, "repo", repo)
+		assert.Equal(t, "https://ghes.corp.com/org/repo", normalized)
+	})
+
+	t.Run("ParseRepositoryOrigin SSH", func(t *testing.T) {
+		t.Parallel()
+		owner, repo, normalized, ok := gp.ParseRepositoryOrigin("git@ghes.corp.com:org/repo.git")
+		assert.True(t, ok)
+		assert.Equal(t, "org", owner)
+		assert.Equal(t, "repo", repo)
+		assert.Equal(t, "https://ghes.corp.com/org/repo", normalized)
+	})
+
+	t.Run("ParsePullRequestURL", func(t *testing.T) {
+		t.Parallel()
+		ref, ok := gp.ParsePullRequestURL("https://ghes.corp.com/org/repo/pull/42")
+		assert.True(t, ok)
+		assert.Equal(t, "org", ref.Owner)
+		assert.Equal(t, "repo", ref.Repo)
+		assert.Equal(t, 42, ref.Number)
+	})
+
+	t.Run("NormalizePullRequestURL", func(t *testing.T) {
+		t.Parallel()
+		result := gp.NormalizePullRequestURL("https://ghes.corp.com/org/repo/pull/42?x=y")
+		assert.Equal(t, "https://ghes.corp.com/org/repo/pull/42", result)
+	})
+
+	t.Run("BuildBranchURL", func(t *testing.T) {
+		t.Parallel()
+		result := gp.BuildBranchURL("org", "repo", "main")
+		assert.Equal(t, "https://ghes.corp.com/org/repo/tree/main", result)
+	})
+
+	t.Run("BuildPullRequestURL", func(t *testing.T) {
+		t.Parallel()
+		result := gp.BuildPullRequestURL(gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42})
+		assert.Equal(t, "https://ghes.corp.com/org/repo/pull/42", result)
+	})
+
+	t.Run("github.com URLs do not match GHE instance", func(t *testing.T) {
+		t.Parallel()
+		_, _, _, ok := gp.ParseRepositoryOrigin("https://github.com/coder/coder")
+		assert.False(t, ok, "github.com HTTPS URL should not match GHE instance")
+
+		_, _, _, ok = gp.ParseRepositoryOrigin("git@github.com:coder/coder.git")
+		assert.False(t, ok, "github.com SSH URL should not match GHE instance")
+
+		_, ok = gp.ParsePullRequestURL("https://github.com/coder/coder/pull/123")
+		assert.False(t, ok, "github.com PR URL should not match GHE instance")
+	})
+}
+
 func TestNewUnsupportedProvider(t *testing.T) {
 	t.Parallel()
 	gp := gitprovider.New("unsupported", "", nil)
