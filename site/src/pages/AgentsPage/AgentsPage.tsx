@@ -152,6 +152,9 @@ const AgentsPage: FC = () => {
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const createMutation = useMutation(createChat(queryClient));
 	const archiveMutation = useMutation(archiveChat(queryClient));
+	const deleteWorkspaceMutation = useMutation({
+		mutationFn: (workspaceId: string) => API.deleteWorkspace(workspaceId),
+	});
 	const [archivingChatId, setArchivingChatId] = useState<string | null>(null);
 
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
@@ -239,7 +242,7 @@ const AgentsPage: FC = () => {
 	);
 	const requestArchiveAndDeleteWorkspace = useCallback(
 		async (chatId: string) => {
-			if (archiveMutation.isPending) {
+			if (archiveMutation.isPending || deleteWorkspaceMutation.isPending) {
 				return;
 			}
 
@@ -260,14 +263,20 @@ const AgentsPage: FC = () => {
 			const chat = chatList.find((c) => c.id === chatId);
 			if (chat?.workspace_id) {
 				try {
-					await API.deleteWorkspace(chat.workspace_id);
+					await deleteWorkspaceMutation.mutateAsync(chat.workspace_id);
 					toast.success("Workspace deletion initiated.");
 				} catch (error) {
 					toast.error(getErrorMessage(error, "Failed to delete workspace."));
 				}
 			}
 		},
-		[archiveMutation, queryClient, clearChatErrorReason, chatList],
+		[
+			archiveMutation,
+			deleteWorkspaceMutation,
+			queryClient,
+			clearChatErrorReason,
+			chatList,
+		],
 	);
 	const handleToggleSidebarCollapsed = useCallback(
 		() => setIsSidebarCollapsed((prev) => !prev),
