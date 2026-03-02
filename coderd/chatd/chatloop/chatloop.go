@@ -148,6 +148,8 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 				Output:          result.Result,
 				ProviderOptions: fantasy.ProviderOptions(result.ProviderMetadata),
 			})
+		default:
+			continue
 		}
 	}
 
@@ -203,12 +205,15 @@ func Run(ctx context.Context, opts RunOptions) error {
 	var lastProviderMetadata fantasy.ProviderMetadata
 
 	for step := 0; step < opts.MaxSteps; step++ {
-		// Copy messages and apply provider-specific caching
-		// for the current step.
+		// Copy messages so that provider-specific caching
+		// mutations don't leak back to the caller's slice.
+		// copy copies Message structs by value, so field
+		// reassignments in addAnthropicPromptCaching only
+		// affect the prepared slice.
 		prepared := make([]fantasy.Message, len(messages))
 		copy(prepared, messages)
 		if applyAnthropicCaching {
-			prepared = addAnthropicPromptCaching(prepared)
+			addAnthropicPromptCaching(prepared)
 		}
 
 		call := fantasy.Call{
@@ -254,6 +259,18 @@ func Run(ctx context.Context, opts RunOptions) error {
 		// blocks into separate database messages by role.
 		var toolResults []fantasy.ToolResultContent
 		if result.shouldContinue {
+			// Check for context cancellation before starting
+			// tool execution. If the chat was interrupted
+			// between stream completion and here, persist
+			// what we have and bail out.
+			if ctx.Err() != nil {
+				if errors.Is(context.Cause(ctx), ErrInterrupted) {
+					persistInterruptedStep(ctx, opts, &result)
+					return ErrInterrupted
+				}
+				return ctx.Err()
+			}
+
 			toolResults = executeTools(ctx, opts.Tools, result.toolCalls, func(tr fantasy.ToolResultContent) {
 				publishMessagePart(
 					fantasy.MessageRoleTool,
@@ -769,7 +786,10 @@ func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {
 	return model.Provider() == fantasyanthropic.Name
 }
 
-func addAnthropicPromptCaching(messages []fantasy.Message) []fantasy.Message {
+// addAnthropicPromptCaching mutates messages in-place, setting
+// ProviderOptions for Anthropic prompt caching on the last system
+// message and the final two messages.
+func addAnthropicPromptCaching(messages []fantasy.Message) {
 	for i := range messages {
 		messages[i].ProviderOptions = nil
 	}
@@ -793,8 +813,6 @@ func addAnthropicPromptCaching(messages []fantasy.Message) []fantasy.Message {
 			messages[i].ProviderOptions = providerOption
 		}
 	}
-
-	return messages
 }
 
 func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {

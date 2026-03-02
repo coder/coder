@@ -113,7 +113,10 @@ func tryCompact(
 		return false, err
 	}
 	if summary == "" {
-		return false, nil
+		// Publish a tool-result error so connected clients
+		// see the compaction failure.
+		publishCompactionError(config, "compaction produced an empty summary")
+		return false, xerrors.New("compaction produced an empty summary")
 	}
 
 	systemSummary := strings.TrimSpace(
@@ -129,7 +132,8 @@ func tryCompact(
 		ContextLimit:     contextLimit,
 	})
 	if err != nil {
-		return false, err
+		publishCompactionError(config, "failed to persist compaction result")
+		return false, xerrors.Errorf("persist compaction: %w", err)
 	}
 
 	// Publish the "Summarized" tool-result part so the client
@@ -158,6 +162,27 @@ func tryCompact(
 	return true, nil
 }
 
+// publishCompactionError sends a tool-result error part so
+// connected clients see that compaction failed.
+func publishCompactionError(config CompactionOptions, msg string) {
+	if config.PublishMessagePart == nil || config.ToolCallID == "" {
+		return
+	}
+	errJSON, _ := json.Marshal(map[string]any{
+		"error": msg,
+	})
+	config.PublishMessagePart(
+		fantasy.MessageRoleTool,
+		codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: config.ToolCallID,
+			ToolName:   config.ToolName,
+			Result:     errJSON,
+			IsError:    true,
+		},
+	)
+}
+
 // normalizedCompactionConfig returns a copy of the compaction options
 // with defaults applied. The bool is false when compaction is
 // disabled (nil options, missing Persist callback, or threshold at
@@ -184,7 +209,7 @@ func normalizedCompactionConfig(opts *CompactionOptions) (CompactionOptions, boo
 		config.ThresholdPercent > maxCompactionThresholdPercent {
 		config.ThresholdPercent = defaultCompactionThresholdPercent
 	}
-	if config.ThresholdPercent >= maxCompactionThresholdPercent {
+	if config.ThresholdPercent == maxCompactionThresholdPercent {
 		return CompactionOptions{}, false
 	}
 
