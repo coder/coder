@@ -287,13 +287,6 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	b.seed.ID = uuid.New()
 	b.seed.JobID = jobID
 
-	if b.taskAppID != uuid.Nil {
-		b.seed.HasAITask = sql.NullBool{
-			Bool:  true,
-			Valid: true,
-		}
-	}
-
 	resp := WorkspaceResponse{
 		AgentToken: b.agentToken,
 		Agents:     make([]database.WorkspaceAgent, 0),

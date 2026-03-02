@@ -2854,11 +2854,8 @@ func TestCompleteJob(t *testing.T) {
 			}
 		})
 
-		// has_ai_task has a default value of nil, but once the workspace build completes it will have a value;
-		// it is set to "true" if the related template has any coder_ai_task resources defined, and its sidebar app ID
-		// will be set as well in that case.
-		// HACK(johnstcn): we also set it to "true" if any _previous_ workspace builds ever had it set to "true".
-		// This is to avoid tasks "disappearing" when you stop them.
+		// Workspace build completion should update task linkage and status for
+		// task-enabled workspaces without relying on workspace_builds.has_ai_task.
 		t.Run("WorkspaceBuild", func(t *testing.T) {
 			type testcase struct {
 				name             string
@@ -3172,7 +3169,6 @@ func TestCompleteJob(t *testing.T) {
 
 					build, err = db.GetWorkspaceBuildByID(ctx, build.ID)
 					require.NoError(t, err)
-					require.False(t, build.HasAITask.Valid) // Value should be nil (i.e. valid = false).
 
 					completedJob := proto.CompletedJob{
 						JobId: job.ID.String(),
@@ -3185,8 +3181,6 @@ func TestCompleteJob(t *testing.T) {
 
 					build, err = db.GetWorkspaceBuildByID(ctx, build.ID)
 					require.NoError(t, err)
-					require.True(t, build.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
-					require.Equal(t, tc.expectHasAiTask, build.HasAITask.Bool)
 
 					task, err := db.GetTaskByID(ctx, genTask.ID)
 					if tc.isTask {

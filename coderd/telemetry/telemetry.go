@@ -1069,9 +1069,6 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		// #nosec G115 - Safe conversion as build numbers are expected to be positive and within uint32 range
 		BuildNumber: uint32(build.BuildNumber),
 	}
-	if build.HasAITask.Valid {
-		wb.HasAITask = ptr.Ref(build.HasAITask.Bool)
-	}
 	return wb
 }
 
@@ -1660,7 +1657,6 @@ type WorkspaceBuild struct {
 	TemplateVersionID uuid.UUID `json:"template_version_id"`
 	JobID             uuid.UUID `json:"job_id"`
 	BuildNumber       uint32    `json:"build_number"`
-	HasAITask         *bool     `json:"has_ai_task"`
 }
 
 type Workspace struct {

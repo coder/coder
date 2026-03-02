@@ -2171,9 +2171,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
-		var hasAITask bool
 		if task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID); err == nil {
-			hasAITask = true
 			if workspaceBuild.Transition == database.WorkspaceTransitionStart {
 				// Insert usage event for managed agents.
 				usageInserter := s.UsageInserter.Load()
@@ -2213,17 +2211,13 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		})
 		if err := db.UpdateWorkspaceBuildFlagsByID(ctx, database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID: workspaceBuild.ID,
-			HasAITask: sql.NullBool{
-				Bool:  hasAITask,
-				Valid: true,
-			},
 			HasExternalAgent: sql.NullBool{
 				Bool:  hasExternalAgent,
 				Valid: true,
 			},
 			UpdatedAt: now,
 		}); err != nil {
-			return xerrors.Errorf("update workspace build ai tasks and external agent flag: %w", err)
+			return xerrors.Errorf("update workspace build external agent flag: %w", err)
 		}
 
 		// Insert timings inside the transaction now
