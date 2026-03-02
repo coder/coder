@@ -12,12 +12,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -99,7 +101,7 @@ func newTestAPIWithUpdateEnv(t *testing.T, updateEnv func([]string) ([]string, e
 	logger := slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
 	}).Leveled(slog.LevelDebug)
-	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, updateEnv)
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, updateEnv, nil)
 	t.Cleanup(func() {
 		_ = api.Close()
 	})
@@ -568,6 +570,46 @@ func TestSignalProcess(t *testing.T) {
 			Signal: "kill",
 		})
 	})
+}
+
+func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_StillNotifies(t *testing.T) {
+	t.Parallel()
+
+	pathStore := agentgit.NewPathStore()
+	chatID := uuid.New()
+	ch, unsub := pathStore.Subscribe(chatID)
+	defer unsub()
+
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, func(current []string) ([]string, error) {
+		return current, nil
+	}, pathStore)
+	defer api.Close()
+
+	routes := api.Routes()
+
+	body, err := json.Marshal(workspacesdk.StartProcessRequest{
+		Command: "echo hello",
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/start", bytes.NewReader(body))
+	req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
+	rw := httptest.NewRecorder()
+	routes.ServeHTTP(rw, req)
+
+	require.Equal(t, http.StatusOK, rw.Code)
+
+	// The subscriber should be notified even though no paths
+	// were added.
+	select {
+	case <-ch:
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out waiting for path store notification")
+	}
+
+	// No paths should have been stored for this chat.
+	require.Nil(t, pathStore.GetPaths(chatID))
 }
 
 func TestProcessLifecycle(t *testing.T) {

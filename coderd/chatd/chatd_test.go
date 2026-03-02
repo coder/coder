@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,6 +17,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -29,6 +32,8 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/provisioner/echo"
 	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -1661,4 +1666,261 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 			!fromDB.WorkerID.Valid &&
 			!fromDB.LastError.Valid
 	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestHeaderInjection(t *testing.T) {
+	t.Parallel()
+
+	// seedWorkspaceAgent creates the DB entities needed so that
+	// GetWorkspaceAgentsInLatestBuildByWorkspaceID returns an
+	// agent for the given workspace.
+	seedWorkspaceAgent := func(
+		t *testing.T,
+		db database.Store,
+		ps dbpubsub.Pubsub,
+		ownerID uuid.UUID,
+		orgID uuid.UUID,
+	) (workspaceID uuid.UUID, agentID uuid.UUID) {
+		t.Helper()
+
+		// TemplateVersion needs its own provisioner job.
+		versionJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			OrganizationID: orgID,
+			InitiatorID:    ownerID,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+		})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: orgID,
+			CreatedBy:      ownerID,
+			JobID:          versionJob.ID,
+		})
+		templ := dbgen.Template(t, db, database.Template{
+			OrganizationID:  orgID,
+			CreatedBy:       ownerID,
+			ActiveVersionID: tv.ID,
+		})
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+			TemplateID:     templ.ID,
+		})
+		buildJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			OrganizationID: orgID,
+			InitiatorID:    ownerID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			JobID:             buildJob.ID,
+			BuildNumber:       1,
+			InitiatorID:       ownerID,
+			TemplateVersionID: tv.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		return ws.ID, agent.ID
+	}
+
+	t.Run("WithParentChat", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, model := seedChatDependencies(ctx, t, db)
+
+		org, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+
+		workspaceID, expectedAgentID := seedWorkspaceAgent(t, db, ps, user.ID, org.ID)
+
+		// Set up the mock OpenAI to return a simple text response
+		// so the chat finishes cleanly.
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("done")...,
+			)
+		})
+		setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+		// Wire up the mock agent connection so we can capture
+		// the headers passed to SetExtraHeaders.
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		var capturedHeaders http.Header
+		headersCaptured := make(chan struct{})
+
+		// SetExtraHeaders is called once when the connection
+		// is first established.
+		mockConn.EXPECT().SetExtraHeaders(gomock.Any()).Do(func(h http.Header) {
+			capturedHeaders = h
+			close(headersCaptured)
+		})
+		// resolveInstructions calls LS to look for instruction
+		// files; return an error so it skips gracefully.
+		mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).Return(
+			workspacesdk.LSResponse{}, xerrors.New("not found"),
+		).AnyTimes()
+		// The connection is closed when the chat finishes.
+		mockConn.EXPECT().Close().Return(nil).AnyTimes()
+
+		agentConnFn := func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, expectedAgentID, agentID)
+			return mockConn, func() {}, nil
+		}
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		server := chatd.New(chatd.Config{
+			Logger:                     logger,
+			Database:                   db,
+			ReplicaID:                  uuid.New(),
+			Pubsub:                     ps,
+			AgentConn:                  agentConnFn,
+			PendingChatAcquireInterval: 10 * time.Millisecond,
+			InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		})
+		t.Cleanup(func() {
+			require.NoError(t, server.Close())
+		})
+
+		// Create a real parent chat so the FK constraint is
+		// satisfied.
+		parentChat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:       user.ID,
+			Title:         "parent-chat",
+			ModelConfigID: model.ID,
+			InitialUserContent: []fantasy.Content{
+				fantasy.TextContent{Text: "parent"},
+			},
+		})
+		require.NoError(t, err)
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:       user.ID,
+			WorkspaceID:   uuid.NullUUID{UUID: workspaceID, Valid: true},
+			ParentChatID:  uuid.NullUUID{UUID: parentChat.ID, Valid: true},
+			Title:         "header-injection-parent",
+			ModelConfigID: model.ID,
+			InitialUserContent: []fantasy.Content{
+				fantasy.TextContent{Text: "hello"},
+			},
+		})
+		require.NoError(t, err)
+
+		// Wait for the chat to be processed and headers to be
+		// captured.
+		select {
+		case <-headersCaptured:
+		case <-ctx.Done():
+			require.FailNow(t, "timed out waiting for SetExtraHeaders")
+		}
+
+		require.Equal(t,
+			chat.ID.String(),
+			capturedHeaders.Get(workspacesdk.CoderChatIDHeader),
+		)
+
+		ancestorJSON := capturedHeaders.Get(workspacesdk.CoderAncestorChatIDsHeader)
+		var ancestorIDs []string
+		err = json.Unmarshal([]byte(ancestorJSON), &ancestorIDs)
+		require.NoError(t, err)
+		require.Equal(t, []string{parentChat.ID.String()}, ancestorIDs)
+	})
+
+	t.Run("WithoutParentChat", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, model := seedChatDependencies(ctx, t, db)
+
+		org, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+
+		workspaceID, expectedAgentID := seedWorkspaceAgent(t, db, ps, user.ID, org.ID)
+
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("done")...,
+			)
+		})
+		setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		var capturedHeaders http.Header
+		headersCaptured := make(chan struct{})
+
+		mockConn.EXPECT().SetExtraHeaders(gomock.Any()).Do(func(h http.Header) {
+			capturedHeaders = h
+			close(headersCaptured)
+		})
+		mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).Return(
+			workspacesdk.LSResponse{}, xerrors.New("not found"),
+		).AnyTimes()
+		mockConn.EXPECT().Close().Return(nil).AnyTimes()
+
+		agentConnFn := func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, expectedAgentID, agentID)
+			return mockConn, func() {}, nil
+		}
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		server := chatd.New(chatd.Config{
+			Logger:                     logger,
+			Database:                   db,
+			ReplicaID:                  uuid.New(),
+			Pubsub:                     ps,
+			AgentConn:                  agentConnFn,
+			PendingChatAcquireInterval: 10 * time.Millisecond,
+			InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		})
+		t.Cleanup(func() {
+			require.NoError(t, server.Close())
+		})
+
+		// Create a chat without a parent — the ancestor header
+		// should contain an empty JSON array.
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:       user.ID,
+			WorkspaceID:   uuid.NullUUID{UUID: workspaceID, Valid: true},
+			Title:         "header-injection-no-parent",
+			ModelConfigID: model.ID,
+			InitialUserContent: []fantasy.Content{
+				fantasy.TextContent{Text: "hello"},
+			},
+		})
+		require.NoError(t, err)
+
+		select {
+		case <-headersCaptured:
+		case <-ctx.Done():
+			require.FailNow(t, "timed out waiting for SetExtraHeaders")
+		}
+
+		require.Equal(t,
+			chat.ID.String(),
+			capturedHeaders.Get(workspacesdk.CoderChatIDHeader),
+		)
+
+		// When there is no parent, the code declares
+		// var ancestorIDs []string and never appends to it,
+		// so json.Marshal produces "null".
+		ancestorJSON := capturedHeaders.Get(workspacesdk.CoderAncestorChatIDsHeader)
+		var ancestorIDs []string
+		err = json.Unmarshal([]byte(ancestorJSON), &ancestorIDs)
+		require.NoError(t, err)
+		require.Empty(t, ancestorIDs)
+	})
 }

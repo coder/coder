@@ -2009,6 +2009,23 @@ func (p *Server) runChat(
 			conn = agentConn
 			releaseConn = agentRelease
 			chatStateMu.Unlock()
+
+			// Inject chat identity headers so agent-side
+			// handlers can track which paths this chat edits.
+			var ancestorIDs []string
+			if chatSnapshot.ParentChatID.Valid {
+				ancestorIDs = append(ancestorIDs, chatSnapshot.ParentChatID.UUID.String())
+			}
+			ancestorJSON, err := json.Marshal(ancestorIDs)
+			if err != nil {
+				logger.Warn(ctx, "failed to marshal ancestor chat IDs", slog.Error(err))
+				ancestorJSON = []byte("[]")
+			}
+			agentConn.SetExtraHeaders(http.Header{
+				workspacesdk.CoderChatIDHeader:          {chatSnapshot.ID.String()},
+				workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
+			})
+
 			return agentConn, nil
 		}
 		currentConn := conn
