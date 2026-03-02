@@ -96,18 +96,18 @@ const GroupPage: FC = () => {
 				)}
 			</div>
 			<div className="flex flex-col gap-10 w-full">
-				<Tabs active={activeTab}>
-					<TabsList className="w-full justify-start">
-						<TabLink to="." value="members">
-							Group members
-						</TabLink>
-						{canUpdateGroup && (
+				{canUpdateGroup && (
+					<Tabs active={activeTab}>
+						<TabsList className="w-full justify-start">
+							<TabLink to="." value="members">
+								Group members
+							</TabLink>
 							<TabLink to="settings" value="settings">
 								Group settings
 							</TabLink>
-						)}
-					</TabsList>
-				</Tabs>
+						</TabsList>
+					</Tabs>
+				)}
 
 				<Outlet
 					context={
