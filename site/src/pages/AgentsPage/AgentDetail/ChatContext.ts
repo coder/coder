@@ -7,6 +7,7 @@ import {
 	useCallback,
 	useEffect,
 	useRef,
+	useState,
 	useSyncExternalStore,
 } from "react";
 import { useQueryClient } from "react-query";
@@ -394,7 +395,6 @@ interface UseChatStoreOptions {
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
 	chatData: TypesGen.ChatWithMessages | undefined;
-	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
 	setChatErrorReason: (chatID: string, reason: string) => void;
 	clearChatErrorReason: (chatID: string) => void;
 }
@@ -421,19 +421,15 @@ export const useChatStore = (
 		chatMessages,
 		chatRecord,
 		chatData,
-		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
 	} = options;
 
 	const queryClient = useQueryClient();
-	const storeRef = useRef<ChatStore>(createChatStore());
+	const [store] = useState(createChatStore);
 	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
 	const activeChatIDRef = useRef<string | null>(null);
-	const prevChatIDRef = useRef<string | undefined>(chatID);
-
-	const store = storeRef.current;
 
 	// Compute the last REST-fetched message ID so the stream can
 	// skip messages the client already has. We use a ref so the
@@ -518,39 +514,37 @@ export const useChatStore = (
 		[chatID, queryClient],
 	);
 
+	// Sync query data into the store. All three values derive from
+	// the same react-query cache entry, so they update together.
+	// Each store method no-ops when the value is unchanged, so
+	// redundant calls are cheap.
+	//
+	// Queued messages use a hydration guard: we seed the store
+	// from the initial query data exactly once per chatID. After
+	// that the WebSocket pushes live updates directly into the
+	// store, and we must avoid overwriting those with stale query
+	// data when this effect re-runs.
 	useEffect(() => {
-		// When the active chat changes, clear stale messages immediately
-		// so the previous chat's messages aren't briefly visible while
-		// the new chat's query resolves.
-		if (prevChatIDRef.current !== chatID) {
-			prevChatIDRef.current = chatID;
-			store.replaceMessages([]);
-		}
 		store.replaceMessages(chatMessages);
-	}, [chatID, chatMessages, store]);
 
+		if (queuedMessagesHydratedChatIDRef.current !== (chatID ?? null)) {
+			queuedMessagesHydratedChatIDRef.current = null;
+			store.setQueuedMessages([]);
+		}
+		if (chatID && chatData && queuedMessagesHydratedChatIDRef.current !== chatID) {
+			queuedMessagesHydratedChatIDRef.current = chatID;
+			store.setQueuedMessages(chatData.queued_messages);
+		}
+	}, [chatID, chatData, chatMessages, store]);
+
+	// Status is synced separately because the WebSocket also
+	// pushes status changes directly into the store. Merging
+	// this with the data-sync effect above would cause status
+	// to be overwritten by the (stale) query-cache value every
+	// time messages change.
 	useEffect(() => {
 		store.setChatStatus(chatRecord?.status ?? null);
 	}, [chatRecord?.status, store]);
-
-	useEffect(() => {
-		queuedMessagesHydratedChatIDRef.current = null;
-		store.setQueuedMessages([]);
-		if (!chatID) {
-			return;
-		}
-	}, [chatID, store]);
-
-	useEffect(() => {
-		if (!chatID || !chatData) {
-			return;
-		}
-		if (queuedMessagesHydratedChatIDRef.current === chatID) {
-			return;
-		}
-		queuedMessagesHydratedChatIDRef.current = chatID;
-		store.setQueuedMessages(chatQueuedMessages);
-	}, [chatData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
 		cancelScheduledStreamReset();

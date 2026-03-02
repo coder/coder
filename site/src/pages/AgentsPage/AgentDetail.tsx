@@ -517,7 +517,6 @@ const AgentDetail: FC = () => {
 	const chatRecord = chatData?.chat;
 	const isArchived = chatRecord?.archived ?? false;
 	const chatMessages = chatData?.messages;
-	const chatQueuedMessages = chatData?.queued_messages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	// Auto-open the diff panel when diff status first appears.
@@ -581,16 +580,14 @@ const AgentDetail: FC = () => {
 		promoteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
 
-	const { store, clearStreamError } = useChatStore({
-		chatID: agentId,
-		chatMessages,
-		chatRecord,
-		chatData,
-		chatQueuedMessages,
-		setChatErrorReason,
-		clearChatErrorReason,
-	});
-
+		const { store, clearStreamError } = useChatStore({
+			chatID: agentId,
+			chatMessages,
+			chatRecord,
+			chatData,
+			setChatErrorReason,
+			clearChatErrorReason,
+		});
 	useEffect(() => {
 		setSelectedModel((current) => {
 			if (current && modelOptions.some((model) => model.id === current)) {

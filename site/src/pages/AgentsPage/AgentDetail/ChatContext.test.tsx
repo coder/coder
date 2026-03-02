@@ -190,7 +190,6 @@ describe("useChatStore", () => {
 						messages: [existingMessage],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -271,7 +270,6 @@ describe("useChatStore", () => {
 						messages: [existingMessage],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -346,7 +344,6 @@ describe("useChatStore", () => {
 						messages: [existingMessage],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -440,7 +437,6 @@ describe("useChatStore", () => {
 					messages: [existingMessage],
 					queued_messages: [],
 				},
-				chatQueuedMessages: [],
 				setChatErrorReason,
 				clearChatErrorReason,
 			});
@@ -514,7 +510,6 @@ describe("useChatStore", () => {
 						messages: [existingMessage],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -589,7 +584,6 @@ describe("useChatStore", () => {
 						messages: [existingMessage],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -677,7 +671,6 @@ describe("useChatStore", () => {
 				messages: [existingMessage],
 				queued_messages: [queuedMessage],
 			},
-			chatQueuedMessages: [queuedMessage],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -724,7 +717,6 @@ describe("useChatStore", () => {
 				messages: [existingMessage],
 				queued_messages: [queuedMessage],
 			},
-			chatQueuedMessages: [queuedMessage],
 		});
 
 		await waitFor(() => {
@@ -769,7 +761,6 @@ describe("useChatStore", () => {
 					chatMessages: [existingMessage],
 					chatRecord: makeChat(chatID),
 					chatData: initialChatData,
-					chatQueuedMessages: [queuedMessage],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -836,7 +827,6 @@ describe("useChatStore", () => {
 				messages: [msg1],
 				queued_messages: [] as TypesGen.ChatQueuedMessage[],
 			},
-			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -923,7 +913,6 @@ describe("useChatStore", () => {
 						messages: [existingMessage],
 						queued_messages: [queuedMessage],
 					},
-					chatQueuedMessages: [queuedMessage],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -979,7 +968,6 @@ describe("useChatStore", () => {
 						messages: [existingMessage],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1081,7 +1069,6 @@ describe("useChatStore", () => {
 						messages: [existingMessage],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1177,7 +1164,6 @@ describe("useChatStore", () => {
 				messages: [msg1],
 				queued_messages: [] as TypesGen.ChatQueuedMessage[],
 			},
-			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -1268,7 +1254,6 @@ describe("useChatStore", () => {
 				messages: [msg1],
 				queued_messages: [queuedMsg],
 			},
-			chatQueuedMessages: [queuedMsg],
 			setChatErrorReason,
 			clearChatErrorReason,
 		};
@@ -1304,7 +1289,6 @@ describe("useChatStore", () => {
 				messages: [],
 				queued_messages: [],
 			},
-			chatQueuedMessages: [],
 		});
 
 		// After the switch, queued messages from chat-1 should NOT be
@@ -1340,7 +1324,6 @@ describe("useChatStore", () => {
 						messages: [],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1410,7 +1393,6 @@ describe("useChatStore", () => {
 						messages: [],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1471,7 +1453,6 @@ describe("useChatStore", () => {
 						messages: [],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1524,7 +1505,6 @@ describe("useChatStore", () => {
 						messages: [],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1585,7 +1565,6 @@ describe("useChatStore", () => {
 						messages: [],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1660,7 +1639,6 @@ describe("useChatStore", () => {
 						messages: [],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1722,7 +1700,6 @@ describe("useChatStore", () => {
 						messages: [],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1771,7 +1748,6 @@ describe("useChatStore", () => {
 						messages: [],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
@@ -1835,7 +1811,6 @@ describe("useChatStore", () => {
 						messages: [],
 						queued_messages: [],
 					},
-					chatQueuedMessages: [],
 					setChatErrorReason,
 					clearChatErrorReason,
 				});
