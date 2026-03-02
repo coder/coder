@@ -240,7 +240,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 				opts.OnRetry(attempt, retryErr, delay)
 			}
 		})
-
 		if err != nil {
 			if errors.Is(err, ErrInterrupted) {
 				persistInterruptedStep(ctx, opts, &result)
