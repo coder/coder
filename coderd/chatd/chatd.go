@@ -886,8 +886,8 @@ func New(cfg Config) *Server {
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
 	}
 
-	//nolint:gocritic // The chat processor is a system-level service.
-	ctx = dbauthz.AsSystemRestricted(ctx)
+	//nolint:gocritic // The chat processor uses a scoped chatd context.
+	ctx = dbauthz.AsChatd(ctx)
 	go p.start(ctx)
 
 	return p
@@ -1044,8 +1044,7 @@ func (p *Server) Subscribe(
 	}
 
 	// Load initial messages from DB
-	//nolint:gocritic // System context needed to read chat messages for stream.
-	messages, err := p.db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(ctx), chatID)
+	messages, err := p.db.GetChatMessagesByChatID(ctx, chatID)
 	if err == nil {
 		for _, msg := range messages {
 			sdkMsg := db2sdk.ChatMessage(msg)
@@ -1058,8 +1057,7 @@ func (p *Server) Subscribe(
 	}
 
 	// Load initial queue
-	//nolint:gocritic // System context needed to read queued messages for stream.
-	queued, err := p.db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chatID)
+	queued, err := p.db.GetChatQueuedMessages(ctx, chatID)
 	if err == nil && len(queued) > 0 {
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
 			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
@@ -1069,8 +1067,7 @@ func (p *Server) Subscribe(
 	}
 
 	// Get initial chat state to determine if we need a relay
-	//nolint:gocritic // System context needed to read chat state for relay.
-	chat, err := p.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chatID)
+	chat, err := p.db.GetChatByID(ctx, chatID)
 	var relayCancel func()
 	var relayParts <-chan codersdk.ChatStreamEvent
 	if err == nil && chat.Status == database.ChatStatusRunning && chat.WorkerID.Valid && chat.WorkerID.UUID != p.workerID && p.remotePartsProvider != nil {
@@ -1225,8 +1222,7 @@ func (p *Server) Subscribe(
 					// Handle different notification types
 					if notify.AfterMessageID > 0 {
 						// Read new messages from DB
-						//nolint:gocritic // System context needed to read chat messages for stream.
-						messages, err := p.db.GetChatMessagesByChatID(dbauthz.AsSystemRestricted(mergedCtx), chatID)
+						messages, err := p.db.GetChatMessagesByChatID(mergedCtx, chatID)
 						if err == nil {
 							for _, msg := range messages {
 								if msg.ID > lastMessageID {
@@ -1282,8 +1278,7 @@ func (p *Server) Subscribe(
 						}
 					}
 					if notify.QueueUpdate {
-						//nolint:gocritic // System context needed to read queued messages for stream.
-						queued, err := p.db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(mergedCtx), chatID)
+						queued, err := p.db.GetChatQueuedMessages(mergedCtx, chatID)
 						if err == nil {
 							select {
 							case <-mergedCtx.Done():
@@ -1884,8 +1879,7 @@ func (p *Server) runChat(
 		loadCtx context.Context,
 		chatID uuid.UUID,
 	) (database.Chat, error) {
-		//nolint:gocritic // System context required to load chat snapshots for the stream.
-		return p.db.GetChatByID(dbauthz.AsSystemRestricted(loadCtx), chatID)
+		return p.db.GetChatByID(loadCtx, chatID)
 	}
 	var (
 		chatStateMu sync.Mutex
@@ -1936,9 +1930,8 @@ func (p *Server) runChat(
 			return nil, xerrors.New("chat has no workspace")
 		}
 
-		//nolint:gocritic // System context needed to look up workspace agents.
 		agents, err := p.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
-			dbauthz.AsSystemRestricted(ctx),
+			ctx,
 			chatSnapshot.WorkspaceID.UUID,
 		)
 		if err != nil || len(agents) == 0 {
@@ -2480,9 +2473,8 @@ func (p *Server) resolveInstructions(
 		return ""
 	}
 
-	//nolint:gocritic // System context needed to look up workspace agents.
 	agents, agentsErr := p.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
-		dbauthz.AsSystemRestricted(ctx),
+		ctx,
 		chat.WorkspaceID.UUID,
 	)
 	if agentsErr != nil || len(agents) == 0 {
@@ -2499,8 +2491,7 @@ func (p *Server) resolveInstructions(
 	}
 
 	// Look up the agent's OS and working directory.
-	//nolint:gocritic // System context needed to read workspace agent metadata.
-	agent, err := p.db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agentID)
+	agent, err := p.db.GetWorkspaceAgentByID(ctx, agentID)
 	if err != nil {
 		p.logger.Debug(ctx, "failed to look up workspace agent for instruction context",
 			slog.F("agent_id", agentID),

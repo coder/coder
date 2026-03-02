@@ -13,6 +13,7 @@ import (
 
 	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -5356,5 +5357,60 @@ func TestGetWorkspaceAgentByID_FastPath(t *testing.T) {
 		result, err := q.GetWorkspaceAgentByID(ctx, agentID)
 		require.NoError(t, err)
 		require.Equal(t, agent, result)
+	})
+}
+
+func TestAsChatd(t *testing.T) {
+	t.Parallel()
+
+	ctx := dbauthz.AsChatd(context.Background())
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok, "actor must be present")
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	t.Run("AllowedActions", func(t *testing.T) {
+		t.Parallel()
+
+		// Chat CRUD.
+		for _, action := range []policy.Action{
+			policy.ActionCreate, policy.ActionRead,
+			policy.ActionUpdate, policy.ActionDelete,
+		} {
+			err := auth.Authorize(ctx, actor, action, rbac.ResourceChat)
+			require.NoError(t, err, "chat %s should be allowed", action)
+		}
+
+		// Workspace read.
+		err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceWorkspace)
+		require.NoError(t, err, "workspace read should be allowed")
+
+		// DeploymentConfig read.
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceDeploymentConfig)
+		require.NoError(t, err, "deployment config read should be allowed")
+	})
+
+	t.Run("DeniedActions", func(t *testing.T) {
+		t.Parallel()
+
+		// Cannot write workspaces.
+		for _, action := range []policy.Action{
+			policy.ActionUpdate, policy.ActionDelete,
+		} {
+			err := auth.Authorize(ctx, actor, action, rbac.ResourceWorkspace)
+			require.Error(t, err, "workspace %s should be denied", action)
+		}
+
+		// Cannot access users.
+		err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceUser)
+		require.Error(t, err, "user read should be denied")
+
+		// Cannot access API keys.
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceApiKey)
+		require.Error(t, err, "api key read should be denied")
+
+		// Cannot access provisioner daemons.
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceProvisionerDaemon)
+		require.Error(t, err, "provisioner daemon read should be denied")
 	})
 }
