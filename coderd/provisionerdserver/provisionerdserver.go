@@ -564,7 +564,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		// The check `s.OIDCConfig != nil` is not as strict, since it can be an interface
 		// pointing to a typed nil.
 		if !reflect.ValueOf(s.OIDCConfig).IsNil() {
-			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, s.Database, s.OIDCConfig, owner.ID)
+			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, s.Logger, s.Database, s.OIDCConfig, owner.ID)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
 			}
@@ -3101,7 +3101,7 @@ func shouldRefreshOIDCToken(link database.UserLink) bool {
 
 // obtainOIDCAccessToken returns a valid OpenID Connect access token
 // for the user if it's able to obtain one, otherwise it returns an empty string.
-func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig promoauth.OAuth2Config, userID uuid.UUID) (string, error) {
+func obtainOIDCAccessToken(ctx context.Context, logger *slog.Logger, db database.Store, oidcConfig promoauth.OAuth2Config, userID uuid.UUID) (string, error) {
 	link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 		UserID:    userID,
 		LoginType: database.LoginTypeOIDC,
@@ -3142,6 +3142,7 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 		if err != nil {
 			return "", xerrors.Errorf("update user link: %w", err)
 		}
+		logger.Info(ctx, "refreshed expired OIDC token for user during workspace build", slog.F("user_id", userID))
 	}
 
 	return link.OAuthAccessToken, nil
