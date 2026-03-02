@@ -249,6 +249,23 @@ func Run(ctx context.Context, opts RunOptions) error {
 			return xerrors.Errorf("stream response: %w", err)
 		}
 
+		// Execute tools before persisting so that tool results
+		// are included in the persisted step content. The
+		// persistence layer splits assistant and tool-result
+		// blocks into separate database messages by role.
+		var toolResults []fantasy.ToolResultContent
+		if result.shouldContinue {
+			toolResults = executeTools(ctx, opts.Tools, result.toolCalls, func(tr fantasy.ToolResultContent) {
+				publishMessagePart(
+					fantasy.MessageRoleTool,
+					chatprompt.PartFromContent(tr),
+				)
+			})
+			for _, tr := range toolResults {
+				result.content = append(result.content, tr)
+			}
+		}
+
 		// Extract context limit from provider metadata.
 		contextLimit := extractContextLimit(result.providerMetadata)
 		if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
@@ -298,34 +315,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 			break
 		}
 
-		// Execute tools sequentially and add results to messages.
-		toolResults := executeTools(ctx, opts.Tools, result.toolCalls, func(tr fantasy.ToolResultContent) {
-			publishMessagePart(
-				fantasy.MessageRoleTool,
-				chatprompt.PartFromContent(tr),
-			)
-		})
-
 		// Build messages from the step for the next iteration.
-		// toResponseMessages produces assistant-role content (text,
-		// reasoning, tool calls). Tool results come exclusively
-		// from executeTools above — result.content does not contain
-		// tool results during normal (non-interrupted) flow.
+		// toResponseMessages produces assistant-role content
+		// (text, reasoning, tool calls) and tool-result content.
 		stepMessages := result.toResponseMessages()
-		if len(toolResults) > 0 {
-			toolResultParts := make([]fantasy.MessagePart, 0, len(toolResults))
-			for _, tr := range toolResults {
-				toolResultParts = append(toolResultParts, fantasy.ToolResultPart{
-					ToolCallID:      tr.ToolCallID,
-					Output:          tr.Result,
-					ProviderOptions: fantasy.ProviderOptions(tr.ProviderMetadata),
-				})
-			}
-			stepMessages = append(stepMessages, fantasy.Message{
-				Role:    fantasy.MessageRoleTool,
-				Content: toolResultParts,
-			})
-		}
 		messages = append(messages, stepMessages...)
 	}
 
