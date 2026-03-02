@@ -327,7 +327,14 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	}`;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
-	const isExecuting = chat.status === "pending" || chat.status === "running";
+	const isExecuting =
+		chat.status === "pending" ||
+		chat.status === "running" ||
+		(hasChildren &&
+			childIDs.some((id) => {
+				const c = chatById.get(id);
+				return c?.status === "pending" || c?.status === "running";
+			}));
 
 	return (
 		<div className="flex min-w-0 flex-col">
