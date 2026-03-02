@@ -141,6 +141,17 @@ Coder can automatically generate a name your tasks if you set the `ANTHROPIC_API
 
 If you tried Tasks and decided you don't want to use it, you can hide the Tasks tab by starting `coder server` with the `CODER_HIDE_AI_TASKS=true` environment variable or the `--hide-ai-tasks` flag.
 
+## Pausing and resuming tasks
+
+Tasks automatically pause when the workspace reaches its idle timeout,
+freeing compute resources. While paused, you can view a snapshot of the
+last conversation messages. When you resume or send a new message, the
+workspace restarts and the agent picks up where it left off if the agent
+and template support session persistence.
+
+For details on how pause and resume works and what your template needs,
+see [Task lifecycle](./tasks-lifecycle.md).
+
 ## Command Line Interface
 
 See [Tasks CLI](./cli.md).
