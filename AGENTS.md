@@ -228,3 +228,47 @@ These files may be gitignored, read manually if not auto-loaded.
 ---
 
 *This file stays lean and actionable. Detailed workflows and explanations are imported automatically.*
+
+## Cursor Cloud specific instructions
+
+### Services overview
+
+- **Backend (coderd)**: Go API server on port 3000. Requires PostgreSQL.
+- **Frontend (Vite)**: React SPA dev server on port 8080, proxies API to port 3000.
+- **PostgreSQL**: Run via Docker on port 5432.
+
+### Starting the dev environment
+
+1. Start Docker: `sudo dockerd &>/dev/null &` then `sudo chmod 666 /var/run/docker.sock`
+2. Start PostgreSQL: `sudo docker start coder-dev-postgres || sudo docker run -d --name coder-dev-postgres --restart no -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_USER=postgres -e POSTGRES_DB=coder us-docker.pkg.dev/coder-v2-images-public/public/postgres:17`
+3. Build the binary (see "Building" below).
+4. Start backend: `./build/coder_linux_amd64 --global-config .coderv2 server --http-address 0.0.0.0:3000 --access-url http://127.0.0.1:3000 --postgres-url "postgresql://postgres:postgres@localhost:5432/coder?sslmode=disable"`
+5. Create first user: `./build/coder_linux_amd64 --global-config .coderv2 login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="SomeSecurePassword!" --first-user-full-name="Admin User" --first-user-trial=false`
+6. Start frontend: `cd site && CODER_HOST=http://127.0.0.1:3000 pnpm dev --host`
+7. Access UI at http://localhost:8080 (admin@coder.com / SomeSecurePassword!)
+
+### Building
+
+The `make build` target tries to regenerate code (`make gen`) which requires tools not installed in the Cloud VM (sqlc, protoc, mockgen). Since generated files are already committed, build the binary directly:
+
+```sh
+./scripts/build_go.sh --os linux --arch amd64 --output build/coder_linux_amd64
+```
+
+For a slim binary (no embedded frontend): add `--slim` flag.
+
+If you need to rebuild the frontend: `cd site && pnpm build`
+
+### Running Go tests
+
+`gotestsum` is installed at `$(go env GOPATH)/bin/gotestsum`. Ensure `$(go env GOPATH)/bin` is on your PATH.
+
+- Single package: `gotestsum --format short-verbose -- -count=1 -timeout=120s ./coderd/some/package/...`
+- Full suite (uses `make test`): requires `gotestsum` on PATH.
+
+### Running frontend tests/lint
+
+- Lint: `cd site && pnpm lint:check` (Biome) and `pnpm lint:types` (TypeScript)
+- Tests: `cd site && pnpm vitest run`
+- Format: `cd site && pnpm format`
+
