@@ -139,8 +139,8 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		_ = conn.Close()
 	}()
 
-	// This is intended to be a sane starting point for the read buffer size. It may be
-	// grown by codec.ReadFrame if necessary.
+	// This is intended to be a sane starting point for the read buffer size.
+	// It may be grown by codec.ReadMessage if necessary.
 	const initBufSize = 1 << 10
 	buf := make([]byte, initBufSize)
 
@@ -151,36 +151,46 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) {
 		default:
 		}
 
-		var (
-			tag codec.Tag
-			err error
-		)
-		tag, buf, err = codec.ReadFrame(conn, buf)
+		var err error
+		var msg proto.Message
+		msg, buf, err = codec.ReadMessage(conn, buf)
 		switch {
 		case errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed):
 			return
-		case err != nil:
+		case errors.Is(err, codec.ErrUnsupportedTag) || errors.Is(err, codec.ErrMessageTooLarge):
 			s.logger.Warn(ctx, "read frame error", slog.Error(err))
 			return
-		}
-
-		if tag != codec.TagV1 {
-			s.logger.Warn(ctx, "invalid tag value", slog.F("tag", tag))
-			return
-		}
-
-		var req agentproto.ReportBoundaryLogsRequest
-		if err := proto.Unmarshal(buf, &req); err != nil {
-			s.logger.Warn(ctx, "proto unmarshal error", slog.Error(err))
+		case err != nil:
+			s.logger.Warn(ctx, "read message error", slog.Error(err))
 			continue
 		}
 
-		select {
-		case s.logs <- &req:
+		s.handleMessage(ctx, msg)
+	}
+}
+
+func (s *Server) handleMessage(ctx context.Context, msg proto.Message) {
+	switch m := msg.(type) {
+	case *agentproto.ReportBoundaryLogsRequest:
+		s.bufferLogs(ctx, m)
+	case *codec.BoundaryMessage:
+		switch inner := m.Msg.(type) {
+		case *codec.BoundaryMessage_Logs:
+			s.bufferLogs(ctx, inner.Logs)
 		default:
-			s.logger.Warn(ctx, "dropping boundary logs, buffer full",
-				slog.F("log_count", len(req.Logs)))
+			s.logger.Warn(ctx, "unknown BoundaryMessage variant")
 		}
+	default:
+		s.logger.Warn(ctx, "unexpected message type")
+	}
+}
+
+func (s *Server) bufferLogs(ctx context.Context, req *agentproto.ReportBoundaryLogsRequest) {
+	select {
+	case s.logs <- req:
+	default:
+		s.logger.Warn(ctx, "dropping boundary logs, buffer full",
+			slog.F("log_count", len(req.Logs)))
 	}
 }
 
