@@ -11,7 +11,9 @@ import {
 } from "components/Dialog/Dialog";
 import { Spinner } from "components/Spinner/Spinner";
 import { ArchiveIcon, Trash2Icon } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { type FC, useEffect, useId, useState } from "react";
+
+type LoadingAction = "archive-only" | "archive-and-delete" | null;
 
 interface ArchiveAgentDialogProps {
 	open: boolean;
@@ -32,6 +34,35 @@ export const ArchiveAgentDialog: FC<ArchiveAgentDialogProps> = ({
 }) => {
 	const checkboxId = useId();
 	const [deleteWorkspace, setDeleteWorkspace] = useState(false);
+	const [loadingAction, setLoadingAction] = useState<LoadingAction>(null);
+
+	// Reset local state whenever the dialog opens so previous
+	// selections don't carry over between different chats.
+	useEffect(() => {
+		if (open) {
+			setDeleteWorkspace(false);
+			setLoadingAction(null);
+		}
+	}, [open]);
+
+	// Clear the loading action when the parent signals loading is done.
+	useEffect(() => {
+		if (!isLoading) {
+			setLoadingAction(null);
+		}
+	}, [isLoading]);
+
+	const handleArchiveOnly = () => {
+		setLoadingAction("archive-only");
+		onArchiveOnly();
+	};
+
+	const handleArchiveAndDelete = () => {
+		setLoadingAction("archive-and-delete");
+		onArchiveAndDeleteWorkspace();
+	};
+
+	const displayTitle = chatTitle || "this chat";
 
 	return (
 		<Dialog
@@ -44,13 +75,13 @@ export const ArchiveAgentDialog: FC<ArchiveAgentDialogProps> = ({
 		>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>Archive Chat</DialogTitle>
+					<DialogTitle>Archive Agent</DialogTitle>
 					<DialogDescription>
 						Are you sure you want to archive{" "}
 						<span className="font-semibold text-content-primary">
-							{chatTitle}
+							{displayTitle}
 						</span>
-						? This chat has an associated workspace.
+						? This agent has an associated workspace.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -78,20 +109,22 @@ export const ArchiveAgentDialog: FC<ArchiveAgentDialogProps> = ({
 					<Button
 						variant="outline"
 						disabled={isLoading}
-						onClick={onArchiveOnly}
+						onClick={handleArchiveOnly}
 					>
-						<Spinner loading={isLoading} size="sm" />
+						{loadingAction === "archive-only" && <Spinner loading size="sm" />}
 						<ArchiveIcon />
 						Archive only
 					</Button>
 					<Button
 						variant="destructive"
 						disabled={!deleteWorkspace || isLoading}
-						onClick={onArchiveAndDeleteWorkspace}
+						onClick={handleArchiveAndDelete}
 					>
-						<Spinner loading={isLoading} size="sm" />
+						{loadingAction === "archive-and-delete" && (
+							<Spinner loading size="sm" />
+						)}
 						<Trash2Icon />
-						Archive &amp; Delete Workspace
+						Archive & Delete Workspace
 					</Button>
 				</DialogFooter>
 			</DialogContent>
