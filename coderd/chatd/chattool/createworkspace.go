@@ -224,10 +224,16 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 					// Non-fatal: workspace was created and
 					// agent connected, but we couldn't
 					// confirm scripts finished.
+					agentStatus := "startup_scripts_unknown"
+					// Enrich timeout errors.
+					if xerrors.Is(err, context.DeadlineExceeded) {
+						err = xerrors.Errorf("timed out waiting for startup scripts to finish: %w", err)
+						agentStatus = "startup_scripts_timeout"
+					}
 					return toolResponse(map[string]any{
 						"created":        true,
 						"workspace_name": workspace.FullName(),
-						"agent_status":   "startup_scripts_unknown",
+						"agent_status":   agentStatus,
 						"agent_error":    err.Error(),
 					}), nil
 				}
