@@ -40,7 +40,7 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	replicaA := newTestServer(t, db, ps, uuid.New())
 	replicaB := newTestServer(t, db, ps, uuid.New())
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replicaA.CreateChat(ctx, chatd.CreateOptions{
@@ -88,7 +88,7 @@ func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	replica := newTestServer(t, db, ps, uuid.New())
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
@@ -124,7 +124,7 @@ func TestUpdateChatHeartbeatRequiresOwnership(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	replica := newTestServer(t, db, ps, uuid.New())
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
@@ -166,7 +166,7 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	replica := newTestServer(t, db, ps, uuid.New())
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
@@ -214,7 +214,7 @@ func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	replica := newTestServer(t, db, ps, uuid.New())
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
@@ -265,7 +265,7 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	replica := newTestServer(t, db, ps, uuid.New())
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
@@ -347,7 +347,7 @@ func TestEditMessageRejectsMissingMessage(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	replica := newTestServer(t, db, ps, uuid.New())
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
@@ -373,7 +373,7 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	replica := newTestServer(t, db, ps, uuid.New())
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
@@ -418,7 +418,7 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	// Use a very short stale threshold so the periodic recovery
@@ -505,7 +505,7 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	// Simulate a chat left running by a dead replica with a stale
@@ -548,7 +548,7 @@ func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t)
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	// Create a chat in waiting status — this should NOT be touched
@@ -592,7 +592,7 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	_ = newTestServer(t, db, ps, uuid.New())
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
@@ -647,7 +647,7 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	replica := newTestServer(t, db, ps, uuid.New())
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
@@ -676,7 +676,7 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	replica := newTestServer(t, db, nil, uuid.New())
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
@@ -712,7 +712,7 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
 	client := coderdtest.New(t, &coderdtest.Options{
@@ -967,7 +967,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, 2*time.Minute)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	var requestCount atomic.Int32
 	streamStarted := make(chan struct{})
