@@ -10,10 +10,10 @@ import (
 	"github.com/coder/quartz"
 )
 
-// tokenCache caches validated tokens to avoid repeated validation calls.
+// TokenCache caches validated tokens to avoid repeated validation calls.
 // Tokens are hashed for security and cached with an expiry time.
 // The cache runs a background goroutine to clean up expired entries.
-type tokenCache struct {
+type TokenCache struct {
 	mu              sync.RWMutex
 	entries         map[string]time.Time // SHA256(token) -> expiry time
 	ttl             time.Duration
@@ -21,10 +21,10 @@ type tokenCache struct {
 	clock           quartz.Clock
 }
 
-// newTokenCache creates a new token cache with the specified TTL and starts
+// NewTokenCache creates a new token cache with the specified TTL and starts
 // a background cleanup goroutine that removes expired entries.
-func newTokenCache(ctx context.Context, ttl, cleanupInterval time.Duration, clock quartz.Clock) *tokenCache {
-	c := &tokenCache{
+func NewTokenCache(ctx context.Context, ttl, cleanupInterval time.Duration, clock quartz.Clock) *TokenCache {
+	c := &TokenCache{
 		entries:         make(map[string]time.Time),
 		ttl:             ttl,
 		cleanupInterval: cleanupInterval,
@@ -41,7 +41,7 @@ func newTokenCache(ctx context.Context, ttl, cleanupInterval time.Duration, cloc
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				c.cleanup()
+				c.Cleanup()
 			}
 		}
 	}()
@@ -49,8 +49,8 @@ func newTokenCache(ctx context.Context, ttl, cleanupInterval time.Duration, cloc
 	return c
 }
 
-// isValid checks if a token is in the cache and not expired.
-func (c *tokenCache) isValid(tokenHash string) bool {
+// IsValid checks if a token is in the cache and not expired.
+func (c *TokenCache) IsValid(tokenHash string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -62,17 +62,17 @@ func (c *tokenCache) isValid(tokenHash string) bool {
 	return c.clock.Now().Before(expiry)
 }
 
-// add adds a token to the cache with the configured TTL.
-func (c *tokenCache) add(tokenHash string) {
+// Add adds a token to the cache with the configured TTL.
+func (c *TokenCache) Add(tokenHash string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.entries[tokenHash] = c.clock.Now().Add(c.ttl)
 }
 
-// cleanup removes expired entries from the cache.
+// Cleanup removes expired entries from the cache.
 // Called periodically by background goroutine.
-func (c *tokenCache) cleanup() {
+func (c *TokenCache) Cleanup() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -84,9 +84,19 @@ func (c *tokenCache) cleanup() {
 	}
 }
 
-// hashToken creates a SHA256 hash of the token for cache keys.
+// HasEntry checks if a token hash exists in the cache, regardless of expiry.
+// This is useful for testing to verify that expired tokens still exist before
+// cleanup runs.
+func (c *TokenCache) HasEntry(tokenHash string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	_, exists := c.entries[tokenHash]
+	return exists
+}
+
+// HashToken creates a SHA256 hash of the token for cache keys.
 // This avoids storing raw tokens in memory.
-func hashToken(token string) string {
+func HashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
 }

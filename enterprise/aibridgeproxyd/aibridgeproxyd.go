@@ -79,7 +79,7 @@ type Server struct {
 	// for tunneled CONNECT requests.
 	coderHTTPClient *http.Client
 	// tokenCache caches validated tokens to avoid repeated API calls.
-	tokenCache *tokenCache
+	tokenCache *TokenCache
 }
 
 // requestContext holds metadata propagated through the proxy request/response chain.
@@ -296,7 +296,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		clock = quartz.NewReal()
 	}
 	// Use TTL as cleanup interval - in production they're the same.
-	cache := newTokenCache(ctx, tokenCacheTTL, tokenCacheTTL, clock)
+	cache := NewTokenCache(ctx, tokenCacheTTL, tokenCacheTTL, clock)
 
 	srv := &Server{
 		ctx:                      ctx,
@@ -702,10 +702,10 @@ func (s *Server) tunneledMiddleware(host string, ctx *goproxy.ProxyCtx) (*goprox
 // Uses a cache to avoid repeated API calls for recently validated tokens.
 func (s *Server) validateCoderToken(ctx context.Context, token string) error {
 	// Hash the token for cache lookup (avoid storing raw tokens).
-	tokenHash := hashToken(token)
+	tokenHash := HashToken(token)
 
 	// Check cache first.
-	if s.tokenCache.isValid(tokenHash) {
+	if s.tokenCache.IsValid(tokenHash) {
 		return nil
 	}
 
@@ -720,7 +720,7 @@ func (s *Server) validateCoderToken(ctx context.Context, token string) error {
 	}
 
 	// Cache successful validation.
-	s.tokenCache.add(tokenHash)
+	s.tokenCache.Add(tokenHash)
 
 	return nil
 }
