@@ -159,6 +159,10 @@ export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 	});
 };
 
+export const watchChatGit = (chatId: string): WebSocket => {
+	return createWebSocket(`/api/experimental/chats/${chatId}/git/watch`);
+};
+
 export const watchAgentContainers = (
 	agentId: string,
 ): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
