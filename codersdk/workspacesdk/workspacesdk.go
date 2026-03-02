@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/cookiejar"
 	"net/netip"
 	"os"
 	"strconv"
@@ -363,26 +362,15 @@ func (c *Client) AgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentRe
 	}
 	serverURL.RawQuery = q.Encode()
 
-	// If we're not using a signed token, we need to set the session token as a
-	// cookie.
 	httpClient := c.client.HTTPClient
+	headers := http.Header{}
 	if opts.SignedToken == "" {
-		jar, err := cookiejar.New(nil)
-		if err != nil {
-			return nil, xerrors.Errorf("create cookie jar: %w", err)
-		}
-		jar.SetCookies(serverURL, []*http.Cookie{{
-			Name:  codersdk.SessionTokenCookie,
-			Value: c.client.SessionToken(),
-		}})
-		httpClient = &http.Client{
-			Jar:       jar,
-			Transport: c.client.HTTPClient.Transport,
-		}
+		headers.Set(codersdk.SessionTokenHeader, c.client.SessionToken())
 	}
 	//nolint:bodyclose
 	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
+		HTTPHeader: headers,
 	})
 	if err != nil {
 		if res == nil {
