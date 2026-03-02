@@ -1,4 +1,5 @@
 import { getErrorDetail, getErrorMessage, getErrorStatus } from "api/errors";
+import { isAxiosError } from "axios";
 import type { FC } from "react";
 import { Link } from "../Link/Link";
 import { Alert, AlertDescription, type AlertProps, AlertTitle } from "./Alert";
@@ -30,6 +31,31 @@ export const ErrorAlert: FC<ErrorAlertProps> = ({ error, ...alertProps }) => {
 					</Link>
 				)}
 			</AlertDescription>
+			<div className="mt-2 min-w-0">
+				{isAxiosError(error) && (
+					<details className="max-w-full">
+						<summary>Response data</summary>
+						<div className="mt-2 max-w-full overflow-x-auto">
+							<pre className="m-0 w-max min-w-full">
+								{JSON.stringify(error.response?.data, null, 2)}
+							</pre>
+						</div>
+					</details>
+				)}
+				{/*
+				 * Error.isError() is not reliably available in all browsers
+				 * so we fallback to `instanceof Error`. In future we should use
+				 * it is more reliable.
+				 */}
+				{error instanceof Error && (
+					<details className="max-w-full">
+						<summary>Stack Trace</summary>
+						<div className="mt-2 max-w-full overflow-x-auto">
+							<pre className="m-0 w-max min-w-full">{error.stack}</pre>
+						</div>
+					</details>
+				)}
+			</div>
 		</Alert>
 	);
 };
