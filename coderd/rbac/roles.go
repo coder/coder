@@ -268,22 +268,16 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		opts = &RoleOptions{}
 	}
 
-	allWorkspaceActions := ResourceWorkspace.AvailableActions()
+	denyPermissions := []Permission{}
 	if opts.NoWorkspaceSharing {
-		// If sharing is globally disabled at startup, then we should exclude the
-		// share permission from workspaces entirely.
-		allWorkspaceActions = slice.Omit(allWorkspaceActions, policy.ActionShare)
+		denyPermissions = append(denyPermissions, Permission{
+			Negate:       true,
+			ResourceType: ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		})
 	}
 
-	deploymentOwnerWorkspacePermissions := allWorkspaceActions
-	if opts.NoOwnerWorkspaceExec {
-		// Remove ssh and application connect from the owner role. This
-		// prevents owners from have exec access to all workspaces.
-		deploymentOwnerWorkspacePermissions = slice.Omit(
-			deploymentOwnerWorkspacePermissions,
-			policy.ActionApplicationConnect, policy.ActionSSH,
-		)
-	}
+	deploymentOwnerWorkspacePermissions := ResourceWorkspace.AvailableActions()
 
 	// Static roles that never change should be allocated in a closure.
 	// This is to ensure these data structures are only allocated once and not
@@ -317,12 +311,15 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	memberRole := Role{
 		Identifier:  RoleMember(),
 		DisplayName: "Member",
-		Site: Permissions(map[string][]policy.Action{
-			ResourceAssignRole.Type: {policy.ActionRead},
-			// All users can see OAuth2 provider applications.
-			ResourceOauth2App.Type:      {policy.ActionRead},
-			ResourceWorkspaceProxy.Type: {policy.ActionRead},
-		}),
+		Site: append(
+			Permissions(map[string][]policy.Action{
+				ResourceAssignRole.Type: {policy.ActionRead},
+				// All users can see OAuth2 provider applications.
+				ResourceOauth2App.Type:      {policy.ActionRead},
+				ResourceWorkspaceProxy.Type: {policy.ActionRead},
+			}),
+			denyPermissions...,
+		),
 		User: append(
 			allPermsExcept(
 				ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace,
@@ -458,7 +455,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 								ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage,
 							),
 							Permissions(map[string][]policy.Action{
-								ResourceWorkspace.Type:        slice.Omit(allWorkspaceActions, policy.ActionApplicationConnect, policy.ActionSSH, policy.ActionShare),
+								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 								// PrebuiltWorkspaces are a subset of Workspaces.
 								// Explicitly setting PrebuiltWorkspace permissions for clarity.
@@ -1024,6 +1021,17 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 			},
 		})...,
 	)
+
+	if workspaceSharingDisabled {
+		// Org-level negation blocks sharing on ANY workspace in the
+		// org.  This overrides any positive permission from other
+		// roles, including org-admin.
+		orgPerms = append(orgPerms, Permission{
+			Negate:       true,
+			ResourceType: ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		})
+	}
 
 	return orgPerms, memberPerms
 }
