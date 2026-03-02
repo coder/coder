@@ -35,7 +35,7 @@ func (p *Server) maybeGenerateChatTitle(
 		return
 	}
 
-	titleCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	title, err := generateTitle(titleCtx, model, input)
