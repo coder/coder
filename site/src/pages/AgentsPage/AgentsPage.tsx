@@ -322,7 +322,10 @@ const AgentsPage: FC = () => {
 				queryClient.setQueryData(
 					chatsKey,
 					(prev: TypesGen.Chat[] | undefined) =>
-						prev?.filter((c) => c.id !== updatedChat.id),
+						prev?.filter(
+							(c) =>
+								c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
+						),
 				);
 				queryClient.removeQueries({
 					queryKey: chatKey(updatedChat.id),

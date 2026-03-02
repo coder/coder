@@ -2876,7 +2876,8 @@ func (q *sqlQuerier) AcquireChat(ctx context.Context, arg AcquireChatParams) (Ch
 }
 
 const archiveChatByID = `-- name: ArchiveChatByID :exec
-UPDATE chats SET archived = true, updated_at = NOW() WHERE id = $1::uuid
+UPDATE chats SET archived = true, updated_at = NOW()
+WHERE id = $1 OR root_chat_id = $1
 `
 
 func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {

@@ -517,38 +517,8 @@ func (p *Server) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
 		return xerrors.Errorf("get chat: %w", err)
 	}
 
-	err = p.db.InTx(func(tx database.Store) error {
-		// Collect descendants breadth-first, then archive from leaves upward.
-		descendantIDs := make([]uuid.UUID, 0)
-		queue := []uuid.UUID{chatID}
-		for len(queue) > 0 {
-			parentID := queue[0]
-			queue = queue[1:]
-
-			children, err := tx.ListChildChatsByParentID(ctx, parentID)
-			if err != nil {
-				return xerrors.Errorf("list children of chat %s: %w", parentID, err)
-			}
-			for _, child := range children {
-				descendantIDs = append(descendantIDs, child.ID)
-				queue = append(queue, child.ID)
-			}
-		}
-
-		for i := len(descendantIDs) - 1; i >= 0; i-- {
-			if err := tx.ArchiveChatByID(ctx, descendantIDs[i]); err != nil {
-				return xerrors.Errorf("archive descendant chat %s: %w", descendantIDs[i], err)
-			}
-		}
-
-		if err := tx.ArchiveChatByID(ctx, chatID); err != nil {
-			return xerrors.Errorf("archive chat: %w", err)
-		}
-
-		return nil
-	}, nil)
-	if err != nil {
-		return err
+	if err := p.db.ArchiveChatByID(ctx, chatID); err != nil {
+		return xerrors.Errorf("archive chat: %w", err)
 	}
 
 	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDeleted)
