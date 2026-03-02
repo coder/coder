@@ -379,7 +379,7 @@ module "mux" {
   agent_id        = coder_agent.dev.id
   subdomain       = true
   display_name    = "Mux"
-  add-project     = local.repo_dir
+  add_project     = local.repo_dir
   install_version = "next"
   package_manager = "bun"
 }
