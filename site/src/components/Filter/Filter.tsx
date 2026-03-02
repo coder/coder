@@ -96,35 +96,131 @@ export const useFilter = ({
 	};
 };
 
-const parseFilterQuery = (filterQuery: string): FilterValues => {
-	if (filterQuery === "") {
-		return {};
-	}
-
-	const pairs = filterQuery.split(" ");
+export const parseFilter = (input: string): FilterValues => {
 	const result: FilterValues = {};
+	let i = 0;
 
-	for (const pair of pairs) {
-		const [key, value] = pair.split(":") as [
-			keyof FilterValues,
-			string | undefined,
-		];
-		if (value) {
-			result[key] = value;
+	const skipWhitespace = () => {
+		while (i < input.length && /\s/.test(input.charAt(i))) {
+			i++;
 		}
+	};
+
+	const parseKey = (): string => {
+		const start = i;
+		while (i < input.length && /[a-zA-Z0-9_-]/.test(input.charAt(i))) {
+			i++;
+		}
+		return input.slice(start, i);
+	};
+
+	const parseQuoted = (): string => {
+		i++; // skip opening "
+		let value = "";
+
+		while (i < input.length) {
+			if (input.charAt(i) === "\\" && i + 1 < input.length) {
+				value += input.charAt(i + 1);
+				i += 2;
+				continue;
+			}
+
+			if (input.charAt(i) === '"') {
+				i++; // skip closing "
+				break;
+			}
+
+			value += input.charAt(i);
+			i++;
+		}
+
+		return value;
+	};
+
+	const parseUnquoted = (): string => {
+		const start = i;
+		while (
+			i < input.length &&
+			input.charAt(i) !== "," &&
+			!/\s/.test(input.charAt(i))
+		) {
+			i++;
+		}
+		return input.slice(start, i);
+	};
+
+	const parseValue = (): string => {
+		if (input.charAt(i) === '"') {
+			return parseQuoted();
+		}
+		return parseUnquoted();
+	};
+
+	const parseValueList = (): string[] => {
+		const values: string[] = [];
+
+		while (i < input.length) {
+			skipWhitespace();
+			values.push(parseValue());
+			skipWhitespace();
+
+			if (input.charAt(i) === ",") {
+				i++;
+				continue;
+			}
+
+			break;
+		}
+
+		return values;
+	};
+
+	while (i < input.length) {
+		skipWhitespace();
+		if (i >= input.length) {
+			break;
+		}
+
+		const key = parseKey();
+		if (!key) {
+			break;
+		}
+		skipWhitespace();
+
+		if (input.charAt(i) !== ":") {
+			break;
+		}
+
+		i++; // skip :
+		skipWhitespace();
+		const values = parseValueList();
+		if (values.length === 1) {
+			result[key] = values[0];
+		}
+		skipWhitespace();
 	}
 
 	return result;
 };
 
+const parseFilterQuery = (filterQuery: string): FilterValues => {
+	return parseFilter(filterQuery);
+};
+
 const stringifyFilter = (filterValue: FilterValues): string => {
 	let result = "";
+	const formatValue = (value: string) => {
+		const escaped = value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+		const requiresQuoting = /[\s,"]/.test(value);
+		return requiresQuoting ? `"${escaped}"` : escaped;
+	};
 
 	for (const key in filterValue) {
 		const value = filterValue[key];
-		if (value) {
-			result += `${key}:${value} `;
+		if (!value) {
+			continue;
 		}
+		result += `${key}:${formatValue(value)} `;
 	}
 
 	return result.trim();

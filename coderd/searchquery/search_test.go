@@ -441,6 +441,11 @@ func TestSearchWorkspace(t *testing.T) {
 			ExpectedErrorContains: "provided more than once",
 		},
 		{
+			Name:                  "OwnerCSV",
+			Query:                 `owner:me,foo`,
+			ExpectedErrorContains: "multiple values are not supported",
+		},
+		{
 			Name:                  "ExtraSlashes",
 			Query:                 `foo/bar/baz`,
 			ExpectedErrorContains: "can only contain 1 '/'",

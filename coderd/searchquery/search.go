@@ -250,10 +250,16 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 
 	parser := httpapi.NewQueryParamParser()
 	filter.WorkspaceIds = parser.UUIDs(values, []uuid.UUID{}, "id")
-	filter.OwnerUsername = parser.String(values, "", "owner")
-	filter.TemplateName = parser.String(values, "", "template")
-	filter.Name = parser.String(values, "", "name")
-	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
+	filter.OwnerUsername = parseSingleStringNoCSV(parser, values, "owner")
+	filter.TemplateName = parseSingleStringNoCSV(parser, values, "template")
+	filter.Name = parseSingleStringNoCSV(parser, values, "name")
+	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", func(v string) (database.WorkspaceStatus, error) {
+		if strings.Contains(v, ",") {
+			return "", xerrors.New("multiple values are not supported")
+		}
+
+		return httpapi.ParseEnum[database.WorkspaceStatus](v)
+	}))
 	filter.HasAgentStatuses = parser.Strings(values, []string{}, "has-agent")
 	filter.Dormant = parser.Boolean(values, false, "dormant")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
@@ -319,6 +325,16 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
+}
+
+func parseSingleStringNoCSV(parser *httpapi.QueryParamParser, vals url.Values, queryParam string) string {
+	return httpapi.ParseCustom(parser, vals, "", queryParam, func(v string) (string, error) {
+		if strings.Contains(v, ",") {
+			return "", xerrors.New("multiple values are not supported")
+		}
+
+		return v, nil
+	})
 }
 
 func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query string) (database.GetTemplatesWithFilterParams, []codersdk.ValidationError) {
