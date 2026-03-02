@@ -966,45 +966,47 @@ const AgentDetail: FC = () => {
 			)}
 		>
 			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-				<AgentDetailTopBar
-					chatTitle={chatTitle}
-					parentChat={parentChat}
-					onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
-					diff={{
-						hasDiffStatus,
-						diffStatus: diffStatusQuery.data,
-						showDiffPanel,
-						onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
-					}}
-					workspace={{
-						canOpenEditors,
-						canOpenWorkspace,
-						onOpenInEditor: (editor) => {
-							void handleOpenInEditor(editor);
-						},
-						onViewWorkspace: handleViewWorkspace,
-					}}
-					onArchiveAgent={handleArchiveAgentAction}
-					isArchived={isArchived}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-				/>
-				{isArchived && (
-					<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-sm text-content-secondary">
-						<ArchiveIcon className="h-4 w-4 shrink-0" />
-						This agent has been archived and is read-only.
-					</div>
-				)}
-				<div
-					aria-hidden
-					className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-surface-primary"
-					style={{
-						maskImage:
-							"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-						WebkitMaskImage:
-							"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-					}}
-				/>
+				<div className="relative z-10 shrink-0 overflow-visible">
+					<AgentDetailTopBar
+						chatTitle={chatTitle}
+						parentChat={parentChat}
+						onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
+						diff={{
+							hasDiffStatus,
+							diffStatus: diffStatusQuery.data,
+							showDiffPanel,
+							onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
+						}}
+						workspace={{
+							canOpenEditors,
+							canOpenWorkspace,
+							onOpenInEditor: (editor) => {
+								void handleOpenInEditor(editor);
+							},
+							onViewWorkspace: handleViewWorkspace,
+						}}
+						onArchiveAgent={handleArchiveAgentAction}
+						isArchived={isArchived}
+						isSidebarCollapsed={isSidebarCollapsed}
+						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+					/>
+					{isArchived && (
+						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-sm text-content-secondary">
+							<ArchiveIcon className="h-4 w-4 shrink-0" />
+							This agent has been archived and is read-only.
+						</div>
+					)}
+					<div
+						aria-hidden
+						className="pointer-events-none absolute inset-x-0 top-full z-10 h-6 bg-surface-primary"
+						style={{
+							maskImage:
+								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+							WebkitMaskImage:
+								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+						}}
+					/>
+				</div>
 				<div
 					ref={scrollContainerRef}
 					className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
