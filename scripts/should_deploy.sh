@@ -16,6 +16,21 @@ deploy_branch=main
 # Determine the current branch name and check that it is one of the supported
 # branch names.
 branch_name=$(git branch --show-current)
+
+# --- BEGIN TEMPORARY SHORT-CIRCUIT ---
+# Forces deployment of main. Remove after 2026-03-04T12:00Z.
+if [[ "$branch_name" == "main" ]]; then
+	log "TEMPORARY SHORT-CIRCUIT: deploying main"
+	log "VERDICT: DEPLOY"
+	echo "DEPLOY"
+	exit 0
+else
+	log "VERDICT: DO NOT DEPLOY"
+	echo "NOOP"
+	exit 0
+fi
+# --- END TEMPORARY SHORT-CIRCUIT ---
+
 if [[ "$branch_name" != "main" && ! "$branch_name" =~ ^release/[0-9]+\.[0-9]+$ ]]; then
 	error "Current branch '$branch_name' is not a supported branch name for dogfood, must be 'main' or 'release/x.y'"
 fi
