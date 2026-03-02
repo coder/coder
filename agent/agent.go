@@ -420,7 +420,12 @@ func (a *agent) initSocketServer() {
 
 // startBoundaryLogProxyServer starts the boundary log proxy socket server.
 func (a *agent) startBoundaryLogProxyServer() {
-	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath)
+	if a.boundaryLogProxySocketPath == "" {
+		a.logger.Warn(a.hardCtx, "boundary log proxy socket path not defined; not starting proxy")
+		return
+	}
+
+	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath, a.prometheusRegistry)
 	if err := proxy.Start(); err != nil {
 		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
 		return
