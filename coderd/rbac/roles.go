@@ -962,9 +962,9 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
 	}
 
+	// When workspace sharing is enabled, members need to see other org members
+	// and groups to share workspaces with them.
 	if !workspaceSharingDisabled {
-		// When workspace sharing is enabled, members need to see other org members
-		// and groups to share workspaces with them.
 		orgPermMap[ResourceOrganizationMember.Type] = []policy.Action{policy.ActionRead}
 		orgPermMap[ResourceGroup.Type] = []policy.Action{policy.ActionRead}
 	}
