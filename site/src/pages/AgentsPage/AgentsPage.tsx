@@ -2,6 +2,7 @@ import { watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
+	chatConfigSettings,
 	chatDiffContentsKey,
 	chatDiffStatusKey,
 	chatKey,
@@ -10,6 +11,7 @@ import {
 	chats,
 	chatsKey,
 	createChat,
+	updateChatConfigSettings,
 } from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
@@ -57,7 +59,6 @@ import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-const systemPromptStorageKey = "agents.system-prompt";
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 
 type ChatModelOption = ModelSelectorOption;
@@ -508,12 +509,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 		return localStorage.getItem(emptyInputStorageKey) ?? "";
 	});
-	const initialSystemPrompt = () => {
-		if (typeof window === "undefined") {
-			return "";
-		}
-		return localStorage.getItem(systemPromptStorageKey) ?? "";
-	};
+
 	const [initialLastModelConfigID] = useState(() => {
 		if (typeof window === "undefined") {
 			return "";
@@ -573,10 +569,18 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
-	const [savedSystemPrompt, setSavedSystemPrompt] =
-		useState(initialSystemPrompt);
-	const [systemPromptDraft, setSystemPromptDraft] =
-		useState(initialSystemPrompt);
+	const queryClient = useQueryClient();
+	const chatConfigQuery = useQuery(chatConfigSettings());
+	const chatConfigMutation = useMutation(updateChatConfigSettings(queryClient));
+	const savedSystemPrompt = chatConfigQuery.data?.system_prompt ?? "";
+	const [systemPromptDraft, setSystemPromptDraft] = useState("");
+
+	useEffect(() => {
+		if (chatConfigQuery.data) {
+			setSystemPromptDraft(chatConfigQuery.data.system_prompt);
+		}
+	}, [chatConfigQuery.data]);
+
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 50 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -667,17 +671,9 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 			if (!isSystemPromptDirty) {
 				return;
 			}
-
-			setSavedSystemPrompt(systemPromptDraft);
-			if (typeof window !== "undefined") {
-				if (systemPromptDraft) {
-					localStorage.setItem(systemPromptStorageKey, systemPromptDraft);
-				} else {
-					localStorage.removeItem(systemPromptStorageKey);
-				}
-			}
+			chatConfigMutation.mutate({ system_prompt: systemPromptDraft });
 		},
-		[isSystemPromptDirty, systemPromptDraft],
+		[isSystemPromptDirty, systemPromptDraft, chatConfigMutation],
 	);
 
 	const handleSend = useCallback(
@@ -767,11 +763,10 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					onSystemPromptDraftChange={setSystemPromptDraft}
 					onSaveSystemPrompt={handleSaveSystemPrompt}
 					isSystemPromptDirty={isSystemPromptDirty}
-					isDisabled={isCreating}
+					isDisabled={isCreating || chatConfigMutation.isPending}
 				/>
 			)}
 		</div>
 	);
 };
-
 export default AgentsPage;

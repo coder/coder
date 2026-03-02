@@ -186,3 +186,21 @@ export const deleteChatModelConfig = (queryClient: QueryClient) => ({
 		await invalidateChatConfigurationQueries(queryClient);
 	},
 });
+
+export const chatConfigSettingsKey = ["chat-config-settings"] as const;
+
+export const chatConfigSettings = () => ({
+	queryKey: chatConfigSettingsKey,
+	queryFn: (): Promise<TypesGen.ChatConfigSettings> =>
+		API.getChatConfigSettings(),
+});
+
+export const updateChatConfigSettings = (queryClient: QueryClient) => ({
+	mutationFn: (settings: TypesGen.ChatConfigSettings) =>
+		API.putChatConfigSettings(settings),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatConfigSettingsKey,
+		});
+	},
+});

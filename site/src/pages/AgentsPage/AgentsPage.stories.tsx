@@ -21,8 +21,6 @@ const modelOptions = [
 	},
 ] as const;
 
-const behaviorStorageKey = "agents.system-prompt";
-
 const meta: Meta<typeof AgentsEmptyState> = {
 	title: "pages/AgentsPage/AgentsEmptyState",
 	component: AgentsEmptyState,
@@ -47,6 +45,12 @@ const meta: Meta<typeof AgentsEmptyState> = {
 			workspaces: [],
 			count: 0,
 		});
+		spyOn(API, "getChatConfigSettings").mockResolvedValue({
+			system_prompt: "",
+		});
+		spyOn(API, "putChatConfigSettings").mockImplementation(
+			async (settings) => settings,
+		);
 	},
 };
 
@@ -84,6 +88,9 @@ export const WithWorkspaces: Story = {
 			],
 			count: 3,
 		});
+		spyOn(API, "getChatConfigSettings").mockResolvedValue({
+			system_prompt: "",
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -97,9 +104,22 @@ export const WithWorkspaces: Story = {
 	},
 };
 
-export const SavesBehaviorPromptAndRestores: Story = {
+export const SavesBehaviorPrompt: Story = {
 	args: {
 		isConfigureAgentsDialogOpen: true,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [],
+			count: 0,
+		});
+		spyOn(API, "getChatConfigSettings").mockResolvedValue({
+			system_prompt: "",
+		});
+		spyOn(API, "putChatConfigSettings").mockImplementation(
+			async (settings) => settings,
+		);
 	},
 	play: async () => {
 		const dialog = await screen.findByRole("dialog");
@@ -111,9 +131,9 @@ export const SavesBehaviorPromptAndRestores: Story = {
 		await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
-			expect(localStorage.getItem(behaviorStorageKey)).toBe(
-				"You are a focused coding assistant.",
-			);
+			expect(API.putChatConfigSettings).toHaveBeenCalledWith({
+				system_prompt: "You are a focused coding assistant.",
+			});
 		});
 	},
 };

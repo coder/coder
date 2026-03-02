@@ -3085,6 +3085,24 @@ class ApiMethods {
 			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
 		);
 	};
+
+	getChatConfigSettings = async (): Promise<TypesGen.ChatConfigSettings> => {
+		const response = await this.axios.get<TypesGen.ChatConfigSettings>(
+			"/api/experimental/chats/config",
+		);
+		return response.data;
+	};
+
+	putChatConfigSettings = async (
+		settings: TypesGen.ChatConfigSettings,
+	): Promise<TypesGen.ChatConfigSettings> => {
+		const response = await this.axios.put<TypesGen.ChatConfigSettings>(
+			"/api/experimental/chats/config",
+			settings,
+		);
+		return response.data;
+	};
+
 	getAIBridgeModels = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
 
