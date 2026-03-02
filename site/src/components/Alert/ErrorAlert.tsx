@@ -32,7 +32,7 @@ export const ErrorAlert: FC<ErrorAlertProps> = ({ error, ...alertProps }) => {
 				)}
 			</AlertDescription>
 			<div className="mt-2 min-w-0">
-				{isAxiosError(error) && (
+				{isAxiosError(error) && error.response?.data && (
 					<details className="max-w-full">
 						<summary>Response data</summary>
 						<div className="mt-2 max-w-full overflow-x-auto">
