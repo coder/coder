@@ -9,7 +9,10 @@ import { API } from "api/api";
 import { getGroupQueryKey, groupPermissionsKey } from "api/queries/groups";
 import { organizationMembersKey } from "api/queries/organizations";
 import { spyOn, userEvent, within } from "storybook/test";
-import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import {
+	reactRouterOutlet,
+	reactRouterParameters,
+} from "storybook-addon-remix-react-router";
 import GroupMembersPage from "./GroupMembersPage";
 import GroupPage from "./GroupPage";
 
@@ -24,15 +27,10 @@ const meta: Meta<typeof GroupPage> = {
 					groupName: MockGroup.name,
 				},
 			},
-			routing: {
-				path: "/organizations/:organization/groups/:groupName",
-				children: [
-					{
-						index: true,
-						element: <GroupMembersPage />,
-					},
-				],
-			},
+			routing: reactRouterOutlet(
+				{ path: "/organizations/:organization/groups/:groupName" },
+				<GroupMembersPage />,
+			),
 		}),
 	},
 };
