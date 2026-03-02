@@ -16,6 +16,60 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestShouldRefreshOIDCToken(t *testing.T) {
+	t.Parallel()
+
+	now := dbtime.Now()
+	testCases := []struct {
+		name string
+		link database.UserLink
+		want bool
+	}{
+		{
+			name: "NoRefreshToken",
+			link: database.UserLink{OAuthExpiry: now.Add(-time.Hour)},
+			want: false,
+		},
+		{
+			name: "ZeroExpiry",
+			link: database.UserLink{OAuthRefreshToken: "refresh"},
+			want: false,
+		},
+		{
+			name: "ExpiredBeyondAssumedWindow",
+			link: database.UserLink{
+				OAuthRefreshToken: "refresh",
+				OAuthExpiry:       now.Add(-20 * time.Minute),
+			},
+			want: true,
+		},
+		{
+			name: "ExpiredWithinAssumedWindow",
+			link: database.UserLink{
+				OAuthRefreshToken: "refresh",
+				OAuthExpiry:       now.Add(-5 * time.Minute),
+			},
+			want: false,
+		},
+		{
+			name: "NotExpired",
+			link: database.UserLink{
+				OAuthRefreshToken: "refresh",
+				OAuthExpiry:       now.Add(time.Hour),
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, shouldRefreshOIDCToken(tc.link))
+		})
+	}
+}
+
 func TestObtainOIDCAccessToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
