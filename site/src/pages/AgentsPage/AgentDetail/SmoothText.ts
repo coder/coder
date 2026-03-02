@@ -175,7 +175,7 @@ export class SmoothTextEngine {
 
 // ── Hook ────────────────────────────────────────────────────────────
 
-export interface UseSmoothStreamingTextOptions {
+interface UseSmoothStreamingTextOptions {
 	fullText: string;
 	isStreaming: boolean;
 	bypassSmoothing: boolean;
@@ -183,7 +183,7 @@ export interface UseSmoothStreamingTextOptions {
 	streamKey: string;
 }
 
-export interface UseSmoothStreamingTextResult {
+interface UseSmoothStreamingTextResult {
 	visibleText: string;
 	isCaughtUp: boolean;
 }
