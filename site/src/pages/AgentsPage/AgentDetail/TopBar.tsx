@@ -81,6 +81,7 @@ type AgentDetailTopBarProps = {
 	diff: DiffPanelState;
 	workspace: WorkspaceActions;
 	onArchiveAgent: () => void;
+	isArchived?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 };
@@ -92,6 +93,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	diff,
 	workspace,
 	onArchiveAgent,
+	isArchived,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 }) => {
@@ -143,6 +145,11 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
+						{isArchived && (
+							<span className="shrink-0 rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary">
+								Archived
+							</span>
+						)}
 					</div>
 				)}
 			</div>
@@ -192,13 +199,15 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							<MonitorIcon className="h-3.5 w-3.5" />
 							View Workspace
 						</DropdownMenuItem>
-						<DropdownMenuItem
-							className="text-content-destructive focus:text-content-destructive"
-							onSelect={onArchiveAgent}
-						>
-							<ArchiveIcon className="h-3.5 w-3.5" />
-							Archive Agent
-						</DropdownMenuItem>
+						{!isArchived && (
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onSelect={onArchiveAgent}
+							>
+								<ArchiveIcon className="h-3.5 w-3.5" />
+								Archive Agent
+							</DropdownMenuItem>
+						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
 				<WebPushButton />

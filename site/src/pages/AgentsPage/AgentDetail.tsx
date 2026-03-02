@@ -15,6 +15,7 @@ import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { ArchiveIcon } from "lucide-react";
 import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
 import {
 	type FC,
@@ -514,6 +515,7 @@ const AgentDetail: FC = () => {
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const chatData = chatQuery.data;
 	const chatRecord = chatData?.chat;
+	const isArchived = chatRecord?.archived ?? false;
 	const chatMessages = chatData?.messages;
 	const chatQueuedMessages = chatData?.queued_messages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
@@ -637,7 +639,7 @@ const AgentDetail: FC = () => {
 		sendMutation.isPending ||
 		editMutation.isPending ||
 		interruptMutation.isPending;
-	const isInputDisabled = !hasModelOptions;
+	const isInputDisabled = !hasModelOptions || isArchived;
 
 	const handleSend = async (message: string, editedMessageID?: number) => {
 		if (
@@ -853,7 +855,7 @@ const AgentDetail: FC = () => {
 	};
 
 	const handleArchiveAgentAction = () => {
-		if (!agentId) {
+		if (!agentId || isArchived) {
 			return;
 		}
 		requestArchiveAgent(agentId);
@@ -983,9 +985,16 @@ const AgentDetail: FC = () => {
 						onViewWorkspace: handleViewWorkspace,
 					}}
 					onArchiveAgent={handleArchiveAgentAction}
+					isArchived={isArchived}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
+				{isArchived && (
+					<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-sm text-content-secondary">
+						<ArchiveIcon className="h-4 w-4 shrink-0" />
+						This agent has been archived and is read-only.
+					</div>
+				)}
 				<div
 					aria-hidden
 					className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-surface-primary"
