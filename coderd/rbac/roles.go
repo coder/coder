@@ -278,7 +278,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}
 
 	ownerWorkspaceActions := ResourceWorkspace.AvailableActions()
-
 	if opts.NoOwnerWorkspaceExec {
 		// Remove ssh and application connect from the owner role. This
 		// prevents owners from have exec access to all workspaces.
@@ -298,10 +297,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Workspace dormancy and workspace are omitted.
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
 			// Owners cannot access other users' secrets.
-			allPermsExcept(
-				ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace,
-				ResourceUserSecret, ResourceUsageEvent, ResourceBoundaryUsage,
-			),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUserSecret, ResourceUsageEvent, ResourceBoundaryUsage),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
