@@ -1184,7 +1184,7 @@ func (api *API) resolveChatDiffContents(
 		if !ok {
 			return result, xerrors.Errorf("invalid pull request URL %q", reference.PullRequestURL)
 		}
-		diff, err := gp.FetchPRDiff(ctx, token, ref)
+		diff, err := gp.FetchPullRequestDiff(ctx, token, ref)
 		if err != nil {
 			return result, err
 		}
@@ -1234,7 +1234,7 @@ func (api *API) resolveChatDiffReference(
 		gp := api.resolveGitProvider(reference.RepositoryRef.RemoteOrigin)
 		if gp != nil {
 			token := api.resolveChatGitAccessToken(ctx, chat.OwnerID)
-			prRef, lookupErr := gp.ResolveBranchPR(ctx, token, gitprovider.BranchRef{
+			prRef, lookupErr := gp.ResolveBranchPullRequest(ctx, token, gitprovider.BranchRef{
 				Owner:  reference.RepositoryRef.Owner,
 				Repo:   reference.RepositoryRef.Repo,
 				Branch: reference.RepositoryRef.Branch,
@@ -1259,7 +1259,7 @@ func (api *API) resolveChatDiffReference(
 	// PR URL so the caller can still show provider/owner/repo.
 	if reference.RepositoryRef == nil && reference.PullRequestURL != "" {
 		for _, extAuth := range api.ExternalAuthConfigs {
-			gp := extAuth.Git()
+			gp := extAuth.Git(api.HTTPClient)
 			if gp == nil {
 				continue
 			}
@@ -1383,7 +1383,7 @@ func (api *API) resolveGitProvider(origin string) gitprovider.Provider {
 		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
 			continue
 		}
-		return extAuth.Git()
+		return extAuth.Git(api.HTTPClient)
 	}
 
 	return nil
@@ -1406,7 +1406,7 @@ func (api *API) refreshChatDiffStatus(
 	var gp gitprovider.Provider
 	var ref gitprovider.PRRef
 	for _, extAuth := range api.ExternalAuthConfigs {
-		p := extAuth.Git()
+		p := extAuth.Git(api.HTTPClient)
 		if p == nil {
 			continue
 		}
@@ -1421,7 +1421,7 @@ func (api *API) refreshChatDiffStatus(
 	}
 
 	token := api.resolveChatGitAccessToken(ctx, chatOwnerID)
-	status, err := gp.FetchPRStatus(ctx, token, ref)
+	status, err := gp.FetchPullRequestStatus(ctx, token, ref)
 	if err != nil {
 		return database.ChatDiffStatus{}, err
 	}

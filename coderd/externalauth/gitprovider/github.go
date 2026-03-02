@@ -20,7 +20,7 @@ const defaultGitHubAPIBaseURL = "https://api.github.com"
 type githubProvider struct {
 	apiBaseURL string
 	webBaseURL string
-	httpClient HTTPClient
+	httpClient *http.Client
 
 	// Compiled per-instance to support GitHub Enterprise hosts.
 	pullRequestPathPattern   *regexp.Regexp
@@ -28,7 +28,7 @@ type githubProvider struct {
 	repositorySSHPathPattern *regexp.Regexp
 }
 
-func newGitHub(apiBaseURL string, httpClient HTTPClient) *githubProvider {
+func newGitHub(apiBaseURL string, httpClient *http.Client) *githubProvider {
 	if apiBaseURL == "" {
 		apiBaseURL = defaultGitHubAPIBaseURL
 	}
@@ -181,7 +181,7 @@ func (g *githubProvider) BuildPullRequestURL(ref PRRef) string {
 	return fmt.Sprintf("%s/%s/%s/pull/%d", g.webBaseURL, ref.Owner, ref.Repo, ref.Number)
 }
 
-func (g *githubProvider) ResolveBranchPR(
+func (g *githubProvider) ResolveBranchPullRequest(
 	ctx context.Context,
 	token string,
 	ref BranchRef,
@@ -224,7 +224,7 @@ func (g *githubProvider) ResolveBranchPR(
 	return &prRef, nil
 }
 
-func (g *githubProvider) FetchPRStatus(
+func (g *githubProvider) FetchPullRequestStatus(
 	ctx context.Context,
 	token string,
 	ref PRRef,
@@ -287,7 +287,7 @@ func (g *githubProvider) FetchPRStatus(
 	}, nil
 }
 
-func (g *githubProvider) FetchPRDiff(
+func (g *githubProvider) FetchPullRequestDiff(
 	ctx context.Context,
 	token string,
 	ref PRRef,

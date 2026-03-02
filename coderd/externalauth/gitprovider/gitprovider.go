@@ -63,19 +63,19 @@ type PRStatus struct {
 // implement. Each method is designed to minimize API round-trips
 // for the specific provider.
 type Provider interface {
-	// FetchPRStatus retrieves the complete status of a pull
-	// request in the minimum number of API calls for this
+	// FetchPullRequestStatus retrieves the complete status of a
+	// pull request in the minimum number of API calls for this
 	// provider.
-	FetchPRStatus(ctx context.Context, token string, ref PRRef) (*PRStatus, error)
+	FetchPullRequestStatus(ctx context.Context, token string, ref PRRef) (*PRStatus, error)
 
-	// ResolveBranchPR finds the open PR (if any) for the given
-	// branch. Returns nil, nil if no open PR exists.
-	ResolveBranchPR(ctx context.Context, token string, ref BranchRef) (*PRRef, error)
+	// ResolveBranchPullRequest finds the open PR (if any) for
+	// the given branch. Returns nil, nil if no open PR exists.
+	ResolveBranchPullRequest(ctx context.Context, token string, ref BranchRef) (*PRRef, error)
 
-	// FetchPRDiff returns the raw unified diff for a PR.
-	// Separate from FetchPRStatus because diffs can be large
-	// and are not always needed.
-	FetchPRDiff(ctx context.Context, token string, ref PRRef) (string, error)
+	// FetchPullRequestDiff returns the raw unified diff for a
+	// PR. Separate from FetchPullRequestStatus because diffs
+	// can be large and are not always needed.
+	FetchPullRequestDiff(ctx context.Context, token string, ref PRRef) (string, error)
 
 	// FetchBranchDiff returns the diff of a branch compared
 	// against the repository's default branch.
@@ -111,16 +111,10 @@ type Provider interface {
 	BuildPullRequestURL(ref PRRef) string
 }
 
-// HTTPClient is the interface for making HTTP requests. This
-// allows injecting instrumented clients or test mocks.
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
 // New creates a Provider for the given provider type and API base
 // URL. Returns nil if the provider type is not a supported git
 // provider.
-func New(providerType string, apiBaseURL string, httpClient HTTPClient) Provider {
+func New(providerType string, apiBaseURL string, httpClient *http.Client) Provider {
 	switch providerType {
 	case "github":
 		return newGitHub(apiBaseURL, httpClient)

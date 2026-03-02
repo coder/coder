@@ -114,11 +114,11 @@ type Config struct {
 // Git returns a Provider for this config if the provider type
 // is a supported git hosting provider. Returns nil for non-git
 // providers (e.g. Slack, JFrog).
-func (c *Config) Git() gitprovider.Provider {
+func (c *Config) Git(client *http.Client) gitprovider.Provider {
 	if !codersdk.EnhancedExternalAuthProvider(c.Type).Git() {
 		return nil
 	}
-	return gitprovider.New(strings.ToLower(c.Type), c.APIBaseURL, nil)
+	return gitprovider.New(strings.ToLower(c.Type), c.APIBaseURL, client)
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
