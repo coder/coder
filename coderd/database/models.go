@@ -3793,6 +3793,8 @@ type AIBridgeInterception struct {
 	ThreadParentID uuid.NullUUID `db:"thread_parent_id" json:"thread_parent_id"`
 	// The root interception of the thread that this interception belongs to.
 	ThreadRootID uuid.NullUUID `db:"thread_root_id" json:"thread_root_id"`
+	// The session ID supplied by the client (optional and not universally supported).
+	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge

@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/aibridged"
@@ -1336,4 +1337,61 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uuid.NullUUID{UUID: bID, Valid: true}, intcC.ThreadParentID)
 	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcC.ThreadRootID)
+}
+
+func TestClientSessionID(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name              string
+		sessionIDLen      int
+		expectedStoredLen int
+	}{
+		{
+			name:              "within limit",
+			sessionIDLen:      80,
+			expectedStoredLen: 80,
+		},
+		{
+			// The client_session_id column is VARCHAR(100), and the
+			// INSERT casts via ::varchar(100), so PostgreSQL silently
+			// truncates longer values.
+			name:              "truncated to 100",
+			sessionIDLen:      150,
+			expectedStoredLen: 100,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			logger := testutil.Logger(t)
+
+			user := dbgen.User(t, db, database.User{})
+
+			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
+			require.NoError(t, err)
+
+			id := uuid.New()
+			sessionID := testutil.MustRandString(t, tc.sessionIDLen)
+			_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+				Id:              id.String(),
+				ApiKeyId:        uuid.NewString(),
+				InitiatorId:     user.ID.String(),
+				Provider:        "anthropic",
+				Model:           "claude-4-opus",
+				StartedAt:       timestamppb.Now(),
+				ClientSessionId: ptr.Ref(sessionID),
+			})
+			require.NoError(t, err)
+
+			intc, err := db.GetAIBridgeInterceptionByID(ctx, id)
+			require.NoError(t, err)
+			require.True(t, intc.ClientSessionID.Valid)
+			require.Len(t, intc.ClientSessionID.String, tc.expectedStoredLen)
+			require.Equal(t, sessionID[:tc.expectedStoredLen], intc.ClientSessionID.String)
+		})
+	}
 }

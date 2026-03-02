@@ -1046,7 +1046,8 @@ CREATE TABLE aibridge_interceptions (
     api_key_id text,
     client character varying(64) DEFAULT 'Unknown'::character varying,
     thread_parent_id uuid,
-    thread_root_id uuid
+    thread_root_id uuid,
+    client_session_id character varying(100)
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1056,6 +1057,8 @@ COMMENT ON COLUMN aibridge_interceptions.initiator_id IS 'Relates to a users rec
 COMMENT ON COLUMN aibridge_interceptions.thread_parent_id IS 'The interception which directly caused this interception to occur, usually through an agentic loop or threaded conversation.';
 
 COMMENT ON COLUMN aibridge_interceptions.thread_root_id IS 'The root interception of the thread that this interception belongs to.';
+
+COMMENT ON COLUMN aibridge_interceptions.client_session_id IS 'The session ID supplied by the client (optional and not universally supported).';
 
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,
@@ -3449,6 +3452,8 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
+
+CREATE INDEX idx_aibridge_interceptions_client_session_id ON aibridge_interceptions USING btree (client_session_id);
 
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 
