@@ -409,12 +409,7 @@ func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var err error
-	if api.chatDaemon != nil {
-		err = api.chatDaemon.ArchiveChat(ctx, chat.ID)
-	} else {
-		err = archiveChatTree(ctx, api.Database, chat.ID)
-	}
+	err := api.Database.ArchiveChatByID(ctx, chat.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to archive chat.",
@@ -452,19 +447,6 @@ func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-func archiveChatTree(ctx context.Context, store database.Store, chatID uuid.UUID) error {
-	children, err := store.ListChildChatsByParentID(ctx, chatID)
-	if err != nil {
-		return xerrors.Errorf("list child chats: %w", err)
-	}
-	for _, child := range children {
-		if err := archiveChatTree(ctx, store, child.ID); err != nil {
-			return err
-		}
-	}
-	return store.ArchiveChatByID(ctx, chatID)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
