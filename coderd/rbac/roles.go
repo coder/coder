@@ -270,11 +270,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 
 	denyPermissions := []Permission{}
 	if opts.NoWorkspaceSharing {
-		denyPermissions = append(denyPermissions, Permission{
-			Negate:       true,
-			ResourceType: ResourceWorkspace.Type,
-			Action:       policy.ActionShare,
-		})
+		// denyPermissions = append(denyPermissions, Permission{
+		// 	Negate:       true,
+		// 	ResourceType: ResourceWorkspace.Type,
+		// 	Action:       policy.ActionShare,
+		// })
 	}
 
 	ownerWorkspaceActions := ResourceWorkspace.AvailableActions()
