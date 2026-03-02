@@ -2556,7 +2556,8 @@ CREATE TABLE user_links (
     oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     oauth_access_token_key_id text,
     oauth_refresh_token_key_id text,
-    claims jsonb DEFAULT '{}'::jsonb NOT NULL
+    claims jsonb DEFAULT '{}'::jsonb NOT NULL,
+    token_updated timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
@@ -2564,6 +2565,8 @@ COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key use
 COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
 
 COMMENT ON COLUMN user_links.claims IS 'Claims from the IDP for the linked user. Includes both id_token and userinfo claims. ';
+
+COMMENT ON COLUMN user_links.token_updated IS 'Should match whenever oauth_access_token is updated to a new token.';
 
 CREATE TABLE user_secrets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

@@ -86,6 +86,7 @@ func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *code
 		OAuthRefreshToken:      link.OAuthRefreshToken,
 		OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 		OAuthExpiry:            time.Now().Add(time.Hour * -1),
+		TokenUpdated:           link.TokenUpdated,
 		UserID:                 link.UserID,
 		LoginType:              link.LoginType,
 		Claims:                 database.UserLinkClaims{},

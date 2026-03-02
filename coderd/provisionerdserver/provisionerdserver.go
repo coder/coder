@@ -3113,6 +3113,7 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 			OAuthRefreshToken:      link.OAuthRefreshToken,
 			OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
 			OAuthExpiry:            link.OAuthExpiry,
+			TokenUpdated:           dbtime.Now(),
 			Claims:                 link.Claims,
 		})
 		if err != nil {

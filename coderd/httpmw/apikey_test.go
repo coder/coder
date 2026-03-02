@@ -611,9 +611,10 @@ func TestAPIKey(t *testing.T) {
 	t.Run("OAuthRefresh", func(t *testing.T) {
 		t.Parallel()
 		var (
-			db, _             = dbtestutil.NewDB(t)
-			user              = dbgen.User(t, db, database.User{})
-			sentAPIKey, token = dbgen.APIKey(t, db, database.APIKey{
+			db, _               = dbtestutil.NewDB(t)
+			user                = dbgen.User(t, db, database.User{})
+			initialTokenUpdated = dbtime.Now().Add(-2 * time.Hour)
+			sentAPIKey, token   = dbgen.APIKey(t, db, database.APIKey{
 				UserID:    user.ID,
 				LastUsed:  dbtime.Now(),
 				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
@@ -624,6 +625,7 @@ func TestAPIKey(t *testing.T) {
 				LoginType:         database.LoginTypeGithub,
 				OAuthRefreshToken: "hello",
 				OAuthExpiry:       dbtime.Now().AddDate(0, 0, -1),
+				TokenUpdated:      initialTokenUpdated,
 			})
 
 			r  = httptest.NewRequest("GET", "/", nil)
@@ -663,6 +665,7 @@ func TestAPIKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, gotLink.OAuthRefreshToken, "moo")
+		require.True(t, gotLink.TokenUpdated.After(initialTokenUpdated))
 	})
 
 	t.Run("OAuthExpiredNoRefresh", func(t *testing.T) {

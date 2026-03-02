@@ -52,10 +52,11 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		user := dbgen.User(t, db, database.User{})
-		dbgen.UserLink(t, db, database.UserLink{
-			UserID:      user.ID,
-			LoginType:   database.LoginTypeOIDC,
-			OAuthExpiry: dbtime.Now().Add(-time.Hour),
+		initialLink := dbgen.UserLink(t, db, database.UserLink{
+			UserID:       user.ID,
+			LoginType:    database.LoginTypeOIDC,
+			OAuthExpiry:  dbtime.Now().Add(-time.Hour),
+			TokenUpdated: dbtime.Now().Add(-2 * time.Hour),
 		})
 		_, err := obtainOIDCAccessToken(ctx, db, &testutil.OAuth2Config{
 			Token: &oauth2.Token{
@@ -69,5 +70,6 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "token", link.OAuthAccessToken)
+		require.True(t, link.TokenUpdated.After(initialLink.TokenUpdated))
 	})
 }

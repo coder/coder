@@ -1821,6 +1821,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				OAuthRefreshToken:      params.State.Token.RefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
 				OAuthExpiry:            params.State.Token.Expiry,
+				TokenUpdated:           dbtime.Now(),
 				Claims:                 params.UserClaims,
 			})
 			if err != nil {
@@ -1838,6 +1839,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				OAuthRefreshToken:      params.State.Token.RefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
 				OAuthExpiry:            params.State.Token.Expiry,
+				TokenUpdated:           dbtime.Now(),
 				Claims:                 params.UserClaims,
 			})
 			if err != nil {

@@ -42,6 +42,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 					OAuthRefreshToken:      userLink.OAuthRefreshToken,
 					OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 					OAuthExpiry:            userLink.OAuthExpiry,
+					TokenUpdated:           userLink.TokenUpdated,
 					UserID:                 uid,
 					LoginType:              userLink.LoginType,
 					Claims:                 userLink.Claims,
@@ -158,6 +159,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 					OAuthRefreshToken:      userLink.OAuthRefreshToken,
 					OAuthRefreshTokenKeyID: sql.NullString{}, // we explicitly want to clear the key id
 					OAuthExpiry:            userLink.OAuthExpiry,
+					TokenUpdated:           userLink.TokenUpdated,
 					UserID:                 uid,
 					LoginType:              userLink.LoginType,
 					Claims:                 userLink.Claims,

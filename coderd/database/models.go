@@ -4883,6 +4883,8 @@ type UserLink struct {
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	// Claims from the IDP for the linked user. Includes both id_token and userinfo claims.
 	Claims UserLinkClaims `db:"claims" json:"claims"`
+	// Should match whenever oauth_access_token is updated to a new token.
+	TokenUpdated time.Time `db:"token_updated" json:"token_updated"`
 }
 
 type UserSecret struct {
