@@ -375,11 +375,11 @@ module "personalize" {
 module "mux" {
   count           = data.coder_workspace.me.start_count
   source          = "registry.coder.com/coder/mux/coder"
-  version         = "1.3.0"
+  version         = "1.3.1"
   agent_id        = coder_agent.dev.id
   subdomain       = true
   display_name    = "Mux"
-  add-project     = local.repo_dir
+  add_project     = local.repo_dir
   install_version = "next"
   package_manager = "bun"
 }
