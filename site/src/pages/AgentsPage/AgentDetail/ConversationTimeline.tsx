@@ -18,6 +18,7 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -109,6 +110,22 @@ type RenderBlockListParams = {
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 };
 
+// Wrapper that runs the smooth-streaming jitter buffer on a single
+// response block. Only used during live streaming — historical
+// messages render through <Response> directly.
+const SmoothedResponse: FC<{
+	text: string;
+	streamKey: string;
+}> = ({ text, streamKey }) => {
+	const { visibleText } = useSmoothStreamingText({
+		fullText: text,
+		isStreaming: true,
+		bypassSmoothing: false,
+		streamKey,
+	});
+	return <Response>{visibleText}</Response>;
+};
+
 type RenderBlockListResult = {
 	elements: ReactNode[];
 	renderedToolIDs: ReadonlySet<string>;
@@ -127,7 +144,13 @@ function renderBlockList({
 		.map((block, index) => {
 			switch (block.type) {
 				case "response":
-					return (
+					return isStreaming ? (
+						<SmoothedResponse
+							key={`${keyPrefix}-response-${index}`}
+							text={block.text}
+							streamKey={keyPrefix}
+						/>
+					) : (
 						<Response key={`${keyPrefix}-response-${index}`}>
 							{block.text}
 						</Response>
