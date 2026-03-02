@@ -215,8 +215,8 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 
 	const isEmpty = Boolean(
 		workspaceACL &&
-		workspaceACL.users.length === 0 &&
-		workspaceACL.group.length === 0,
+			workspaceACL.users.length === 0 &&
+			workspaceACL.group.length === 0,
 	);
 
 	const tableHeader = (
