@@ -11,12 +11,18 @@ import {
 	interruptChat,
 	promoteChatQueuedMessage,
 } from "api/queries/chats";
+import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { ArchiveIcon } from "lucide-react";
-import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
+import {
+	getTerminalHref,
+	getVSCodeHref,
+	openAppInNewWindow,
+	SESSION_TOKEN_PLACEHOLDER,
+} from "modules/apps/apps";
 import {
 	type FC,
 	useCallback,
@@ -510,6 +516,7 @@ const AgentDetail: FC = () => {
 	});
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const hasDiffStatus = Boolean(diffStatusQuery.data?.url);
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
@@ -813,6 +820,19 @@ const AgentDetail: FC = () => {
 		: null;
 	const canOpenWorkspace = Boolean(workspaceRoute);
 	const canOpenEditors = Boolean(workspace && workspaceAgent);
+	const canOpenTerminal = Boolean(workspace && workspaceAgent);
+	const terminalHref =
+		workspace && workspaceAgent
+			? getTerminalHref({
+					username: workspace.owner_name,
+					workspace: workspace.name,
+					agent: workspaceAgent.name,
+				})
+			: null;
+	const sshCommand =
+		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
+			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
+			: undefined;
 	const shouldShowDiffPanel = hasDiffStatus && showDiffPanel;
 
 	const handleOpenInEditor = async (editor: "cursor" | "vscode") => {
@@ -863,6 +883,13 @@ const AgentDetail: FC = () => {
 		navigate(workspaceRoute);
 	};
 
+	const handleOpenTerminal = () => {
+		if (!terminalHref) {
+			return;
+		}
+		openAppInNewWindow(terminalHref);
+	};
+
 	const handleArchiveAgentAction = () => {
 		if (!agentId || isArchived) {
 			return;
@@ -885,6 +912,9 @@ const AgentDetail: FC = () => {
 						canOpenWorkspace: false,
 						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
+						canOpenTerminal: false,
+						onOpenTerminal: () => {},
+						sshCommand: undefined,
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
@@ -954,6 +984,9 @@ const AgentDetail: FC = () => {
 						canOpenWorkspace: false,
 						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
+						canOpenTerminal: false,
+						onOpenTerminal: () => {},
+						sshCommand: undefined,
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
@@ -993,6 +1026,9 @@ const AgentDetail: FC = () => {
 								void handleOpenInEditor(editor);
 							},
 							onViewWorkspace: handleViewWorkspace,
+							canOpenTerminal,
+							onOpenTerminal: handleOpenTerminal,
+							sshCommand,
 						}}
 						onArchiveAgent={handleArchiveAgentAction}
 						isArchived={isArchived}

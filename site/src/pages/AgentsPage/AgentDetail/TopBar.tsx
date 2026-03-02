@@ -5,6 +5,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { useAuthenticated } from "hooks";
@@ -12,17 +13,20 @@ import {
 	ArchiveIcon,
 	ArrowLeftIcon,
 	ChevronRightIcon,
+	CopyIcon,
 	EllipsisIcon,
 	ExternalLinkIcon,
 	MonitorIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
+	TerminalIcon,
 } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { WebPushButton } from "../WebPushButton";
 
 interface DiffStatsBadgeProps {
@@ -70,8 +74,11 @@ interface DiffPanelState {
 interface WorkspaceActions {
 	canOpenEditors: boolean;
 	canOpenWorkspace: boolean;
+	canOpenTerminal: boolean;
 	onOpenInEditor: (editor: "cursor" | "vscode") => void;
 	onViewWorkspace: () => void;
+	onOpenTerminal: () => void;
+	sshCommand: string | undefined;
 }
 
 type AgentDetailTopBarProps = {
@@ -199,6 +206,25 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							<MonitorIcon className="h-3.5 w-3.5" />
 							View Workspace
 						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							disabled={!workspace.canOpenTerminal}
+							onSelect={workspace.onOpenTerminal}
+						>
+							<TerminalIcon className="h-3.5 w-3.5" />
+							Open Terminal
+						</DropdownMenuItem>
+						{workspace.sshCommand && (
+							<DropdownMenuItem
+								onSelect={() => {
+									void navigator.clipboard.writeText(workspace.sshCommand!);
+									toast.success("SSH command copied to clipboard");
+								}}
+							>
+								<CopyIcon className="h-3.5 w-3.5" />
+								Copy SSH Command
+							</DropdownMenuItem>
+						)}
 						{!isArchived && (
 							<DropdownMenuItem
 								className="text-content-destructive focus:text-content-destructive"

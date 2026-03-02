@@ -24,8 +24,11 @@ const defaultProps = {
 	workspace: {
 		canOpenEditors: true,
 		canOpenWorkspace: true,
+		canOpenTerminal: true,
 		onOpenInEditor: () => {},
 		onViewWorkspace: () => {},
+		onOpenTerminal: () => {},
+		sshCommand: "ssh main.my-workspace.admin.coder",
 	},
 	onArchiveAgent: () => {},
 	isSidebarCollapsed: false,
