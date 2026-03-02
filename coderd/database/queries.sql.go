@@ -2160,6 +2160,1895 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
+UPDATE
+    chat_model_configs
+SET
+    deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatModelConfigByID, id)
+	return err
+}
+
+const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
+SELECT
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+FROM
+    chat_model_configs
+WHERE
+    id = $1::uuid
+    AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelConfigByID, id)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+	)
+	return i, err
+}
+
+const getChatModelConfigByProviderAndModel = `-- name: GetChatModelConfigByProviderAndModel :one
+SELECT
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+FROM
+    chat_model_configs
+WHERE
+    provider = $1::text
+    AND model = $2::text
+    AND deleted = FALSE
+ORDER BY
+    updated_at DESC,
+    created_at DESC,
+    id DESC
+LIMIT 1
+`
+
+type GetChatModelConfigByProviderAndModelParams struct {
+	Provider string `db:"provider" json:"provider"`
+	Model    string `db:"model" json:"model"`
+}
+
+func (q *sqlQuerier) GetChatModelConfigByProviderAndModel(ctx context.Context, arg GetChatModelConfigByProviderAndModelParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getChatModelConfigByProviderAndModel, arg.Provider, arg.Model)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+	)
+	return i, err
+}
+
+const getChatModelConfigs = `-- name: GetChatModelConfigs :many
+SELECT
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+FROM
+    chat_model_configs
+WHERE
+    deleted = FALSE
+ORDER BY
+    provider ASC,
+    model ASC,
+    updated_at DESC,
+    id DESC
+`
+
+func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getChatModelConfigs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatModelConfig
+	for rows.Next() {
+		var i ChatModelConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.Model,
+			&i.DisplayName,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.Enabled,
+			&i.IsDefault,
+			&i.Deleted,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ContextLimit,
+			&i.CompressionThreshold,
+			&i.Options,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDefaultChatModelConfig = `-- name: GetDefaultChatModelConfig :one
+SELECT
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+FROM
+    chat_model_configs
+WHERE
+    is_default = TRUE
+    AND deleted = FALSE
+`
+
+func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getDefaultChatModelConfig)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+	)
+	return i, err
+}
+
+const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
+SELECT
+    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options
+FROM
+    chat_model_configs cmc
+JOIN
+    chat_providers cp ON cp.provider = cmc.provider
+WHERE
+    cmc.enabled = TRUE
+    AND cmc.deleted = FALSE
+    AND cp.enabled = TRUE
+ORDER BY
+    cmc.provider ASC,
+    cmc.model ASC,
+    cmc.updated_at DESC,
+    cmc.id DESC
+`
+
+func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatModelConfig
+	for rows.Next() {
+		var i ChatModelConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.Model,
+			&i.DisplayName,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.Enabled,
+			&i.IsDefault,
+			&i.Deleted,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ContextLimit,
+			&i.CompressionThreshold,
+			&i.Options,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatModelConfig = `-- name: InsertChatModelConfig :one
+INSERT INTO chat_model_configs (
+    provider,
+    model,
+    display_name,
+    created_by,
+    updated_by,
+    enabled,
+    is_default,
+    context_limit,
+    compression_threshold,
+    options
+) VALUES (
+    $1::text,
+    $2::text,
+    $3::text,
+    $4::uuid,
+    $5::uuid,
+    $6::boolean,
+    $7::boolean,
+    $8::bigint,
+    $9::integer,
+    $10::jsonb
+)
+RETURNING
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+`
+
+type InsertChatModelConfigParams struct {
+	Provider             string          `db:"provider" json:"provider"`
+	Model                string          `db:"model" json:"model"`
+	DisplayName          string          `db:"display_name" json:"display_name"`
+	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`
+	UpdatedBy            uuid.NullUUID   `db:"updated_by" json:"updated_by"`
+	Enabled              bool            `db:"enabled" json:"enabled"`
+	IsDefault            bool            `db:"is_default" json:"is_default"`
+	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
+	Options              json.RawMessage `db:"options" json:"options"`
+}
+
+func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, insertChatModelConfig,
+		arg.Provider,
+		arg.Model,
+		arg.DisplayName,
+		arg.CreatedBy,
+		arg.UpdatedBy,
+		arg.Enabled,
+		arg.IsDefault,
+		arg.ContextLimit,
+		arg.CompressionThreshold,
+		arg.Options,
+	)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+	)
+	return i, err
+}
+
+const unsetDefaultChatModelConfigs = `-- name: UnsetDefaultChatModelConfigs :exec
+UPDATE
+    chat_model_configs
+SET
+    is_default = FALSE,
+    updated_at = NOW()
+WHERE
+    is_default = TRUE
+    AND deleted = FALSE
+`
+
+func (q *sqlQuerier) UnsetDefaultChatModelConfigs(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, unsetDefaultChatModelConfigs)
+	return err
+}
+
+const updateChatModelConfig = `-- name: UpdateChatModelConfig :one
+UPDATE
+    chat_model_configs
+SET
+    provider = $1::text,
+    model = $2::text,
+    display_name = $3::text,
+    updated_by = $4::uuid,
+    enabled = $5::boolean,
+    is_default = $6::boolean,
+    context_limit = $7::bigint,
+    compression_threshold = $8::integer,
+    options = $9::jsonb,
+    updated_at = NOW()
+WHERE
+    id = $10::uuid
+    AND deleted = FALSE
+RETURNING
+    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
+`
+
+type UpdateChatModelConfigParams struct {
+	Provider             string          `db:"provider" json:"provider"`
+	Model                string          `db:"model" json:"model"`
+	DisplayName          string          `db:"display_name" json:"display_name"`
+	UpdatedBy            uuid.NullUUID   `db:"updated_by" json:"updated_by"`
+	Enabled              bool            `db:"enabled" json:"enabled"`
+	IsDefault            bool            `db:"is_default" json:"is_default"`
+	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
+	Options              json.RawMessage `db:"options" json:"options"`
+	ID                   uuid.UUID       `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateChatModelConfig,
+		arg.Provider,
+		arg.Model,
+		arg.DisplayName,
+		arg.UpdatedBy,
+		arg.Enabled,
+		arg.IsDefault,
+		arg.ContextLimit,
+		arg.CompressionThreshold,
+		arg.Options,
+		arg.ID,
+	)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+	)
+	return i, err
+}
+
+const deleteChatProviderByID = `-- name: DeleteChatProviderByID :exec
+DELETE FROM
+    chat_providers
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatProviderByID, id)
+	return err
+}
+
+const getChatProviderByID = `-- name: GetChatProviderByID :one
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+FROM
+    chat_providers
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, getChatProviderByID, id)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedBy,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BaseUrl,
+	)
+	return i, err
+}
+
+const getChatProviderByProvider = `-- name: GetChatProviderByProvider :one
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+FROM
+    chat_providers
+WHERE
+    provider = $1::text
+`
+
+func (q *sqlQuerier) GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, getChatProviderByProvider, provider)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedBy,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BaseUrl,
+	)
+	return i, err
+}
+
+const getChatProviders = `-- name: GetChatProviders :many
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+FROM
+    chat_providers
+ORDER BY
+    provider ASC
+`
+
+func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProviders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProvider
+	for rows.Next() {
+		var i ChatProvider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.DisplayName,
+			&i.APIKey,
+			&i.ApiKeyKeyID,
+			&i.CreatedBy,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.BaseUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getEnabledChatProviders = `-- name: GetEnabledChatProviders :many
+SELECT
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+FROM
+    chat_providers
+WHERE
+    enabled = TRUE
+ORDER BY
+    provider ASC
+`
+
+func (q *sqlQuerier) GetEnabledChatProviders(ctx context.Context) ([]ChatProvider, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledChatProviders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProvider
+	for rows.Next() {
+		var i ChatProvider
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.DisplayName,
+			&i.APIKey,
+			&i.ApiKeyKeyID,
+			&i.CreatedBy,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.BaseUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatProvider = `-- name: InsertChatProvider :one
+INSERT INTO chat_providers (
+    provider,
+    display_name,
+    api_key,
+    base_url,
+    api_key_key_id,
+    created_by,
+    enabled
+) VALUES (
+    $1::text,
+    $2::text,
+    $3::text,
+    $4::text,
+    $5::text,
+    $6::uuid,
+    $7::boolean
+)
+RETURNING
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+`
+
+type InsertChatProviderParams struct {
+	Provider    string         `db:"provider" json:"provider"`
+	DisplayName string         `db:"display_name" json:"display_name"`
+	APIKey      string         `db:"api_key" json:"api_key"`
+	BaseUrl     string         `db:"base_url" json:"base_url"`
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedBy   uuid.NullUUID  `db:"created_by" json:"created_by"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
+}
+
+func (q *sqlQuerier) InsertChatProvider(ctx context.Context, arg InsertChatProviderParams) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, insertChatProvider,
+		arg.Provider,
+		arg.DisplayName,
+		arg.APIKey,
+		arg.BaseUrl,
+		arg.ApiKeyKeyID,
+		arg.CreatedBy,
+		arg.Enabled,
+	)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedBy,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BaseUrl,
+	)
+	return i, err
+}
+
+const updateChatProvider = `-- name: UpdateChatProvider :one
+UPDATE
+    chat_providers
+SET
+    display_name = $1::text,
+    api_key = $2::text,
+    base_url = $3::text,
+    api_key_key_id = $4::text,
+    enabled = $5::boolean,
+    updated_at = NOW()
+WHERE
+    id = $6::uuid
+RETURNING
+    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url
+`
+
+type UpdateChatProviderParams struct {
+	DisplayName string         `db:"display_name" json:"display_name"`
+	APIKey      string         `db:"api_key" json:"api_key"`
+	BaseUrl     string         `db:"base_url" json:"base_url"`
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProviderParams) (ChatProvider, error) {
+	row := q.db.QueryRowContext(ctx, updateChatProvider,
+		arg.DisplayName,
+		arg.APIKey,
+		arg.BaseUrl,
+		arg.ApiKeyKeyID,
+		arg.Enabled,
+		arg.ID,
+	)
+	var i ChatProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.DisplayName,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedBy,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.BaseUrl,
+	)
+	return i, err
+}
+
+const acquireChat = `-- name: AcquireChat :one
+UPDATE
+    chats
+SET
+    status = 'running'::chat_status,
+    started_at = $1::timestamptz,
+    heartbeat_at = $1::timestamptz,
+    updated_at = $1::timestamptz,
+    worker_id = $2::uuid
+WHERE
+    id = (
+        SELECT
+            id
+        FROM
+            chats
+        WHERE
+            status = 'pending'::chat_status
+        ORDER BY
+            updated_at ASC
+        FOR UPDATE
+            SKIP LOCKED
+        LIMIT
+            1
+    )
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+`
+
+type AcquireChatParams struct {
+	StartedAt time.Time `db:"started_at" json:"started_at"`
+	WorkerID  uuid.UUID `db:"worker_id" json:"worker_id"`
+}
+
+// Acquires a pending chat for processing. Uses SKIP LOCKED to prevent
+// multiple replicas from acquiring the same chat.
+func (q *sqlQuerier) AcquireChat(ctx context.Context, arg AcquireChatParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, acquireChat, arg.StartedAt, arg.WorkerID)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+	)
+	return i, err
+}
+
+const archiveChatByID = `-- name: ArchiveChatByID :exec
+UPDATE chats SET archived = true, updated_at = NOW() WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, archiveChatByID, id)
+	return err
+}
+
+const deleteAllChatQueuedMessages = `-- name: DeleteAllChatQueuedMessages :exec
+DELETE FROM chat_queued_messages WHERE chat_id = $1
+`
+
+func (q *sqlQuerier) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAllChatQueuedMessages, chatID)
+	return err
+}
+
+const deleteChatMessagesAfterID = `-- name: DeleteChatMessagesAfterID :exec
+DELETE FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND id > $2::bigint
+`
+
+type DeleteChatMessagesAfterIDParams struct {
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	AfterID int64     `db:"after_id" json:"after_id"`
+}
+
+func (q *sqlQuerier) DeleteChatMessagesAfterID(ctx context.Context, arg DeleteChatMessagesAfterIDParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatMessagesAfterID, arg.ChatID, arg.AfterID)
+	return err
+}
+
+const deleteChatMessagesByChatID = `-- name: DeleteChatMessagesByChatID :exec
+DELETE FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatMessagesByChatID, chatID)
+	return err
+}
+
+const deleteChatQueuedMessage = `-- name: DeleteChatQueuedMessage :exec
+DELETE FROM chat_queued_messages WHERE id = $1 AND chat_id = $2
+`
+
+type DeleteChatQueuedMessageParams struct {
+	ID     int64     `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+func (q *sqlQuerier) DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessage, arg.ID, arg.ChatID)
+	return err
+}
+
+const getChatByID = `-- name: GetChatByID :one
+SELECT
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+FROM
+    chats
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, getChatByID, id)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+	)
+	return i, err
+}
+
+const getChatByIDForUpdate = `-- name: GetChatByIDForUpdate :one
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error FROM chats WHERE id = $1::uuid FOR UPDATE
+`
+
+func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, getChatByIDForUpdate, id)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+	)
+	return i, err
+}
+
+const getChatDiffStatusByChatID = `-- name: GetChatDiffStatusByChatID :one
+SELECT
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
+FROM
+    chat_diff_statuses
+WHERE
+    chat_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error) {
+	row := q.db.QueryRowContext(ctx, getChatDiffStatusByChatID, chatID)
+	var i ChatDiffStatus
+	err := row.Scan(
+		&i.ChatID,
+		&i.Url,
+		&i.PullRequestState,
+		&i.ChangesRequested,
+		&i.Additions,
+		&i.Deletions,
+		&i.ChangedFiles,
+		&i.RefreshedAt,
+		&i.StaleAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GitBranch,
+		&i.GitRemoteOrigin,
+	)
+	return i, err
+}
+
+const getChatDiffStatusesByChatIDs = `-- name: GetChatDiffStatusesByChatIDs :many
+SELECT
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
+FROM
+    chat_diff_statuses
+WHERE
+    chat_id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getChatDiffStatusesByChatIDs, pq.Array(chatIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatDiffStatus
+	for rows.Next() {
+		var i ChatDiffStatus
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.Url,
+			&i.PullRequestState,
+			&i.ChangesRequested,
+			&i.Additions,
+			&i.Deletions,
+			&i.ChangedFiles,
+			&i.RefreshedAt,
+			&i.StaleAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GitBranch,
+			&i.GitRemoteOrigin,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatMessageByID = `-- name: GetChatMessageByID :one
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+FROM
+    chat_messages
+WHERE
+    id = $1::bigint
+`
+
+func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, getChatMessageByID, id)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.ModelConfigID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+		&i.Visibility,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.Compressed,
+	)
+	return i, err
+}
+
+const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND visibility IN ('user', 'both')
+ORDER BY
+    created_at ASC
+`
+
+func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatMessagesForPromptByChatID = `-- name: GetChatMessagesForPromptByChatID :many
+WITH latest_compressed_summary AS (
+    SELECT
+        id
+    FROM
+        chat_messages
+    WHERE
+        chat_id = $1::uuid
+        AND role = 'system'
+        AND visibility IN ('model', 'both')
+        AND compressed = TRUE
+    ORDER BY
+        created_at DESC,
+        id DESC
+    LIMIT
+        1
+)
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND visibility IN ('model', 'both')
+    AND (
+        (
+            role = 'system'
+            AND compressed = FALSE
+        )
+        OR (
+            compressed = FALSE
+            AND (
+                NOT EXISTS (
+                    SELECT
+                        1
+                    FROM
+                        latest_compressed_summary
+                )
+                OR id > (
+                    SELECT
+                        id
+                    FROM
+                        latest_compressed_summary
+                )
+            )
+        )
+        OR id = (
+            SELECT
+                id
+            FROM
+                latest_compressed_summary
+        )
+    )
+ORDER BY
+    created_at ASC,
+    id ASC
+`
+
+func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesForPromptByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
+SELECT id, chat_id, content, created_at FROM chat_queued_messages
+WHERE chat_id = $1
+ORDER BY id ASC
+`
+
+func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatQueuedMessages, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatQueuedMessage
+	for rows.Next() {
+		var i ChatQueuedMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.Content,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByOwnerID = `-- name: GetChatsByOwnerID :many
+SELECT
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+FROM
+    chats
+WHERE
+    owner_id = $1::uuid
+    AND archived = false
+ORDER BY
+    updated_at DESC
+`
+
+func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByOwnerID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStaleChats = `-- name: GetStaleChats :many
+SELECT
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+FROM
+    chats
+WHERE
+    status = 'running'::chat_status
+    AND heartbeat_at < $1::timestamptz
+`
+
+// Find chats that appear stuck (running but heartbeat has expired).
+// Used for recovery after coderd crashes or long hangs.
+func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getStaleChats, staleThreshold)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChat = `-- name: InsertChat :one
+INSERT INTO chats (
+    owner_id,
+    workspace_id,
+    parent_chat_id,
+    root_chat_id,
+    last_model_config_id,
+    title
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::uuid,
+    $4::uuid,
+    $5::uuid,
+    $6::text
+)
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+`
+
+type InsertChatParams struct {
+	OwnerID           uuid.UUID     `db:"owner_id" json:"owner_id"`
+	WorkspaceID       uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	ParentChatID      uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID        uuid.NullUUID `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
+	Title             string        `db:"title" json:"title"`
+}
+
+func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, insertChat,
+		arg.OwnerID,
+		arg.WorkspaceID,
+		arg.ParentChatID,
+		arg.RootChatID,
+		arg.LastModelConfigID,
+		arg.Title,
+	)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+	)
+	return i, err
+}
+
+const insertChatMessage = `-- name: InsertChatMessage :one
+WITH updated_chat AS (
+    UPDATE
+        chats
+    SET
+        last_model_config_id = $2::uuid
+    WHERE
+        id = $1::uuid
+        AND $2::uuid IS NOT NULL
+)
+INSERT INTO chat_messages (
+    chat_id,
+    model_config_id,
+    role,
+    content,
+    visibility,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit,
+    compressed
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::jsonb,
+    $5::chat_message_visibility,
+    $6::bigint,
+    $7::bigint,
+    $8::bigint,
+    $9::bigint,
+    $10::bigint,
+    $11::bigint,
+    $12::bigint,
+    COALESCE($13::boolean, FALSE)
+)
+RETURNING
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+`
+
+type InsertChatMessageParams struct {
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
+	Role                string                `db:"role" json:"role"`
+	Content             pqtype.NullRawMessage `db:"content" json:"content"`
+	Visibility          ChatMessageVisibility `db:"visibility" json:"visibility"`
+	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt64         `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt64         `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt64         `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt64         `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
+	Compressed          sql.NullBool          `db:"compressed" json:"compressed"`
+}
+
+func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, insertChatMessage,
+		arg.ChatID,
+		arg.ModelConfigID,
+		arg.Role,
+		arg.Content,
+		arg.Visibility,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.TotalTokens,
+		arg.ReasoningTokens,
+		arg.CacheCreationTokens,
+		arg.CacheReadTokens,
+		arg.ContextLimit,
+		arg.Compressed,
+	)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.ModelConfigID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+		&i.Visibility,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.Compressed,
+	)
+	return i, err
+}
+
+const insertChatQueuedMessage = `-- name: InsertChatQueuedMessage :one
+INSERT INTO chat_queued_messages (chat_id, content)
+VALUES ($1, $2)
+RETURNING id, chat_id, content, created_at
+`
+
+type InsertChatQueuedMessageParams struct {
+	ChatID  uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Content json.RawMessage `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (ChatQueuedMessage, error) {
+	row := q.db.QueryRowContext(ctx, insertChatQueuedMessage, arg.ChatID, arg.Content)
+	var i ChatQueuedMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Content,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listChatsByRootID = `-- name: ListChatsByRootID :many
+SELECT
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+FROM
+    chats
+WHERE
+    root_chat_id = $1::uuid
+ORDER BY
+    created_at ASC
+`
+
+func (q *sqlQuerier) ListChatsByRootID(ctx context.Context, rootChatID uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, listChatsByRootID, rootChatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChildChatsByParentID = `-- name: ListChildChatsByParentID :many
+SELECT
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+FROM
+    chats
+WHERE
+    parent_chat_id = $1::uuid
+ORDER BY
+    created_at ASC
+`
+
+func (q *sqlQuerier) ListChildChatsByParentID(ctx context.Context, parentChatID uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, listChildChatsByParentID, parentChatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const popNextQueuedMessage = `-- name: PopNextQueuedMessage :one
+DELETE FROM chat_queued_messages
+WHERE id = (
+    SELECT cqm.id FROM chat_queued_messages cqm
+    WHERE cqm.chat_id = $1
+    ORDER BY cqm.id ASC
+    LIMIT 1
+)
+RETURNING id, chat_id, content, created_at
+`
+
+func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
+	row := q.db.QueryRowContext(ctx, popNextQueuedMessage, chatID)
+	var i ChatQueuedMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Content,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const unarchiveChatByID = `-- name: UnarchiveChatByID :exec
+UPDATE chats SET archived = false, updated_at = NOW() WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, unarchiveChatByID, id)
+	return err
+}
+
+const updateChatByID = `-- name: UpdateChatByID :one
+UPDATE
+    chats
+SET
+    title = $1::text,
+    updated_at = NOW()
+WHERE
+    id = $2::uuid
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+`
+
+type UpdateChatByIDParams struct {
+	Title string    `db:"title" json:"title"`
+	ID    uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatByID, arg.Title, arg.ID)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+	)
+	return i, err
+}
+
+const updateChatHeartbeat = `-- name: UpdateChatHeartbeat :execrows
+UPDATE
+    chats
+SET
+    heartbeat_at = NOW()
+WHERE
+    id = $1::uuid
+    AND worker_id = $2::uuid
+    AND status = 'running'::chat_status
+`
+
+type UpdateChatHeartbeatParams struct {
+	ID       uuid.UUID `db:"id" json:"id"`
+	WorkerID uuid.UUID `db:"worker_id" json:"worker_id"`
+}
+
+// Bumps the heartbeat timestamp for a running chat so that other
+// replicas know the worker is still alive.
+func (q *sqlQuerier) UpdateChatHeartbeat(ctx context.Context, arg UpdateChatHeartbeatParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateChatHeartbeat, arg.ID, arg.WorkerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateChatMessageByID = `-- name: UpdateChatMessageByID :one
+UPDATE
+    chat_messages
+SET
+    model_config_id = COALESCE($1::uuid, model_config_id),
+    content = $2::jsonb
+WHERE
+    id = $3::bigint
+RETURNING
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+`
+
+type UpdateChatMessageByIDParams struct {
+	ModelConfigID uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
+	Content       pqtype.NullRawMessage `db:"content" json:"content"`
+	ID            int64                 `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatMessageByID(ctx context.Context, arg UpdateChatMessageByIDParams) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, updateChatMessageByID, arg.ModelConfigID, arg.Content, arg.ID)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.ModelConfigID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+		&i.Visibility,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.Compressed,
+	)
+	return i, err
+}
+
+const updateChatStatus = `-- name: UpdateChatStatus :one
+UPDATE
+    chats
+SET
+    status = $1::chat_status,
+    worker_id = $2::uuid,
+    started_at = $3::timestamptz,
+    heartbeat_at = $4::timestamptz,
+    last_error = $5::text,
+    updated_at = NOW()
+WHERE
+    id = $6::uuid
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+`
+
+type UpdateChatStatusParams struct {
+	Status      ChatStatus     `db:"status" json:"status"`
+	WorkerID    uuid.NullUUID  `db:"worker_id" json:"worker_id"`
+	StartedAt   sql.NullTime   `db:"started_at" json:"started_at"`
+	HeartbeatAt sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
+	LastError   sql.NullString `db:"last_error" json:"last_error"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatStatus,
+		arg.Status,
+		arg.WorkerID,
+		arg.StartedAt,
+		arg.HeartbeatAt,
+		arg.LastError,
+		arg.ID,
+	)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+	)
+	return i, err
+}
+
+const updateChatWorkspace = `-- name: UpdateChatWorkspace :one
+UPDATE
+    chats
+SET
+    workspace_id = $1::uuid,
+    updated_at = NOW()
+WHERE
+    id = $2::uuid
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
+`
+
+type UpdateChatWorkspaceParams struct {
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	ID          uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatWorkspace(ctx context.Context, arg UpdateChatWorkspaceParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatWorkspace, arg.WorkspaceID, arg.ID)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+	)
+	return i, err
+}
+
+const upsertChatDiffStatus = `-- name: UpsertChatDiffStatus :one
+INSERT INTO chat_diff_statuses (
+    chat_id,
+    url,
+    pull_request_state,
+    changes_requested,
+    additions,
+    deletions,
+    changed_files,
+    refreshed_at,
+    stale_at
+) VALUES (
+    $1::uuid,
+    $2::text,
+    $3::text,
+    $4::boolean,
+    $5::integer,
+    $6::integer,
+    $7::integer,
+    $8::timestamptz,
+    $9::timestamptz
+)
+ON CONFLICT (chat_id) DO UPDATE
+SET
+    url = EXCLUDED.url,
+    pull_request_state = EXCLUDED.pull_request_state,
+    changes_requested = EXCLUDED.changes_requested,
+    additions = EXCLUDED.additions,
+    deletions = EXCLUDED.deletions,
+    changed_files = EXCLUDED.changed_files,
+    refreshed_at = EXCLUDED.refreshed_at,
+    stale_at = EXCLUDED.stale_at,
+    updated_at = NOW()
+RETURNING
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
+`
+
+type UpsertChatDiffStatusParams struct {
+	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
+	Url              sql.NullString `db:"url" json:"url"`
+	PullRequestState sql.NullString `db:"pull_request_state" json:"pull_request_state"`
+	ChangesRequested bool           `db:"changes_requested" json:"changes_requested"`
+	Additions        int32          `db:"additions" json:"additions"`
+	Deletions        int32          `db:"deletions" json:"deletions"`
+	ChangedFiles     int32          `db:"changed_files" json:"changed_files"`
+	RefreshedAt      time.Time      `db:"refreshed_at" json:"refreshed_at"`
+	StaleAt          time.Time      `db:"stale_at" json:"stale_at"`
+}
+
+func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatDiffStatus,
+		arg.ChatID,
+		arg.Url,
+		arg.PullRequestState,
+		arg.ChangesRequested,
+		arg.Additions,
+		arg.Deletions,
+		arg.ChangedFiles,
+		arg.RefreshedAt,
+		arg.StaleAt,
+	)
+	var i ChatDiffStatus
+	err := row.Scan(
+		&i.ChatID,
+		&i.Url,
+		&i.PullRequestState,
+		&i.ChangesRequested,
+		&i.Additions,
+		&i.Deletions,
+		&i.ChangedFiles,
+		&i.RefreshedAt,
+		&i.StaleAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GitBranch,
+		&i.GitRemoteOrigin,
+	)
+	return i, err
+}
+
+const upsertChatDiffStatusReference = `-- name: UpsertChatDiffStatusReference :one
+INSERT INTO chat_diff_statuses (
+    chat_id,
+    url,
+    git_branch,
+    git_remote_origin,
+    stale_at
+) VALUES (
+    $1::uuid,
+    $2::text,
+    $3::text,
+    $4::text,
+    $5::timestamptz
+)
+ON CONFLICT (chat_id) DO UPDATE
+SET
+    url = CASE
+        WHEN EXCLUDED.url IS NOT NULL THEN EXCLUDED.url
+        ELSE chat_diff_statuses.url
+    END,
+    git_branch = CASE
+        WHEN EXCLUDED.git_branch != '' THEN EXCLUDED.git_branch
+        ELSE chat_diff_statuses.git_branch
+    END,
+    git_remote_origin = CASE
+        WHEN EXCLUDED.git_remote_origin != '' THEN EXCLUDED.git_remote_origin
+        ELSE chat_diff_statuses.git_remote_origin
+    END,
+    stale_at = EXCLUDED.stale_at,
+    updated_at = NOW()
+RETURNING
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
+`
+
+type UpsertChatDiffStatusReferenceParams struct {
+	ChatID          uuid.UUID      `db:"chat_id" json:"chat_id"`
+	Url             sql.NullString `db:"url" json:"url"`
+	GitBranch       string         `db:"git_branch" json:"git_branch"`
+	GitRemoteOrigin string         `db:"git_remote_origin" json:"git_remote_origin"`
+	StaleAt         time.Time      `db:"stale_at" json:"stale_at"`
+}
+
+func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatDiffStatusReference,
+		arg.ChatID,
+		arg.Url,
+		arg.GitBranch,
+		arg.GitRemoteOrigin,
+		arg.StaleAt,
+	)
+	var i ChatDiffStatus
+	err := row.Scan(
+		&i.ChatID,
+		&i.Url,
+		&i.PullRequestState,
+		&i.ChangesRequested,
+		&i.Additions,
+		&i.Deletions,
+		&i.ChangedFiles,
+		&i.RefreshedAt,
+		&i.StaleAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GitBranch,
+		&i.GitRemoteOrigin,
+	)
+	return i, err
+}
+
 const countConnectionLogs = `-- name: CountConnectionLogs :one
 SELECT
 	COUNT(*) AS count
@@ -23459,7 +25348,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $24 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $24) THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
