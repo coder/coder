@@ -1,4 +1,13 @@
 <!-- markdownlint-disable MD041 -->
+
+<!--
+  ██████╗ ██████╗ ██████╗ ███████╗██████╗
+ ██╔════╝██╔═══██╗██╔══██╗██╔════╝██╔══██╗
+ ██║     ██║   ██║██║  ██║█████╗  ██████╔╝
+ ██║     ██║   ██║██║  ██║██╔══╝  ██╔══██╗
+ ╚██████╗╚██████╔╝██████╔╝███████╗██║  ██║
+  ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
+-->
 <div align="center">
   <a href="https://coder.com#gh-light-mode-only">
     <img src="./docs/images/logo-black.png" alt="Coder Logo Light" style="width: 128px">
