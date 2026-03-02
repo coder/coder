@@ -28,6 +28,7 @@ const defaultProps = {
 		onViewWorkspace: () => {},
 	},
 	onArchiveAgent: () => {},
+	onArchiveAndDeleteWorkspace: () => {},
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: () => {},
 } satisfies React.ComponentProps<typeof AgentDetailTopBar>;

@@ -18,6 +18,7 @@ import {
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
+	Trash2Icon,
 } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -81,6 +82,8 @@ type AgentDetailTopBarProps = {
 	diff: DiffPanelState;
 	workspace: WorkspaceActions;
 	onArchiveAgent: () => void;
+	onArchiveAndDeleteWorkspace: () => void;
+	hasWorkspace?: boolean;
 	isArchived?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
@@ -93,6 +96,8 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	diff,
 	workspace,
 	onArchiveAgent,
+	onArchiveAndDeleteWorkspace,
+	hasWorkspace,
 	isArchived,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
@@ -208,7 +213,16 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								Archive Agent
 							</DropdownMenuItem>
 						)}
-					</DropdownMenuContent>
+						{!isArchived && hasWorkspace && (
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onSelect={onArchiveAndDeleteWorkspace}
+							>
+								<Trash2Icon className="h-3.5 w-3.5" />
+								Archive & Delete Workspace
+							</DropdownMenuItem>
+						)}
+					</DropdownMenuContent>{" "}
 				</DropdownMenu>
 				<WebPushButton />
 			</div>

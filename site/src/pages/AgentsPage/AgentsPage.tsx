@@ -45,7 +45,6 @@ import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
 import { AgentsSidebar } from "./AgentsSidebar";
-import { ArchiveAgentDialog } from "./ArchiveAgentDialog";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 import {
 	getModelCatalogStatusMessage,
@@ -89,6 +88,7 @@ export interface AgentsOutletContext {
 	setChatErrorReason: (chatId: string, reason: string) => void;
 	clearChatErrorReason: (chatId: string) => void;
 	requestArchiveAgent: (chatId: string) => void;
+	requestArchiveAndDeleteWorkspace: (chatId: string) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 }
@@ -153,13 +153,7 @@ const AgentsPage: FC = () => {
 	const createMutation = useMutation(createChat(queryClient));
 	const archiveMutation = useMutation(archiveChat(queryClient));
 	const [archivingChatId, setArchivingChatId] = useState<string | null>(null);
-	const [archiveDialogChatId, setArchiveDialogChatId] = useState<string | null>(
-		null,
-	);
-	const [archiveDialogWorkspaceId, setArchiveDialogWorkspaceId] = useState<
-		string | null
-	>(null);
-	const [isDeletingWorkspace, setIsDeletingWorkspace] = useState(false);
+
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -222,10 +216,10 @@ const AgentsPage: FC = () => {
 		});
 	}, []);
 	const chatList = chatsQuery.data ?? [];
-	const performArchive = useCallback(
-		async (chatId: string): Promise<boolean> => {
+	const requestArchiveAgent = useCallback(
+		async (chatId: string) => {
 			if (archiveMutation.isPending) {
-				return false;
+				return;
 			}
 
 			setArchivingChatId(chatId);
@@ -233,75 +227,48 @@ const AgentsPage: FC = () => {
 			try {
 				await archiveMutation.mutateAsync(chatId);
 				clearChatErrorReason(chatId);
-				// Invalidate the individual chat query so the detail view
-				// picks up the archived flag without a redirect.
 				await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
 				toast.success("Agent archived.");
-				return true;
 			} catch (error) {
 				toast.error(getErrorMessage(error, "Failed to archive agent."));
-				return false;
 			} finally {
 				setArchivingChatId(null);
 			}
 		},
 		[archiveMutation, queryClient, clearChatErrorReason],
 	);
-	const chatListRef = useRef(chatList);
-	chatListRef.current = chatList;
-	const requestArchiveAgent = useCallback(
-		(chatId: string) => {
+	const requestArchiveAndDeleteWorkspace = useCallback(
+		async (chatId: string) => {
 			if (archiveMutation.isPending) {
 				return;
 			}
 
-			const chat = chatListRef.current.find((c) => c.id === chatId);
+			setArchivingChatId(chatId);
+
+			try {
+				await archiveMutation.mutateAsync(chatId);
+				clearChatErrorReason(chatId);
+				await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+				toast.success("Agent archived.");
+			} catch (error) {
+				toast.error(getErrorMessage(error, "Failed to archive agent."));
+				return;
+			} finally {
+				setArchivingChatId(null);
+			}
+
+			const chat = chatList.find((c) => c.id === chatId);
 			if (chat?.workspace_id) {
-				setArchiveDialogChatId(chatId);
-				setArchiveDialogWorkspaceId(chat.workspace_id);
-			} else {
-				void performArchive(chatId);
+				try {
+					await API.deleteWorkspace(chat.workspace_id);
+					toast.success("Workspace deletion initiated.");
+				} catch (error) {
+					toast.error(getErrorMessage(error, "Failed to delete workspace."));
+				}
 			}
 		},
-		[archiveMutation.isPending, performArchive],
+		[archiveMutation, queryClient, clearChatErrorReason, chatList],
 	);
-	const handleArchiveOnly = useCallback(async () => {
-		if (!archiveDialogChatId) {
-			return;
-		}
-		const ok = await performArchive(archiveDialogChatId);
-		if (ok) {
-			setArchiveDialogChatId(null);
-			setArchiveDialogWorkspaceId(null);
-		}
-	}, [archiveDialogChatId, performArchive]);
-	const handleArchiveAndDeleteWorkspace = useCallback(async () => {
-		if (!archiveDialogChatId) {
-			return;
-		}
-		const ok = await performArchive(archiveDialogChatId);
-		if (!ok) {
-			// Don't delete the workspace if the archive failed.
-			return;
-		}
-		if (archiveDialogWorkspaceId) {
-			setIsDeletingWorkspace(true);
-			try {
-				await API.deleteWorkspace(archiveDialogWorkspaceId);
-				toast.success("Workspace deletion initiated.");
-			} catch (error) {
-				toast.error(getErrorMessage(error, "Failed to delete workspace."));
-			} finally {
-				setIsDeletingWorkspace(false);
-			}
-		}
-		setArchiveDialogChatId(null);
-		setArchiveDialogWorkspaceId(null);
-	}, [archiveDialogChatId, archiveDialogWorkspaceId, performArchive]);
-	const handleCloseArchiveDialog = useCallback(() => {
-		setArchiveDialogChatId(null);
-		setArchiveDialogWorkspaceId(null);
-	}, []);
 	const handleToggleSidebarCollapsed = useCallback(
 		() => setIsSidebarCollapsed((prev) => !prev),
 		[],
@@ -312,6 +279,7 @@ const AgentsPage: FC = () => {
 			setChatErrorReason,
 			clearChatErrorReason,
 			requestArchiveAgent,
+			requestArchiveAndDeleteWorkspace,
 			isSidebarCollapsed,
 			onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
 		}),
@@ -320,6 +288,7 @@ const AgentsPage: FC = () => {
 			setChatErrorReason,
 			clearChatErrorReason,
 			requestArchiveAgent,
+			requestArchiveAndDeleteWorkspace,
 			isSidebarCollapsed,
 			handleToggleSidebarCollapsed,
 		],
@@ -476,6 +445,7 @@ const AgentsPage: FC = () => {
 					modelConfigs={chatModelConfigsQuery.data ?? []}
 					logoUrl={appearance.logo_url}
 					onArchiveAgent={requestArchiveAgent}
+					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 					onNewAgent={handleNewAgent}
 					isCreating={createMutation.isPending}
 					isArchiving={archiveMutation.isPending}
@@ -568,16 +538,6 @@ const AgentsPage: FC = () => {
 					</>
 				)}
 			</div>
-			<ArchiveAgentDialog
-				open={archiveDialogChatId !== null}
-				onClose={handleCloseArchiveDialog}
-				onArchiveOnly={handleArchiveOnly}
-				onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspace}
-				chatTitle={
-					chatList.find((c) => c.id === archiveDialogChatId)?.title ?? ""
-				}
-				isLoading={archiveMutation.isPending || isDeletingWorkspace}
-			/>
 		</div>
 	);
 };
