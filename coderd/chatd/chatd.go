@@ -28,6 +28,7 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -66,6 +67,7 @@ type Server struct {
 
 	agentConnFn       AgentConnFunc
 	createWorkspaceFn chattool.CreateWorkspaceFn
+	coderClientFn     CoderClientFunc
 	pubsub            pubsub.Pubsub
 	webpushDispatcher webpush.Dispatcher
 	providerAPIKeys   chatprovider.ProviderAPIKeys
@@ -833,6 +835,11 @@ func shouldQueueUserMessage(status database.ChatStatus) bool {
 }
 
 // Config configures a chat processor.
+// CoderClientFunc returns a codersdk.Client scoped to the given owner.
+// It is called during tool execution to provide an authenticated client
+// for toolsdk-based tools that call the Coder API.
+type CoderClientFunc func(ctx context.Context, ownerID uuid.UUID) (*codersdk.Client, error)
+
 type Config struct {
 	Logger                     slog.Logger
 	Database                   database.Store
@@ -842,6 +849,7 @@ type Config struct {
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
 	CreateWorkspace            chattool.CreateWorkspaceFn
+	CoderClient                CoderClientFunc
 	Pubsub                     pubsub.Pubsub
 	ProviderAPIKeys            chatprovider.ProviderAPIKeys
 	WebpushDispatcher          webpush.Dispatcher
@@ -877,6 +885,7 @@ func New(cfg Config) *Server {
 		remotePartsProvider:        cfg.RemotePartsProvider,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
+		coderClientFn:              cfg.CoderClient,
 		pubsub:                     cfg.Pubsub,
 		webpushDispatcher:          cfg.WebpushDispatcher,
 		providerAPIKeys:            cfg.ProviderAPIKeys,
@@ -2120,16 +2129,41 @@ func (p *Server) runChat(
 		},
 	}
 
+	// Build the deps function for toolsdk-based chat tools.
+	// The agent connection is resolved lazily via
+	// getWorkspaceConn, and the codersdk.Client is obtained
+	// from the configured CoderClientFn.
+	makeDeps := func() (toolsdk.Deps, error) {
+		var opts []func(*toolsdk.Deps)
+		opts = append(opts, toolsdk.WithAgentConn(func() workspacesdk.AgentConn {
+			conn, err := getWorkspaceConn(ctx)
+			if err != nil {
+				return nil
+			}
+			return conn
+		}))
+
+		var client *codersdk.Client
+		if p.coderClientFn != nil {
+			var err error
+			client, err = p.coderClientFn(ctx, chat.OwnerID)
+			if err != nil {
+				return toolsdk.Deps{}, xerrors.Errorf("create coder client: %w", err)
+			}
+		} else {
+			// Provide a stub client so NewDeps does not
+			// panic; tools that require a real client will
+			// fail at call time with a clear API error.
+			client = &codersdk.Client{}
+		}
+
+		return toolsdk.NewDeps(client, opts...)
+	}
+
 	// Here are all the tools we have for the chat.
 	tools := []fantasy.AgentTool{
-		chattool.ListTemplates(chattool.ListTemplatesOptions{
-			DB:      p.db,
-			OwnerID: chat.OwnerID,
-		}),
-		chattool.ReadTemplate(chattool.ReadTemplateOptions{
-			DB:      p.db,
-			OwnerID: chat.OwnerID,
-		}),
+		chattool.FromToolSDK(toolsdk.ChatListTemplates.Generic(), makeDeps),
+		chattool.FromToolSDK(toolsdk.ChatReadTemplate.Generic(), makeDeps),
 		chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
 			DB:          p.db,
 			OwnerID:     chat.OwnerID,
@@ -2138,27 +2172,13 @@ func (p *Server) runChat(
 			AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
 			WorkspaceMu: &workspaceMu,
 		}),
-		chattool.ReadFile(chattool.ReadFileOptions{
-			GetWorkspaceConn: getWorkspaceConn,
-		}),
-		chattool.WriteFile(chattool.WriteFileOptions{
-			GetWorkspaceConn: getWorkspaceConn,
-		}),
-		chattool.EditFiles(chattool.EditFilesOptions{
-			GetWorkspaceConn: getWorkspaceConn,
-		}),
-		chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn: getWorkspaceConn,
-		}),
-		chattool.ProcessOutput(chattool.ProcessToolOptions{
-			GetWorkspaceConn: getWorkspaceConn,
-		}),
-		chattool.ProcessList(chattool.ProcessToolOptions{
-			GetWorkspaceConn: getWorkspaceConn,
-		}),
-		chattool.ProcessSignal(chattool.ProcessToolOptions{
-			GetWorkspaceConn: getWorkspaceConn,
-		}),
+		chattool.FromToolSDK(toolsdk.ChatReadFile.Generic(), makeDeps),
+		chattool.FromToolSDK(toolsdk.ChatWriteFile.Generic(), makeDeps),
+		chattool.FromToolSDK(toolsdk.ChatEditFiles.Generic(), makeDeps),
+		chattool.FromToolSDK(toolsdk.ChatExecute.Generic(), makeDeps),
+		chattool.FromToolSDK(toolsdk.ChatProcessOutput.Generic(), makeDeps),
+		chattool.FromToolSDK(toolsdk.ChatProcessList.Generic(), makeDeps),
+		chattool.FromToolSDK(toolsdk.ChatProcessSignal.Generic(), makeDeps),
 	}
 	// Only root chats (not delegated subagents) get subagent tools.
 	// Child agents must not spawn further subagents — they should
@@ -2168,7 +2188,6 @@ func (p *Server) runChat(
 			return chat
 		})...)
 	}
-
 	_, err = chatloop.Run(ctx, chatloop.RunOptions{
 		Model:      model,
 		Messages:   prompt,

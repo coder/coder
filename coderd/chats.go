@@ -20,6 +20,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
@@ -915,6 +916,37 @@ func (api *API) chatCreateWorkspace(
 
 	sw.WriteHeader(http.StatusCreated)
 	return workspace, nil
+}
+
+// chatCoderClient creates a short-lived codersdk.Client that is
+// authenticated as the given owner. The client is used by
+// toolsdk-based chat tools for Coder API calls.
+func (api *API) chatCoderClient(
+	ctx context.Context,
+	ownerID uuid.UUID,
+) (*codersdk.Client, error) {
+	// Generate a short-lived API key for the owner.
+	key, sessionToken, err := apikey.Generate(apikey.CreateParams{
+		UserID:    ownerID,
+		LoginType: database.LoginTypePassword,
+		// Short lifetime — only used for the duration of a
+		// single chat turn.
+		LifetimeSeconds: 600,
+		TokenName:       fmt.Sprintf("chat-%s", uuid.NewString()[:8]),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("generate chat API key: %w", err)
+	}
+
+	//nolint:gocritic // Chat processor creates internal API keys.
+	_, err = api.Database.InsertAPIKey(dbauthz.AsSystemRestricted(ctx), key)
+	if err != nil {
+		return nil, xerrors.Errorf("insert chat API key: %w", err)
+	}
+
+	client := codersdk.New(api.AccessURL)
+	client.SetSessionToken(sessionToken)
+	return client, nil
 }
 
 func chatWorkspaceAuditStatus(err error) int {

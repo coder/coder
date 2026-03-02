@@ -248,14 +248,14 @@ func TestAdapterListTemplates(t *testing.T) {
 
 	// Stand up a real server and create a template so there's
 	// something to list.
-	client := coderdtest.New(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 	// Create a template so the list is non-empty.
 	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+	tmpl := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 	deps, err := toolsdk.NewDeps(memberClient)
 	require.NoError(t, err)
@@ -283,7 +283,7 @@ func TestAdapterListTemplates(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 
 	// The raw JSON should mention the template we created.
-	assert.Contains(t, resp.Content, version.Name)
+	assert.Contains(t, resp.Content, tmpl.Name)
 }
 
 // TestAdapterReadFile verifies the adapter for ChatReadFile against

@@ -1817,6 +1817,50 @@ func TestToolSchemaFields(t *testing.T) {
 	}
 }
 
+// TestChatToolsNotInAll verifies that no chat tool appears in the
+// main All slice. Chat tools are exposed separately via ChatTools.
+func TestChatToolsNotInAll(t *testing.T) {
+	t.Parallel()
+	allNames := make(map[string]bool)
+	for _, tool := range toolsdk.All {
+		allNames[tool.Name] = true
+	}
+	for _, chatTool := range toolsdk.ChatTools {
+		assert.False(t, allNames[chatTool.Name],
+			"chat tool %q must not appear in toolsdk.All", chatTool.Name)
+	}
+}
+
+// TestChatToolSchemaFields validates that every ChatTool has the
+// required schema fields: non-nil Properties, non-nil Required,
+// non-empty Name/Description, and a non-nil Handler.
+func TestChatToolSchemaFields(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range toolsdk.ChatTools {
+		t.Run(tool.Name, func(t *testing.T) {
+			t.Parallel()
+
+			require.NotEmpty(t, tool.Name, "chat tool has empty Name")
+			require.NotEmpty(t, tool.Description,
+				"Chat tool %q has empty Description", tool.Name)
+			require.NotNil(t, tool.Schema.Properties,
+				"Chat tool %q missing Schema.Properties", tool.Name)
+			require.NotNil(t, tool.Schema.Required,
+				"Chat tool %q missing Schema.Required", tool.Name)
+			require.NotNil(t, tool.Handler,
+				"Chat tool %q has nil Handler", tool.Name)
+
+			for _, requiredField := range tool.Schema.Required {
+				_, exists := tool.Schema.Properties[requiredField]
+				require.True(t, exists,
+					"Chat tool %q requires field %q but it is not defined in Properties",
+					tool.Name, requiredField)
+			}
+		})
+	}
+}
+
 // TestMain runs after all tests to ensure that all tools in this package have
 // been tested once.
 func TestMain(m *testing.M) {
