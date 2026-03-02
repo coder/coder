@@ -580,7 +580,6 @@ func New(options *Options) *API {
 		dbauthz.AsSystemRestricted(ctx),
 		options.Logger,
 		options.Database,
-		options.DeploymentValues,
 	)
 	if err != nil {
 		// Not ideal, but not using Fatal here and just continuing
