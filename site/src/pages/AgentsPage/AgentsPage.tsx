@@ -221,29 +221,21 @@ const AgentsPage: FC = () => {
 			}
 
 			setArchivingChatId(chatId);
-			const nextChatId = (
-				queryClient.getQueryData(chats().queryKey) as
-					| TypesGen.Chat[]
-					| undefined
-			)?.find((chat) => chat.id !== chatId)?.id;
 
 			try {
 				await archiveMutation.mutateAsync(chatId);
 				clearChatErrorReason(chatId);
+				// Invalidate the individual chat query so the detail view
+				// picks up the archived flag without a redirect.
+				await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
 				toast.success("Agent archived.");
-
-				if (chatId === agentId) {
-					navigate(nextChatId ? `/agents/${nextChatId}` : "/agents", {
-						replace: true,
-					});
-				}
 			} catch (error) {
 				toast.error(getErrorMessage(error, "Failed to archive agent."));
 			} finally {
 				setArchivingChatId(null);
 			}
 		},
-		[archiveMutation, queryClient, agentId, navigate, clearChatErrorReason],
+		[archiveMutation, queryClient, clearChatErrorReason],
 	);
 	const handleToggleSidebarCollapsed = useCallback(
 		() => setIsSidebarCollapsed((prev) => !prev),

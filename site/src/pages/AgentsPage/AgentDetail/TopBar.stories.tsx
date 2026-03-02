@@ -91,6 +91,12 @@ export const SidebarCollapsed: Story = {
 	},
 };
 
+export const Archived: Story = {
+	args: {
+		isArchived: true,
+	},
+};
+
 export const NoTitle: Story = {
 	args: {
 		chatTitle: undefined,
