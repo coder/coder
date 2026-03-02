@@ -183,7 +183,7 @@ networking:
   sameSiteAuthCookie: lax
   # Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee
   # they are only set by the right domain. This change is disruptive to any
-  # workspaces built before release 1.31, requiring a workspace restart.
+  # workspaces built before release 2.31, requiring a workspace restart.
   # (default: false, type: bool)
   hostPrefixCookie: false
   # Whether Coder only allows connections to workspaces via the browser.
