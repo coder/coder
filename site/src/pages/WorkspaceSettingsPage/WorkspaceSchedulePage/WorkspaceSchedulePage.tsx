@@ -1,6 +1,5 @@
 import { API } from "api/api";
 import { getErrorDetail } from "api/errors";
-import { checkAuthorization } from "api/queries/authCheck";
 import { templateByName } from "api/queries/templates";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
