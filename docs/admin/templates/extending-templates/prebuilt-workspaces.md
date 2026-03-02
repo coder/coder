@@ -79,11 +79,11 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
    Before a prebuilt workspace is available to users:
 
    1. The workspace is provisioned.
-   1. The agent starts up and connects to coderd.
-   1. The agent starts its bootstrap procedures and completes its startup scripts.
-   1. The agent reports `ready` status.
+   1. The workspace daemon starts up and connects to coderd.
+   1. The workspace daemon starts its bootstrap procedures and completes its startup scripts.
+   1. The workspace daemon reports `ready` status.
 
-      After the agent reports `ready`, the prebuilt workspace considered eligible to be claimed.
+      After the workspace daemon reports `ready`, the prebuilt workspace considered eligible to be claimed.
 
    Prebuilt workspaces that fail during provisioning are retried with a backoff to prevent transient failures.
 

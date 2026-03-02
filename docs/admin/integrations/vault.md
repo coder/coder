@@ -27,7 +27,7 @@ To use this module, add the following code to your Terraform configuration.
 module "vault" {
   source               = "registry.coder.com/modules/vault-github/coder"
   version              = "1.0.7"
-  agent_id             = coder_agent.example.id
+  agent_id             = coder_workspace_daemon.example.id
   vault_addr           = "https://vault.example.com"
   coder_github_auth_id = "my-github-auth-id"
 }

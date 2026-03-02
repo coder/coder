@@ -28,7 +28,7 @@ This is the recommended approach for most use cases.
 ### Project Discovery
 
 Alternatively, enable automatic discovery of Dev Containers in Git repositories.
-The agent scans for `devcontainer.json` files and surfaces them in the Coder UI.
+The workspace daemon scans for `devcontainer.json` files and surfaces them in the Coder UI.
 See [Environment Variables](#environment-variables) for configuration options.
 
 This approach is useful when developers frequently switch between repositories
@@ -44,7 +44,7 @@ to ensure the `@devcontainers/cli` is installed in your workspace:
 module "devcontainers-cli" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/devcontainers-cli/coder"
-  agent_id = coder_agent.dev.id
+  agent_id = coder_workspace_daemon.dev.id
 }
 ```
 
@@ -60,7 +60,7 @@ ready when you access the workspace:
 ```terraform
 resource "coder_devcontainer" "my-repository" {
   count            = data.coder_workspace.me.start_count
-  agent_id         = coder_agent.dev.id
+  agent_id         = coder_workspace_daemon.dev.id
   workspace_folder = "/home/coder/my-repository"
 }
 ```
@@ -71,7 +71,7 @@ a `devcontainer.json` file. Consider using the
 your repository is cloned and ready for automatic startup.
 
 For multi-repo workspaces, define multiple `coder_devcontainer` resources, each
-pointing to a different repository. Each one runs as a separate sub-agent with
+pointing to a different repository. Each one runs as a separate sub-daemon with
 its own terminal and apps in the dashboard.
 
 ## Enable Dev Containers Integration
@@ -110,7 +110,7 @@ the feature.
 
 **Default: `true`** • **Added in: v2.24.0**
 
-Enables the Dev Containers integration in the Coder agent.
+Enables the Dev Containers integration in the workspace daemon.
 
 The Dev Containers feature is enabled by default. You can explicitly disable it
 by setting this to `false`.
@@ -121,12 +121,12 @@ by setting this to `false`.
 
 Enables automatic discovery of Dev Containers in Git repositories.
 
-When enabled, the agent scans the configured working directory (set via the
-`directory` attribute in `coder_agent`, typically the user's home directory) for
+When enabled, the workspace daemon scans the configured working directory (set via the
+`directory` attribute in `coder_workspace_daemon`, typically the user's home directory) for
 Git repositories. If the directory itself is a Git repository, it searches that
 project. Otherwise, it searches immediate subdirectories for Git repositories.
 
-For each repository found, the agent looks for `devcontainer.json` files in the
+For each repository found, the workspace daemon looks for `devcontainer.json` files in the
 [standard locations](../../../user-guides/devcontainers/index.md#add-a-devcontainerjson)
 and surfaces discovered Dev Containers in the Coder UI. Discovery respects
 `.gitignore` patterns.
@@ -156,7 +156,7 @@ as the `agent_id`:
 ```terraform
 resource "coder_devcontainer" "my-repository" {
   count            = data.coder_workspace.me.start_count
-  agent_id         = coder_agent.dev.id
+  agent_id         = coder_workspace_daemon.dev.id
   workspace_folder = "/home/coder/my-repository"
 }
 
@@ -187,11 +187,11 @@ that depend on these resources inside dev containers, by passing the
 
 When a `coder_devcontainer` has any `coder_app`, `coder_script`, or `coder_env`
 resource attached, it becomes a **terraform-managed** dev container. This
-changes how Coder handles the sub-agent:
+changes how Coder handles the sub-daemon:
 
-- The sub-agent is pre-defined during Terraform provisioning rather than created
+- The sub-daemon is pre-defined during Terraform provisioning rather than created
   dynamically.
-- On dev container configuration changes, Coder updates the sub-agent in-place
+- On dev container configuration changes, Coder updates the sub-daemon in-place
   instead of deleting and recreating it.
 
 ### Interaction with devcontainer.json customizations
@@ -215,7 +215,7 @@ block in their `devcontainer.json` file. Available options include:
 - `ignore` — Hide a dev container from Coder completely
 - `autoStart` — Control whether the container starts automatically (requires
   `CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE` to be enabled)
-- `name` — Set a custom agent name
+- `name` — Set a custom workspace daemon name
 - `displayApps` — Control which built-in apps appear
 - `apps` — Define custom applications
 
@@ -239,7 +239,7 @@ provider "coder" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
-resource "coder_agent" "dev" {
+resource "coder_workspace_daemon" "dev" {
   arch                    = "amd64"
   os                      = "linux"
   startup_script_behavior = "blocking"
@@ -251,19 +251,19 @@ resource "coder_agent" "dev" {
 module "devcontainers-cli" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/devcontainers-cli/coder"
-  agent_id = coder_agent.dev.id
+  agent_id = coder_workspace_daemon.dev.id
 }
 
 resource "coder_devcontainer" "my-repository" {
   count            = data.coder_workspace.me.start_count
-  agent_id         = coder_agent.dev.id
+  agent_id         = coder_workspace_daemon.dev.id
   workspace_folder = "/home/coder/my-repository"
 }
 
 # Attaching resources to dev containers is optional. By attaching
 # this resource to the dev container, we are changing how the dev
 # container will be treated by Coder. This limits the ability to
-# customize the injected agent via the devcontainer.json file.
+# customize the injected workspace daemon via the devcontainer.json file.
 resource "coder_env" "env" {
   count    = data.coder_workspace.me.start_count
   agent_id = coder_devcontainer.my-repository[0].subagent_id

@@ -11,7 +11,7 @@ administrators can configure
 [Envbuilder](../../admin/integrations/devcontainers/envbuilder/index.md) instead,
 which builds the workspace image itself from your dev container configuration.
 
-![Two dev containers running as sub-agents in a Coder workspace](../../images/user-guides/devcontainers/devcontainer-running.png)_Dev containers appear as sub-agents with their own apps, SSH access, and port forwarding_
+![Two dev containers running as sub-daemons in a Coder workspace](../../images/user-guides/devcontainers/devcontainer-running.png)_Dev containers appear as sub-daemons with their own apps, SSH access, and port forwarding_
 
 ## Prerequisites
 
@@ -78,7 +78,7 @@ container will build and start automatically when the workspace starts.
 
 ### Connect to your dev container
 
-Once running, your dev container appears as a sub-agent in your workspace
+Once running, your dev container appears as a sub-daemon in your workspace
 dashboard. You can connect via:
 
 - **Web terminal** in the Coder dashboard
@@ -97,27 +97,27 @@ containers within your Coder workspace.
 When a workspace with Dev Containers integration starts:
 
 1. If the template defines `coder_app`, `coder_script`, or `coder_env` resources
-   attached to the dev container, a sub-agent is pre-created with these resources.
+   attached to the dev container, a sub-daemon is pre-created with these resources.
 1. The workspace initializes the Docker environment.
 1. The integration detects repositories with dev container configurations.
 1. Detected dev containers appear in the Coder dashboard.
 1. If auto-start is configured (via `coder_devcontainer` or autostart settings),
    the integration builds and starts the dev container automatically.
-1. Coder creates a sub-agent (or updates the pre-created one) for the running
+1. Coder creates a sub-daemon (or updates the pre-created one) for the running
    container, enabling direct access.
 
 Without auto-start, users can manually start discovered dev containers from the
 dashboard.
 
-### Agent naming
+### Workspace daemon naming
 
-Each dev container gets its own agent name, derived from the workspace folder
+Each dev container gets its own name, derived from the workspace folder
 path. For example, a dev container with workspace folder `/home/coder/my-app`
-will have an agent named `my-app`.
+will have a sub-daemon named `my-app`.
 
-Agent names are sanitized to contain only lowercase alphanumeric characters and
+Sub-daemon names are sanitized to contain only lowercase alphanumeric characters and
 hyphens. You can also set a
-[custom agent name](./customizing-dev-containers.md#custom-agent-name)
+[custom workspace daemon name](./customizing-dev-containers.md#custom-workspace-daemon-name)
 in your `devcontainer.json`.
 
 ## Limitations
@@ -129,14 +129,14 @@ in your `devcontainer.json`.
 - The `forwardPorts` property in `devcontainer.json` with `host:port` syntax
   (e.g., `"db:5432"`) for Docker Compose sidecar containers is not yet
   supported. For single-container dev containers, use `coder port-forward` to
-  access ports directly on the sub-agent.
+  access ports directly on the sub-daemon.
 - Some advanced dev container features may have limited support
 
 ## Next steps
 
 - [Working with dev containers](./working-with-dev-containers.md) — SSH, IDE
   integration, and port forwarding
-- [Customizing dev containers](./customizing-dev-containers.md) — Custom agent
+- [Customizing dev containers](./customizing-dev-containers.md) — Custom workspace daemon
   names, apps, and display options
 - [Troubleshooting dev containers](./troubleshooting-dev-containers.md) —
   Diagnose common issues

@@ -126,11 +126,11 @@ configured threshold to a higher value (this will not address the root cause).
 
 ## DERP
 
-Coder workspace agents may use
+Coder workspace daemons may use
 [DERP (Designated Encrypted Relay for Packets)](https://tailscale.com/blog/how-tailscale-works/#encrypted-tcp-relays-derp)
 to communicate with Coder. This requires connectivity to a number of configured
 [DERP servers](../../reference/cli/server.md#--derp-config-path) which are used
-to relay traffic between Coder and workspace agents. Coder periodically queries
+to relay traffic between Coder and workspace daemons. Coder periodically queries
 the health of its configured DERP servers and may return one or more of the
 following:
 
@@ -205,7 +205,7 @@ for long-lived connections:
 
 - Between users interacting with Coder's Web UI (for example, the built-in
   terminal, or VSCode Web),
-- Between workspace agents and `coderd`,
+- Between workspace daemons and `coderd`,
 - Between Coder [workspace proxies](../networking/workspace-proxies.md) and
   `coderd`.
 

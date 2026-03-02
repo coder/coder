@@ -71,7 +71,7 @@ filesystem:
 
 ```tf
 resource "coder_script" "boundary_config_setup" {
-  agent_id     = coder_agent.dev.id
+  agent_id     = coder_workspace_daemon.dev.id
   display_name = "Boundary Setup Configuration"
   run_on_start = true
 

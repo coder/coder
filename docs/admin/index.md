@@ -37,7 +37,7 @@ For any information not strictly contained in these sections, check out our
 
 ### Startup scripts
 
-- Agent startup scripts apply to all users of a template. This is an
+- Workspace daemon startup scripts apply to all users of a template. This is an
   intentionally flexible area that template authors have at their disposal to
   manage the "last mile" of workspace creation.
 - Managed by: Coder template administrators.

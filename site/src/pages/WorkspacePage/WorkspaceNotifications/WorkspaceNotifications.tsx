@@ -100,8 +100,8 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 				<>
 					Your workspace is running but{" "}
 					{workspace.health.failing_agents.length > 1
-						? `${workspace.health.failing_agents.length} agents are unhealthy`
-						: "1 agent is unhealthy"}
+						? `${workspace.health.failing_agents.length} workspace daemons are unhealthy`
+						: "1 workspace daemon is unhealthy"}
 					.
 				</>
 			),

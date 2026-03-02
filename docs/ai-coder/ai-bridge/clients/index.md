@@ -84,7 +84,7 @@ data "coder_workspace_owner" "me" {}
 
 data "coder_workspace" "me" {}
 
-resource "coder_agent" "dev" {
+resource "coder_workspace_daemon" "dev" {
     arch = "amd64"
     os   = "linux"
     dir  = local.repo_dir

@@ -5,7 +5,7 @@
 > [Premium license](https://coder.com/pricing#compare-plans).
 > For more details, [contact your account team](https://coder.com/contact).
 
-The **Connection Log** page in the dashboard allows Auditors to monitor workspace agent connections.
+The **Connection Log** page in the dashboard allows Auditors to monitor workspace daemon connections.
 
 ## Workspace App Connections
 
@@ -21,7 +21,7 @@ performed via the dashboard.
 ## SSH and IDE Sessions
 
 The connection log aims to capture a record of all workspace SSH and IDE sessions.
-These events are reported by workspace agents, and their receipt by the server
+These events are reported by workspace daemons, and their receipt by the server
 is not guaranteed.
 
 ## How to Filter Connection Logs

@@ -7,7 +7,7 @@ Learn how to create and contribute complete Coder workspace templates to the Cod
 Coder templates are complete Terraform configurations that define entire workspace environments. Unlike modules (which are reusable components), templates provide full infrastructure definitions that include:
 
 - Infrastructure setup (containers, VMs, cloud resources)
-- Coder agent configuration
+- Workspace daemon configuration
 - Development tools and IDE integrations
 - Networking and security settings
 - Complete startup automation
@@ -116,8 +116,8 @@ terraform {
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
-# Coder agent
-resource "coder_agent" "main" {
+# Coder workspace daemon
+resource "coder_workspace_daemon" "main" {
   arch                   = "amd64"
   os                     = "linux"
   startup_script_timeout = 180
@@ -136,13 +136,13 @@ resource "coder_agent" "main" {
 module "code-server" {
   source   = "registry.coder.com/coder/code-server/coder"
   version  = "~> 1.0"
-  agent_id = coder_agent.main.id
+  agent_id = coder_workspace_daemon.main.id
 }
 
 module "git-clone" {
   source   = "registry.coder.com/coder/git-clone/coder"
   version  = "~> 1.0"
-  agent_id = coder_agent.main.id
+  agent_id = coder_workspace_daemon.main.id
   url      = "https://github.com/example/repo.git"
 }
 
@@ -156,8 +156,8 @@ resource "docker_container" "workspace" {
   image = docker_image.main.name
   name  = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
   
-  command = ["sh", "-c", coder_agent.main.init_script]
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
+  command = ["sh", "-c", coder_workspace_daemon.main.init_script]
+  env     = ["CODER_AGENT_TOKEN=${coder_workspace_daemon.main.token}"]
   
   host {
     host = "host.docker.internal"
@@ -236,7 +236,7 @@ You can customize this template by:
 **Solution**: Ensure Docker is running and accessible
 
 **Issue**: VS Code not accessible
-**Solution**: Check agent logs and ensure code-server module is properly configured
+**Solution**: Check workspace daemon logs and ensure code-server module is properly configured
 ```
 
 ## Template best practices
@@ -265,7 +265,7 @@ module "code-server" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/code-server/coder"
   version  = "1.3.0"
-  agent_id = coder_agent.example.id
+  agent_id = coder_workspace_daemon.example.id
 }
 
 # JetBrains IDEs
@@ -273,7 +273,7 @@ module "jetbrains" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/jetbrains/coder"
   version  = "1.0.0"
-  agent_id = coder_agent.example.id
+  agent_id = coder_workspace_daemon.example.id
   folder   = "/home/coder/project"
 }
 
@@ -282,7 +282,7 @@ module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/git-clone/coder"
   version  = "1.1.0"
-  agent_id = coder_agent.example.id
+  agent_id = coder_workspace_daemon.example.id
   url      = "https://github.com/coder/coder"
   base_dir = "~/projects/coder"
 }
@@ -292,7 +292,7 @@ module "filebrowser" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/filebrowser/coder"
   version  = "1.1.1"
-  agent_id = coder_agent.example.id
+  agent_id = coder_workspace_daemon.example.id
 }
 
 # Dotfiles management
@@ -300,7 +300,7 @@ module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/dotfiles/coder"
   version  = "1.2.0"
-  agent_id = coder_agent.example.id
+  agent_id = coder_workspace_daemon.example.id
 }
 ```
 
@@ -350,7 +350,7 @@ coder create test-workspace --template test-template
 Before submitting your template, verify:
 
 - [ ] Template provisions successfully
-- [ ] Agent connects properly
+- [ ] Workspace daemon connects properly
 - [ ] All registry modules work correctly
 - [ ] VS Code/IDEs are accessible
 - [ ] Networking functions properly
@@ -364,7 +364,7 @@ Before submitting your template, verify:
 **Bug fixes**:
 
 - Fix setup issues
-- Resolve agent connectivity problems
+- Resolve workspace daemon connectivity problems
 - Correct resource configurations
 
 **Feature additions**:
@@ -436,8 +436,8 @@ resource "docker_container" "workspace" {
   image = "ubuntu:24.04"
   name  = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
   
-  command = ["sh", "-c", coder_agent.main.init_script]
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
+  command = ["sh", "-c", coder_workspace_daemon.main.init_script]
+  env     = ["CODER_AGENT_TOKEN=${coder_workspace_daemon.main.token}"]
 }
 ```
 
@@ -450,7 +450,7 @@ resource "aws_instance" "workspace" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
   
-  user_data = coder_agent.main.init_script
+  user_data = coder_workspace_daemon.main.init_script
   
   tags = {
     Name = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
@@ -474,10 +474,10 @@ resource "kubernetes_pod" "workspace" {
       name  = "workspace"
       image = "ubuntu:24.04"
       
-      command = ["sh", "-c", coder_agent.main.init_script]
+      command = ["sh", "-c", coder_workspace_daemon.main.init_script]
       env {
         name  = "CODER_AGENT_TOKEN"
-        value = coder_agent.main.token
+        value = coder_workspace_daemon.main.token
       }
     }
   }
@@ -491,8 +491,8 @@ resource "kubernetes_pod" "workspace" {
 **Issue**: Template fails to create resources
 **Solution**: Check Terraform syntax and provider configuration
 
-**Issue**: Agent doesn't connect
-**Solution**: Verify agent token and network connectivity
+**Issue**: Workspace daemon doesn't connect
+**Solution**: Verify workspace daemon token and network connectivity
 
 ### Documentation
 

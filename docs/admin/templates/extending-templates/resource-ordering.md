@@ -32,35 +32,35 @@ data "coder_parameter" "account_id" {
 }
 ```
 
-### Agents
+### Workspace daemons
 
-Agent resources within the UI left pane are sorted based on the `order`
+Workspace daemon resources within the UI left pane are sorted based on the `order`
 property, followed by `name`, ensuring a consistent and intuitive arrangement.
 
 ```tf
-resource "coder_agent" "primary" {
+resource "coder_workspace_daemon" "primary" {
   ...
 
   order = 1
 }
 
-resource "coder_agent" "secondary" {
+resource "coder_workspace_daemon" "secondary" {
   ...
 
   order = 2
 }
 ```
 
-The agent with the lowest order is presented at the top in the workspace view.
+The workspace daemon with the lowest order is presented at the top in the workspace view.
 
-### Agent metadata
+### Workspace daemon metadata
 
-The `coder_agent` exposes metadata to present operational metrics in the UI.
+The `coder_workspace_daemon` exposes metadata to present operational metrics in the UI.
 Metrics defined with Terraform `metadata` blocks can be ordered using additional
 `order` property; otherwise, they are sorted by `key`.
 
 ```tf
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   ...
 
   metadata {
@@ -100,8 +100,8 @@ resource "coder_agent" "main" {
 
 ### Applications
 
-Similarly to Coder agents, `coder_app` resources incorporate the `order`
-property to organize button apps in the app bar within a `coder_agent` in the
+Similarly to workspace daemons, `coder_app` resources incorporate the `order`
+property to organize button apps in the app bar within a `coder_workspace_daemon` in the
 workspace view.
 
 Only template defined applications can be arranged. _VS Code_ or _Terminal_
@@ -109,7 +109,7 @@ buttons are static.
 
 ```tf
 resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_workspace_daemon.main.id
   slug         = "code-server"
   display_name = "code-server"
   ...
@@ -118,7 +118,7 @@ resource "coder_app" "code-server" {
 }
 
 resource "coder_app" "filebrowser" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_workspace_daemon.main.id
   display_name = "File Browser"
   slug         = "filebrowser"
   ...

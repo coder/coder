@@ -31,7 +31,7 @@ data "coder_external_auth" "github" {
     id = "primary-github"
 }
 
-resource "coder_agent" "dev" {
+resource "coder_workspace_daemon" "dev" {
     # ...
     dir = "~/coder"
     startup_script =<<EOF
@@ -73,7 +73,7 @@ locals {
     folder_name = try(element(split("/", data.coder_parameter.git_repo.value), length(split("/", data.coder_parameter.git_repo.value)) - 1), "")
 }
 
-resource "coder_agent" "dev" {
+resource "coder_workspace_daemon" "dev" {
     # ...
     dir = "~/${local.folder_name}"
     startup_script =<<EOF

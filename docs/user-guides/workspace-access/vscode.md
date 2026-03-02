@@ -101,7 +101,7 @@ Web or using the workspace's terminal.
    **Startup Script**
 
    ```tf
-   resource "coder_agent" "main" {
+   resource "coder_workspace_daemon" "main" {
      ...
      startup_script = "code-server --install-extension /vsix/GitHub.copilot.vsix"
    }

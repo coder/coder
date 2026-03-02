@@ -118,21 +118,21 @@ started or stopped. We'll use this information in later steps to:
 - Set some environment variables based on the workspace owner.
 - Manage ephemeral and persistent storage.
 
-## 3. coder_agent
+## 3. coder_workspace_daemon
 
 All templates need to create and run a
-[Coder agent](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
-This lets developers connect to their workspaces. The `coder_agent` resource
+[workspace daemon](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
+This lets developers connect to their workspaces. The `coder_workspace_daemon` resource
 runs inside the compute aspect of your workspace, typically a VM or container.
 In our case, it will run in Docker.
 
-You do not need to have any open ports on the compute aspect, but the agent
-needs `curl` access to the Coder server.
+You do not need to have any open ports on the compute aspect, but the workspace
+daemon needs `curl` access to the Coder server.
 
-Add this snippet after the last closing `}` in `main.tf` to create the agent:
+Add this snippet after the last closing `}` in `main.tf` to create the workspace daemon:
 
 ```tf
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   arch                   = data.coder_provisioner.me.arch
   os                     = "linux"
   startup_script         = <<-EOT
@@ -169,11 +169,11 @@ resource "coder_agent" "main" {
 ```
 
 Because Docker is running locally in the Coder server, there is no need to
-authenticate `coder_agent`. But if your `coder_agent` is running on a remote
+authenticate `coder_workspace_daemon`. But if your `coder_workspace_daemon` is running on a remote
 host, your template will need
 [authentication credentials](../admin/external-auth/index.md).
 
-This template's agent also runs a startup script, sets environment variables,
+This template's workspace daemon also runs a startup script, sets environment variables,
 and provides metadata.
 
 - [`startup script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)
@@ -216,7 +216,7 @@ See [web IDEs](../user-guides/workspace-access/web-ides.md) for more examples:
 
 ```tf
 resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_workspace_daemon.main.id
   slug         = "code-server"
   display_name = "code-server"
   url          = "http://localhost:13337/?folder=/home/${local.username}"
@@ -237,7 +237,7 @@ to wikis or cloud consoles:
 
 ```tf
 resource "coder_app" "coder-server-doc" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_workspace_daemon.main.id
   icon         = "/emojis/1f4dd.png"
   slug         = "getting-started"
   url          = "https://coder.com/docs/code-server"
@@ -310,9 +310,9 @@ resource "docker_container" "workspace" {
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
   # Use the docker gateway if the access URL is 127.0.0.1
-  entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
+  entrypoint = ["sh", "-c", replace(coder_workspace_daemon.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
   env = [
-    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AGENT_TOKEN=${coder_workspace_daemon.main.token}",
   ]
   host {
     host = "host.docker.internal"

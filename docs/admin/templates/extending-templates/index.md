@@ -9,17 +9,17 @@ view our
 [example templates](https://github.com/coder/coder/tree/main/examples/templates)
 to get started.
 
-## Workspace agents
+## Workspace daemons
 
 For users to connect to a workspace, the template must include a
-[`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
-The associated agent will facilitate
+[`coder_workspace_daemon`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
+The associated workspace daemon will facilitate
 [workspace connections](../../../user-guides/workspace-access/index.md) via SSH,
-port forwarding, and IDEs. The agent may also display real-time
-[workspace metadata](./agent-metadata.md) like resource usage.
+port forwarding, and IDEs. The workspace daemon may also display real-time
+[workspace daemon metadata](./agent-metadata.md) like resource usage.
 
 ```tf
-resource "coder_agent" "dev" {
+resource "coder_workspace_daemon" "dev" {
   os   = "linux"
   arch = "amd64"
   dir  = "/workspace"
@@ -32,14 +32,14 @@ resource "coder_agent" "dev" {
 You can also leverage [resource metadata](./resource-metadata.md) to display
 static resource information from your template.
 
-Templates must include some computational resource to start the agent. All
-processes on the workspace are then spawned from the agent. It also provides all
+Templates must include some computational resource to start the workspace daemon. All
+processes on the workspace are then spawned from the workspace daemon. It also provides all
 information displayed in the dashboard's workspace view.
 
-![A healthy workspace agent](../../../images/templates/healthy-workspace-agent.png)
+![A healthy workspace daemon](../../../images/templates/healthy-workspace-agent.png)
 
-Multiple agents may be used in a single template or even a single resource. Each
-agent may have its own apps, startup script, and metadata. This can be used to
+Multiple workspace daemons may be used in a single template or even a single resource. Each
+workspace daemon may have its own apps, startup script, and metadata. This can be used to
 associate multiple containers or VMs with a workspace.
 
 ## Resource persistence
@@ -80,10 +80,10 @@ resource.
 
 ![Coder Apps in the dashboard](../../../images/admin/templates/coder-apps-ui.png)
 
-Note that some apps are associated to the agent by default as
+Note that some apps are associated to the workspace daemon by default as
 [`display_apps`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#nested-schema-for-display_apps)
 and can be hidden directly in the
-[`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
+[`coder_workspace_daemon`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
 resource. You can arrange the display orientation of Coder apps in your template
 using [resource ordering](./resource-ordering.md).
 
@@ -97,7 +97,7 @@ You can use these examples to add new Coder apps:
 
 ```hcl
 resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_workspace_daemon.main.id
   slug         = "code-server"
   display_name = "code-server"
   url          = "http://localhost:13337/?folder=/home/${local.username}"
@@ -111,7 +111,7 @@ resource "coder_app" "code-server" {
 
 ```hcl
 resource "coder_app" "filebrowser" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_workspace_daemon.main.id
   display_name = "file browser"
   slug         = "filebrowser"
   url          = "http://localhost:13339"
@@ -125,7 +125,7 @@ resource "coder_app" "filebrowser" {
 
 ```hcl
 resource "coder_app" "zed" {
-    agent_id = coder_agent.main.id
+    agent_id = coder_workspace_daemon.main.id
     slug          = "slug"
     display_name  = "Zed"
     external = true
@@ -145,7 +145,7 @@ The
 [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)
 resource runs scripts during workspace lifecycle events like startup, stop, or
 on a scheduled basis. It provides more control than the deprecated
-`startup_script` field in `coder_agent`.
+`startup_script` field in `coder_workspace_daemon`.
 
 ### When to use coder_script
 
@@ -159,7 +159,7 @@ on a scheduled basis. It provides more control than the deprecated
 
 ```tf
 resource "coder_script" "install_dependencies" {
-  agent_id           = coder_agent.main.id
+  agent_id           = coder_workspace_daemon.main.id
   display_name       = "Install Dependencies"
   icon               = "/icon/package.svg"
   script             = <<-EOF
@@ -200,7 +200,7 @@ You can also reference external script files:
 
 ```tf
 resource "coder_script" "init_docker" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_workspace_daemon.main.id
   display_name = "Initialize Docker"
   script       = file("${path.module}/scripts/init-docker.sh")
   run_on_start = true

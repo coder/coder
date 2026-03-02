@@ -34,7 +34,7 @@ It offers:
 - HTTP API
 - Dev URLs (HTTP reverse proxy to workspaces)
 - Workspace Web Applications (e.g for easy access to `code-server`)
-- Agent registration
+- Workspace daemon registration
 
 ### provisionerd
 
@@ -51,15 +51,15 @@ At the highest level, a workspace is a set of cloud resources. These resources
 can be VMs, Kubernetes clusters, storage buckets, or whatever else Terraform
 lets you dream up.
 
-The resources that run the agent are described as _computational resources_,
+The resources that run the workspace daemon are described as _computational resources_,
 while those that don't are called _peripheral resources_.
 
 Each resource may also be _persistent_ or _ephemeral_ depending on whether
 they're destroyed on workspace stop.
 
-### Agents
+### Workspace daemons
 
-An agent is the Coder service that runs within a user's remote workspace. It
+A workspace daemon is the Coder service that runs within a user's remote workspace. It
 provides a consistent interface for coderd and clients to communicate with
 workspaces regardless of operating system, architecture, or cloud.
 
@@ -71,7 +71,7 @@ It offers the following services along with much more:
 - `startup_script` automation
 
 Templates are responsible for
-[creating and running agents](../templates/extending-templates/index.md#workspace-agents)
+[creating and running workspace daemons](../templates/extending-templates/index.md#workspace-agents)
 within workspaces.
 
 ## Service Bundling

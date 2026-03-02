@@ -1,8 +1,9 @@
 # Troubleshooting
 
-`coder ping <workspace>` will ping the workspace agent and print diagnostics on
-the state of the connection. These diagnostics are created by inspecting both
-the client and agent network configurations, and provide insights into why a
+`coder ping <workspace>` will ping the workspace daemon and print diagnostics
+on the state of the connection. These diagnostics are created by inspecting
+both the client and workspace daemon network configurations, and provide
+insights into why a
 direct connection may be impeded, or why the quality of one might be degraded.
 
 The `-v/--verbose` flag can be appended to the command to print client debug
@@ -41,13 +42,14 @@ flag on the server. When set, this will be reflected in the output of
 ### UDP Blocked
 
 Some corporate firewalls block UDP traffic. Direct connections require UDP
-traffic to be allowed between the client and agent, as well as between the
-client/agent and STUN servers in most cases. `coder ping` will indicate if
-either the Coder agent or client had issues sending or receiving UDP packets to
+traffic to be allowed between the client and workspace daemon, as well as
+between the client/workspace daemon and STUN servers in most cases.
+`coder ping` will indicate if either the workspace daemon or client had issues
+sending or receiving UDP packets to
 STUN servers.
 
-If this is the case, you may need to add exceptions to the firewall to allow UDP
-for Coder workspaces, clients, and STUN servers.
+If this is the case, you may need to add exceptions to the firewall to allow
+UDP for Coder workspaces, clients, and STUN servers.
 
 ### Endpoint-Dependent NAT (Hard NAT)
 
@@ -57,7 +59,7 @@ connection is behind a hard NAT, direct connections can still be established
 easily. However, if both sides are behind hard NATs, direct connections may take
 longer to establish or may not be possible at all.
 
-`coder ping` will indicate if it's possible the client or agent is behind a hard
+`coder ping` will indicate if it's possible the client or workspace daemon is behind a hard
 NAT.
 
 Learn more about [STUN and NAT](./stun.md).
@@ -65,8 +67,9 @@ Learn more about [STUN and NAT](./stun.md).
 ### No STUN Servers
 
 If there are no STUN servers available within a deployment's DERP MAP, direct
-connections may not be possible. Notable exceptions are if the client and agent
-are on the same network, or if either is able to use UPnP instead of STUN to
+connections may not be possible. Notable exceptions are if the client and
+workspace daemon are on the same network, or if either is able to use UPnP
+instead of STUN to
 resolve the public IP of the other. `coder ping` will indicate if no STUN
 servers were found.
 
@@ -82,23 +85,23 @@ firewall, or reconfigure the hard NAT.
 ### VPNs
 
 If a VPN is the default route for all IP traffic, it may interfere with the
-ability for clients and agents to form direct connections. This happens if the
+ability for clients and workspace daemons to form direct connections. This happens if the
 NAT does not permit traffic to be
 ['hairpinned'](./stun.md#3-direct-connections-with-vpn-and-nat-hairpinning) from
 the public IP address of the NAT (determined via STUN) to the internal IP
-address of the agent.
+address of the workspace daemon.
 
 If this is the case, you may need to add exceptions to the VPN for Coder, modify
 the NAT configuration, or deploy an internal STUN server.
 
 ### Low MTU
 
-If a network interface on the side of either the client or agent has an MTU
+If a network interface on the side of either the client or workspace daemon has an MTU
 smaller than 1378, any direct connections form may have degraded quality or
 might hang entirely.
 
 Use `coder ping` to check for MTU issues, as it inspects
-network interfaces on both the client and the workspace agent:
+network interfaces on both the client and the workspace daemon:
 
 ```console
 $ coder ping my-workspace
@@ -119,7 +122,7 @@ flag or `CODER_BLOCK_DIRECT` environment variable on the Coder server.
 ## Throughput
 
 The `coder speedtest <workspace>` command measures the throughput between the
-client and the workspace agent.
+client and the workspace daemon.
 
 ```console
 $ coder speedtest workspace

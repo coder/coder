@@ -1,12 +1,12 @@
-# Agent metadata
+# Workspace daemon metadata
 
 ![agent-metadata](../../../images/admin/templates/agent-metadata-ui.png)
 
-You can show live operational metrics to workspace users with agent metadata. It
+You can show live operational metrics to workspace users with workspace daemon metadata. It
 is the dynamic complement of [resource metadata](./resource-metadata.md).
 
-You specify agent metadata in the
-[`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
+You specify workspace daemon metadata in the
+[`coder_workspace_daemon`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
 
 ## Examples
 
@@ -20,10 +20,10 @@ command. This is useful for determining CPU and memory usage of the VM or
 container that the workspace is running in, which is more accurate than resource
 usage about the workspace's host.
 
-Here's a standard set of metadata snippets for Linux agents:
+Here's a standard set of metadata snippets for Linux workspace daemons:
 
 ```tf
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   os             = "linux"
   ...
   metadata {
@@ -88,7 +88,7 @@ resource "coder_agent" "main" {
 
 ## Useful utilities
 
-You can also show agent metadata for information about the workspace's host.
+You can also show workspace daemon metadata for information about the workspace's host.
 
 [top](https://manpages.ubuntu.com/manpages/jammy/en/man1/top.1.html) is
 available in most Linux distributions and provides virtual memory, CPU and IO
@@ -123,7 +123,7 @@ usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw
 
 ## Managing the database load
 
-Agent metadata can generate a significant write load and overwhelm your Coder
+Workspace daemon metadata can generate a significant write load and overwhelm your Coder
 database if you're not careful. The approximate writes per second can be
 calculated using the formula:
 
@@ -133,7 +133,7 @@ calculated using the formula:
 
 For example, let's say you have
 
-- 10 running agents
+- 10 running workspace daemons
 - each with 6 metadata snippets
 - with an average interval of 4 seconds
 

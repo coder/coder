@@ -21,7 +21,7 @@ Our scale tests include the following stages:
 
 1. Prepare environment: create expected users and provision workspaces.
 
-1. SSH connections: establish user connections with agents, verifying their
+1. SSH connections: establish user connections with workspace daemons, verifying their
    ability to echo back received content.
 
 1. Web Terminal: verify the PTY connection used for communication with Web
@@ -70,7 +70,7 @@ workflows,
 ## Traffic Projections
 
 In our scale tests, we simulate activity from 2000 users, 2000 workspaces, and
-2000 agents, with two items of workspace agent metadata being sent every 10
+2000 workspace daemons, with two items of workspace daemon metadata being sent every 10
 seconds. Here are the resulting metrics:
 
 Coder:
@@ -79,7 +79,7 @@ Coder:
   running concurrently.
 - Median API request rate: 350 RPS during dashboard tests, 250 RPS during Web
   Terminal and workspace apps tests.
-- 2000 agent API connections with latency: p90 at 60 ms, p95 at 220 ms.
+- 2000 workspace daemon API connections with latency: p90 at 60 ms, p95 at 220 ms.
 - on average 2400 Web Socket connections during dashboard tests.
 
 Provisionerd:
@@ -89,7 +89,7 @@ Provisionerd:
 Database:
 
 - Median CPU utilization is 80%, with a significant portion dedicated to writing
-  workspace agent metadata.
+  workspace daemon metadata.
 - Memory utilization averages at 40%.
 - `write_ops_count` between 6.7 and 8.4 operations per second.
 
@@ -120,10 +120,10 @@ on the workload size to ensure deployment stability.
 #### CPU and memory usage
 
 Enabling
-[agent stats collection](../../reference/cli/server.md#--prometheus-collect-agent-stats)
+[workspace daemon stats collection](../../reference/cli/server.md#--prometheus-collect-agent-stats)
 (optional) may increase memory consumption.
 
-Enabling direct connections between users and workspace agents (apps or SSH
+Enabling direct connections between users and workspace daemons (apps or SSH
 traffic) can help prevent an increase in CPU usage. It is recommended to keep
 [this option enabled](../../reference/cli/index.md#--disable-direct-connections)
 unless there are compelling reasons to disable it.
@@ -149,7 +149,7 @@ When determining scaling requirements, consider the following factors:
 For a reliable Coder deployment dealing with medium to high loads, it's
 important that API calls for workspace/template queries and workspace build
 operations respond within 300 ms. However, API template insights calls, which
-involve browsing workspace agent stats and user activity data, may require more
+involve browsing workspace daemon stats and user activity data, may require more
 time. Moreover, Coder API exposes WebSocket long-lived connections for Web
 Terminal (bidirectional), and Workspace events/logs (unidirectional).
 
@@ -213,7 +213,7 @@ for workspace users, administrators must be aware of a few assumptions.
     development does not require high CPU capacity at all times, but will spike
     during builds or testing.
   - Evaluate minimal limits for single workspace. Include in the calculation
-    requirements for Coder agent running in an idle workspace - 0.1 vCPU and 256
+    requirements for the workspace daemon running in an idle workspace - 0.1 vCPU and 256
     MB. For instance, developers can choose between 0.5-8 vCPUs, and 1-16 GB
     memory.
 
@@ -223,7 +223,7 @@ When determining scaling requirements, consider the following factors:
 
 - `1 vCPU x 2 GB memory x 1 workspace`: A formula to determine resource
   allocation based on the minimal requirements for an idle workspace with a
-  running Coder agent and occasional CPU and memory bursts for building
+  running workspace daemon and occasional CPU and memory bursts for building
   projects.
 
 #### Node Autoscaling

@@ -3,14 +3,14 @@
 Use the
 [`resources_monitoring`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#resources_monitoring-1)
 block on the
-[`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
+[`coder_workspace_daemon`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
 resource in our Terraform provider to monitor out of memory (OOM) and out of
 disk (OOD) errors and alert users when they overutilize memory and disk.
 
-This can help prevent agent disconnects due to OOM/OOD issues.
+This can help prevent workspace daemon disconnects due to OOM/OOD issues.
 
 You can specify one or more volumes to monitor for OOD alerts.
-OOM alerts are reported per-agent.
+OOM alerts are reported per-workspace daemon.
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ Change the `90`, `80`, and `95` to a threshold that's more appropriate for your
 deployment:
 
 ```hcl
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   arch = data.coder_provisioner.dev.arch
   os   = data.coder_provisioner.dev.os
   resources_monitoring {

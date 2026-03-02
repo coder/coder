@@ -69,7 +69,7 @@ interface DevcontainerStatusProps {
 const StartTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 	return (
 		<HelpTooltip>
-			<HelpTooltipTrigger asChild role="status" aria-label="Agent timeout">
+			<HelpTooltipTrigger asChild role="status" aria-label="Workspace daemon timeout">
 				<TriangleAlertIcon css={styles.timeoutWarning} />
 			</HelpTooltipTrigger>
 

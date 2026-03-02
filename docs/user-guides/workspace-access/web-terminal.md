@@ -35,7 +35,7 @@ and feature-rich terminal experience in your browser.
 2. Click the **Terminal** button or icon
 3. The terminal will open in a new browser tab or window
 
-The terminal automatically connects to your workspace agent using an optimized
+The terminal automatically connects to your workspace daemon using an optimized
 WebSocket connection.
 
 ### Direct URL Access
@@ -46,7 +46,7 @@ You can also bookmark or share direct terminal URLs:
 https://coder.example.com/@username/workspace-name/terminal
 ```
 
-To access a specific agent in a multi-agent workspace:
+To access a specific workspace daemon in a workspace with multiple daemons:
 
 ```text
 https://coder.example.com/@username/workspace-name.agent-name/terminal
@@ -62,10 +62,10 @@ workspace:
 1. **Browser**: Renders the terminal using xterm.js
 2. **WebSocket**: Maintains a persistent, low-latency connection
 3. **Coder Server**: Routes traffic between browser and workspace
-4. **Workspace Agent**: Manages the pseudo-terminal (PTY) session
+4. **Workspace Daemon**: Manages the pseudo-terminal (PTY) session
 5. **Shell Process**: Your actual bash/zsh/fish shell
 
-The connection flow is: Browser ↔ WebSocket ↔ Coder Server ↔ Workspace Agent ↔ Shell Process
+The connection flow is: Browser ↔ WebSocket ↔ Coder Server ↔ Workspace Daemon ↔ Shell Process
 
 ### Reconnection & Persistence
 
@@ -73,7 +73,7 @@ The terminal uses reconnection tokens to maintain session state:
 
 - Each terminal session has a unique UUID
 - If the connection drops, the same token is used to reconnect
-- The workspace agent buffers output during disconnections
+- The workspace daemon buffers output during disconnections
 - Your shell session continues running even when the browser is closed
 
 ## Customization
@@ -222,7 +222,7 @@ export CTERM=xterm-256color
 If the terminal fails to connect:
 
 1. **Check workspace status**: Ensure your workspace is running
-2. **Verify agent health**: Look for agent connection warnings
+2. **Verify workspace daemon health**: Look for connection warnings
 3. **Network issues**: Check if WebSockets are blocked by your firewall/proxy
 4. **Browser console**: Open DevTools to see WebSocket error messages
 

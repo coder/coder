@@ -38,7 +38,7 @@ import type { ConnectionStatus } from "./types";
 
 export const Language = {
 	workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
-	workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
+	workspaceAgentErrorMessagePrefix: "Unable to fetch workspace daemon: ",
 	websocketErrorMessagePrefix: "WebSocket failed: ",
 };
 

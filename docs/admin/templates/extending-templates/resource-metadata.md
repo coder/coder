@@ -17,7 +17,7 @@ You can use `coder_metadata` to show Terraform resource attributes like these:
 > Coder automatically generates the <code>type</code> metadata.
 
 You can also present automatically updating, dynamic values with
-[agent metadata](./agent-metadata.md).
+[workspace daemon metadata](./agent-metadata.md).
 
 ## Example
 
@@ -107,4 +107,4 @@ how to use the builtin icons [here](./icons.md).
 ## Up next
 
 - [Secrets](../../security/secrets.md)
-- [Agent metadata](./agent-metadata.md)
+- [Workspace daemon metadata](./agent-metadata.md)

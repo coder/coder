@@ -102,7 +102,7 @@ vulnerable.
 Coder session tokens and API keys are salted and hashed, so a read-only
 compromise of the database is unlikely to allow an attacker to log into Coder.
 However, the database contains the Terraform state for all workspaces, OIDC
-tokens, and agent tokens, so it is possible that a read-only attack could enable
+tokens, and workspace daemon tokens, so it is possible that a read-only attack could enable
 lateral movement to other systems.
 
 A successful attack that modifies database state could be escalated to a full
@@ -289,7 +289,7 @@ code via the
 
 Furthermore, Coder templates are designed to provision compute resources in one
 or more clusters/clouds, and template authors are generally in full control over
-code and scripts executed by the Coder agent in those compute resources.
+code and scripts executed by the workspace daemon in those compute resources.
 
 This means that template admins have remote code execution privileges for any
 provisioner daemons in their organization and within any cluster/cloud those

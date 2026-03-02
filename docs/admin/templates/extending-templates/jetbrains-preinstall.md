@@ -47,7 +47,7 @@ module "jetbrains_gateway" {
   count          = data.coder_workspace.me.start_count
   source         = "registry.coder.com/modules/jetbrains-gateway/coder"
   version        = "1.0.29"
-  agent_id       = coder_agent.main.id
+  agent_id       = coder_workspace_daemon.main.id
   folder         = "/home/coder/example"
   jetbrains_ides = ["IU"]
   default        = "IU"
@@ -60,7 +60,7 @@ module "jetbrains_gateway" {
   }
 }
 
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
     ...
     startup_script = <<-EOF
     ~/JetBrains/*/bin/remote-dev-server.sh registerBackendLocationForGateway

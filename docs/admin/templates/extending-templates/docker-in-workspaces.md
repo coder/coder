@@ -28,13 +28,13 @@ resource "docker_container" "workspace" {
   # ...
   name    = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   image   = "codercom/enterprise-base:ubuntu"
-  env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
-  command = ["sh", "-c", coder_agent.main.init_script]
+  env     = ["CODER_AGENT_TOKEN=${coder_workspace_daemon.main.token}"]
+  command = ["sh", "-c", coder_workspace_daemon.main.init_script]
   # Use the Sysbox container runtime (required)
   runtime = "sysbox-runc"
 }
 
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   arch           = data.coder_provisioner.me.arch
   os             = "linux"
   startup_script = <<EOF
@@ -74,7 +74,7 @@ variable "workspaces_namespace" {
 
 data "coder_workspace" "me" {}
 
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   os   = "linux"
   arch = "amd64"
   dir  = "/home/coder"
@@ -109,10 +109,10 @@ resource "kubernetes_pod" "dev" {
       name = "dev"
       env {
         name  = "CODER_AGENT_TOKEN"
-        value = coder_agent.main.token
+        value = coder_workspace_daemon.main.token
       }
       image = "codercom/enterprise-base:ubuntu"
-      command = ["sh", "-c", coder_agent.main.init_script]
+      command = ["sh", "-c", coder_workspace_daemon.main.init_script]
     }
   }
 }
@@ -318,7 +318,7 @@ your nodes cannot run Sysbox.
 ### Use a privileged sidecar container in Docker-based templates
 
 ```tf
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   os             = "linux"
   arch           = "amd64"
 }
@@ -341,9 +341,9 @@ resource "docker_container" "workspace" {
   count   = data.coder_workspace.me.start_count
   image   = "codercom/enterprise-base:ubuntu"
   name    = "dev-${data.coder_workspace.me.id}"
-  command = ["sh", "-c", coder_agent.main.init_script]
+  command = ["sh", "-c", coder_workspace_daemon.main.init_script]
   env = [
-    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AGENT_TOKEN=${coder_workspace_daemon.main.token}",
     "DOCKER_HOST=${docker_container.dind.name}:2375"
   ]
   networks_advanced {
@@ -373,7 +373,7 @@ variable "workspaces_namespace" {
 
 data "coder_workspace" "me" {}
 
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   os             = "linux"
   arch           = "amd64"
 }
@@ -398,13 +398,13 @@ resource "kubernetes_pod" "main" {
     container {
       name    = "dev"
       image   = "codercom/enterprise-base:ubuntu"
-      command = ["sh", "-c", coder_agent.main.init_script]
+      command = ["sh", "-c", coder_workspace_daemon.main.init_script]
       security_context {
         run_as_user = "1000"
       }
       env {
         name  = "CODER_AGENT_TOKEN"
-        value = coder_agent.main.token
+        value = coder_workspace_daemon.main.token
       }
       # Use the Docker daemon in the "docker-sidecar" container
       env {
@@ -445,7 +445,7 @@ variable "workspaces_namespace" {
 
 data "coder_workspace" "me" {}
 
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   os   = "linux"
   arch = "amd64"
   dir  = "/home/coder"
@@ -476,11 +476,11 @@ resource "kubernetes_pod" "dev" {
       name = "dev"
       env {
         name  = "CODER_AGENT_TOKEN"
-        value = coder_agent.main.token
+        value = coder_workspace_daemon.main.token
       }
       image = "codercom/enterprise-base:ubuntu"
       command = ["sh", "-c", <<EOF
-    # Start the Coder agent as the "coder" user
+    # Start the Coder workspace daemon as the "coder" user
     # once systemd has started up
     sudo -u coder --preserve-env=CODER_AGENT_TOKEN /bin/bash -- <<-'    EOT' &
     while [[ ! $(systemctl is-system-running) =~ ^(running|degraded) ]]
@@ -488,7 +488,7 @@ resource "kubernetes_pod" "dev" {
       echo "Waiting for system to start... $(systemctl is-system-running)"
       sleep 2
     done
-    ${coder_agent.main.init_script}
+    ${coder_workspace_daemon.main.init_script}
     EOT
 
     exec /sbin/init

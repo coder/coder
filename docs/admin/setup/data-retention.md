@@ -1,7 +1,7 @@
 # Data Retention
 
 Coder supports configurable retention policies that automatically purge old
-Audit Logs, Connection Logs, Workspace Agent Logs, API keys, and AI Bridge
+Audit Logs, Connection Logs, Workspace Daemon Logs, API keys, and AI Bridge
 records. These policies help manage database growth by removing records older
 than a specified duration.
 
@@ -17,7 +17,7 @@ Retention policies help you:
 
 > [!NOTE]
 > Retention policies are disabled by default (set to `0`) to preserve existing
-> behavior. The exceptions are API keys and workspace agent logs, which default
+> behavior. The exceptions are API keys and workspace daemon logs, which default
 > to 7 days.
 
 ## Configuration
@@ -32,7 +32,7 @@ a YAML configuration file.
 | Audit Logs           | `--audit-logs-retention`           | `CODER_AUDIT_LOGS_RETENTION`           | `0` (disabled) | How long to retain Audit Log entries    |
 | Connection Logs      | `--connection-logs-retention`      | `CODER_CONNECTION_LOGS_RETENTION`      | `0` (disabled) | How long to retain Connection Logs      |
 | API Keys             | `--api-keys-retention`             | `CODER_API_KEYS_RETENTION`             | `7d`           | How long to retain expired API keys     |
-| Workspace Agent Logs | `--workspace-agent-logs-retention` | `CODER_WORKSPACE_AGENT_LOGS_RETENTION` | `7d`           | How long to retain workspace agent logs |
+| Workspace Daemon Logs | `--workspace-agent-logs-retention` | `CODER_WORKSPACE_AGENT_LOGS_RETENTION` | `7d`           | How long to retain workspace daemon logs |
 | AI Bridge            | `--aibridge-retention`             | `CODER_AIBRIDGE_RETENTION`             | `60d`          | How long to retain AI Bridge records    |
 
 > [!NOTE]
@@ -117,16 +117,16 @@ ago. Active keys are never deleted by the retention policy.
 Keeping expired keys for a short period allows Coder to return a more helpful
 error message when users attempt to use an expired key.
 
-### Workspace Agent Logs Behavior
+### Workspace Daemon Logs Behavior
 
-Workspace agent logs are deleted based on when the agent last connected, not the
+Workspace daemon logs are deleted based on when the workspace daemon last connected, not the
 age of the logs themselves. **Logs from the latest build of each workspace are
-always retained** regardless of when the agent last connected. This ensures you
+always retained** regardless of when the workspace daemon last connected. This ensures you
 can always debug issues with active workspaces.
 
-For non-latest builds, logs are deleted if the agent hasn't connected within the
+For non-latest builds, logs are deleted if the workspace daemon hasn't connected within the
 retention period. Setting `--workspace-agent-logs-retention=7d` deletes logs for
-agents that haven't connected in 7 days (excluding those from the latest build).
+workspace daemons that haven't connected in 7 days (excluding those from the latest build).
 
 ### AI Bridge Data Behavior
 

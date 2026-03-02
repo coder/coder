@@ -3,32 +3,32 @@
 The dev container integration appears in your Coder dashboard, providing a
 visual representation of the running environment:
 
-![Two dev containers running as sub-agents in a Coder workspace](../../images/user-guides/devcontainers/devcontainer-running.png)_Dev containers appear as sub-agents with their own apps, SSH access, and port forwarding_
+![Two dev containers running as sub-daemons in a Coder workspace](../../images/user-guides/devcontainers/devcontainer-running.png)_Dev containers appear as sub-daemons with their own apps, SSH access, and port forwarding_
 
 ## SSH access
 
-Each dev container has its own agent name, derived from the workspace folder
-(e.g., `/home/coder/my-project` becomes `my-project`). You can find agent names
+Each dev container has its own name, derived from the workspace folder
+(e.g., `/home/coder/my-project` becomes `my-project`). You can find names
 in your workspace dashboard, or see
-[Agent naming](./index.md#agent-naming) for details on how names are generated.
+[Workspace daemon naming](./index.md#workspace-daemon-naming) for details on how names are generated.
 
 ### Using the Coder CLI
 
 The simplest way to SSH into a dev container is using `coder ssh` with the
-workspace and agent name:
+workspace and workspace daemon name:
 
 ```console
 coder ssh <workspace>.<agent>
 ```
 
-For example, to connect to a dev container with agent name `my-project` in
+For example, to connect to a dev container with workspace daemon name `my-project` in
 workspace `my-workspace`:
 
 ```console
 coder ssh my-workspace.my-project
 ```
 
-To SSH into the main workspace agent instead of the dev container:
+To SSH into the main workspace daemon instead of the dev container:
 
 ```console
 coder ssh my-workspace
@@ -44,7 +44,7 @@ coder config-ssh
 ```
 
 This creates a wildcard SSH host entry that matches all your workspaces and
-their agents, including dev container sub-agents. You can then connect using:
+their workspace daemons, including dev container sub-daemons. You can then connect using:
 
 ```console
 ssh my-project.my-workspace.me.coder
@@ -69,7 +69,7 @@ in the Coder interface to execute commands directly inside the dev container.
 
 You can open your dev container directly in VS Code by:
 
-1. Selecting **Open in VS Code Desktop** from the dev container agent in the
+1. Selecting **Open in VS Code Desktop** from the dev container workspace daemon in the
    Coder web interface.
 1. Using the Coder CLI:
 
@@ -91,14 +91,14 @@ work.
 
 ## Port forwarding
 
-Since dev containers run as sub-agents, you can forward ports directly to them
+Since dev containers run as sub-daemons, you can forward ports directly to them
 using standard Coder port forwarding:
 
 ```console
 coder port-forward <workspace>.<agent> --tcp 8080
 ```
 
-For example, to forward port 8080 from a dev container with agent name
+For example, to forward port 8080 from a dev container with workspace daemon name
 `my-project`:
 
 ```console
@@ -110,8 +110,8 @@ container. Coder also automatically detects ports opened inside the container.
 
 ### Exposing ports on the parent workspace
 
-If you need to expose dev container ports through the parent workspace agent
-(rather than the sub-agent), you can use the
+If you need to expose dev container ports through the parent workspace daemon
+(rather than the sub-daemon), you can use the
 [`appPort`](https://containers.dev/implementors/json_reference/#image-specific)
 property in your `devcontainer.json`:
 
@@ -122,7 +122,7 @@ property in your `devcontainer.json`:
 ```
 
 This maps container ports to the parent workspace, which can then be forwarded
-using the main workspace agent.
+using the main workspace daemon.
 
 ## Dev container features
 

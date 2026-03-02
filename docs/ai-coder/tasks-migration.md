@@ -76,7 +76,7 @@ terraform {
 
 data "coder_workspace" "me" {}
 
-resource "coder_agent" "main" { ... }
+resource "coder_workspace_daemon" "main" { ... }
 
 # The prompt is passed in via the specifically named "AI Prompt" parameter.
 data "coder_parameter" "ai_prompt" {
@@ -93,7 +93,7 @@ resource "coder_app" "ai_agent" {
 # Assuming that the below script runs `coder/agentapi` with the prompt
 # defined in ARG_AI_PROMPT
 resource "coder_script" "agentapi" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_workspace_daemon.main.id
   run_on_start = true
   script       = <<EOT
     #!/usr/bin/env bash
@@ -136,7 +136,7 @@ data "coder_workspace" "me" {}
 # The prompt is now available in the coder_task data source.
 data "coder_task" "me" {}
 
-resource "coder_agent" "main" { ... }
+resource "coder_workspace_daemon" "main" { ... }
 
 # This coder_app is the interface to the Coder Task.
 # This is assumed to be a running instance of coder/agentapi (for instance, started via `coder_script`).
@@ -147,7 +147,7 @@ resource "coder_app" "ai_agent" {
 # Assuming that the below script runs `coder/agentapi` with the prompt
 # defined in ARG_AI_PROMPT
 resource "coder_script" "agentapi" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_workspace_daemon.main.id
   run_on_start = true
   script       = <<EOT
     #!/usr/bin/env bash

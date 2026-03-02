@@ -90,13 +90,13 @@ resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = "codercom/enterprise-base:ubuntu"
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  entrypoint = ["sh", "-c", coder_agent.main.init_script]
+  entrypoint = ["sh", "-c", coder_workspace_daemon.main.init_script]
   env        = [
-    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AGENT_TOKEN=${coder_workspace_daemon.main.token}",
     ]
 }
 
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   arch           = data.coder_provisioner.me.arch
   os             = "linux"
 }
@@ -105,13 +105,13 @@ module "git-clone" {
   count             = data.coder_workspace.me.start_count
   source            = "registry.coder.com/coder/git-clone/coder"
   version           = "1.2.3"
-  agent_id          = coder_agent.main.id
+  agent_id          = coder_workspace_daemon.main.id
   url               = "https://github.com/miguelgrinberg/microblog"
 }
 
 resource "coder_script" "setup" {
   count              = data.coder_workspace.me.start_count
-  agent_id           = coder_agent.main.id
+  agent_id           = coder_workspace_daemon.main.id
   display_name       = "Installing Dependencies"
   run_on_start       = true
   script             = <<EOT
@@ -148,14 +148,14 @@ resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
   image = "codercom/enterprise-base:ubuntu"
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  entrypoint = ["sh", "-c", coder_agent.main.init_script]
+  entrypoint = ["sh", "-c", coder_workspace_daemon.main.init_script]
   env        = [
-    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AGENT_TOKEN=${coder_workspace_daemon.main.token}",
     "CODER_AGENT_SOCKET_SERVER_ENABLED=true"
     ]
 }
 
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   arch           = data.coder_provisioner.me.arch
   os             = "linux"
 }
@@ -164,7 +164,7 @@ module "git-clone" {
   count             = data.coder_workspace.me.start_count
   source            = "registry.coder.com/coder/git-clone/coder"
   version           = "1.2.3"
-  agent_id          = coder_agent.main.id
+  agent_id          = coder_workspace_daemon.main.id
   url               = "https://github.com/miguelgrinberg/microblog/"
   post_clone_script = <<-EOT
     coder exp sync start git-clone && coder exp sync complete git-clone
@@ -173,7 +173,7 @@ module "git-clone" {
 
 resource "coder_script" "apt-install" {
   count              = data.coder_workspace.me.start_count
-  agent_id           = coder_agent.main.id
+  agent_id           = coder_workspace_daemon.main.id
   display_name       = "Installing APT Dependencies"
   run_on_start       = true
   script             = <<EOT
@@ -187,7 +187,7 @@ resource "coder_script" "apt-install" {
 
 resource "coder_script" "pip-install" {
   count              = data.coder_workspace.me.start_count
-  agent_id           = coder_agent.main.id
+  agent_id           = coder_workspace_daemon.main.id
   display_name       = "Installing Python Dependencies"
   run_on_start       = true
   script             = <<EOT
@@ -205,7 +205,7 @@ resource "coder_script" "pip-install" {
 
 A short summary of the changes:
 
-- We've added `CODER_AGENT_SOCKET_SERVER_ENABLED=true` to the environment variables of the Docker container in which the Coder agent runs.
+- We've added `CODER_AGENT_SOCKET_SERVER_ENABLED=true` to the environment variables of the Docker container in which the workspace daemon runs.
 - We've broken the monolithic "setup" script into two separate scripts: one for the `apt` commands, and one for the `pip` commands.
   - In each script, we've added a `coder exp sync start $SCRIPT_NAME` command to mark the startup script as started.
   - We've also added an exit trap to ensure that we mark the startup scripts as completed. Without this, the `coder exp sync wait` command would eventually time out.

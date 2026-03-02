@@ -12,7 +12,7 @@ import { docs } from "utils/docs";
 
 const Language = {
 	title: "Why are some events missing?",
-	body: "The connection log is a best-effort log of workspace access. Some events are reported by workspace agents, and receipt of these events by the server is not guaranteed.",
+	body: "The connection log is a best-effort log of workspace access. Some events are reported by workspace daemons, and receipt of these events by the server is not guaranteed.",
 	docs: "Connection log documentation",
 };
 

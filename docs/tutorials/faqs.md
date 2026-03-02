@@ -104,7 +104,7 @@ properly.
 
 The visibility of Coder apps is configurable in the template. To change the
 default (shows all), add this block inside the
-[`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
+[`coder_workspace_daemon`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
 of a template and configure as needed:
 
 ```tf
@@ -154,10 +154,10 @@ resource "coder_app" "code-server" {
 ## I installed Coder and created a workspace but the icons do not load
 
 An important concept to understand is that Coder creates workspaces which have
-an agent that must be able to reach the `coder server`.
+a workspace daemon that must be able to reach the `coder server`.
 
 If the [`CODER_ACCESS_URL`](../admin/setup/index.md#access-url) is not
-accessible from a workspace, the workspace may build, but the agent cannot reach
+accessible from a workspace, the workspace may build, but the workspace daemon cannot reach
 Coder, and thus the missing icons. e.g., Terminal, IDEs, Apps.
 
 By default, `coder server` automatically creates an Internet-accessible
@@ -471,7 +471,7 @@ like code-server when creating the workspace.
     # code-server
     resource "coder_app" "code-server" {
     count         = data.coder_parameter.code_server.value ? 1 : 0
-    agent_id      = coder_agent.coder.id
+    agent_id      = coder_workspace_daemon.coder.id
     slug          = "code-server"
     display_name  = "code-server"
     icon          = "/icon/code.svg"
@@ -542,7 +542,7 @@ block list, which includes `scp`, `rsync`, `ftp`, and `nc`.
 resource "docker_container" "workspace" {
   ...
   env = [
-    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
+    "CODER_AGENT_TOKEN=${coder_workspace_daemon.main.token}",
     "CODER_AGENT_BLOCK_FILE_TRANSFER=true",
     ...
   ]

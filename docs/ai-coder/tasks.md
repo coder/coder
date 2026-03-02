@@ -80,7 +80,7 @@ resource "coder_ai_task" "task" {
 module "claude-code" {
   source   = "registry.coder.com/coder/claude-code/coder"
   version  = "4.0.0"
-  agent_id = coder_agent.example.id
+  agent_id = coder_workspace_daemon.example.id
   workdir  = "/home/coder/project"
 
   claude_api_key = var.anthropic_api_key

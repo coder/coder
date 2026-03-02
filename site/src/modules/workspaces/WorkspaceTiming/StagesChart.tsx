@@ -292,7 +292,7 @@ export const agentStages = (section: string, agentId: string): Stage[] => {
 			agentId,
 			tooltip: {
 				heading: "Run startup scripts",
-				description: "Execute each agent startup script.",
+				description: "Execute each workspace daemon startup script.",
 			},
 		},
 	];

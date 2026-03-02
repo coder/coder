@@ -71,15 +71,15 @@ Edit your Helm `values.yaml` to capture metrics from Coder Server and external p
    CODER_PROMETHEUS_COLLECT_DB_METRICS=true
    ```
 
-1. For a high scale deployment, configure agent stats to avoid large cardinality or disable them:
+1. For a high scale deployment, configure workspace daemon stats to avoid large cardinality or disable them:
 
-   - Configure agent stats:
+   - Configure workspace daemon stats:
 
      ```yaml
      CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY=agent_name
      ```
 
-   - Disable agent stats:
+   - Disable workspace daemon stats:
 
      ```yaml
      CODER_PROMETHEUS_COLLECT_AGENT_STATS=false

@@ -33,7 +33,7 @@ Terraform configuration.
 module "git-clone" {
   source   = "registry.coder.com/modules/git-clone/coder"
   version  = "1.0.12"
-  agent_id = coder_agent.example.id
+  agent_id = coder_workspace_daemon.example.id
   url      = "https://github.com/coder/coder"
 }
 ```
@@ -57,7 +57,7 @@ data "coder_parameter" "git_repo" {
 module "git-clone" {
   source   = "registry.coder.com/modules/git-clone/coder"
   version  = "1.0.12"
-  agent_id = coder_agent.example.id
+  agent_id = coder_workspace_daemon.example.id
   url      = data.coder_parameter.git_repo.value
 }
 ```

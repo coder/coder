@@ -44,7 +44,7 @@ locals {
 }
 
 resource "coder_app" "rdp-coder-desktop" {
-  agent_id     = resource.coder_agent.main.id
+  agent_id     = resource.coder_workspace_daemon.main.id
   slug         = "rdp-desktop"
   display_name = "RDP Desktop"
   url          = "coder://${local.server_name}/v0/open/ws/${data.coder_workspace.me.name}/agent/main/rdp?username=Administrator&password=coderRDP!"

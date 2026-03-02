@@ -9,7 +9,7 @@ used as a Coder application. For example:
 # Add button to open Portainer in the workspace dashboard
 # Note: Portainer must be already running in the workspace
 resource "coder_app" "portainer" {
-  agent_id      = coder_agent.main.id
+  agent_id      = coder_workspace_daemon.main.id
   slug          = "portainer"
   display_name  = "Portainer"
   icon          = "https://simpleicons.org/icons/portainer.svg"
@@ -27,7 +27,7 @@ resource "coder_app" "portainer" {
 
 [code-server](https://github.com/coder/code-server) is our supported method of running
 VS Code in the web browser. A simple way to install code-server in Linux/macOS
-workspaces is via the Coder agent in your template:
+workspaces is via the workspace daemon in your template:
 
 ```console
 # edit your template
@@ -36,7 +36,7 @@ vim main.tf
 ```
 
 ```tf
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
     arch           = "amd64"
     os             = "linux"
     startup_script = <<EOF
@@ -68,16 +68,16 @@ USER coder
 # pre-install VS Code extensions
 RUN code-server --install-extension eamodio.gitlens
 
-# directly start code-server with the agent's startup_script (see above),
+# directly start code-server with the workspace daemon's startup_script (see above),
 # or use a process manager like supervisord
 ```
 
-You'll also need to specify a `coder_app` resource related to the agent. This is
+You'll also need to specify a `coder_app` resource related to the workspace daemon. This is
 how code-server is displayed on the workspace page.
 
 ```tf
 resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_workspace_daemon.main.id
   slug         = "code-server"
   display_name = "code-server"
   url          = "http://localhost:13337/?folder=/home/coder"
@@ -108,16 +108,15 @@ command. To add VS Code web as a web IDE, you have two options.
    module "vscode-web" {
      source         = "registry.coder.com/modules/vscode-web/coder"
      version        = "1.0.14"
-     agent_id       = coder_agent.main.id
-     accept_license = true
-   }
+   agent_id       = coder_workspace_daemon.main.id
+   accept_license = true   }
    ```
 
 2. Install and start in your `startup_script` and create a corresponding
    `coder_app`
 
    ```tf
-   resource "coder_agent" "main" {
+   resource "coder_workspace_daemon" "main" {
        arch           = "amd64"
        os             = "linux"
        startup_script = <<EOF
@@ -140,7 +139,7 @@ command. To add VS Code web as a web IDE, you have two options.
    ```tf
    # VS Code Web
    resource "coder_app" "vscode-web" {
-     agent_id     = coder_agent.coder.id
+     agent_id     = coder_workspace_daemon.coder.id
      slug         = "vscode-web"
      display_name = "VS Code Web"
      icon         = "/icon/code.svg"
@@ -160,7 +159,7 @@ from the Coder registry:
 module "jupyter-notebook" {
   source   = "registry.coder.com/modules/jupyter-notebook/coder"
   version  = "1.0.19"
-  agent_id = coder_agent.example.id
+  agent_id = coder_workspace_daemon.example.id
 }
 ```
 
@@ -168,13 +167,13 @@ module "jupyter-notebook" {
 
 ## JupyterLab
 
-Configure your agent and `coder_app` like so to use Jupyter. Notice the
+Configure your workspace daemon and `coder_app` like so to use Jupyter. Notice the
 `subdomain=true` configuration:
 
 ```tf
 data "coder_workspace" "me" {}
 
-resource "coder_agent" "coder" {
+resource "coder_workspace_daemon" "coder" {
   os             = "linux"
   arch           = "amd64"
   dir            = "/home/coder"
@@ -185,7 +184,7 @@ EOF
 }
 
 resource "coder_app" "jupyter" {
-  agent_id     = coder_agent.coder.id
+  agent_id     = coder_workspace_daemon.coder.id
   slug         = "jupyter"
   display_name = "JupyterLab"
   url          = "http://localhost:8888"
@@ -207,7 +206,7 @@ Or Alternatively, you can use the JupyterLab module from the Coder registry:
 module "jupyter" {
   source   = "registry.coder.com/modules/jupyter-lab/coder"
   version  = "1.0.0"
-  agent_id = coder_agent.main.id
+  agent_id = coder_workspace_daemon.main.id
 }
 ```
 
@@ -222,11 +221,11 @@ value substitution to recreate the path structure.
 
 ## RStudio
 
-Configure your agent and `coder_app` like so to use RStudio. Notice the
+Configure your workspace daemon and `coder_app` like so to use RStudio. Notice the
 `subdomain=true` configuration:
 
 ```tf
-resource "coder_agent" "coder" {
+resource "coder_workspace_daemon" "coder" {
   os             = "linux"
   arch           = "amd64"
   dir            = "/home/coder"
@@ -238,7 +237,7 @@ EOT
 }
 
 resource "coder_app" "rstudio" {
-  agent_id      = coder_agent.coder.id
+  agent_id      = coder_workspace_daemon.coder.id
   slug          = "rstudio"
   display_name  = "R Studio"
   icon          = "https://upload.wikimedia.org/wikipedia/commons/d/d0/RStudio_logo_flat.svg"
@@ -269,11 +268,11 @@ community template example.
 
 ## Airflow
 
-Configure your agent and `coder_app` like so to use Airflow. Notice the
+Configure your workspace daemon and `coder_app` like so to use Airflow. Notice the
 `subdomain=true` configuration:
 
 ```tf
-resource "coder_agent" "coder" {
+resource "coder_workspace_daemon" "coder" {
   os   = "linux"
   arch = "amd64"
   dir  = "/home/coder"
@@ -286,7 +285,7 @@ EOT
 }
 
 resource "coder_app" "airflow" {
-  agent_id      = coder_agent.coder.id
+  agent_id      = coder_workspace_daemon.coder.id
   slug          = "airflow"
   display_name  = "Airflow"
   icon          = "/icon/airflow.svg"
@@ -309,7 +308,7 @@ from the Coder registry:
 module "airflow" {
   source   = "registry.coder.com/modules/airflow/coder"
   version  = "1.0.13"
-  agent_id = coder_agent.main.id
+  agent_id = coder_workspace_daemon.main.id
 }
 ```
 
@@ -324,7 +323,7 @@ manipulate files in a web browser.
 Show and manipulate the contents of the `/home/coder` directory in a browser.
 
 ```tf
-resource "coder_agent" "coder" {
+resource "coder_workspace_daemon" "coder" {
   os   = "linux"
   arch = "amd64"
   dir  = "/home/coder"
@@ -338,7 +337,7 @@ EOT
 }
 
 resource "coder_app" "filebrowser" {
-  agent_id     = coder_agent.coder.id
+  agent_id     = coder_workspace_daemon.coder.id
   display_name = "file browser"
   slug         = "filebrowser"
   url          = "http://localhost:13339"
@@ -362,7 +361,7 @@ Coder registry:
 module "filebrowser" {
   source   = "registry.coder.com/modules/filebrowser/coder"
   version  = "1.0.8"
-  agent_id = coder_agent.main.id
+  agent_id = coder_workspace_daemon.main.id
 }
 ```
 

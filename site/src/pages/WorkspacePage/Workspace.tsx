@@ -274,21 +274,21 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 		});
 	});
 
-	var title = "Workspace agents are not connected";
+	var title = "Workspace daemons are not connected";
 	var message =
-		"Your workspace cannot be used until an agent connects. Continue to wait and check the log output of your workspace for any errors.";
+		"Your workspace cannot be used until a workspace daemon connects. Continue to wait and check the log output of your workspace for any errors.";
 
 	// Disconnected is a more serious failure than timeout, so we can
 	// prioritize handling it first.
 	if (failureSet.has("disconnected")) {
-		title = "Workspace agents have disconnected";
+		title = "Workspace daemons have disconnected";
 		message =
-			"Continue to wait and check the log output of your workspace for any errors. If the agent does not reconnect, restarting the workspace can be used to try again.";
+			"Continue to wait and check the log output of your workspace for any errors. If the workspace daemon does not reconnect, restarting the workspace can be used to try again.";
 	} else if (failureSet.has("timeout")) {
 		// Handle timeout case
-		title = "Your workspace is starting, but the agent has not yet connected.";
+		title = "Your workspace is starting, but the workspace daemon has not yet connected.";
 		message =
-			"The agent is taking longer than expected to connect. Continue to wait and check the log output of your workspace for any errors. If the agent does not connect, restarting the workspace can be used to try again.";
+			"The workspace daemon is taking longer than expected to connect. Continue to wait and check the log output of your workspace for any errors. If the workspace daemon does not connect, restarting the workspace can be used to try again.";
 	}
 
 	return (
@@ -298,8 +298,8 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 				<p>
 					Your workspace is running but{" "}
 					{failingAgentCount > 1
-						? `${failingAgentCount} agents have not connected yet.`
-						: "the agent has not connected yet."}
+						? `${failingAgentCount} workspace daemons have not connected yet.`
+						: "the workspace daemon has not connected yet."}
 					.{" "}
 				</p>
 				<p>{message}</p>

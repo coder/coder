@@ -96,7 +96,7 @@ You can modify the notification delivery behavior in your Coder deployment's
 You can monitor out of memory (OOM) and out of disk (OOD) errors and alert users
 when they overutilize memory and disk.
 
-This can help prevent agent disconnects due to OOM/OOD issues.
+This can help prevent workspace daemon disconnects due to OOM/OOD issues.
 
 To enable OOM/OOD notifications on a template, follow the steps in the
 [resource monitoring guide](../../templates/extending-templates/resource-monitoring.md).
