@@ -3,6 +3,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "api/typesGenerated";
+import { toast } from "sonner";
 
 // This is a magic undocumented string that is replaced
 // with a brand-new session token from the backend.
@@ -79,7 +80,12 @@ export const getTerminalHref = ({
 };
 
 export const openAppInNewWindow = (href: string) => {
-	window.open(href, "_blank", "width=900,height=600");
+	const popup = window.open(href, "_blank", "width=900,height=600");
+	if (!popup) {
+		toast.error("Failed to open app in new window.", {
+			description: "Popup blocked. Allow popups to open this app.",
+		});
+	}
 };
 
 type GetAppHrefParams = {

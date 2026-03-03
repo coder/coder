@@ -33,7 +33,7 @@ import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { WorkspaceParametersPageViewExperimental } from "./WorkspaceParametersPageViewExperimental";
 
 const WorkspaceParametersPageExperimental: FC = () => {
-	const workspace = useWorkspaceSettings();
+	const { workspace } = useWorkspaceSettings();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const templateVersionId = searchParams.get("templateVersionId") ?? undefined;

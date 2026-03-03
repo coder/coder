@@ -135,6 +135,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/aibridge/models": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Bridge"
+                ],
+                "summary": "List AI Bridge models",
+                "operationId": "list-ai-bridge-models",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/appearance": {
             "get": {
                 "security": [
@@ -449,6 +477,34 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.BuildInfoResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/archive": {
+            "post": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Archive a chat",
+                "operationId": "archive-chat",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/unarchive": {
+            "post": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Unarchive a chat",
+                "operationId": "unarchive-chat",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -8238,6 +8294,12 @@ const docTemplate = `{
                         "name": "user",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include expired tokens in the list",
+                        "name": "include_expired",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -9545,6 +9607,7 @@ const docTemplate = `{
                 ],
                 "summary": "Patch workspace agent app status",
                 "operationId": "patch-workspace-agent-app-status",
+                "deprecated": true,
                 "parameters": [
                     {
                         "description": "app status",
@@ -12748,6 +12811,11 @@ const docTemplate = `{
                 "boundary_usage:delete",
                 "boundary_usage:read",
                 "boundary_usage:update",
+                "chat:*",
+                "chat:create",
+                "chat:delete",
+                "chat:read",
+                "chat:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -12952,6 +13020,11 @@ const docTemplate = `{
                 "APIKeyScopeBoundaryUsageDelete",
                 "APIKeyScopeBoundaryUsageRead",
                 "APIKeyScopeBoundaryUsageUpdate",
+                "APIKeyScopeChatAll",
+                "APIKeyScopeChatCreate",
+                "APIKeyScopeChatDelete",
+                "APIKeyScopeChatRead",
+                "APIKeyScopeChatUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -14813,6 +14886,9 @@ const docTemplate = `{
                 "external_auth": {
                     "$ref": "#/definitions/serpent.Struct-array_codersdk_ExternalAuthConfig"
                 },
+                "external_auth_github_default_provider_enable": {
+                    "type": "boolean"
+                },
                 "external_token_encryption_keys": {
                     "type": "array",
                     "items": {
@@ -15097,17 +15173,17 @@ const docTemplate = `{
                 "workspace-usage",
                 "web-push",
                 "oauth2",
-                "mcp-server-http",
-                "workspace-sharing"
+                "agents",
+                "mcp-server-http"
             ],
             "x-enum-comments": {
+                "ExperimentAgents": "Enables agent-powered chat functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
-                "ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
@@ -15117,8 +15193,8 @@ const docTemplate = `{
                 "Enables the new workspace usage tracking.",
                 "Enables web push notifications through the browser.",
                 "Enables OAuth2 provider functionality.",
-                "Enables the MCP HTTP server functionality.",
-                "Enables updating workspace ACLs for sharing with users and groups."
+                "Enables agent-powered chat functionality.",
+                "Enables the MCP HTTP server functionality."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -15127,8 +15203,8 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
-                "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceSharing"
+                "ExperimentAgents",
+                "ExperimentMCPServerHTTP"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -15571,6 +15647,9 @@ const docTemplate = `{
         "codersdk.HTTPCookieConfig": {
             "type": "object",
             "properties": {
+                "host_prefix": {
+                    "type": "boolean"
+                },
                 "same_site": {
                     "type": "string"
                 },
@@ -16780,6 +16859,14 @@ const docTemplate = `{
                 },
                 "organization_mapping": {
                     "type": "object"
+                },
+                "redirect_url": {
+                    "description": "RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche\nsituations where the OIDC callback domain is different from the ACCESS_URL\ndomain.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/serpent.URL"
+                        }
+                    ]
                 },
                 "scopes": {
                     "type": "array",
@@ -18057,6 +18144,7 @@ const docTemplate = `{
                 "assign_role",
                 "audit_log",
                 "boundary_usage",
+                "chat",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -18102,6 +18190,7 @@ const docTemplate = `{
                 "ResourceAssignRole",
                 "ResourceAuditLog",
                 "ResourceBoundaryUsage",
+                "ResourceChat",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
@@ -22864,7 +22953,7 @@ const docTemplate = `{
                     ]
                 },
                 "default": {
-                    "description": "Default is parsed into Value if set.",
+                    "description": "Default is parsed into Value if set.\nMust be ` + "`" + `\"\"` + "`" + ` if ` + "`" + `DefaultFn` + "`" + ` != nil",
                     "type": "string"
                 },
                 "description": {

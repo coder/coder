@@ -1,5 +1,5 @@
 import { API } from "api/api";
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { pauseTask, resumeTask } from "api/queries/tasks";
 import type { Task, TasksFilter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -11,7 +11,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -36,6 +35,7 @@ import {
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
 import { taskStatusToStatusIndicatorVariant } from "../TaskStatus/TaskStatus";
@@ -196,13 +196,23 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 	const pauseMutation = useMutation({
 		...pauseTask(task, queryClient),
 		onError: (error: unknown) => {
-			displayError(getErrorMessage(error, "Failed to pause task."));
+			toast.error(
+				getErrorMessage(error, `Failed to pause task "${task.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 	const resumeMutation = useMutation({
 		...resumeTask(task, queryClient),
 		onError: (error: unknown) => {
-			displayError(getErrorMessage(error, "Failed to resume task."));
+			toast.error(
+				getErrorMessage(error, `Failed to resume task "${task.name}".`),
+				{
+					description: getErrorDetail(error),
+				},
+			);
 		},
 	});
 

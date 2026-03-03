@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -434,4 +436,133 @@ func TestAIBridgeInterception(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestChatMessage_ReasoningPartWithoutPersistedTitleIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	assistantContent, err := json.Marshal([]fantasy.Content{
+		fantasy.ReasoningContent{
+			Text: "Plan migration",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+					ItemID:  "reasoning-1",
+					Summary: []string{"Plan migration"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	message := db2sdk.ChatMessage(database.ChatMessage{
+		ID:        1,
+		ChatID:    uuid.New(),
+		CreatedAt: time.Now(),
+		Role:      string(fantasy.MessageRoleAssistant),
+		Content: pqtype.NullRawMessage{
+			RawMessage: assistantContent,
+			Valid:      true,
+		},
+	})
+
+	require.Len(t, message.Content, 1)
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
+	require.Equal(t, "Plan migration", message.Content[0].Text)
+	require.Empty(t, message.Content[0].Title)
+}
+
+func TestChatMessage_ReasoningPartPrefersPersistedTitle(t *testing.T) {
+	t.Parallel()
+
+	reasoningContent, err := json.Marshal(fantasy.ReasoningContent{
+		Text: "Verify schema updates, then apply changes in order.",
+		ProviderMetadata: fantasy.ProviderMetadata{
+			fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+				ItemID: "reasoning-1",
+				Summary: []string{
+					"**Metadata-derived title**\n\nLonger explanation.",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var envelope map[string]any
+	require.NoError(t, json.Unmarshal(reasoningContent, &envelope))
+	dataValue, ok := envelope["data"].(map[string]any)
+	require.True(t, ok)
+	dataValue["title"] = "Persisted stream title"
+
+	encodedReasoning, err := json.Marshal(envelope)
+	require.NoError(t, err)
+	assistantContent, err := json.Marshal([]json.RawMessage{encodedReasoning})
+	require.NoError(t, err)
+
+	message := db2sdk.ChatMessage(database.ChatMessage{
+		ID:        1,
+		ChatID:    uuid.New(),
+		CreatedAt: time.Now(),
+		Role:      string(fantasy.MessageRoleAssistant),
+		Content: pqtype.NullRawMessage{
+			RawMessage: assistantContent,
+			Valid:      true,
+		},
+	})
+
+	require.Len(t, message.Content, 1)
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
+	require.Equal(t, "Persisted stream title", message.Content[0].Title)
+}
+
+func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
+	t.Parallel()
+
+	rawContent, err := json.Marshal([]fantasy.Content{
+		fantasy.TextContent{Text: "queued text"},
+	})
+	require.NoError(t, err)
+
+	queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
+		ID:        1,
+		ChatID:    uuid.New(),
+		Content:   rawContent,
+		CreatedAt: time.Now(),
+	})
+
+	require.Len(t, queued.Content, 1)
+	require.Equal(t, codersdk.ChatMessagePartTypeText, queued.Content[0].Type)
+	require.Equal(t, "queued text", queued.Content[0].Text)
+}
+
+func TestChatQueuedMessage_FallsBackToTextForLegacyContent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("legacy_string", func(t *testing.T) {
+		t.Parallel()
+
+		queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
+			ID:        1,
+			ChatID:    uuid.New(),
+			Content:   json.RawMessage(`"legacy queued text"`),
+			CreatedAt: time.Now(),
+		})
+
+		require.Len(t, queued.Content, 1)
+		require.Equal(t, codersdk.ChatMessagePartTypeText, queued.Content[0].Type)
+		require.Equal(t, "legacy queued text", queued.Content[0].Text)
+	})
+
+	t.Run("malformed_payload", func(t *testing.T) {
+		t.Parallel()
+
+		raw := json.RawMessage(`{"unexpected":"shape"}`)
+		queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
+			ID:        1,
+			ChatID:    uuid.New(),
+			Content:   raw,
+			CreatedAt: time.Now(),
+		})
+
+		require.Empty(t, queued.Content)
+	})
 }

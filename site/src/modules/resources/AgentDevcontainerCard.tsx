@@ -22,7 +22,6 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "components/Dialog/Dialog";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -35,6 +34,7 @@ import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { AppStatuses } from "pages/WorkspacePage/AppStatuses";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { portForwardURL } from "utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -144,7 +144,9 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 			const errorMessage =
 				error instanceof Error ? error.message : "An unknown error occurred.";
-			displayError(`Failed to rebuild devcontainer: ${errorMessage}`);
+			toast.error(`Failed to rebuild devcontainer "${devcontainer.name}".`, {
+				description: errorMessage,
+			});
 			console.error("Failed to rebuild devcontainer:", error);
 		},
 	});

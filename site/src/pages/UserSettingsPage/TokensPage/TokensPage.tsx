@@ -27,6 +27,7 @@ const TokensPage: FC = () => {
 		// we currently do not show all tokens in the UI, even if
 		// the user has read all permissions
 		include_all: false,
+		include_expired: false,
 	});
 
 	return (

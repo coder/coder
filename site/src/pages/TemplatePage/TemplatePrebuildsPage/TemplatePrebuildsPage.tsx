@@ -2,11 +2,11 @@ import { API } from "api/api";
 import type { InvalidatePresetsResponse } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { RefreshCw } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import type { FC } from "react";
 import { useMutation } from "react-query";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 
 const TemplatePrebuildsPage: FC = () => {
@@ -31,7 +31,7 @@ export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 		mutationFn: () => API.invalidateTemplatePresets(templateId),
 		onSuccess: (data: InvalidatePresetsResponse) => {
 			if (data.invalidated.length === 0) {
-				displaySuccess("No template presets required invalidation.");
+				toast.success("No template presets required invalidation.");
 				return;
 			}
 
@@ -39,8 +39,8 @@ export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 			const { template_version_name } = data.invalidated[0];
 			const count = data.invalidated.length;
 
-			displaySuccess(
-				`Invalidated ${count} ${count === 1 ? "preset" : "presets"} for version ${template_version_name}.`,
+			toast.success(
+				`Invalidated ${count} ${count === 1 ? "preset" : "presets"} for version "${template_version_name}".`,
 			);
 		},
 	});

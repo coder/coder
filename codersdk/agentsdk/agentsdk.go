@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"sync"
 	"time"
@@ -321,21 +320,15 @@ func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIV
 	}
 	rpcURL.RawQuery = q.Encode()
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(rpcURL, []*http.Cookie{{
-		Name:  codersdk.SessionTokenCookie,
-		Value: c.SDK.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.SDK.HTTPClient.Transport,
 	}
 	// nolint:bodyclose
 	conn, res, err := websocket.Dial(ctx, rpcURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
+		HTTPHeader: http.Header{
+			codersdk.SessionTokenHeader: []string{c.SDK.SessionToken()},
+		},
 	})
 	if err != nil {
 		if res == nil {
@@ -645,6 +638,16 @@ type ExternalAuthRequest struct {
 	ID string
 	// Match is an arbitrary string matched against the regex of the provider.
 	Match string
+	// GitBranch is the current git branch in the working directory.
+	// Sent by the agent so the control plane can resolve diffs
+	// without SSHing into the workspace.
+	GitBranch string
+	// GitRemoteOrigin is the remote origin URL of the git repository.
+	// Sent by the agent so the control plane can resolve diffs
+	// without SSHing into the workspace.
+	GitRemoteOrigin string
+	// ChatID identifies which chat initiated the git operation.
+	ChatID string
 	// Listen indicates that the request should be long-lived and listen for
 	// a new token to be requested.
 	Listen bool
@@ -659,6 +662,15 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 	}
 	if req.Listen {
 		q.Set("listen", "true")
+	}
+	if req.GitBranch != "" {
+		q.Set("git_branch", req.GitBranch)
+	}
+	if req.GitRemoteOrigin != "" {
+		q.Set("git_remote_origin", req.GitRemoteOrigin)
+	}
+	if req.ChatID != "" {
+		q.Set("chat_id", req.ChatID)
 	}
 	reqURL := "/api/v2/workspaceagents/me/external-auth?" + q.Encode()
 	res, err := c.SDK.Request(ctx, http.MethodGet, reqURL, nil)
@@ -709,16 +721,7 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(rpcURL, []*http.Cookie{{
-		Name:  codersdk.SessionTokenCookie,
-		Value: c.SDK.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.SDK.HTTPClient.Transport,
 	}
 
@@ -726,6 +729,7 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 	if err != nil {
 		return nil, xerrors.Errorf("build request: %w", err)
 	}
+	req.Header[codersdk.SessionTokenHeader] = []string{c.SDK.SessionToken()}
 
 	res, err := httpClient.Do(req)
 	if err != nil {

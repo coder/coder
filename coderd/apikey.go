@@ -307,20 +307,26 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {array} codersdk.APIKey
+// @Param include_expired query bool false "Include expired tokens in the list"
 // @Router /users/{user}/keys/tokens [get]
 func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx           = r.Context()
-		user          = httpmw.UserParam(r)
-		keys          []database.APIKey
-		err           error
-		queryStr      = r.URL.Query().Get("include_all")
-		includeAll, _ = strconv.ParseBool(queryStr)
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		keys              []database.APIKey
+		err               error
+		queryStr          = r.URL.Query().Get("include_all")
+		includeAll, _     = strconv.ParseBool(queryStr)
+		expiredStr        = r.URL.Query().Get("include_expired")
+		includeExpired, _ = strconv.ParseBool(expiredStr)
 	)
 
 	if includeAll {
 		// get tokens for all users
-		keys, err = api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
+		keys, err = api.Database.GetAPIKeysByLoginType(ctx, database.GetAPIKeysByLoginTypeParams{
+			LoginType:      database.LoginTypeToken,
+			IncludeExpired: includeExpired,
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching API keys.",
@@ -330,7 +336,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		// get user's tokens only
-		keys, err = api.Database.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: user.ID})
+		keys, err = api.Database.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: user.ID, IncludeExpired: includeExpired})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching API keys.",

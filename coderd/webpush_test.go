@@ -1,13 +1,19 @@
 package coderd_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -24,11 +30,7 @@ func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWebPush)}
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: dv,
-	})
+	client := coderdtest.New(t, &coderdtest.Options{})
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 	_, anotherMember := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -79,4 +81,52 @@ func TestWebpushSubscribeUnsubscribe(t *testing.T) {
 		Endpoint: server.URL,
 	})
 	require.Error(t, err, "delete webpush subscription for another user")
+}
+
+// testWebpushErrorStore wraps a real database.Store and allows injecting
+// errors into GetWebpushSubscriptionsByUserID.
+type testWebpushErrorStore struct {
+	database.Store
+	getWebpushSubscriptionsErr atomic.Pointer[error]
+}
+
+func (s *testWebpushErrorStore) GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
+	if err := s.getWebpushSubscriptionsErr.Load(); err != nil {
+		return nil, *err
+	}
+	return s.Store.GetWebpushSubscriptionsByUserID(ctx, userID)
+}
+
+func TestDeleteWebpushSubscription(t *testing.T) {
+	t.Parallel()
+
+	t.Run("database error returns 500", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		store, ps := dbtestutil.NewDB(t)
+		wrappedStore := &testWebpushErrorStore{Store: store}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: wrappedStore,
+			Pubsub:   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Inject a database error into
+		// GetWebpushSubscriptionsByUserID. The handler should
+		// return 500, not mask the error as 404.
+		dbErr := xerrors.New("database is unavailable")
+		wrappedStore.getWebpushSubscriptionsErr.Store(&dbErr)
+
+		err := memberClient.DeleteWebpushSubscription(ctx, "me", codersdk.DeleteWebpushSubscription{
+			Endpoint: "https://push.example.com/test",
+		})
+		var sdkError *codersdk.Error
+		require.Error(t, err)
+		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
+		require.Equal(t, http.StatusInternalServerError, sdkError.StatusCode(), "database errors should return 500, not be masked as 404")
+	})
 }

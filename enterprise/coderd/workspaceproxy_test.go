@@ -2,12 +2,15 @@ package coderd_test
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -16,6 +19,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -34,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestRegions(t *testing.T) {
@@ -278,10 +283,11 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 func TestProxyRegisterDeregister(t *testing.T) {
 	t.Parallel()
 
-	setup := func(t *testing.T) (*codersdk.Client, database.Store) {
+	setupWithDeploymentValues := func(t *testing.T, dv *codersdk.DeploymentValues) (*codersdk.Client, database.Store) {
 		db, pubsub := dbtestutil.NewDB(t)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
+				DeploymentValues:         dv,
 				Database:                 db,
 				Pubsub:                   pubsub,
 				IncludeProvisionerDaemon: true,
@@ -295,6 +301,11 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		})
 
 		return client, db
+	}
+
+	setup := func(t *testing.T) (*codersdk.Client, database.Store) {
+		dv := coderdtest.DeploymentValues(t)
+		return setupWithDeploymentValues(t, dv)
 	}
 
 	t.Run("OK", func(t *testing.T) {
@@ -363,7 +374,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		req = wsproxysdk.RegisterWorkspaceProxyRequest{
 			AccessURL:           "https://cool.proxy.coder.test",
 			WildcardHostname:    "*.cool.proxy.coder.test",
-			DerpEnabled:         false,
+			DerpEnabled:         true,
 			ReplicaID:           req.ReplicaID,
 			ReplicaHostname:     "venus",
 			ReplicaError:        "error",
@@ -607,6 +618,99 @@ func TestProxyRegisterDeregister(t *testing.T) {
 
 			require.True(t, ok, "expected to register replica %d", i)
 		}
+	})
+
+	t.Run("RegisterWithDisabledBuiltInDERP/DerpEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a DERP map file. Currently, Coder refuses to start if there
+		// are zero DERP regions.
+		// TODO: ideally coder can start without any DERP servers if the
+		// customer is going to be using DERPs via proxies. We could make it
+		// a configuration value to allow an empty DERP map on startup or
+		// something.
+		tmpDir := t.TempDir()
+		derpPath := filepath.Join(tmpDir, "derp.json")
+		content, err := json.Marshal(&tailcfg.DERPMap{
+			Regions: map[int]*tailcfg.DERPRegion{
+				1: {
+					Nodes: []*tailcfg.DERPNode{{}},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(derpPath, content, 0o600))
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.DERP.Server.Enable = false // disable built-in DERP server
+		dv.DERP.Config.Path = serpent.String(derpPath)
+		client, _ := setupWithDeploymentValues(t, dv)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: "proxy",
+		})
+		require.NoError(t, err)
+
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
+		registerRes, err := proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           "https://proxy.coder.test",
+			WildcardHostname:    "*.proxy.coder.test",
+			DerpEnabled:         true,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     "venus",
+			ReplicaError:        "",
+			ReplicaRelayAddress: "http://127.0.0.1:8080",
+			Version:             buildinfo.Version(),
+		})
+		require.NoError(t, err)
+		// Should still be able to retrieve the DERP mesh key from the database,
+		// even though the built-in DERP server is disabled.
+		require.Equal(t, registerRes.DERPMeshKey, coderdtest.DefaultDERPMeshKey)
+	})
+
+	t.Run("RegisterWithDisabledBuiltInDERP/DerpEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		// Same as above.
+		tmpDir := t.TempDir()
+		derpPath := filepath.Join(tmpDir, "derp.json")
+		content, err := json.Marshal(&tailcfg.DERPMap{
+			Regions: map[int]*tailcfg.DERPRegion{
+				1: {
+					Nodes: []*tailcfg.DERPNode{{}},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(derpPath, content, 0o600))
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.DERP.Server.Enable = false // disable built-in DERP server
+		dv.DERP.Config.Path = serpent.String(derpPath)
+		client, _ := setupWithDeploymentValues(t, dv)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
+			Name: "proxy",
+		})
+		require.NoError(t, err)
+
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
+		registerRes, err := proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+			AccessURL:           "https://proxy.coder.test",
+			WildcardHostname:    "*.proxy.coder.test",
+			DerpEnabled:         false,
+			ReplicaID:           uuid.New(),
+			ReplicaHostname:     "venus",
+			ReplicaError:        "",
+			ReplicaRelayAddress: "http://127.0.0.1:8080",
+			Version:             buildinfo.Version(),
+		})
+		require.NoError(t, err)
+		// The server shouldn't bother querying or returning the DERP mesh key
+		// if the proxy's DERP server is disabled.
+		require.Empty(t, registerRes.DERPMeshKey)
 	})
 }
 
