@@ -308,7 +308,7 @@ func newTargetServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, 
 // newMockCoderServer creates a mock Coder server that handles token validation
 // and optionally aibridged requests. The validToken is the token that will be
 // accepted by the /api/v2/users/me endpoint. The aibridgedHandler, if provided,
-// handles non-API requests (aibridged traffic).
+// handles requests forwarded to aibridged (i.e., anything other than token validation).
 func newMockCoderServer(t *testing.T, validToken string, aibridgedHandler http.HandlerFunc) *httptest.Server {
 	t.Helper()
 
