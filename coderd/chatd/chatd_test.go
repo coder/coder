@@ -1248,7 +1248,7 @@ func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 		default:
 			return false
 		}
-	}, 2*time.Second, 50*time.Millisecond)
+	}, testutil.WaitShort, testutil.IntervalFast)
 
 	// Unblock the relay dial so the test can clean up.
 	close(dialContinue)
