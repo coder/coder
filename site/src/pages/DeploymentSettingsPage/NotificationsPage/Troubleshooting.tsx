@@ -43,9 +43,6 @@ export const Troubleshooting: FC<TroubleshootingProps> = ({
 						size="sm"
 						disabled={isPending || !canEdit}
 						onClick={() => {
-							if (!canEdit) {
-								return;
-							}
 							sendTestNotificationApi();
 						}}
 					>
