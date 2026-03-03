@@ -25,5 +25,5 @@ test("remove user", async ({ page, baseURL }) => {
 	await dialog.getByLabel("Name of the user to delete").fill(user.username);
 	await dialog.getByRole("button", { name: "Delete" }).click();
 
-	await expect(page.getByText("Successfully deleted the user.")).toBeVisible();
+	await expect(page.getByText(/deleted successfully/)).toBeVisible();
 });

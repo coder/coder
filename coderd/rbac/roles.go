@@ -244,6 +244,7 @@ func SystemRoleName(name string) bool {
 
 type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
+	NoWorkspaceSharing   bool
 }
 
 // ReservedRoleName exists because the database should only allow unique role
@@ -267,12 +268,23 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		opts = &RoleOptions{}
 	}
 
+	denyPermissions := []Permission{}
+	if opts.NoWorkspaceSharing {
+		denyPermissions = append(denyPermissions, Permission{
+			Negate:       true,
+			ResourceType: ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		})
+	}
+
 	ownerWorkspaceActions := ResourceWorkspace.AvailableActions()
 	if opts.NoOwnerWorkspaceExec {
 		// Remove ssh and application connect from the owner role. This
 		// prevents owners from have exec access to all workspaces.
-		ownerWorkspaceActions = slice.Omit(ownerWorkspaceActions,
-			policy.ActionApplicationConnect, policy.ActionSSH)
+		ownerWorkspaceActions = slice.Omit(
+			ownerWorkspaceActions,
+			policy.ActionApplicationConnect, policy.ActionSSH,
+		)
 	}
 
 	// Static roles that never change should be allocated in a closure.
@@ -295,7 +307,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// Explicitly setting PrebuiltWorkspace permissions for clarity.
 				// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 				ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
-			})...),
+			})...,
+		),
 		User:    []Permission{},
 		ByOrgID: map[string]OrgPermissions{},
 	}.withCachedRegoValue()
@@ -303,13 +316,17 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	memberRole := Role{
 		Identifier:  RoleMember(),
 		DisplayName: "Member",
-		Site: Permissions(map[string][]policy.Action{
-			ResourceAssignRole.Type: {policy.ActionRead},
-			// All users can see OAuth2 provider applications.
-			ResourceOauth2App.Type:      {policy.ActionRead},
-			ResourceWorkspaceProxy.Type: {policy.ActionRead},
-		}),
-		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceBoundaryUsage),
+		Site: append(
+			Permissions(map[string][]policy.Action{
+				ResourceAssignRole.Type: {policy.ActionRead},
+				// All users can see OAuth2 provider applications.
+				ResourceOauth2App.Type:      {policy.ActionRead},
+				ResourceWorkspaceProxy.Type: {policy.ActionRead},
+			}),
+			denyPermissions...,
+		),
+		User: append(
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceOrganizationMember, ResourceBoundaryUsage),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -433,14 +450,17 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ByOrgID: map[string]OrgPermissions{
 					// Org admins should not have workspace exec perms.
 					organizationID.String(): {
-						Org: append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage), Permissions(map[string][]policy.Action{
-							ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
-							ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
-							// PrebuiltWorkspaces are a subset of Workspaces.
-							// Explicitly setting PrebuiltWorkspace permissions for clarity.
-							// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
-							ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
-						})...),
+						Org: append(
+							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage),
+							Permissions(map[string][]policy.Action{
+								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
+								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
+								// PrebuiltWorkspaces are a subset of Workspaces.
+								// Explicitly setting PrebuiltWorkspace permissions for clarity.
+								// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
+								ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
+							})...,
+						),
 						Member: []Permission{},
 					},
 				},

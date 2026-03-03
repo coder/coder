@@ -8,6 +8,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	FormFields,
 	FormFooter,
@@ -147,7 +148,12 @@ export const OrganizationSettingsPageView: FC<
 			{onToggleWorkspaceSharing && (
 				<HorizontalContainer className="mt-12">
 					<HorizontalSection
-						title="Workspace Sharing"
+						title={
+							<div className="flex items-center gap-2">
+								Workspace Sharing
+								<FeatureStageBadge contentType="beta" size="sm" />
+							</div>
+						}
 						description="Control whether workspace owners can share their workspaces."
 					>
 						<div className="flex items-start gap-3">
@@ -166,14 +172,14 @@ export const OrganizationSettingsPageView: FC<
 							<div className="flex flex-col">
 								<label
 									htmlFor="workspace-sharing"
-									className="text-sm font-medium cursor-pointer leading-none"
+									className="text-sm cursor-pointer"
 								>
 									Allow workspace sharing
 								</label>
-								<p className="text-sm font-medium text-content-secondary mt-2">
+								<div className="text-sm text-content-secondary">
 									When enabled, workspace owners can share their workspaces with
 									other users in this organization.
-								</p>
+								</div>
 							</div>
 						</div>
 					</HorizontalSection>

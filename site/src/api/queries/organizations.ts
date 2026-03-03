@@ -248,7 +248,7 @@ export const patchRoleSyncSettings = (
 	};
 };
 
-const getWorkspaceSharingSettingsKey = (organization: string) => [
+export const getWorkspaceSharingSettingsKey = (organization: string) => [
 	"organization",
 	organization,
 	"workspaceSharingSettings",

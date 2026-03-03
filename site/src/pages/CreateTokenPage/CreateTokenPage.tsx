@@ -1,14 +1,15 @@
 import { API } from "api/api";
+import { getErrorDetail } from "api/errors";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { CreateTokenForm } from "./CreateTokenForm";
 import { type CreateTokenData, NANO_HOUR } from "./utils";
@@ -41,13 +42,15 @@ const CreateTokenPage: FC = () => {
 	const [formError, setFormError] = useState<unknown>(undefined);
 
 	const onCreateSuccess = () => {
-		displaySuccess("Token has been created");
+		toast.success("Token has been created.");
 		navigate("/settings/tokens");
 	};
 
 	const onCreateError = (error: unknown) => {
 		setFormError(error);
-		displayError("Failed to create token");
+		toast.error("Failed to create token.", {
+			description: getErrorDetail(error),
+		});
 	};
 
 	const form = useFormik<CreateTokenData>({

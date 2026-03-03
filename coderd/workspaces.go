@@ -114,7 +114,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
@@ -240,7 +239,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 
 	wss, err := convertWorkspaces(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspaces,
@@ -336,7 +334,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
@@ -407,7 +404,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		AvatarURL: member.AvatarURL,
 	}
 
-	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r, nil)
+	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, &createWorkspaceOptions{
+		remoteAddr: r.RemoteAddr,
+	})
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return
@@ -503,7 +502,9 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 
 	defer commitAudit()
 
-	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r, nil)
+	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, &createWorkspaceOptions{
+		remoteAddr: r.RemoteAddr,
+	})
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return
@@ -525,6 +526,10 @@ type createWorkspaceOptions struct {
 	// postCreateInTX is a function that is called within the transaction, after
 	// the workspace is created but before the workspace build is created.
 	postCreateInTX func(ctx context.Context, tx database.Store, workspace database.Workspace) error
+	// remoteAddr is the IP address of the request initiator, used for
+	// audit logging. HTTP handlers should pass r.RemoteAddr;
+	// programmatic callers may leave it empty.
+	remoteAddr string
 }
 
 func createWorkspace(
@@ -534,7 +539,6 @@ func createWorkspace(
 	api *API,
 	owner workspaceOwner,
 	req codersdk.CreateWorkspaceRequest,
-	r *http.Request,
 	opts *createWorkspaceOptions,
 ) (codersdk.Workspace, error) {
 	if opts == nil {
@@ -548,7 +552,7 @@ func createWorkspace(
 
 	// This is a premature auth check to avoid doing unnecessary work if the user
 	// doesn't have permission to create a workspace.
-	if !api.Authorize(r, policy.ActionCreate,
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
 		// If this check fails, return a proper unauthorized error to the user to indicate
 		// what is going on.
@@ -565,14 +569,14 @@ func createWorkspace(
 
 	// Do this upfront to save work. If this fails, the rest of the work
 	// would be wasted.
-	if !api.Authorize(r, policy.ActionCreate,
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionCreate,
 		rbac.ResourceWorkspace.InOrg(template.OrganizationID).WithOwner(owner.ID.String())) {
 		return codersdk.Workspace{}, httperror.ErrResourceNotFound
 	}
 	// The user also needs permission to use the template. At this point they have
 	// read perms, but not necessarily "use". This is also checked in `db.InsertWorkspace`.
 	// Doing this up front can save some work below if the user doesn't have permission.
-	if !api.Authorize(r, policy.ActionUse, template) {
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionUse, template) {
 		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
 			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
@@ -804,9 +808,9 @@ func createWorkspace(
 			db,
 			api.FileCache,
 			func(action policy.Action, object rbac.Objecter) bool {
-				return api.Authorize(r, action, object)
+				return api.HTTPAuth.AuthorizeContext(ctx, action, object)
 			},
-			audit.WorkspaceBuildBaggageFromRequest(r),
+			audit.WorkspaceBuildBaggage{IP: opts.remoteAddr},
 		)
 		return err
 	}, nil)
@@ -868,7 +872,6 @@ func createWorkspace(
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		initiatorID,
 		workspace,
@@ -1514,7 +1517,6 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 
 	w, err := convertWorkspace(
 		ctx,
-		api.Experiments,
 		api.Logger,
 		apiKey.UserID,
 		workspace,
@@ -2094,7 +2096,6 @@ func (api *API) watchWorkspace(
 		}
 		w, err := convertWorkspace(
 			ctx,
-			api.Experiments,
 			api.Logger,
 			apiKey.UserID,
 			workspace,
@@ -2236,8 +2237,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	// the case here. This data goes directly to an unauthorized user. We are
 	// just straight up breaking security promises.
 	//
-	// Fine for now while behind the shared-workspaces experiment, but needs to
-	// be fixed before GA.
+	// TODO: This needs to be fixed before GA. Currently in beta.
 
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
@@ -2595,7 +2595,6 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 
 func convertWorkspaces(
 	ctx context.Context,
-	experiments codersdk.Experiments,
 	logger slog.Logger,
 	requesterID uuid.UUID,
 	workspaces []database.Workspace,
@@ -2633,7 +2632,6 @@ func convertWorkspaces(
 
 		w, err := convertWorkspace(
 			ctx,
-			experiments,
 			logger,
 			requesterID,
 			workspace,
@@ -2653,7 +2651,6 @@ func convertWorkspaces(
 
 func convertWorkspace(
 	ctx context.Context,
-	experiments codersdk.Experiments,
 	logger slog.Logger,
 	requesterID uuid.UUID,
 	workspace database.Workspace,
@@ -2752,20 +2749,15 @@ func convertWorkspace(
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),
 		TaskID:           workspace.TaskID,
-		SharedWith:       sharedWorkspaceActors(ctx, experiments, logger, workspace),
+		SharedWith:       sharedWorkspaceActors(ctx, logger, workspace),
 	}, nil
 }
 
 func sharedWorkspaceActors(
 	ctx context.Context,
-	experiments codersdk.Experiments,
 	logger slog.Logger,
 	workspace database.Workspace,
 ) []codersdk.SharedWorkspaceActor {
-	if !experiments.Enabled(codersdk.ExperimentWorkspaceSharing) {
-		return nil
-	}
-
 	out := make([]codersdk.SharedWorkspaceActor, 0, len(workspace.UserACL)+len(workspace.GroupACL))
 
 	// Users

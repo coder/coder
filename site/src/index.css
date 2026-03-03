@@ -53,9 +53,21 @@
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
 		--ring: 240 10% 3.9%;
+		/*
+		  shadcn-compatible aliases consumed by streamdown and
+		  internal components (e.g. shimmer). These names are
+		  intentionally generic so they match shadcn conventions.
+		  Do NOT rename without updating every consumer.
+		*/
+		--background: 0 0% 98%;
+		--foreground: 240 10% 4%;
+		--muted: 240 5% 96%;
+		--muted-foreground: 240 5% 34%;
+		--primary: 221 83% 53%;
+		--primary-foreground: 0 0% 98%;
 		--avatar-lg: 2.5rem;
-		--avatar-default: 1.5rem;
-		--avatar-sm: 1.125rem;
+		--avatar-default: 2rem;
+		--avatar-sm: 1.5rem;
 	}
 	.dark {
 		--content-primary: 0 0% 100%;
@@ -100,6 +112,13 @@
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
 		--ring: 240 4.9% 83.9%;
+		/* shadcn-compatible aliases – see :root block for details. */
+		--background: 240 10% 4%;
+		--foreground: 0 0% 98%;
+		--muted: 240 6% 10%;
+		--muted-foreground: 240 5% 65%;
+		--primary: 213 94% 68%;
+		--primary-foreground: 240 10% 4%;
 	}
 }
 
@@ -108,22 +127,53 @@
 		@apply border-border;
 	}
 
-	/*
-	By default, Radix adds a margin to the `body` element when a dropdown is displayed,
-	causing some shifting when the dropdown has a full-width size, as is the case with the mobile menu.
-	To prevent this, we need to apply the styles below.
+	html,
+	body,
+	#root,
+	#storybook-root {
+		@apply h-full;
+	}
+
+	button,
+	input {
+		@apply font-sans;
+	}
+
+	input:-webkit-autofill,
+	input:-webkit-autofill:hover,
+	input:-webkit-autofill:focus,
+	input:-webkit-autofill:active {
+		-webkit-box-shadow: 0 0 0 100px hsl(var(--surface-primary)) inset !important;
+	}
+
+	::placeholder {
+		@apply text-content-secondary;
+	}
+
+	fieldset {
+		@apply border-none p-0 m-0 w-full;
+	}
+
+	/* Prevent layout shift when modals open by maintaining scrollbar width.
+	scrollbar-gutter: stable reserves space for the scrollbar so Radix's
+	scroll-bar compensation (margin-right/padding-right) is unnecessary
+	and causes double spacing. We zero it out with !important to win
+	over Radix's injected !important styles. The @supports guard ensures
+	we only do this on browsers that actually support scrollbar-gutter.
 
 	There’s a related issue on GitHub: Radix UI Primitives Issue #3251
 	https://github.com/radix-ui/primitives/issues/3251
-	 */
-	html body[data-scroll-locked] {
-		--removed-body-scroll-bar-size: 0;
-		margin-right: 0;
-	}
+	*/
+	@supports (scrollbar-gutter: stable) {
+		html {
+			scrollbar-gutter: stable;
+		}
 
-	/* Prevent layout shift when modals open by maintaining scrollbar width */
-	html {
-		scrollbar-gutter: stable;
+		html body[data-scroll-locked] {
+			--removed-body-scroll-bar-size: 0 !important;
+			margin-right: 0 !important;
+			overflow-y: scroll !important;
+		}
 	}
 
 	/*

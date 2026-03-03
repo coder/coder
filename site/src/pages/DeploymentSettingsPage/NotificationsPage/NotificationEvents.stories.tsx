@@ -70,7 +70,7 @@ export const Toggle: Story = {
 			name: "Webhook",
 		});
 		await user.click(toggleButton);
-		await within(document.body).findByText("Notification method updated");
+		await within(document.body).findByText("Notification method updated.");
 	},
 };
 
@@ -90,7 +90,7 @@ export const ToggleError: Story = {
 		});
 		await user.click(toggleButton);
 		await within(document.body).findByText(
-			"Failed to update notification method",
+			"Failed to update notification method.",
 		);
 	},
 };
