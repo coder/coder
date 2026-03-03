@@ -22116,6 +22116,10 @@ const docTemplate = `{
             "properties": {
                 "sharing_disabled": {
                     "type": "boolean"
+                },
+                "sharing_globally_disabled": {
+                    "description": "SharingGloballyDisabled is true if sharing has been disabled for this\norganization because of a deployment-wide setting.",
+                    "type": "boolean"
                 }
             }
         },
