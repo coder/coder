@@ -4,6 +4,7 @@ import {
 	getProviderFields,
 	getProviderNames,
 	resolveProvider,
+	snakeToCamel,
 } from "api/chatModelOptions";
 import type * as TypesGen from "api/typesGenerated";
 import * as Yup from "yup";
@@ -48,14 +49,6 @@ export const parseThresholdInteger = (value: string): number | null => {
 };
 
 // ── Internal helpers ───────────────────────────────────────────
-
-/**
- * Convert a snake_case segment to camelCase. Mirrors the
- * `snakeToCamel` helper inside `chatModelOptions.ts`.
- */
-function snakeToCamel(s: string): string {
-	return s.replace(/_([a-z0-9])/g, (_, ch: string) => ch.toUpperCase());
-}
 
 /**
  * Set a value inside a nested object, creating intermediate
@@ -108,10 +101,7 @@ const hasObjectKeys = (value: Record<string, unknown>): boolean =>
  * the field schema type. Empty strings yield `undefined` so
  * callers can conditionally include fields.
  */
-function convertFormValue(
-	value: string,
-	field: FieldSchema,
-): unknown | undefined {
+function convertFormValue(value: string, field: FieldSchema): unknown {
 	const trimmed = value.trim();
 	if (!trimmed) return undefined;
 

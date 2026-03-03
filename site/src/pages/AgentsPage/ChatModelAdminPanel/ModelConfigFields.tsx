@@ -3,6 +3,7 @@ import {
 	getVisibleGeneralFields,
 	getVisibleProviderFields,
 	resolveProvider,
+	snakeToCamel,
 	toFormFieldKey,
 } from "api/chatModelOptions";
 import { Input } from "components/Input/Input";
@@ -72,12 +73,23 @@ type FieldRenderContext = {
 const InputField: FC<
 	FieldRenderContext & {
 		fieldKey: string;
+		errorKey?: string;
 		label: string;
+		description?: string;
 		placeholder: string;
 	}
-> = ({ form, fieldErrors, disabled, fieldKey, label, placeholder }) => {
+> = ({
+	form,
+	fieldErrors,
+	disabled,
+	fieldKey,
+	errorKey,
+	label,
+	description,
+	placeholder,
+}) => {
 	const errorId = `${fieldKey}-error`;
-	const fieldError = fieldErrors[fieldKey];
+	const fieldError = fieldErrors[errorKey ?? fieldKey];
 	const fieldProps = form.getFieldProps(fieldKey);
 	return (
 		<div className="flex min-w-0 flex-col gap-1.5">
@@ -87,6 +99,9 @@ const InputField: FC<
 			>
 				{label}
 			</Label>
+			{description && (
+				<p className="m-0 text-xs text-content-secondary">{description}</p>
+			)}
 			<Input
 				id={fieldKey}
 				className={cn(
@@ -111,12 +126,23 @@ const InputField: FC<
 const SelectField: FC<
 	FieldRenderContext & {
 		fieldKey: string;
+		errorKey?: string;
 		label: string;
+		description?: string;
 		options: readonly string[];
 	}
-> = ({ form, fieldErrors, disabled, fieldKey, label, options }) => {
+> = ({
+	form,
+	fieldErrors,
+	disabled,
+	fieldKey,
+	errorKey,
+	label,
+	description,
+	options,
+}) => {
 	const errorId = `${fieldKey}-error`;
-	const fieldError = fieldErrors[fieldKey];
+	const fieldError = fieldErrors[errorKey ?? fieldKey];
 	const currentValue = (getIn(form.values, fieldKey) as string) || "";
 	return (
 		<div className="flex min-w-0 flex-col gap-1.5">
@@ -126,6 +152,9 @@ const SelectField: FC<
 			>
 				{label}
 			</Label>
+			{description && (
+				<p className="m-0 text-xs text-content-secondary">{description}</p>
+			)}
 			<Select
 				value={currentValue || unsetSelectValue}
 				onValueChange={(value) =>
@@ -168,12 +197,23 @@ const SelectField: FC<
 const JSONField: FC<
 	FieldRenderContext & {
 		fieldKey: string;
+		errorKey?: string;
 		label: string;
+		description?: string;
 		placeholder: string;
 	}
-> = ({ form, fieldErrors, disabled, fieldKey, label, placeholder }) => {
+> = ({
+	form,
+	fieldErrors,
+	disabled,
+	fieldKey,
+	errorKey,
+	label,
+	description,
+	placeholder,
+}) => {
 	const errorId = `${fieldKey}-error`;
-	const fieldError = fieldErrors[fieldKey];
+	const fieldError = fieldErrors[errorKey ?? fieldKey];
 	const fieldProps = form.getFieldProps(fieldKey);
 	return (
 		<div className="flex min-w-0 flex-col gap-1.5">
@@ -183,6 +223,9 @@ const JSONField: FC<
 			>
 				{label}
 			</Label>
+			{description && (
+				<p className="m-0 text-xs text-content-secondary">{description}</p>
+			)}
 			<Textarea
 				id={fieldKey}
 				className={cn(
@@ -213,9 +256,10 @@ const JSONField: FC<
 function renderSchemaField(
 	field: FieldSchema,
 	fieldKey: string,
+	errorKey: string,
 	ctx: FieldRenderContext,
 ): React.ReactNode {
-	const label = field.description || snakeToPrettyLabel(field.json_name);
+	const label = snakeToPrettyLabel(field.json_name);
 
 	switch (field.input_type) {
 		case "input":
@@ -224,7 +268,9 @@ function renderSchemaField(
 					key={fieldKey}
 					{...ctx}
 					fieldKey={fieldKey}
+					errorKey={errorKey}
 					label={label}
+					description={field.description}
 					placeholder={placeholderForField(field)}
 				/>
 			);
@@ -236,7 +282,9 @@ function renderSchemaField(
 					key={fieldKey}
 					{...ctx}
 					fieldKey={fieldKey}
+					errorKey={errorKey}
 					label={label}
+					description={field.description}
 					options={options}
 				/>
 			);
@@ -247,7 +295,9 @@ function renderSchemaField(
 					key={fieldKey}
 					{...ctx}
 					fieldKey={fieldKey}
+					errorKey={errorKey}
 					label={label}
+					description={field.description}
 					placeholder={placeholderForField(field)}
 				/>
 			);
@@ -292,7 +342,8 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 		<div className="grid min-w-0 gap-3 sm:grid-cols-2">
 			{fields.map((field) => {
 				const fieldKey = `config.${toFormFieldKey(resolved, field.json_name)}`;
-				return renderSchemaField(field, fieldKey, ctx);
+				const errorKey = toFormFieldKey(resolved, field.json_name);
+				return renderSchemaField(field, fieldKey, errorKey, ctx);
 			})}
 		</div>
 	);
@@ -319,19 +370,18 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 				// General field keys use camelCase of the json_name directly
 				// under "config.", matching the existing form state shape:
 				// config.maxOutputTokens, config.temperature, etc.
-				const camelName = field.json_name.replace(
-					/_([a-z0-9])/g,
-					(_, ch: string) => ch.toUpperCase(),
-				);
+				const camelName = snakeToCamel(field.json_name);
 				const fieldKey = `config.${camelName}`;
-				const label = field.description || snakeToPrettyLabel(field.json_name);
+				const label = snakeToPrettyLabel(field.json_name);
 
 				return (
 					<InputField
 						key={fieldKey}
 						{...ctx}
 						fieldKey={fieldKey}
+						errorKey={camelName}
 						label={label}
+						description={field.description}
 						placeholder={placeholderForField(field)}
 					/>
 				);
