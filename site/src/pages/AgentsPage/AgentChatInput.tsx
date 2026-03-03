@@ -391,7 +391,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					<ChatMessageInput
 						ref={setRef}
 						aria-label="Chat message"
-						className="min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						className="min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary dark:placeholder:text-content-primary/50 disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
 						initialValue={initialValue}
 						onChange={handleContentChange}

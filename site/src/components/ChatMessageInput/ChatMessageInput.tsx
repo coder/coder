@@ -367,7 +367,7 @@ const ChatMessageInput = memo(
 							/>
 						}
 						placeholder={
-							<div className="pointer-events-none text-content-secondary [&_p]:leading-normal">
+							<div className="pointer-events-none text-content-secondary dark:text-content-primary/50 [&_p]:leading-normal">
 								{placeholder}
 							</div>
 						}
