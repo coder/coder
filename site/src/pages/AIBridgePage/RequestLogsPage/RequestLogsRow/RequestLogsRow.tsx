@@ -8,16 +8,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	ArrowDownIcon,
-	ArrowUpIcon,
-	ChevronDownIcon,
-	ChevronRightIcon,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
 import { formatDate, humanDuration } from "utils/time";
-import { AIBridgeModelIcon } from "../AIBridgeModelIcon";
+import { AIBridgeClientIcon } from "../icons/AIBridgeClientIcon";
+import { AIBridgeModelIcon } from "../icons/AIBridgeModelIcon";
 
 type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
@@ -143,7 +139,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							isOpen && "text-content-primary",
 						])}
 					>
-						{isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+						<ChevronRightIcon
+							className={cn("mr-4 transition-transform", isOpen && "rotate-90")}
+						/>
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{formatDate(new Date(interception.started_at))}
 					</div>
@@ -194,26 +192,48 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 					</div>
 				</TableCell>
 				<TableCell className="w-40 max-w-40">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="w-full min-w-0 overflow-hidden">
-									<Badge className="gap-1.5 w-full">
+					<div className="min-w-0 overflow-hidden">
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Badge className="gap-1.5 max-w-full">
+										<div className="flex-shrink-0 flex items-center">
+											<AIBridgeClientIcon
+												client={interception.client}
+												className="size-icon-xs"
+											/>
+										</div>
+										<span className="truncate min-w-0">
+											{interception.client ?? "Unknown"}
+										</span>
+									</Badge>
+								</TooltipTrigger>
+								<TooltipContent>{interception.client}</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</div>
+				</TableCell>
+				<TableCell className="w-40 max-w-40">
+					<div className="min-w-0 overflow-hidden">
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Badge className="gap-1.5 max-w-full">
 										<div className="flex-shrink-0 flex items-center">
 											<AIBridgeModelIcon
 												model={interception.model}
 												className="size-icon-xs"
 											/>
 										</div>
-										<span className="truncate min-w-0 w-full">
+										<span className="truncate min-w-0">
 											{interception.model}
 										</span>
 									</Badge>
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>{interception.model}</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+								</TooltipTrigger>
+								<TooltipContent>{interception.model}</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</div>
 				</TableCell>
 				<TableCell className="w-32 text-center">{toolCalls}</TableCell>
 			</TableRow>
@@ -269,6 +289,21 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 										{interception.initiator.name ??
 											interception.initiator.username}
 									</span>
+								</dd>
+
+								<dt>Client:</dt>
+								<dd data-chromatic="ignore">
+									<Badge className="gap-2">
+										<div className="flex-shrink-0 flex items-center">
+											<AIBridgeClientIcon
+												client={interception.client}
+												className="size-icon-xs"
+											/>
+										</div>
+										<span className="truncate min-w-0 w-full text-2xs">
+											{interception.client ?? "Unknown"}
+										</span>
+									</Badge>
 								</dd>
 
 								<dt>Model:</dt>

@@ -4,6 +4,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceApp,
 } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
@@ -13,13 +14,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import capitalize from "lodash/capitalize";
-import {
-	ChevronDownIcon,
-	ChevronUpIcon,
-	ExternalLinkIcon,
-	FileIcon,
-	LayoutGridIcon,
-} from "lucide-react";
+import { ExternalLinkIcon, FileIcon, LayoutGridIcon } from "lucide-react";
 import { AppStatusStateIcon } from "modules/apps/AppStatusStateIcon";
 import { useAppLink } from "modules/apps/useAppLink";
 import { type FC, useState } from "react";
@@ -122,7 +117,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 									setDisplayStatuses((display) => !display);
 								}}
 							>
-								{displayStatuses ? <ChevronUpIcon /> : <ChevronDownIcon />}
+								<ChevronDownIcon />
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>

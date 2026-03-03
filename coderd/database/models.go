@@ -219,6 +219,11 @@ const (
 	ApiKeyScopeBoundaryUsageUpdate                 APIKeyScope = "boundary_usage:update"
 	ApiKeyScopeWorkspaceUpdateAgent                APIKeyScope = "workspace:update_agent"
 	ApiKeyScopeWorkspaceDormantUpdateAgent         APIKeyScope = "workspace_dormant:update_agent"
+	ApiKeyScopeChatCreate                          APIKeyScope = "chat:create"
+	ApiKeyScopeChatRead                            APIKeyScope = "chat:read"
+	ApiKeyScopeChatUpdate                          APIKeyScope = "chat:update"
+	ApiKeyScopeChatDelete                          APIKeyScope = "chat:delete"
+	ApiKeyScopeChat                                APIKeyScope = "chat:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -457,7 +462,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeBoundaryUsageRead,
 		ApiKeyScopeBoundaryUsageUpdate,
 		ApiKeyScopeWorkspaceUpdateAgent,
-		ApiKeyScopeWorkspaceDormantUpdateAgent:
+		ApiKeyScopeWorkspaceDormantUpdateAgent,
+		ApiKeyScopeChatCreate,
+		ApiKeyScopeChatRead,
+		ApiKeyScopeChatUpdate,
+		ApiKeyScopeChatDelete,
+		ApiKeyScopeChat:
 		return true
 	}
 	return false
@@ -665,6 +675,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeBoundaryUsageUpdate,
 		ApiKeyScopeWorkspaceUpdateAgent,
 		ApiKeyScopeWorkspaceDormantUpdateAgent,
+		ApiKeyScopeChatCreate,
+		ApiKeyScopeChatRead,
+		ApiKeyScopeChatUpdate,
+		ApiKeyScopeChatDelete,
+		ApiKeyScopeChat,
 	}
 }
 
@@ -1031,6 +1046,137 @@ func AllBuildReasonValues() []BuildReason {
 		BuildReasonTaskAutoPause,
 		BuildReasonTaskManualPause,
 		BuildReasonTaskResume,
+	}
+}
+
+type ChatMessageVisibility string
+
+const (
+	ChatMessageVisibilityUser  ChatMessageVisibility = "user"
+	ChatMessageVisibilityModel ChatMessageVisibility = "model"
+	ChatMessageVisibilityBoth  ChatMessageVisibility = "both"
+)
+
+func (e *ChatMessageVisibility) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMessageVisibility(s)
+	case string:
+		*e = ChatMessageVisibility(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMessageVisibility: %T", src)
+	}
+	return nil
+}
+
+type NullChatMessageVisibility struct {
+	ChatMessageVisibility ChatMessageVisibility `json:"chat_message_visibility"`
+	Valid                 bool                  `json:"valid"` // Valid is true if ChatMessageVisibility is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMessageVisibility) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMessageVisibility, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMessageVisibility.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMessageVisibility) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMessageVisibility), nil
+}
+
+func (e ChatMessageVisibility) Valid() bool {
+	switch e {
+	case ChatMessageVisibilityUser,
+		ChatMessageVisibilityModel,
+		ChatMessageVisibilityBoth:
+		return true
+	}
+	return false
+}
+
+func AllChatMessageVisibilityValues() []ChatMessageVisibility {
+	return []ChatMessageVisibility{
+		ChatMessageVisibilityUser,
+		ChatMessageVisibilityModel,
+		ChatMessageVisibilityBoth,
+	}
+}
+
+type ChatStatus string
+
+const (
+	ChatStatusWaiting   ChatStatus = "waiting"
+	ChatStatusPending   ChatStatus = "pending"
+	ChatStatusRunning   ChatStatus = "running"
+	ChatStatusPaused    ChatStatus = "paused"
+	ChatStatusCompleted ChatStatus = "completed"
+	ChatStatusError     ChatStatus = "error"
+)
+
+func (e *ChatStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatStatus(s)
+	case string:
+		*e = ChatStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatStatus: %T", src)
+	}
+	return nil
+}
+
+type NullChatStatus struct {
+	ChatStatus ChatStatus `json:"chat_status"`
+	Valid      bool       `json:"valid"` // Valid is true if ChatStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatStatus), nil
+}
+
+func (e ChatStatus) Valid() bool {
+	switch e {
+	case ChatStatusWaiting,
+		ChatStatusPending,
+		ChatStatusRunning,
+		ChatStatusPaused,
+		ChatStatusCompleted,
+		ChatStatusError:
+		return true
+	}
+	return false
+}
+
+func AllChatStatusValues() []ChatStatus {
+	return []ChatStatus{
+		ChatStatusWaiting,
+		ChatStatusPending,
+		ChatStatusRunning,
+		ChatStatusPaused,
+		ChatStatusCompleted,
+		ChatStatusError,
 	}
 }
 
@@ -3642,6 +3788,7 @@ type AIBridgeInterception struct {
 	Metadata    pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	EndedAt     sql.NullTime          `db:"ended_at" json:"ended_at"`
 	APIKeyID    sql.NullString        `db:"api_key_id" json:"api_key_id"`
+	Client      sql.NullString        `db:"client" json:"client"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge
@@ -3736,6 +3883,97 @@ type BoundaryUsageStat struct {
 	WindowStart time.Time `db:"window_start" json:"window_start"`
 	// Timestamp of the last update to this row.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type Chat struct {
+	ID                uuid.UUID      `db:"id" json:"id"`
+	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	WorkspaceID       uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
+	Title             string         `db:"title" json:"title"`
+	Status            ChatStatus     `db:"status" json:"status"`
+	WorkerID          uuid.NullUUID  `db:"worker_id" json:"worker_id"`
+	StartedAt         sql.NullTime   `db:"started_at" json:"started_at"`
+	HeartbeatAt       sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	ParentChatID      uuid.NullUUID  `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID        uuid.NullUUID  `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived          bool           `db:"archived" json:"archived"`
+	LastError         sql.NullString `db:"last_error" json:"last_error"`
+}
+
+type ChatDiffStatus struct {
+	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
+	Url              sql.NullString `db:"url" json:"url"`
+	PullRequestState sql.NullString `db:"pull_request_state" json:"pull_request_state"`
+	ChangesRequested bool           `db:"changes_requested" json:"changes_requested"`
+	Additions        int32          `db:"additions" json:"additions"`
+	Deletions        int32          `db:"deletions" json:"deletions"`
+	ChangedFiles     int32          `db:"changed_files" json:"changed_files"`
+	RefreshedAt      sql.NullTime   `db:"refreshed_at" json:"refreshed_at"`
+	StaleAt          time.Time      `db:"stale_at" json:"stale_at"`
+	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
+	GitBranch        string         `db:"git_branch" json:"git_branch"`
+	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
+}
+
+type ChatMessage struct {
+	ID                  int64                 `db:"id" json:"id"`
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
+	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
+	Role                string                `db:"role" json:"role"`
+	Content             pqtype.NullRawMessage `db:"content" json:"content"`
+	Visibility          ChatMessageVisibility `db:"visibility" json:"visibility"`
+	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt64         `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt64         `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt64         `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt64         `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
+	Compressed          bool                  `db:"compressed" json:"compressed"`
+}
+
+type ChatModelConfig struct {
+	ID                   uuid.UUID       `db:"id" json:"id"`
+	Provider             string          `db:"provider" json:"provider"`
+	Model                string          `db:"model" json:"model"`
+	DisplayName          string          `db:"display_name" json:"display_name"`
+	CreatedBy            uuid.NullUUID   `db:"created_by" json:"created_by"`
+	UpdatedBy            uuid.NullUUID   `db:"updated_by" json:"updated_by"`
+	Enabled              bool            `db:"enabled" json:"enabled"`
+	IsDefault            bool            `db:"is_default" json:"is_default"`
+	Deleted              bool            `db:"deleted" json:"deleted"`
+	DeletedAt            sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt            time.Time       `db:"updated_at" json:"updated_at"`
+	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
+	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
+	Options              json.RawMessage `db:"options" json:"options"`
+}
+
+type ChatProvider struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	Provider    string    `db:"provider" json:"provider"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	APIKey      string    `db:"api_key" json:"api_key"`
+	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedBy   uuid.NullUUID  `db:"created_by" json:"created_by"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+	BaseUrl     string         `db:"base_url" json:"base_url"`
+}
+
+type ChatQueuedMessage struct {
+	ID        int64           `db:"id" json:"id"`
+	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Content   json.RawMessage `db:"content" json:"content"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
 }
 
 type ConnectionLog struct {
@@ -4025,6 +4263,10 @@ type OAuth2ProviderAppCode struct {
 	CodeChallenge sql.NullString `db:"code_challenge" json:"code_challenge"`
 	// PKCE challenge method (S256)
 	CodeChallengeMethod sql.NullString `db:"code_challenge_method" json:"code_challenge_method"`
+	// SHA-256 hash of the OAuth2 state parameter, stored to prevent state reflection attacks.
+	StateHash sql.NullString `db:"state_hash" json:"state_hash"`
+	// The redirect_uri provided during authorization, to be verified during token exchange (RFC 6749 §4.1.3).
+	RedirectUri sql.NullString `db:"redirect_uri" json:"redirect_uri"`
 }
 
 type OAuth2ProviderAppSecret struct {
@@ -4982,7 +5224,6 @@ type WorkspaceBuild struct {
 	BuildNumber             int32               `db:"build_number" json:"build_number"`
 	Transition              WorkspaceTransition `db:"transition" json:"transition"`
 	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
 	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
 	Deadline                time.Time           `db:"deadline" json:"deadline"`
 	Reason                  BuildReason         `db:"reason" json:"reason"`

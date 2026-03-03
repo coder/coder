@@ -60,14 +60,10 @@ func TestReconcileAll(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		includePreset := tc.includePreset
 		for _, preExistingOrgMembership := range tc.preExistingOrgMembership {
-			preExistingOrgMembership := preExistingOrgMembership
 			for _, preExistingGroup := range tc.preExistingGroup {
-				preExistingGroup := preExistingGroup
 				for _, preExistingGroupMembership := range tc.preExistingGroupMembership {
-					preExistingGroupMembership := preExistingGroupMembership
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
 

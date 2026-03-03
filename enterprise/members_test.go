@@ -152,7 +152,7 @@ func TestEnterpriseMembers(t *testing.T) {
 		require.Error(t, err)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Contains(t, apiErr.Message, "must be an existing")
+		require.Contains(t, apiErr.Message, "Resource not found or you do not have access to this resource")
 	})
 
 	// Calling it from a user without the org access.

@@ -265,7 +265,7 @@ Bad Tasks
 Use the "state" field to indicate your progress. Periodically report
 progress with state "working" to keep the user updated. It is not possible to send too many updates!
 
-ONLY report an "idle" or "failure" state if you have FULLY completed the task.
+ONLY report a "complete", "idle", or "failure" state if you have FULLY completed the task.
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -279,9 +279,10 @@ ONLY report an "idle" or "failure" state if you have FULLY completed the task.
 				},
 				"state": map[string]any{
 					"type":        "string",
-					"description": "The state of your task. This can be one of the following: working, idle, or failure. Select the state that best represents your current progress.",
+					"description": "The state of your task. This can be one of the following: working, complete, idle, or failure. Select the state that best represents your current progress.",
 					"enum": []string{
 						string(codersdk.WorkspaceAppStatusStateWorking),
+						string(codersdk.WorkspaceAppStatusStateComplete),
 						string(codersdk.WorkspaceAppStatusStateIdle),
 						string(codersdk.WorkspaceAppStatusStateFailure),
 					},

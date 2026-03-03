@@ -82,6 +82,13 @@ export const WithTemplates: Story = {
 				display_name: "Deprecated",
 				description: "Template is incompatible",
 			},
+			{
+				...MockTemplate,
+				name: "deleted-template",
+				display_name: "Deleted",
+				description: "Template has been deleted",
+				deleted: true,
+			},
 		],
 		examples: [],
 		workspacePermissions: {

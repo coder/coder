@@ -32,6 +32,7 @@ type Template struct {
 	Description        string                 `json:"description"`
 	Deprecated         bool                   `json:"deprecated"`
 	DeprecationMessage string                 `json:"deprecation_message"`
+	Deleted            bool                   `json:"deleted"`
 	Icon               string                 `json:"icon"`
 	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
 	ActivityBumpMillis int64                  `json:"activity_bump_ms"`

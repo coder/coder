@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
+	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -109,6 +110,12 @@ type Options struct {
 
 type Client interface {
 	ConnectRPC28(ctx context.Context) (
+		proto.DRPCAgentClient28, tailnetproto.DRPCTailnetClient28, error,
+	)
+	// ConnectRPC28WithRole is like ConnectRPC28 but sends an explicit
+	// role query parameter to the server. The workspace agent should
+	// use role "agent" to enable connection monitoring.
+	ConnectRPC28WithRole(ctx context.Context, role string) (
 		proto.DRPCAgentClient28, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
@@ -296,7 +303,8 @@ type agent struct {
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
 
-	filesAPI *agentfiles.API
+	filesAPI   *agentfiles.API
+	processAPI *agentproc.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -369,6 +377,7 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem)
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
@@ -997,8 +1006,10 @@ func (a *agent) run() (retErr error) {
 		return xerrors.Errorf("refresh token: %w", err)
 	}
 
-	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
-	aAPI, tAPI, err := a.client.ConnectRPC28(a.hardCtx)
+	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
+	// We pass role "agent" to enable connection monitoring on the server, which tracks
+	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
+	aAPI, tAPI, err := a.client.ConnectRPC28WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -2020,6 +2031,10 @@ func (a *agent) Close() error {
 
 	if err := a.containerAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
+	}
+
+	if err := a.processAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "process API close", slog.Error(err))
 	}
 
 	if a.boundaryLogProxy != nil {

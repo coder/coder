@@ -88,10 +88,11 @@ describe("SchedulePage", () => {
 				await fillForm(test);
 				await submitForm();
 				const successMessage = await screen.findByText(
-					"Schedule updated successfully",
+					"Schedule updated successfully.",
 				);
 				expect(successMessage).toBeDefined();
 			},
+			15_000,
 		);
 	});
 

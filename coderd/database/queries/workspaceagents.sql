@@ -17,6 +17,8 @@ WHERE
 	auth_instance_id = @auth_instance_id :: TEXT
 	-- Filter out deleted sub agents.
 	AND deleted = FALSE
+	-- Filter out sub agents, they do not authenticate with auth_instance_id.
+	AND parent_id IS NULL
 ORDER BY
 	created_at DESC;
 

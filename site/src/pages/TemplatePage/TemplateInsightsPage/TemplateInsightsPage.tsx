@@ -40,6 +40,7 @@ import {
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
+import { RequirePermission } from "modules/permissions/RequirePermission";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -69,7 +70,7 @@ import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
 export default function TemplateInsightsPage() {
-	const { template } = useTemplateLayoutContext();
+	const { template, permissions } = useTemplateLayoutContext();
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	const defaultInterval = getDefaultInterval(template);
@@ -92,13 +93,25 @@ export default function TemplateInsightsPage() {
 		end_time: toISOLocal(dateRange.endDate, baseOffset),
 	};
 
+	const canViewInsights =
+		permissions.canUpdateTemplate || permissions.canReadInsights;
+
 	const insightsFilter = { ...commonFilters, interval };
-	const templateInsights = useQuery(insightsTemplate(insightsFilter));
-	const userLatency = useQuery(insightsUserLatency(commonFilters));
-	const userActivity = useQuery(insightsUserActivity(commonFilters));
+	const templateInsights = useQuery({
+		...insightsTemplate(insightsFilter),
+		enabled: canViewInsights,
+	});
+	const userLatency = useQuery({
+		...insightsUserLatency(commonFilters),
+		enabled: canViewInsights,
+	});
+	const userActivity = useQuery({
+		...insightsUserActivity(commonFilters),
+		enabled: canViewInsights,
+	});
 
 	return (
-		<>
+		<RequirePermission isFeatureVisible={canViewInsights}>
 			<title>{getTemplatePageTitle("Insights", template)}</title>
 
 			<TemplateInsightsPageView
@@ -116,7 +129,7 @@ export default function TemplateInsightsPage() {
 				userActivity={userActivity}
 				interval={interval}
 			/>
-		</>
+		</RequirePermission>
 	);
 }
 

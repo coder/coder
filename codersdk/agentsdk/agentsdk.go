@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"sync"
 	"time"
@@ -152,7 +151,7 @@ func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 // Release Versions from 2.9+
 // Deprecated: use ConnectRPC20WithTailnet
 func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, error) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0), "")
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +164,7 @@ func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, err
 func (c *Client) ConnectRPC20WithTailnet(ctx context.Context) (
 	proto.DRPCAgentClient20, tailnetproto.DRPCTailnetClient20, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -176,7 +175,7 @@ func (c *Client) ConnectRPC20WithTailnet(ctx context.Context) (
 // maximally compatible with Coderd Release Versions from 2.12+
 // Deprecated: use ConnectRPC21WithTailnet
 func (c *Client) ConnectRPC21(ctx context.Context) (proto.DRPCAgentClient21, error) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1), "")
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +187,7 @@ func (c *Client) ConnectRPC21(ctx context.Context) (proto.DRPCAgentClient21, err
 func (c *Client) ConnectRPC21WithTailnet(ctx context.Context) (
 	proto.DRPCAgentClient21, tailnetproto.DRPCTailnetClient21, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -200,7 +199,7 @@ func (c *Client) ConnectRPC21WithTailnet(ctx context.Context) (
 func (c *Client) ConnectRPC22(ctx context.Context) (
 	proto.DRPCAgentClient22, tailnetproto.DRPCTailnetClient22, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 2))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 2), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -212,7 +211,7 @@ func (c *Client) ConnectRPC22(ctx context.Context) (
 func (c *Client) ConnectRPC23(ctx context.Context) (
 	proto.DRPCAgentClient23, tailnetproto.DRPCTailnetClient23, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 3))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 3), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -224,7 +223,7 @@ func (c *Client) ConnectRPC23(ctx context.Context) (
 func (c *Client) ConnectRPC24(ctx context.Context) (
 	proto.DRPCAgentClient24, tailnetproto.DRPCTailnetClient24, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 4))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 4), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -236,7 +235,7 @@ func (c *Client) ConnectRPC24(ctx context.Context) (
 func (c *Client) ConnectRPC25(ctx context.Context) (
 	proto.DRPCAgentClient25, tailnetproto.DRPCTailnetClient25, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 5))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 5), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -248,7 +247,7 @@ func (c *Client) ConnectRPC25(ctx context.Context) (
 func (c *Client) ConnectRPC26(ctx context.Context) (
 	proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 6))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 6), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -260,7 +259,7 @@ func (c *Client) ConnectRPC26(ctx context.Context) (
 func (c *Client) ConnectRPC27(ctx context.Context) (
 	proto.DRPCAgentClient27, tailnetproto.DRPCTailnetClient27, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 7))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 7), "")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -272,42 +271,64 @@ func (c *Client) ConnectRPC27(ctx context.Context) (
 func (c *Client) ConnectRPC28(ctx context.Context) (
 	proto.DRPCAgentClient28, tailnetproto.DRPCTailnetClient28, error,
 ) {
-	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 8))
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 8), "")
 	if err != nil {
 		return nil, nil, err
 	}
 	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
-// ConnectRPC connects to the workspace agent API and tailnet API
-func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
-	return c.connectRPCVersion(ctx, proto.CurrentVersion)
+// ConnectRPC28WithRole is like ConnectRPC28 but sends an explicit role
+// query parameter to the server. Use "agent" for workspace agents to
+// enable connection monitoring.
+func (c *Client) ConnectRPC28WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient28, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 8), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
-func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIVersion) (drpc.Conn, error) {
+// ConnectRPC connects to the workspace agent API and tailnet API.
+// It does not send a role query parameter, so the server will apply
+// its default behavior (currently: enable connection monitoring for
+// backward compatibility). Use ConnectRPCWithRole to explicitly
+// identify the caller's role.
+func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
+	return c.connectRPCVersion(ctx, proto.CurrentVersion, "")
+}
+
+// ConnectRPCWithRole connects to the workspace agent RPC API with an
+// explicit role. The role parameter is sent to the server to identify
+// the type of client. Use "agent" for workspace agents to enable
+// connection monitoring.
+func (c *Client) ConnectRPCWithRole(ctx context.Context, role string) (drpc.Conn, error) {
+	return c.connectRPCVersion(ctx, proto.CurrentVersion, role)
+}
+
+func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIVersion, role string) (drpc.Conn, error) {
 	rpcURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/rpc")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	q := rpcURL.Query()
 	q.Add("version", version.String())
+	if role != "" {
+		q.Add("role", role)
+	}
 	rpcURL.RawQuery = q.Encode()
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(rpcURL, []*http.Cookie{{
-		Name:  codersdk.SessionTokenCookie,
-		Value: c.SDK.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.SDK.HTTPClient.Transport,
 	}
 	// nolint:bodyclose
 	conn, res, err := websocket.Dial(ctx, rpcURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
+		HTTPHeader: http.Header{
+			codersdk.SessionTokenHeader: []string{c.SDK.SessionToken()},
+		},
 	})
 	if err != nil {
 		if res == nil {
@@ -617,6 +638,14 @@ type ExternalAuthRequest struct {
 	ID string
 	// Match is an arbitrary string matched against the regex of the provider.
 	Match string
+	// GitBranch is the current git branch in the working directory.
+	// Sent by the agent so the control plane can resolve diffs
+	// without SSHing into the workspace.
+	GitBranch string
+	// GitRemoteOrigin is the remote origin URL of the git repository.
+	// Sent by the agent so the control plane can resolve diffs
+	// without SSHing into the workspace.
+	GitRemoteOrigin string
 	// Listen indicates that the request should be long-lived and listen for
 	// a new token to be requested.
 	Listen bool
@@ -631,6 +660,12 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 	}
 	if req.Listen {
 		q.Set("listen", "true")
+	}
+	if req.GitBranch != "" {
+		q.Set("git_branch", req.GitBranch)
+	}
+	if req.GitRemoteOrigin != "" {
+		q.Set("git_remote_origin", req.GitRemoteOrigin)
 	}
 	reqURL := "/api/v2/workspaceagents/me/external-auth?" + q.Encode()
 	res, err := c.SDK.Request(ctx, http.MethodGet, reqURL, nil)
@@ -681,16 +716,7 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(rpcURL, []*http.Cookie{{
-		Name:  codersdk.SessionTokenCookie,
-		Value: c.SDK.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.SDK.HTTPClient.Transport,
 	}
 
@@ -698,6 +724,7 @@ func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, err
 	if err != nil {
 		return nil, xerrors.Errorf("build request: %w", err)
 	}
+	req.Header[codersdk.SessionTokenHeader] = []string{c.SDK.SessionToken()}
 
 	res, err := httpClient.Do(req)
 	if err != nil {

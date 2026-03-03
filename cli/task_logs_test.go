@@ -41,8 +41,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		client, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
-		userClient := client // user already has access to their own workspace
+		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
 
 		inv, root := clitest.New(t, "task", "logs", task.Name, "--output", "json")
 		output := clitest.Capture(inv)
@@ -65,8 +64,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		client, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
-		userClient := client
+		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
 
 		inv, root := clitest.New(t, "task", "logs", task.ID.String(), "--output", "json")
 		output := clitest.Capture(inv)
@@ -89,8 +87,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		client, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
-		userClient := client
+		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
 
 		inv, root := clitest.New(t, "task", "logs", task.ID.String())
 		output := clitest.Capture(inv)
@@ -144,8 +141,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		client, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsErr(assert.AnError))
-		userClient := client
+		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsErr(assert.AnError))
 
 		inv, root := clitest.New(t, "task", "logs", task.ID.String())
 		clitest.SetupConfig(t, userClient, root)
@@ -201,8 +197,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 	t.Run("SnapshotWithoutLogs_NoSnapshotCaptured", func(t *testing.T) {
 		t.Parallel()
 
-		client, task := setupCLITaskTestWithoutSnapshot(t, codersdk.TaskStatusPaused)
-		userClient := client
+		userClient, task := setupCLITaskTestWithoutSnapshot(t, codersdk.TaskStatusPaused)
 
 		inv, root := clitest.New(t, "task", "logs", task.Name)
 		output := clitest.Capture(inv)

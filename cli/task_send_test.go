@@ -25,8 +25,7 @@ func Test_TaskSend(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		client, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
-		userClient := client
+		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 
 		var stdout strings.Builder
 		inv, root := clitest.New(t, "task", "send", task.Name, "carry on with the task")
@@ -42,8 +41,7 @@ func Test_TaskSend(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		client, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
-		userClient := client
+		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 
 		var stdout strings.Builder
 		inv, root := clitest.New(t, "task", "send", task.ID.String(), "carry on with the task")
@@ -59,8 +57,7 @@ func Test_TaskSend(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		client, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
-		userClient := client
+		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 
 		var stdout strings.Builder
 		inv, root := clitest.New(t, "task", "send", task.Name, "--stdin")
@@ -113,7 +110,7 @@ func Test_TaskSend(t *testing.T) {
 		t.Parallel()
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
-		userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendErr(t, assert.AnError))
+		_, userClient, task := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendErr(t, assert.AnError))
 
 		var stdout strings.Builder
 		inv, root := clitest.New(t, "task", "send", task.Name, "some task input")

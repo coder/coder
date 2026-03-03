@@ -137,6 +137,15 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 	if err != nil {
 		return nil, xerrors.Errorf("parse oidc oauth callback url: %w", err)
 	}
+
+	if vals.OIDC.RedirectURL.String() != "" {
+		redirectURL, err = vals.OIDC.RedirectURL.Value().Parse("/api/v2/users/oidc/callback")
+		if err != nil {
+			return nil, xerrors.Errorf("parse oidc redirect url %q", err)
+		}
+		logger.Warn(ctx, "custom OIDC redirect URL used instead of 'access_url', ensure this matches the value configured in your OIDC provider")
+	}
+
 	// If the scopes contain 'groups', we enable group support.
 	// Do not override any custom value set by the user.
 	if slice.Contains(vals.OIDC.Scopes, "groups") && vals.OIDC.GroupField == "" {
@@ -608,28 +617,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			extAuthEnv, err := ReadExternalAuthProvidersFromEnv(os.Environ())
-			if err != nil {
-				return xerrors.Errorf("read external auth providers from env: %w", err)
-			}
-
 			promRegistry := prometheus.NewRegistry()
 			oauthInstrument := promoauth.NewFactory(promRegistry)
-			vals.ExternalAuthConfigs.Value = append(vals.ExternalAuthConfigs.Value, extAuthEnv...)
-			externalAuthConfigs, err := externalauth.ConvertConfig(
-				oauthInstrument,
-				vals.ExternalAuthConfigs.Value,
-				vals.AccessURL.Value(),
-			)
-			if err != nil {
-				return xerrors.Errorf("convert external auth config: %w", err)
-			}
-			for _, c := range externalAuthConfigs {
-				logger.Debug(
-					ctx, "loaded external auth config",
-					slog.F("id", c.ID),
-				)
-			}
 
 			realIPConfig, err := httpmw.ParseRealIPConfig(vals.ProxyTrustedHeaders, vals.ProxyTrustedOrigins)
 			if err != nil {
@@ -660,7 +649,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Pubsub:                      nil,
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
-				ExternalAuthConfigs:         externalAuthConfigs,
+				ExternalAuthConfigs:         nil,
 				RealIPConfig:                realIPConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
 				TracerProvider:              tracerProvider,
@@ -818,6 +807,40 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}, nil)
 			if err != nil {
 				return xerrors.Errorf("set deployment id: %w", err)
+			}
+
+			extAuthEnv, err := ReadExternalAuthProvidersFromEnv(os.Environ())
+			if err != nil {
+				return xerrors.Errorf("read external auth providers from env: %w", err)
+			}
+			mergedExternalAuthProviders := append([]codersdk.ExternalAuthConfig{}, vals.ExternalAuthConfigs.Value...)
+			mergedExternalAuthProviders = append(mergedExternalAuthProviders, extAuthEnv...)
+			vals.ExternalAuthConfigs.Value = mergedExternalAuthProviders
+
+			mergedExternalAuthProviders, err = maybeAppendDefaultGithubExternalAuthProvider(
+				ctx,
+				options.Logger,
+				options.Database,
+				vals,
+				mergedExternalAuthProviders,
+			)
+			if err != nil {
+				return xerrors.Errorf("maybe append default github external auth provider: %w", err)
+			}
+
+			options.ExternalAuthConfigs, err = externalauth.ConvertConfig(
+				oauthInstrument,
+				mergedExternalAuthProviders,
+				vals.AccessURL.Value(),
+			)
+			if err != nil {
+				return xerrors.Errorf("convert external auth config: %w", err)
+			}
+			for _, c := range options.ExternalAuthConfigs {
+				logger.Debug(
+					ctx, "loaded external auth config",
+					slog.F("id", c.ID),
+				)
 			}
 
 			// Manage push notifications.
@@ -1917,6 +1940,79 @@ type githubOAuth2ConfigParams struct {
 	enterpriseBaseURL string
 }
 
+func isDeploymentEligibleForGithubDefaultProvider(ctx context.Context, db database.Store) (bool, error) {
+	// We want to enable the default provider only for new deployments, and avoid
+	// enabling it if a deployment was upgraded from an older version.
+	// nolint:gocritic // Requires system privileges
+	defaultEligible, err := db.GetOAuth2GithubDefaultEligible(dbauthz.AsSystemRestricted(ctx))
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return false, xerrors.Errorf("get github default eligible: %w", err)
+	}
+	defaultEligibleNotSet := errors.Is(err, sql.ErrNoRows)
+
+	if defaultEligibleNotSet {
+		// nolint:gocritic // User count requires system privileges
+		userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
+		if err != nil {
+			return false, xerrors.Errorf("get user count: %w", err)
+		}
+		// We check if a deployment is new by checking if it has any users.
+		defaultEligible = userCount == 0
+		// nolint:gocritic // Requires system privileges
+		if err := db.UpsertOAuth2GithubDefaultEligible(dbauthz.AsSystemRestricted(ctx), defaultEligible); err != nil {
+			return false, xerrors.Errorf("upsert github default eligible: %w", err)
+		}
+	}
+
+	return defaultEligible, nil
+}
+
+func maybeAppendDefaultGithubExternalAuthProvider(
+	ctx context.Context,
+	logger slog.Logger,
+	db database.Store,
+	vals *codersdk.DeploymentValues,
+	mergedExplicitProviders []codersdk.ExternalAuthConfig,
+) ([]codersdk.ExternalAuthConfig, error) {
+	if !vals.ExternalAuthGithubDefaultProviderEnable.Value() {
+		logger.Info(ctx, "default github external auth provider suppressed",
+			slog.F("reason", "disabled by configuration"),
+			slog.F("flag", "external-auth-github-default-provider-enable"),
+		)
+		return mergedExplicitProviders, nil
+	}
+
+	if len(mergedExplicitProviders) > 0 {
+		logger.Info(ctx, "default github external auth provider suppressed",
+			slog.F("reason", "explicit external auth providers configured"),
+			slog.F("provider_count", len(mergedExplicitProviders)),
+		)
+		return mergedExplicitProviders, nil
+	}
+
+	defaultEligible, err := isDeploymentEligibleForGithubDefaultProvider(ctx, db)
+	if err != nil {
+		return nil, err
+	}
+	if !defaultEligible {
+		logger.Info(ctx, "default github external auth provider suppressed",
+			slog.F("reason", "deployment is not eligible"),
+		)
+		return mergedExplicitProviders, nil
+	}
+
+	logger.Info(ctx, "injecting default github external auth provider",
+		slog.F("type", codersdk.EnhancedExternalAuthProviderGitHub.String()),
+		slog.F("client_id", GithubOAuth2DefaultProviderClientID),
+		slog.F("device_flow", GithubOAuth2DefaultProviderDeviceFlow),
+	)
+	return append(mergedExplicitProviders, codersdk.ExternalAuthConfig{
+		Type:       codersdk.EnhancedExternalAuthProviderGitHub.String(),
+		ClientID:   GithubOAuth2DefaultProviderClientID,
+		DeviceFlow: GithubOAuth2DefaultProviderDeviceFlow,
+	}), nil
+}
+
 func getGithubOAuth2ConfigParams(ctx context.Context, db database.Store, vals *codersdk.DeploymentValues) (*githubOAuth2ConfigParams, error) {
 	params := githubOAuth2ConfigParams{
 		accessURL:         vals.AccessURL.Value(),
@@ -1941,28 +2037,9 @@ func getGithubOAuth2ConfigParams(ctx context.Context, db database.Store, vals *c
 		return nil, nil //nolint:nilnil
 	}
 
-	// Check if the deployment is eligible for the default GitHub OAuth2 provider.
-	// We want to enable it only for new deployments, and avoid enabling it
-	// if a deployment was upgraded from an older version.
-	// nolint:gocritic // Requires system privileges
-	defaultEligible, err := db.GetOAuth2GithubDefaultEligible(dbauthz.AsSystemRestricted(ctx))
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, xerrors.Errorf("get github default eligible: %w", err)
-	}
-	defaultEligibleNotSet := errors.Is(err, sql.ErrNoRows)
-
-	if defaultEligibleNotSet {
-		// nolint:gocritic // User count requires system privileges
-		userCount, err := db.GetUserCount(dbauthz.AsSystemRestricted(ctx), false)
-		if err != nil {
-			return nil, xerrors.Errorf("get user count: %w", err)
-		}
-		// We check if a deployment is new by checking if it has any users.
-		defaultEligible = userCount == 0
-		// nolint:gocritic // Requires system privileges
-		if err := db.UpsertOAuth2GithubDefaultEligible(dbauthz.AsSystemRestricted(ctx), defaultEligible); err != nil {
-			return nil, xerrors.Errorf("upsert github default eligible: %w", err)
-		}
+	defaultEligible, err := isDeploymentEligibleForGithubDefaultProvider(ctx, db)
+	if err != nil {
+		return nil, err
 	}
 
 	if !defaultEligible {

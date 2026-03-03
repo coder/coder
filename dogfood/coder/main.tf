@@ -337,7 +337,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.2.3"
+  version  = "1.3.2"
   agent_id = coder_agent.dev.id
 }
 
@@ -373,19 +373,21 @@ module "personalize" {
 }
 
 module "mux" {
-  count        = data.coder_workspace.me.start_count
-  source       = "registry.coder.com/coder/mux/coder"
-  version      = "1.0.8"
-  agent_id     = coder_agent.dev.id
-  subdomain    = true
-  display_name = "Mux"
-  add-project  = local.repo_dir
+  count           = data.coder_workspace.me.start_count
+  source          = "registry.coder.com/coder/mux/coder"
+  version         = "1.3.1"
+  agent_id        = coder_agent.dev.id
+  subdomain       = true
+  display_name    = "Mux"
+  add_project     = local.repo_dir
+  install_version = "next"
+  package_manager = "bun"
 }
 
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.2"
+  version                 = "1.4.3"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -433,7 +435,7 @@ module "coder-login" {
 module "cursor" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.4.0"
+  version  = "1.4.1"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -441,7 +443,7 @@ module "cursor" {
 module "windsurf" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.3.0"
+  version  = "1.3.1"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -473,6 +475,8 @@ resource "coder_agent" "dev" {
     data.coder_parameter.use_ai_bridge.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
+      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
+      OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
     } : {}
   )
   startup_script_behavior = "blocking"
@@ -568,6 +572,20 @@ resource "coder_agent" "dev" {
       coder external-auth access-token github | gh auth login --hostname github.com --with-token
     else
       echo "Already logged into GitHub CLI."
+    fi
+    # Configure Mux GitHub owner login for browser access (skip if
+    # already set). See: https://mux.coder.com/config/server-access
+    if [ ! -f ~/.mux/config.json ] || ! jq -e '.serverAuthGithubOwner' ~/.mux/config.json >/dev/null 2>&1; then
+      GH_USER=$(gh api user --jq .login 2>/dev/null || true)
+      if [ -n "$GH_USER" ]; then
+        mkdir -p ~/.mux
+        if [ -f ~/.mux/config.json ]; then
+          jq --arg owner "$GH_USER" '. + {serverAuthGithubOwner: $owner}' ~/.mux/config.json > /tmp/mux-config.json && mv /tmp/mux-config.json ~/.mux/config.json
+        else
+          jq -n --arg owner "$GH_USER" '{serverAuthGithubOwner: $owner}' > ~/.mux/config.json
+        fi
+        echo "Configured Mux GitHub owner login: $GH_USER"
+      fi
     fi
 
     # Increase the shutdown timeout of the docker service for improved cleanup.

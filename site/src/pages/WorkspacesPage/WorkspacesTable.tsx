@@ -92,7 +92,6 @@ interface WorkspacesTableProps {
 	error?: unknown;
 	isUsingFilter: boolean;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
-	canCheckWorkspaces: boolean;
 	templates?: Template[];
 	canCreateTemplate: boolean;
 	onActionSuccess: () => Promise<void>;
@@ -104,7 +103,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	checkedWorkspaces,
 	isUsingFilter,
 	onCheckChange,
-	canCheckWorkspaces,
 	templates,
 	canCreateTemplate,
 	onActionSuccess,
@@ -118,28 +116,26 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 				<TableRow>
 					<TableHead className="w-1/3">
 						<div className="flex items-center gap-5">
-							{canCheckWorkspaces && (
-								<Checkbox
-									disabled={!workspaces || workspaces.length === 0}
-									checked={
-										workspaces &&
-										workspaces.length > 0 &&
-										checkedWorkspaces.length === workspaces.length
+							<Checkbox
+								disabled={!workspaces || workspaces.length === 0}
+								checked={
+									workspaces &&
+									workspaces.length > 0 &&
+									checkedWorkspaces.length === workspaces.length
+								}
+								onCheckedChange={(checked) => {
+									if (!workspaces) {
+										return;
 									}
-									onCheckedChange={(checked) => {
-										if (!workspaces) {
-											return;
-										}
 
-										if (!checked) {
-											onCheckChange([]);
-										} else {
-											onCheckChange(workspaces);
-										}
-									}}
-									aria-label="Select all workspaces"
-								/>
-							)}
+									if (!checked) {
+										onCheckChange([]);
+									} else {
+										onCheckChange(workspaces);
+									}
+								}}
+								aria-label="Select all workspaces"
+							/>
 							Name
 						</div>
 					</TableHead>
@@ -151,7 +147,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 				</TableRow>
 			</TableHeader>
 			<TableBody className="[&_td]:h-[72px]">
-				{!workspaces && <TableLoader canCheckWorkspaces={canCheckWorkspaces} />}
+				{!workspaces && <TableLoader />}
 				{workspaces && workspaces.length === 0 && (
 					<TableRow>
 						<TableCell colSpan={999}>
@@ -177,28 +173,26 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 						>
 							<TableCell>
 								<div className="flex items-center gap-5">
-									{canCheckWorkspaces && (
-										<Checkbox
-											data-testid={`checkbox-${workspace.id}`}
-											disabled={cantBeChecked(workspace)}
-											checked={checked}
-											onClick={(e) => {
-												e.stopPropagation();
-											}}
-											onCheckedChange={(checked) => {
-												if (checked) {
-													onCheckChange([...checkedWorkspaces, workspace]);
-												} else {
-													onCheckChange(
-														checkedWorkspaces.filter(
-															(w) => w.id !== workspace.id,
-														),
-													);
-												}
-											}}
-											aria-label={`Select workspace ${workspace.name}`}
-										/>
-									)}
+									<Checkbox
+										data-testid={`checkbox-${workspace.id}`}
+										disabled={cantBeChecked(workspace)}
+										checked={checked}
+										onClick={(e) => {
+											e.stopPropagation();
+										}}
+										onCheckedChange={(checked) => {
+											if (checked) {
+												onCheckChange([...checkedWorkspaces, workspace]);
+											} else {
+												onCheckChange(
+													checkedWorkspaces.filter(
+														(w) => w.id !== workspace.id,
+													),
+												);
+											}
+										}}
+										aria-label={`Select workspace ${workspace.name}`}
+									/>
 									<AvatarData
 										title={
 											<Stack direction="row" spacing={0.5} alignItems="center">
@@ -333,17 +327,13 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	);
 };
 
-interface TableLoaderProps {
-	canCheckWorkspaces?: boolean;
-}
-
-const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
+const TableLoader: FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
 				<TableCell className="w-2/6">
 					<div className="flex items-center gap-5">
-						{canCheckWorkspaces && <Checkbox disabled />}
+						<Checkbox disabled />
 						<AvatarDataSkeleton />
 					</div>
 				</TableCell>

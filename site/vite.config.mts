@@ -23,6 +23,9 @@ if (process.env.STATS !== undefined) {
 
 export default defineConfig({
 	plugins,
+	worker: {
+		format: "es",
+	},
 	publicDir: path.resolve(__dirname, "./static"),
 	build: {
 		outDir: path.resolve(__dirname, "./out"),
@@ -87,6 +90,14 @@ export default defineConfig({
 				target: process.env.CODER_HOST || "http://localhost:3000",
 				secure: process.env.NODE_ENV === "production",
 				configure: (proxy) => {
+					if (process.env.CODER_SESSION_TOKEN) {
+						proxy.on("proxyReq", (proxyReq) => {
+							proxyReq.setHeader(
+								"Coder-Session-Token",
+								process.env.CODER_SESSION_TOKEN!,
+							);
+						});
+					}
 					// Vite does not catch socket errors, and stops the webserver.
 					// As /logs endpoint can return HTTP 4xx status, we need to embrace
 					// Vite with a custom error handler to prevent from quitting.
@@ -96,6 +107,12 @@ export default defineConfig({
 								"origin",
 								process.env.CODER_HOST || "http://localhost:3000",
 							);
+							if (process.env.CODER_SESSION_TOKEN) {
+								proxyReq.setHeader(
+									"Coder-Session-Token",
+									process.env.CODER_SESSION_TOKEN!,
+								);
+							}
 						}
 
 						socket.on("error", (error) => {
@@ -118,6 +135,66 @@ export default defineConfig({
 			},
 		},
 		allowedHosts: [".coder", ".dev.coder.com"],
+	},
+	// Pre-bundle deps that Vite tends to discover late (deep MUI
+	// imports, Emotion). Without this, Vite re-optimizes mid-session
+	// which returns 504 "Outdated Optimize Dep" for every previously
+	// served chunk, cascading into dynamic import failures.
+	optimizeDeps: {
+		include: [
+			"@emotion/cache",
+			"@emotion/css",
+			"@emotion/react",
+			"@emotion/react/jsx-runtime",
+			"@emotion/styled",
+			"@mui/material/Autocomplete",
+			"@mui/material/Card",
+			"@mui/material/CardActionArea",
+			"@mui/material/CardContent",
+			"@mui/material/Checkbox",
+			"@mui/material/CircularProgress",
+			"@mui/material/Collapse",
+			"@mui/material/CssBaseline",
+			"@mui/material/Dialog",
+			"@mui/material/DialogActions",
+			"@mui/material/DialogContent",
+			"@mui/material/DialogContentText",
+			"@mui/material/DialogTitle",
+			"@mui/material/Divider",
+			"@mui/material/Drawer",
+			"@mui/material/FormControl",
+			"@mui/material/FormControlLabel",
+			"@mui/material/FormGroup",
+			"@mui/material/FormHelperText",
+			"@mui/material/FormLabel",
+			"@mui/material/IconButton",
+			"@mui/material/InputAdornment",
+			"@mui/material/InputBase",
+			"@mui/material/LinearProgress",
+			"@mui/material/Link",
+			"@mui/material/List",
+			"@mui/material/ListItem",
+			"@mui/material/ListItemText",
+			"@mui/material/Menu",
+			"@mui/material/MenuItem",
+			"@mui/material/MenuList",
+			"@mui/material/Radio",
+			"@mui/material/RadioGroup",
+			"@mui/material/Select",
+			"@mui/material/Skeleton",
+			"@mui/material/Snackbar",
+			"@mui/material/Stack",
+			"@mui/material/SvgIcon",
+			"@mui/material/Switch",
+			"@mui/material/TableRow",
+			"@mui/material/TextField",
+			"@mui/material/ToggleButton",
+			"@mui/material/ToggleButtonGroup",
+			"@mui/material/styles",
+			"@mui/system/createTheme",
+			"@mui/system/useTheme",
+			"@mui/x-tree-view",
+		],
 	},
 	resolve: {
 		alias: {

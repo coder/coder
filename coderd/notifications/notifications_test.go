@@ -1302,6 +1302,37 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Data: map[string]any{},
 			},
 		},
+		{
+			name: "TemplateTaskPaused",
+			id:   notifications.TemplateTaskPaused,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"task":         "my-task",
+					"task_id":      "00000000-0000-0000-0000-000000000000",
+					"workspace":    "my-workspace",
+					"pause_reason": "idle timeout",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateTaskResumed",
+			id:   notifications.TemplateTaskResumed,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"task":      "my-task",
+					"task_id":   "00000000-0000-0000-0000-000000000001",
+					"workspace": "my-workspace",
+				},
+				Data: map[string]any{},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:

@@ -41,4 +41,4 @@ Tokens are used to authenticate automated clients to Coder.
 | [<code>create</code>](./tokens_create.md) | Create a token                             |
 | [<code>list</code>](./tokens_list.md)     | List tokens                                |
 | [<code>view</code>](./tokens_view.md)     | Display detailed information about a token |
-| [<code>remove</code>](./tokens_remove.md) | Delete a token                             |
+| [<code>remove</code>](./tokens_remove.md) | Expire or delete a token                   |

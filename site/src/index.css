@@ -18,7 +18,7 @@
 		--content-success: 142 72% 29%;
 		--content-warning: 27 96% 61%;
 		--content-destructive: 0 84% 60%;
-		--surface-primary: 0 0% 98%;
+		--surface-primary: 0 0% 100%;
 		--surface-secondary: 240 5% 96%;
 		--surface-tertiary: 240 6% 90%;
 		--surface-quaternary: 240 5% 84%;
@@ -28,33 +28,49 @@
 		--surface-green: 141 79% 85%;
 		--surface-grey: 240 5% 96%;
 		--surface-orange: 34 100% 92%;
-		--surface-sky: 201 94% 86%;
+		--surface-sky: 191, 67%, 89%;
 		--surface-red: 0 93% 94%;
-		--surface-purple: 251 91% 95%;
+		--surface-purple: 259, 100%, 95%;
+		--surface-magenta: 290, 100%, 95%;
 		--border-purple: 255 92% 76%;
 		--border-default: 240 6% 90%;
 		--border-success: 142 76% 36%;
 		--border-sky: 203 90% 40%;
 		--border-green: 138 82% 82%;
+		--border-magenta: 295, 68%, 46%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 84% 60%;
 		--border-hover: 240 5% 34%;
 		--overlay-default: 240 5% 84% / 80%;
 		--radius: 0.5rem;
-		--highlight-purple: 262 83% 58%;
+		--highlight-purple: 271, 61%, 35%;
 		--highlight-green: 143 64% 24%;
+		--highlight-orange: 30 100% 54%;
 		--highlight-grey: 240 5% 65%;
-		--highlight-sky: 201 90% 27%;
+		--highlight-sky: 195, 61%, 22%;
 		--highlight-red: 0 74% 42%;
+		--highlight-magenta: 295, 68%, 46%;
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
 		--ring: 240 10% 3.9%;
+		/*
+		  shadcn-compatible aliases consumed by streamdown and
+		  internal components (e.g. shimmer). These names are
+		  intentionally generic so they match shadcn conventions.
+		  Do NOT rename without updating every consumer.
+		*/
+		--background: 0 0% 98%;
+		--foreground: 240 10% 4%;
+		--muted: 240 5% 96%;
+		--muted-foreground: 240 5% 34%;
+		--primary: 221 83% 53%;
+		--primary-foreground: 0 0% 98%;
 		--avatar-lg: 2.5rem;
 		--avatar-default: 1.5rem;
 		--avatar-sm: 1.125rem;
 	}
 	.dark {
-		--content-primary: 0 0% 98%;
+		--content-primary: 0 0% 100%;
 		--content-secondary: 240 5% 65%;
 		--content-link: 213 94% 68%;
 		--content-invert: 240 10% 4%;
@@ -72,26 +88,37 @@
 		--surface-green: 145 80% 10%;
 		--surface-grey: 240 6% 10%;
 		--surface-orange: 13 81% 15%;
-		--surface-sky: 204 80% 16%;
+		--surface-sky: 196, 67%, 12%;
 		--surface-red: 0 75% 15%;
-		--surface-purple: 261 73% 23%;
+		--surface-purple: 268, 68%, 17%;
+		--surface-magenta: 291, 74%, 15%;
 		--border-purple: 255 92% 76%;
 		--border-default: 240 4% 16%;
 		--border-success: 142 76% 36%;
+		--border-magenta: 292, 100%, 78%;
 		--border-warning: 30.66, 97.16%, 72.35%;
 		--border-destructive: 0 91% 71%;
 		--border-sky: 194 90% 62%;
 		--border-green: 143 77% 87%;
 		--border-hover: 240, 5%, 34%;
 		--overlay-default: 240 10% 4% / 80%;
-		--highlight-purple: 252 95% 85%;
+		--highlight-purple: 269, 100%, 74%;
 		--highlight-green: 141 79% 85%;
+		--highlight-orange: 31 100% 70%;
 		--highlight-grey: 240 4% 46%;
-		--highlight-sky: 198 93% 60%;
+		--highlight-sky: 188, 75%, 80%;
 		--highlight-red: 0 91% 71%;
+		--highlight-magenta: 292, 100%, 78%;
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
 		--ring: 240 4.9% 83.9%;
+		/* shadcn-compatible aliases – see :root block for details. */
+		--background: 240 10% 4%;
+		--foreground: 0 0% 98%;
+		--muted: 240 6% 10%;
+		--muted-foreground: 240 5% 65%;
+		--primary: 213 94% 68%;
+		--primary-foreground: 240 10% 4%;
 	}
 }
 
@@ -100,22 +127,53 @@
 		@apply border-border;
 	}
 
-	/*
-	By default, Radix adds a margin to the `body` element when a dropdown is displayed,
-	causing some shifting when the dropdown has a full-width size, as is the case with the mobile menu.
-	To prevent this, we need to apply the styles below.
+	html,
+	body,
+	#root,
+	#storybook-root {
+		@apply h-full;
+	}
+
+	button,
+	input {
+		@apply font-sans;
+	}
+
+	input:-webkit-autofill,
+	input:-webkit-autofill:hover,
+	input:-webkit-autofill:focus,
+	input:-webkit-autofill:active {
+		-webkit-box-shadow: 0 0 0 100px hsl(var(--surface-primary)) inset !important;
+	}
+
+	::placeholder {
+		@apply text-content-secondary;
+	}
+
+	fieldset {
+		@apply border-none p-0 m-0 w-full;
+	}
+
+	/* Prevent layout shift when modals open by maintaining scrollbar width.
+	scrollbar-gutter: stable reserves space for the scrollbar so Radix's
+	scroll-bar compensation (margin-right/padding-right) is unnecessary
+	and causes double spacing. We zero it out with !important to win
+	over Radix's injected !important styles. The @supports guard ensures
+	we only do this on browsers that actually support scrollbar-gutter.
 
 	There’s a related issue on GitHub: Radix UI Primitives Issue #3251
 	https://github.com/radix-ui/primitives/issues/3251
-	 */
-	html body[data-scroll-locked] {
-		--removed-body-scroll-bar-size: 0;
-		margin-right: 0;
-	}
+	*/
+	@supports (scrollbar-gutter: stable) {
+		html {
+			scrollbar-gutter: stable;
+		}
 
-	/* Prevent layout shift when modals open by maintaining scrollbar width */
-	html {
-		scrollbar-gutter: stable;
+		html body[data-scroll-locked] {
+			--removed-body-scroll-bar-size: 0 !important;
+			margin-right: 0 !important;
+			overflow-y: scroll !important;
+		}
 	}
 
 	/*

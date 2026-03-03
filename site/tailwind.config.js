@@ -4,7 +4,12 @@ module.exports = {
 		preflight: false,
 	},
 	darkMode: ["selector"],
-	content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+	content: [
+		"./index.html",
+		"./src/**/*.{js,ts,jsx,tsx}",
+		"./node_modules/streamdown/dist/**/*.js",
+		"./node_modules/@streamdown/*/dist/**/*.js",
+	],
 	important: ["#root", "#storybook-root"],
 	theme: {
 		extend: {
@@ -57,6 +62,7 @@ module.exports = {
 					sky: "hsl(var(--surface-sky))",
 					red: "hsl(var(--surface-red))",
 					purple: "hsl(var(--surface-purple))",
+					magenta: "hsl(var(--surface-magenta))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
@@ -67,6 +73,7 @@ module.exports = {
 					success: "hsl(var(--border-success))",
 					hover: "hsl(var(--border-hover))",
 					purple: "hsl(var(--border-purple))",
+					magenta: "hsl(var(--border-magenta))",
 				},
 				overlay: "hsla(var(--overlay-default))",
 				input: "hsl(var(--input))",
@@ -74,9 +81,11 @@ module.exports = {
 				highlight: {
 					purple: "hsl(var(--highlight-purple))",
 					green: "hsl(var(--highlight-green))",
+					orange: "hsl(var(--highlight-orange))",
 					grey: "hsl(var(--highlight-grey))",
 					sky: "hsl(var(--highlight-sky))",
 					red: "hsl(var(--highlight-red))",
+					magenta: "hsl(var(--highlight-magenta))",
 				},
 			},
 			keyframes: {

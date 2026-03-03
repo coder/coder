@@ -266,6 +266,16 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name: "CreateWorkspaceForMembers",
+			// When creating the WithID won't be set, but it does not change the result.
+			Actions:  []policy.Action{policy.ActionCreate},
+			Resource: rbac.ResourceWorkspace.InOrg(orgID).WithOwner(policy.WildcardSymbol),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, orgUserAdmin, orgAuditor, memberMe, userAdmin, templateAdmin, orgTemplateAdmin},
+			},
+		},
+		{
 			Name: "MyWorkspaceInOrgExecution",
 			// When creating the WithID won't be set, but it does not change the result.
 			Actions:  []policy.Action{policy.ActionSSH},
@@ -1018,6 +1028,20 @@ func TestRolePermissions(t *testing.T) {
 			Resource: rbac.ResourceBoundaryUsage,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				false: {owner, setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin},
+			},
+		},
+		{
+			Name:     "ChatUsage",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChat.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, memberMe},
+				false: {
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
 			},
 		},
 	}

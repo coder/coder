@@ -51,6 +51,26 @@ func TestCSRFExemptList(t *testing.T) {
 			URL:    "https://coder.com/api/v2/me",
 			Exempt: false,
 		},
+		{
+			Name:   "OAuth2Authorize",
+			URL:    "https://coder.com/oauth2/authorize",
+			Exempt: false,
+		},
+		{
+			Name:   "OAuth2AuthorizeQuery",
+			URL:    "https://coder.com/oauth2/authorize?client_id=test",
+			Exempt: false,
+		},
+		{
+			Name:   "OAuth2Tokens",
+			URL:    "https://coder.com/oauth2/tokens",
+			Exempt: true,
+		},
+		{
+			Name:   "OAuth2Register",
+			URL:    "https://coder.com/oauth2/register",
+			Exempt: true,
+		},
 	}
 
 	mw := httpmw.CSRF(codersdk.HTTPCookieConfig{})

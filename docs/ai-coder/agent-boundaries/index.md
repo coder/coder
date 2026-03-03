@@ -130,7 +130,7 @@ with different characteristics and requirements:
 
 1. **nsjail** - Uses Linux namespaces for isolation. This is the default jail
    type and provides network namespace isolation. See
-   [nsjail documentation](./nsjail.md) for detailed information about runtime
+   [nsjail documentation](./nsjail/index.md) for detailed information about runtime
    requirements and Docker configuration.
 
 2. **landjail** - Uses Landlock V4 for network isolation. This provides network

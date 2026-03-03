@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { richParameters } from "api/queries/templates";
 import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import type {
@@ -6,6 +5,7 @@ import type {
 	Workspace,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import { FormFields } from "components/Form/Form";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
@@ -24,7 +24,6 @@ import {
 } from "components/Popover/Popover";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { useFormik } from "formik";
-import { ChevronDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { docs } from "utils/docs";
@@ -102,8 +101,6 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 	onSubmit,
 	setIsOpen,
 }) => {
-	const theme = useTheme();
-
 	if (
 		!workspace.template_use_classic_parameter_flow &&
 		ephemeralParameters &&
@@ -148,20 +145,14 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 		<>
 			{buildParameters && ephemeralParameters ? (
 				ephemeralParameters.length > 0 ? (
-					<>
-						<div
-							css={{
-								color: theme.palette.text.secondary,
-								padding: 20,
-								borderBottom: `1px solid ${theme.palette.divider}`,
-							}}
-						>
+					<div className="divide-y">
+						<div className="p-5 text-content-secondary">
 							<HelpTooltipTitle>Build Options</HelpTooltipTitle>
 							<HelpTooltipText>
 								These parameters only apply for a single workspace start.
 							</HelpTooltipText>
 						</div>
-						<div css={{ padding: 20 }}>
+						<div className="border-0 border-solid p-5">
 							<Form
 								onSubmit={(buildParameters) => {
 									onSubmit(buildParameters);
@@ -176,15 +167,9 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 								)}
 							/>
 						</div>
-					</>
+					</div>
 				) : (
-					<div
-						css={{
-							color: theme.palette.text.secondary,
-							padding: 20,
-							borderBottom: `1px solid ${theme.palette.divider}`,
-						}}
-					>
+					<div className="p-5 text-content-secondary">
 						<HelpTooltipTitle>Build Options</HelpTooltipTitle>
 						<HelpTooltipText>
 							This template has no ephemeral build options.
@@ -251,11 +236,11 @@ const Form: FC<FormProps> = ({
 					);
 				})}
 			</FormFields>
-			<div css={{ paddingTop: "24px", paddingBottom: "8px" }}>
+			<div className="pb-2 pt-6">
 				<Button
 					data-testid="build-parameters-submit"
 					type="submit"
-					css={{ width: "100%" }}
+					className="w-full"
 				>
 					Build workspace
 				</Button>

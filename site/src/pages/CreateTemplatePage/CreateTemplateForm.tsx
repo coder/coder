@@ -235,7 +235,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 	const showProvisionerWarning = provisioners ? provisioners.length < 1 : false;
 
 	return (
-		<HorizontalForm onSubmit={form.handleSubmit}>
+		<HorizontalForm onSubmit={form.handleSubmit} className="pb-12">
 			{/* General info */}
 			<FormSection
 				title="General"

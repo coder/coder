@@ -1,8 +1,8 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -174,10 +174,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 								}}
 								size="large"
 							>
-								<DropdownArrow
-									margin={false}
-									close={shouldDisplayAllMetadata}
-								/>
+								<ChevronDownIcon open={shouldDisplayAllMetadata} />
 							</IconButton>
 						</TooltipTrigger>
 						<TooltipContent side="bottom">

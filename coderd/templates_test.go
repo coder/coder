@@ -1801,6 +1801,49 @@ func TestDeleteTemplate(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 	})
+
+	t.Run("DeletedIsSet", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Verify the deleted field is exposed in the SDK and set to false for active templates
+		got, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.False(t, got.Deleted)
+	})
+
+	t.Run("DeletedIsTrue", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := client.DeleteTemplate(ctx, template.ID)
+		require.NoError(t, err)
+
+		// Verify the deleted field is set to true by listing templates with
+		// deleted:true filter.
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+			OrganizationID: user.OrganizationID,
+			SearchQuery:    "deleted:true",
+		})
+		require.NoError(t, err)
+
+		require.Len(t, templates, 1)
+		require.Equal(t, template.ID, templates[0].ID)
+		require.True(t, templates[0].Deleted)
+	})
 }
 
 func TestTemplateMetrics(t *testing.T) {

@@ -32,6 +32,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/interceptions \
   "results": [
     {
       "api_key_id": "string",
+      "client": "string",
       "ended_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "initiator": {
@@ -101,5 +102,38 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/interceptions \
 | Status | Meaning                                                 | Description | Schema                                                                                             |
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIBridgeListInterceptionsResponse](schemas.md#codersdkaibridgelistinterceptionsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List AI Bridge models
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/aibridge/models \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /aibridge/models`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  "string"
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema          |
+|--------|---------------------------------------------------------|-------------|-----------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+
+<h3 id="list-ai-bridge-models-responseschema">Response Schema</h3>
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

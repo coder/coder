@@ -88,12 +88,15 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 	}
 
 	// Return NotFound if the subscription does not exist.
-	if existing, err := api.Database.GetWebpushSubscriptionsByUserID(ctx, user.ID); err != nil && errors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "Webpush subscription not found.",
+	existing, err := api.Database.GetWebpushSubscriptionsByUserID(ctx, user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get webpush subscriptions.",
+			Detail:  err.Error(),
 		})
 		return
-	} else if idx := slices.IndexFunc(existing, func(s database.WebpushSubscription) bool {
+	}
+	if idx := slices.IndexFunc(existing, func(s database.WebpushSubscription) bool {
 		return s.Endpoint == req.Endpoint
 	}); idx == -1 {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{

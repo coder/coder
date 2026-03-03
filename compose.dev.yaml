@@ -1,0 +1,363 @@
+# docker-compose.dev.yml — Development environment
+services:
+  database:
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    image: postgres:17
+    environment:
+      POSTGRES_USER: coder
+      POSTGRES_PASSWORD: coder
+      POSTGRES_DB: coder
+    ports:
+      - "5432:5432"
+    volumes:
+      - coder_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coder"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  # Ensure named volumes are owned by the coder user (uid 1000)
+  # since Docker creates them as root by default.
+  init-volumes:
+    labels:
+      - "com.coder.dev"
+    image: codercom/oss-dogfood:latest
+    user: "0:0"
+    volumes:
+      - go_cache:/go-cache
+      - coder_cache:/cache
+      - bootstrap_token:/bootstrap
+      - site_node_modules:/app/site/node_modules
+    command: >
+      chown -R 1000:1000
+        /go-cache
+        /cache
+        /bootstrap
+        /app/site/node_modules
+
+  build-slim:
+    labels:
+      - "com.coder.dev"
+    network_mode: "host"
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      init-volumes:
+        condition: service_completed_successfully
+      database:
+        condition: service_healthy
+    working_dir: /app
+    # Add the Docker group so coderd can access the Docker socket.
+    # If your Docker group is not 999, the below should work:
+    # export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
+    group_add:
+      - "${DOCKER_GROUP:-999}"
+    environment:
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - coder_cache:/cache
+      - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
+    command: >
+      sh -c '
+        if [ "${CODER_BUILD_AGPL:-0}" = "1" ]; then
+          make -j build-slim CODER_BUILD_AGPL=1
+        else
+          make -j build-slim
+        fi &&
+        mkdir -p /cache/site/orig/bin &&
+        cp site/out/bin/coder-* /cache/site/orig/bin/
+      '
+
+  coderd:
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      database:
+        condition: service_healthy
+      build-slim:
+        condition: service_completed_successfully
+    environment:
+      CODER_PG_CONNECTION_URL: "postgresql://coder:coder@database:5432/coder?sslmode=disable"
+      CODER_HTTP_ADDRESS: "0.0.0.0:3000"
+      CODER_ACCESS_URL: "${CODER_DEV_ACCESS_URL:-http://localhost:3000}"
+      CODER_DEV_ADMIN_PASSWORD: "${CODER_DEV_ADMIN_PASSWORD:-SomeSecurePassword!}"
+      CODER_SWAGGER_ENABLE: "true"
+      CODER_DANGEROUS_ALLOW_CORS_REQUESTS: "true"
+      CODER_TELEMETRY_ENABLE: "false"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+      CODER_CACHE_DIRECTORY: /cache
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+    # Add the Docker group so coderd can access the Docker socket.
+    # Override DOCKER_GROUP if your host's docker group is not 999.
+    group_add:
+      - "${DOCKER_GROUP:-999}"
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/healthz || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+    working_dir: /app
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - coder_cache:/cache
+      - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
+    command: >
+      sh -c '
+        CMD_PATH="./enterprise/cmd/coder"
+        [ "${CODER_BUILD_AGPL:-0}" = "1" ] && CMD_PATH="./cmd/coder"
+        exec go run "$$CMD_PATH" server \
+          --http-address 0.0.0.0:3000 \
+          --access-url "${CODER_DEV_ACCESS_URL:-http://localhost:3000}" \
+          --swagger-enable \
+          --dangerous-allow-cors-requests=true \
+          --enable-terraform-debug-mode
+      '
+
+  setup-init:
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      coderd:
+        condition: service_healthy
+    working_dir: /app
+    environment:
+      CODER_URL: "http://coderd:3000"
+      CODER_DEV_ADMIN_PASSWORD: "${CODER_DEV_ADMIN_PASSWORD:-SomeSecurePassword!}"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - bootstrap_token:/bootstrap
+      - ./scripts/docker-dev:/scripts:ro
+    command: ["sh", "/scripts/setup-init.sh"]
+
+  setup-users:
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      setup-init:
+        condition: service_completed_successfully
+    working_dir: /app
+    environment:
+      CODER_URL: "http://coderd:3000"
+      CODER_DEV_MEMBER_PASSWORD: "${CODER_DEV_MEMBER_PASSWORD:-SomeSecurePassword!}"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - bootstrap_token:/bootstrap:ro
+      - ./scripts/docker-dev:/scripts:ro
+    command: ["sh", "/scripts/setup-users.sh"]
+
+  setup-template:
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      setup-init:
+        condition: service_completed_successfully
+    working_dir: /app
+    environment:
+      CODER_URL: "http://coderd:3000"
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - bootstrap_token:/bootstrap:ro
+      - ./scripts/docker-dev:/scripts:ro
+      - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
+    command: ["sh", "/scripts/setup-template.sh"]
+
+  site:
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      setup-template:
+        condition: service_completed_successfully
+    working_dir: /app/site
+    environment:
+      CODER_HOST: "http://coderd:3000"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./site:/app/site
+      - site_node_modules:/app/site/node_modules
+    command: sh -c "pnpm install --frozen-lockfile && pnpm dev --host"
+
+  wsproxy:
+    profiles: ["proxy"]
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      setup-init:
+        condition: service_completed_successfully
+    working_dir: /app
+    environment:
+      CODER_URL: "http://coderd:3000"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - bootstrap_token:/bootstrap:ro
+    ports:
+      - "3010:3010"
+    command: >
+      sh -c '
+        export CODER_SESSION_TOKEN=$$(cat /bootstrap/token) &&
+        go run ./cmd/coder wsproxy delete local-proxy --yes 2>/dev/null || true
+        PROXY_TOKEN=$$(go run ./cmd/coder wsproxy create \
+          --name=local-proxy \
+          --display-name="Local Proxy" \
+          --icon="/emojis/1f4bb.png" \
+          --only-token)
+        exec go run ./cmd/coder wsproxy server \
+          --dangerous-allow-cors-requests=true \
+          --http-address=0.0.0.0:3010 \
+          --proxy-session-token="$$PROXY_TOKEN" \
+          --primary-access-url=http://coderd:3000
+      '
+
+  setup-multi-org:
+    profiles: ["multi-org"]
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      setup-users:
+        condition: service_completed_successfully
+      setup-template:
+        condition: service_completed_successfully
+    working_dir: /app
+    environment:
+      CODER_URL: "http://coderd:3000"
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+      LICENSE_FILE: "${CODER_DEV_LICENSE_FILE:-./license.txt}"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - bootstrap_token:/bootstrap:ro
+      - ./scripts/docker-dev:/scripts:ro
+      - "${CODER_DEV_LICENSE_FILE:-./license.txt}:/license.txt:ro"
+    command: ["sh", "/scripts/setup-multi-org.sh"]
+
+  ext-provisioner:
+    profiles: ["multi-org"]
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:2112"]
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      setup-multi-org:
+        condition: service_completed_successfully
+    group_add:
+      - "${DOCKER_GROUP:-999}"
+    working_dir: /app
+    environment:
+      CODER_URL: "http://coderd:3000"
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+      CODER_PROMETHEUS_ENABLE: "1"
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - bootstrap_token:/bootstrap:ro
+      - "${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock"
+    command: >
+      sh -c '
+        export CODER_SESSION_TOKEN=$$(cat /bootstrap/token) &&
+        exec go run ./enterprise/cmd/coder provisionerd start \
+          --tag "scope=organization" \
+          --name second-org-daemon \
+          --org second-organization
+      '
+
+  setup-multi-org-template:
+    profiles: ["multi-org"]
+    labels:
+      - "com.coder.dev"
+    networks:
+      - coder-dev
+    image: codercom/oss-dogfood:latest
+    depends_on:
+      setup-multi-org:
+        condition: service_completed_successfully
+      ext-provisioner:
+        condition: service_healthy
+    working_dir: /app
+    environment:
+      CODER_URL: "http://coderd:3000"
+      GOMODCACHE: /go-cache/mod
+      GOCACHE: /go-cache/build
+    volumes:
+      - .:/app
+      - go_cache:/go-cache
+      - bootstrap_token:/bootstrap:ro
+      - ./scripts/docker-dev:/scripts:ro
+    command: ["sh", "-c", "/scripts/setup-template.sh second-organization"]
+
+
+volumes:
+  coder_dev_data:
+    labels:
+      - "com.coder.dev"
+  go_cache:
+    labels:
+      - "com.coder.dev"
+  coder_cache:
+    labels:
+      - "com.coder.dev"
+  site_node_modules:
+    labels:
+      - "com.coder.dev"
+  bootstrap_token:
+    labels:
+      - "com.coder.dev"
+
+networks:
+  coder-dev:
+    labels:
+      - "com.coder.dev"
+    name: coder-dev
+    driver: bridge

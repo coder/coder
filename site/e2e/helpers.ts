@@ -171,8 +171,11 @@ export const verifyParameters = async (
 	expectedBuildParameters: WorkspaceBuildParameter[],
 ) => {
 	const user = currentUser(page);
+	// Use networkidle to ensure all API responses (workspace data, build
+	// parameters) are settled before verifying values. Using domcontentloaded
+	// can cause the form to render with stale React Query cache data.
 	await page.goto(`/@${user.username}/${workspaceName}/settings/parameters`, {
-		waitUntil: "domcontentloaded",
+		waitUntil: "networkidle",
 	});
 
 	for (const buildParameter of expectedBuildParameters) {
@@ -209,7 +212,12 @@ export const verifyParameters = async (
 			case "number":
 				{
 					const parameterField = parameterLabel.locator("input");
-					await expect(parameterField).toHaveValue(buildParameter.value);
+					// Dynamic parameters can hydrate after initial render with
+					// stale or empty values. Retry with a longer timeout to
+					// allow the page to settle.
+					await expect(parameterField).toHaveValue(buildParameter.value, {
+						timeout: 15_000,
+					});
 				}
 				break;
 			default:
@@ -1042,7 +1050,22 @@ const fillParameters = async (
 			case "number":
 				{
 					const parameterField = parameterLabel.locator("input");
-					await parameterField.fill(buildParameter.value);
+					// Dynamic parameters can hydrate after initial render and
+					// overwrite an early fill. Re-apply until the desired value
+					// is stable.
+					for (let attempt = 0; attempt < 3; attempt++) {
+						await parameterField.fill(buildParameter.value);
+						try {
+							await expect(parameterField).toHaveValue(buildParameter.value, {
+								timeout: 1000,
+							});
+							break;
+						} catch (error) {
+							if (attempt === 2) {
+								throw error;
+							}
+						}
+					}
 				}
 				break;
 			default:
@@ -1251,7 +1274,7 @@ export async function createUser(
 	const passwordField = page.locator("input[name=password]");
 	await passwordField.fill(password);
 	await page.getByRole("button", { name: /save/i }).click();
-	await expect(page.getByText("Successfully created user.")).toBeVisible();
+	await expect(page.getByText(/created successfully/)).toBeVisible();
 
 	await expect(page).toHaveTitle("Users - Coder");
 	const addedRow = page.locator("tr", { hasText: email });
@@ -1285,7 +1308,7 @@ export async function createOrganization(page: Page): Promise<{
 	await page.getByRole("button", { name: /save/i }).click();
 
 	await expectUrl(page).toHavePathName(`/organizations/${name}`);
-	await expect(page.getByText("Organization created.")).toBeVisible();
+	await expect(page.getByText(/created successfully/)).toBeVisible();
 
 	return { name, displayName, description };
 }

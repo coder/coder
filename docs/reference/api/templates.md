@@ -62,6 +62,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
     "default_ttl_ms": 0,
+    "deleted": true,
     "deprecated": true,
     "deprecation_message": "string",
     "description": "string",
@@ -120,6 +121,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
 |`» default_ttl_ms`|integer|false|||
+|`» deleted`|boolean|false|||
 |`» deprecated`|boolean|false|||
 |`» deprecation_message`|string|false|||
 |`» description`|string|false|||
@@ -246,6 +248,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
@@ -397,6 +400,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
@@ -814,6 +818,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
     "created_by_name": "string",
     "default_ttl_ms": 0,
+    "deleted": true,
     "deprecated": true,
     "deprecation_message": "string",
     "description": "string",
@@ -872,6 +877,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» created_by_id`|string(uuid)|false|||
 |`» created_by_name`|string|false|||
 |`» default_ttl_ms`|integer|false|||
+|`» deleted`|boolean|false|||
 |`» deprecated`|boolean|false|||
 |`» deprecation_message`|string|false|||
 |`» description`|string|false|||
@@ -1016,6 +1022,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
@@ -1189,6 +1196,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",

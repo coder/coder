@@ -21,10 +21,6 @@ const CreateTemplatePage: FC = () => {
 	const createTemplateMutation = useMutation(createTemplate());
 	const variablesSectionRef = useRef<HTMLDivElement>(null);
 
-	const onCancel = () => {
-		navigate(-1);
-	};
-
 	const pageViewProps: CreateTemplatePageViewProps = {
 		onCreateTemplate: async (options) => {
 			setIsBuildLogsOpen(true);
@@ -47,7 +43,7 @@ const CreateTemplatePage: FC = () => {
 		<>
 			<title>{pageTitle("Create Template")}</title>
 
-			<FullPageHorizontalForm title="Create Template" onCancel={onCancel}>
+			<FullPageHorizontalForm title="Create Template">
 				{searchParams.has("fromTemplate") ? (
 					<DuplicateTemplateView {...pageViewProps} />
 				) : searchParams.has("exampleId") ? (

@@ -1,3 +1,4 @@
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -5,7 +6,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { ChevronDownIcon } from "lucide-react";
 import { linkToAuditing } from "modules/navigation";
 import type { FC } from "react";
 import { Link } from "react-router";

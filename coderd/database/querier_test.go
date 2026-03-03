@@ -6319,6 +6319,56 @@ func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 	})
 }
 
+func TestGetWorkspaceAgentByInstanceID(t *testing.T) {
+	t.Parallel()
+
+	// Context: https://github.com/coder/coder/pull/22196
+	t.Run("DoesNotReturnSubAgents", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: A parent workspace agent with an AuthInstanceID and a
+		// sub-agent that shares the same AuthInstanceID.
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			OrganizationID: org.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		parentAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		// Create a sub-agent with the same AuthInstanceID (simulating
+		// the old behavior before the fix).
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{UUID: parentAgent.ID, Valid: true},
+			ResourceID: resource.ID,
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// When: We look up the agent by instance ID.
+		agent, err := db.GetWorkspaceAgentByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+
+		// Then: The result must be the parent agent, not the sub-agent.
+		assert.Equal(t, parentAgent.ID, agent.ID, "instance ID lookup should return the parent agent, not a sub-agent")
+		assert.False(t, agent.ParentID.Valid, "returned agent should not have a parent (should be the parent itself)")
+	})
+}
+
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
 	t.Helper()
 	require.ElementsMatch(t, expected, database.ConvertUserRows(found), msg)
@@ -6646,7 +6696,6 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
@@ -7460,7 +7509,6 @@ func TestGetTaskByWorkspaceID(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -7498,6 +7546,47 @@ func TestGetTaskByWorkspaceID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeleteTaskDeletesTaskSnapshot(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	task := dbgen.Task(t, db, database.TaskTable{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		TemplateVersionID: templateVersion.ID,
+		Prompt:            "Test prompt",
+	})
+
+	err := db.UpsertTaskSnapshot(ctx, database.UpsertTaskSnapshotParams{
+		TaskID:               task.ID,
+		LogSnapshot:          json.RawMessage(`{"messages":[]}`),
+		LogSnapshotCreatedAt: dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	_, err = db.DeleteTask(ctx, database.DeleteTaskParams{
+		ID:        task.ID,
+		DeletedAt: dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	_, err = db.GetTaskSnapshot(ctx, task.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
 func TestTaskNameUniqueness(t *testing.T) {
@@ -8000,7 +8089,6 @@ func TestUpdateTaskWorkspaceID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -8070,12 +8158,15 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 				ID:          uid,
 				InitiatorID: user.ID,
 				Metadata:    json.RawMessage("{}"),
+				Client:      sql.NullString{String: "client", Valid: true},
 			}
 
 			intc, err := db.InsertAIBridgeInterception(ctx, insertParams)
 			require.NoError(t, err)
 			require.Equal(t, uid, intc.ID)
 			require.False(t, intc.EndedAt.Valid)
+			require.True(t, intc.Client.Valid)
+			require.Equal(t, "client", intc.Client.String)
 			interceptions = append(interceptions, intc)
 		}
 
@@ -8145,8 +8236,9 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 
 	// All keys are present before deletion
 	keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
-		LoginType: user.LoginType,
-		UserID:    user.ID,
+		LoginType:      user.LoginType,
+		UserID:         user.ID,
+		IncludeExpired: true,
 	})
 	require.NoError(t, err)
 	require.Len(t, keys, len(expiredTimes)+len(unexpiredTimes))
@@ -8162,8 +8254,9 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 
 	// Ensure it was deleted
 	remaining, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
-		LoginType: user.LoginType,
-		UserID:    user.ID,
+		LoginType:      user.LoginType,
+		UserID:         user.ID,
+		IncludeExpired: true,
 	})
 	require.NoError(t, err)
 	require.Len(t, remaining, len(expiredTimes)+len(unexpiredTimes)-1)
@@ -8178,8 +8271,9 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 
 	// Ensure only unexpired keys remain
 	remaining, err = db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
-		LoginType: user.LoginType,
-		UserID:    user.ID,
+		LoginType:      user.LoginType,
+		UserID:         user.ID,
+		IncludeExpired: true,
 	})
 	require.NoError(t, err)
 	require.Len(t, remaining, len(unexpiredTimes))
