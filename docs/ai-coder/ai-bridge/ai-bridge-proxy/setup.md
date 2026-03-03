@@ -5,13 +5,10 @@ Once enabled, `coderd` runs the `aibridgeproxyd` in-memory and intercepts traffi
 
 **Required:**
 
-1. AI Bridge must be enabled and configured (requires a **Premium** license with the [AI Governance Add-On](../../ai-governance.md)). See [AI Bridge Setup](../setup.md) for further information.1. AI Bridge Proxy must be [enabled](#proxy-configuration) using the server flag.
+1. AI Bridge must be enabled and configured (requires a **Premium** license with the [AI Governance Add-On](../../ai-governance.md)). See [AI Bridge Setup](../setup.md) for further information.
+1. AI Bridge Proxy must be [enabled](#proxy-configuration) using the server flag.
 1. A [CA certificate](#ca-certificate) must be configured for MITM interception.
 1. [Clients](#client-configuration) must be configured to use the proxy and trust the CA certificate.
-
-> [!WARNING]
-> AI Bridge Proxy should only be accessible within a trusted network and **must not** be directly exposed to the public internet.
-> See [Security Considerations](#security-considerations) for details.
 
 ## Proxy Configuration
 
@@ -34,6 +31,21 @@ coder server \
 Both the certificate and private key are required for AI Bridge Proxy to start.
 See [CA Certificate](#ca-certificate) for how to generate and obtain these files.
 
+By default, the proxy listener accepts plain HTTP connections.
+To serve the listener over HTTPS, provide a TLS certificate and key:
+
+```shell
+CODER_AIBRIDGE_PROXY_TLS_CERT_FILE=/path/to/listener.crt
+CODER_AIBRIDGE_PROXY_TLS_KEY_FILE=/path/to/listener.key
+# or via CLI flags:
+--aibridge-proxy-tls-cert-file=/path/to/listener.crt
+--aibridge-proxy-tls-key-file=/path/to/listener.key
+```
+
+Both files must be provided together.
+The TLS certificate must include a Subject Alternative Name (SAN) matching the hostname or IP address that clients use to connect to the proxy.
+See [Proxy TLS Configuration](#proxy-tls-configuration) for how to generate and configure these files.
+
 The AI Bridge Proxy only intercepts and forwards traffic to AI Bridge for the supported AI provider domains:
 
 * [Anthropic](https://www.anthropic.com/): `api.anthropic.com`
@@ -47,35 +59,29 @@ For additional configuration options, see the [Coder server configuration](../..
 ## Security Considerations
 
 > [!WARNING]
-> AI Bridge Proxy uses HTTP for incoming connections from AI tools.
-> If exposed to untrusted networks, Coder credentials may be intercepted and internal services may become accessible to attackers.
-> The AI Bridge Proxy **must not** be exposed to the public internet.
+> The AI Bridge Proxy should only be accessible within a trusted network and **must not** be directly exposed to the public internet.
+> Without proper network restrictions, unauthorized users could route traffic through the proxy or intercept credentials.
 
-AI Bridge Proxy is an HTTP proxy, which means:
+### Encrypting client connections
 
-* **Credentials are sent in plain text:** In order to authenticate with Coder via AI Bridge, AI tools send the Coder session token in the proxy credentials over HTTP.
-The proxy then relays these credentials to AI Bridge for authentication.
-If the proxy is exposed to an untrusted network, these credentials could be intercepted.
-* **Open tunnel access:** Requests to non-allowlisted domains are tunneled through the proxy without restriction.
-An attacker with access to the proxy could use it to reach internal services or route traffic through the infrastructure.
-
-Note: These limitations are known and additional security hardening is planned on the roadmap.
-
-These risks apply only to the connection phase between AI tools and the proxy.
+By default, AI tools send the Coder session token in the proxy credentials over unencrypted HTTP.
+This only applies to the initial connection between the client and the proxy.
 Once connected:
 
 * MITM mode: A TLS connection is established between the AI tool and the proxy (using the configured CA certificate), then traffic is forwarded securely to AI Bridge.
 * Tunnel mode: A TLS connection is established directly between the AI tool and the destination, passing through the proxy without decryption.
 
-### Deployment options
+As a best practice, apply one or more of the following to protect credentials during the initial connection:
 
-To address these risks, the recommended deployment options are:
+* TLS listener (recommended): Enable TLS directly on the proxy so clients connect over HTTPS.
+See [Proxy TLS Configuration](#proxy-tls-configuration) for configuration steps.
+* Internal network only: If the proxy and all clients are on the same trusted network, credentials are not exposed to external attackers.
+* TLS-terminating load balancer: Place a TLS-terminating load balancer in front of the proxy that terminates TLS and forwards requests over HTTP.
 
-* Internal network only: Deploy the proxy so that only AI tools within the same internal network can access it.
-This is the simplest and safest approach when AI tools run inside Coder workspaces on the same network as the Coder deployment.
-* TLS-terminating load balancer: Place a TLS-terminating load balancer in front of the proxy so AI tools connect to the load balancer over HTTPS.
-The load balancer terminates TLS and forwards requests to the proxy over HTTP.
-This protects credentials in transit, but you must still restrict access to allowed source IPs to prevent unauthorized use.
+### Restricting proxy access
+
+Requests to non-allowlisted domains are tunneled through the proxy without restriction.
+To prevent unauthorized use, restrict network access to the proxy so that only authorized clients can connect.
 
 ## CA Certificate
 
@@ -150,6 +156,73 @@ Otherwise, AI tools must be configured to trust the intermediate CA certificate 
 
 How you configure AI tools to trust the certificate depends on the tool and operating system. See [Client Configuration](#client-configuration) for details.
 
+## Proxy TLS Configuration
+
+By default, the AI Bridge Proxy listener accepts plain HTTP connections.
+When TLS is enabled, the proxy serves over HTTPS, encrypting the connection between AI tools and the proxy.
+
+The TLS certificate is separate from the [MITM CA certificate](#ca-certificate).
+The CA certificate is used to sign dynamically generated certificates during MITM interception.
+The TLS certificate identifies the proxy itself, like any standard web server certificate.
+
+The AI Bridge Proxy enforces a minimum TLS version of 1.2.
+
+### Configuration
+
+In addition to the required proxy configuration, set the following to enable TLS on the proxy:
+
+```shell
+CODER_AIBRIDGE_PROXY_TLS_CERT_FILE=/path/to/listener.crt
+CODER_AIBRIDGE_PROXY_TLS_KEY_FILE=/path/to/listener.key
+# or via CLI flags:
+--aibridge-proxy-tls-cert-file=/path/to/listener.crt
+--aibridge-proxy-tls-key-file=/path/to/listener.key
+```
+
+Both files must be provided together. If only one is set, the proxy will fail to start.
+
+### Self-signed certificate
+
+Use a self-signed certificate when your organization doesn't have an internal CA, or when you want a dedicated certificate specifically for the AI Bridge Proxy.
+
+The TLS certificate must include a Subject Alternative Name (SAN) matching the hostname or IP address that clients use to connect to the proxy.
+Without a matching SAN, clients will reject the connection.
+
+1) Generate a private key:
+
+```shell
+openssl genrsa -out listener.key 4096
+chmod 400 listener.key
+```
+
+1) Create a self-signed certificate:
+
+```shell
+openssl req -new -x509 -days 365 \
+  -key listener.key \
+  -out listener.crt \
+  -subj "/CN=<proxy-host>" \
+  -addext "subjectAltName=DNS:<proxy-host>,IP:<proxy-ip>"
+```
+
+Replace `<proxy-host>` and `<proxy-ip>` with the hostname and IP address that clients use to connect to the proxy.
+
+### Corporate CA certificate
+
+If your organization has an internal CA, have it issue a leaf certificate for the proxy.
+The certificate must include a SAN matching the proxy's hostname or IP address.
+
+If clients already trust your organization's root CA, no additional certificate configuration is needed for the TLS connection to the proxy.
+
+### Trusting the TLS certificate
+
+For **self-signed certificates**, AI tools must be configured to trust the TLS certificate.
+
+For **corporate CA certificates**, if the systems where AI tools run already trust your organization's root CA, no additional configuration is needed.
+
+How you configure AI tools to trust the certificate depends on the tool and operating system.
+See [Client Configuration](#client-configuration) for details.
+
 ## Upstream proxy
 
 If your organization requires all outbound traffic to pass through a corporate proxy, you can configure AI Bridge Proxy to chain requests to an upstream proxy.
@@ -200,15 +273,19 @@ To use AI Bridge Proxy, AI tools must be configured to:
 The preferred approach is to configure the proxy directly in the AI tool's settings, as this avoids routing unnecessary traffic through the proxy.
 Consult the tool's documentation for specific instructions.
 
-Alternatively, most tools support the standard proxy environment variables, though this is not guaranteed for all tools:
+Alternatively, most tools support the standard `HTTPS_PROXY` environment variable, though this is not guaranteed for all tools:
 
 ```shell
-export HTTP_PROXY="http://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888"
-export HTTPS_PROXY="http://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888"
+export HTTPS_PROXY="https://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888"
 ```
 
-* `HTTP_PROXY`: Used for requests to `http://` URLs
-* `HTTPS_PROXY`: Used for requests to `https://` URLs (this is the one used for AI provider domains)
+Note: if [TLS is not enabled](#proxy-tls-configuration) on the proxy, replace `https://` with `http://` in the proxy URL.
+
+`HTTPS_PROXY` is used for requests to `https://` URLs, which includes all supported AI provider domains.
+
+> [!NOTE]
+> `HTTP_PROXY` is not required since AI providers only use `HTTPS`.
+> Leaving it unset avoids routing unnecessary traffic through the proxy.
 
 In order for AI tools that communicate with AI Bridge Proxy to authenticate with Coder via AI Bridge, the Coder session token needs to be passed in the proxy credentials as the password field.
 
@@ -229,6 +306,15 @@ curl -o coder-aibridge-proxy-ca.pem \
 ```
 
 Replace `<coder-url>` with your Coder deployment URL.
+
+When [TLS is enabled](#proxy-tls-configuration) on the proxy, AI tools must trust both the [MITM CA certificate](#ca-certificate) and the [TLS certificate](#proxy-tls-configuration).
+Combine both certificates into a single PEM file:
+
+```shell
+cat coder-aibridge-proxy-ca.pem listener.crt > combined-ca.pem
+```
+
+Use this combined file for any of the environment variables listed below.
 
 #### Environment variables
 
