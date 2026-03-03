@@ -253,7 +253,7 @@ type ChatModelOpenAIProviderOptions struct {
 	MaxToolCalls        *int64           `json:"max_tool_calls,omitempty" description:"Maximum number of tool calls per response"`
 	ParallelToolCalls   *bool            `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
 	User                *string          `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	ReasoningEffort     *string          `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"minimal,low,medium,high"`
+	ReasoningEffort     *string          `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
 	ReasoningSummary    *string          `json:"reasoning_summary,omitempty" description:"Controls whether reasoning tokens are summarized in the response"`
 	MaxCompletionTokens *int64           `json:"max_completion_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
 	TextVerbosity       *string          `json:"text_verbosity,omitempty" description:"Controls the verbosity of the text response" enum:"low,medium,high"`
@@ -303,7 +303,7 @@ type ChatModelGoogleProviderOptions struct {
 // ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
 type ChatModelOpenAICompatProviderOptions struct {
 	User            *string `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"minimal,low,medium,high"`
+	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
 }
 
 // ChatModelOpenRouterReasoningOptions configures OpenRouter reasoning behavior.
