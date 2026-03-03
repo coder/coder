@@ -1,13 +1,13 @@
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Input } from "components/Input/Input";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { ChevronLeftIcon, InfoIcon, Loader2Icon } from "lucide-react";
 import {
 	type FC,
