@@ -871,7 +871,7 @@ const AgentDetail: FC = () => {
 		if (!workspaceRoute) {
 			return;
 		}
-		navigate(workspaceRoute);
+		window.open(workspaceRoute, "_blank");
 	};
 
 	const handleOpenTerminal = () => {
