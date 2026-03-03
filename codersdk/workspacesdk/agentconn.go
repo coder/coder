@@ -55,6 +55,7 @@ type AgentConn interface {
 	GetPeerDiagnostics() tailnet.PeerDiagnostics
 	ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
 	ListProcesses(ctx context.Context) (ListProcessesResponse, error)
+	ListSkills(ctx context.Context) ([]SkillMetadata, error)
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
 	Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error)
@@ -905,6 +906,29 @@ func (c *agentConn) apiClient() *http.Client {
 			},
 		},
 	}
+}
+
+// SkillMetadata describes a discovered skill exposed by a workspace agent.
+type SkillMetadata struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Path        string `json:"path"`
+}
+
+// ListSkills returns discovered skill metadata from the workspace agent.
+func (c *agentConn) ListSkills(ctx context.Context) ([]SkillMetadata, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/skills", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	var resp []SkillMetadata
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 func (c *agentConn) GetPeerDiagnostics() tailnet.PeerDiagnostics {
