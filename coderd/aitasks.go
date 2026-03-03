@@ -1249,7 +1249,7 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 // @Summary Pause task
 // @ID pause-task
 // @Security CoderSessionToken
-// @Accept json
+// @Produce json
 // @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID" format(uuid)
@@ -1326,7 +1326,7 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 // @Summary Resume task
 // @ID resume-task
 // @Security CoderSessionToken
-// @Accept json
+// @Produce json
 // @Tags Tasks
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
 // @Param task path string true "Task ID" format(uuid)
