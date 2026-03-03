@@ -166,18 +166,6 @@ const muiTheme = createTheme({
 				},
 			},
 		},
-		MuiSwitch: {
-			...components.MuiSwitch,
-			styleOverrides: {
-				root: {
-					".Mui-focusVisible .MuiSwitch-thumb": {
-						// Had to thicken outline to make sure that the focus color didn't
-						// bleed into the thumb and was still easily-visible
-						boxShadow: `0 0 0 3px ${tw.blue[600]}`,
-					},
-				},
-			},
-		},
 		MuiTooltip: {
 			styleOverrides: {
 				tooltip: ({ theme }) => ({
