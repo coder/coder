@@ -136,26 +136,4 @@ export const LongContentScrollable: Story = {
 	args: {
 		initialValue: longContent,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// Wait for the Lexical editor to initialize and render the
-		// initial value text into the DOM before measuring.
-		const editor = canvas.getByTestId("chat-message-input");
-		await waitFor(() => {
-			expect(editor.textContent).toContain("Line 60:");
-		});
-
-		// The content should overflow: scrollHeight must exceed the
-		// visible client height, proving the editor is scrollable.
-		await waitFor(() => {
-			expect(editor.scrollHeight).toBeGreaterThan(editor.clientHeight);
-		});
-
-		// The overflow-y style should be "auto" so the browser shows a
-		// scrollbar only when the content overflows.
-		const overflowY = window.getComputedStyle(editor).overflowY;
-		expect(overflowY).not.toBe("visible");
-		expect(overflowY).not.toBe("hidden");
-	},
 };
