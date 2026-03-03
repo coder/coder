@@ -25,6 +25,7 @@ import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
+	ArchiveRestoreIcon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -56,6 +57,7 @@ interface AgentsSidebarProps {
 	modelConfigs: readonly ChatModelConfig[];
 	logoUrl?: string;
 	onArchiveAgent: (chatId: string) => void;
+	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onNewAgent: () => void;
 	isCreating: boolean;
@@ -270,6 +272,7 @@ interface ChatTreeContextValue {
 	readonly archivingChatId: string | null;
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
+	readonly onUnarchiveAgent: (chatId: string) => void;
 	readonly onArchiveAndDeleteWorkspace: (
 		chatId: string,
 		workspaceId: string,
@@ -305,6 +308,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		archivingChatId,
 		toggleExpanded,
 		onArchiveAgent,
+		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
 	} = useChatTree();
 	const chatID = chat.id;
@@ -470,30 +474,43 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">
-									<DropdownMenuItem
-										className="text-content-destructive focus:text-content-destructive"
-										disabled={isArchiving}
-										onSelect={() => onArchiveAgent(chat.id)}
-									>
-										<ArchiveIcon className="h-3.5 w-3.5" />
-										Archive agent
-									</DropdownMenuItem>
-									{workspaceId && (
+									{chat.archived ? (
 										<DropdownMenuItem
-											className="text-content-destructive focus:text-content-destructive"
 											disabled={isArchiving}
-											onSelect={() =>
-												onArchiveAndDeleteWorkspace(chat.id, workspaceId)
-											}
+											onSelect={() => onUnarchiveAgent(chat.id)}
 										>
-											<Trash2Icon className="h-3.5 w-3.5" />
-											Archive & delete workspace
+											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+											Unarchive agent
 										</DropdownMenuItem>
+									) : (
+										<>
+											{" "}
+											<DropdownMenuItem
+												className="text-content-destructive focus:text-content-destructive"
+												disabled={isArchiving}
+												onSelect={() => onArchiveAgent(chat.id)}
+											>
+												<ArchiveIcon className="h-3.5 w-3.5" />
+												Archive agent
+											</DropdownMenuItem>
+											{workspaceId && (
+												<DropdownMenuItem
+													className="text-content-destructive focus:text-content-destructive"
+													disabled={isArchiving}
+													onSelect={() =>
+														onArchiveAndDeleteWorkspace(chat.id, workspaceId)
+													}
+												>
+													<Trash2Icon className="h-3.5 w-3.5" />
+													Archive & delete workspace
+												</DropdownMenuItem>
+											)}
+										</>
 									)}
 								</DropdownMenuContent>
 							</DropdownMenu>
 						</>
-					)}
+					)}{" "}
 				</div>
 			</div>
 
@@ -521,6 +538,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		modelConfigs,
 		logoUrl,
 		onArchiveAgent,
+		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
 		onNewAgent,
 		isCreating,
@@ -618,6 +636,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			archivingChatId,
 			toggleExpanded,
 			onArchiveAgent,
+			onUnarchiveAgent,
 			onArchiveAndDeleteWorkspace,
 		}),
 		[
@@ -632,6 +651,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			archivingChatId,
 			toggleExpanded,
 			onArchiveAgent,
+			onUnarchiveAgent,
 			onArchiveAndDeleteWorkspace,
 		],
 	);

@@ -31,6 +31,7 @@ const defaultProps = {
 	},
 	onArchiveAgent: () => {},
 	onArchiveAndDeleteWorkspace: () => {},
+	onUnarchiveAgent: () => {},
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: () => {},
 } satisfies React.ComponentProps<typeof AgentDetailTopBar>;
@@ -103,5 +104,12 @@ export const Archived: Story = {
 export const NoTitle: Story = {
 	args: {
 		chatTitle: undefined,
+	},
+};
+
+export const ArchivedWithUnarchive: Story = {
+	args: {
+		isArchived: true,
+		onUnarchiveAgent: () => {},
 	},
 };

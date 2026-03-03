@@ -44,6 +44,7 @@ const AgentDetailLayout: FC = () => {
 							clearChatErrorReason: () => {},
 							requestArchiveAgent: () => {},
 							requestArchiveAndDeleteWorkspace: () => {},
+							requestUnarchiveAgent: () => {},
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
 						} satisfies AgentsOutletContext

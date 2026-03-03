@@ -30,6 +30,13 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	},
 });
 
+export const unarchiveChat = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) => API.unarchiveChat(chatId),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({ queryKey: chatsKey });
+	},
+});
+
 export const createChatMessage = (
 	queryClient: QueryClient,
 	chatId: string,

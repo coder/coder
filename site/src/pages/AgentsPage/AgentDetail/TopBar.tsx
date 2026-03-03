@@ -11,6 +11,7 @@ import {
 import { useAuthenticated } from "hooks";
 import {
 	ArchiveIcon,
+	ArchiveRestoreIcon,
 	ArrowLeftIcon,
 	ChevronRightIcon,
 	CopyIcon,
@@ -88,6 +89,7 @@ type AgentDetailTopBarProps = {
 	diff: DiffPanelState;
 	workspace: WorkspaceActions;
 	onArchiveAgent: () => void;
+	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
 	hasWorkspace?: boolean;
 	isArchived?: boolean;
@@ -102,6 +104,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	diff,
 	workspace,
 	onArchiveAgent,
+	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
 	hasWorkspace,
 	isArchived,
@@ -235,23 +238,30 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							View Workspace
 						</DropdownMenuItem>
 						<DropdownMenuSeparator />
-						{!isArchived && (
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onSelect={onArchiveAgent}
-							>
-								<ArchiveIcon className="h-3.5 w-3.5" />
-								Archive Agent
+						{isArchived ? (
+							<DropdownMenuItem onSelect={onUnarchiveAgent}>
+								<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+								Unarchive Agent
 							</DropdownMenuItem>
-						)}
-						{!isArchived && hasWorkspace && (
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onSelect={onArchiveAndDeleteWorkspace}
-							>
-								<Trash2Icon className="h-3.5 w-3.5" />
-								Archive & Delete Workspace
-							</DropdownMenuItem>
+						) : (
+							<>
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onSelect={onArchiveAgent}
+								>
+									<ArchiveIcon className="h-3.5 w-3.5" />
+									Archive Agent
+								</DropdownMenuItem>
+								{hasWorkspace && (
+									<DropdownMenuItem
+										className="text-content-destructive focus:text-content-destructive"
+										onSelect={onArchiveAndDeleteWorkspace}
+									>
+										<Trash2Icon className="h-3.5 w-3.5" />
+										Archive & Delete Workspace
+									</DropdownMenuItem>
+								)}
+							</>
 						)}
 					</DropdownMenuContent>{" "}
 				</DropdownMenu>
