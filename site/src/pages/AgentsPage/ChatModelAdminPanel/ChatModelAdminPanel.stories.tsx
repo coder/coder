@@ -489,6 +489,138 @@ export const SubmitModelConfigExplicitly: Story = {
 	},
 };
 
+// ── Per-provider model form stories ────────────────────────────
+// Each story opens the "Add model" form for a specific provider
+// so you can visually verify the schema-driven fields render.
+
+const providerFormSetup = (provider: string, displayName: string) => ({
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: `provider-${provider}`,
+					provider,
+					display_name: displayName,
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+});
+
+export const ModelFormOpenAI: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+		await expect(
+			await body.findByLabelText(/Reasoning Effort/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Parallel Tool Calls/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormAnthropic: Story = {
+	...providerFormSetup("anthropic", "Anthropic"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Anthropic");
+		await expect(
+			await body.findByLabelText(/Send Reasoning/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Thinking Budget Tokens/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormGoogle: Story = {
+	...providerFormSetup("google", "Google"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Google");
+		await expect(
+			await body.findByLabelText(/Thinking Config Thinking Budget/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Thinking Config Include Thoughts/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormOpenAICompat: Story = {
+	...providerFormSetup("openaicompat", "OpenAI-compatible"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI-compatible");
+		await expect(
+			await body.findByLabelText(/Reasoning Effort/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormOpenRouter: Story = {
+	...providerFormSetup("openrouter", "OpenRouter"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenRouter");
+		await expect(
+			await body.findByLabelText(/Reasoning Enabled/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Reasoning Max Tokens/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormVercel: Story = {
+	...providerFormSetup("vercel", "Vercel AI Gateway"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Vercel AI Gateway");
+		await expect(
+			await body.findByLabelText(/Reasoning Enabled/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Parallel Tool Calls/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormAzure: Story = {
+	...providerFormSetup("azure", "Azure OpenAI"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Azure OpenAI");
+		// Azure aliases to OpenAI fields.
+		await expect(
+			await body.findByLabelText(/Reasoning Effort/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Service Tier/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormBedrock: Story = {
+	...providerFormSetup("bedrock", "AWS Bedrock"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "AWS Bedrock");
+		// Bedrock aliases to Anthropic fields.
+		await expect(
+			await body.findByLabelText(/Send Reasoning/i),
+		).toBeInTheDocument();
+		await expect(await body.findByLabelText(/Effort/i)).toBeInTheDocument();
+	},
+};
+
 export const ValidatesModelConfigFields: Story = {
 	args: { section: "models" as ChatModelAdminSection },
 	beforeEach: () => {
