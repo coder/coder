@@ -15,7 +15,10 @@ shell execution — and works with any LLM provider you configure.
 
 No agent harness or API keys are required inside your workspaces.
 
-![Placeholder: Coder Agents chat UI showing a conversation with diffs and sub-agent activity](../images/guides/ai-agents/agents-chat-ui.png)
+<video autoplay loop muted playsinline>
+  <source src="../images/guides/ai-agents/coder-agents-ui.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 > [!NOTE]
 > Coder Agents is currently in internal preview. We are actively developing
