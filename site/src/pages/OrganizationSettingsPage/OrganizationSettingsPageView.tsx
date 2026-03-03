@@ -4,6 +4,7 @@ import type {
 	Organization,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
+import { Alert, AlertTitle } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
@@ -158,8 +159,14 @@ export const OrganizationSettingsPageView: FC<
 						}
 						description="Control whether workspace owners can share their workspaces."
 					>
-						{workspaceSharingGloballyDisabled &&
-							"Dog it's like, disabled and stuff"}
+						{workspaceSharingGloballyDisabled && (
+							<Alert severity="warning" className="mb-4">
+								<AlertTitle>Disabled by deployment settings</AlertTitle>
+								Workspace sharing has been disallowed by an administrator.
+								Sharing must be allowed by an administrator before sharing can
+								be used in this organization.
+							</Alert>
+						)}
 						<div className="flex items-start gap-3">
 							<Checkbox
 								id="workspace-sharing"
