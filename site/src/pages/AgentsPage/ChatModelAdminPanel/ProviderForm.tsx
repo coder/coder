@@ -1,19 +1,37 @@
-import { getErrorMessage } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
-import { CollapsibleContent } from "components/Collapsible/Collapsible";
 import { Input } from "components/Input/Input";
-import { Loader2Icon } from "lucide-react";
-import { type FC, type FormEvent, useEffect, useId, useState } from "react";
-import { toast } from "sonner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import {
+	ChevronLeftIcon,
+	InfoIcon,
+	Loader2Icon,
+} from "lucide-react";
+import {
+	type FC,
+	type FormEvent,
+	useEffect,
+	useId,
+	useMemo,
+	useState,
+} from "react";
+import { formatProviderLabel } from "../modelOptions";
+import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
+import { ProviderIcon } from "./ProviderIcon";
+
+// Sentinel value used to represent an existing API key that the
+// backend won't reveal. If the user hasn't touched the field,
+// we know nothing changed.
+const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
 type ProviderFormProps = {
-	provider: string;
-	providerConfig: TypesGen.ChatProviderConfig | undefined;
-	baseURL: string;
-	isEnvPreset: boolean;
+	providerState: ProviderState;
 	providerConfigsUnavailable: boolean;
 	isProviderMutationPending: boolean;
 	onCreateProvider: (
@@ -23,39 +41,73 @@ type ProviderFormProps = {
 		providerConfigId: string,
 		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
+	onDeleteProvider: (providerConfigId: string) => Promise<void>;
+	onBack: () => void;
 };
 
 export const ProviderForm: FC<ProviderFormProps> = ({
-	provider,
-	providerConfig,
-	baseURL,
-	isEnvPreset,
+	providerState,
 	providerConfigsUnavailable,
 	isProviderMutationPending,
 	onCreateProvider,
 	onUpdateProvider,
+	onDeleteProvider,
+	onBack,
 }) => {
-	const displayNameInputId = useId();
+	const { provider, providerConfig, baseURL, isEnvPreset, label } =
+		providerState;
+
 	const apiKeyInputId = useId();
 	const baseURLInputId = useId();
 
-	const [displayName, setDisplayName] = useState("");
-	const [apiKey, setApiKey] = useState("");
-	const [baseURLValue, setBaseURLValue] = useState("");
+	// Initial values are snapshotted when the provider config changes
+	// so we can detect dirty state.
+	const initialValues = useMemo(
+		() => ({
+			displayName:
+				readOptionalString(providerConfig?.display_name) ?? "",
+			baseURL: baseURL,
+		}),
+		[providerConfig, baseURL],
+	);
+
+	const [displayName, setDisplayName] = useState(initialValues.displayName);
+	const [apiKey, setApiKey] = useState(
+		providerState.hasManagedAPIKey ? API_KEY_PLACEHOLDER : "",
+	);
+	const [apiKeyTouched, setApiKeyTouched] = useState(false);
+	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
 
 	useEffect(() => {
-		setDisplayName(readOptionalString(providerConfig?.display_name) ?? "");
-		setApiKey("");
-		setBaseURLValue(baseURL);
-	}, [providerConfig, baseURL]);
+		setDisplayName(initialValues.displayName);
+		setApiKey(
+			providerState.hasManagedAPIKey ? API_KEY_PLACEHOLDER : "",
+		);
+		setApiKeyTouched(false);
+		setBaseURLValue(initialValues.baseURL);
+	}, [initialValues, providerState.hasManagedAPIKey]);
 
 	const isAPIKeyEnvManaged = isEnvPreset && !providerConfig;
 	const requiresAPIKey = !providerConfig && !isAPIKeyEnvManaged;
+
+	// The actual API key value to submit — ignore the placeholder.
+	const effectiveApiKey =
+		apiKeyTouched && apiKey !== API_KEY_PLACEHOLDER
+			? apiKey.trim()
+			: "";
+
+	// Dirty detection: has anything changed from the initial state?
+	const isDirty =
+		displayName.trim() !== initialValues.displayName ||
+		effectiveApiKey !== "" ||
+		baseURLValue.trim() !== initialValues.baseURL.trim();
+
 	const canSave =
 		!providerConfigsUnavailable &&
 		!isProviderMutationPending &&
 		!isAPIKeyEnvManaged &&
-		(!requiresAPIKey || apiKey.trim());
+		isDirty &&
+		(!requiresAPIKey || effectiveApiKey);
 
 	const handleSubmit = async (event: FormEvent) => {
 		event.preventDefault();
@@ -68,7 +120,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		}
 
 		const trimmedDisplayName = displayName.trim();
-		const trimmedAPIKey = apiKey.trim();
 		const trimmedBaseURL = baseURLValue.trim();
 
 		try {
@@ -80,7 +131,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					...(trimmedDisplayName !== currentDisplayName && {
 						display_name: trimmedDisplayName,
 					}),
-					...(trimmedAPIKey && { api_key: trimmedAPIKey }),
+					...(effectiveApiKey && { api_key: effectiveApiKey }),
 					...(trimmedBaseURL !== currentBaseURL && {
 						base_url: trimmedBaseURL,
 					}),
@@ -92,13 +143,13 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 				await onUpdateProvider(providerConfig.id, req);
 			} else {
-				if (!trimmedAPIKey) {
+				if (!effectiveApiKey) {
 					return;
 				}
 
 				const req: TypesGen.CreateChatProviderConfigRequest = {
 					provider,
-					api_key: trimmedAPIKey,
+					api_key: effectiveApiKey,
 					...(trimmedDisplayName && {
 						display_name: trimmedDisplayName,
 					}),
@@ -108,119 +159,198 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				await onCreateProvider(req);
 			}
 
-			// Only clear the API key field on success.
-			setApiKey("");
-		} catch (error) {
-			toast.error(
-				getErrorMessage(error, "Failed to save provider configuration."),
-			);
+			setApiKeyTouched(false);
+		} catch {
+			// Error is surfaced via the mutation's error state
+			// in ChatModelAdminPanel, no toast needed.
 		}
 	};
 
+	const handleApiKeyFocus = () => {
+		// Clear the placeholder on first focus so the user starts
+		// with a blank field and Chrome doesn't try to autofill.
+		if (!apiKeyTouched && apiKey === API_KEY_PLACEHOLDER) {
+			setApiKey("");
+			setApiKeyTouched(true);
+		}
+	};
+
+	const isDisabled = providerConfigsUnavailable || isProviderMutationPending;
+
 	return (
-		<CollapsibleContent className="border-t border-border px-5 py-4">
-			<div className="space-y-3">
-				<p className="m-0 text-xs text-content-secondary">
-					{providerConfig
-						? "Update this managed provider config for your deployment."
-						: isAPIKeyEnvManaged
-							? "This provider API key is managed by an environment variable."
-							: "Create a managed provider config before enabling models."}
-				</p>
+		<div className="flex min-h-full flex-col">
+			{/* Back */}
+			<div
+				role="button"
+				tabIndex={0}
+				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 text-sm text-content-secondary transition-colors hover:text-content-primary"
+				onClick={onBack}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						onBack();
+					}
+				}}
+			>
+				<ChevronLeftIcon className="h-4 w-4" />
+				Back
+			</div>
 
-				{isAPIKeyEnvManaged && (
-					<Alert severity="info">
-						<AlertTitle>API key managed by environment variable.</AlertTitle>
-						<AlertDetail>
-							This provider key is configured from deployment environment
-							settings and cannot be edited in this UI.
-						</AlertDetail>
-					</Alert>
-				)}
+			{/* Provider header — editable name */}
+			<div className="flex items-center gap-3">
+				<ProviderIcon provider={provider} className="h-8 w-8" />
+				<div className="min-w-0 flex-1">
+					<input
+						type="text"
+						value={displayName || formatProviderLabel(provider)}
+						onChange={(e) => setDisplayName(e.target.value)}
+						disabled={isDisabled || isAPIKeyEnvManaged}
+						className="m-0 w-full border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
+						placeholder={formatProviderLabel(provider)}
+					/>
+				</div>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<InfoIcon className="h-4 w-4 shrink-0 cursor-help text-content-secondary" />
+					</TooltipTrigger>
+					<TooltipContent>
+						Uses the {formatProviderLabel(provider)} API specification
+					</TooltipContent>
+				</Tooltip>
+			</div>
+			<hr className="my-4 border-0 border-t border-solid border-border" />
 
-				{!isAPIKeyEnvManaged && (
-					<form
-						className="space-y-3"
-						onSubmit={(event) => void handleSubmit(event)}
-					>
-						<div className="grid gap-3 lg:grid-cols-3">
-							<div className="grid gap-1.5">
-								<label
-									htmlFor={displayNameInputId}
-									className="text-[13px] font-medium text-content-primary"
+			{isAPIKeyEnvManaged ? (
+				<Alert severity="info">
+					<AlertTitle>API key managed by environment variable</AlertTitle>
+					<AlertDetail>
+						This provider key is configured from deployment environment
+						settings and cannot be edited in this UI.
+					</AlertDetail>
+				</Alert>
+			) : (
+				<form
+					className="flex flex-1 flex-col"
+					onSubmit={(event) => void handleSubmit(event)}
+					autoComplete="off"
+					data-form-type="other"
+				>
+
+					<div className="space-y-5">
+						<ProviderField
+							label="API Key"
+							htmlFor={apiKeyInputId}
+							required={!providerConfig}
+							description="Secret key used to authenticate requests to this provider."
+						>
+							<Input
+								id={apiKeyInputId}
+								name="provider_api_token"
+								type="text"
+								autoComplete="off"
+								data-1p-ignore
+								data-lpignore="true"
+								data-form-type="other"
+								data-bwignore
+								style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
+								className="h-9 font-mono text-[13px]"
+								placeholder="sk-..."
+								value={apiKey}
+								onFocus={handleApiKeyFocus}
+								onChange={(e) => {
+									setApiKey(e.target.value);
+									setApiKeyTouched(true);
+								}}
+								disabled={isDisabled}
+							/>
+						</ProviderField>
+
+						<ProviderField
+							label="Base URL"
+							htmlFor={baseURLInputId}
+							description="Custom endpoint for this provider. Leave empty to use the default."
+						>
+							<Input
+								id={baseURLInputId}
+								name="provider_base_url"
+								className="h-9 text-[13px]"
+								placeholder="https://api.example.com/v1"
+								autoComplete="off"
+								value={baseURLValue}
+								onChange={(e) => setBaseURLValue(e.target.value)}
+								disabled={isDisabled}
+							/>
+						</ProviderField>
+					</div>
+
+					{/* Footer — pushed to bottom */}
+					<div className="mt-auto pt-6">
+						<hr className="mb-4 border-0 border-t border-solid border-border" />
+						<div className="flex items-center justify-between">
+							{providerConfig ? (
+								<Button
+									variant="outline"
+									size="lg"
+									type="button"
+									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+									disabled={isDisabled}
+									onClick={() => {
+										if (providerConfig) {
+											void onDeleteProvider(providerConfig.id);
+										}
+									}}
 								>
-									Display name
-								</label>
-								<Input
-									id={displayNameInputId}
-									className="h-10 text-[13px]"
-									placeholder="Friendly provider label"
-									value={displayName}
-									onChange={(e) => setDisplayName(e.target.value)}
-									disabled={
-										providerConfigsUnavailable || isProviderMutationPending
-									}
-								/>
-							</div>
-							<div className="grid gap-1.5">
-								<label
-									htmlFor={apiKeyInputId}
-									className="text-[13px] font-medium text-content-primary"
-								>
-									API key{" "}
-									{!providerConfig && (
-										<span className="text-xs text-content-destructive font-bold">
-											*
-										</span>
-									)}
-								</label>
-								<Input
-									id={apiKeyInputId}
-									type="password"
-									autoComplete="off"
-									className="h-10 text-[13px]"
-									placeholder={
-										providerConfig
-											? "Leave blank to keep existing key"
-											: "Paste provider API key"
-									}
-									value={apiKey}
-									onChange={(e) => setApiKey(e.target.value)}
-									disabled={
-										providerConfigsUnavailable || isProviderMutationPending
-									}
-								/>
-							</div>
-							<div className="grid gap-1.5">
-								<label
-									htmlFor={baseURLInputId}
-									className="text-[13px] font-medium text-content-primary"
-								>
-									Base URL
-								</label>
-								<Input
-									id={baseURLInputId}
-									className="h-10 text-[13px]"
-									placeholder="https://api.example.com/v1"
-									value={baseURLValue}
-									onChange={(e) => setBaseURLValue(e.target.value)}
-									disabled={
-										providerConfigsUnavailable || isProviderMutationPending
-									}
-								/>
-							</div>
-						</div>
-						<div className="flex items-center justify-end gap-3 border-t border-border pt-3">
-							<Button size="sm" type="submit" disabled={!canSave}>
+									Delete
+								</Button>
+							) : (
+								<div />
+							)}
+							<Button size="lg" type="submit" disabled={!canSave}>
 								{isProviderMutationPending && (
 									<Loader2Icon className="h-4 w-4 animate-spin" />
 								)}
-								{providerConfig ? "Save changes" : "Create provider config"}
+								{providerConfig ? "Save" : "Connect"}
 							</Button>
 						</div>
-					</form>
-				)}
-			</div>
-		</CollapsibleContent>
+					</div>
+				</form>
+			)}
+		</div>
 	);
 };
+
+// ── Field wrapper ──────────────────────────────────────────────
+
+type ProviderFieldProps = {
+	label: string;
+	htmlFor: string;
+	required?: boolean;
+	description?: string;
+	children: React.ReactNode;
+};
+
+const ProviderField: FC<ProviderFieldProps> = ({
+	label,
+	htmlFor,
+	required,
+	description,
+	children,
+}) => (
+	<div className="grid gap-1.5">
+		<div className="flex items-baseline gap-1.5">
+			<label
+				htmlFor={htmlFor}
+				className="text-sm font-medium text-content-primary"
+			>
+				{label}
+			</label>
+			{required && (
+				<span className="text-xs font-bold text-content-destructive">*</span>
+			)}
+		</div>
+		{description && (
+			<p className="m-0 text-xs text-content-secondary">{description}</p>
+		)}
+		{children}
+	</div>
+);

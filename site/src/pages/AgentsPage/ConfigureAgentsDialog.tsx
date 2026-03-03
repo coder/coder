@@ -7,13 +7,13 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "components/Dialog/Dialog";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import type { LucideIcon } from "lucide-react";
 import { BoxesIcon, KeyRoundIcon, UserIcon, XIcon } from "lucide-react";
 import { type FC, type FormEvent, useEffect, useMemo, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { cn } from "utils/cn";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
+import { SectionHeader } from "./SectionHeader";
 
 type ConfigureAgentsSection = "providers" | "system-prompt" | "models";
 
@@ -92,7 +92,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="grid h-[min(88dvh,720px)] max-w-4xl grid-cols-1 gap-0 overflow-hidden p-0 md:grid-cols-[200px_minmax(0,1fr)]">
+			<DialogContent className="grid h-[min(88dvh,720px)] max-w-4xl grid-cols-1 gap-0 overflow-hidden p-0 md:grid-cols-[220px_minmax(0,1fr)]">
 				{/* Visually hidden for accessibility */}
 				<DialogHeader className="sr-only">
 					<DialogTitle>Configure Agents</DialogTitle>
@@ -102,14 +102,14 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				</DialogHeader>
 
 				{/* Sidebar */}
-				<nav className="flex flex-row gap-0.5 overflow-x-auto border-b border-border p-2 md:flex-col md:overflow-x-visible md:border-b-0 md:border-r md:p-3">
+				<nav className="flex flex-row gap-0.5 overflow-x-auto border-b border-border bg-surface-secondary/40 p-2 md:flex-col md:gap-0.5 md:overflow-x-visible md:border-b-0 md:border-r md:p-4">
 					<DialogClose asChild>
 						<Button
 							variant="subtle"
-							size="icon"
-							className="mb-2 h-8 w-8 shrink-0 border-none bg-transparent shadow-none hover:bg-surface-tertiary/30"
+							size="icon-lg"
+							className="mb-3 shrink-0 border-none bg-transparent shadow-none hover:bg-surface-tertiary/50"
 						>
-							<XIcon className="h-[18px] w-[18px] text-content-secondary" />
+							<XIcon className="text-content-secondary" />
 							<span className="sr-only">Close</span>
 						</Button>
 					</DialogClose>
@@ -121,81 +121,80 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								key={section.id}
 								variant="subtle"
 								className={cn(
-									"h-auto justify-start gap-2.5 rounded-lg border-none px-3 py-2 text-left shadow-none",
+									"h-auto justify-start gap-3 rounded-lg border-none px-3 py-1.5 text-left shadow-none",
 									isActive
-										? "bg-surface-tertiary/50 text-content-primary hover:bg-surface-tertiary/50"
+										? "bg-surface-tertiary/60 text-content-primary hover:bg-surface-tertiary/60"
 										: "bg-transparent text-content-secondary hover:bg-surface-tertiary/30 hover:text-content-primary",
 								)}
 								onClick={() => setUserActiveSection(section.id)}
 							>
-								<SectionIcon className="h-[18px] w-[18px] shrink-0" />
-								<span className="text-[13px] font-medium">{section.label}</span>
+								<SectionIcon className="h-5 w-5 shrink-0" />
+								<span className="text-sm font-medium">{section.label}</span>
 							</Button>
 						);
 					})}
 				</nav>
 
 				{/* Content */}
-				<div className="flex min-h-0 flex-col pt-5">
-					<h2 className="m-0 px-6 text-xl font-semibold text-content-primary">
-						{configureSectionOptions.find((s) => s.id === activeSection)
-							?.label ?? "Settings"}
-					</h2>
-
-					<ScrollArea className="min-h-0 flex-1" viewportClassName="px-6 pb-6">
+				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5">
 						{activeSection === "providers" && canManageChatModelConfigs && (
-							<ChatModelAdminPanel section="providers" />
+							<ChatModelAdminPanel
+								section="providers"
+								sectionLabel="Providers"
+							/>
 						)}
 						{activeSection === "system-prompt" && canSetSystemPrompt && (
-							<form
-								className="space-y-4"
-								onSubmit={(event) => void onSaveSystemPrompt(event)}
-							>
-								<p className="m-0 text-[13px] leading-relaxed text-content-secondary">
-									Configure how the AI agent behaves across this deployment.
-								</p>
-								<div className="space-y-2">
-									<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-										System Prompt
-									</h3>
-									<p className="m-0 text-xs text-content-secondary">
-										Admin-only instruction applied to all new chats.
-									</p>
-									<TextareaAutosize
-										className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
-										placeholder="Optional. Set deployment-wide instructions for all new chats."
-										value={systemPromptDraft}
-										onChange={(event) =>
-											onSystemPromptDraftChange(event.target.value)
-										}
-										disabled={isDisabled}
-										minRows={7}
-									/>
-									<div className="flex justify-end gap-2">
-										<Button
-											size="sm"
-											variant="outline"
-											type="button"
-											onClick={() => onSystemPromptDraftChange("")}
-											disabled={isDisabled || !systemPromptDraft}
-										>
-											Clear
-										</Button>
-										<Button
-											size="sm"
-											type="submit"
-											disabled={isDisabled || !isSystemPromptDirty}
-										>
-											Save
-										</Button>
+							<>
+								<SectionHeader label="Behavior" />
+								<form
+									className="space-y-4"
+									onSubmit={(event) => void onSaveSystemPrompt(event)}
+								>
+									<div className="space-y-2">
+										<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+											System Prompt
+										</h3>
+										<p className="m-0 text-xs text-content-secondary">
+											Admin-only instruction applied to all new chats.
+										</p>
+										<TextareaAutosize
+											className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
+											placeholder="Optional. Set deployment-wide instructions for all new chats."
+											value={systemPromptDraft}
+											onChange={(event) =>
+												onSystemPromptDraftChange(event.target.value)
+											}
+											disabled={isDisabled}
+											minRows={7}
+										/>
+										<div className="flex justify-end gap-2">
+											<Button
+												size="sm"
+												variant="outline"
+												type="button"
+												onClick={() => onSystemPromptDraftChange("")}
+												disabled={isDisabled || !systemPromptDraft}
+											>
+												Clear
+											</Button>
+											<Button
+												size="sm"
+												type="submit"
+												disabled={isDisabled || !isSystemPromptDirty}
+											>
+												Save
+											</Button>
+										</div>
 									</div>
-								</div>
-							</form>
+								</form>
+							</>
 						)}
 						{activeSection === "models" && canManageChatModelConfigs && (
-							<ChatModelAdminPanel section="models" />
+							<ChatModelAdminPanel
+								section="models"
+								sectionLabel="Models"
+							/>
 						)}
-					</ScrollArea>
 				</div>
 			</DialogContent>
 		</Dialog>
