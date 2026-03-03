@@ -36,7 +36,7 @@ type Schema struct {
 
 func main() {
 	schema := Schema{
-		Providers:       make(map[string]FieldGroup),
+		Providers: make(map[string]FieldGroup),
 		ProviderAliases: map[string]string{
 			"azure":   "openai",
 			"bedrock": "anthropic",
@@ -188,11 +188,12 @@ func jsonSegmentToGoName(seg string) string {
 		// Handle common acronyms.
 		upper := strings.ToUpper(w)
 		switch upper {
-			case "ID", "URL", "IP", "HTTP", "JSON", "API", "UI":
-				_, _ = b.WriteString(upper)
-			default:
-				_, _ = b.WriteString(strings.ToUpper(w[:1]))
-				_, _ = b.WriteString(w[1:])		}
+		case "ID", "URL", "IP", "HTTP", "JSON", "API", "UI":
+			_, _ = b.WriteString(upper)
+		default:
+			_, _ = b.WriteString(strings.ToUpper(w[:1]))
+			_, _ = b.WriteString(w[1:])
+		}
 	}
 	return b.String()
 }
