@@ -359,7 +359,7 @@ const ChatMessageInput = memo(
 					<RichTextPlugin
 						contentEditable={
 							<ContentEditable
-								className="outline-none w-full whitespace-pre-wrap [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
+								className="outline-none w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent] [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
 								data-testid="chat-message-input"
 								style={{ minHeight: "inherit" }}
 								aria-label={ariaLabel}
