@@ -768,19 +768,21 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 													open={effectiveArchivedExpanded}
 													onOpenChange={setIsArchivedExpanded}
 												>
-													<CollapsibleTrigger asChild>
-														<button className="mb-1 ml-2.5 flex w-full items-center gap-1 border-0 bg-transparent p-0 text-xs font-medium text-content-secondary hover:text-content-primary">
-														{effectiveArchivedExpanded ? (
-															<ChevronDownIcon className="h-3 w-3" />
-														) : (
-															<ChevronRightIcon className="h-3 w-3" />
-														)}
-														<ArchiveIcon className="h-3 w-3" />
-														<span>Archived</span>
-														<span className="text-content-secondary/50">({archivedRootIDs.length})</span>
-														</button>
-													</CollapsibleTrigger>
-													<CollapsibleContent>
+														<CollapsibleTrigger asChild>
+															<Button
+																variant="subtle"
+																className="mb-1 ml-2.5 h-auto min-w-0 gap-1 p-0 text-xs font-medium"
+															>
+																{effectiveArchivedExpanded ? (
+																	<ChevronDownIcon className="h-3 w-3" />
+																) : (
+																	<ChevronRightIcon className="h-3 w-3" />
+																)}
+																<ArchiveIcon className="h-3 w-3" />
+																<span>Archived</span>
+																<span className="text-content-secondary/50">({archivedRootIDs.length})</span>
+															</Button>
+														</CollapsibleTrigger>													<CollapsibleContent>
 														<div className="flex flex-col gap-0.5">
 															{archivedRootIDs.map((id) => {
 																const chat = chatById.get(id);
