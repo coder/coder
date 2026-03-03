@@ -127,12 +127,13 @@ export const getErrorDetail = (error: unknown): string | undefined => {
 		return error.detail;
 	}
 
-	// If there are validation errors but no detail, show the validation messages
-	// instead of the generic "check developer console" message.
-	if (isApiError(error) && error.response.data.validations?.length) {
-		return error.response.data.validations
-			.map((v) => `${v.field}: ${v.detail}`)
-			.join("\n");
+	if (
+		isApiValidationError(error) &&
+		// Ensure that the validations array is not `[]` (empty array).
+		Array.isArray(error.response.data.validations) &&
+		error.response.data.validations.length > 0
+	) {
+		return getValidationErrorMessage(error);
 	}
 
 	if (error instanceof Error) {

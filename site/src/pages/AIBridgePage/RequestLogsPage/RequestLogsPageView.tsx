@@ -1,4 +1,6 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
+import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
+import { Link } from "components/Link/Link";
 import {
 	PaginationContainer,
 	type PaginationResult,
@@ -14,12 +16,14 @@ import {
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { ComponentProps, FC } from "react";
-import { RequestLogsFilter } from "./filter/RequestLogsFilter";
+import { docs } from "utils/docs";
+import { RequestLogsFilter } from "./RequestLogsFilter/RequestLogsFilter";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
 interface RequestLogsPageViewProps {
 	isLoading: boolean;
-	isRequestLogsVisible: boolean;
+	isRequestLogsEntitled: boolean;
+	isRequestLogsEnabled: boolean;
 	interceptions?: readonly AIBridgeInterception[];
 	interceptionsQuery: PaginationResult;
 	filterProps: ComponentProps<typeof RequestLogsFilter>;
@@ -27,13 +31,32 @@ interface RequestLogsPageViewProps {
 
 export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	isLoading,
-	isRequestLogsVisible,
+	isRequestLogsEntitled,
+	isRequestLogsEnabled,
 	interceptions,
 	interceptionsQuery,
 	filterProps,
 }) => {
-	if (!isRequestLogsVisible) {
+	if (!isRequestLogsEntitled) {
 		return <PaywallAIGovernance />;
+	}
+
+	if (!isRequestLogsEnabled) {
+		return (
+			<Alert className="mb-12" severity="warning" prominent>
+				<AlertTitle>
+					AI Bridge is included in your license, but not set up yet.
+				</AlertTitle>
+				<AlertDetail>
+					You have access to AI Governance, but it still needs to be setup.
+					Check out the{" "}
+					<Link href={docs("/ai-coder/ai-bridge")} target="_blank">
+						AI Bridge
+					</Link>{" "}
+					documentation to get started.
+				</AlertDetail>
+			</Alert>
+		);
 	}
 
 	return (
@@ -50,6 +73,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 							<TableHead>Timestamp</TableHead>
 							<TableHead>Initiator</TableHead>
 							<TableHead>Tokens</TableHead>
+							<TableHead>Client</TableHead>
 							<TableHead>Model</TableHead>
 							<TableHead>Tool Calls</TableHead>
 						</TableRow>

@@ -25,8 +25,8 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
-	withGlobalSnackbar,
 	withProxyProvider,
+	withToaster,
 	withWebSocket,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
@@ -730,7 +730,7 @@ export const ActivePreview: Story = {
 };
 
 export const TaskResuming: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	beforeEach: () => {
 		spyOn(API, "getTask").mockResolvedValue({
 			...MockTask,
@@ -739,9 +739,9 @@ export const TaskResuming: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
-		spyOn(API, "startWorkspace").mockResolvedValue(
-			MockStartingWorkspace.latest_build,
-		);
+		spyOn(API, "resumeTask").mockResolvedValue({
+			workspace_build: MockStartingWorkspace.latest_build,
+		});
 		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 	parameters: {
@@ -766,13 +766,13 @@ export const TaskResuming: Story = {
 		await userEvent.click(resumeButton);
 
 		await waitFor(async () => {
-			expect(API.startWorkspace).toBeCalled();
+			expect(API.resumeTask).toBeCalled();
 		});
 	},
 };
 
 export const TaskResumeFailure: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	beforeEach: () => {
 		spyOn(API, "getTask").mockResolvedValue({
 			...MockTask,
@@ -781,7 +781,7 @@ export const TaskResumeFailure: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
-		spyOn(API, "startWorkspace").mockRejectedValue(
+		spyOn(API, "resumeTask").mockRejectedValue(
 			new Error("Some unexpected error"),
 		);
 		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
@@ -820,7 +820,7 @@ export const TaskResumeFailureWithDialog: Story = {
 		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
 			MockStoppedWorkspace,
 		);
-		spyOn(API, "startWorkspace").mockRejectedValue({
+		spyOn(API, "resumeTask").mockRejectedValue({
 			...mockApiError({
 				message: "Bad Request",
 				detail: "Invalid build parameters provided",

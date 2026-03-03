@@ -1,5 +1,5 @@
-import type { Workspace } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Sidebar as BaseSidebar,
 	SidebarHeader,
@@ -11,21 +11,10 @@ import {
 	TimerIcon as ScheduleIcon,
 	Users as SharingIcon,
 } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import type { FC } from "react";
+import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
 
-interface SidebarProps {
-	username: string;
-	workspace: Workspace;
-	sharingDisabled?: boolean;
-}
-
-export const Sidebar: FC<SidebarProps> = ({
-	username,
-	workspace,
-	sharingDisabled,
-}) => {
-	const { experiments } = useDashboard();
+export const Sidebar: React.FC = () => {
+	const { owner, workspace, permissions } = useWorkspaceSettings();
 
 	return (
 		<BaseSidebar>
@@ -38,7 +27,7 @@ export const Sidebar: FC<SidebarProps> = ({
 					/>
 				}
 				title={workspace.name}
-				linkTo={`/@${username}/${workspace.name}`}
+				linkTo={`/@${owner}/${workspace.name}`}
 				subtitle={workspace.template_display_name ?? workspace.template_name}
 			/>
 
@@ -51,9 +40,10 @@ export const Sidebar: FC<SidebarProps> = ({
 			<SidebarNavItem href="schedule" icon={ScheduleIcon}>
 				Schedule
 			</SidebarNavItem>
-			{experiments.includes("workspace-sharing") && !sharingDisabled && (
+			{permissions?.shareWorkspace && (
 				<SidebarNavItem href="sharing" icon={SharingIcon}>
 					Sharing
+					<FeatureStageBadge contentType="beta" size="sm" />
 				</SidebarNavItem>
 			)}
 		</BaseSidebar>

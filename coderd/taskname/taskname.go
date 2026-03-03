@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	defaultModel = anthropic.ModelClaude3_5HaikuLatest
+	defaultModel = anthropic.ModelClaudeHaiku4_5
 	systemPrompt = `Generate a short task display name and name from this AI task prompt.
 Identify the main task (the core action and subject) and base both names on it.
 The task display name and name should be as similar as possible so a human can easily associate them.
@@ -177,7 +177,7 @@ func generateFromPrompt(prompt string) (TaskName, error) {
 		// Ensure display name is never empty
 		displayName = strings.ReplaceAll(name, "-", " ")
 	}
-	displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
+	displayName = strutil.Capitalize(displayName)
 
 	return TaskName{
 		Name:        taskName,
@@ -269,7 +269,7 @@ func generateFromAnthropic(ctx context.Context, prompt string, apiKey string, mo
 		// Ensure display name is never empty
 		displayName = strings.ReplaceAll(taskNameResponse.Name, "-", " ")
 	}
-	displayName = strings.ToUpper(displayName[:1]) + displayName[1:]
+	displayName = strutil.Capitalize(displayName)
 
 	return TaskName{
 		Name:        name,

@@ -11,7 +11,7 @@ import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
 
 const WorkspaceSharingPage: FC = () => {
-	const workspace = useWorkspaceSettings();
+	const { workspace } = useWorkspaceSettings();
 	const sharing = useWorkspaceSharing(workspace);
 
 	const checks = workspaceChecks(workspace);
@@ -25,7 +25,7 @@ const WorkspaceSharingPage: FC = () => {
 		sharing.error ?? permissionsQuery.error ?? sharing.mutationError;
 
 	return (
-		<div className="flex flex-col gap-12 max-w-screen-md">
+		<div className="flex flex-col gap-12">
 			<title>{pageTitle(workspace.name, "Sharing")}</title>
 
 			<header className="flex flex-col">
