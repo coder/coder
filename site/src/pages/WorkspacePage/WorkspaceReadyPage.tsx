@@ -34,14 +34,12 @@ interface WorkspaceReadyPageProps {
 	template: TypesGen.Template;
 	workspace: TypesGen.Workspace;
 	permissions: WorkspacePermissions;
-	sharingDisabled?: boolean;
 }
 
 export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	workspace,
 	template,
 	permissions,
-	sharingDisabled,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -285,7 +283,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				template={template}
 				buildLogs={buildLogs}
 				timings={timingsQuery.data}
-				sharingDisabled={sharingDisabled}
 				handleStart={async (buildParameters) => {
 					const { hasEphemeral, ephemeralParameters } =
 						await checkEphemeralParameters(buildParameters);
