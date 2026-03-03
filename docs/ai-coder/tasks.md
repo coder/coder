@@ -141,14 +141,6 @@ If a workspace app has the special `"preview"` slug, a navbar will appear above 
 
 We plan to introduce more customization options in future releases.
 
-## Paused task follow-up behavior
-
-When a task is paused, you can open **Follow-up** to draft a message for the same task session.
-
-- Sending a follow-up resumes the task and delivers your message as part of that flow.
-- While delivery is pending, you can reopen **Follow-up** to update the message or retry if delivery fails.
-- If you leave or refresh the page before delivery completes, the pending follow-up is discarded.
-
 ## Automatically name your tasks
 
 Coder can automatically generate a name your tasks if you set the `ANTHROPIC_API_KEY` environment variable on the Coder server. Otherwise, tasks will be given randomly generated names.
