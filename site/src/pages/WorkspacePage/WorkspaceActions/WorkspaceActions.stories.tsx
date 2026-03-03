@@ -16,11 +16,11 @@ const meta: Meta<typeof WorkspaceActions> = {
 	args: {
 		isUpdating: false,
 		permissions: {
-			deleteFailedWorkspace: true,
-			deploymentConfig: true,
 			readWorkspace: true,
+			shareWorkspace: true,
 			updateWorkspace: true,
 			updateWorkspaceVersion: true,
+			deleteFailedWorkspace: true,
 		},
 	},
 	decorators: [withDashboardProvider, withDesktopViewport, withAuthProvider],
@@ -172,11 +172,11 @@ export const FailedWithDebug: Story = {
 	args: {
 		workspace: Mocks.MockFailedWorkspace,
 		permissions: {
-			deploymentConfig: true,
-			deleteFailedWorkspace: true,
 			readWorkspace: true,
+			shareWorkspace: true,
 			updateWorkspace: true,
 			updateWorkspaceVersion: true,
+			deleteFailedWorkspace: true,
 		},
 	},
 };

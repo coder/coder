@@ -24,9 +24,9 @@ const createTimestamp = (
 
 const permissions: WorkspacePermissions = {
 	readWorkspace: true,
+	shareWorkspace: true,
 	updateWorkspace: true,
 	updateWorkspaceVersion: true,
-	deploymentConfig: true,
 	deleteFailedWorkspace: true,
 };
 

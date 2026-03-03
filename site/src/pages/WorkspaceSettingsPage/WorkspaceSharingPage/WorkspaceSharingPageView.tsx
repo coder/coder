@@ -52,6 +52,7 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 }) => {
 	return (
 		<WorkspaceSharingForm
+			organizationId={workspace.organization_id}
 			workspaceACL={workspaceACL}
 			canUpdatePermissions={canUpdatePermissions}
 			isTaskWorkspace={Boolean(workspace.task_id)}
