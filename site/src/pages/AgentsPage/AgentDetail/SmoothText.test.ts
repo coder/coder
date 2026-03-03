@@ -5,9 +5,33 @@ function makeText(length: number): string {
 	return "x".repeat(length);
 }
 
+/**
+ * Prepare an engine for streaming tests by consuming the first-update
+ * snap (which shows all initial text immediately) so that subsequent
+ * updates exercise the incremental animation path.
+ */
+function createStreamingEngine(initialText = ""): SmoothTextEngine {
+	const engine = new SmoothTextEngine();
+	engine.update(initialText, true, false);
+	return engine;
+}
+
 describe("SmoothTextEngine", () => {
-	it("reveals text steadily and reaches full length", () => {
+	it("snaps to full length on first update (no animation on reconnect)", () => {
 		const engine = new SmoothTextEngine();
+		const fullText = makeText(500);
+
+		engine.update(fullText, true, false);
+
+		// First update should show everything immediately — this
+		// prevents a "replay" animation when reconnecting to an
+		// in-progress stream.
+		expect(engine.visibleLength).toBe(fullText.length);
+		expect(engine.isCaughtUp).toBe(true);
+	});
+
+	it("reveals text steadily and reaches full length", () => {
+		const engine = createStreamingEngine();
 		const fullText = makeText(200);
 
 		engine.update(fullText, true, false);
@@ -32,7 +56,7 @@ describe("SmoothTextEngine", () => {
 	});
 
 	it("accelerates reveal speed when backlog is large", () => {
-		const engine = new SmoothTextEngine();
+		const engine = createStreamingEngine();
 		const fullText = makeText(500);
 
 		engine.update(fullText, true, false);
@@ -52,9 +76,7 @@ describe("SmoothTextEngine", () => {
 	});
 
 	it("caps visual lag when incoming text jumps ahead", () => {
-		const engine = new SmoothTextEngine();
-
-		engine.update(makeText(40), true, false);
+		const engine = createStreamingEngine(makeText(40));
 
 		while (!engine.isCaughtUp) {
 			engine.tick(16);
@@ -68,7 +90,7 @@ describe("SmoothTextEngine", () => {
 	});
 
 	it("flushes immediately when streaming ends", () => {
-		const engine = new SmoothTextEngine();
+		const engine = createStreamingEngine();
 		const fullText = makeText(120);
 
 		engine.update(fullText, true, false);
@@ -96,13 +118,7 @@ describe("SmoothTextEngine", () => {
 	});
 
 	it("clamps visible length when content shrinks", () => {
-		const engine = new SmoothTextEngine();
-
-		engine.update(makeText(100), true, false);
-
-		while (engine.visibleLength < 50) {
-			engine.tick(16);
-		}
+		const engine = createStreamingEngine(makeText(100));
 
 		engine.update(makeText(30), true, false);
 
@@ -110,7 +126,7 @@ describe("SmoothTextEngine", () => {
 	});
 
 	it("does not force reveal when budget is below one char", () => {
-		const engine = new SmoothTextEngine();
+		const engine = createStreamingEngine();
 		// With a 1-char backlog, adaptive rate is at floor (~24 cps).
 		// At 4ms per tick: 24 * 0.004 = 0.096 budget per tick.
 		// Budget reaches 1.0 after ceil(1 / 0.096) ≈ 11 ticks.
@@ -134,7 +150,7 @@ describe("SmoothTextEngine", () => {
 
 	it("keeps reveal near frame-rate invariant over equal wall time", () => {
 		const run = (frameMs: number) => {
-			const engine = new SmoothTextEngine();
+			const engine = createStreamingEngine();
 			engine.update(makeText(400), true, false);
 			for (let t = 0; t < 1000; t += frameMs) {
 				engine.tick(frameMs);

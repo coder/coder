@@ -66,6 +66,11 @@ export class SmoothTextEngine {
 	private charBudget = 0;
 	private isStreaming = false;
 	private bypassSmoothing = false;
+	// True until the first streaming update has been applied.
+	// Used to skip the reveal animation for text that already
+	// existed when the engine was created (e.g. reconnect
+	// snapshot after a page navigation).
+	private firstUpdate = true;
 
 	private rafId: number | null = null;
 	private previousTimestamp: number | null = null;
@@ -150,7 +155,14 @@ export class SmoothTextEngine {
 			this.charBudget = 0;
 		}
 
-		if (!isStreaming || bypassSmoothing) {
+		// On the very first update, snap to full length so
+		// pre-existing text (e.g. a reconnect snapshot) renders
+		// instantly instead of replaying the reveal animation.
+		if (this.firstUpdate) {
+			this.firstUpdate = false;
+			this.visibleLengthValue = this.fullLength;
+			this.charBudget = 0;
+		} else if (!isStreaming || bypassSmoothing) {
 			this.visibleLengthValue = this.fullLength;
 			this.charBudget = 0;
 			this.stopLoop();
@@ -241,6 +253,7 @@ export class SmoothTextEngine {
 		this.charBudget = 0;
 		this.isStreaming = false;
 		this.bypassSmoothing = false;
+		this.firstUpdate = true;
 	}
 
 	/**
