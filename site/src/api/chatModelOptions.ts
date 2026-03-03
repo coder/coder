@@ -5,29 +5,29 @@ import schema from "./chatModelOptionsGenerated.json";
  * Generated from Go struct tags via `scripts/modeloptionsgen`.
  */
 export interface FieldSchema {
-  /** The JSON key used in API payloads (may use dot-notation for nested fields). */
-  json_name: string;
-  /** The corresponding Go struct field name. */
-  go_name: string;
-  /** The JSON Schema type of this field. */
-  type: "string" | "integer" | "number" | "boolean" | "array" | "object";
-  /** Human-readable description of the field. May be absent for some fields. */
-  description?: string;
-  /** Whether this field is required when configuring the provider. */
-  required: boolean;
-  /** Hint for how the frontend should render the input control. */
-  input_type: "input" | "select" | "json";
-  /** If present, the field value must be one of these options. */
-  enum?: string[];
-  /** If true, this field should not be rendered in admin UI forms. */
-  hidden?: boolean;
+	/** The JSON key used in API payloads (may use dot-notation for nested fields). */
+	json_name: string;
+	/** The corresponding Go struct field name. */
+	go_name: string;
+	/** The JSON Schema type of this field. */
+	type: "string" | "integer" | "number" | "boolean" | "array" | "object";
+	/** Human-readable description of the field. May be absent for some fields. */
+	description?: string;
+	/** Whether this field is required when configuring the provider. */
+	required: boolean;
+	/** Hint for how the frontend should render the input control. */
+	input_type: "input" | "select" | "json";
+	/** If present, the field value must be one of these options. */
+	enum?: string[];
+	/** If true, this field should not be rendered in admin UI forms. */
+	hidden?: boolean;
 }
 
 /**
  * A group of fields belonging to a single provider or the general section.
  */
 export interface ProviderSchema {
-  fields: FieldSchema[];
+	fields: FieldSchema[];
 }
 
 /**
@@ -39,20 +39,21 @@ export interface ProviderSchema {
  *   (e.g. "azure" → "openai").
  */
 export interface ModelOptionsSchema {
-  general: ProviderSchema;
-  providers: Record<string, ProviderSchema>;
-  provider_aliases: Record<string, string>;
+	general: ProviderSchema;
+	providers: Record<string, ProviderSchema>;
+	provider_aliases: Record<string, string>;
 }
 
 /** The imported schema, typed as {@link ModelOptionsSchema}. */
-export const modelOptionsSchema: ModelOptionsSchema = schema as ModelOptionsSchema;
+export const modelOptionsSchema: ModelOptionsSchema =
+	schema as ModelOptionsSchema;
 
 /**
  * Get the general (provider-independent) fields such as temperature
  * and max_output_tokens.
  */
 export function getGeneralFields(): FieldSchema[] {
-  return modelOptionsSchema.general.fields;
+	return modelOptionsSchema.general.fields;
 }
 
 /**
@@ -61,8 +62,8 @@ export function getGeneralFields(): FieldSchema[] {
  * Returns an empty array for unknown providers.
  */
 export function getProviderFields(provider: string): FieldSchema[] {
-  const resolved = resolveProvider(provider);
-  return modelOptionsSchema.providers[resolved]?.fields ?? [];
+	const resolved = resolveProvider(provider);
+	return modelOptionsSchema.providers[resolved]?.fields ?? [];
 }
 
 /**
@@ -76,7 +77,7 @@ export function getProviderFields(provider: string): FieldSchema[] {
  * resolveProvider("openai")  // "openai"
  */
 export function resolveProvider(provider: string): string {
-  return modelOptionsSchema.provider_aliases[provider] ?? provider;
+	return modelOptionsSchema.provider_aliases[provider] ?? provider;
 }
 
 /**
@@ -85,15 +86,15 @@ export function resolveProvider(provider: string): string {
  * across regenerations.
  */
 export function getProviderNames(): string[] {
-  return Object.keys(modelOptionsSchema.providers);
+	return Object.keys(modelOptionsSchema.providers);
 }
 
 /**
  * Check whether a provider is known, either as a canonical name or an alias.
  */
 export function isKnownProvider(provider: string): boolean {
-  const resolved = resolveProvider(provider);
-  return resolved in modelOptionsSchema.providers;
+	const resolved = resolveProvider(provider);
+	return resolved in modelOptionsSchema.providers;
 }
 
 /**
@@ -102,7 +103,7 @@ export function isKnownProvider(provider: string): boolean {
  * the leading character stays lowercase.
  */
 function snakeToCamel(s: string): string {
-  return s.replace(/_([a-z0-9])/g, (_, ch: string) => ch.toUpperCase());
+	return s.replace(/_([a-z0-9])/g, (_, ch: string) => ch.toUpperCase());
 }
 
 /**
@@ -123,16 +124,16 @@ function snakeToCamel(s: string): string {
  * // "openai.maxCompletionTokens"
  */
 export function toFormFieldKey(provider: string, jsonName: string): string {
-  const camelSegments = jsonName.split(".").map(snakeToCamel);
-  return `${provider}.${camelSegments.join(".")}`;
+	const camelSegments = jsonName.split(".").map(snakeToCamel);
+	return `${provider}.${camelSegments.join(".")}`;
 }
 
 /** Get only the visible (non-hidden) fields for a provider. */
 export function getVisibleProviderFields(provider: string): FieldSchema[] {
-  return getProviderFields(provider).filter((f) => !f.hidden);
+	return getProviderFields(provider).filter((f) => !f.hidden);
 }
 
 /** Get only the visible (non-hidden) general fields. */
 export function getVisibleGeneralFields(): FieldSchema[] {
-  return getGeneralFields().filter((f) => !f.hidden);
+	return getGeneralFields().filter((f) => !f.hidden);
 }
