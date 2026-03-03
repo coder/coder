@@ -1094,42 +1094,92 @@ func (p *Server) Subscribe(
 		allCancels = append(allCancels, relayCancel)
 	}
 
-	// Helper to close relay
+	// Channel for async relay establishment.
+	type relayResult struct {
+		parts  <-chan codersdk.ChatStreamEvent
+		cancel func()
+	}
+	relayReadyCh := make(chan relayResult, 1)
+
+	// Reconnect timer state.
+	var reconnectTimer *time.Timer
+	var reconnectCh <-chan time.Time
+
+	// Helper to close relay and stop any pending reconnect timer.
 	closeRelay := func() {
 		if relayCancel != nil {
 			relayCancel()
 			relayCancel = nil
 		}
 		relayParts = nil
+		if reconnectTimer != nil {
+			reconnectTimer.Stop()
+			reconnectTimer = nil
+			reconnectCh = nil
+		}
 	}
 
-	// Helper to open relay to a worker
-	openRelay := func(workerID uuid.UUID) {
+	// openRelayAsync dials the remote replica in a background
+	// goroutine and delivers the result on relayReadyCh so the
+	// main select loop is never blocked by network I/O.
+	openRelayAsync := func(workerID uuid.UUID) {
 		if p.remotePartsProvider == nil {
 			return
 		}
 		closeRelay()
-		snapshot, parts, cancel, err := p.remotePartsProvider(mergedCtx, chatID, workerID, requestHeader)
-		if err != nil {
-			p.logger.Warn(mergedCtx, "failed to open relay for message parts",
-				slog.F("chat_id", chatID),
-				slog.F("worker_id", workerID),
-				slog.Error(err),
-			)
+		go func() {
+			snapshot, parts, cancel, err := p.remotePartsProvider(mergedCtx, chatID, workerID, requestHeader)
+			if err != nil {
+				p.logger.Warn(mergedCtx, "failed to open relay for message parts",
+					slog.F("chat_id", chatID),
+					slog.F("worker_id", workerID),
+					slog.Error(err),
+				)
+				return
+			}
+			// Wrap the relay channel so snapshot parts are
+			// delivered through the same channel as live parts.
+			wrappedParts := make(chan codersdk.ChatStreamEvent, 128)
+			go func() {
+				defer close(wrappedParts)
+				for _, event := range snapshot {
+					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+						select {
+						case wrappedParts <- event:
+						case <-mergedCtx.Done():
+							cancel()
+							return
+						}
+					}
+				}
+				for event := range parts {
+					select {
+					case wrappedParts <- event:
+					case <-mergedCtx.Done():
+						return
+					}
+				}
+			}()
+			select {
+			case relayReadyCh <- relayResult{parts: wrappedParts, cancel: cancel}:
+			case <-mergedCtx.Done():
+				cancel()
+			}
+		}()
+	}
+
+	// scheduleRelayReconnect arms a short timer so the select
+	// loop can re-check chat status and reopen the relay without
+	// spinning in a tight loop.
+	scheduleRelayReconnect := func() {
+		if p.remotePartsProvider == nil {
 			return
 		}
-		relayParts = parts
-		relayCancel = cancel
-		// Send relay snapshot message_parts
-		for _, event := range snapshot {
-			if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-				select {
-				case <-mergedCtx.Done():
-					return
-				case mergedEvents <- event:
-				}
-			}
+		if reconnectTimer != nil {
+			reconnectTimer.Stop()
 		}
+		reconnectTimer = time.NewTimer(500 * time.Millisecond)
+		reconnectCh = reconnectTimer.C
 	}
 
 	//nolint:nestif
@@ -1195,6 +1245,21 @@ func (p *Server) Subscribe(
 						},
 					}
 					return
+				case result := <-relayReadyCh:
+					// An async relay dial completed; swap in the
+					// new relay channel.
+					closeRelay()
+					relayParts = result.parts
+					relayCancel = result.cancel
+				case <-reconnectCh:
+					reconnectCh = nil
+					// Re-check whether the chat is still running
+					// on a remote worker before reconnecting.
+					currentChat, chatErr := p.db.GetChatByID(mergedCtx, chatID)
+					if chatErr == nil && currentChat.Status == database.ChatStatusRunning &&
+						currentChat.WorkerID.Valid && currentChat.WorkerID.UUID != p.workerID {
+						openRelayAsync(currentChat.WorkerID.UUID)
+					}
 				case notify := <-notifications:
 					// Handle different notification types
 					if notify.AfterMessageID > 0 {
@@ -1230,11 +1295,11 @@ func (p *Server) Subscribe(
 							Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
 						}:
 						}
-						// Manage relay lifecycle based on status
+						// Manage relay lifecycle based on status.
 						if status == database.ChatStatusRunning && notify.WorkerID != "" {
 							workerID, err := uuid.Parse(notify.WorkerID)
 							if err == nil && workerID != p.workerID {
-								openRelay(workerID)
+								openRelayAsync(workerID)
 							} else if workerID == p.workerID {
 								closeRelay()
 							}
@@ -1285,6 +1350,8 @@ func (p *Server) Subscribe(
 				case event, ok := <-relayPartsCh:
 					if !ok {
 						relayParts = nil
+						// Schedule reconnection instead of giving up.
+						scheduleRelayReconnect()
 						continue
 					}
 					// Only forward message_part events from relay (durable events come via pubsub)
@@ -1319,6 +1386,9 @@ func (p *Server) Subscribe(
 			if cancelFn != nil {
 				cancelFn()
 			}
+		}
+		if reconnectTimer != nil {
+			reconnectTimer.Stop()
 		}
 	}
 
