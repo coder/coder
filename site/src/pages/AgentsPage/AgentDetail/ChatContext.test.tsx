@@ -202,7 +202,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
 		act(() => {
@@ -283,7 +283,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
 		act(() => {
@@ -358,7 +358,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
 		act(() => {
@@ -460,7 +460,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
 		const streamBaseline = streamRenderCount;
@@ -526,7 +526,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
 		act(() => {
@@ -601,7 +601,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
 		act(() => {
@@ -696,7 +696,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 		expect(result.current.queuedMessages.map((message) => message.id)).toEqual([
 			queuedMessage.id,
@@ -781,7 +781,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
 		act(() => {
@@ -852,7 +852,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID1);
+			expect(watchChat).toHaveBeenCalledWith(chatID1, 1);
 		});
 
 		act(() => {
@@ -888,7 +888,7 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID2);
+			expect(watchChat).toHaveBeenCalledWith(chatID2, 10);
 		});
 
 		// The old WebSocket was closed during effect cleanup.
@@ -935,7 +935,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
 		act(() => {
@@ -991,7 +991,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
 		// Build up stream state so we can observe whether it gets cleared.
@@ -1093,7 +1093,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
 		// Build up stream state first.
@@ -1193,7 +1193,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID1);
+			expect(watchChat).toHaveBeenCalledWith(chatID1, 1);
 		});
 
 		act(() => {
@@ -1229,7 +1229,7 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID2);
+			expect(watchChat).toHaveBeenCalledWith(chatID2, 10);
 		});
 
 		expect(result.current.streamState).toBeNull();
@@ -1284,7 +1284,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID1);
+			expect(watchChat).toHaveBeenCalledWith(chatID1, 1);
 		});
 
 		// Verify queued messages from chat-1 are present.
@@ -1310,7 +1310,7 @@ describe("useChatStore", () => {
 		// After the switch, queued messages from chat-1 should NOT be
 		// visible — the store resets them on chatID change.
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID2);
+			expect(watchChat).toHaveBeenCalledWith(chatID2, undefined);
 		});
 		expect(result.current.queuedMessages).toEqual([]);
 	});
@@ -1352,7 +1352,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
 		// Emit a batch with message_parts followed by a status change
@@ -1424,7 +1424,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
 		act(() => {
@@ -1483,7 +1483,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
 		act(() => {
@@ -1536,7 +1536,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
 		act(() => {
@@ -1598,7 +1598,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
 		// Set retry state first.
@@ -1676,7 +1676,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
 		act(() => {
@@ -1734,7 +1734,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
 		act(() => {
@@ -1783,7 +1783,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
 		// Set an error via an error stream event first.
@@ -1847,7 +1847,7 @@ describe("useChatStore", () => {
 		);
 
 		await waitFor(() => {
-			expect(watchChat).toHaveBeenCalledWith(chatID);
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
 		// Transition to running — should call clearChatErrorReason.

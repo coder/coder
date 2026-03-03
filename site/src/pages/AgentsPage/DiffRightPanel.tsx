@@ -110,7 +110,7 @@ export const DiffRightPanel = ({ isOpen, children }: DiffRightPanelProps) => {
 				onPointerDown={handlePointerDown}
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerUp}
-				className="absolute top-0 left-0 z-10 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link xl:block"
+				className="absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link xl:block"
 			/>
 			{children}
 		</div>

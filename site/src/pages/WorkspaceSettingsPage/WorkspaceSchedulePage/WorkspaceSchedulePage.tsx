@@ -1,6 +1,5 @@
 import { API } from "api/api";
 import { getErrorDetail } from "api/errors";
-import { checkAuthorization } from "api/queries/authCheck";
 import { templateByName } from "api/queries/templates";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
@@ -29,28 +28,13 @@ import {
 } from "./formToRequest";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 
-const permissionsToCheck = (workspace: TypesGen.Workspace) =>
-	({
-		updateWorkspace: {
-			object: {
-				resource_type: "workspace",
-				resource_id: workspace.id,
-				owner_id: workspace.owner_id,
-			},
-			action: "update",
-		},
-	}) as const;
-
 const WorkspaceSchedulePage: FC = () => {
 	const params = useParams() as { username: string; workspace: string };
 	const navigate = useNavigate();
 	const username = params.username.replace("@", "");
 	const workspaceName = params.workspace;
 	const queryClient = useQueryClient();
-	const workspace = useWorkspaceSettings();
-	const { data: permissions, error: checkPermissionsError } = useQuery(
-		checkAuthorization({ checks: permissionsToCheck(workspace) }),
-	);
+	const { permissions, workspace } = useWorkspaceSettings();
 	const { data: template, error: getTemplateError } = useQuery(
 		templateByName(workspace.organization_id, workspace.template_name),
 	);
@@ -75,8 +59,8 @@ const WorkspaceSchedulePage: FC = () => {
 				},
 			),
 	});
-	const error = checkPermissionsError || getTemplateError;
-	const isLoading = !template || !permissions;
+	const error = getTemplateError;
+	const isLoading = !template;
 
 	const [isConfirmingApply, setIsConfirmingApply] = useState(false);
 	const { mutate: updateWorkspace } = useMutation({

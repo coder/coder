@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
@@ -21,20 +20,28 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// sendMessage writes a framed protobuf message to the connection.
-func sendMessage(t *testing.T, conn net.Conn, req *agentproto.ReportBoundaryLogsRequest) {
+// sendLogsV1 writes a bare ReportBoundaryLogsRequest using TagV1, the
+// legacy framing that existing boundary deployments use.
+func sendLogsV1(t *testing.T, conn net.Conn, req *agentproto.ReportBoundaryLogsRequest) {
 	t.Helper()
 
-	data, err := proto.Marshal(req)
+	err := codec.WriteMessage(conn, codec.TagV1, req)
 	if err != nil {
-		//nolint:gocritic // In tests we're not worried about conn being nil.
-		t.Errorf("%s marshal req: %s", conn.LocalAddr().String(), err)
+		t.Errorf("write v1 logs: %s", err)
 	}
+}
 
-	err = codec.WriteFrame(conn, codec.TagV1, data)
+// sendLogs writes a BoundaryMessage envelope containing logs to the
+// connection using TagV2.
+func sendLogs(t *testing.T, conn net.Conn, req *agentproto.ReportBoundaryLogsRequest) {
+	t.Helper()
+
+	msg := &codec.BoundaryMessage{
+		Msg: &codec.BoundaryMessage_Logs{Logs: req},
+	}
+	err := codec.WriteMessage(conn, codec.TagV2, msg)
 	if err != nil {
-		//nolint:gocritic // In tests we're not worried about conn being nil.
-		t.Errorf("%s write frame: %s", conn.LocalAddr().String(), err)
+		t.Errorf("write logs: %s", err)
 	}
 }
 
@@ -136,7 +143,7 @@ func TestServer_ReceiveAndForwardLogs(t *testing.T) {
 		},
 	}
 
-	sendMessage(t, conn, req)
+	sendLogs(t, conn, req)
 
 	// Wait for the reporter to receive the log.
 	require.Eventually(t, func() bool {
@@ -195,7 +202,7 @@ func TestServer_MultipleMessages(t *testing.T) {
 				},
 			},
 		}
-		sendMessage(t, conn, req)
+		sendLogs(t, conn, req)
 	}
 
 	require.Eventually(t, func() bool {
@@ -254,7 +261,7 @@ func TestServer_MultipleConnections(t *testing.T) {
 					},
 				},
 			}
-			sendMessage(t, conn, req)
+			sendLogs(t, conn, req)
 		}(i)
 	}
 	wg.Wait()
@@ -342,7 +349,7 @@ func TestServer_ForwarderContinuesAfterError(t *testing.T) {
 			},
 		},
 	}
-	sendMessage(t, conn, req1)
+	sendLogs(t, conn, req1)
 
 	select {
 	case <-reportNotify:
@@ -365,7 +372,7 @@ func TestServer_ForwarderContinuesAfterError(t *testing.T) {
 			},
 		},
 	}
-	sendMessage(t, conn, req2)
+	sendLogs(t, conn, req2)
 
 	// Only the second message should be recorded.
 	require.Eventually(t, func() bool {
@@ -458,7 +465,7 @@ func TestServer_InvalidProtobuf(t *testing.T) {
 			},
 		},
 	}
-	sendMessage(t, conn, req)
+	sendLogs(t, conn, req)
 
 	require.Eventually(t, func() bool {
 		logs := reporter.getLogs()
@@ -559,7 +566,7 @@ func TestServer_AllowRequest(t *testing.T) {
 			},
 		},
 	}
-	sendMessage(t, conn, req)
+	sendLogs(t, conn, req)
 
 	require.Eventually(t, func() bool {
 		logs := reporter.getLogs()
@@ -572,6 +579,83 @@ func TestServer_AllowRequest(t *testing.T) {
 	require.Equal(t, logTime.Seconds, logs[0].Logs[0].Time.Seconds)
 	require.Equal(t, logTime.Nanos, logs[0].Logs[0].Time.Nanos)
 	require.Equal(t, "*.malicious.com", logs[0].Logs[0].GetHttpRequest().MatchedRule)
+
+	cancel()
+	<-forwarderDone
+}
+
+func TestServer_TagV1BackwardsCompatibility(t *testing.T) {
+	t.Parallel()
+
+	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	err := srv.Start()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+	reporter := &fakeReporter{}
+
+	forwarderDone := make(chan error, 1)
+	go func() {
+		forwarderDone <- srv.RunForwarder(ctx, reporter)
+	}()
+
+	conn, err := net.Dial("unix", socketPath)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Send a TagV1 message (bare ReportBoundaryLogsRequest) to verify
+	// the server still handles the legacy framing used by existing
+	// boundary deployments.
+	v1Req := &agentproto.ReportBoundaryLogsRequest{
+		Logs: []*agentproto.BoundaryLog{
+			{
+				Allowed: true,
+				Time:    timestamppb.Now(),
+				Resource: &agentproto.BoundaryLog_HttpRequest_{
+					HttpRequest: &agentproto.BoundaryLog_HttpRequest{
+						Method: "GET",
+						Url:    "https://example.com/v1",
+					},
+				},
+			},
+		},
+	}
+	sendLogsV1(t, conn, v1Req)
+
+	require.Eventually(t, func() bool {
+		return len(reporter.getLogs()) == 1
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Now send a TagV2 message on the same connection to verify both
+	// tag versions work interleaved.
+	v2Req := &agentproto.ReportBoundaryLogsRequest{
+		Logs: []*agentproto.BoundaryLog{
+			{
+				Allowed: false,
+				Time:    timestamppb.Now(),
+				Resource: &agentproto.BoundaryLog_HttpRequest_{
+					HttpRequest: &agentproto.BoundaryLog_HttpRequest{
+						Method: "POST",
+						Url:    "https://example.com/v2",
+					},
+				},
+			},
+		},
+	}
+	sendLogs(t, conn, v2Req)
+
+	require.Eventually(t, func() bool {
+		return len(reporter.getLogs()) == 2
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	logs := reporter.getLogs()
+	require.Equal(t, "https://example.com/v1", logs[0].Logs[0].GetHttpRequest().Url)
+	require.Equal(t, "https://example.com/v2", logs[1].Logs[0].GetHttpRequest().Url)
 
 	cancel()
 	<-forwarderDone

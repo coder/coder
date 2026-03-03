@@ -203,6 +203,7 @@ comments preserve important context about why code works a certain way.
 ## Detailed Development Guides
 
 @.claude/docs/ARCHITECTURE.md
+@.claude/docs/GO.md
 @.claude/docs/OAUTH2.md
 @.claude/docs/TESTING.md
 @.claude/docs/TROUBLESHOOTING.md

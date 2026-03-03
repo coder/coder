@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -62,7 +63,14 @@ func newRemotePartsProvider(
 		}
 
 		snapshot := make([]codersdk.ChatStreamEvent, 0, 100)
-		preloaded := make([]codersdk.ChatStreamEvent, 0, 100)
+
+		// Wait briefly for the first event to handle the common
+		// case where the remote side has buffered parts but hasn't
+		// flushed them to the WebSocket yet.
+		const drainTimeout = time.Second
+		drainTimer := time.NewTimer(drainTimeout)
+		defer drainTimer.Stop()
+
 	drainInitial:
 		for len(snapshot) < cap(snapshot) {
 			select {
@@ -78,8 +86,11 @@ func newRemotePartsProvider(
 					continue
 				}
 				snapshot = append(snapshot, event)
-				preloaded = append(preloaded, event)
-			default:
+				// After getting the first event, switch to
+				// non-blocking drain for remaining buffered events.
+				drainTimer.Stop()
+				drainTimer.Reset(0)
+			case <-drainTimer.C:
 				break drainInitial
 			}
 		}
@@ -93,14 +104,8 @@ func newRemotePartsProvider(
 				_ = sourceStream.Close()
 			}()
 
-			for _, event := range preloaded {
-				select {
-				case events <- event:
-				case <-relayCtx.Done():
-					return
-				}
-			}
-
+			// No need to re-send snapshot events — they're
+			// returned to the caller directly.
 			for {
 				select {
 				case <-relayCtx.Done():

@@ -489,7 +489,7 @@ export const workspacePermissions = (workspace?: Workspace) => {
 			checks: workspace ? workspaceChecks(workspace) : {},
 		}),
 		queryKey: ["workspaces", workspace?.id, "permissions"],
-		enabled: !!workspace,
+		enabled: Boolean(workspace),
 		staleTime: Number.POSITIVE_INFINITY,
 	};
 };

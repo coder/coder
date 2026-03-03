@@ -5261,7 +5261,7 @@
 						"CoderSessionToken": []
 					}
 				],
-				"consumes": ["application/json"],
+				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Pause task",
 				"operationId": "pause-task",
@@ -5299,7 +5299,7 @@
 						"CoderSessionToken": []
 					}
 				],
-				"consumes": ["application/json"],
+				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Resume task",
 				"operationId": "resume-task",
@@ -18190,6 +18190,7 @@
 			"type": "string",
 			"enum": [
 				"",
+				"geist-mono",
 				"ibm-plex-mono",
 				"fira-code",
 				"source-code-pro",
@@ -18197,6 +18198,7 @@
 			],
 			"x-enum-varnames": [
 				"TerminalFontUnknown",
+				"TerminalFontGeistMono",
 				"TerminalFontIBMPlexMono",
 				"TerminalFontFiraCode",
 				"TerminalFontSourceCodePro",

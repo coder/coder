@@ -26,8 +26,11 @@ const defaultProps = {
 		canOpenWorkspace: true,
 		onOpenInEditor: () => {},
 		onViewWorkspace: () => {},
+		onOpenTerminal: () => {},
+		sshCommand: "ssh main.my-workspace.admin.coder",
 	},
 	onArchiveAgent: () => {},
+	onArchiveAndDeleteWorkspace: () => {},
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: () => {},
 } satisfies React.ComponentProps<typeof AgentDetailTopBar>;
@@ -88,6 +91,12 @@ export const WithParentChat: Story = {
 export const SidebarCollapsed: Story = {
 	args: {
 		isSidebarCollapsed: true,
+	},
+};
+
+export const Archived: Story = {
+	args: {
+		isArchived: true,
 	},
 };
 

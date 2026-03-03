@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -27,6 +28,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
@@ -60,7 +63,7 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, events, cancel, ok := replicaB.Subscribe(ctx, chat.ID, nil)
+	_, events, cancel, ok := replicaB.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -202,7 +205,10 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queued, 1)
 
-	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 }
@@ -252,7 +258,10 @@ func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queued, 0)
 
-	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, messages, 2)
 	require.Equal(t, messages[len(messages)-1].ID, result.Message.ID)
@@ -275,7 +284,10 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	initialMessages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	initialMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, initialMessages, 1)
 	editedMessageID := initialMessages[0].ID
@@ -322,7 +334,10 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.Len(t, editedSDK.Content, 1)
 	require.Equal(t, "edited", editedSDK.Content[0].Text)
 
-	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, editedMessageID, messages[0].ID)
@@ -657,7 +672,7 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -686,7 +701,7 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil)
+	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -706,6 +721,87 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 		// No events — correct behavior.
 	}
+}
+
+func TestSubscribeAfterMessageID(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Create a chat — this inserts one initial "user" message.
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "after-id-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "first"}},
+	})
+	require.NoError(t, err)
+
+	// Insert two more messages so we have three total visible
+	// messages (the initial user message plus these two).
+	msg2, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:                "assistant",
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`"second"`), Valid: true},
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:                "user",
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`"third"`), Valid: true},
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
+	})
+	require.NoError(t, err)
+
+	// Control: Subscribe with afterMessageID=0 returns ALL messages.
+	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	cancelAll()
+
+	allMessages := filterMessageEvents(allSnapshot)
+	require.Len(t, allMessages, 3, "afterMessageID=0 should return all three messages")
+
+	// Subscribe with afterMessageID set to the second message's ID.
+	// Only the third message (inserted after msg2) should appear.
+	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	require.True(t, ok)
+	cancelPartial()
+
+	partialMessages := filterMessageEvents(partialSnapshot)
+	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
+	require.Equal(t, "user", partialMessages[0].Message.Role)
+}
+
+// filterMessageEvents returns only the Message-type events from a
+// snapshot slice, which is useful for ignoring status / queue events.
+func filterMessageEvents(events []codersdk.ChatStreamEvent) []codersdk.ChatStreamEvent {
+	return slice.Filter(events, func(e codersdk.ChatStreamEvent) bool {
+		return e.Type == codersdk.ChatStreamEventTypeMessage
+	})
 }
 
 func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
@@ -883,6 +979,30 @@ func newTestServer(
 	return server
 }
 
+func newTestServerWithRelay(
+	t *testing.T,
+	db database.Store,
+	ps dbpubsub.Pubsub,
+	replicaID uuid.UUID,
+	provider chatd.RemotePartsProvider,
+) *chatd.Server {
+	t.Helper()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  replicaID,
+		Pubsub:                     ps,
+		RemotePartsProvider:        provider,
+		PendingChatAcquireInterval: testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+	return server
+}
+
 func seedChatDependencies(
 	ctx context.Context,
 	t *testing.T,
@@ -937,6 +1057,293 @@ func setOpenAIProviderBaseURL(
 		Enabled:     provider.Enabled,
 	})
 	require.NoError(t, err)
+}
+
+func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+
+	var callCount atomic.Int32
+
+	provider := func(ctx context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
+		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
+	) {
+		call := callCount.Add(1)
+		ch := make(chan codersdk.ChatStreamEvent, 10)
+		if call == 1 {
+			// First relay: send a part then close to simulate a drop.
+			ch <- codersdk.ChatStreamEvent{
+				Type: codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{
+					Role: "assistant",
+					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "first-relay"},
+				},
+			}
+			close(ch)
+		} else {
+			// Second relay: send a different part, keep open.
+			ch <- codersdk.ChatStreamEvent{
+				Type: codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{
+					Role: "assistant",
+					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "second-relay"},
+				},
+			}
+			// Don't close — keep alive so the subscriber stays connected.
+		}
+		return nil, ch, func() {}, nil
+	}
+
+	subscriber := newTestServerWithRelay(t, db, ps, subscriberID, provider)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Create a chat and mark it as running on a remote worker.
+	chat, err := subscriber.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "relay-reconnect",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Should get the first relay part.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil &&
+				event.MessagePart.Part.Text == "first-relay" {
+				return true
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// After the first relay closes, a reconnection should happen and
+	// deliver the second relay part.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil &&
+				event.MessagePart.Part.Text == "second-relay" {
+				return true
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.GreaterOrEqual(t, int(callCount.Load()), 2)
+}
+
+func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+
+	dialStarted := make(chan struct{})
+	dialContinue := make(chan struct{})
+
+	provider := func(ctx context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
+		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
+	) {
+		// Signal that the dial has started, then block until released.
+		select {
+		case <-dialStarted:
+		default:
+			close(dialStarted)
+		}
+		select {
+		case <-dialContinue:
+		case <-ctx.Done():
+			return nil, nil, nil, ctx.Err()
+		}
+		ch := make(chan codersdk.ChatStreamEvent, 10)
+		return nil, ch, func() {}, nil
+	}
+
+	subscriber := newTestServerWithRelay(t, db, ps, subscriberID, provider)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Create a chat in pending status.
+	chat, err := subscriber.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "relay-async-nonblock",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	// Subscribe before the chat is marked running so the relay opens
+	// via pubsub notification (openRelayAsync path).
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Now mark the chat as running on a remote worker. This publishes
+	// a status notification which triggers openRelayAsync on the
+	// subscriber.
+	notify := coderdpubsub.ChatStreamNotifyMessage{
+		Status:   string(database.ChatStatusRunning),
+		WorkerID: workerID.String(),
+	}
+	payload, err := json.Marshal(notify)
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payload)
+	require.NoError(t, err)
+
+	// Wait for the relay dial to actually start (blocking in the
+	// provider).
+	select {
+	case <-dialStarted:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for relay dial to start")
+	}
+
+	// While the relay is still dialing (provider is blocked), publish
+	// another status change. If openRelayAsync blocked the select loop
+	// this event would never arrive.
+	statusNotify := coderdpubsub.ChatStreamNotifyMessage{
+		Status: string(database.ChatStatusWaiting),
+	}
+	statusPayload, err := json.Marshal(statusNotify)
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), statusPayload)
+	require.NoError(t, err)
+
+	// The waiting status event should arrive promptly despite the
+	// relay still dialing.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeStatus &&
+				event.Status != nil &&
+				event.Status.Status == codersdk.ChatStatusWaiting
+		default:
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Unblock the relay dial so the test can clean up.
+	close(dialContinue)
+}
+
+func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+
+	provider := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
+		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
+	) {
+		// Return a non-empty snapshot with two parts.
+		snapshot := []codersdk.ChatStreamEvent{
+			{
+				Type: codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{
+					Role: "assistant",
+					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "snap-one"},
+				},
+			},
+			{
+				Type: codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{
+					Role: "assistant",
+					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "snap-two"},
+				},
+			},
+		}
+		ch := make(chan codersdk.ChatStreamEvent, 10)
+		// Also send a live part after the snapshot.
+		ch <- codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: "assistant",
+				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "live-part"},
+			},
+		}
+		return snapshot, ch, func() {}, nil
+	}
+
+	subscriber := newTestServerWithRelay(t, db, ps, subscriberID, provider)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Create a chat already running on a remote worker.
+	chat, err := subscriber.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "relay-snapshot",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	initialSnapshot, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// The initial snapshot should contain the two relay snapshot parts.
+	var snapshotTexts []string
+	for _, event := range initialSnapshot {
+		if event.Type == codersdk.ChatStreamEventTypeMessagePart && event.MessagePart != nil {
+			snapshotTexts = append(snapshotTexts, event.MessagePart.Part.Text)
+		}
+	}
+	require.Contains(t, snapshotTexts, "snap-one")
+	require.Contains(t, snapshotTexts, "snap-two")
+
+	// The live part should arrive on the events channel.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil &&
+				event.MessagePart.Part.Text == "live-part" {
+				return true
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
 func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {

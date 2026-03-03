@@ -2465,13 +2465,13 @@ func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.Ch
 	return msg, nil
 }
 
-func (q *querier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+func (q *querier) GetChatMessagesByChatID(ctx context.Context, arg database.GetChatMessagesByChatIDParams) ([]database.ChatMessage, error) {
 	// Authorize read on the parent chat.
-	_, err := q.GetChatByID(ctx, chatID)
+	_, err := q.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return nil, err
 	}
-	return q.db.GetChatMessagesByChatID(ctx, chatID)
+	return q.db.GetChatMessagesByChatID(ctx, arg)
 }
 
 func (q *querier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {

@@ -41,6 +41,7 @@ FROM
     chat_messages
 WHERE
     chat_id = @chat_id::uuid
+    AND id > @after_id::bigint
     AND visibility IN ('user', 'both')
 ORDER BY
     created_at ASC;

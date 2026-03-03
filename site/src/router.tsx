@@ -259,6 +259,9 @@ const CreateGroupPage = lazy(
 	() => import("./pages/GroupsPage/CreateGroupPage"),
 );
 const GroupPage = lazy(() => import("./pages/GroupsPage/GroupPage"));
+const GroupMembersPage = lazy(
+	() => import("./pages/GroupsPage/GroupMembersPage"),
+);
 const GroupSettingsPage = lazy(
 	() => import("./pages/GroupsPage/GroupSettingsPage"),
 );
@@ -410,8 +413,10 @@ const groupsRouter = () => {
 				<Route index element={<GroupsPage />} />
 
 				<Route path="create" element={<CreateGroupPage />} />
-				<Route path=":groupName" element={<GroupPage />} />
-				<Route path=":groupName/settings" element={<GroupSettingsPage />} />
+				<Route path=":groupName" element={<GroupPage />}>
+					<Route index element={<GroupMembersPage />} />
+					<Route path="settings" element={<GroupSettingsPage />} />
+				</Route>
 			</Route>
 		</Route>
 	);

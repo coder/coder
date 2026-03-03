@@ -23,6 +23,7 @@ const RequestLogsPage: FC = () => {
 	const isEntitled =
 		entitlements.features.aibridge.entitlement === "entitled" ||
 		entitlements.features.aibridge.entitlement === "grace_period";
+	const isEnabled = entitlements.features.aibridge.enabled;
 	const hasPermission = permissions.viewAnyAIBridgeInterception;
 	const canViewRequestLogs = isEntitled && hasPermission;
 
@@ -71,6 +72,7 @@ const RequestLogsPage: FC = () => {
 			<RequestLogsPageView
 				isLoading={interceptionsQuery.isLoading}
 				isRequestLogsEntitled={isEntitled}
+				isRequestLogsEnabled={isEnabled}
 				interceptions={interceptionsQuery.data?.results}
 				interceptionsQuery={interceptionsQuery}
 				filterProps={{

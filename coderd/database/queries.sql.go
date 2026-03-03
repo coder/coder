@@ -3112,13 +3112,19 @@ FROM
     chat_messages
 WHERE
     chat_id = $1::uuid
+    AND id > $2::bigint
     AND visibility IN ('user', 'both')
 ORDER BY
     created_at ASC
 `
 
-func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
-	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatID, chatID)
+type GetChatMessagesByChatIDParams struct {
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	AfterID int64     `db:"after_id" json:"after_id"`
+}
+
+func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMessagesByChatIDParams) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatID, arg.ChatID, arg.AfterID)
 	if err != nil {
 		return nil, err
 	}

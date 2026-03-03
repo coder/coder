@@ -988,6 +988,7 @@ func (p *Server) Subscribe(
 	ctx context.Context,
 	chatID uuid.UUID,
 	requestHeader http.Header,
+	afterMessageID int64,
 ) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
@@ -1013,8 +1014,14 @@ func (p *Server) Subscribe(
 		}
 	}
 
-	// Load initial messages from DB
-	messages, err := p.db.GetChatMessagesByChatID(ctx, chatID)
+	// Load initial messages from DB. When afterMessageID > 0 the
+	// caller already has messages up to that ID (e.g. from the REST
+	// endpoint), so we only fetch newer ones to avoid sending
+	// duplicate data.
+	messages, err := p.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: afterMessageID,
+	})
 	if err == nil {
 		for _, msg := range messages {
 			sdkMsg := db2sdk.ChatMessage(msg)
@@ -1087,42 +1094,92 @@ func (p *Server) Subscribe(
 		allCancels = append(allCancels, relayCancel)
 	}
 
-	// Helper to close relay
+	// Channel for async relay establishment.
+	type relayResult struct {
+		parts  <-chan codersdk.ChatStreamEvent
+		cancel func()
+	}
+	relayReadyCh := make(chan relayResult, 1)
+
+	// Reconnect timer state.
+	var reconnectTimer *time.Timer
+	var reconnectCh <-chan time.Time
+
+	// Helper to close relay and stop any pending reconnect timer.
 	closeRelay := func() {
 		if relayCancel != nil {
 			relayCancel()
 			relayCancel = nil
 		}
 		relayParts = nil
+		if reconnectTimer != nil {
+			reconnectTimer.Stop()
+			reconnectTimer = nil
+			reconnectCh = nil
+		}
 	}
 
-	// Helper to open relay to a worker
-	openRelay := func(workerID uuid.UUID) {
+	// openRelayAsync dials the remote replica in a background
+	// goroutine and delivers the result on relayReadyCh so the
+	// main select loop is never blocked by network I/O.
+	openRelayAsync := func(workerID uuid.UUID) {
 		if p.remotePartsProvider == nil {
 			return
 		}
 		closeRelay()
-		snapshot, parts, cancel, err := p.remotePartsProvider(mergedCtx, chatID, workerID, requestHeader)
-		if err != nil {
-			p.logger.Warn(mergedCtx, "failed to open relay for message parts",
-				slog.F("chat_id", chatID),
-				slog.F("worker_id", workerID),
-				slog.Error(err),
-			)
+		go func() {
+			snapshot, parts, cancel, err := p.remotePartsProvider(mergedCtx, chatID, workerID, requestHeader)
+			if err != nil {
+				p.logger.Warn(mergedCtx, "failed to open relay for message parts",
+					slog.F("chat_id", chatID),
+					slog.F("worker_id", workerID),
+					slog.Error(err),
+				)
+				return
+			}
+			// Wrap the relay channel so snapshot parts are
+			// delivered through the same channel as live parts.
+			wrappedParts := make(chan codersdk.ChatStreamEvent, 128)
+			go func() {
+				defer close(wrappedParts)
+				for _, event := range snapshot {
+					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+						select {
+						case wrappedParts <- event:
+						case <-mergedCtx.Done():
+							cancel()
+							return
+						}
+					}
+				}
+				for event := range parts {
+					select {
+					case wrappedParts <- event:
+					case <-mergedCtx.Done():
+						return
+					}
+				}
+			}()
+			select {
+			case relayReadyCh <- relayResult{parts: wrappedParts, cancel: cancel}:
+			case <-mergedCtx.Done():
+				cancel()
+			}
+		}()
+	}
+
+	// scheduleRelayReconnect arms a short timer so the select
+	// loop can re-check chat status and reopen the relay without
+	// spinning in a tight loop.
+	scheduleRelayReconnect := func() {
+		if p.remotePartsProvider == nil {
 			return
 		}
-		relayParts = parts
-		relayCancel = cancel
-		// Send relay snapshot message_parts
-		for _, event := range snapshot {
-			if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-				select {
-				case <-mergedCtx.Done():
-					return
-				case mergedEvents <- event:
-				}
-			}
+		if reconnectTimer != nil {
+			reconnectTimer.Stop()
 		}
+		reconnectTimer = time.NewTimer(500 * time.Millisecond)
+		reconnectCh = reconnectTimer.C
 	}
 
 	//nolint:nestif
@@ -1188,26 +1245,42 @@ func (p *Server) Subscribe(
 						},
 					}
 					return
+				case result := <-relayReadyCh:
+					// An async relay dial completed; swap in the
+					// new relay channel.
+					closeRelay()
+					relayParts = result.parts
+					relayCancel = result.cancel
+				case <-reconnectCh:
+					reconnectCh = nil
+					// Re-check whether the chat is still running
+					// on a remote worker before reconnecting.
+					currentChat, chatErr := p.db.GetChatByID(mergedCtx, chatID)
+					if chatErr == nil && currentChat.Status == database.ChatStatusRunning &&
+						currentChat.WorkerID.Valid && currentChat.WorkerID.UUID != p.workerID {
+						openRelayAsync(currentChat.WorkerID.UUID)
+					}
 				case notify := <-notifications:
 					// Handle different notification types
 					if notify.AfterMessageID > 0 {
-						// Read new messages from DB
-						messages, err := p.db.GetChatMessagesByChatID(mergedCtx, chatID)
+						// Read only new messages from DB.
+						messages, err := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
+							ChatID:  chatID,
+							AfterID: lastMessageID,
+						})
 						if err == nil {
 							for _, msg := range messages {
-								if msg.ID > lastMessageID {
-									sdkMsg := db2sdk.ChatMessage(msg)
-									select {
-									case <-mergedCtx.Done():
-										return
-									case mergedEvents <- codersdk.ChatStreamEvent{
-										Type:    codersdk.ChatStreamEventTypeMessage,
-										ChatID:  chatID,
-										Message: &sdkMsg,
-									}:
-									}
-									lastMessageID = msg.ID
+								sdkMsg := db2sdk.ChatMessage(msg)
+								select {
+								case <-mergedCtx.Done():
+									return
+								case mergedEvents <- codersdk.ChatStreamEvent{
+									Type:    codersdk.ChatStreamEventTypeMessage,
+									ChatID:  chatID,
+									Message: &sdkMsg,
+								}:
 								}
+								lastMessageID = msg.ID
 							}
 						}
 					}
@@ -1222,11 +1295,11 @@ func (p *Server) Subscribe(
 							Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
 						}:
 						}
-						// Manage relay lifecycle based on status
+						// Manage relay lifecycle based on status.
 						if status == database.ChatStatusRunning && notify.WorkerID != "" {
 							workerID, err := uuid.Parse(notify.WorkerID)
 							if err == nil && workerID != p.workerID {
-								openRelay(workerID)
+								openRelayAsync(workerID)
 							} else if workerID == p.workerID {
 								closeRelay()
 							}
@@ -1277,6 +1350,8 @@ func (p *Server) Subscribe(
 				case event, ok := <-relayPartsCh:
 					if !ok {
 						relayParts = nil
+						// Schedule reconnection instead of giving up.
+						scheduleRelayReconnect()
 						continue
 					}
 					// Only forward message_part events from relay (durable events come via pubsub)
@@ -1311,6 +1386,9 @@ func (p *Server) Subscribe(
 			if cancelFn != nil {
 				cancelFn()
 			}
+		}
+		if reconnectTimer != nil {
+			reconnectTimer.Stop()
 		}
 	}
 
@@ -1768,6 +1846,21 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		status = database.ChatStatusError
 		return
 	}
+
+	// If runChat completed successfully but the server context was
+	// canceled (e.g. during Close()), the chat should be returned
+	// to pending so another replica can pick it up. There is a
+	// race where the LLM stream finishes just as the server is
+	// shutting down — the HTTP response completes before context
+	// cancellation propagates, so runChat returns nil instead of
+	// a context.Canceled error. Without this check the chat would
+	// be marked "waiting" and never retried.
+	if ctx.Err() != nil {
+		logger.Info(ctx, "chat completed during shutdown; returning to pending")
+		status = database.ChatStatusPending
+		lastError = ""
+		return
+	}
 }
 
 func isShutdownCancellation(
@@ -2028,28 +2121,19 @@ func (p *Server) runChat(
 		return nil
 	}
 
-	streamCall := fantasy.AgentStreamCall{
-		MaxOutputTokens:  callConfig.MaxOutputTokens,
-		Temperature:      callConfig.Temperature,
-		TopP:             callConfig.TopP,
-		TopK:             callConfig.TopK,
-		PresencePenalty:  callConfig.PresencePenalty,
-		FrequencyPenalty: callConfig.FrequencyPenalty,
-		ProviderOptions:  chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions),
-	}
-
-	if streamCall.MaxOutputTokens == nil {
+	// Apply the default MaxOutputTokens if the model config
+	// does not specify one.
+	if callConfig.MaxOutputTokens == nil {
 		maxOutputTokens := int64(32_000)
-		streamCall.MaxOutputTokens = &maxOutputTokens
+		callConfig.MaxOutputTokens = &maxOutputTokens
 	}
 
-	// Generate the tool call ID up front so that the OnStart
-	// streaming part and the Persist durable messages share
-	// the same identifier. Without this the client cannot
-	// correlate the "Summarizing..." tool call with the
-	// "Summarized" tool result.
+	// Generate the tool call ID up front so that the streaming
+	// parts and durable messages share the same identifier.
+	// Without this the client cannot correlate the
+	// "Summarizing..." tool call with the "Summarized" tool
+	// result.
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()
-
 	compactionOptions := &chatloop.CompactionOptions{
 		ThresholdPercent: modelConfig.CompressionThreshold,
 		ContextLimit:     modelConfig.ContextLimit,
@@ -2075,15 +2159,10 @@ func (p *Server) runChat(
 			)
 			return nil
 		},
-		OnStart: func() {
-			// Publish a streaming tool-call part immediately so
-			// connected clients see "Summarizing..." while the
-			// LLM generates the summary.
-			p.publishMessagePart(chat.ID, string(fantasy.MessageRoleAssistant), codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: compactionToolCallID,
-				ToolName:   "chat_summarized",
-			})
+		ToolCallID: compactionToolCallID,
+		ToolName:   "chat_summarized",
+		PublishMessagePart: func(role fantasy.MessageRole, part codersdk.ChatMessagePart) {
+			p.publishMessagePart(chat.ID, string(role), part)
 		},
 		OnError: func(err error) {
 			logger.Warn(ctx, "failed to compact chat context", slog.Error(err))
@@ -2119,6 +2198,7 @@ func (p *Server) runChat(
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: getWorkspaceConn,
+			ChatID:           chat.ID.String(),
 		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{
 			GetWorkspaceConn: getWorkspaceConn,
@@ -2139,12 +2219,14 @@ func (p *Server) runChat(
 		})...)
 	}
 
-	_, err = chatloop.Run(ctx, chatloop.RunOptions{
-		Model:      model,
-		Messages:   prompt,
-		Tools:      tools,
-		StreamCall: streamCall,
-		MaxSteps:   maxChatSteps,
+	err = chatloop.Run(ctx, chatloop.RunOptions{
+		Model:    model,
+		Messages: prompt,
+		Tools:    tools,
+		MaxSteps: maxChatSteps,
+
+		ModelConfig:     callConfig,
+		ProviderOptions: chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions),
 
 		ContextLimitFallback: modelConfigContextLimit,
 
@@ -2306,16 +2388,6 @@ func (p *Server) persistChatContextSummary(
 	if err != nil {
 		return xerrors.Errorf("insert summary tool result message: %w", err)
 	}
-
-	// Publish a streaming tool-result part so connected clients
-	// transition from "Summarizing..." to "Summarized" before the
-	// durable messages and status change arrive.
-	p.publishMessagePart(chatID, string(fantasy.MessageRoleTool), codersdk.ChatMessagePart{
-		Type:       codersdk.ChatMessagePartTypeToolResult,
-		ToolCallID: toolCallID,
-		ToolName:   "chat_summarized",
-		Result:     summaryResult,
-	})
 
 	p.publishMessage(chatID, assistantMessage)
 	p.publishMessage(chatID, toolMessage)

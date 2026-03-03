@@ -8,6 +8,11 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "components/Collapsible/Collapsible";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -29,6 +34,7 @@ import {
 	PanelLeftCloseIcon,
 	PauseIcon,
 	SearchIcon,
+	Trash2Icon,
 } from "lucide-react";
 import {
 	createContext,
@@ -51,6 +57,7 @@ interface AgentsSidebarProps {
 	modelConfigs: readonly ChatModelConfig[];
 	logoUrl?: string;
 	onArchiveAgent: (chatId: string) => void;
+	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onNewAgent: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -264,6 +271,10 @@ interface ChatTreeContextValue {
 	readonly archivingChatId: string | null;
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
+	readonly onArchiveAndDeleteWorkspace: (
+		chatId: string,
+		workspaceId: string,
+	) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -295,6 +306,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		archivingChatId,
 		toggleExpanded,
 		onArchiveAgent,
+		onArchiveAndDeleteWorkspace,
 	} = useChatTree();
 	const chatID = chat.id;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
@@ -325,6 +337,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	const filesChangedLabel = `${changedFiles} ${
 		changedFiles === 1 ? "file" : "files"
 	}`;
+	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 	const isExecuting =
@@ -469,7 +482,20 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								<ArchiveIcon className="h-3.5 w-3.5" />
 								Archive agent
 							</DropdownMenuItem>
-						</DropdownMenuContent>
+							{workspaceId && (
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									disabled={isArchiving}
+									onSelect={() =>
+										onArchiveAndDeleteWorkspace(chat.id, workspaceId)
+									}
+								>
+									{" "}
+									<Trash2Icon className="h-3.5 w-3.5" />
+									Archive & delete workspace
+								</DropdownMenuItem>
+							)}
+						</DropdownMenuContent>{" "}
 					</DropdownMenu>
 				</div>
 			</div>
@@ -498,6 +524,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		modelConfigs,
 		logoUrl,
 		onArchiveAgent,
+		onArchiveAndDeleteWorkspace,
 		onNewAgent,
 		isCreating,
 		isArchiving = false,
@@ -515,6 +542,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const [search, setSearch] = useState("");
 	const normalizedSearch = search.trim().toLowerCase();
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+	const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
 
 	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
 	const chatById = useMemo(() => {
@@ -533,6 +561,24 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
 		[chatTree.rootIds, visibleChatIDs],
 	);
+	const activeRootIDs = useMemo(
+		() =>
+			visibleRootIDs.filter((id) => {
+				const chat = chatById.get(id);
+				return chat && !chat.archived;
+			}),
+		[visibleRootIDs, chatById],
+	);
+	const archivedRootIDs = useMemo(
+		() =>
+			visibleRootIDs.filter((id) => {
+				const chat = chatById.get(id);
+				return chat?.archived;
+			}),
+		[visibleRootIDs, chatById],
+	);
+	const effectiveArchivedExpanded =
+		normalizedSearch && archivedRootIDs.length > 0 ? true : isArchivedExpanded;
 
 	// Auto-expand ancestors of the active chat so it's always visible.
 	useEffect(() => {
@@ -576,6 +622,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			archivingChatId,
 			toggleExpanded,
 			onArchiveAgent,
+			onArchiveAndDeleteWorkspace,
 		}),
 		[
 			chatTree,
@@ -590,6 +637,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			archivingChatId,
 			toggleExpanded,
 			onArchiveAgent,
+			onArchiveAndDeleteWorkspace,
 		],
 	);
 
@@ -597,7 +645,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
 			<div className="hidden border-b border-border-default px-3 pb-3 pt-1.5 md:block md:px-3.5">
 				<div className="mb-2.5 flex items-center justify-between">
-					<NavLink to="/workspaces" className="inline-flex opacity-50">
+					<NavLink to="/workspaces" className="inline-flex">
 						{logoUrl ? (
 							<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
 						) : (
@@ -680,37 +728,76 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</>
 					) : (
 						<ChatTreeContext.Provider value={chatTreeCtx}>
-							{visibleRootIDs.length === 0 ? (
+							{activeRootIDs.length === 0 && archivedRootIDs.length === 0 ? (
 								<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
 									{normalizedSearch ? "No matching agents" : "No agents yet"}
 								</div>
 							) : (
-								TIME_GROUPS.map((group) => {
-									const groupChats = visibleRootIDs
-										.map((id) => chatById.get(id))
-										.filter(
-											(chat): chat is Chat =>
-												chat !== undefined &&
-												getTimeGroup(chat.updated_at) === group,
-										);
-									if (groupChats.length === 0) return null;
-									return (
-										<div key={group}>
-											<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-												<span>{group}</span>
-											</div>
-											<div className="flex flex-col gap-0.5">
-												{groupChats.map((chat) => (
-													<ChatTreeNode
-														key={chat.id}
-														chat={chat}
-														isChildNode={false}
-													/>
-												))}
-											</div>
+								<div className="divide-y divide-border">
+									{activeRootIDs.length > 0 && (
+										<div className="pb-2">
+											{TIME_GROUPS.map((group) => {
+												const groupChats = activeRootIDs
+													.map((id) => chatById.get(id))
+													.filter(
+														(chat): chat is Chat =>
+															chat !== undefined &&
+															getTimeGroup(chat.updated_at) === group,
+													);
+												if (groupChats.length === 0) return null;
+												return (
+													<div key={group}>
+														<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+															<span>{group}</span>
+														</div>
+														<div className="flex flex-col gap-0.5">
+															{groupChats.map((chat) => (
+																<ChatTreeNode
+																	key={chat.id}
+																	chat={chat}
+																	isChildNode={false}
+																/>
+															))}
+														</div>
+													</div>
+												);
+											})}
 										</div>
-									);
-								})
+									)}
+									{archivedRootIDs.length > 0 && (
+										<Collapsible
+											className="pt-2"
+											open={effectiveArchivedExpanded}
+											onOpenChange={setIsArchivedExpanded}
+										>
+											<CollapsibleTrigger asChild>
+												<div className="mb-1 ml-2.5 flex cursor-pointer items-center justify-between text-xs font-medium text-content-secondary">
+													<span>Archived ({archivedRootIDs.length})</span>
+													{effectiveArchivedExpanded ? (
+														<ChevronDownIcon className="h-3 w-3" />
+													) : (
+														<ChevronRightIcon className="h-3 w-3" />
+													)}
+												</div>
+											</CollapsibleTrigger>
+											<CollapsibleContent>
+												<div className="flex flex-col gap-0.5">
+													{archivedRootIDs.map((id) => {
+														const chat = chatById.get(id);
+														if (!chat) return null;
+														return (
+															<ChatTreeNode
+																key={chat.id}
+																chat={chat}
+																isChildNode={false}
+															/>
+														);
+													})}
+												</div>
+											</CollapsibleContent>
+										</Collapsible>
+									)}{" "}
+								</div>
 							)}
 						</ChatTreeContext.Provider>
 					)}

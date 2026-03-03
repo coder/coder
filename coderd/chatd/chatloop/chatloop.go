@@ -5,14 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	"github.com/google/uuid"
+	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
@@ -28,10 +28,9 @@ var ErrInterrupted = xerrors.New("chat interrupted")
 
 // PersistedStep contains the full content of a completed or
 // interrupted agent step. Content includes both assistant blocks
-// (text, reasoning, tool calls) and tool result blocks, mirroring
-// what fantasy provides in StepResult.Content. The persistence
-// layer is responsible for splitting these into separate database
-// messages by role.
+// (text, reasoning, tool calls) and tool result blocks. The
+// persistence layer is responsible for splitting these into
+// separate database messages by role.
 type PersistedStep struct {
 	Content      []fantasy.Content
 	Usage        fantasy.Usage
@@ -40,21 +39,30 @@ type PersistedStep struct {
 
 // RunOptions configures a single streaming chat loop run.
 type RunOptions struct {
-	Model      fantasy.LanguageModel
-	Messages   []fantasy.Message
-	Tools      []fantasy.AgentTool
-	StreamCall fantasy.AgentStreamCall
-	MaxSteps   int
+	Model    fantasy.LanguageModel
+	Messages []fantasy.Message
+	Tools    []fantasy.AgentTool
+	MaxSteps int
 
 	ActiveTools          []string
 	ContextLimitFallback int64
+
+	// ModelConfig holds per-call LLM parameters (temperature,
+	// max tokens, etc.) read from the chat model configuration.
+	ModelConfig codersdk.ChatModelCallConfig
+	// ProviderOptions are provider-specific call options
+	// converted from ModelConfig.ProviderOptions. This is a
+	// separate field because the conversion requires knowledge
+	// of the provider, which lives in chatd, not chatloop.
+	ProviderOptions fantasy.ProviderOptions
 
 	PersistStep        func(context.Context, PersistedStep) error
 	PublishMessagePart func(
 		role fantasy.MessageRole,
 		part codersdk.ChatMessagePart,
 	)
-	Compaction *CompactionOptions
+	Compaction     *CompactionOptions
+	ReloadMessages func(context.Context) ([]fantasy.Message, error)
 
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
@@ -65,13 +73,117 @@ type RunOptions struct {
 	OnInterruptedPersistError func(error)
 }
 
-// Run executes the chat step-stream loop and delegates persistence/publishing to callbacks.
-func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
+// stepResult holds the accumulated output of a single streaming
+// step. Since we own the stream consumer, all content is tracked
+// directly here — no shadow draft state needed.
+type stepResult struct {
+	content          []fantasy.Content
+	usage            fantasy.Usage
+	providerMetadata fantasy.ProviderMetadata
+	finishReason     fantasy.FinishReason
+	toolCalls        []fantasy.ToolCallContent
+	shouldContinue   bool
+}
+
+// toResponseMessages converts step content into messages suitable
+// for appending to the conversation. Mirrors fantasy's
+// toResponseMessages logic.
+func (r stepResult) toResponseMessages() []fantasy.Message {
+	var assistantParts []fantasy.MessagePart
+	var toolParts []fantasy.MessagePart
+
+	for _, c := range r.content {
+		switch c.GetType() {
+		case fantasy.ContentTypeText:
+			text, ok := fantasy.AsContentType[fantasy.TextContent](c)
+			if !ok {
+				continue
+			}
+			assistantParts = append(assistantParts, fantasy.TextPart{
+				Text:            text.Text,
+				ProviderOptions: fantasy.ProviderOptions(text.ProviderMetadata),
+			})
+		case fantasy.ContentTypeReasoning:
+			reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](c)
+			if !ok {
+				continue
+			}
+			assistantParts = append(assistantParts, fantasy.ReasoningPart{
+				Text:            reasoning.Text,
+				ProviderOptions: fantasy.ProviderOptions(reasoning.ProviderMetadata),
+			})
+		case fantasy.ContentTypeToolCall:
+			toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](c)
+			if !ok {
+				continue
+			}
+			assistantParts = append(assistantParts, fantasy.ToolCallPart{
+				ToolCallID:       toolCall.ToolCallID,
+				ToolName:         toolCall.ToolName,
+				Input:            toolCall.Input,
+				ProviderExecuted: toolCall.ProviderExecuted,
+				ProviderOptions:  fantasy.ProviderOptions(toolCall.ProviderMetadata),
+			})
+		case fantasy.ContentTypeFile:
+			file, ok := fantasy.AsContentType[fantasy.FileContent](c)
+			if !ok {
+				continue
+			}
+			assistantParts = append(assistantParts, fantasy.FilePart{
+				Data:            file.Data,
+				MediaType:       file.MediaType,
+				ProviderOptions: fantasy.ProviderOptions(file.ProviderMetadata),
+			})
+		case fantasy.ContentTypeSource:
+			// Sources are metadata about references; they don't
+			// need to be included in conversation messages.
+			continue
+		case fantasy.ContentTypeToolResult:
+			result, ok := fantasy.AsContentType[fantasy.ToolResultContent](c)
+			if !ok {
+				continue
+			}
+			toolParts = append(toolParts, fantasy.ToolResultPart{
+				ToolCallID:      result.ToolCallID,
+				Output:          result.Result,
+				ProviderOptions: fantasy.ProviderOptions(result.ProviderMetadata),
+			})
+		default:
+			continue
+		}
+	}
+
+	var messages []fantasy.Message
+	if len(assistantParts) > 0 {
+		messages = append(messages, fantasy.Message{
+			Role:    fantasy.MessageRoleAssistant,
+			Content: assistantParts,
+		})
+	}
+	if len(toolParts) > 0 {
+		messages = append(messages, fantasy.Message{
+			Role:    fantasy.MessageRoleTool,
+			Content: toolParts,
+		})
+	}
+	return messages
+}
+
+// reasoningState accumulates reasoning content and provider
+// metadata while the stream is in flight.
+type reasoningState struct {
+	text    string
+	options fantasy.ProviderMetadata
+}
+
+// Run executes the chat step-stream loop and delegates
+// persistence/publishing to callbacks.
+func Run(ctx context.Context, opts RunOptions) error {
 	if opts.Model == nil {
-		return nil, xerrors.New("chat model is required")
+		return xerrors.New("chat model is required")
 	}
 	if opts.PersistStep == nil {
-		return nil, xerrors.New("persist step callback is required")
+		return xerrors.New("persist step callback is required")
 	}
 	if opts.MaxSteps <= 0 {
 		opts.MaxSteps = 1
@@ -84,359 +196,94 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 		opts.PublishMessagePart(role, part)
 	}
 
-	var (
-		stepStateMu           sync.Mutex
-		streamToolNames       map[string]string
-		streamReasoningTitles map[string]string
-		streamReasoningText   map[string]string
-		// stepToolResultContents tracks tool results received during
-		// streaming. These are needed for the interrupted-step path
-		// where OnStepFinish never fires.
-		stepToolResultContents []fantasy.ToolResultContent
-		stepAssistantDraft     []fantasy.Content
-		stepToolCallIndexByID  map[string]int
-	)
-
-	resetStepState := func() {
-		stepStateMu.Lock()
-		streamToolNames = make(map[string]string)
-		streamReasoningTitles = make(map[string]string)
-		streamReasoningText = make(map[string]string)
-		stepToolResultContents = nil
-		stepAssistantDraft = nil
-		stepToolCallIndexByID = make(map[string]int)
-		stepStateMu.Unlock()
-	}
-
-	setReasoningTitleFromText := func(id string, text string) {
-		if id == "" || strings.TrimSpace(text) == "" {
-			return
-		}
-
-		stepStateMu.Lock()
-		defer stepStateMu.Unlock()
-
-		if streamReasoningTitles[id] != "" {
-			return
-		}
-
-		streamReasoningText[id] += text
-		if !strings.ContainsAny(streamReasoningText[id], "\r\n") {
-			return
-		}
-		title := chatprompt.ReasoningTitleFromFirstLine(streamReasoningText[id])
-		if title == "" {
-			return
-		}
-
-		streamReasoningTitles[id] = title
-	}
-
-	appendDraftText := func(text string) {
-		if text == "" {
-			return
-		}
-
-		stepStateMu.Lock()
-		defer stepStateMu.Unlock()
-
-		if len(stepAssistantDraft) > 0 {
-			lastIndex := len(stepAssistantDraft) - 1
-			switch last := stepAssistantDraft[lastIndex].(type) {
-			case fantasy.TextContent:
-				last.Text += text
-				stepAssistantDraft[lastIndex] = last
-				return
-			case *fantasy.TextContent:
-				last.Text += text
-				stepAssistantDraft[lastIndex] = fantasy.TextContent{Text: last.Text}
-				return
-			}
-		}
-		stepAssistantDraft = append(stepAssistantDraft, fantasy.TextContent{Text: text})
-	}
-
-	appendDraftReasoning := func(text string) {
-		if text == "" {
-			return
-		}
-
-		stepStateMu.Lock()
-		defer stepStateMu.Unlock()
-
-		if len(stepAssistantDraft) > 0 {
-			lastIndex := len(stepAssistantDraft) - 1
-			switch last := stepAssistantDraft[lastIndex].(type) {
-			case fantasy.ReasoningContent:
-				last.Text += text
-				stepAssistantDraft[lastIndex] = last
-				return
-			case *fantasy.ReasoningContent:
-				last.Text += text
-				stepAssistantDraft[lastIndex] = fantasy.ReasoningContent{Text: last.Text}
-				return
-			}
-		}
-		stepAssistantDraft = append(stepAssistantDraft, fantasy.ReasoningContent{Text: text})
-	}
-
-	upsertDraftToolCall := func(toolCallID, toolName, input string, appendInput bool) {
-		if toolCallID == "" {
-			return
-		}
-
-		stepStateMu.Lock()
-		defer stepStateMu.Unlock()
-
-		if strings.TrimSpace(toolName) != "" {
-			streamToolNames[toolCallID] = toolName
-		}
-
-		index, exists := stepToolCallIndexByID[toolCallID]
-		if !exists {
-			stepToolCallIndexByID[toolCallID] = len(stepAssistantDraft)
-			stepAssistantDraft = append(stepAssistantDraft, fantasy.ToolCallContent{
-				ToolCallID: toolCallID,
-				ToolName:   toolName,
-				Input:      input,
-			})
-			return
-		}
-
-		if index < 0 || index >= len(stepAssistantDraft) {
-			stepToolCallIndexByID[toolCallID] = len(stepAssistantDraft)
-			stepAssistantDraft = append(stepAssistantDraft, fantasy.ToolCallContent{
-				ToolCallID: toolCallID,
-				ToolName:   toolName,
-				Input:      input,
-			})
-			return
-		}
-
-		existingCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](stepAssistantDraft[index])
-		if !ok {
-			if ptrCall, ptrOK := fantasy.AsContentType[*fantasy.ToolCallContent](stepAssistantDraft[index]); ptrOK && ptrCall != nil {
-				existingCall = *ptrCall
-				ok = true
-			}
-		}
-		if !ok {
-			stepToolCallIndexByID[toolCallID] = len(stepAssistantDraft)
-			stepAssistantDraft = append(stepAssistantDraft, fantasy.ToolCallContent{
-				ToolCallID: toolCallID,
-				ToolName:   toolName,
-				Input:      input,
-			})
-			return
-		}
-
-		if strings.TrimSpace(toolName) != "" {
-			existingCall.ToolName = toolName
-		}
-		if appendInput {
-			existingCall.Input += input
-		} else if input != "" || existingCall.Input == "" {
-			existingCall.Input = input
-		}
-		stepAssistantDraft[index] = existingCall
-	}
-
-	appendDraftSource := func(source fantasy.SourceContent) {
-		stepStateMu.Lock()
-		stepAssistantDraft = append(stepAssistantDraft, source)
-		stepStateMu.Unlock()
-	}
-
-	persistInterruptedStep := func() error {
-		stepStateMu.Lock()
-		draft := append([]fantasy.Content(nil), stepAssistantDraft...)
-		toolResults := append([]fantasy.ToolResultContent(nil), stepToolResultContents...)
-		toolNameByCallID := make(map[string]string, len(streamToolNames))
-		for id, name := range streamToolNames {
-			toolNameByCallID[id] = name
-		}
-		stepStateMu.Unlock()
-
-		if len(draft) == 0 && len(toolResults) == 0 {
-			return nil
-		}
-
-		// Track which tool calls already have results.
-		answeredToolCalls := make(map[string]struct{}, len(toolResults))
-		for _, tr := range toolResults {
-			if tr.ToolCallID != "" {
-				answeredToolCalls[tr.ToolCallID] = struct{}{}
-			}
-		}
-
-		// Build the combined content: draft + received tool results
-		// + synthetic interrupted results for unanswered tool calls.
-		content := make([]fantasy.Content, 0, len(draft)+len(toolResults))
-		content = append(content, draft...)
-		for _, tr := range toolResults {
-			content = append(content, tr)
-		}
-
-		for _, block := range draft {
-			toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
-			if !ok {
-				if ptrCall, ptrOK := fantasy.AsContentType[*fantasy.ToolCallContent](block); ptrOK && ptrCall != nil {
-					toolCall = *ptrCall
-					ok = true
-				}
-			}
-			if !ok || toolCall.ToolCallID == "" {
-				continue
-			}
-			if _, exists := answeredToolCalls[toolCall.ToolCallID]; exists {
-				continue
-			}
-
-			toolName := strings.TrimSpace(toolCall.ToolName)
-			if toolName == "" {
-				toolName = strings.TrimSpace(toolNameByCallID[toolCall.ToolCallID])
-			}
-
-			content = append(content, fantasy.ToolResultContent{
-				ToolCallID: toolCall.ToolCallID,
-				ToolName:   toolName,
-				Result: fantasy.ToolResultOutputContentError{
-					Error: xerrors.New(interruptedToolResultErrorMessage),
-				},
-			})
-			answeredToolCalls[toolCall.ToolCallID] = struct{}{}
-		}
-
-		persistCtx := context.WithoutCancel(ctx)
-		return opts.PersistStep(persistCtx, PersistedStep{
-			Content: content,
-		})
-	}
-
-	resetStepState()
-
-	agent := fantasy.NewAgent(
-		opts.Model,
-		fantasy.WithTools(opts.Tools...),
-		fantasy.WithStopConditions(fantasy.StepCountIs(opts.MaxSteps)),
-	)
+	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools)
 	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(opts.Model)
-	// Fantasy's AgentStreamCall currently requires a non-empty Prompt and always
-	// appends it as a user message. chatd already supplies the full history in
-	// Messages, so we pass and then strip a sentinel user message in PrepareStep.
-	sentinelPrompt := "__chatd_agent_prompt_sentinel_" + uuid.NewString()
 
-	streamCall := opts.StreamCall
-	streamCall.Prompt = sentinelPrompt
-	streamCall.Messages = opts.Messages
-	streamCall.PrepareStep = func(
-		stepCtx context.Context,
-		options fantasy.PrepareStepFunctionOptions,
-	) (context.Context, fantasy.PrepareStepResult, error) {
-		return stepCtx, prepareStepResult(
-			options.Messages,
-			sentinelPrompt,
-			opts.ActiveTools,
-			applyAnthropicCaching,
-		), nil
-	}
-	streamCall.OnStepStart = func(_ int) error {
-		resetStepState()
-		return nil
-	}
-	streamCall.OnTextDelta = func(_ string, text string) error {
-		appendDraftText(text)
-		publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeText,
-			Text: text,
-		})
-		return nil
-	}
-	streamCall.OnReasoningDelta = func(id string, text string) error {
-		appendDraftReasoning(text)
-		setReasoningTitleFromText(id, text)
-		stepStateMu.Lock()
-		title := streamReasoningTitles[id]
-		stepStateMu.Unlock()
-		publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-			Type:  codersdk.ChatMessagePartTypeReasoning,
-			Text:  text,
-			Title: title,
-		})
-		return nil
-	}
-	streamCall.OnReasoningEnd = func(id string, _ fantasy.ReasoningContent) error {
-		stepStateMu.Lock()
-		if streamReasoningTitles[id] == "" {
-			// At the end of reasoning we have the full text, so we can
-			// safely evaluate first-line title format even if no newline
-			// ever arrived in deltas.
-			streamReasoningTitles[id] = chatprompt.ReasoningTitleFromFirstLine(
-				streamReasoningText[id],
-			)
+	messages := opts.Messages
+	alreadyCompacted := false
+	var lastUsage fantasy.Usage
+	var lastProviderMetadata fantasy.ProviderMetadata
+
+	for step := 0; step < opts.MaxSteps; step++ {
+		// Copy messages so that provider-specific caching
+		// mutations don't leak back to the caller's slice.
+		// copy copies Message structs by value, so field
+		// reassignments in addAnthropicPromptCaching only
+		// affect the prepared slice.
+		prepared := make([]fantasy.Message, len(messages))
+		copy(prepared, messages)
+		if applyAnthropicCaching {
+			addAnthropicPromptCaching(prepared)
 		}
-		title := streamReasoningTitles[id]
-		stepStateMu.Unlock()
-		if title != "" {
-			// Publish a title-only reasoning part so clients can update the
-			// reasoning header when metadata arrives at the end of streaming.
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type:  codersdk.ChatMessagePartTypeReasoning,
-				Title: title,
+
+		call := fantasy.Call{
+			Prompt:           prepared,
+			Tools:            tools,
+			MaxOutputTokens:  opts.ModelConfig.MaxOutputTokens,
+			Temperature:      opts.ModelConfig.Temperature,
+			TopP:             opts.ModelConfig.TopP,
+			TopK:             opts.ModelConfig.TopK,
+			PresencePenalty:  opts.ModelConfig.PresencePenalty,
+			FrequencyPenalty: opts.ModelConfig.FrequencyPenalty,
+			ProviderOptions:  opts.ProviderOptions,
+		}
+
+		var result stepResult
+		err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+			stream, streamErr := opts.Model.Stream(retryCtx, call)
+			if streamErr != nil {
+				return streamErr
+			}
+			var processErr error
+			result, processErr = processStepStream(retryCtx, stream, publishMessagePart)
+			return processErr
+		}, func(attempt int, retryErr error, delay time.Duration) {
+			// Reset result from the failed attempt so the next
+			// attempt starts clean.
+			result = stepResult{}
+			if opts.OnRetry != nil {
+				opts.OnRetry(attempt, retryErr, delay)
+			}
+		})
+		if err != nil {
+			if errors.Is(err, ErrInterrupted) {
+				persistInterruptedStep(ctx, opts, &result)
+				return ErrInterrupted
+			}
+			return xerrors.Errorf("stream response: %w", err)
+		}
+
+		// Execute tools before persisting so that tool results
+		// are included in the persisted step content. The
+		// persistence layer splits assistant and tool-result
+		// blocks into separate database messages by role.
+		var toolResults []fantasy.ToolResultContent
+		if result.shouldContinue {
+			// Check for context cancellation before starting
+			// tool execution. If the chat was interrupted
+			// between stream completion and here, persist
+			// what we have and bail out.
+			if ctx.Err() != nil {
+				if errors.Is(context.Cause(ctx), ErrInterrupted) {
+					persistInterruptedStep(ctx, opts, &result)
+					return ErrInterrupted
+				}
+				return ctx.Err()
+			}
+
+			toolResults = executeTools(ctx, opts.Tools, result.toolCalls, func(tr fantasy.ToolResultContent) {
+				publishMessagePart(
+					fantasy.MessageRoleTool,
+					chatprompt.PartFromContent(tr),
+				)
 			})
+			for _, tr := range toolResults {
+				result.content = append(result.content, tr)
+			}
 		}
-		return nil
-	}
-	streamCall.OnToolInputStart = func(id, toolName string) error {
-		upsertDraftToolCall(id, toolName, "", false)
-		return nil
-	}
-	streamCall.OnToolInputDelta = func(id, delta string) error {
-		stepStateMu.Lock()
-		toolName := streamToolNames[id]
-		stepStateMu.Unlock()
-		upsertDraftToolCall(id, toolName, delta, true)
-		publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: id,
-			ToolName:   toolName,
-			ArgsDelta:  delta,
-		})
-		return nil
-	}
-	streamCall.OnToolCall = func(toolCall fantasy.ToolCallContent) error {
-		upsertDraftToolCall(toolCall.ToolCallID, toolCall.ToolName, toolCall.Input, false)
-		publishMessagePart(
-			fantasy.MessageRoleAssistant,
-			chatprompt.PartFromContent(toolCall),
-		)
-		return nil
-	}
-	streamCall.OnSource = func(source fantasy.SourceContent) error {
-		appendDraftSource(source)
-		publishMessagePart(
-			fantasy.MessageRoleAssistant,
-			chatprompt.PartFromContent(source),
-		)
-		return nil
-	}
-	streamCall.OnToolResult = func(result fantasy.ToolResultContent) error {
-		publishMessagePart(
-			fantasy.MessageRoleTool,
-			chatprompt.PartFromContent(result),
-		)
 
-		stepStateMu.Lock()
-		if result.ToolCallID != "" && strings.TrimSpace(result.ToolName) != "" {
-			streamToolNames[result.ToolCallID] = result.ToolName
-		}
-		stepToolResultContents = append(stepToolResultContents, result)
-		stepStateMu.Unlock()
-
-		return nil
-	}
-	streamCall.OnStepFinish = func(stepResult fantasy.StepResult) error {
-		contextLimit := extractContextLimit(stepResult.ProviderMetadata)
+		// Extract context limit from provider metadata.
+		contextLimit := extractContextLimit(result.providerMetadata)
 		if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
 			contextLimit = sql.NullInt64{
 				Int64: opts.ContextLimitFallback,
@@ -444,93 +291,492 @@ func Run(ctx context.Context, opts RunOptions) (*fantasy.AgentResult, error) {
 			}
 		}
 
-		return opts.PersistStep(ctx, PersistedStep{
-			Content:      stepResult.Content,
-			Usage:        stepResult.Usage,
+		// Persist the step — errors propagate directly.
+		if err := opts.PersistStep(ctx, PersistedStep{
+			Content:      result.content,
+			Usage:        result.usage,
 			ContextLimit: contextLimit,
-		})
-	}
+		}); err != nil {
+			return xerrors.Errorf("persist step: %w", err)
+		}
 
-	var result *fantasy.AgentResult
-	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
-		var streamErr error
-		result, streamErr = agent.Stream(retryCtx, streamCall)
-		if streamErr != nil {
-			// Interrupts are not retryable — propagate them
-			// immediately so processChat can set the correct
-			// status.
-			if errors.Is(streamErr, context.Canceled) &&
-				errors.Is(context.Cause(retryCtx), ErrInterrupted) {
-				if persistErr := persistInterruptedStep(); persistErr != nil {
-					if opts.OnInterruptedPersistError != nil {
-						opts.OnInterruptedPersistError(persistErr)
-					}
-				}
-				// Return ErrInterrupted directly so the retry
-				// loop sees a non-retryable error and stops.
-				return ErrInterrupted
+		lastUsage = result.usage
+		lastProviderMetadata = result.providerMetadata
+
+		// Inline compaction.
+		if opts.Compaction != nil && opts.ReloadMessages != nil {
+			did, compactErr := tryCompact(
+				ctx,
+				opts.Model,
+				opts.Compaction,
+				opts.ContextLimitFallback,
+				result.usage,
+				result.providerMetadata,
+				messages,
+			)
+			if compactErr != nil && opts.Compaction.OnError != nil {
+				opts.Compaction.OnError(compactErr)
 			}
-			return streamErr
+			if did {
+				alreadyCompacted = true
+				reloaded, reloadErr := opts.ReloadMessages(ctx)
+				if reloadErr != nil {
+					return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
+				}
+				messages = reloaded
+			}
 		}
-		return nil
-	}, func(attempt int, retryErr error, delay time.Duration) {
-		// Reset accumulated draft state from the failed attempt
-		// so the next attempt starts clean.
-		resetStepState()
 
-		if opts.OnRetry != nil {
-			opts.OnRetry(attempt, retryErr, delay)
+		if !result.shouldContinue {
+			break
 		}
-	})
-	if err != nil {
-		if errors.Is(err, ErrInterrupted) {
-			return nil, ErrInterrupted
-		}
-		return nil, xerrors.Errorf("stream response: %w", err)
+
+		// Build messages from the step for the next iteration.
+		// toResponseMessages produces assistant-role content
+		// (text, reasoning, tool calls) and tool-result content.
+		stepMessages := result.toResponseMessages()
+		messages = append(messages, stepMessages...)
 	}
-	if opts.Compaction != nil {
-		if err := maybeCompact(ctx, opts, result); err != nil {
+
+	// Post-run compaction safety net: if we never compacted
+	// during the loop, try once at the end.
+	if !alreadyCompacted && opts.Compaction != nil {
+		if _, err := tryCompact(
+			ctx,
+			opts.Model,
+			opts.Compaction,
+			opts.ContextLimitFallback,
+			lastUsage,
+			lastProviderMetadata,
+			messages,
+		); err != nil {
 			if opts.Compaction.OnError != nil {
 				opts.Compaction.OnError(err)
 			}
 		}
 	}
 
+	return nil
+}
+
+// processStepStream consumes a fantasy StreamResponse and
+// accumulates all content into a stepResult. Callbacks fire
+// inline and their errors propagate directly.
+func processStepStream(
+	ctx context.Context,
+	stream fantasy.StreamResponse,
+	publishMessagePart func(fantasy.MessageRole, codersdk.ChatMessagePart),
+) (stepResult, error) {
+	var result stepResult
+
+	activeToolCalls := make(map[string]*fantasy.ToolCallContent)
+	activeTextContent := make(map[string]string)
+	activeReasoningContent := make(map[string]reasoningState)
+	// Track tool names by ID for input delta publishing.
+	toolNames := make(map[string]string)
+	// Track reasoning text/titles for title extraction.
+	reasoningTitles := make(map[string]string)
+	reasoningText := make(map[string]string)
+
+	setReasoningTitleFromText := func(id string, text string) {
+		if id == "" || strings.TrimSpace(text) == "" {
+			return
+		}
+		if reasoningTitles[id] != "" {
+			return
+		}
+		reasoningText[id] += text
+		if !strings.ContainsAny(reasoningText[id], "\r\n") {
+			return
+		}
+		title := chatprompt.ReasoningTitleFromFirstLine(reasoningText[id])
+		if title == "" {
+			return
+		}
+		reasoningTitles[id] = title
+	}
+
+	for part := range stream {
+		switch part.Type {
+		case fantasy.StreamPartTypeTextStart:
+			activeTextContent[part.ID] = ""
+
+		case fantasy.StreamPartTypeTextDelta:
+			if _, exists := activeTextContent[part.ID]; exists {
+				activeTextContent[part.ID] += part.Delta
+			}
+			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: part.Delta,
+			})
+
+		case fantasy.StreamPartTypeTextEnd:
+			if text, exists := activeTextContent[part.ID]; exists {
+				result.content = append(result.content, fantasy.TextContent{
+					Text:             text,
+					ProviderMetadata: part.ProviderMetadata,
+				})
+				delete(activeTextContent, part.ID)
+			}
+
+		case fantasy.StreamPartTypeReasoningStart:
+			activeReasoningContent[part.ID] = reasoningState{
+				text:    part.Delta,
+				options: part.ProviderMetadata,
+			}
+
+		case fantasy.StreamPartTypeReasoningDelta:
+			if active, exists := activeReasoningContent[part.ID]; exists {
+				active.text += part.Delta
+				active.options = part.ProviderMetadata
+				activeReasoningContent[part.ID] = active
+			}
+			setReasoningTitleFromText(part.ID, part.Delta)
+			title := reasoningTitles[part.ID]
+			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+				Type:  codersdk.ChatMessagePartTypeReasoning,
+				Text:  part.Delta,
+				Title: title,
+			})
+
+		case fantasy.StreamPartTypeReasoningEnd:
+			if active, exists := activeReasoningContent[part.ID]; exists {
+				if part.ProviderMetadata != nil {
+					active.options = part.ProviderMetadata
+				}
+				content := fantasy.ReasoningContent{
+					Text:             active.text,
+					ProviderMetadata: active.options,
+				}
+				result.content = append(result.content, content)
+				delete(activeReasoningContent, part.ID)
+
+				// Derive reasoning title at end of reasoning
+				// block if we haven't yet.
+				if reasoningTitles[part.ID] == "" {
+					reasoningTitles[part.ID] = chatprompt.ReasoningTitleFromFirstLine(
+						reasoningText[part.ID],
+					)
+				}
+				title := reasoningTitles[part.ID]
+				if title != "" {
+					publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+						Type:  codersdk.ChatMessagePartTypeReasoning,
+						Title: title,
+					})
+				}
+			}
+
+		case fantasy.StreamPartTypeToolInputStart:
+			activeToolCalls[part.ID] = &fantasy.ToolCallContent{
+				ToolCallID:       part.ID,
+				ToolName:         part.ToolCallName,
+				Input:            "",
+				ProviderExecuted: part.ProviderExecuted,
+			}
+			if strings.TrimSpace(part.ToolCallName) != "" {
+				toolNames[part.ID] = part.ToolCallName
+			}
+
+		case fantasy.StreamPartTypeToolInputDelta:
+			if toolCall, exists := activeToolCalls[part.ID]; exists {
+				toolCall.Input += part.Delta
+			}
+			toolName := toolNames[part.ID]
+			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: part.ID,
+				ToolName:   toolName,
+				ArgsDelta:  part.Delta,
+			})
+
+		case fantasy.StreamPartTypeToolInputEnd:
+			// No callback needed; the full tool call arrives in
+			// StreamPartTypeToolCall.
+
+		case fantasy.StreamPartTypeToolCall:
+			tc := fantasy.ToolCallContent{
+				ToolCallID:       part.ID,
+				ToolName:         part.ToolCallName,
+				Input:            part.ToolCallInput,
+				ProviderExecuted: part.ProviderExecuted,
+				ProviderMetadata: part.ProviderMetadata,
+			}
+			result.toolCalls = append(result.toolCalls, tc)
+			result.content = append(result.content, tc)
+			if strings.TrimSpace(part.ToolCallName) != "" {
+				toolNames[part.ID] = part.ToolCallName
+			}
+			// Clean up active tool call tracking.
+			delete(activeToolCalls, part.ID)
+
+			publishMessagePart(
+				fantasy.MessageRoleAssistant,
+				chatprompt.PartFromContent(tc),
+			)
+
+		case fantasy.StreamPartTypeSource:
+			sourceContent := fantasy.SourceContent{
+				SourceType:       part.SourceType,
+				ID:               part.ID,
+				URL:              part.URL,
+				Title:            part.Title,
+				ProviderMetadata: part.ProviderMetadata,
+			}
+			result.content = append(result.content, sourceContent)
+			publishMessagePart(
+				fantasy.MessageRoleAssistant,
+				chatprompt.PartFromContent(sourceContent),
+			)
+
+		case fantasy.StreamPartTypeFinish:
+			result.usage = part.Usage
+			result.finishReason = part.FinishReason
+			result.providerMetadata = part.ProviderMetadata
+
+		case fantasy.StreamPartTypeError:
+			// Detect interruption: context canceled with
+			// ErrInterrupted as the cause.
+			if errors.Is(part.Error, context.Canceled) &&
+				errors.Is(context.Cause(ctx), ErrInterrupted) {
+				// Flush in-progress content so that
+				// persistInterruptedStep has access to partial
+				// text, reasoning, and tool calls that were
+				// still streaming when the interrupt arrived.
+				flushActiveState(
+					&result,
+					activeTextContent,
+					activeReasoningContent,
+					activeToolCalls,
+					toolNames,
+				)
+				return result, ErrInterrupted
+			}
+			return result, part.Error
+		}
+	}
+
+	result.shouldContinue = len(result.toolCalls) > 0 &&
+		result.finishReason == fantasy.FinishReasonToolCalls
 	return result, nil
 }
 
-//nolint:revive // Boolean controls Anthropic-specific caching behavior.
-func prepareStepResult(
-	messages []fantasy.Message,
-	sentinel string,
-	activeTools []string,
-	anthropicCaching bool,
-) fantasy.PrepareStepResult {
-	filtered := make([]fantasy.Message, 0, len(messages))
-	removed := false
-	for _, message := range messages {
-		if !removed &&
-			message.Role == fantasy.MessageRoleUser &&
-			len(message.Content) == 1 {
-			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](message.Content[0])
-			if ok && textPart.Text == sentinel {
-				removed = true
-				continue
-			}
-		}
-		filtered = append(filtered, message)
+// executeTools runs each tool call sequentially after the stream
+// completes. Results are published via onResult as each tool
+// finishes.
+func executeTools(
+	ctx context.Context,
+	allTools []fantasy.AgentTool,
+	toolCalls []fantasy.ToolCallContent,
+	onResult func(fantasy.ToolResultContent),
+) []fantasy.ToolResultContent {
+	if len(toolCalls) == 0 {
+		return nil
 	}
 
-	result := fantasy.PrepareStepResult{
-		Messages: filtered,
+	toolMap := make(map[string]fantasy.AgentTool, len(allTools))
+	for _, t := range allTools {
+		toolMap[t.Info().Name] = t
 	}
-	if anthropicCaching {
-		result.Messages = addAnthropicPromptCaching(result.Messages)
+
+	results := make([]fantasy.ToolResultContent, 0, len(toolCalls))
+	for _, tc := range toolCalls {
+		tr := executeSingleTool(ctx, toolMap, tc)
+		results = append(results, tr)
+		if onResult != nil {
+			onResult(tr)
+		}
 	}
-	if len(activeTools) > 0 {
-		result.ActiveTools = append([]string(nil), activeTools...)
+	return results
+}
+
+// executeSingleTool executes one tool call and converts the
+// response into a ToolResultContent.
+func executeSingleTool(
+	ctx context.Context,
+	toolMap map[string]fantasy.AgentTool,
+	tc fantasy.ToolCallContent,
+) fantasy.ToolResultContent {
+	result := fantasy.ToolResultContent{
+		ToolCallID:       tc.ToolCallID,
+		ToolName:         tc.ToolName,
+		ProviderExecuted: false,
+	}
+
+	tool, exists := toolMap[tc.ToolName]
+	if !exists {
+		result.Result = fantasy.ToolResultOutputContentError{
+			Error: xerrors.New("Tool not found: " + tc.ToolName),
+		}
+		return result
+	}
+
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    tc.ToolCallID,
+		Name:  tc.ToolName,
+		Input: tc.Input,
+	})
+	if err != nil {
+		result.Result = fantasy.ToolResultOutputContentError{
+			Error: err,
+		}
+		result.ClientMetadata = resp.Metadata
+		return result
+	}
+
+	result.ClientMetadata = resp.Metadata
+	switch {
+	case resp.IsError:
+		result.Result = fantasy.ToolResultOutputContentError{
+			Error: xerrors.New(resp.Content),
+		}
+	case resp.Type == "image" || resp.Type == "media":
+		result.Result = fantasy.ToolResultOutputContentMedia{
+			Data:      string(resp.Data),
+			MediaType: resp.MediaType,
+			Text:      resp.Content,
+		}
+	default:
+		result.Result = fantasy.ToolResultOutputContentText{
+			Text: resp.Content,
+		}
 	}
 	return result
+}
+
+// flushActiveState moves any in-progress text, reasoning, and
+// tool calls from the active tracking maps into result.content
+// and result.toolCalls. This is called on interruption so that
+// partial content from an incomplete stream is available for
+// persistence.
+func flushActiveState(
+	result *stepResult,
+	activeText map[string]string,
+	activeReasoning map[string]reasoningState,
+	activeToolCalls map[string]*fantasy.ToolCallContent,
+	toolNames map[string]string,
+) {
+	// Flush partial text content.
+	for _, text := range activeText {
+		if text != "" {
+			result.content = append(result.content, fantasy.TextContent{Text: text})
+		}
+	}
+
+	// Flush partial reasoning content.
+	for _, rs := range activeReasoning {
+		if rs.text != "" {
+			result.content = append(result.content, fantasy.ReasoningContent{
+				Text:             rs.text,
+				ProviderMetadata: rs.options,
+			})
+		}
+	}
+
+	// Flush in-progress tool calls. These haven't received a
+	// StreamPartTypeToolCall yet, so they only exist in
+	// activeToolCalls. We add them to both content and toolCalls
+	// so persistInterruptedStep can generate synthetic error
+	// results for them.
+	for id, tc := range activeToolCalls {
+		if tc == nil {
+			continue
+		}
+		// Prefer the tool name from the toolNames map since
+		// ToolInputStart may provide a cleaner name.
+		toolName := tc.ToolName
+		if name, ok := toolNames[id]; ok && strings.TrimSpace(name) != "" {
+			toolName = name
+		}
+		flushed := fantasy.ToolCallContent{
+			ToolCallID:       tc.ToolCallID,
+			ToolName:         toolName,
+			Input:            tc.Input,
+			ProviderExecuted: tc.ProviderExecuted,
+		}
+		result.content = append(result.content, flushed)
+		result.toolCalls = append(result.toolCalls, flushed)
+	}
+}
+
+// persistInterruptedStep saves all accumulated content from a
+// partial stream. Since we own the stepResult directly, no shadow
+// state is needed.
+func persistInterruptedStep(
+	ctx context.Context,
+	opts RunOptions,
+	result *stepResult,
+) {
+	if result == nil || (len(result.content) == 0 && len(result.toolCalls) == 0) {
+		return
+	}
+
+	// Track which tool calls already have results in the content.
+	answeredToolCalls := make(map[string]struct{})
+	for _, c := range result.content {
+		tr, ok := fantasy.AsContentType[fantasy.ToolResultContent](c)
+		if ok && tr.ToolCallID != "" {
+			answeredToolCalls[tr.ToolCallID] = struct{}{}
+		}
+	}
+
+	// Build combined content: all accumulated content + synthetic
+	// interrupted results for any unanswered tool calls.
+	content := make([]fantasy.Content, 0, len(result.content))
+	content = append(content, result.content...)
+
+	for _, tc := range result.toolCalls {
+		if tc.ToolCallID == "" {
+			continue
+		}
+		if _, exists := answeredToolCalls[tc.ToolCallID]; exists {
+			continue
+		}
+		content = append(content, fantasy.ToolResultContent{
+			ToolCallID: tc.ToolCallID,
+			ToolName:   tc.ToolName,
+			Result: fantasy.ToolResultOutputContentError{
+				Error: xerrors.New(interruptedToolResultErrorMessage),
+			},
+		})
+		answeredToolCalls[tc.ToolCallID] = struct{}{}
+	}
+
+	persistCtx := context.WithoutCancel(ctx)
+	if err := opts.PersistStep(persistCtx, PersistedStep{
+		Content: content,
+	}); err != nil {
+		if opts.OnInterruptedPersistError != nil {
+			opts.OnInterruptedPersistError(err)
+		}
+	}
+}
+
+// buildToolDefinitions converts AgentTool definitions into the
+// fantasy.Tool slice expected by fantasy.Call. When activeTools
+// is non-empty, only tools whose name appears in the list are
+// included. This mirrors fantasy's agent.prepareTools filtering.
+func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string) []fantasy.Tool {
+	prepared := make([]fantasy.Tool, 0, len(tools))
+	for _, tool := range tools {
+		info := tool.Info()
+		if len(activeTools) > 0 && !slices.Contains(activeTools, info.Name) {
+			continue
+		}
+		inputSchema := map[string]any{
+			"type":       "object",
+			"properties": info.Parameters,
+			"required":   info.Required,
+		}
+		schema.Normalize(inputSchema)
+		prepared = append(prepared, fantasy.FunctionTool{
+			Name:            info.Name,
+			Description:     info.Description,
+			InputSchema:     inputSchema,
+			ProviderOptions: tool.ProviderOptions(),
+		})
+	}
+	return prepared
 }
 
 func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {
@@ -540,7 +786,10 @@ func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {
 	return model.Provider() == fantasyanthropic.Name
 }
 
-func addAnthropicPromptCaching(messages []fantasy.Message) []fantasy.Message {
+// addAnthropicPromptCaching mutates messages in-place, setting
+// ProviderOptions for Anthropic prompt caching on the last system
+// message and the final two messages.
+func addAnthropicPromptCaching(messages []fantasy.Message) {
 	for i := range messages {
 		messages[i].ProviderOptions = nil
 	}
@@ -564,8 +813,6 @@ func addAnthropicPromptCaching(messages []fantasy.Message) []fantasy.Message {
 			messages[i].ProviderOptions = providerOption
 		}
 	}
-
-	return messages
 }
 
 func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {

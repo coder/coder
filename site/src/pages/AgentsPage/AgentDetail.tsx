@@ -11,11 +11,18 @@ import {
 	interruptChat,
 	promoteChatQueuedMessage,
 } from "api/queries/chats";
+import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
-import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
+import { ArchiveIcon } from "lucide-react";
+import {
+	getTerminalHref,
+	getVSCodeHref,
+	openAppInNewWindow,
+	SESSION_TOKEN_PLACEHOLDER,
+} from "modules/apps/apps";
 import {
 	type FC,
 	useCallback,
@@ -72,6 +79,8 @@ const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
 const noopClearChatErrorReason: AgentsOutletContext["clearChatErrorReason"] =
 	() => {};
 const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
+	() => {};
+const noopRequestArchiveAndDeleteWorkspace: AgentsOutletContext["requestArchiveAndDeleteWorkspace"] =
 	() => {};
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -488,6 +497,9 @@ const AgentDetail: FC = () => {
 		outletContext?.clearChatErrorReason ?? noopClearChatErrorReason;
 	const requestArchiveAgent =
 		outletContext?.requestArchiveAgent ?? noopRequestArchiveAgent;
+	const requestArchiveAndDeleteWorkspace =
+		outletContext?.requestArchiveAndDeleteWorkspace ??
+		noopRequestArchiveAndDeleteWorkspace;
 	const isSidebarCollapsed = outletContext?.isSidebarCollapsed ?? false;
 	const onToggleSidebarCollapsed =
 		outletContext?.onToggleSidebarCollapsed ?? (() => {});
@@ -509,11 +521,13 @@ const AgentDetail: FC = () => {
 	});
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const hasDiffStatus = Boolean(diffStatusQuery.data?.url);
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const chatData = chatQuery.data;
 	const chatRecord = chatData?.chat;
+	const isArchived = chatRecord?.archived ?? false;
 	const chatMessages = chatData?.messages;
 	const chatQueuedMessages = chatData?.queued_messages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
@@ -637,7 +651,7 @@ const AgentDetail: FC = () => {
 		sendMutation.isPending ||
 		editMutation.isPending ||
 		interruptMutation.isPending;
-	const isInputDisabled = !hasModelOptions;
+	const isInputDisabled = !hasModelOptions || isArchived;
 
 	const handleSend = async (message: string, editedMessageID?: number) => {
 		if (
@@ -716,7 +730,16 @@ const AgentDetail: FC = () => {
 		store.setChatStatus("pending");
 
 		try {
-			await sendMutation.mutateAsync(request);
+			const response = await sendMutation.mutateAsync(request);
+			if (response.queued) {
+				// The server queued the message instead of processing
+				// it immediately (the agent is already busy). Roll back
+				// the optimistic timeline message so it doesn't appear
+				// as a sent message. The queue_update SSE event will
+				// add it to the queued messages list.
+				store.replaceMessages(previousMessages);
+				store.setChatStatus(previousChatStatus);
+			}
 		} catch (error) {
 			// Roll back the optimistic message so the timeline
 			// returns to its previous state.
@@ -802,6 +825,18 @@ const AgentDetail: FC = () => {
 		: null;
 	const canOpenWorkspace = Boolean(workspaceRoute);
 	const canOpenEditors = Boolean(workspace && workspaceAgent);
+	const terminalHref =
+		workspace && workspaceAgent
+			? getTerminalHref({
+					username: workspace.owner_name,
+					workspace: workspace.name,
+					agent: workspaceAgent.name,
+				})
+			: null;
+	const sshCommand =
+		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
+			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
+			: undefined;
 	const shouldShowDiffPanel = hasDiffStatus && showDiffPanel;
 
 	const handleOpenInEditor = async (editor: "cursor" | "vscode") => {
@@ -852,11 +887,25 @@ const AgentDetail: FC = () => {
 		navigate(workspaceRoute);
 	};
 
+	const handleOpenTerminal = () => {
+		if (!terminalHref) {
+			return;
+		}
+		openAppInNewWindow(terminalHref);
+	};
+
 	const handleArchiveAgentAction = () => {
-		if (!agentId) {
+		if (!agentId || isArchived) {
 			return;
 		}
 		requestArchiveAgent(agentId);
+	};
+
+	const handleArchiveAndDeleteWorkspaceAction = () => {
+		if (!agentId || isArchived || !workspaceId) {
+			return;
+		}
+		requestArchiveAndDeleteWorkspace(agentId, workspaceId);
 	};
 
 	if (chatQuery.isLoading) {
@@ -874,9 +923,13 @@ const AgentDetail: FC = () => {
 						canOpenWorkspace: false,
 						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
+						onOpenTerminal: () => {},
+						sshCommand: undefined,
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
+					onArchiveAndDeleteWorkspace={() => {}}
+					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
@@ -943,9 +996,13 @@ const AgentDetail: FC = () => {
 						canOpenWorkspace: false,
 						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
+						onOpenTerminal: () => {},
+						sshCommand: undefined,
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
+					onArchiveAndDeleteWorkspace={() => {}}
+					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
@@ -964,38 +1021,51 @@ const AgentDetail: FC = () => {
 			)}
 		>
 			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-				<AgentDetailTopBar
-					chatTitle={chatTitle}
-					parentChat={parentChat}
-					onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
-					diff={{
-						hasDiffStatus,
-						diffStatus: diffStatusQuery.data,
-						showDiffPanel,
-						onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
-					}}
-					workspace={{
-						canOpenEditors,
-						canOpenWorkspace,
-						onOpenInEditor: (editor) => {
-							void handleOpenInEditor(editor);
-						},
-						onViewWorkspace: handleViewWorkspace,
-					}}
-					onArchiveAgent={handleArchiveAgentAction}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-				/>
-				<div
-					aria-hidden
-					className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-surface-primary"
-					style={{
-						maskImage:
-							"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-						WebkitMaskImage:
-							"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-					}}
-				/>
+				<div className="relative z-10 shrink-0 overflow-visible">
+					<AgentDetailTopBar
+						chatTitle={chatTitle}
+						parentChat={parentChat}
+						onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
+						diff={{
+							hasDiffStatus,
+							diffStatus: diffStatusQuery.data,
+							showDiffPanel,
+							onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
+						}}
+						workspace={{
+							canOpenEditors,
+							canOpenWorkspace,
+							onOpenInEditor: (editor) => {
+								void handleOpenInEditor(editor);
+							},
+							onViewWorkspace: handleViewWorkspace,
+							onOpenTerminal: handleOpenTerminal,
+							sshCommand,
+						}}
+						onArchiveAgent={handleArchiveAgentAction}
+						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
+						hasWorkspace={Boolean(workspaceId)}
+						isArchived={isArchived}
+						isSidebarCollapsed={isSidebarCollapsed}
+						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+					/>
+					{isArchived && (
+						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-sm text-content-secondary">
+							<ArchiveIcon className="h-4 w-4 shrink-0" />
+							This agent has been archived and is read-only.
+						</div>
+					)}
+					<div
+						aria-hidden
+						className="pointer-events-none absolute inset-x-0 top-full z-10 h-6 bg-surface-primary"
+						style={{
+							maskImage:
+								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+							WebkitMaskImage:
+								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+						}}
+					/>
+				</div>
 				<div
 					ref={scrollContainerRef}
 					className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"

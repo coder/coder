@@ -435,6 +435,17 @@ export const useChatStore = (
 
 	const store = storeRef.current;
 
+	// Compute the last REST-fetched message ID so the stream can
+	// skip messages the client already has. We use a ref so the
+	// socket effect can read the latest value without including
+	// chatMessages in its dependency array (which would cause
+	// unnecessary reconnections).
+	const lastMessageIdRef = useRef<number | undefined>(undefined);
+	lastMessageIdRef.current =
+		chatMessages && chatMessages.length > 0
+			? chatMessages[chatMessages.length - 1].id
+			: undefined;
+
 	const updateSidebarChat = useCallback(
 		(updater: (chat: TypesGen.Chat) => TypesGen.Chat) => {
 			if (!chatID) {
@@ -550,7 +561,9 @@ export const useChatStore = (
 			return;
 		}
 
-		const socket = watchChat(chatID);
+		// Pass the last REST-fetched message ID so the stream
+		// only sends newer messages.
+		const socket = watchChat(chatID, lastMessageIdRef.current);
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 		) => {
