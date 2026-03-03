@@ -533,8 +533,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		chatId?: string;
 	}>();
 	const activeChatId = agentId ?? chatId;
-	const [search, setSearch] = useState("");
-	const normalizedSearch = search.trim().toLowerCase();
+	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
 	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
@@ -548,7 +547,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				search: normalizedSearch,
 				tree: chatTree,
 			}),
-		[chats, normalizedSearch, chatTree],
+		[chats, chatTree],
 	);
 	const visibleRootIDs = useMemo(
 		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
@@ -603,7 +602,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			chatTree,
 			chatById,
 			visibleChatIDs,
-			normalizedSearch,
 			expandedById,
 			modelOptions,
 			modelConfigs,
@@ -639,16 +637,17 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</Button>
 					)}
 				</div>
-					<Button
-						size="sm"
-						variant="subtle"
-						onClick={onNewAgent}
-						disabled={isCreating}
-						className="-mx-1 w-[calc(100%+0.5rem)] justify-start gap-1.5 rounded-md py-1 pl-1 pr-2 text-sm text-content-secondary hover:bg-surface-tertiary/50 md:-mx-1.5 md:w-[calc(100%+0.75rem)]"
-					>
-						<SquarePenIcon className="!h-[18px] !w-[18px] shrink-0" />
-						New Agent
-					</Button>			</div>
+				<Button
+					size="sm"
+					variant="subtle"
+					onClick={onNewAgent}
+					disabled={isCreating}
+					className="-mx-1 w-[calc(100%+0.5rem)] justify-start gap-1.5 rounded-md py-1 pl-1 pr-2 text-sm text-content-secondary hover:bg-surface-tertiary/50 md:-mx-1.5 md:w-[calc(100%+0.75rem)]"
+				>
+					<SquarePenIcon className="!h-[18px] !w-[18px] shrink-0" />
+					New Agent
+				</Button>
+			</div>
 
 			<ScrollArea
 				className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
