@@ -12,6 +12,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "components/Collapsible/Collapsible";
+import { Separator } from "components/Separator/Separator";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -764,8 +765,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									{archivedRootIDs.length > 0 && (
 										<>
 											{activeRootIDs.length > 0 && (
-												<hr className="my-2 border-border-default" />
-											)}
+												<Separator className="my-2" />
+											)}{" "}
 											<Collapsible
 												open={effectiveArchivedExpanded}
 												onOpenChange={setIsArchivedExpanded}
