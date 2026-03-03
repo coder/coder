@@ -57,7 +57,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAIBridge,
 	proxyContextValue,
 }) => {
-
 	return (
 		<div className="sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6">
 			<NavLink to="/workspaces">
