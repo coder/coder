@@ -1846,6 +1846,21 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		status = database.ChatStatusError
 		return
 	}
+
+	// If runChat completed successfully but the server context was
+	// canceled (e.g. during Close()), the chat should be returned
+	// to pending so another replica can pick it up. There is a
+	// race where the LLM stream finishes just as the server is
+	// shutting down — the HTTP response completes before context
+	// cancellation propagates, so runChat returns nil instead of
+	// a context.Canceled error. Without this check the chat would
+	// be marked "waiting" and never retried.
+	if ctx.Err() != nil {
+		logger.Info(ctx, "chat completed during shutdown; returning to pending")
+		status = database.ChatStatusPending
+		lastError = ""
+		return
+	}
 }
 
 func isShutdownCancellation(
