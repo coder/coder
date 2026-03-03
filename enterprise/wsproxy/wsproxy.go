@@ -37,7 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/wsproxy/derpmetrics"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
@@ -204,13 +204,19 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("create DERP mesh tls config: %w", err)
 	}
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("net.derp")))
-	if opts.PrometheusRegistry != nil {
-		opts.PrometheusRegistry.MustRegister(derpmetrics.NewCollector(derpServer))
-	}
 	// Publish DERP server metrics via expvar, served at /debug/expvar.
 	expWsproxyDERPOnce.Do(func() {
 		expvar.Publish("wsproxy_derp", derpServer.ExpVar())
 	})
+	if opts.PrometheusRegistry != nil {
+		opts.PrometheusRegistry.MustRegister(collectors.NewExpvarCollector(map[string]*prometheus.Desc{
+			"wsproxy_derp": prometheus.NewDesc(
+				"coder_wsproxy_derp",
+				"DERP server expvar stats",
+				[]string{"metric"}, nil,
+			),
+		}))
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
