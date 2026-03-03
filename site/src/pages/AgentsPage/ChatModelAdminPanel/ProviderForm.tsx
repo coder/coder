@@ -9,14 +9,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { ChevronLeftIcon, InfoIcon, Loader2Icon } from "lucide-react";
-import {
-	type FC,
-	type FormEvent,
-	useEffect,
-	useId,
-	useMemo,
-	useState,
-} from "react";
+import { type FC, type FormEvent, useId, useState } from "react";
 import { formatProviderLabel } from "../modelOptions";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
@@ -58,13 +51,10 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 	// Initial values are snapshotted when the provider config changes
 	// so we can detect dirty state.
-	const initialValues = useMemo(
-		() => ({
-			displayName: readOptionalString(providerConfig?.display_name) ?? "",
-			baseURL: baseURL,
-		}),
-		[providerConfig, baseURL],
-	);
+	const [initialValues] = useState(() => ({
+		displayName: readOptionalString(providerConfig?.display_name) ?? "",
+		baseURL: baseURL,
+	}));
 
 	const [displayName, setDisplayName] = useState(initialValues.displayName);
 	const [apiKey, setApiKey] = useState(
@@ -73,13 +63,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const [apiKeyTouched, setApiKeyTouched] = useState(false);
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-
-	useEffect(() => {
-		setDisplayName(initialValues.displayName);
-		setApiKey(providerState.hasManagedAPIKey ? API_KEY_PLACEHOLDER : "");
-		setApiKeyTouched(false);
-		setBaseURLValue(initialValues.baseURL);
-	}, [initialValues, providerState.hasManagedAPIKey]);
 
 	const isAPIKeyEnvManaged = isEnvPreset && !providerConfig;
 	const requiresAPIKey = !providerConfig && !isAPIKeyEnvManaged;
@@ -172,22 +155,14 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<div
-				role="button"
-				tabIndex={0}
+			<button
+				type="button"
 				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 text-sm text-content-secondary transition-colors hover:text-content-primary"
 				onClick={onBack}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						onBack();
-					}
-				}}
 			>
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
-			</div>
-
+			</button>
 			{/* Provider header — editable name */}
 			<div className="flex items-center gap-3">
 				<ProviderIcon provider={provider} className="h-8 w-8" />

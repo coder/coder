@@ -121,64 +121,59 @@ export const ModelForm: FC<ModelFormProps> = ({
 			const trimmedDisplayName = values.displayName.trim();
 			const builtModelConfig = buildResult.modelConfig;
 
-			try {
-				if (isEditing && editingModel) {
-					const req: TypesGen.UpdateChatModelConfigRequest = {
-						...(trimmedModel !== editingModel.model && {
-							model: trimmedModel,
-						}),
-						...(trimmedDisplayName !== (editingModel.display_name ?? "") && {
-							display_name: trimmedDisplayName,
-						}),
-						...(parsedContextLimit !== null &&
-							parsedContextLimit !== editingModel.context_limit && {
-								context_limit: parsedContextLimit,
-							}),
-						...(parsedCompressionThreshold !== null &&
-							parsedCompressionThreshold !==
-								editingModel.compression_threshold && {
-								compression_threshold: parsedCompressionThreshold,
-							}),
-						...(values.isDefault !== editingModel.is_default && {
-							is_default: values.isDefault,
-						}),
-						// Always send model_config so it can be cleared or updated.
-						model_config: builtModelConfig,
-					};
-
-					await onUpdateModel(editingModel.id, req);
-				} else {
-					if (!selectedProviderState?.providerConfig) return;
-
-					const req: TypesGen.CreateChatModelConfigRequest = {
-						provider: selectedProviderState.provider,
+			if (isEditing && editingModel) {
+				const req: TypesGen.UpdateChatModelConfigRequest = {
+					...(trimmedModel !== editingModel.model && {
 						model: trimmedModel,
-						...(parsedContextLimit !== null && {
+					}),
+					...(trimmedDisplayName !== (editingModel.display_name ?? "") && {
+						display_name: trimmedDisplayName,
+					}),
+					...(parsedContextLimit !== null &&
+						parsedContextLimit !== editingModel.context_limit && {
 							context_limit: parsedContextLimit,
 						}),
-						...(parsedCompressionThreshold !== null && {
+					...(parsedCompressionThreshold !== null &&
+						parsedCompressionThreshold !==
+							editingModel.compression_threshold && {
 							compression_threshold: parsedCompressionThreshold,
 						}),
-						...(trimmedDisplayName && {
-							display_name: trimmedDisplayName,
-						}),
-						...(values.isDefault && {
-							is_default: true,
-						}),
-						...(builtModelConfig && {
-							model_config: builtModelConfig,
-						}),
-					};
+					...(values.isDefault !== editingModel.is_default && {
+						is_default: values.isDefault,
+					}),
+					// Always send model_config so it can be cleared or updated.
+					model_config: builtModelConfig,
+				};
 
-					await onCreateModel(req);
-				}
-				// Navigation is handled by the parent (ModelsSection) after
-				// the mutation promise resolves, so we do not call onCancel()
-				// here to avoid a double view-transition.
-			} catch {
-				// Error is surfaced via the mutation's error state
-				// in ChatModelAdminPanel, no toast needed.
+				await onUpdateModel(editingModel.id, req);
+			} else {
+				if (!selectedProviderState?.providerConfig) return;
+
+				const req: TypesGen.CreateChatModelConfigRequest = {
+					provider: selectedProviderState.provider,
+					model: trimmedModel,
+					...(parsedContextLimit !== null && {
+						context_limit: parsedContextLimit,
+					}),
+					...(parsedCompressionThreshold !== null && {
+						compression_threshold: parsedCompressionThreshold,
+					}),
+					...(trimmedDisplayName && {
+						display_name: trimmedDisplayName,
+					}),
+					...(values.isDefault && {
+						is_default: true,
+					}),
+					...(builtModelConfig && {
+						model_config: builtModelConfig,
+					}),
+				};
+
+				await onCreateModel(req);
 			}
+			// Navigation is handled by the parent (ModelsSection) after
+			// the mutation promise resolves, so we do not call onCancel()
+			// here to avoid a double view-transition.
 		},
 	});
 
@@ -235,21 +230,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 	if (!selectedProviderState || modelConfigsUnavailable) {
 		return (
 			<div>
-				<div
-					role="button"
-					tabIndex={0}
-					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 text-sm text-content-secondary transition-colors hover:text-content-primary"
+				<button
+					type="button"
+					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
 					onClick={onCancel}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" || e.key === " ") {
-							e.preventDefault();
-							onCancel();
-						}
-					}}
 				>
 					<ChevronLeftIcon className="h-4 w-4" />
 					Back
-				</div>
+				</button>{" "}
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					{isEditing ? "Edit Model" : "Add Model"}
 				</h2>
@@ -263,24 +251,17 @@ export const ModelForm: FC<ModelFormProps> = ({
 	if (!canManageModels && !isEditing) {
 		return (
 			<div>
-				<div
-					role="button"
-					tabIndex={0}
-					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 text-sm text-content-secondary transition-colors hover:text-content-primary"
+				<button
+					type="button"
+					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
 					onClick={onCancel}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" || e.key === " ") {
-							e.preventDefault();
-							onCancel();
-						}
-					}}
 				>
 					<ChevronLeftIcon className="h-4 w-4" />
 					Back
-				</div>
+				</button>
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					Add Model
-				</h2>
+				</h2>{" "}
 				<hr className="my-4 border-0 border-t border-solid border-border" />
 				<div className="space-y-3">
 					{providerSelect}
@@ -303,22 +284,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<div
-				role="button"
-				tabIndex={0}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 text-sm text-content-secondary transition-colors hover:text-content-primary"
+			<button
+				type="button"
+				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
 				onClick={onCancel}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						onCancel();
-					}
-				}}
 			>
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
-			</div>
-
+			</button>
 			{/* Header — editable display name */}
 			<div className="flex items-center gap-3">
 				{selectedProviderState && (
@@ -330,17 +303,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<div className="min-w-0 flex-1">
 					<input
 						type="text"
-						value={form.values.displayName}
-						onChange={(e) =>
-							void form.setFieldValue("displayName", e.target.value)
-						}
+						{...form.getFieldProps("displayName")}
 						disabled={isSaving}
 						className="m-0 w-full border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
 						placeholder={
 							isEditing ? (editingModel?.model ?? "Model name") : "Model name"
 						}
 					/>
-				</div>
+				</div>{" "}
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 
@@ -430,17 +400,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 					{/* Advanced — toggle */}
 					<div>
-						<div
-							role="button"
-							tabIndex={0}
-							className="inline-flex cursor-pointer items-center gap-1 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
+						<button
+							type="button"
+							className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
 							onClick={() => setShowAdvanced((v) => !v)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									setShowAdvanced((v) => !v);
-								}
-							}}
 						>
 							{showAdvanced ? (
 								<ChevronDownIcon className="h-4 w-4" />
@@ -448,7 +411,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 								<ChevronRightIcon className="h-4 w-4" />
 							)}
 							Advanced
-						</div>
+						</button>{" "}
 						{showAdvanced && (
 							<div className="mt-4 space-y-5">
 								<div className="grid grid-cols-2 gap-3">

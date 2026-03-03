@@ -402,10 +402,19 @@ type ModelConfigFieldsProps = {
 	disabled: boolean;
 };
 
-const renderProviderSpecificFields = (
-	normalized: string,
-	ctx: FieldRenderContext,
-) => {
+/**
+ * Provider-specific fields (reasoning, tool calls, etc.) that
+ * should be visible at the top level of the model form.
+ */
+export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
+	form,
+	fieldErrors,
+	disabled,
+}) => {
+	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
+	const normalized = normalizeProvider(provider);
+
 	switch (normalized) {
 		case "openai":
 			return <OpenAIFields {...ctx} />;
@@ -426,27 +435,6 @@ const renderProviderSpecificFields = (
 		default:
 			return null;
 	}
-};
-
-/**
- * Provider-specific fields (reasoning, tool calls, etc.) that
- * should be visible at the top level of the model form.
- */
-export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
-	provider,
-	form,
-	fieldErrors,
-	disabled,
-}) => {
-	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
-	const normalized = normalizeProvider(provider);
-	const providerFields = renderProviderSpecificFields(normalized, ctx);
-
-	if (!providerFields) {
-		return null;
-	}
-
-	return providerFields;
 };
 
 /**

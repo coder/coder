@@ -1,6 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { CheckCircleIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
@@ -44,11 +44,9 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 			: undefined;
 
 	// Provider disappeared (e.g. data refreshed) — fall back to list.
-	useEffect(() => {
-		if (view.mode === "detail" && !detailProvider) {
-			setView({ mode: "list" });
-		}
-	}, [view, detailProvider]);
+	if (view.mode === "detail" && !detailProvider) {
+		setView({ mode: "list" });
+	}
 
 	if (view.mode === "detail" && detailProvider) {
 		return (
@@ -87,10 +85,9 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 			)}
 			<div>
 				{providerStates.map((providerState, i) => (
-					<div
+					<button
 						key={providerState.provider}
-						role="button"
-						tabIndex={0}
+						type="button"
 						aria-label={providerState.label}
 						className={cn(
 							"flex cursor-pointer items-center gap-3.5 px-3 py-3 transition-colors hover:bg-surface-secondary/30",
@@ -102,16 +99,6 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 								mode: "detail",
 								provider: providerState.provider,
 							});
-						}}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault();
-								onSelectedProviderChange(providerState.provider);
-								setView({
-									mode: "detail",
-									provider: providerState.provider,
-								});
-							}
 						}}
 					>
 						<ProviderIcon
@@ -127,8 +114,8 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 							<CircleIcon className="h-4 w-4 shrink-0 text-content-secondary opacity-40" />
 						)}
 						<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
-					</div>
-				))}
+					</button>
+				))}{" "}
 			</div>
 		</>
 	);

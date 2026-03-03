@@ -75,11 +75,17 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	if (view.mode === "add" || view.mode === "edit") {
 		const editingModel = view.mode === "edit" ? view.model : undefined;
 
-		const effectiveProvider = editingModel
-			? editingModel.provider
-			: view.mode === "add"
-				? view.provider
-				: selectedProvider;
+		const getEffectiveProvider = () => {
+			if (editingModel) {
+				return editingModel.provider;
+			}
+			if (view.mode === "add") {
+				return view.provider;
+			}
+			return selectedProvider;
+		};
+
+		const effectiveProvider = getEffectiveProvider();
 		const effectiveProviderState = effectiveProvider
 			? (providerStates.find((ps) => ps.provider === effectiveProvider) ?? null)
 			: selectedProviderState;
@@ -178,15 +184,13 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					)}
 				</div>
 			) : (
-				<div>
-					{modelConfigs.map((modelConfig, i) => (
+				<div className="divide-y divide-border/50">
+					{modelConfigs.map((modelConfig) => (
 						<div
 							key={modelConfig.id}
-							className={cn(
-								"flex items-center gap-3.5 px-3 py-3",
-								i > 0 && "border-0 border-t border-solid border-border/50",
-							)}
+							className="flex items-center gap-3.5 px-3 py-3"
 						>
+							{" "}
 							{/* Star for default */}
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -218,20 +222,13 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										: "Set as default for new chats"}
 								</TooltipContent>
 							</Tooltip>
-
 							{/* Clickable row content */}
-							<div
-								role="button"
-								tabIndex={0}
-								className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 transition-colors hover:opacity-80"
+							<button
+								type="button"
+								className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 border-0 bg-transparent p-0 text-left transition-colors hover:opacity-80"
 								onClick={() => setView({ mode: "edit", model: modelConfig })}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" || e.key === " ") {
-										e.preventDefault();
-										setView({ mode: "edit", model: modelConfig });
-									}
-								}}
 							>
+								{" "}
 								<ProviderIcon
 									provider={modelConfig.provider}
 									className="h-8 w-8 shrink-0"
@@ -254,7 +251,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 									</Badge>
 								)}
 								<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
-							</div>
+							</button>{" "}
 						</div>
 					))}
 				</div>
