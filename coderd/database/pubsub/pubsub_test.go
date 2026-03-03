@@ -174,14 +174,27 @@ func TestPGPubsubDriver(t *testing.T) {
 
 	// wait for the reconnect
 	_ = testutil.TryReceive(ctx, t, subDriver.Connections)
-	// we need to sleep because the raw connection notification
-	// is sent before the pq.Listener can reestablish it's listeners
-	time.Sleep(1 * time.Second)
 
-	// ensure our old subscription still fires
-	err = pubber.Publish("test", []byte("hello-again"))
-	require.NoError(t, err)
-
-	// wait for the message on the old subscription
-	_ = testutil.TryReceive(ctx, t, gotChan)
+	// The raw connection notification is sent before the
+	// pq.Listener re-issues LISTEN on the new connection.
+	// Rather than sleeping a fixed duration, retry publishing
+	// until the subscriber receives a message, which proves
+	// that the LISTEN has been re-established.
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		// Drain any stale signals before publishing.
+		select {
+		case <-gotChan:
+		default:
+		}
+		err := pubber.Publish("test", []byte("hello-again"))
+		if err != nil {
+			return false
+		}
+		select {
+		case <-gotChan:
+			return true
+		case <-time.After(testutil.IntervalFast):
+			return false
+		}
+	}, testutil.IntervalMedium, "subscriber did not receive message after reconnect")
 }

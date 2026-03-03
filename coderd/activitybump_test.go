@@ -207,8 +207,10 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		// Must send network traffic after a few seconds to surpass bump threshold.
-		time.Sleep(time.Second * 3)
+		// Must send network traffic after the stats report interval
+		// to allow at least one stats cycle to complete with an active
+		// SSH session, triggering the activity bump.
+		time.Sleep(time.Second)
 		sshConn, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		_ = sshConn.Close()
@@ -245,8 +247,10 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		// Must send network traffic after a few seconds to surpass bump threshold.
-		time.Sleep(time.Second * 3)
+		// Must send network traffic after the stats report interval
+		// to allow at least one stats cycle to complete with an active
+		// SSH session, triggering the activity bump.
+		time.Sleep(time.Second)
 		sshConn, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		_ = sshConn.Close()
