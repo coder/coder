@@ -6,13 +6,13 @@ ENV CARGO_INSTALL_ROOT=/tmp/
 RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian|g' /etc/apt/sources.list && \
 	apt-get update || true
 RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
-RUN cargo install jj-cli typos-cli watchexec-cli
+RUN cargo install jj-cli typos-cli watchexec-cli@2.3.2
 
 FROM ubuntu:jammy@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.10
-ARG GO_CHECKSUM="dd52b974e3d9c5a7bbfb222c685806def6be5d6f7efd10f9caa9ca1fa2f47955"
+ARG GO_VERSION=1.24.13
+ARG GO_CHECKSUM="1fc94b57134d51669c72173ad5d49fd62afb0f1db9bf3f798fd98ee423f8d730"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
