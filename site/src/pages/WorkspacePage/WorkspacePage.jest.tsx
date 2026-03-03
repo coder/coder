@@ -125,11 +125,11 @@ describe("WorkspacePage", () => {
 		server.use(
 			http.post("/api/v2/authcheck", async () => {
 				const permissions: WorkspacePermissions = {
-					deleteFailedWorkspace: true,
-					deploymentConfig: true,
 					readWorkspace: true,
+					shareWorkspace: true,
 					updateWorkspace: true,
 					updateWorkspaceVersion: true,
+					deleteFailedWorkspace: true,
 				};
 				return HttpResponse.json(permissions);
 			}),

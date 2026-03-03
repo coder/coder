@@ -8,7 +8,7 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API, withDefaultFeatures } from "api/api";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
@@ -131,8 +131,11 @@ describe("TemplateSettingsPage", () => {
 		);
 		await fillAndSubmitForm(validFormValues);
 		await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
+		const form = await screen.findByRole("form", {
+			name: /template settings/i,
+		});
 		expect(
-			await screen.findByText(
+			await within(form).findByText(
 				"This value is already in use and should be unique.",
 			),
 		).toBeInTheDocument();

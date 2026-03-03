@@ -29,7 +29,7 @@ import {
 } from "./WorkspaceParametersForm";
 
 const WorkspaceParametersPage: FC = () => {
-	const workspace = useWorkspaceSettings();
+	const { workspace } = useWorkspaceSettings();
 	const build = workspace.latest_build;
 	const { data: templateVersionParameters } = useQuery(
 		richParameters(build.template_version_id),

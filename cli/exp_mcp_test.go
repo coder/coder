@@ -921,7 +921,7 @@ func TestExpMcpReporter(t *testing.T) {
 				},
 			},
 		},
-		// We ignore the state from the agent and assume "working".
+		// We override idle from the agent to working, but trust final states.
 		{
 			name: "IgnoreAgentState",
 			// AI agent reports that it is finished but the summary says it is doing
@@ -951,6 +951,46 @@ func TestExpMcpReporter(t *testing.T) {
 					expected: &codersdk.WorkspaceAppStatus{
 						State:   codersdk.WorkspaceAppStatusStateIdle,
 						Message: "finished",
+					},
+				},
+				// Agent reports failure; trusted even with AgentAPI enabled.
+				{
+					state:   codersdk.WorkspaceAppStatusStateFailure,
+					summary: "something broke",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateFailure,
+						Message: "something broke",
+					},
+				},
+				// After failure, watcher reports stable -> idle.
+				{
+					event: makeStatusEvent(agentapi.StatusStable),
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateIdle,
+						Message: "something broke",
+					},
+				},
+			},
+		},
+		// Final states pass through with AgentAPI enabled.
+		{
+			name: "AllowFinalStates",
+			tests: []test{
+				{
+					state:   codersdk.WorkspaceAppStatusStateWorking,
+					summary: "doing work",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateWorking,
+						Message: "doing work",
+					},
+				},
+				// Agent reports complete; not overridden.
+				{
+					state:   codersdk.WorkspaceAppStatusStateComplete,
+					summary: "all done",
+					expected: &codersdk.WorkspaceAppStatus{
+						State:   codersdk.WorkspaceAppStatusStateComplete,
+						Message: "all done",
 					},
 				},
 			},
@@ -1110,4 +1150,148 @@ func TestExpMcpReporter(t *testing.T) {
 			<-cmdDone
 		})
 	}
+
+	t.Run("Reconnect", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a test deployment and workspace.
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		client, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user2.ID,
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Apps = []*proto.App{
+				{
+					Slug: "vscode",
+				},
+			}
+			return a
+		}).Do()
+
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+
+		// Watch the workspace for changes.
+		watcher, err := client.WatchWorkspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		var lastAppStatus codersdk.WorkspaceAppStatus
+		nextUpdate := func() codersdk.WorkspaceAppStatus {
+			for {
+				select {
+				case <-ctx.Done():
+					require.FailNow(t, "timed out waiting for status update")
+				case w, ok := <-watcher:
+					require.True(t, ok, "watch channel closed")
+					if w.LatestAppStatus != nil && w.LatestAppStatus.ID != lastAppStatus.ID {
+						t.Logf("Got status update: %s > %s", lastAppStatus.State, w.LatestAppStatus.State)
+						lastAppStatus = *w.LatestAppStatus
+						return lastAppStatus
+					}
+				}
+			}
+		}
+
+		// Mock AI AgentAPI server that supports disconnect/reconnect.
+		disconnect := make(chan struct{})
+		listening := make(chan func(sse codersdk.ServerSentEvent) error)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Create a cancelable context so we can stop the SSE sender
+			// goroutine on disconnect without waiting for the HTTP
+			// serve loop to cancel r.Context().
+			sseCtx, sseCancel := context.WithCancel(r.Context())
+			defer sseCancel()
+			r = r.WithContext(sseCtx)
+
+			send, closed, err := httpapi.ServerSentEventSender(w, r)
+			if err != nil {
+				httpapi.Write(sseCtx, w, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error setting up server-sent events.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			// Send initial message so the watcher knows the agent is active.
+			send(*makeMessageEvent(0, agentapi.RoleAgent))
+			select {
+			case listening <- send:
+			case <-r.Context().Done():
+				return
+			}
+			select {
+			case <-closed:
+			case <-disconnect:
+				sseCancel()
+				<-closed
+			}
+		}))
+		t.Cleanup(srv.Close)
+
+		inv, _ := clitest.New(t,
+			"exp", "mcp", "server",
+			"--agent-url", client.URL.String(),
+			"--agent-token", r.AgentToken,
+			"--app-status-slug", "vscode",
+			"--allowed-tools=coder_report_task",
+			"--ai-agentapi-url", srv.URL,
+		)
+		inv = inv.WithContext(ctx)
+
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+		stderr := ptytest.New(t)
+		inv.Stderr = stderr.Output()
+
+		// Run the MCP server.
+		clitest.Start(t, inv)
+
+		// Initialize.
+		payload := `{"jsonrpc":"2.0","id":1,"method":"initialize"}`
+		pty.WriteLine(payload)
+		_ = pty.ReadLine(ctx) // ignore echo
+		_ = pty.ReadLine(ctx) // ignore init response
+
+		// Get first sender from the initial SSE connection.
+		sender := testutil.RequireReceive(ctx, t, listening)
+
+		// Self-report a working status via tool call.
+		toolPayload := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"coder_report_task","arguments":{"state":"working","summary":"doing work","link":""}}}`
+		pty.WriteLine(toolPayload)
+		_ = pty.ReadLine(ctx) // ignore echo
+		_ = pty.ReadLine(ctx) // ignore response
+		got := nextUpdate()
+		require.Equal(t, codersdk.WorkspaceAppStatusStateWorking, got.State)
+		require.Equal(t, "doing work", got.Message)
+
+		// Watcher sends stable, verify idle is reported.
+		err = sender(*makeStatusEvent(agentapi.StatusStable))
+		require.NoError(t, err)
+		got = nextUpdate()
+		require.Equal(t, codersdk.WorkspaceAppStatusStateIdle, got.State)
+
+		// Disconnect the SSE connection by signaling the handler to return.
+		testutil.RequireSend(ctx, t, disconnect, struct{}{})
+
+		// Wait for the watcher to reconnect and get the new sender.
+		sender = testutil.RequireReceive(ctx, t, listening)
+
+		// After reconnect, self-report a working status again.
+		toolPayload = `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"coder_report_task","arguments":{"state":"working","summary":"reconnected","link":""}}}`
+		pty.WriteLine(toolPayload)
+		_ = pty.ReadLine(ctx) // ignore echo
+		_ = pty.ReadLine(ctx) // ignore response
+		got = nextUpdate()
+		require.Equal(t, codersdk.WorkspaceAppStatusStateWorking, got.State)
+		require.Equal(t, "reconnected", got.Message)
+
+		// Verify the watcher still processes events after reconnect.
+		err = sender(*makeStatusEvent(agentapi.StatusStable))
+		require.NoError(t, err)
+		got = nextUpdate()
+		require.Equal(t, codersdk.WorkspaceAppStatusStateIdle, got.State)
+
+		cancel()
+	})
 }

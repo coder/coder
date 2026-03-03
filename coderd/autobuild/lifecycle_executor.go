@@ -500,7 +500,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 								"task":         task.Name,
 								"task_id":      task.ID.String(),
 								"workspace":    ws.Name,
-								"pause_reason": "inactivity exceeded the dormancy threshold",
+								"pause_reason": "idle timeout",
 							},
 							"lifecycle_executor",
 							ws.ID, ws.OwnerID, ws.OrganizationID,

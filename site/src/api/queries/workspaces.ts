@@ -38,6 +38,16 @@ export const workspaceByOwnerAndNameKey = (
 	name: string,
 ) => ["workspace", ownerUsername, name, "settings"];
 
+export const workspaceByIdKey = (workspaceId: string) =>
+	["workspace", workspaceId] as const;
+
+export const workspaceById = (workspaceId: string) => {
+	return {
+		queryKey: workspaceByIdKey(workspaceId),
+		queryFn: () => API.getWorkspace(workspaceId),
+	};
+};
+
 export const workspaceByOwnerAndName = (owner: string, name: string) => {
 	return {
 		queryKey: workspaceByOwnerAndNameKey(owner, name),
@@ -479,7 +489,7 @@ export const workspacePermissions = (workspace?: Workspace) => {
 			checks: workspace ? workspaceChecks(workspace) : {},
 		}),
 		queryKey: ["workspaces", workspace?.id, "permissions"],
-		enabled: !!workspace,
+		enabled: Boolean(workspace),
 		staleTime: Number.POSITIVE_INFINITY,
 	};
 };

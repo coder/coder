@@ -14,12 +14,12 @@ import {
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { ComponentProps, FC } from "react";
-import { RequestLogsFilter } from "./filter/RequestLogsFilter";
+import { RequestLogsFilter } from "./RequestLogsFilter/RequestLogsFilter";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
 interface RequestLogsPageViewProps {
 	isLoading: boolean;
-	isRequestLogsVisible: boolean;
+	isRequestLogsEntitled: boolean;
 	interceptions?: readonly AIBridgeInterception[];
 	interceptionsQuery: PaginationResult;
 	filterProps: ComponentProps<typeof RequestLogsFilter>;
@@ -27,12 +27,12 @@ interface RequestLogsPageViewProps {
 
 export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	isLoading,
-	isRequestLogsVisible,
+	isRequestLogsEntitled,
 	interceptions,
 	interceptionsQuery,
 	filterProps,
 }) => {
-	if (!isRequestLogsVisible) {
+	if (!isRequestLogsEntitled) {
 		return <PaywallAIGovernance />;
 	}
 
@@ -50,6 +50,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 							<TableHead>Timestamp</TableHead>
 							<TableHead>Initiator</TableHead>
 							<TableHead>Tokens</TableHead>
+							<TableHead>Client</TableHead>
 							<TableHead>Model</TableHead>
 							<TableHead>Tool Calls</TableHead>
 						</TableRow>

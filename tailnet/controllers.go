@@ -7,6 +7,7 @@ import (
 	"io"
 	"maps"
 	"math"
+	"net"
 	"net/netip"
 	"slices"
 	"strings"
@@ -1431,6 +1432,11 @@ func (c *Controller) Run(ctx context.Context) {
 			if err != nil {
 				if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
 					return
+				}
+
+				if errors.Is(err, net.ErrClosed) {
+					c.logger.Warn(c.ctx, "control plane connection closed, retrying", slog.Error(err))
+					continue
 				}
 
 				// If the database is unreachable by the control plane, there's not much we can do, so we'll just retry later.

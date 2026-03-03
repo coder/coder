@@ -19,9 +19,9 @@ import (
 )
 
 var (
-	templatesActiveUsersDesc     = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
-	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template.", []string{"template_name", "application_name", "slug"}, nil)
-	parametersDesc               = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "parameter_name", "parameter_type", "parameter_value"}, nil)
+	templatesActiveUsersDesc     = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name", "organization_name"}, nil)
+	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template.", []string{"template_name", "application_name", "slug", "organization_name"}, nil)
+	parametersDesc               = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "parameter_name", "parameter_type", "parameter_value", "organization_name"}, nil)
 )
 
 type MetricsCollector struct {
@@ -38,7 +38,8 @@ type insightsData struct {
 	apps      []database.GetTemplateAppInsightsByTemplateRow
 	params    []parameterRow
 
-	templateNames map[uuid.UUID]string
+	templateNames     map[uuid.UUID]string
+	organizationNames map[uuid.UUID]string // template ID → org name
 }
 
 type parameterRow struct {
@@ -137,6 +138,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		templateIDs := uniqueTemplateIDs(templateInsights, appInsights, paramInsights)
 
 		templateNames := make(map[uuid.UUID]string, len(templateIDs))
+		organizationNames := make(map[uuid.UUID]string, len(templateIDs))
 		if len(templateIDs) > 0 {
 			templates, err := mc.database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
 				IDs: templateIDs,
@@ -146,6 +148,31 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 				return
 			}
 			templateNames = onlyTemplateNames(templates)
+
+			// Build org name lookup so that metrics can
+			// distinguish templates with the same name across
+			// different organizations.
+			orgIDs := make([]uuid.UUID, 0, len(templates))
+			for _, t := range templates {
+				orgIDs = append(orgIDs, t.OrganizationID)
+			}
+			orgIDs = slice.Unique(orgIDs)
+
+			orgs, err := mc.database.GetOrganizations(ctx, database.GetOrganizationsParams{
+				IDs: orgIDs,
+			})
+			if err != nil {
+				mc.logger.Error(ctx, "unable to fetch organizations from database", slog.Error(err))
+				return
+			}
+			orgNameByID := make(map[uuid.UUID]string, len(orgs))
+			for _, o := range orgs {
+				orgNameByID[o.ID] = o.Name
+			}
+			organizationNames = make(map[uuid.UUID]string, len(templates))
+			for _, t := range templates {
+				organizationNames[t.ID] = orgNameByID[t.OrganizationID]
+			}
 		}
 
 		// Refresh the collector state
@@ -154,7 +181,8 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 			apps:      appInsights,
 			params:    paramInsights,
 
-			templateNames: templateNames,
+			templateNames:     templateNames,
+			organizationNames: organizationNames,
 		})
 	}
 
@@ -194,44 +222,46 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	// Custom apps
 	for _, appRow := range data.apps {
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue, float64(appRow.UsageSeconds), data.templateNames[appRow.TemplateID],
-			appRow.DisplayName, appRow.SlugOrPort)
+			appRow.DisplayName, appRow.SlugOrPort, data.organizationNames[appRow.TemplateID])
 	}
 
 	// Built-in apps
 	for _, templateRow := range data.templates {
+		orgName := data.organizationNames[templateRow.TemplateID]
+
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.UsageVscodeSeconds),
 			data.templateNames[templateRow.TemplateID],
 			codersdk.TemplateBuiltinAppDisplayNameVSCode,
-			"")
+			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.UsageJetbrainsSeconds),
 			data.templateNames[templateRow.TemplateID],
 			codersdk.TemplateBuiltinAppDisplayNameJetBrains,
-			"")
+			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.UsageReconnectingPtySeconds),
 			data.templateNames[templateRow.TemplateID],
 			codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
-			"")
+			"", orgName)
 
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
 			float64(templateRow.UsageSshSeconds),
 			data.templateNames[templateRow.TemplateID],
 			codersdk.TemplateBuiltinAppDisplayNameSSH,
-			"")
+			"", orgName)
 	}
 
 	// Templates
 	for _, templateRow := range data.templates {
-		metricsCh <- prometheus.MustNewConstMetric(templatesActiveUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID])
+		metricsCh <- prometheus.MustNewConstMetric(templatesActiveUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID], data.organizationNames[templateRow.TemplateID])
 	}
 
 	// Parameters
 	for _, parameterRow := range data.params {
-		metricsCh <- prometheus.MustNewConstMetric(parametersDesc, prometheus.GaugeValue, float64(parameterRow.count), data.templateNames[parameterRow.templateID], parameterRow.name, parameterRow.aType, parameterRow.value)
+		metricsCh <- prometheus.MustNewConstMetric(parametersDesc, prometheus.GaugeValue, float64(parameterRow.count), data.templateNames[parameterRow.templateID], parameterRow.name, parameterRow.aType, parameterRow.value, data.organizationNames[parameterRow.templateID])
 	}
 }
 

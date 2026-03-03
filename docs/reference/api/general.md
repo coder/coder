@@ -304,6 +304,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         }
       ]
     },
+    "external_auth_github_default_provider_enable": true,
     "external_token_encryption_keys": [
       "string"
     ],

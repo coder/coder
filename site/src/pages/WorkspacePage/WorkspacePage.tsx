@@ -1,5 +1,4 @@
 import { watchWorkspace } from "api/api";
-import { workspaceSharingSettings } from "api/queries/organizations";
 import { template as templateQueryOptions } from "api/queries/templates";
 import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
 import {
@@ -8,13 +7,13 @@ import {
 } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
+import { toast } from "sonner";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
 const WorkspacePage: FC = () => {
@@ -44,12 +43,6 @@ const WorkspacePage: FC = () => {
 	// Permissions
 	const permissionsQuery = useQuery(workspacePermissions(workspace));
 	const permissions = permissionsQuery.data;
-
-	const sharingSettingsQuery = useQuery({
-		...workspaceSharingSettings(workspace?.organization_id ?? ""),
-		enabled: !!workspace,
-	});
-	const sharingDisabled = sharingSettingsQuery.data?.sharing_disabled ?? false;
 
 	// Watch workspace changes
 	const updateWorkspaceData = useEffectEvent(
@@ -86,8 +79,11 @@ const WorkspacePage: FC = () => {
 		const socket = watchWorkspace(workspaceId);
 		socket.addEventListener("message", (event) => {
 			if (event.parseError) {
-				displayError(
-					"Unable to process latest data from the server. Please try refreshing the page.",
+				toast.error(
+					`Unable to process latest data for workspace "${workspaceName}".`,
+					{
+						description: "Please try refreshing the page.",
+					},
 				);
 				return;
 			}
@@ -97,13 +93,13 @@ const WorkspacePage: FC = () => {
 			}
 		});
 		socket.addEventListener("error", () => {
-			displayError(
-				"Unable to get workspace changes. Connection has been closed.",
-			);
+			toast.error(`Unable to get changes for workspace "${workspaceName}".`, {
+				description: "Connection has been closed.",
+			});
 		});
 
 		return () => socket.close();
-	}, [updateWorkspaceData, workspaceId]);
+	}, [updateWorkspaceData, workspaceId, workspaceName]);
 
 	// Page statuses
 	const pageError =
@@ -121,7 +117,6 @@ const WorkspacePage: FC = () => {
 			workspace={workspace}
 			template={template}
 			permissions={permissions}
-			sharingDisabled={sharingDisabled}
 		/>
 	);
 };
