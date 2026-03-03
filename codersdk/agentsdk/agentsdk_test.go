@@ -165,6 +165,7 @@ func TestExternalAuthRequestQuery(t *testing.T) {
 			require.Equal(t, "true", r.URL.Query().Get("listen"))
 			require.Equal(t, "main", r.URL.Query().Get("git_branch"))
 			require.Equal(t, "https://github.com/coder/coder.git", r.URL.Query().Get("git_remote_origin"))
+			require.Equal(t, "test-chat-id", r.URL.Query().Get("chat_id"))
 			require.False(t, r.URL.Query().Has("workdir"))
 			_, _ = w.Write([]byte(`{"type":"github","access_token":"token"}`))
 		}))
@@ -179,6 +180,7 @@ func TestExternalAuthRequestQuery(t *testing.T) {
 			Listen:          true,
 			GitBranch:       "main",
 			GitRemoteOrigin: "https://github.com/coder/coder.git",
+			ChatID:          "test-chat-id",
 		})
 		require.NoError(t, err)
 	})
