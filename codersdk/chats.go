@@ -502,6 +502,35 @@ type chatStreamEnvelope struct {
 	Data json.RawMessage     `json:"data,omitempty"`
 }
 
+// ChatStatusCounts is the number of chats in each status.
+type ChatStatusCounts struct {
+	Waiting   int64 `json:"waiting"`
+	Pending   int64 `json:"pending"`
+	Running   int64 `json:"running"`
+	Paused    int64 `json:"paused"`
+	Completed int64 `json:"completed"`
+	Error     int64 `json:"error"`
+}
+
+// ChatStatsResponse contains deployment-level chat usage statistics
+// over a given time range.
+type ChatStatsResponse struct {
+	StartTime                time.Time        `json:"start_time" format:"date-time"`
+	EndTime                  time.Time        `json:"end_time" format:"date-time"`
+	TotalChats               int64            `json:"total_chats"`
+	ActiveUsers              int64            `json:"active_users"`
+	TotalSubChats            int64            `json:"total_sub_chats"`
+	TotalMessages            int64            `json:"total_messages"`
+	TotalUserMessages        int64            `json:"total_user_messages"`
+	TotalAssistantMessages   int64            `json:"total_assistant_messages"`
+	TotalInputTokens         int64            `json:"total_input_tokens"`
+	TotalOutputTokens        int64            `json:"total_output_tokens"`
+	TotalReasoningTokens     int64            `json:"total_reasoning_tokens"`
+	TotalCacheReadTokens     int64            `json:"total_cache_read_tokens"`
+	TotalCacheCreationTokens int64            `json:"total_cache_creation_tokens"`
+	ByStatus                 ChatStatusCounts `json:"by_status"`
+}
+
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
 	Archived *bool
@@ -523,6 +552,26 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 	}
 	var chats []Chat
 	return chats, json.NewDecoder(res.Body).Decode(&chats)
+}
+
+// GetChatStats returns deployment-level chat usage statistics for the
+// given time range.
+func (c *Client) GetChatStats(ctx context.Context, startTime, endTime time.Time) (ChatStatsResponse, error) {
+	qp := url.Values{}
+	qp.Add("start_time", startTime.Format(time.RFC3339))
+	qp.Add("end_time", endTime.Format(time.RFC3339))
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/experimental/chats/stats?%s", qp.Encode()),
+		nil)
+	if err != nil {
+		return ChatStatsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatStatsResponse{}, ReadBodyAsError(res)
+	}
+	var stats ChatStatsResponse
+	return stats, json.NewDecoder(res.Body).Decode(&stats)
 }
 
 // ListChatModels returns the available chat model catalog.

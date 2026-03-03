@@ -1480,6 +1480,28 @@ export interface ChatQueuedMessage {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatStatsResponse contains deployment-level chat usage statistics
+ * over a given time range.
+ */
+export interface ChatStatsResponse {
+	readonly start_time: string;
+	readonly end_time: string;
+	readonly total_chats: number;
+	readonly active_users: number;
+	readonly total_sub_chats: number;
+	readonly total_messages: number;
+	readonly total_user_messages: number;
+	readonly total_assistant_messages: number;
+	readonly total_input_tokens: number;
+	readonly total_output_tokens: number;
+	readonly total_reasoning_tokens: number;
+	readonly total_cache_read_tokens: number;
+	readonly total_cache_creation_tokens: number;
+	readonly by_status: ChatStatusCounts;
+}
+
+// From codersdk/chats.go
 export type ChatStatus =
 	| "completed"
 	| "error"
@@ -1487,6 +1509,19 @@ export type ChatStatus =
 	| "pending"
 	| "running"
 	| "waiting";
+
+// From codersdk/chats.go
+/**
+ * ChatStatusCounts is the number of chats in each status.
+ */
+export interface ChatStatusCounts {
+	readonly waiting: number;
+	readonly pending: number;
+	readonly running: number;
+	readonly paused: number;
+	readonly completed: number;
+	readonly error: number;
+}
 
 export const ChatStatuses: ChatStatus[] = [
 	"completed",

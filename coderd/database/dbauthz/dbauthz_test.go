@@ -527,6 +527,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatProviders(gomock.Any()).Return([]database.ChatProvider{providerA, providerB}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatProvider{providerA, providerB})
 	}))
+	s.Run("GetChatStats", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := testutil.Fake(s.T(), faker, database.GetChatStatsParams{})
+		row := testutil.Fake(s.T(), faker, database.GetChatStatsRow{})
+		dbm.EXPECT().GetChatStats(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(row)
+	}))
 	s.Run("GetChatsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		c1 := testutil.Fake(s.T(), faker, database.Chat{})
 		c2 := testutil.Fake(s.T(), faker, database.Chat{})

@@ -411,3 +411,47 @@ RETURNING *;
 
 -- name: GetChatByIDForUpdate :one
 SELECT * FROM chats WHERE id = @id::uuid FOR UPDATE;
+
+-- name: GetChatStats :one
+WITH filtered_chats AS (
+	SELECT
+		c.id, c.owner_id, c.status, c.parent_chat_id
+	FROM
+		chats c
+	WHERE
+		c.created_at >= @start_time::timestamptz
+		AND c.created_at < @end_time::timestamptz
+),
+chat_counts AS (
+	SELECT
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL)::bigint AS total_chats,
+		COUNT(DISTINCT fc.owner_id) FILTER (WHERE fc.parent_chat_id IS NULL)::bigint AS active_users,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NOT NULL)::bigint AS total_sub_chats,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'waiting')::bigint AS status_waiting,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'pending')::bigint AS status_pending,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'running')::bigint AS status_running,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'paused')::bigint AS status_paused,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'completed')::bigint AS status_completed,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'error')::bigint AS status_error
+	FROM
+		filtered_chats fc
+),
+message_counts AS (
+	SELECT
+		COUNT(*)::bigint AS total_messages,
+		COUNT(*) FILTER (WHERE cm.role = 'user')::bigint AS total_user_messages,
+		COUNT(*) FILTER (WHERE cm.role = 'assistant')::bigint AS total_assistant_messages,
+		COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+		COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
+		COALESCE(SUM(cm.reasoning_tokens), 0)::bigint AS total_reasoning_tokens,
+		COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+		COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+	FROM
+		chat_messages cm
+	JOIN
+		filtered_chats fc ON cm.chat_id = fc.id
+)
+SELECT
+	cc.*, mc.*
+FROM
+	chat_counts cc, message_counts mc;

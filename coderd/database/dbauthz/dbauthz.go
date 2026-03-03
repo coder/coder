@@ -2540,6 +2540,13 @@ func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (
 	return q.db.GetChatQueuedMessages(ctx, chatID)
 }
 
+func (q *querier) GetChatStats(ctx context.Context, arg database.GetChatStatsParams) (database.GetChatStatsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.GetChatStatsRow{}, err
+	}
+	return q.db.GetChatStats(ctx, arg)
+}
+
 func (q *querier) GetChatsByOwnerID(ctx context.Context, ownerID database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByOwnerID)(ctx, ownerID)
 }

@@ -1987,6 +1987,21 @@ func (mr *MockStoreMockRecorder) GetChatQueuedMessages(ctx, chatID any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatQueuedMessages", reflect.TypeOf((*MockStore)(nil).GetChatQueuedMessages), ctx, chatID)
 }
 
+// GetChatStats mocks base method.
+func (m *MockStore) GetChatStats(ctx context.Context, arg database.GetChatStatsParams) (database.GetChatStatsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatStats", ctx, arg)
+	ret0, _ := ret[0].(database.GetChatStatsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatStats indicates an expected call of GetChatStats.
+func (mr *MockStoreMockRecorder) GetChatStats(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatStats", reflect.TypeOf((*MockStore)(nil).GetChatStats), ctx, arg)
+}
+
 // GetChatsByOwnerID mocks base method.
 func (m *MockStore) GetChatsByOwnerID(ctx context.Context, arg database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
 	m.ctrl.T.Helper()

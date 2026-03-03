@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -2120,6 +2121,184 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid queued message ID.", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, "invalid syntax")
+	})
+}
+
+func TestChatStats(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_, secondUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Insert two top-level chats from different users.
+		chat1, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "chat-stats-test-1",
+		})
+		require.NoError(t, err)
+
+		chat2, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           secondUser.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "chat-stats-test-2",
+		})
+		require.NoError(t, err)
+
+		// Insert a sub chat (parent_chat_id set). Counted separately
+		// from top-level chats, but its messages and tokens are
+		// included in the totals.
+		subChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			ParentChatID:      uuid.NullUUID{UUID: chat1.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: chat1.ID, Valid: true},
+			Title:             "subagent-chat",
+		})
+		require.NoError(t, err)
+
+		// Sub chat gets its own LLM interaction with token usage.
+		_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+			ChatID:     subChat.ID,
+			Role:       "user",
+			Content:    pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"delegated task"}]`), Valid: true},
+			Visibility: database.ChatMessageVisibilityBoth,
+		})
+		require.NoError(t, err)
+		_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+			ChatID:              subChat.ID,
+			ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:                "assistant",
+			Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"done"}]`), Valid: true},
+			Visibility:          database.ChatMessageVisibilityBoth,
+			InputTokens:         sql.NullInt64{Int64: 200, Valid: true},
+			OutputTokens:        sql.NullInt64{Int64: 80, Valid: true},
+			ReasoningTokens:     sql.NullInt64{Int64: 15, Valid: true},
+			CacheReadTokens:     sql.NullInt64{Int64: 30, Valid: true},
+			CacheCreationTokens: sql.NullInt64{Int64: 10, Valid: true},
+		})
+		require.NoError(t, err)
+
+		// Insert a user message for chat1.
+		_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+			ChatID:     chat1.ID,
+			Role:       "user",
+			Content:    pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"hello"}]`), Valid: true},
+			Visibility: database.ChatMessageVisibilityBoth,
+		})
+		require.NoError(t, err)
+
+		// Insert an assistant message for chat1 with token usage.
+		_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+			ChatID:              chat1.ID,
+			ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:                "assistant",
+			Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"hi there"}]`), Valid: true},
+			Visibility:          database.ChatMessageVisibilityBoth,
+			InputTokens:         sql.NullInt64{Int64: 100, Valid: true},
+			OutputTokens:        sql.NullInt64{Int64: 50, Valid: true},
+			ReasoningTokens:     sql.NullInt64{Int64: 10, Valid: true},
+			CacheReadTokens:     sql.NullInt64{Int64: 20, Valid: true},
+			CacheCreationTokens: sql.NullInt64{Int64: 5, Valid: true},
+		})
+		require.NoError(t, err)
+
+		// Insert a user message for chat2.
+		_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+			ChatID:     chat2.ID,
+			Role:       "user",
+			Content:    pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"hey"}]`), Valid: true},
+			Visibility: database.ChatMessageVisibilityBoth,
+		})
+		require.NoError(t, err)
+
+		startTime := chat1.CreatedAt.Add(-time.Hour)
+		endTime := chat2.CreatedAt.Add(time.Hour)
+
+		stats, err := client.GetChatStats(ctx, startTime, endTime)
+		require.NoError(t, err)
+
+		// Two top-level chats, one sub chat. Token/message totals
+		// include all chats so real LLM usage isn't undercounted.
+		require.Equal(t, int64(2), stats.TotalChats)
+		require.Equal(t, int64(1), stats.TotalSubChats)
+		require.Equal(t, int64(2), stats.ActiveUsers)
+		require.Equal(t, int64(5), stats.TotalMessages)             // 3 top-level + 2 sub chat
+		require.Equal(t, int64(3), stats.TotalUserMessages)         // 2 top-level + 1 sub chat
+		require.Equal(t, int64(2), stats.TotalAssistantMessages)    // 1 top-level + 1 sub chat
+		require.Equal(t, int64(300), stats.TotalInputTokens)        // 100 + 200
+		require.Equal(t, int64(130), stats.TotalOutputTokens)       // 50 + 80
+		require.Equal(t, int64(25), stats.TotalReasoningTokens)     // 10 + 15
+		require.Equal(t, int64(50), stats.TotalCacheReadTokens)     // 20 + 30
+		require.Equal(t, int64(15), stats.TotalCacheCreationTokens) // 5 + 10
+
+		// Both top-level chats default to "waiting" status.
+		require.Equal(t, int64(2), stats.ByStatus.Waiting)
+		require.Equal(t, int64(0), stats.ByStatus.Pending)
+		require.Equal(t, int64(0), stats.ByStatus.Running)
+		require.Equal(t, int64(0), stats.ByStatus.Paused)
+		require.Equal(t, int64(0), stats.ByStatus.Completed)
+		require.Equal(t, int64(0), stats.ByStatus.Error)
+	})
+
+	t.Run("Forbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		now := time.Now()
+		_, err := memberClient.GetChatStats(ctx, now.Add(-time.Hour), now)
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("EmptyRange", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		coderdtest.CreateFirstUser(t, client)
+
+		// A future time range with no chats should return zeros.
+		future := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+		stats, err := client.GetChatStats(ctx, future, future.Add(time.Hour))
+		require.NoError(t, err)
+		require.Equal(t, int64(0), stats.TotalChats)
+		require.Equal(t, int64(0), stats.ActiveUsers)
+		require.Equal(t, int64(0), stats.TotalMessages)
+		require.Equal(t, int64(0), stats.TotalInputTokens)
+	})
+
+	t.Run("EndTimeBeforeStartTime", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		coderdtest.CreateFirstUser(t, client)
+
+		now := time.Now()
+		_, err := client.GetChatStats(ctx, now, now.Add(-time.Hour))
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("EqualStartAndEndTime", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		coderdtest.CreateFirstUser(t, client)
+
+		now := time.Now()
+		_, err := client.GetChatStats(ctx, now, now)
+		requireSDKError(t, err, http.StatusBadRequest)
 	})
 }
 
