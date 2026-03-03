@@ -172,6 +172,11 @@ type sqlcQuerier interface {
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
 	GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error)
+	// Look up the parent interception and the root of the thread by finding
+	// which interception recorded a tool usage with the given tool call ID.
+	// COALESCE ensures that if the parent has no thread_root_id (i.e. it IS
+	// the root), we return its own ID as the root.
+	GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (GetAIBridgeInterceptionLineageByToolCallIDRow, error)
 	GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error)
 	GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error)
 	GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error)

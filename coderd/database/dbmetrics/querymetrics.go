@@ -791,6 +791,14 @@ func (m queryMetricsStore) GetAIBridgeInterceptionByID(ctx context.Context, id u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (database.GetAIBridgeInterceptionLineageByToolCallIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeInterceptionLineageByToolCallID(ctx, toolCallID)
+	m.queryLatencies.WithLabelValues("GetAIBridgeInterceptionLineageByToolCallID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeInterceptionLineageByToolCallID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeInterceptions(ctx context.Context) ([]database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeInterceptions(ctx)

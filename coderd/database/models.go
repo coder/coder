@@ -3789,6 +3789,10 @@ type AIBridgeInterception struct {
 	EndedAt     sql.NullTime          `db:"ended_at" json:"ended_at"`
 	APIKeyID    sql.NullString        `db:"api_key_id" json:"api_key_id"`
 	Client      sql.NullString        `db:"client" json:"client"`
+	// The interception which directly caused this interception to occur, usually through an agentic loop or threaded conversation.
+	ThreadParentID uuid.NullUUID `db:"thread_parent_id" json:"thread_parent_id"`
+	// The root interception of the thread that this interception belongs to.
+	ThreadRootID uuid.NullUUID `db:"thread_root_id" json:"thread_root_id"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge
@@ -3816,9 +3820,10 @@ type AIBridgeToolUsage struct {
 	// Whether this tool was injected; i.e. Bridge injected these tools into the request from an MCP server. If false it means a tool was defined by the client and already existed in the request (MCP or built-in).
 	Injected bool `db:"injected" json:"injected"`
 	// Only injected tools are invoked.
-	InvocationError sql.NullString        `db:"invocation_error" json:"invocation_error"`
-	Metadata        pqtype.NullRawMessage `db:"metadata" json:"metadata"`
-	CreatedAt       time.Time             `db:"created_at" json:"created_at"`
+	InvocationError    sql.NullString        `db:"invocation_error" json:"invocation_error"`
+	Metadata           pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
+	ProviderToolCallID sql.NullString        `db:"provider_tool_call_id" json:"provider_tool_call_id"`
 }
 
 // Audit log of prompts used by intercepted requests in AI Bridge
