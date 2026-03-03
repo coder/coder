@@ -422,10 +422,6 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
         with:
-          # Runners have Go baked-in and Go will automatically
-          # download the toolchain configured in go.mod, so we don't
-          # need to reinstall it. It's faster on Windows runners.
-          use-preinstalled-go: ${{ runner.os == 'Windows' }}
           use-cache: true
 
       - name: Setup Terraform

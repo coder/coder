@@ -57,7 +57,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 	latestVersion,
 	permissions,
 	timings,
-	sharingDisabled,
 	handleStart,
 	handleStop,
 	handleRestart,
@@ -111,7 +110,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 				latestVersion={latestVersion}
 				isUpdating={isUpdating}
 				isRestarting={isRestarting}
-				sharingDisabled={sharingDisabled}
 				handleStart={handleStart}
 				handleStop={handleStop}
 				handleRestart={handleRestart}
@@ -159,16 +157,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 					)}
 				</div>
 
-				<div
-					style={{
-						background: `radial-gradient(
-			circle at 1px 1px,
-			hsl(var(--surface-invert-secondary)) 0,
-			transparent 1px
-		) -2px -2px / 16px 16px`,
-					}}
-					className="p-8 overflow-y-auto relative w-full"
-				>
+				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--surface-invert-secondary))_0,transparent_1px)] bg-[-2px_-2px] bg-[length:16px_16px] p-8">
 					{selectedResource && (
 						<ResourceMetadata
 							resource={selectedResource}

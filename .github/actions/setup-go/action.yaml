@@ -5,9 +5,6 @@ inputs:
   version:
     description: "The Go version to use."
     default: "1.25.7"
-  use-preinstalled-go:
-    description: "Whether to use preinstalled Go."
-    default: "false"
   use-cache:
     description: "Whether to use the cache."
     default: "true"
@@ -15,9 +12,9 @@ runs:
   using: "composite"
   steps:
     - name: Setup Go
-      uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
       with:
-        go-version: ${{ inputs.use-preinstalled-go == 'false' && inputs.version || '' }}
+        go-version: ${{ inputs.version }}
         cache: ${{ inputs.use-cache }}
 
     - name: Install gotestsum

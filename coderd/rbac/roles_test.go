@@ -1030,6 +1030,20 @@ func TestRolePermissions(t *testing.T) {
 				false: {owner, setOtherOrg, setOrgNotMe, memberMe, templateAdmin, userAdmin},
 			},
 		},
+		{
+			Name:     "ChatUsage",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceChat.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, memberMe},
+				false: {
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
 	}
 
 	// We expect every permission to be tested above.

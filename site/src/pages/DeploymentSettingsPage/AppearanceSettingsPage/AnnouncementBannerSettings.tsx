@@ -1,10 +1,8 @@
-import { type CSSObject, useTheme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import type { BannerConfig } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { Stack } from "components/Stack/Stack";
+import { Link } from "components/Link/Link";
 import {
 	Table,
 	TableBody,
@@ -27,7 +25,6 @@ interface AnnouncementBannersettingsProps {
 export const AnnouncementBannerSettings: FC<
 	AnnouncementBannersettingsProps
 > = ({ isEntitled, announcementBanners, onSubmit }) => {
-	const theme = useTheme();
 	const [banners, setBanners] = useState(announcementBanners);
 	const [editingBannerId, setEditingBannerId] = useState<number | null>(null);
 	const [deletingBannerId, setDeletingBannerId] = useState<number | null>(null);
@@ -65,29 +62,10 @@ export const AnnouncementBannerSettings: FC<
 
 	return (
 		<>
-			<div
-				css={{
-					borderRadius: 8,
-					border: `1px solid ${theme.palette.divider}`,
-					marginTop: 32,
-					overflow: "hidden",
-				}}
-			>
+			<div className="mt-8 overflow-hidden rounded-lg border border-solid border-border">
 				<div className="p-6">
-					<Stack
-						direction="row"
-						justifyContent="space-between"
-						alignItems="center"
-					>
-						<h3
-							css={{
-								fontSize: 20,
-								margin: 0,
-								fontWeight: 600,
-							}}
-						>
-							Announcement Banners
-						</h3>
+					<div className="flex items-center justify-between gap-4">
+						<h3 className="m-0 text-xl font-semibold">Announcement Banners</h3>
 						<Button
 							disabled={!isEntitled}
 							onClick={() => addBanner()}
@@ -96,18 +74,12 @@ export const AnnouncementBannerSettings: FC<
 							<PlusIcon />
 							New
 						</Button>
-					</Stack>
-					<div
-						css={{
-							color: theme.palette.text.secondary,
-							fontSize: 14,
-							marginTop: 8,
-						}}
-					>
+					</div>
+					<div className="mt-2 text-sm text-content-secondary">
 						Display message banners to all users.
 					</div>
 
-					<div css={[theme.typography.body2 as CSSObject, { paddingTop: 16 }]}>
+					<div className="pt-4 text-sm">
 						<Table>
 							<TableHeader>
 								<TableRow>
@@ -147,20 +119,14 @@ export const AnnouncementBannerSettings: FC<
 				</div>
 
 				{!isEntitled && (
-					<footer
-						css={[
-							theme.typography.body2 as CSSObject,
-							{
-								background: theme.palette.background.paper,
-								padding: "16px 24px",
-							},
-						]}
-					>
+					<footer className="bg-surface-secondary px-6 py-4 text-sm">
 						<div className="text-content-secondary">
 							<p>
 								Your license does not include Service Banners.{" "}
-								<Link href="mailto:sales@coder.com">Contact sales</Link> to
-								learn more.
+								<Link href="mailto:sales@coder.com" showExternalIcon={false}>
+									Contact sales
+								</Link>{" "}
+								to learn more.
 							</p>
 						</div>
 					</footer>

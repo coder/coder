@@ -63,6 +63,9 @@ OPTIONS:
           Separate multiple experiments with commas, or enter '*' to opt-in to
           all available experiments.
 
+      --external-auth-github-default-provider-enable bool, $CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE (default: true)
+          Enable the default GitHub external auth provider managed by Coder.
+
       --postgres-auth password|awsiamrds, $CODER_PG_AUTH (default: password)
           Type of auth to use when connecting to postgres. For AWS RDS, using
           IAM authentication (awsiamrds) is recommended.
@@ -392,7 +395,9 @@ NETWORKING OPTIONS:
 
       --host-prefix-cookie bool, $CODER_HOST_PREFIX_COOKIE (default: false)
           Recommended to be enabled. Enables `__Host-` prefix for cookies to
-          guarantee they are only set by the right domain.
+          guarantee they are only set by the right domain. This change is
+          disruptive to any workspaces built before release 2.31, requiring a
+          workspace restart.
 
 NETWORKING / DERP OPTIONS: 
 Most Coder deployments never have to think about DERP because all connections

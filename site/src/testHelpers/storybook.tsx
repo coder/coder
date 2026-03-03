@@ -3,7 +3,7 @@ import { withDefaultFeatures } from "api/api";
 import { getAuthorizationKey } from "api/queries/authCheck";
 import { hasFirstUserKey, meKey } from "api/queries/users";
 import type { Entitlements } from "api/typesGenerated";
-import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
+import { Toaster } from "components/Toaster/Toaster";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import {
 	getPreferredProxy,
@@ -139,10 +139,10 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	);
 };
 
-export const withGlobalSnackbar = (Story: FC) => (
+export const withToaster = (Story: FC) => (
 	<>
 		<Story />
-		<GlobalSnackbar />
+		<Toaster />
 	</>
 );
 

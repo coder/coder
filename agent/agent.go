@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
+	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -302,7 +303,8 @@ type agent struct {
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
 
-	filesAPI *agentfiles.API
+	filesAPI   *agentfiles.API
+	processAPI *agentproc.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -375,6 +377,7 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem)
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
@@ -407,7 +410,7 @@ func (a *agent) initSocketServer() {
 		agentsocket.WithPath(a.socketPath),
 	)
 	if err != nil {
-		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
+		a.logger.Error(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
 		return
 	}
 
@@ -417,7 +420,12 @@ func (a *agent) initSocketServer() {
 
 // startBoundaryLogProxyServer starts the boundary log proxy socket server.
 func (a *agent) startBoundaryLogProxyServer() {
-	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath)
+	if a.boundaryLogProxySocketPath == "" {
+		a.logger.Warn(a.hardCtx, "boundary log proxy socket path not defined; not starting proxy")
+		return
+	}
+
+	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath, a.prometheusRegistry)
 	if err := proxy.Start(); err != nil {
 		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
 		return
@@ -2028,6 +2036,10 @@ func (a *agent) Close() error {
 
 	if err := a.containerAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
+	}
+
+	if err := a.processAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "process API close", slog.Error(err))
 	}
 
 	if a.boundaryLogProxy != nil {

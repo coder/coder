@@ -262,7 +262,8 @@ type htmlState struct {
 	Regions        string
 	DocsURL        string
 
-	TasksTabVisible string
+	TasksTabVisible  string
+	AgentsTabVisible string
 }
 
 type csrfState struct {
@@ -505,6 +506,16 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 				state.TasksTabVisible = html.EscapeString(string(tasksTabVisible))
 			}
 		}()
+		wg.Go(func() {
+			agentsTabVisible := false
+			if experiments != nil {
+				agentsTabVisible = experiments.Enabled(codersdk.ExperimentAgents)
+			}
+			data, err := json.Marshal(agentsTabVisible)
+			if err == nil {
+				state.AgentsTabVisible = html.EscapeString(string(data))
+			}
+		})
 		wg.Wait()
 	}
 

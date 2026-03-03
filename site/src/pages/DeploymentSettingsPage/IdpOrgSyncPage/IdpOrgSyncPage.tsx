@@ -1,11 +1,10 @@
-import { getErrorMessage } from "api/errors";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import { deploymentIdpSyncFieldValues } from "api/queries/deployment";
 import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
 } from "api/queries/idpsync";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { PaywallPremium } from "components/Paywall/PaywallPremium";
@@ -13,6 +12,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { ExportPolicyButton } from "./ExportPolicyButton";
@@ -45,10 +45,10 @@ const IdpOrgSyncPage: FC = () => {
 
 	useEffect(() => {
 		if (patchOrganizationSyncSettingsMutation.error) {
-			displayError(
+			toast.error(
 				getErrorMessage(
 					patchOrganizationSyncSettingsMutation.error,
-					"Error updating organization idp sync settings.",
+					"Error updating organization IdP sync settings.",
 				),
 			);
 		}
@@ -93,13 +93,16 @@ const IdpOrgSyncPage: FC = () => {
 							onSubmit={async (data) => {
 								try {
 									await patchOrganizationSyncSettingsMutation.mutateAsync(data);
-									displaySuccess("Organization sync settings updated.");
+									toast.success("Organization sync settings updated.");
 								} catch (error) {
-									displayError(
+									toast.error(
 										getErrorMessage(
 											error,
-											"Failed to update organization IdP sync settings",
+											"Failed to update organization IdP sync settings.",
 										),
+										{
+											description: getErrorDetail(error),
+										},
 									);
 								}
 							}}

@@ -1,20 +1,10 @@
-import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import type { CreateGroupRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
-import {
-	FormFields,
-	FormFooter,
-	FormSection,
-	HorizontalForm,
-} from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import type { FC } from "react";
@@ -54,42 +44,84 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 	});
 	const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, error);
 	const onCancel = () => navigate(-1);
+	const nameField = getFieldHelpers("name");
+	const displayNameField = getFieldHelpers("display_name", {
+		helperText: "Keep empty to default to the name.",
+	});
 
 	return (
-		<>
-			<SettingsHeader>
-				<SettingsHeaderTitle>New Group</SettingsHeaderTitle>
-				<SettingsHeaderDescription>
-					Create a group in this organization.
-				</SettingsHeaderDescription>
-			</SettingsHeader>
+		<div className="flex flex-col items-start w-full max-w-xl">
+			<div className="flex flex-row items-start pb-6">
+				<h1 className="m-0 flex items-center gap-2 text-3xl font-semibold leading-tight">
+					New Group
+				</h1>
+			</div>
 
-			<HorizontalForm onSubmit={form.handleSubmit}>
-				<FormSection
-					title="Group settings"
-					description="Set a name and avatar for this group."
-				>
-					<FormFields>
+			<form
+				className="flex flex-col w-full max-w-xl  gap-10 rounded-lg border border-solid border-border-default p-6"
+				onSubmit={form.handleSubmit}
+			>
+				<section className="flex flex-col gap-4">
+					<div className="flex flex-col gap-2">
+						<h2 className="text-xl font-medium text-content-primary m-0">
+							Group settings
+						</h2>
+						<p className="text-sm leading-relaxed text-content-secondary m-0">
+							Set a name and avatar for this group.
+						</p>
+					</div>
+					<div className="flex flex-col gap-6">
 						{Boolean(error) && !isApiValidationError(error) && (
 							<ErrorAlert error={error} />
 						)}
 
-						<TextField
-							{...getFieldHelpers("name")}
-							autoFocus
-							fullWidth
-							label="Name"
-							onChange={onChangeTrimmed(form)}
-							autoComplete="name"
-						/>
-						<TextField
-							{...getFieldHelpers("display_name", {
-								helperText: "Optional: keep empty to default to the name.",
-							})}
-							fullWidth
-							label="Display Name"
-							autoComplete="display_name"
-						/>
+						<div className="flex flex-col items-start gap-2">
+							<Label htmlFor={nameField.id}>Name</Label>
+							<Input
+								id={nameField.id}
+								name={nameField.name}
+								value={nameField.value}
+								onChange={onChangeTrimmed(form)}
+								onBlur={nameField.onBlur}
+								autoFocus
+								autoComplete="name"
+								aria-invalid={nameField.error}
+							/>
+							{nameField.helperText && (
+								<span
+									className={`text-xs text-left ${
+										nameField.error
+											? "text-content-destructive"
+											: "text-content-secondary"
+									}`}
+								>
+									{nameField.helperText}
+								</span>
+							)}
+						</div>
+						<div className="flex flex-col items-start gap-2">
+							<Label htmlFor={displayNameField.id}>Display Name</Label>
+							<Input
+								id={displayNameField.id}
+								name={displayNameField.name}
+								value={displayNameField.value}
+								onChange={displayNameField.onChange}
+								onBlur={displayNameField.onBlur}
+								autoComplete="display_name"
+								aria-invalid={displayNameField.error}
+							/>
+							{displayNameField.helperText && (
+								<span
+									className={`text-xs text-left ${
+										displayNameField.error
+											? "text-content-destructive"
+											: "text-content-secondary"
+									}`}
+								>
+									{displayNameField.helperText}
+								</span>
+							)}
+						</div>
 						<IconField
 							{...getFieldHelpers("avatar_url")}
 							onChange={onChangeTrimmed(form)}
@@ -97,20 +129,19 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 							label="Avatar URL"
 							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 						/>
-					</FormFields>
-				</FormSection>
+					</div>
+				</section>
 
-				<FormFooter>
+				<footer className="flex items-center justify-end space-x-2">
 					<Button onClick={onCancel} variant="outline">
 						Cancel
 					</Button>
-
 					<Button type="submit" disabled={isLoading}>
 						<Spinner loading={isLoading} />
-						Save
+						Create group
 					</Button>
-				</FormFooter>
-			</HorizontalForm>
-		</>
+				</footer>
+			</form>
+		</div>
 	);
 };

@@ -112,6 +112,30 @@
 				}
 			}
 		},
+		"/aibridge/models": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["AI Bridge"],
+				"summary": "List AI Bridge models",
+				"operationId": "list-ai-bridge-models",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/appearance": {
 			"get": {
 				"security": [
@@ -382,6 +406,30 @@
 						"schema": {
 							"$ref": "#/definitions/codersdk.BuildInfoResponse"
 						}
+					}
+				}
+			}
+		},
+		"/chats/{chat}/archive": {
+			"post": {
+				"tags": ["Chats"],
+				"summary": "Archive a chat",
+				"operationId": "archive-chat",
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				}
+			}
+		},
+		"/chats/{chat}/unarchive": {
+			"post": {
+				"tags": ["Chats"],
+				"summary": "Unarchive a chat",
+				"operationId": "unarchive-chat",
+				"responses": {
+					"204": {
+						"description": "No Content"
 					}
 				}
 			}
@@ -5213,7 +5261,7 @@
 						"CoderSessionToken": []
 					}
 				],
-				"consumes": ["application/json"],
+				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Pause task",
 				"operationId": "pause-task",
@@ -5251,7 +5299,7 @@
 						"CoderSessionToken": []
 					}
 				],
-				"consumes": ["application/json"],
+				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Resume task",
 				"operationId": "resume-task",
@@ -7285,6 +7333,12 @@
 						"name": "user",
 						"in": "path",
 						"required": true
+					},
+					{
+						"type": "boolean",
+						"description": "Include expired tokens in the list",
+						"name": "include_expired",
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -8444,6 +8498,7 @@
 				"tags": ["Agents"],
 				"summary": "Patch workspace agent app status",
 				"operationId": "patch-workspace-agent-app-status",
+				"deprecated": true,
 				"parameters": [
 					{
 						"description": "app status",
@@ -11356,6 +11411,11 @@
 				"boundary_usage:delete",
 				"boundary_usage:read",
 				"boundary_usage:update",
+				"chat:*",
+				"chat:create",
+				"chat:delete",
+				"chat:read",
+				"chat:update",
 				"coder:all",
 				"coder:apikeys.manage_self",
 				"coder:application_connect",
@@ -11560,6 +11620,11 @@
 				"APIKeyScopeBoundaryUsageDelete",
 				"APIKeyScopeBoundaryUsageRead",
 				"APIKeyScopeBoundaryUsageUpdate",
+				"APIKeyScopeChatAll",
+				"APIKeyScopeChatCreate",
+				"APIKeyScopeChatDelete",
+				"APIKeyScopeChatRead",
+				"APIKeyScopeChatUpdate",
 				"APIKeyScopeCoderAll",
 				"APIKeyScopeCoderApikeysManageSelf",
 				"APIKeyScopeCoderApplicationConnect",
@@ -13347,6 +13412,9 @@
 				"external_auth": {
 					"$ref": "#/definitions/serpent.Struct-array_codersdk_ExternalAuthConfig"
 				},
+				"external_auth_github_default_provider_enable": {
+					"type": "boolean"
+				},
 				"external_token_encryption_keys": {
 					"type": "array",
 					"items": {
@@ -13624,9 +13692,11 @@
 				"workspace-usage",
 				"web-push",
 				"oauth2",
+				"agents",
 				"mcp-server-http"
 			],
 			"x-enum-comments": {
+				"ExperimentAgents": "Enables agent-powered chat functionality.",
 				"ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
 				"ExperimentExample": "This isn't used for anything.",
 				"ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -13642,6 +13712,7 @@
 				"Enables the new workspace usage tracking.",
 				"Enables web push notifications through the browser.",
 				"Enables OAuth2 provider functionality.",
+				"Enables agent-powered chat functionality.",
 				"Enables the MCP HTTP server functionality."
 			],
 			"x-enum-varnames": [
@@ -13651,6 +13722,7 @@
 				"ExperimentWorkspaceUsage",
 				"ExperimentWebPush",
 				"ExperimentOAuth2",
+				"ExperimentAgents",
 				"ExperimentMCPServerHTTP"
 			]
 		},
@@ -16476,6 +16548,7 @@
 				"assign_role",
 				"audit_log",
 				"boundary_usage",
+				"chat",
 				"connection_log",
 				"crypto_key",
 				"debug_info",
@@ -16521,6 +16594,7 @@
 				"ResourceAssignRole",
 				"ResourceAuditLog",
 				"ResourceBoundaryUsage",
+				"ResourceChat",
 				"ResourceConnectionLog",
 				"ResourceCryptoKey",
 				"ResourceDebugInfo",
@@ -18116,6 +18190,7 @@
 			"type": "string",
 			"enum": [
 				"",
+				"geist-mono",
 				"ibm-plex-mono",
 				"fira-code",
 				"source-code-pro",
@@ -18123,6 +18198,7 @@
 			],
 			"x-enum-varnames": [
 				"TerminalFontUnknown",
+				"TerminalFontGeistMono",
 				"TerminalFontIBMPlexMono",
 				"TerminalFontFiraCode",
 				"TerminalFontSourceCodePro",

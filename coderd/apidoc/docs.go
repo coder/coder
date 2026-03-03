@@ -135,6 +135,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/aibridge/models": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Bridge"
+                ],
+                "summary": "List AI Bridge models",
+                "operationId": "list-ai-bridge-models",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/appearance": {
             "get": {
                 "security": [
@@ -449,6 +477,34 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.BuildInfoResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/archive": {
+            "post": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Archive a chat",
+                "operationId": "archive-chat",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/chats/{chat}/unarchive": {
+            "post": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Unarchive a chat",
+                "operationId": "unarchive-chat",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 }
             }
@@ -5894,7 +5950,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
+                "produces": [
                     "application/json"
                 ],
                 "tags": [
@@ -5936,7 +5992,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
+                "produces": [
                     "application/json"
                 ],
                 "tags": [
@@ -8238,6 +8294,12 @@ const docTemplate = `{
                         "name": "user",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include expired tokens in the list",
+                        "name": "include_expired",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -9545,6 +9607,7 @@ const docTemplate = `{
                 ],
                 "summary": "Patch workspace agent app status",
                 "operationId": "patch-workspace-agent-app-status",
+                "deprecated": true,
                 "parameters": [
                     {
                         "description": "app status",
@@ -12748,6 +12811,11 @@ const docTemplate = `{
                 "boundary_usage:delete",
                 "boundary_usage:read",
                 "boundary_usage:update",
+                "chat:*",
+                "chat:create",
+                "chat:delete",
+                "chat:read",
+                "chat:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -12952,6 +13020,11 @@ const docTemplate = `{
                 "APIKeyScopeBoundaryUsageDelete",
                 "APIKeyScopeBoundaryUsageRead",
                 "APIKeyScopeBoundaryUsageUpdate",
+                "APIKeyScopeChatAll",
+                "APIKeyScopeChatCreate",
+                "APIKeyScopeChatDelete",
+                "APIKeyScopeChatRead",
+                "APIKeyScopeChatUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -14813,6 +14886,9 @@ const docTemplate = `{
                 "external_auth": {
                     "$ref": "#/definitions/serpent.Struct-array_codersdk_ExternalAuthConfig"
                 },
+                "external_auth_github_default_provider_enable": {
+                    "type": "boolean"
+                },
                 "external_token_encryption_keys": {
                     "type": "array",
                     "items": {
@@ -15097,9 +15173,11 @@ const docTemplate = `{
                 "workspace-usage",
                 "web-push",
                 "oauth2",
+                "agents",
                 "mcp-server-http"
             ],
             "x-enum-comments": {
+                "ExperimentAgents": "Enables agent-powered chat functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -15115,6 +15193,7 @@ const docTemplate = `{
                 "Enables the new workspace usage tracking.",
                 "Enables web push notifications through the browser.",
                 "Enables OAuth2 provider functionality.",
+                "Enables agent-powered chat functionality.",
                 "Enables the MCP HTTP server functionality."
             ],
             "x-enum-varnames": [
@@ -15124,6 +15203,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
+                "ExperimentAgents",
                 "ExperimentMCPServerHTTP"
             ]
         },
@@ -18064,6 +18144,7 @@ const docTemplate = `{
                 "assign_role",
                 "audit_log",
                 "boundary_usage",
+                "chat",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -18109,6 +18190,7 @@ const docTemplate = `{
                 "ResourceAssignRole",
                 "ResourceAuditLog",
                 "ResourceBoundaryUsage",
+                "ResourceChat",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
@@ -19779,6 +19861,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "",
+                "geist-mono",
                 "ibm-plex-mono",
                 "fira-code",
                 "source-code-pro",
@@ -19786,6 +19869,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "TerminalFontUnknown",
+                "TerminalFontGeistMono",
                 "TerminalFontIBMPlexMono",
                 "TerminalFontFiraCode",
                 "TerminalFontSourceCodePro",

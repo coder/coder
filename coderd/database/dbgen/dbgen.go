@@ -504,7 +504,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			Transition:        takeFirst(orig.Transition, database.WorkspaceTransitionStart),
 			InitiatorID:       takeFirst(orig.InitiatorID, uuid.New()),
 			JobID:             jobID,
-			ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
+			ProvisionerState:  []byte{},
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
 			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
 			Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
@@ -1585,14 +1585,16 @@ func ClaimPrebuild(
 
 func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertAIBridgeInterceptionParams, endedAt *time.Time) database.AIBridgeInterception {
 	interception, err := db.InsertAIBridgeInterception(genCtx, database.InsertAIBridgeInterceptionParams{
-		ID:          takeFirst(seed.ID, uuid.New()),
-		APIKeyID:    seed.APIKeyID,
-		InitiatorID: takeFirst(seed.InitiatorID, uuid.New()),
-		Provider:    takeFirst(seed.Provider, "provider"),
-		Model:       takeFirst(seed.Model, "model"),
-		Metadata:    takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
-		StartedAt:   takeFirst(seed.StartedAt, dbtime.Now()),
-		Client:      seed.Client,
+		ID:                         takeFirst(seed.ID, uuid.New()),
+		APIKeyID:                   seed.APIKeyID,
+		InitiatorID:                takeFirst(seed.InitiatorID, uuid.New()),
+		Provider:                   takeFirst(seed.Provider, "provider"),
+		Model:                      takeFirst(seed.Model, "model"),
+		Metadata:                   takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
+		StartedAt:                  takeFirst(seed.StartedAt, dbtime.Now()),
+		Client:                     seed.Client,
+		ThreadParentInterceptionID: seed.ThreadParentInterceptionID,
+		ThreadRootInterceptionID:   seed.ThreadRootInterceptionID,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{
@@ -1645,6 +1647,7 @@ func AIBridgeToolUsage(t testing.TB, db database.Store, seed database.InsertAIBr
 		ID:                 takeFirst(seed.ID, uuid.New()),
 		InterceptionID:     takeFirst(seed.InterceptionID, uuid.New()),
 		ProviderResponseID: takeFirst(seed.ProviderResponseID, "provider_response_id"),
+		ProviderToolCallID: takeFirst(seed.ProviderToolCallID),
 		Tool:               takeFirst(seed.Tool, "tool"),
 		ServerUrl:          serverURL,
 		Input:              takeFirst(seed.Input, "input"),

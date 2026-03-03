@@ -26,6 +26,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	menus: {
 		user: MockMenu,
 		provider: MockMenu,
+		model: MockMenu,
 	},
 });
 
@@ -46,13 +47,22 @@ type Story = StoryObj<typeof RequestLogsPageView>;
 
 export const Paywall: Story = {
 	args: {
-		isRequestLogsVisible: false,
+		isRequestLogsEntitled: false,
+		isRequestLogsEnabled: false,
+	},
+};
+
+export const NotEnabled: Story = {
+	args: {
+		isRequestLogsEntitled: true,
+		isRequestLogsEnabled: false,
 	},
 };
 
 export const Loaded: Story = {
 	args: {
-		isRequestLogsVisible: true,
+		isRequestLogsEntitled: true,
+		isRequestLogsEnabled: true,
 		interceptions,
 		filterProps: {
 			...defaultFilterProps,
@@ -63,7 +73,8 @@ export const Loaded: Story = {
 
 export const Empty: Story = {
 	args: {
-		isRequestLogsVisible: true,
+		isRequestLogsEntitled: true,
+		isRequestLogsEnabled: true,
 		interceptions: [],
 		filterProps: {
 			...defaultFilterProps,
@@ -75,7 +86,8 @@ export const Empty: Story = {
 export const Loading: Story = {
 	args: {
 		isLoading: true,
-		isRequestLogsVisible: true,
+		isRequestLogsEntitled: true,
+		isRequestLogsEnabled: true,
 		interceptions: [],
 		filterProps: {
 			...defaultFilterProps,

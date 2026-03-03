@@ -5,46 +5,13 @@
 
 /** @deprecated MUI ThemeOptions is deprecated. Migrate to Tailwind CSS theme system. */
 import type { ThemeOptions } from "@mui/material/styles";
-import {
-	BODY_FONT_FAMILY,
-	BUTTON_LG_HEIGHT,
-	BUTTON_MD_HEIGHT,
-} from "./constants";
+import { BUTTON_LG_HEIGHT, BUTTON_MD_HEIGHT } from "./constants";
 import tw from "./tailwindColors";
 
 // biome-ignore lint/suspicious/noExplicitAny: needed for MUI overrides
 type MuiStyle = any;
 
 export const components = {
-	MuiCssBaseline: {
-		styleOverrides: (theme) => `
-      html, body, #root, #storybook-root {
-        height: 100%;
-      }
-
-      button, input {
-        font-family: ${BODY_FONT_FAMILY};
-      }
-
-      input:-webkit-autofill,
-      input:-webkit-autofill:hover,
-      input:-webkit-autofill:focus,
-      input:-webkit-autofill:active  {
-        -webkit-box-shadow: 0 0 0 100px ${theme.palette.background.default} inset !important;
-      }
-
-      ::placeholder {
-        color: ${theme.palette.text.disabled};
-      }
-
-      fieldset {
-        border: unset;
-        padding: 0;
-        margin: 0;
-        width: 100%;
-      }
-    `,
-	},
 	MuiAvatar: {
 		styleOverrides: {
 			root: {
@@ -66,17 +33,6 @@ export const components = {
 			underline: "hover",
 		},
 	},
-	MuiPaper: {
-		defaultProps: {
-			elevation: 0,
-		},
-		styleOverrides: {
-			root: ({ theme }) => ({
-				border: `1px solid ${theme.palette.divider}`,
-				backgroundImage: "none",
-			}),
-		},
-	},
 	MuiSkeleton: {
 		styleOverrides: {
 			root: ({ theme }) => ({
@@ -88,13 +44,6 @@ export const components = {
 		styleOverrides: {
 			root: {
 				borderRadius: 999,
-			},
-		},
-	},
-	MuiChip: {
-		styleOverrides: {
-			root: {
-				backgroundColor: tw.zinc[600],
 			},
 		},
 	},
@@ -232,18 +181,6 @@ export const components = {
 
 				"& .MuiSvgIcon-fontSizeXsmall": {
 					fontSize: "1rem",
-				},
-			},
-		},
-	},
-	MuiSwitch: {
-		defaultProps: { color: "primary" },
-		styleOverrides: {
-			root: {
-				".Mui-focusVisible .MuiSwitch-thumb": {
-					// Had to thicken outline to make sure that the focus color didn't
-					// bleed into the thumb and was still easily-visible
-					boxShadow: `0 0 0 3px ${tw.blue[400]}`,
 				},
 			},
 		},

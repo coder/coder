@@ -179,6 +179,8 @@ func New(opts Options, workspace database.Workspace) *API {
 		Database:                 opts.Database,
 		Log:                      opts.Log,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
+		Clock:                    opts.Clock,
+		NotificationsEnqueuer:    opts.NotificationsEnqueuer,
 	}
 
 	api.MetadataAPI = &MetadataAPI{

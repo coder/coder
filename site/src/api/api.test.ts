@@ -280,4 +280,50 @@ describe("api.ts", () => {
 			});
 		});
 	});
+
+	describe("chat configuration endpoints", () => {
+		it.each<[string, () => Promise<unknown>, unknown]>([
+			[
+				"/api/experimental/chats/models",
+				() => API.getChatModels(),
+				{
+					providers: [],
+				},
+			],
+			[
+				"/api/experimental/chats/providers",
+				() => API.getChatProviderConfigs(),
+				[],
+			],
+			[
+				"/api/experimental/chats/model-configs",
+				() => API.getChatModelConfigs(),
+				[],
+			],
+		])("returns response data for %s", async (path, request, responseData) => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: responseData,
+			});
+
+			const result = await request();
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(path);
+			expect(result).toStrictEqual(responseData);
+		});
+
+		it.each<[string, () => Promise<unknown>]>([
+			["/api/experimental/chats/models", () => API.getChatModels()],
+			["/api/experimental/chats/providers", () => API.getChatProviderConfigs()],
+			[
+				"/api/experimental/chats/model-configs",
+				() => API.getChatModelConfigs(),
+			],
+		])("rethrows axios errors for %s", async (path, request) => {
+			const expectedError = new Error("request failed");
+			vi.spyOn(axiosInstance, "get").mockRejectedValueOnce(expectedError);
+
+			await expect(request()).rejects.toBe(expectedError);
+			expect(axiosInstance.get).toHaveBeenCalledWith(path);
+		});
+	});
 });

@@ -23,6 +23,9 @@ if (process.env.STATS !== undefined) {
 
 export default defineConfig({
 	plugins,
+	worker: {
+		format: "es",
+	},
 	publicDir: path.resolve(__dirname, "./static"),
 	build: {
 		outDir: path.resolve(__dirname, "./out"),
@@ -87,6 +90,14 @@ export default defineConfig({
 				target: process.env.CODER_HOST || "http://localhost:3000",
 				secure: process.env.NODE_ENV === "production",
 				configure: (proxy) => {
+					if (process.env.CODER_SESSION_TOKEN) {
+						proxy.on("proxyReq", (proxyReq) => {
+							proxyReq.setHeader(
+								"Coder-Session-Token",
+								process.env.CODER_SESSION_TOKEN!,
+							);
+						});
+					}
 					// Vite does not catch socket errors, and stops the webserver.
 					// As /logs endpoint can return HTTP 4xx status, we need to embrace
 					// Vite with a custom error handler to prevent from quitting.
@@ -96,6 +107,12 @@ export default defineConfig({
 								"origin",
 								process.env.CODER_HOST || "http://localhost:3000",
 							);
+							if (process.env.CODER_SESSION_TOKEN) {
+								proxyReq.setHeader(
+									"Coder-Session-Token",
+									process.env.CODER_SESSION_TOKEN!,
+								);
+							}
 						}
 
 						socket.on("error", (error) => {
@@ -135,7 +152,6 @@ export default defineConfig({
 			"@mui/material/CardActionArea",
 			"@mui/material/CardContent",
 			"@mui/material/Checkbox",
-			"@mui/material/Chip",
 			"@mui/material/CircularProgress",
 			"@mui/material/Collapse",
 			"@mui/material/CssBaseline",
@@ -162,7 +178,6 @@ export default defineConfig({
 			"@mui/material/Menu",
 			"@mui/material/MenuItem",
 			"@mui/material/MenuList",
-			"@mui/material/Paper",
 			"@mui/material/Radio",
 			"@mui/material/RadioGroup",
 			"@mui/material/Select",
@@ -170,7 +185,6 @@ export default defineConfig({
 			"@mui/material/Snackbar",
 			"@mui/material/Stack",
 			"@mui/material/SvgIcon",
-			"@mui/material/Switch",
 			"@mui/material/TableRow",
 			"@mui/material/TextField",
 			"@mui/material/ToggleButton",

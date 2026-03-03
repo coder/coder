@@ -63,7 +63,7 @@ test("add 3 hours to deadline", async () => {
 	await user.click(addButton);
 	await user.click(addButton);
 	await screen.findByText(
-		"Workspace shutdown time has been successfully updated.",
+		`Shutdown time for "Test-Workspace" updated successfully.`,
 	);
 	expect(await screen.findByText("Stop in 6 hours")).toBeInTheDocument();
 
@@ -91,7 +91,7 @@ test("remove 2 hours to deadline", async () => {
 	await user.click(subButton);
 	await user.click(subButton);
 	await screen.findByText(
-		"Workspace shutdown time has been successfully updated.",
+		`Shutdown time for "Test-Workspace" updated successfully.`,
 	);
 	expect(await screen.findByText("Stop in an hour")).toBeInTheDocument();
 
@@ -119,7 +119,7 @@ test("rollback to previous deadline on error", async () => {
 	await user.click(addButton);
 	await user.click(addButton);
 	await screen.findByText(
-		"We couldn't update your workspace shutdown time. Please try again.",
+		`Failed to update shutdown time for "Test-Workspace". Please try again.`,
 	);
 	// In case of an error, the schedule message should remain unchanged
 	expect(screen.getByText(initialScheduleMessage)).toBeInTheDocument();
@@ -140,7 +140,7 @@ test("request is only sent once when clicking multiple times", async () => {
 	await user.click(addButton);
 	await user.click(addButton);
 	await screen.findByText(
-		"Workspace shutdown time has been successfully updated.",
+		`Shutdown time for "Test-Workspace" updated successfully.`,
 	);
 	expect(updateDeadlineSpy).toHaveBeenCalledTimes(1);
 });

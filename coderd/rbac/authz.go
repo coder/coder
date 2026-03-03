@@ -81,6 +81,8 @@ const (
 	SubjectAibridged                        SubjectType = "aibridged"
 	SubjectTypeDBPurge                      SubjectType = "dbpurge"
 	SubjectTypeBoundaryUsageTracker         SubjectType = "boundary_usage_tracker"
+	SubjectTypeWorkspaceBuilder             SubjectType = "workspace_builder"
+	SubjectTypeChatd                        SubjectType = "chatd"
 )
 
 const (

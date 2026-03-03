@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"strings"
 	"time"
 
@@ -580,23 +579,15 @@ func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid
 		return nil, nil, err
 	}
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-
-	jar.SetCookies(reqURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
-
 	conn, res, err := websocket.Dial(ctx, reqURL.String(), &websocket.DialOptions{
 		// We want `NoContextTakeover` compression to balance improving
 		// bandwidth cost/latency with minimal memory usage overhead.
 		CompressionMode: websocket.CompressionNoContextTakeover,
 		HTTPClient: &http.Client{
-			Jar:       jar,
 			Transport: c.HTTPClient.Transport,
+		},
+		HTTPHeader: http.Header{
+			SessionTokenHeader: []string{c.SessionToken()},
 		},
 	})
 	if err != nil {
@@ -687,20 +678,14 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 		return ch, closeFunc(func() error { return nil }), nil
 	}
 
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(reqURL, []*http.Cookie{{
-		Name:  SessionTokenCookie,
-		Value: c.SessionToken(),
-	}})
 	httpClient := &http.Client{
-		Jar:       jar,
 		Transport: c.HTTPClient.Transport,
 	}
 	conn, res, err := websocket.Dial(ctx, reqURL.String(), &websocket.DialOptions{
-		HTTPClient:      httpClient,
+		HTTPClient: httpClient,
+		HTTPHeader: http.Header{
+			SessionTokenHeader: []string{c.SessionToken()},
+		},
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {

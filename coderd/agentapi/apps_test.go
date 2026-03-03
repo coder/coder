@@ -2,9 +2,13 @@ package agentapi_test
 
 import (
 	"context"
+	"database/sql"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -12,8 +16,12 @@ import (
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestBatchUpdateAppHealths(t *testing.T) {
@@ -251,5 +259,185 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "unknown health status")
 		require.Nil(t, resp)
+	})
+}
+
+func TestWorkspaceAgentAppStatus(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		fEnq := &notificationstest.FakeEnqueuer{}
+		mClock := quartz.NewMock(t)
+		agent := database.WorkspaceAgent{
+			ID:             uuid.UUID{2},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}
+		workspaceUpdates := make(chan wspubsub.WorkspaceEventKind, 100)
+
+		api := &agentapi.AppsAPI{
+			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			Database: mDB,
+			Log:      testutil.Logger(t),
+			PublishWorkspaceUpdateFn: func(_ context.Context, agnt *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+				assert.Equal(t, *agnt, agent)
+				testutil.AssertSend(ctx, t, workspaceUpdates, kind)
+				return nil
+			},
+			NotificationsEnqueuer: fEnq,
+			Clock:                 mClock,
+		}
+
+		app := database.WorkspaceApp{
+			ID: uuid.UUID{8},
+		}
+		mDB.EXPECT().GetWorkspaceAppByAgentIDAndSlug(gomock.Any(), database.GetWorkspaceAppByAgentIDAndSlugParams{
+			AgentID: agent.ID,
+			Slug:    "vscode",
+		}).Times(1).Return(app, nil)
+		task := database.Task{
+			ID: uuid.UUID{7},
+			WorkspaceAppID: uuid.NullUUID{
+				Valid: true,
+				UUID:  app.ID,
+			},
+		}
+		mDB.EXPECT().GetTaskByID(gomock.Any(), task.ID).Times(1).Return(task, nil)
+		workspace := database.Workspace{
+			ID: uuid.UUID{9},
+			TaskID: uuid.NullUUID{
+				Valid: true,
+				UUID:  task.ID,
+			},
+		}
+		mDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Times(1).Return(workspace, nil)
+		appStatus := database.WorkspaceAppStatus{
+			ID: uuid.UUID{6},
+		}
+		mDB.EXPECT().GetLatestWorkspaceAppStatusByAppID(gomock.Any(), app.ID).Times(1).Return(appStatus, nil)
+		mDB.EXPECT().InsertWorkspaceAppStatus(
+			gomock.Any(),
+			gomock.Cond(func(params database.InsertWorkspaceAppStatusParams) bool {
+				if params.AgentID == agent.ID && params.AppID == app.ID {
+					assert.Equal(t, "testing", params.Message)
+					assert.Equal(t, database.WorkspaceAppStatusStateComplete, params.State)
+					assert.True(t, params.Uri.Valid)
+					assert.Equal(t, "https://example.com", params.Uri.String)
+					return true
+				}
+				return false
+			})).Times(1).Return(database.WorkspaceAppStatus{}, nil)
+
+		_, err := api.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+			Slug:    "vscode",
+			Message: "testing",
+			Uri:     "https://example.com",
+			State:   agentproto.UpdateAppStatusRequest_COMPLETE,
+		})
+		require.NoError(t, err)
+
+		kind := testutil.RequireReceive(ctx, t, workspaceUpdates)
+		require.Equal(t, wspubsub.WorkspaceEventKindAgentAppStatusUpdate, kind)
+		sent := fEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateTaskCompleted))
+		require.Len(t, sent, 1)
+	})
+
+	t.Run("FailUnknownApp", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		agent := database.WorkspaceAgent{
+			ID:             uuid.UUID{2},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}
+
+		mDB.EXPECT().GetWorkspaceAppByAgentIDAndSlug(gomock.Any(), gomock.Any()).
+			Times(1).
+			Return(database.WorkspaceApp{}, sql.ErrNoRows)
+
+		api := &agentapi.AppsAPI{
+			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			Database: mDB,
+			Log:      testutil.Logger(t),
+		}
+		_, err := api.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+			Slug:    "unknown",
+			Message: "testing",
+			Uri:     "https://example.com",
+			State:   agentproto.UpdateAppStatusRequest_COMPLETE,
+		})
+		require.ErrorContains(t, err, "No app found with slug")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("FailUnknownState", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		agent := database.WorkspaceAgent{
+			ID:             uuid.UUID{2},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}
+
+		api := &agentapi.AppsAPI{
+			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			Database: mDB,
+			Log:      testutil.Logger(t),
+		}
+
+		_, err := api.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+			Slug:    "vscode",
+			Message: "testing",
+			Uri:     "https://example.com",
+			State:   77,
+		})
+		require.ErrorContains(t, err, "Invalid state")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("FailTooLong", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		agent := database.WorkspaceAgent{
+			ID:             uuid.UUID{2},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		}
+
+		api := &agentapi.AppsAPI{
+			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			Database: mDB,
+			Log:      testutil.Logger(t),
+		}
+
+		_, err := api.UpdateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+			Slug:    "vscode",
+			Message: strings.Repeat("a", 161),
+			Uri:     "https://example.com",
+			State:   agentproto.UpdateAppStatusRequest_COMPLETE,
+		})
+		require.ErrorContains(t, err, "Message is too long")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 }

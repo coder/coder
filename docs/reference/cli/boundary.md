@@ -118,6 +118,16 @@ Jail type to use for network isolation. Options: nsjail (default), landjail.
 
 Use real DNS in the jail instead of the dummy DNS (allows DNS exfiltration). Default: false.
 
+### --no-user-namespace
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>bool</code>                        |
+| Environment | <code>$BOUNDARY_NO_USER_NAMESPACE</code> |
+| YAML        | <code>no_user_namespace</code>           |
+
+Do not create a user namespace. Use in restricted environments that disallow user NS (e.g. Bottlerocket in EKS auto-mode).
+
 ### --disable-audit-logs
 
 |             |                                  |

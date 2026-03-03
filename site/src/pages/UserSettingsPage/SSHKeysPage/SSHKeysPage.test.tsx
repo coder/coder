@@ -78,8 +78,7 @@ describe("SSH keys Page", () => {
 				fireEvent.click(confirmButton);
 
 				// Check if the error message is displayed
-				const alert = await screen.findByRole("alert");
-				expect(alert).toHaveTextContent(SSHKeysPageLanguage.regenerationError);
+				await screen.findByText(SSHKeysPageLanguage.regenerationError);
 
 				// Check if the API was called correctly
 				expect(API.regenerateUserSSHKey).toBeCalledTimes(1);
