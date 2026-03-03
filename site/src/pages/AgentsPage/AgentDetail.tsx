@@ -21,7 +21,6 @@ import {
 	getTerminalHref,
 	getVSCodeHref,
 	openAppInNewWindow,
-	SESSION_TOKEN_PLACEHOLDER,
 } from "modules/apps/apps";
 import {
 	type FC,
@@ -839,45 +838,33 @@ const AgentDetail: FC = () => {
 			: undefined;
 	const shouldShowDiffPanel = hasDiffStatus && showDiffPanel;
 
-	const handleOpenInEditor = async (editor: "cursor" | "vscode") => {
+	const generateKeyMutation = useMutation({
+		mutationFn: () => API.getApiKey(),
+	});
+
+	const handleOpenInEditor = (editor: "cursor" | "vscode") => {
 		if (!workspace || !workspaceAgent) {
 			return;
 		}
 
-		try {
-			const { key } = await API.getApiKey();
-			const vscodeHref = getVSCodeHref("vscode", {
-				owner: workspace.owner_name,
-				workspace: workspace.name,
-				token: key,
-				agent: workspaceAgent.name,
-				folder: workspaceAgent.expanded_directory,
-			});
-
-			if (editor === "cursor") {
-				const cursorApp = workspaceAgent.apps.find((app) => {
-					const name = (app.display_name ?? app.slug).toLowerCase();
-					return app.slug.toLowerCase() === "cursor" || name === "cursor";
+		generateKeyMutation.mutate(undefined, {
+			onSuccess: ({ key }) => {
+				location.href = getVSCodeHref(editor, {
+					owner: workspace.owner_name,
+					workspace: workspace.name,
+					token: key,
+					agent: workspaceAgent.name,
+					folder: workspaceAgent.expanded_directory,
 				});
-				if (cursorApp?.external && cursorApp.url) {
-					const href = cursorApp.url.includes(SESSION_TOKEN_PLACEHOLDER)
-						? cursorApp.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, key)
-						: cursorApp.url;
-					window.location.assign(href);
-					return;
-				}
-				window.location.assign(vscodeHref.replace(/^vscode:/, "cursor:"));
-				return;
-			}
-
-			window.location.assign(vscodeHref);
-		} catch {
-			toast.error(
-				editor === "cursor"
-					? "Failed to open in Cursor."
-					: "Failed to open in VS Code.",
-			);
-		}
+			},
+			onError: () => {
+				toast.error(
+					editor === "cursor"
+						? "Failed to open in Cursor."
+						: "Failed to open in VS Code.",
+				);
+			},
+		});
 	};
 
 	const handleViewWorkspace = () => {
@@ -1035,9 +1022,7 @@ const AgentDetail: FC = () => {
 						workspace={{
 							canOpenEditors,
 							canOpenWorkspace,
-							onOpenInEditor: (editor) => {
-								void handleOpenInEditor(editor);
-							},
+							onOpenInEditor: handleOpenInEditor,
 							onViewWorkspace: handleViewWorkspace,
 							onOpenTerminal: handleOpenTerminal,
 							sshCommand,
