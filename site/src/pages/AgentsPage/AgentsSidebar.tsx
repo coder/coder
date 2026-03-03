@@ -15,7 +15,6 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
-import { Input } from "components/Input/Input";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import {
@@ -28,7 +27,7 @@ import {
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
-	SearchIcon,
+	SquarePenIcon,
 	Trash2Icon,
 } from "lucide-react";
 import {
@@ -640,32 +639,16 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</Button>
 					)}
 				</div>
-				<div className="flex flex-col gap-2.5">
-					<div className="relative">
-						<label className="sr-only" htmlFor="agents-sidebar-search">
-							Search agents...
-						</label>
-						<SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-icon-xs -translate-y-1/2 text-content-secondary" />
-						<Input
-							id="agents-sidebar-search"
-							type="search"
-							placeholder="Search agents..."
-							value={search}
-							onChange={(event) => setSearch(event.target.value)}
-							className="h-9 rounded-lg border-border-default bg-surface-primary pl-8 text-[13px] shadow-none"
-						/>
-					</div>
 					<Button
 						size="sm"
-						variant="outline"
+						variant="subtle"
 						onClick={onNewAgent}
 						disabled={isCreating}
-						className="w-full justify-center rounded-lg py-4 text-[13px] text-content-secondary hover:bg-surface-tertiary"
+						className="-mx-1 w-[calc(100%+0.5rem)] justify-start gap-1.5 rounded-md py-1 pl-1 pr-2 text-sm text-content-secondary hover:bg-surface-tertiary/50 md:-mx-1.5 md:w-[calc(100%+0.75rem)]"
 					>
+						<SquarePenIcon className="!h-[18px] !w-[18px] shrink-0" />
 						New Agent
-					</Button>
-				</div>
-			</div>
+					</Button>			</div>
 
 			<ScrollArea
 				className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
