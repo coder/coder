@@ -155,27 +155,15 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<div
-				tabIndex={0}
-				role="button"
+			<button
+				type="button"
 				onClick={onBack}
-				onKeyDown={(e) => {
-					if (e.key === "Enter") {
-						onBack();
-						e.stopPropagation();
-					}
-				}}
-				onKeyUp={(e) => {
-					if (e.key === " ") {
-						onBack();
-						e.stopPropagation();
-					}
-				}}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 text-sm text-content-secondary transition-colors hover:text-content-primary"
+				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
 			>
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
-			</div>
+			</button>
+
 			{/* Provider header — editable name */}
 			<div className="flex items-center gap-3">
 				<ProviderIcon provider={provider} className="h-8 w-8" />
