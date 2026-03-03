@@ -2851,7 +2851,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 ```json
 {
-  "sharing_disabled": true
+  "sharing_disabled": true,
+  "sharing_globally_disabled": true
 }
 ```
 
@@ -2898,7 +2899,8 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ```json
 {
-  "sharing_disabled": true
+  "sharing_disabled": true,
+  "sharing_globally_disabled": true
 }
 ```
 
