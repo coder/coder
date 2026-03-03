@@ -59,6 +59,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 		modelOptions: defaultModelOptions,
 		modelConfigs: defaultModelConfigs,
 		onArchiveAgent: fn(),
+		onArchiveAndDeleteWorkspace: fn(),
 		onNewAgent: fn(),
 		isCreating: false,
 	},
@@ -321,5 +322,162 @@ export const ActiveChatAncestryExpanded: Story = {
 		await expect(
 			canvas.getByTestId("agents-tree-toggle-child-active"),
 		).toHaveAttribute("aria-expanded", "true");
+	},
+};
+
+const todayTimestamp = new Date().toISOString();
+
+export const ArchivedAgentsCollapsed: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-1",
+				title: "Active agent one",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "active-2",
+				title: "Active agent two",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "archived-1",
+				title: "Archived agent one",
+				archived: true,
+			}),
+			buildChat({
+				id: "archived-2",
+				title: "Archived agent two",
+				archived: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Active agent one")).toBeInTheDocument();
+			expect(canvas.getByText("Active agent two")).toBeInTheDocument();
+			expect(canvas.getByText("Archived")).toBeInTheDocument();
+		});
+		expect(
+			canvas.queryByText("Archived agent one"),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText("Archived agent two"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ArchivedAgentsExpanded: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-1",
+				title: "Active agent one",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "active-2",
+				title: "Active agent two",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "archived-1",
+				title: "Archived agent one",
+				archived: true,
+			}),
+			buildChat({
+				id: "archived-2",
+				title: "Archived agent two",
+				archived: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Archived")).toBeInTheDocument();
+		});
+		await userEvent.click(canvas.getByText("Archived"));
+		await waitFor(() => {
+			expect(canvas.getByText("Archived agent one")).toBeInTheDocument();
+			expect(canvas.getByText("Archived agent two")).toBeInTheDocument();
+		});
+	},
+};
+
+export const ArchivedAgentsSearchAutoExpands: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-task",
+				title: "Active task",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "old-archived",
+				title: "Old archived task",
+				archived: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.type(
+			canvas.getByPlaceholderText("Search agents..."),
+			"archived",
+		);
+		await waitFor(() => {
+			expect(canvas.getByText("Old archived task")).toBeInTheDocument();
+		});
+	},
+};
+
+export const NoArchivedSection: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-a",
+				title: "First active agent",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "chat-b",
+				title: "Second active agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("First active agent")).toBeInTheDocument();
+			expect(canvas.getByText("Second active agent")).toBeInTheDocument();
+		});
+		expect(canvas.queryByText("Archived")).not.toBeInTheDocument();
 	},
 };
