@@ -315,8 +315,15 @@ export const ModelForm: FC<ModelFormProps> = ({
 				role="button"
 				onClick={onCancel}
 				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
+					if (e.key === "Enter") {
 						onCancel();
+						e.stopPropagation();
+					}
+				}}
+				onKeyUp={(e) => {
+					if (e.key === " ") {
+						onCancel();
+						e.stopPropagation();
 					}
 				}}
 				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 text-sm text-content-secondary transition-colors hover:text-content-primary"
