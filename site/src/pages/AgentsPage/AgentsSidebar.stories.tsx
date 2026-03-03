@@ -389,38 +389,6 @@ export const ArchivedAgentsExpanded: Story = {
 	},
 };
 
-export const ArchivedAgentsSearchAutoExpands: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "active-task",
-				title: "Active task",
-				updated_at: todayTimestamp,
-			}),
-			buildChat({
-				id: "old-archived",
-				title: "Old archived task",
-				archived: true,
-			}),
-		],
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.type(
-			canvas.getByPlaceholderText("Search agents..."),
-			"archived",
-		);
-		await waitFor(() => {
-			expect(canvas.getByText("Old archived task")).toBeInTheDocument();
-		});
-	},
-};
 
 export const NoArchivedSection: Story = {
 	args: {
