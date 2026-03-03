@@ -230,14 +230,27 @@ export const ModelForm: FC<ModelFormProps> = ({
 	if (!selectedProviderState || modelConfigsUnavailable) {
 		return (
 			<div>
-				<button
-					type="button"
-					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+				<div
+					tabIndex={0}
+					role="button"
 					onClick={onCancel}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							onCancel();
+							e.stopPropagation();
+						}
+					}}
+					onKeyUp={(e) => {
+						if (e.key === " ") {
+							onCancel();
+							e.stopPropagation();
+						}
+					}}
+					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 text-sm text-content-secondary transition-colors hover:text-content-primary"
 				>
 					<ChevronLeftIcon className="h-4 w-4" />
 					Back
-				</button>{" "}
+				</div>{" "}
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					{isEditing ? "Edit Model" : "Add Model"}
 				</h2>
@@ -251,14 +264,27 @@ export const ModelForm: FC<ModelFormProps> = ({
 	if (!canManageModels && !isEditing) {
 		return (
 			<div>
-				<button
-					type="button"
-					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+				<div
+					tabIndex={0}
+					role="button"
 					onClick={onCancel}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							onCancel();
+							e.stopPropagation();
+						}
+					}}
+					onKeyUp={(e) => {
+						if (e.key === " ") {
+							onCancel();
+							e.stopPropagation();
+						}
+					}}
+					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 text-sm text-content-secondary transition-colors hover:text-content-primary"
 				>
 					<ChevronLeftIcon className="h-4 w-4" />
 					Back
-				</button>
+				</div>
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					Add Model
 				</h2>{" "}
@@ -284,14 +310,20 @@ export const ModelForm: FC<ModelFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<button
-				type="button"
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+			<div
+				tabIndex={0}
+				role="button"
 				onClick={onCancel}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						onCancel();
+					}
+				}}
+				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 text-sm text-content-secondary transition-colors hover:text-content-primary"
 			>
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
-			</button>
+			</div>
 			{/* Header — editable display name */}
 			<div className="flex items-center gap-3">
 				{selectedProviderState && (
@@ -400,10 +432,23 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 					{/* Advanced — toggle */}
 					<div>
-						<button
-							type="button"
-							className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
+						<div
+							tabIndex={0}
+							role="button"
 							onClick={() => setShowAdvanced((v) => !v)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") {
+									setShowAdvanced((v) => !v);
+									e.stopPropagation();
+								}
+							}}
+							onKeyUp={(e) => {
+								if (e.key === " ") {
+									setShowAdvanced((v) => !v);
+									e.stopPropagation();
+								}
+							}}
+							className="inline-flex cursor-pointer items-center gap-1 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
 						>
 							{showAdvanced ? (
 								<ChevronDownIcon className="h-4 w-4" />
@@ -411,7 +456,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 								<ChevronRightIcon className="h-4 w-4" />
 							)}
 							Advanced
-						</button>{" "}
+						</div>{" "}
 						{showAdvanced && (
 							<div className="mt-4 space-y-5">
 								<div className="grid grid-cols-2 gap-3">

@@ -194,19 +194,32 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 							{/* Star for default */}
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<button
-										type="button"
-										className={cn(
-											"flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent p-0 transition-colors",
-											modelConfig.is_default
-												? "text-yellow-400"
-												: "cursor-pointer text-content-secondary/30 hover:text-content-secondary",
-										)}
+									<div
+										tabIndex={0}
+										role="button"
 										onClick={(e) => {
 											e.stopPropagation();
 											handleSetDefault(modelConfig);
 										}}
-										disabled={isUpdating || modelConfig.is_default}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") {
+												e.stopPropagation();
+												handleSetDefault(modelConfig);
+											}
+										}}
+										onKeyUp={(e) => {
+											if (e.key === " ") {
+												e.stopPropagation();
+												handleSetDefault(modelConfig);
+											}
+										}}
+										aria-disabled={isUpdating || modelConfig.is_default}
+										className={cn(
+											"flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
+											modelConfig.is_default
+												? "text-yellow-400"
+												: "cursor-pointer text-content-secondary/30 hover:text-content-secondary",
+										)}
 									>
 										<StarIcon
 											className={cn(
@@ -214,7 +227,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 												modelConfig.is_default && "fill-current",
 											)}
 										/>
-									</button>
+									</div>
 								</TooltipTrigger>
 								<TooltipContent side="right">
 									{modelConfig.is_default
@@ -223,10 +236,23 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 								</TooltipContent>
 							</Tooltip>
 							{/* Clickable row content */}
-							<button
-								type="button"
-								className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 border-0 bg-transparent p-0 text-left transition-colors hover:opacity-80"
+							<div
+								tabIndex={0}
+								role="button"
 								onClick={() => setView({ mode: "edit", model: modelConfig })}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										setView({ mode: "edit", model: modelConfig });
+										e.stopPropagation();
+									}
+								}}
+								onKeyUp={(e) => {
+									if (e.key === " ") {
+										setView({ mode: "edit", model: modelConfig });
+										e.stopPropagation();
+									}
+								}}
+								className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 transition-colors hover:opacity-80"
 							>
 								{" "}
 								<ProviderIcon
@@ -251,7 +277,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 									</Badge>
 								)}
 								<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
-							</button>{" "}
+							</div>{" "}
 						</div>
 					))}
 				</div>
