@@ -4803,7 +4803,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceSharingSettingsRequest"
                         }
                     }
                 }
@@ -20275,6 +20275,14 @@ const docTemplate = `{
             "properties": {
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateWorkspaceSharingSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "sharing_disabled": {
+                    "type": "boolean"
                 }
             }
         },

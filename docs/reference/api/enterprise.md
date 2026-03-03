@@ -2882,7 +2882,8 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ```json
 {
-  "sharing_disabled": true
+  "sharing_disabled": true,
+  "sharing_globally_disabled": true
 }
 ```
 
@@ -2899,16 +2900,15 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ```json
 {
-  "sharing_disabled": true,
-  "sharing_globally_disabled": true
+  "sharing_disabled": true
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                           |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceSharingSettings](schemas.md#codersdkworkspacesharingsettings) |
+| Status | Meaning                                                 | Description | Schema                                                                                                     |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UpdateWorkspaceSharingSettingsRequest](schemas.md#codersdkupdateworkspacesharingsettingsrequest) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

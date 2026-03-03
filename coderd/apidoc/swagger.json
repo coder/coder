@@ -4248,7 +4248,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+							"$ref": "#/definitions/codersdk.UpdateWorkspaceSharingSettingsRequest"
 						}
 					}
 				}
@@ -18593,6 +18593,14 @@
 			"properties": {
 				"name": {
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.UpdateWorkspaceSharingSettingsRequest": {
+			"type": "object",
+			"properties": {
+				"sharing_disabled": {
+					"type": "boolean"
 				}
 			}
 		},
