@@ -82,7 +82,6 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	onToggleSidebarCollapsed,
 }) => {
 	const navigate = useNavigate();
-	const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
 	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
 	return (
@@ -219,7 +218,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								<>
 									<DropdownMenuItem
 										className="text-content-destructive focus:text-content-destructive"
-										onSelect={() => setArchiveConfirmOpen(true)}
+										onSelect={onArchiveAgent}
 									>
 										<ArchiveIcon className="h-3.5 w-3.5" />
 										Archive Agent
@@ -254,42 +253,6 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 					)}{" "}
 				</div>
 			</div>
-			<Dialog
-				open={archiveConfirmOpen}
-				onOpenChange={(open) => {
-					if (!open) {
-						setArchiveConfirmOpen(false);
-					}
-				}}
-			>
-				<DialogContent variant="destructive">
-					<DialogHeader>
-						<DialogTitle>Archive agent</DialogTitle>
-						<DialogDescription>
-							Are you sure you want to archive this agent? This action cannot be
-							undone.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setArchiveConfirmOpen(false)}
-						>
-							Cancel
-						</Button>
-						<Button
-							variant="destructive"
-							data-testid="confirm-button"
-							onClick={() => {
-								setArchiveConfirmOpen(false);
-								onArchiveAgent();
-							}}
-						>
-							Archive
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
 			<Dialog
 				open={deleteConfirmOpen}
 				onOpenChange={(open) => {

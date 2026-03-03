@@ -652,3 +652,77 @@ export const ArchivedAgentUnarchiveOption: Story = {
 		).not.toBeInTheDocument();
 	},
 };
+
+export const ArchiveAndDeleteConfirmDialog: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-delete",
+				title: "My test agent",
+				workspace_id: "ws-123",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = canvasElement.ownerDocument.body;
+
+		const chatRow = canvas.getByText("My test agent");
+		await user.hover(chatRow);
+
+		const actionsBtn = await canvas.findByRole("button", {
+			name: "Open actions for My test agent",
+		});
+		await user.click(actionsBtn);
+
+		// Click the delete option in the dropdown.
+		await user.click(
+			await within(body).findByText("Archive & delete workspace"),
+		);
+
+		// Assert the confirmation dialog appears.
+		await waitFor(() => {
+			expect(
+				within(body).getByText("Archive agent and delete workspace"),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const ArchiveAndDeleteConfirmDialogCallsHandler: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-delete-confirm",
+				title: "My test agent",
+				workspace_id: "ws-456",
+			}),
+		],
+		onArchiveAndDeleteWorkspace: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = canvasElement.ownerDocument.body;
+
+		const chatRow = canvas.getByText("My test agent");
+		await user.hover(chatRow);
+
+		const actionsBtn = await canvas.findByRole("button", {
+			name: "Open actions for My test agent",
+		});
+		await user.click(actionsBtn);
+
+		await user.click(
+			await within(body).findByText("Archive & delete workspace"),
+		);
+
+		// Confirm the dialog.
+		await user.click(within(body).getByTestId("confirm-button"));
+
+		await waitFor(() => {
+			expect(args.onArchiveAndDeleteWorkspace).toHaveBeenCalledTimes(1);
+		});
+	},
+};

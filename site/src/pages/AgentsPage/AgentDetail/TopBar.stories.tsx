@@ -127,21 +127,6 @@ export const ArchivedWithUnarchive: Story = {
 	},
 };
 
-export const ArchiveConfirmDialog: Story = {
-	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		const canvas = within(canvasElement);
-		await user.click(
-			canvas.getByRole("button", { name: "Open agent actions" }),
-		);
-		const body = canvasElement.ownerDocument.body;
-		await user.click(await within(body).findByText("Archive Agent"));
-		await expect(
-			await within(body).findByText("Archive agent"),
-		).toBeInTheDocument();
-	},
-};
-
 export const ArchiveAndDeleteConfirmDialog: Story = {
 	args: {
 		hasWorkspace: true,
@@ -159,25 +144,6 @@ export const ArchiveAndDeleteConfirmDialog: Story = {
 		await expect(
 			await within(body).findByText("Archive agent and delete workspace"),
 		).toBeInTheDocument();
-	},
-};
-
-export const ArchiveConfirmDialogCallsHandler: Story = {
-	args: {
-		onArchiveAgent: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
-		const user = userEvent.setup();
-		const canvas = within(canvasElement);
-		await user.click(
-			canvas.getByRole("button", { name: "Open agent actions" }),
-		);
-		const body = canvasElement.ownerDocument.body;
-		await user.click(await within(body).findByText("Archive Agent"));
-		await user.click(within(body).getByTestId("confirm-button"));
-		await waitFor(() => {
-			expect(args.onArchiveAgent).toHaveBeenCalledTimes(1);
-		});
 	},
 };
 
