@@ -2,11 +2,14 @@ package chatloop
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -30,8 +33,18 @@ type CompactionOptions struct {
 	SystemSummaryPrefix string
 	Timeout             time.Duration
 	Persist             func(context.Context, CompactionResult) error
-	OnStart             func()
-	OnError             func(error)
+
+	// ToolCallID and ToolName identify the synthetic tool call
+	// used to represent compaction in the message stream.
+	ToolCallID string
+	ToolName   string
+
+	// PublishMessagePart publishes streaming parts to connected
+	// clients so they see "Summarizing..." / "Summarized" UI
+	// transitions during compaction.
+	PublishMessagePart func(fantasy.MessageRole, codersdk.ChatMessagePart)
+
+	OnError func(error)
 }
 
 type CompactionResult struct {
@@ -43,18 +56,145 @@ type CompactionResult struct {
 	ContextLimit     int64
 }
 
-func maybeCompact(
+// tryCompact checks whether context usage exceeds the compaction
+// threshold and, if so, generates and persists a summary. Returns
+// (true, nil) when compaction was performed, (false, nil) when not
+// needed, and (false, err) on failure.
+func tryCompact(
 	ctx context.Context,
-	runOpts RunOptions,
-	runResult *fantasy.AgentResult,
-) error {
-	if runResult == nil || runOpts.Compaction == nil {
-		return nil
+	model fantasy.LanguageModel,
+	compaction *CompactionOptions,
+	contextLimitFallback int64,
+	stepUsage fantasy.Usage,
+	stepMetadata fantasy.ProviderMetadata,
+	allMessages []fantasy.Message,
+) (bool, error) {
+	config, ok := normalizedCompactionConfig(compaction)
+	if !ok {
+		return false, nil
 	}
 
-	config := *runOpts.Compaction
+	contextTokens := contextTokensFromUsage(stepUsage)
+	if contextTokens <= 0 {
+		return false, nil
+	}
+
+	metadataLimit := extractContextLimit(stepMetadata)
+	contextLimit := resolveContextLimit(
+		metadataLimit.Int64,
+		config.ContextLimit,
+		contextLimitFallback,
+	)
+
+	usagePercent, compact := shouldCompact(
+		contextTokens, contextLimit, config.ThresholdPercent,
+	)
+	if !compact {
+		return false, nil
+	}
+
+	// Publish the "Summarizing..." tool-call indicator so
+	// connected clients see activity during summary generation.
+	if config.PublishMessagePart != nil && config.ToolCallID != "" {
+		config.PublishMessagePart(
+			fantasy.MessageRoleAssistant,
+			codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: config.ToolCallID,
+				ToolName:   config.ToolName,
+			},
+		)
+	}
+
+	summary, err := generateCompactionSummary(
+		ctx, model, allMessages, config,
+	)
+	if err != nil {
+		return false, err
+	}
+	if summary == "" {
+		// Publish a tool-result error so connected clients
+		// see the compaction failure.
+		publishCompactionError(config, "compaction produced an empty summary")
+		return false, xerrors.New("compaction produced an empty summary")
+	}
+
+	systemSummary := strings.TrimSpace(
+		config.SystemSummaryPrefix + "\n\n" + summary,
+	)
+
+	err = config.Persist(ctx, CompactionResult{
+		SystemSummary:    systemSummary,
+		SummaryReport:    summary,
+		ThresholdPercent: config.ThresholdPercent,
+		UsagePercent:     usagePercent,
+		ContextTokens:    contextTokens,
+		ContextLimit:     contextLimit,
+	})
+	if err != nil {
+		publishCompactionError(config, "failed to persist compaction result")
+		return false, xerrors.Errorf("persist compaction: %w", err)
+	}
+
+	// Publish the "Summarized" tool-result part so the client
+	// transitions from the in-progress indicator to the final
+	// state.
+	if config.PublishMessagePart != nil && config.ToolCallID != "" {
+		resultJSON, _ := json.Marshal(map[string]any{
+			"summary":              summary,
+			"source":               "automatic",
+			"threshold_percent":    config.ThresholdPercent,
+			"usage_percent":        usagePercent,
+			"context_tokens":       contextTokens,
+			"context_limit_tokens": contextLimit,
+		})
+		config.PublishMessagePart(
+			fantasy.MessageRoleTool,
+			codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID: config.ToolCallID,
+				ToolName:   config.ToolName,
+				Result:     resultJSON,
+			},
+		)
+	}
+
+	return true, nil
+}
+
+// publishCompactionError sends a tool-result error part so
+// connected clients see that compaction failed.
+func publishCompactionError(config CompactionOptions, msg string) {
+	if config.PublishMessagePart == nil || config.ToolCallID == "" {
+		return
+	}
+	errJSON, _ := json.Marshal(map[string]any{
+		"error": msg,
+	})
+	config.PublishMessagePart(
+		fantasy.MessageRoleTool,
+		codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: config.ToolCallID,
+			ToolName:   config.ToolName,
+			Result:     errJSON,
+			IsError:    true,
+		},
+	)
+}
+
+// normalizedCompactionConfig returns a copy of the compaction options
+// with defaults applied. The bool is false when compaction is
+// disabled (nil options, missing Persist callback, or threshold at
+// 100%).
+func normalizedCompactionConfig(opts *CompactionOptions) (CompactionOptions, bool) {
+	if opts == nil {
+		return CompactionOptions{}, false
+	}
+
+	config := *opts
 	if config.Persist == nil {
-		return xerrors.New("compaction persist callback is required")
+		return CompactionOptions{}, false
 	}
 	if strings.TrimSpace(config.SummaryPrompt) == "" {
 		config.SummaryPrompt = defaultCompactionSummaryPrompt
@@ -69,116 +209,80 @@ func maybeCompact(
 		config.ThresholdPercent > maxCompactionThresholdPercent {
 		config.ThresholdPercent = defaultCompactionThresholdPercent
 	}
-
-	if config.ThresholdPercent >= maxCompactionThresholdPercent {
-		return nil
-	}
-	if runOpts.MaxSteps > 0 && len(runResult.Steps) >= runOpts.MaxSteps {
-		lastStep := runResult.Steps[len(runResult.Steps)-1]
-		if lastStep.FinishReason == fantasy.FinishReasonToolCalls &&
-			len(lastStep.Content.ToolCalls()) > 0 {
-			return nil
-		}
+	if config.ThresholdPercent == maxCompactionThresholdPercent {
+		return CompactionOptions{}, false
 	}
 
-	contextTokens := int64(0)
-	contextLimitFromMetadata := int64(0)
-	for i := len(runResult.Steps) - 1; i >= 0; i-- {
-		usage := runResult.Steps[i].Usage
-		total := int64(0)
-		hasContextTokens := false
-
-		if usage.InputTokens > 0 {
-			total += usage.InputTokens
-			hasContextTokens = true
-		}
-		if usage.CacheReadTokens > 0 {
-			total += usage.CacheReadTokens
-			hasContextTokens = true
-		}
-		if usage.CacheCreationTokens > 0 {
-			total += usage.CacheCreationTokens
-			hasContextTokens = true
-		}
-		if !hasContextTokens && usage.TotalTokens > 0 {
-			total = usage.TotalTokens
-			hasContextTokens = true
-		}
-		if !hasContextTokens || total <= 0 {
-			continue
-		}
-
-		contextTokens = total
-		metadataLimit := extractContextLimit(runResult.Steps[i].ProviderMetadata)
-		if metadataLimit.Valid && metadataLimit.Int64 > 0 {
-			contextLimitFromMetadata = metadataLimit.Int64
-		}
-		break
-	}
-	if contextTokens <= 0 {
-		return nil
-	}
-
-	contextLimit := contextLimitFromMetadata
-	if contextLimit <= 0 && config.ContextLimit > 0 {
-		contextLimit = config.ContextLimit
-	}
-	if contextLimit <= 0 && runOpts.ContextLimitFallback > 0 {
-		contextLimit = runOpts.ContextLimitFallback
-	}
-	if contextLimit <= 0 {
-		return nil
-	}
-
-	usagePercent := (float64(contextTokens) / float64(contextLimit)) * 100
-	if usagePercent < float64(config.ThresholdPercent) {
-		return nil
-	}
-
-	if config.OnStart != nil {
-		config.OnStart()
-	}
-
-	summary, err := generateCompactionSummary(
-		ctx,
-		runOpts.Model,
-		runOpts.Messages,
-		runResult.Steps,
-		config,
-	)
-	if err != nil {
-		return err
-	}
-	if summary == "" {
-		return nil
-	}
-
-	systemSummary := strings.TrimSpace(
-		config.SystemSummaryPrefix + "\n\n" + summary,
-	)
-
-	return config.Persist(ctx, CompactionResult{
-		SystemSummary:    systemSummary,
-		SummaryReport:    summary,
-		ThresholdPercent: config.ThresholdPercent,
-		UsagePercent:     usagePercent,
-		ContextTokens:    contextTokens,
-		ContextLimit:     contextLimit,
-	})
+	return config, true
 }
 
+// contextTokensFromUsage returns the total context token count from
+// a step's usage report. It sums input, cache-read, and
+// cache-creation tokens when available, falling back to TotalTokens
+// if none of the granular fields are set.
+func contextTokensFromUsage(usage fantasy.Usage) int64 {
+	total := int64(0)
+	hasContextTokens := false
+
+	if usage.InputTokens > 0 {
+		total += usage.InputTokens
+		hasContextTokens = true
+	}
+	if usage.CacheReadTokens > 0 {
+		total += usage.CacheReadTokens
+		hasContextTokens = true
+	}
+	if usage.CacheCreationTokens > 0 {
+		total += usage.CacheCreationTokens
+		hasContextTokens = true
+	}
+	if !hasContextTokens && usage.TotalTokens > 0 {
+		total = usage.TotalTokens
+	}
+
+	return total
+}
+
+// resolveContextLimit picks the first positive value from metadata,
+// configured limit, and fallback — in that priority order. Returns
+// 0 when none are positive.
+func resolveContextLimit(metadataLimit, configLimit, fallback int64) int64 {
+	if metadataLimit > 0 {
+		return metadataLimit
+	}
+	if configLimit > 0 {
+		return configLimit
+	}
+	if fallback > 0 {
+		return fallback
+	}
+	return 0
+}
+
+// shouldCompact returns the usage percentage and whether it exceeds
+// the threshold. Returns (0, false) when contextLimit is
+// non-positive.
+func shouldCompact(contextTokens, contextLimit int64, thresholdPercent int32) (float64, bool) {
+	if contextLimit <= 0 {
+		return 0, false
+	}
+	usagePercent := (float64(contextTokens) / float64(contextLimit)) * 100
+	return usagePercent, usagePercent >= float64(thresholdPercent)
+}
+
+// generateCompactionSummary asks the model to summarize the
+// conversation so far. The provided messages should contain the
+// complete history (system prompt, user/assistant turns, tool
+// results). A final user message with the summary prompt is appended
+// before calling the model.
 func generateCompactionSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
 	messages []fantasy.Message,
-	steps []fantasy.StepResult,
 	options CompactionOptions,
 ) (string, error) {
-	summaryPrompt := make([]fantasy.Message, 0, len(messages)+len(steps)+1)
+	summaryPrompt := make([]fantasy.Message, 0, len(messages)+1)
 	summaryPrompt = append(summaryPrompt, messages...)
-	for _, step := range steps {
-		summaryPrompt = append(summaryPrompt, step.Messages...)
-	}
 	summaryPrompt = append(summaryPrompt, fantasy.Message{
 		Role: fantasy.MessageRoleUser,
 		Content: []fantasy.MessagePart{

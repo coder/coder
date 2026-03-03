@@ -165,6 +165,168 @@ func TestChatStreamRelay(t *testing.T) {
 
 		close(streamingChunks)
 	})
+
+	t.Run("RelaySnapshotIncludesBufferedParts", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		db, pubsub := dbtestutil.NewDB(t)
+		firstClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   pubsub,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureHighAvailability: 1,
+				},
+			},
+		})
+
+		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   pubsub,
+			},
+			DontAddLicense:   true,
+			DontAddFirstUser: true,
+		})
+		secondClient.SetSessionToken(firstClient.SessionToken())
+
+		// Verify we have two replicas.
+		replicas, err := secondClient.Replicas(ctx)
+		require.NoError(t, err)
+		require.Len(t, replicas, 2)
+		firstReplicaID := replicaIDForClientURL(t, firstClient.URL, replicas)
+		secondReplicaID := replicaIDForClientURL(t, secondClient.URL, replicas)
+
+		streamingChunks := make(chan chattest.OpenAIChunk, 8)
+		chatStreamStarted := make(chan struct{}, 1)
+		openai := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if req.Stream {
+				select {
+				case chatStreamStarted <- struct{}{}:
+				default:
+				}
+				return chattest.OpenAIResponse{StreamingChunks: streamingChunks}
+			}
+			return chattest.OpenAINonStreamingResponse("ok")
+		})
+
+		//nolint:gocritic // Test uses owner client to configure chat providers.
+		provider, err := firstClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+			APIKey:      "test",
+			BaseURL:     openai,
+		})
+		require.NoError(t, err)
+
+		model, err := firstClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:             provider.Provider,
+			Model:                "gpt-4",
+			DisplayName:          "GPT-4",
+			ContextLimit:         &[]int64{1000}[0],
+			CompressionThreshold: &[]int32{70}[0],
+		})
+		require.NoError(t, err)
+
+		// Create a chat on the first replica.
+		chat, err := firstClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Test chat for buffered relay",
+			}},
+			ModelConfigID: &model.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
+
+		var runningChat database.Chat
+		require.Eventually(t, func() bool {
+			current, getErr := db.GetChatByID(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			if current.Status != database.ChatStatusRunning || !current.WorkerID.Valid {
+				return false
+			}
+			runningChat = current
+			return true
+		}, testutil.WaitLong, testutil.IntervalFast)
+
+		var localClient *codersdk.Client
+		var relayClient *codersdk.Client
+		switch runningChat.WorkerID.UUID {
+		case firstReplicaID:
+			localClient = firstClient
+			relayClient = secondClient
+		case secondReplicaID:
+			localClient = secondClient
+			relayClient = firstClient
+		default:
+			require.FailNowf(
+				t,
+				"worker replica was not recognized",
+				"worker %s was not one of %s or %s",
+				runningChat.WorkerID.UUID,
+				firstReplicaID,
+				secondReplicaID,
+			)
+		}
+
+		// Subscribe on the local (worker) replica so the stream is
+		// consumed and chunks flow through the pipeline.
+		localEvents, localStream, err := localClient.StreamChat(ctx, chat.ID)
+		require.NoError(t, err)
+		defer localStream.Close()
+
+		// Wait for the OpenAI handler to start serving the stream.
+		select {
+		case <-chatStreamStarted:
+		case <-ctx.Done():
+			require.FailNowf(
+				t,
+				"timed out waiting for OpenAI stream request",
+				"chat stream request did not start before context deadline: %v",
+				ctx.Err(),
+			)
+		}
+
+		// Send multiple chunks BEFORE the relay subscriber connects.
+		// This is the key difference from the existing test: we
+		// buffer several parts so the drainInitial timer in
+		// newRemotePartsProvider must collect them all.
+		bufferedTexts := []string{"buffered-one", "buffered-two", "buffered-three"}
+		for _, text := range bufferedTexts {
+			streamingChunks <- chattest.OpenAITextChunks(text)[0]
+			// Confirm each part arrives on the local subscriber so
+			// we know it has been processed by the worker.
+			waitForStreamTextPart(ctx, t, localEvents, text)
+		}
+
+		// NOW connect the relay subscriber on the non-worker replica.
+		// The relay must pick up all three buffered parts in its
+		// initial snapshot via the drainInitial loop.
+		relayEvents, relayStream, err := relayClient.StreamChat(ctx, chat.ID)
+		require.NoError(t, err)
+		defer relayStream.Close()
+
+		// Verify every buffered part arrives on the relay subscriber.
+		for _, text := range bufferedTexts {
+			event := waitForStreamTextPart(ctx, t, relayEvents, text)
+			require.Equal(t, "assistant", event.MessagePart.Role)
+		}
+
+		// Send one more chunk after the relay subscriber is connected
+		// and verify it arrives through the live channel.
+		liveText := "live-after-relay"
+		streamingChunks <- chattest.OpenAITextChunks(liveText)[0]
+		waitForStreamTextPart(ctx, t, localEvents, liveText)
+		waitForStreamTextPart(ctx, t, relayEvents, liveText)
+
+		close(streamingChunks)
+	})
 }
 
 func waitForStreamTextPart(

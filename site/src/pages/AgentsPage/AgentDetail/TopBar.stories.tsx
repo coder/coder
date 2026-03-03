@@ -30,6 +30,7 @@ const defaultProps = {
 		sshCommand: "ssh main.my-workspace.admin.coder",
 	},
 	onArchiveAgent: () => {},
+	onArchiveAndDeleteWorkspace: () => {},
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: () => {},
 } satisfies React.ComponentProps<typeof AgentDetailTopBar>;

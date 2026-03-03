@@ -1,4 +1,4 @@
-import { watchChats } from "api/api";
+import { API, watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
@@ -88,6 +88,10 @@ export interface AgentsOutletContext {
 	setChatErrorReason: (chatId: string, reason: string) => void;
 	clearChatErrorReason: (chatId: string) => void;
 	requestArchiveAgent: (chatId: string) => void;
+	requestArchiveAndDeleteWorkspace: (
+		chatId: string,
+		workspaceId: string,
+	) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 }
@@ -150,8 +154,41 @@ const AgentsPage: FC = () => {
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const createMutation = useMutation(createChat(queryClient));
-	const archiveMutation = useMutation(archiveChat(queryClient));
-	const [archivingChatId, setArchivingChatId] = useState<string | null>(null);
+	const archiveAgentMutation = useMutation({
+		...archiveChat(queryClient),
+		onSuccess: async (_data, chatId) => {
+			clearChatErrorReason(chatId);
+			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+			toast.success("Agent archived.");
+		},
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const archiveAndDeleteMutation = useMutation({
+		mutationFn: async ({
+			chatId,
+			workspaceId,
+		}: {
+			chatId: string;
+			workspaceId: string;
+		}) => {
+			await API.archiveChat(chatId);
+			await API.deleteWorkspace(workspaceId);
+			return { chatId, workspaceId };
+		},
+		onSuccess: async ({ chatId }) => {
+			clearChatErrorReason(chatId);
+			await queryClient.invalidateQueries({ queryKey: chatsKey });
+			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+			toast.success("Agent archived.");
+			toast.success("Workspace deletion initiated.");
+		},
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -214,28 +251,30 @@ const AgentsPage: FC = () => {
 		});
 	}, []);
 	const chatList = chatsQuery.data ?? [];
+	const isArchiving =
+		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
+	const archivingChatId =
+		(archiveAgentMutation.isPending
+			? archiveAgentMutation.variables
+			: undefined) ??
+		(archiveAndDeleteMutation.isPending
+			? archiveAndDeleteMutation.variables?.chatId
+			: undefined);
 	const requestArchiveAgent = useCallback(
-		async (chatId: string) => {
-			if (archiveMutation.isPending) {
-				return;
-			}
-
-			setArchivingChatId(chatId);
-
-			try {
-				await archiveMutation.mutateAsync(chatId);
-				clearChatErrorReason(chatId);
-				// Invalidate the individual chat query so the detail view
-				// picks up the archived flag without a redirect.
-				await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
-				toast.success("Agent archived.");
-			} catch (error) {
-				toast.error(getErrorMessage(error, "Failed to archive agent."));
-			} finally {
-				setArchivingChatId(null);
+		(chatId: string) => {
+			if (!isArchiving) {
+				archiveAgentMutation.mutate(chatId);
 			}
 		},
-		[archiveMutation, queryClient, clearChatErrorReason],
+		[isArchiving, archiveAgentMutation],
+	);
+	const requestArchiveAndDeleteWorkspace = useCallback(
+		(chatId: string, workspaceId: string) => {
+			if (!isArchiving) {
+				archiveAndDeleteMutation.mutate({ chatId, workspaceId });
+			}
+		},
+		[isArchiving, archiveAndDeleteMutation],
 	);
 	const handleToggleSidebarCollapsed = useCallback(
 		() => setIsSidebarCollapsed((prev) => !prev),
@@ -247,6 +286,7 @@ const AgentsPage: FC = () => {
 			setChatErrorReason,
 			clearChatErrorReason,
 			requestArchiveAgent,
+			requestArchiveAndDeleteWorkspace,
 			isSidebarCollapsed,
 			onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
 		}),
@@ -255,6 +295,7 @@ const AgentsPage: FC = () => {
 			setChatErrorReason,
 			clearChatErrorReason,
 			requestArchiveAgent,
+			requestArchiveAndDeleteWorkspace,
 			isSidebarCollapsed,
 			handleToggleSidebarCollapsed,
 		],
@@ -411,9 +452,10 @@ const AgentsPage: FC = () => {
 					modelConfigs={chatModelConfigsQuery.data ?? []}
 					logoUrl={appearance.logo_url}
 					onArchiveAgent={requestArchiveAgent}
+					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 					onNewAgent={handleNewAgent}
 					isCreating={createMutation.isPending}
-					isArchiving={archiveMutation.isPending}
+					isArchiving={isArchiving}
 					archivingChatId={archivingChatId}
 					isLoading={chatsQuery.isLoading}
 					loadError={chatsQuery.isError ? chatsQuery.error : undefined}

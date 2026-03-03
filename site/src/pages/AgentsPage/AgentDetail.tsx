@@ -80,6 +80,8 @@ const noopClearChatErrorReason: AgentsOutletContext["clearChatErrorReason"] =
 	() => {};
 const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
 	() => {};
+const noopRequestArchiveAndDeleteWorkspace: AgentsOutletContext["requestArchiveAndDeleteWorkspace"] =
+	() => {};
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -495,6 +497,9 @@ const AgentDetail: FC = () => {
 		outletContext?.clearChatErrorReason ?? noopClearChatErrorReason;
 	const requestArchiveAgent =
 		outletContext?.requestArchiveAgent ?? noopRequestArchiveAgent;
+	const requestArchiveAndDeleteWorkspace =
+		outletContext?.requestArchiveAndDeleteWorkspace ??
+		noopRequestArchiveAndDeleteWorkspace;
 	const isSidebarCollapsed = outletContext?.isSidebarCollapsed ?? false;
 	const onToggleSidebarCollapsed =
 		outletContext?.onToggleSidebarCollapsed ?? (() => {});
@@ -896,6 +901,13 @@ const AgentDetail: FC = () => {
 		requestArchiveAgent(agentId);
 	};
 
+	const handleArchiveAndDeleteWorkspaceAction = () => {
+		if (!agentId || isArchived || !workspaceId) {
+			return;
+		}
+		requestArchiveAndDeleteWorkspace(agentId, workspaceId);
+	};
+
 	if (chatQuery.isLoading) {
 		return (
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
@@ -916,6 +928,8 @@ const AgentDetail: FC = () => {
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
+					onArchiveAndDeleteWorkspace={() => {}}
+					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
@@ -987,6 +1001,8 @@ const AgentDetail: FC = () => {
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
+					onArchiveAndDeleteWorkspace={() => {}}
+					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
@@ -1027,6 +1043,8 @@ const AgentDetail: FC = () => {
 							sshCommand,
 						}}
 						onArchiveAgent={handleArchiveAgentAction}
+						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
+						hasWorkspace={Boolean(workspaceId)}
 						isArchived={isArchived}
 						isSidebarCollapsed={isSidebarCollapsed}
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}

@@ -1,3 +1,4 @@
+import { workspaceSharingSettings } from "api/queries/organizations";
 import type {
 	Group,
 	WorkspaceACL,
@@ -37,6 +38,7 @@ import { TableLoader } from "components/TableLoader/TableLoader";
 import { EllipsisVertical, UserPlusIcon } from "lucide-react";
 import { getGroupSubtitle } from "modules/groups";
 import type { FC, ReactNode } from "react";
+import { useQuery } from "react-query";
 
 interface RoleSelectProps {
 	value: WorkspaceRole;
@@ -139,6 +141,7 @@ export const RoleSelectField: FC<RoleSelectFieldProps> = ({
 };
 
 interface WorkspaceSharingFormProps {
+	organizationId: string;
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
 	isTaskWorkspace: boolean;
@@ -155,6 +158,7 @@ interface WorkspaceSharingFormProps {
 }
 
 export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
+	organizationId,
 	workspaceACL,
 	canUpdatePermissions,
 	isTaskWorkspace,
@@ -169,6 +173,46 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 	isCompact,
 	showRestartWarning,
 }) => {
+	const sharingSettingsQuery = useQuery(
+		workspaceSharingSettings(organizationId),
+	);
+
+	if (sharingSettingsQuery.isLoading) {
+		return (
+			<TableBody>
+				<TableLoader />
+			</TableBody>
+		);
+	}
+
+	if (!sharingSettingsQuery.data) {
+		return (
+			<TableBody>
+				<TableRow>
+					<TableCell colSpan={999}>
+						<ErrorAlert error={sharingSettingsQuery.error} />
+					</TableCell>
+				</TableRow>
+			</TableBody>
+		);
+	}
+
+	if (sharingSettingsQuery.data.sharing_disabled) {
+		return (
+			<TableBody>
+				<TableRow>
+					<TableCell colSpan={999}>
+						<EmptyState
+							message="This workspace cannot be shared"
+							description="Workspace sharing has been disabled for this organization."
+							isCompact={isCompact}
+						/>
+					</TableCell>
+				</TableRow>
+			</TableBody>
+		);
+	}
+
 	const isEmpty = Boolean(
 		workspaceACL &&
 			workspaceACL.users.length === 0 &&
