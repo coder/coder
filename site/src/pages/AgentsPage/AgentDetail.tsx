@@ -820,7 +820,6 @@ const AgentDetail: FC = () => {
 		: null;
 	const canOpenWorkspace = Boolean(workspaceRoute);
 	const canOpenEditors = Boolean(workspace && workspaceAgent);
-	const canOpenTerminal = Boolean(workspace && workspaceAgent);
 	const terminalHref =
 		workspace && workspaceAgent
 			? getTerminalHref({
@@ -912,7 +911,6 @@ const AgentDetail: FC = () => {
 						canOpenWorkspace: false,
 						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
-						canOpenTerminal: false,
 						onOpenTerminal: () => {},
 						sshCommand: undefined,
 					}}
@@ -984,7 +982,6 @@ const AgentDetail: FC = () => {
 						canOpenWorkspace: false,
 						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
-						canOpenTerminal: false,
 						onOpenTerminal: () => {},
 						sshCommand: undefined,
 					}}
@@ -1026,7 +1023,6 @@ const AgentDetail: FC = () => {
 								void handleOpenInEditor(editor);
 							},
 							onViewWorkspace: handleViewWorkspace,
-							canOpenTerminal,
 							onOpenTerminal: handleOpenTerminal,
 							sshCommand,
 						}}

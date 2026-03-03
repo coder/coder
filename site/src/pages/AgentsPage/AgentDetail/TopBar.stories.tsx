@@ -24,7 +24,6 @@ const defaultProps = {
 	workspace: {
 		canOpenEditors: true,
 		canOpenWorkspace: true,
-		canOpenTerminal: true,
 		onOpenInEditor: () => {},
 		onViewWorkspace: () => {},
 		onOpenTerminal: () => {},

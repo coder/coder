@@ -74,7 +74,6 @@ interface DiffPanelState {
 interface WorkspaceActions {
 	canOpenEditors: boolean;
 	canOpenWorkspace: boolean;
-	canOpenTerminal: boolean;
 	onOpenInEditor: (editor: "cursor" | "vscode") => void;
 	onViewWorkspace: () => void;
 	onOpenTerminal: () => void;
@@ -200,7 +199,8 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							Open in VS Code
 						</DropdownMenuItem>
 						<DropdownMenuItem
-							disabled={!workspace.canOpenTerminal}
+		                                        // You can think of the web terminal as an editor if you squint.
+							disabled={!workspace.canOpenEditors}
 							onSelect={workspace.onOpenTerminal}
 						>
 							<TerminalIcon className="h-3.5 w-3.5" />
