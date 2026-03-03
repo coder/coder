@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the Coder Docker image locally so you can test with Helm without relying on CI.
-# Uses the repo's Dockerfile.base (Terraform 1.11.5) and produces a local image.
+# Uses the repo's Dockerfile.base (Terraform 1.11.4) and produces a local image.
 #
 # Usage:
 #   ./scripts/build_image_for_helm.sh [tag]
@@ -26,7 +26,7 @@ base_tag="${CODER_BASE_IMAGE_TAG:-coder-base:local}"
 image_base="${CODER_IMAGE_BASE:-ghcr.io/coder/coder}"
 image_tag="${image_base}:${tag}"
 
-log "Building Coder image for Helm (Terraform 1.11.5 from Dockerfile.base)"
+log "Building Coder image for Helm (Terraform 1.11.4 from Dockerfile.base)"
 log "  Version: $version"
 log "  Base tag: $base_tag"
 log "  Image: $image_tag"
@@ -47,7 +47,7 @@ if [[ ! -f "build/coder_${version}_linux_amd64" ]]; then
 		--output "build/coder_${version}_linux_amd64"
 fi
 
-# 3. Coder image (build base from Dockerfile.base with Terraform 1.11.5, then app image)
+# 3. Coder image (build base from Dockerfile.base with Terraform 1.11.4, then app image)
 log "--- Building base image and Coder image $image_tag"
 ./scripts/build_docker.sh \
 	--arch amd64 \

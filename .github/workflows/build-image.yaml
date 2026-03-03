@@ -1,5 +1,5 @@
 # Build and push the Coder Docker image (for Helm) without requiring build-dylib or
-# the full main CI. Uses your fork's Dockerfile.base (Terraform 1.11.5).
+# the full main CI. Uses your fork's Dockerfile.base (Terraform 1.11.4).
 #
 # Triggers: push to main, or "Run workflow" from the Actions tab.
 # Image: ghcr.io/<owner>/coder:main (and :<version>, :latest)
