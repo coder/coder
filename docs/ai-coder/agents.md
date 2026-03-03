@@ -1,0 +1,229 @@
+# Coder Agents
+
+Coder Agents is a chat interface and API for delegating coding tasks to coding
+agents from your Coder deployment. Developers describe the work they want done,
+and Coder Agents handles the rest — selecting a template, provisioning a
+workspace, and executing the task.
+
+Coder Agents includes its own self-hosted, open source, lightweight AI coding
+agent that runs the agent loop directly within the Coder control plane
+(`coderd`). It is not a wrapper around third-party agent tools like Claude Code
+or Codex. It is a standalone agent written in Go that implements standard
+agentic patterns — sub-agent delegation, context compaction, file editing, and
+shell execution — and works with any LLM provider you configure. No agent
+software or API keys are required inside your workspaces.
+
+![Placeholder: Coder Agents chat UI showing a conversation with diffs and sub-agent activity](../images/guides/ai-agents/agents-chat-ui.png)
+
+> [!NOTE]
+> Coder Agents is currently in preview. See [Product status](#product-status)
+> for availability details.
+
+## Who is Coder Agents for
+
+Coder Agents is designed for organizations that need to self-host their AI
+coding workflows and maintain full control over how agents operate. It is a
+strong fit for:
+
+- **Regulated industries** such as financial services, healthcare, and
+  government, where AI tools must run on controlled infrastructure with
+  auditable access and strict network boundaries.
+- **Platform engineering teams** that want to provide developers with a
+  high-quality AI coding experience without managing per-workspace agent
+  installations, API key distribution, or third-party agent licensing.
+- **Organizations with existing Coder deployments** that want to add agentic
+  capabilities using their current templates, workspaces, and identity
+  providers rather than adopting a separate SaaS product.
+
+Coder Agents runs entirely self-hosted. There is no SaaS component — the agent
+loop, chat history, and all tool execution happen within your Coder deployment.
+Source code remains on your infrastructure at all times. Prompts and code
+context are sent to whichever LLM provider you configure; if you require
+everything to stay internal, you can connect a fully self-hosted model via any
+OpenAI-compatible endpoint.
+
+Coder Agents is not a replacement for your text editor or IDE. It is the
+primary interface where developers work with and orchestrate coding agents.
+Developers still connect to workspaces via VS Code, Cursor, JetBrains, or any
+other editor to review, refine, and complete work that the agent produces.
+
+## How it works
+
+The agent loop runs inside `coderd`, the Coder control plane. When a user
+submits a prompt, the control plane:
+
+1. Sends the prompt to the configured LLM provider (Anthropic, OpenAI, Google,
+   Azure, AWS Bedrock, or any OpenAI-compatible endpoint).
+1. Receives the model's response, which may include tool calls such as reading
+   files, writing code, or running shell commands.
+1. Executes tool calls by connecting to a Coder workspace over the existing
+   workspace daemon connection — the same path used for web terminals, port
+   forwarding, and IDE access.
+1. Returns tool results to the model and continues the loop until the task is
+   complete.
+
+The workspace itself has no knowledge of AI. It is standard compute
+infrastructure — there are no LLM API keys, no agent harnesses, and no special
+software installed. All intelligence lives in the control plane.
+
+![Placeholder: Architecture diagram showing coderd in the center, with arrows out to LLM providers and arrows to workspaces](../images/guides/ai-agents/agents-architecture.png)
+
+<small>The agent loop runs in coderd. It makes outbound requests to LLM
+providers and connects to workspaces only when tool execution is needed.</small>
+
+### Automatic template and workspace selection
+
+When a user describes a task, the agent reads the available templates —
+including their descriptions and parameters — and selects the appropriate one.
+It then creates a workspace from that template or connects to an existing one.
+
+Developers don't need to think about templates or workspaces. They describe
+their work, and the agent provisions the right environment automatically.
+
+Platform teams control this by writing clear template descriptions. For
+example, a template description like "Use this template for Python backend
+services in the payments repo" helps the agent route tasks to the correct
+infrastructure.
+
+### Sub-agents
+
+Coder Agents supports sub-agent delegation. The root agent can spawn child
+agents to work on independent tasks in parallel. Each sub-agent gets its own
+context window, which keeps individual conversations focused and avoids the
+quality degradation that occurs as context windows grow large.
+
+For example, an agent tasked with "explore this repository and document its
+structure" might spawn separate sub-agents to analyze the backend, frontend,
+and infrastructure directories simultaneously.
+
+### Chat persistence
+
+All chat state is stored in the Coder database, not in the workspace. If a
+workspace is stopped, deleted, or rebuilt, the full conversation history
+survives. The agent can resume work by creating a new workspace with the same
+template and continuing from the last known state, such as a git branch.
+
+Users can also fork a chat at any point to explore a different direction while
+preserving the original conversation.
+
+### Message queuing
+
+Users can send follow-up messages while the agent is actively working. Messages
+are queued and delivered when the agent completes its current step, so there is
+no need to wait for a response before providing additional context or changing
+direction.
+
+## Security benefits of the control plane architecture
+
+Running the agent loop in the control plane rather than inside developer
+compute is an architectural decision that directly addresses the primary
+concern regulated organizations have with AI coding tools: how do you give
+developers access to powerful AI without losing control of your environment?
+
+Traditional agent setups run the AI process inside the same compute where code
+lives. This means the agent needs LLM API keys in the workspace, outbound
+network access to model providers, and often elevated permissions. In a
+regulated environment, this creates a surface area that is difficult to lock
+down.
+
+Coder Agents eliminates this by moving the agent loop out of the workspace
+entirely:
+
+- **No API keys in workspaces.** LLM provider credentials never enter the
+  workspace. The control plane makes all outbound requests to model providers
+  directly, so there is nothing for a developer or a compromised process to
+  exfiltrate.
+- **No agent software to manage.** Workspaces don't need Claude Code, Codex,
+  or any agent harness installed. This eliminates a class of supply chain risk
+  and removes the need to keep agent software up to date across all workspaces.
+- **Network boundaries are simpler.** Because the workspace doesn't need access
+  to LLM APIs, you can apply strict egress rules. An agent-only template might
+  permit access to only your git provider (e.g., `github.com`) and nothing
+  else. The workspace never needs to reach the internet for AI functionality.
+- **Centralized, enforced control.** Platform teams configure models, system
+  prompts, and tool permissions from the control plane. These settings are
+  enforced server-side — they are not user preferences that developers can
+  override.
+- **User identity is always attached.** Every action the agent takes — PRs
+  opened, code pushed, commands run — is tied to the user who submitted the
+  prompt. There is no shared bot identity or anonymous execution.
+
+> [!TIP]
+> For highly sensitive environments, create a dedicated set of templates for
+> agent workloads with stricter network policies than your standard developer
+> templates. Because the AI comes from the control plane, these templates don't
+> need any outbound access to LLM providers.
+
+## LLM provider support
+
+Coder Agents works with any LLM provider. Administrators configure providers
+and models from the Coder dashboard or API. Supported providers include:
+
+| Provider          | Description                              |
+|-------------------|------------------------------------------|
+| Anthropic         | Claude models via Anthropic API          |
+| OpenAI            | GPT and Codex models via OpenAI API      |
+| Google            | Gemini models via Google AI API          |
+| Azure OpenAI      | OpenAI models hosted on Azure            |
+| AWS Bedrock       | Models available through AWS Bedrock     |
+| OpenAI Compatible | Any endpoint implementing the OpenAI API |
+| OpenRouter        | Multi-model routing via OpenRouter       |
+| Vercel AI Gateway | Models via Vercel AI SDK                 |
+
+Most providers support custom base URLs, which allows integration with
+enterprise LLM proxies, self-hosted model endpoints, and internal gateways.
+Azure OpenAI requires a base URL. AWS Bedrock and OpenRouter do not support
+custom base URLs.
+
+Administrators can configure multiple providers simultaneously and set a default
+model. Developers select from enabled models when starting a chat.
+
+![Placeholder: Screenshot of the provider/model configuration admin panel](../images/guides/ai-agents/agents-model-config.png)
+
+<small>The model configuration panel in the Coder dashboard.</small>
+
+## Built-in tools
+
+The agent has access to a set of workspace tools that it uses to accomplish
+tasks:
+
+| Tool               | Description                                             |
+|--------------------|---------------------------------------------------------|
+| `list_templates`   | Browse available workspace templates                    |
+| `read_template`    | Get template details and configurable parameters        |
+| `create_workspace` | Create a workspace from a template                      |
+| `read_file`        | Read file contents from the workspace                   |
+| `write_file`       | Write a file to the workspace                           |
+| `edit_files`       | Perform search-and-replace edits across files           |
+| `execute`          | Run shell commands in the workspace                     |
+| `spawn_agent`      | Delegate a task to a sub-agent running in parallel      |
+| `wait_agent`       | Wait for a sub-agent to complete and collect its result |
+| `message_agent`    | Send a follow-up message to a running sub-agent         |
+| `close_agent`      | Stop a running sub-agent                                |
+
+These tools connect to the workspace over the same secure connection used for
+web terminals and IDE access. No additional ports or services are required in
+the workspace.
+
+## Comparison to Coder Tasks
+
+Coder Agents is a new approach that differs from
+[Coder Tasks](./tasks.md) in several ways:
+
+| Aspect              | Coder Agents                         | Coder Tasks                                                    |
+|---------------------|--------------------------------------|----------------------------------------------------------------|
+| Agent execution     | Runs in the control plane (`coderd`) | Runs inside the workspace                                      |
+| Agent software      | Built-in, no installation needed     | Requires Claude Code, Codex, or similar installed in workspace |
+| API keys            | Stored in control plane only         | Injected into workspace environment                            |
+| Chat state          | Persisted in database                | Stored in workspace                                            |
+| Workspace selection | Automatic, based on task description | Manual, user selects template                                  |
+| Sub-agents          | Built-in parallel delegation         | Not supported                                                  |
+| Rich UI             | Native chat with diffs, queuing      | AgentAPI-based interface                                       |
+
+## Product status
+
+Coder Agents is currently in internal preview. We are actively developing the
+feature and demoing it with customers for feedback.
+
+Our next step is to offer an early access program for interested customers. If
+you would like to participate, [contact us](https://coder.com/contact).
