@@ -772,21 +772,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 												onOpenChange={setIsArchivedExpanded}
 											>
 												<CollapsibleTrigger asChild>
-													<Button
-														variant="subtle"
-														className="mb-1 ml-2.5 h-auto min-w-0 gap-1 p-0 text-xs font-medium"
-													>
+													<div className="mb-1 ml-2.5 flex cursor-pointer items-center justify-between text-xs font-medium text-content-secondary">
+														<span>Archived ({archivedRootIDs.length})</span>
 														{effectiveArchivedExpanded ? (
 															<ChevronDownIcon className="h-3 w-3" />
 														) : (
 															<ChevronRightIcon className="h-3 w-3" />
 														)}
-														<ArchiveIcon className="h-3 w-3" />
-														<span>Archived</span>
-														<span className="text-content-secondary/50">
-															({archivedRootIDs.length})
-														</span>
-													</Button>
+													</div>
 												</CollapsibleTrigger>{" "}
 												<CollapsibleContent>
 													<div className="flex flex-col gap-0.5">

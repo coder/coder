@@ -363,15 +363,14 @@ export const ArchivedAgentsCollapsed: Story = {
 		await waitFor(() => {
 			expect(canvas.getByText("Active agent one")).toBeInTheDocument();
 			expect(canvas.getByText("Active agent two")).toBeInTheDocument();
-			expect(canvas.getByText("Archived")).toBeInTheDocument();
-		});
-		expect(
-			canvas.queryByText("Archived agent one"),
-		).not.toBeInTheDocument();
-		expect(
-			canvas.queryByText("Archived agent two"),
-		).not.toBeInTheDocument();
-	},
+			expect(canvas.getByText("Archived (2)")).toBeInTheDocument();
+			});
+			expect(
+				canvas.queryByText("Archived agent one"),
+			).not.toBeInTheDocument();
+			expect(
+				canvas.queryByText("Archived agent two"),
+			).not.toBeInTheDocument();	},
 };
 
 export const ArchivedAgentsExpanded: Story = {
@@ -408,9 +407,9 @@ export const ArchivedAgentsExpanded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			expect(canvas.getByText("Archived")).toBeInTheDocument();
+			expect(canvas.getByText("Archived (2)")).toBeInTheDocument();
 		});
-		await userEvent.click(canvas.getByText("Archived"));
+		await userEvent.click(canvas.getByText("Archived (2)"));
 		await waitFor(() => {
 			expect(canvas.getByText("Archived agent one")).toBeInTheDocument();
 			expect(canvas.getByText("Archived agent two")).toBeInTheDocument();
@@ -478,6 +477,6 @@ export const NoArchivedSection: Story = {
 			expect(canvas.getByText("First active agent")).toBeInTheDocument();
 			expect(canvas.getByText("Second active agent")).toBeInTheDocument();
 		});
-		expect(canvas.queryByText("Archived")).not.toBeInTheDocument();
+		expect(canvas.queryByText(/^Archived \(/)).not.toBeInTheDocument();
 	},
 };
