@@ -129,6 +129,9 @@ export const Submitting: Story = {
 			const submitButton = body.getByRole("button", {
 				name: /update and restart build/i,
 			});
+			await waitFor(() => {
+				expect(submitButton).not.toBeDisabled();
+			});
 			await userEvent.click(submitButton);
 		});
 
@@ -244,14 +247,14 @@ export const Failure: Story = {
 			const submitButton = body.getByRole("button", {
 				name: /update and restart build/i,
 			});
-			await waitFor(() => {
-				expect(submitButton).not.toBeDisabled();
-			});
 			await userEvent.click(submitButton);
 		});
 
 		await step("Shows error message", async () => {
-			await body.findByText(/Failed to update task prompt/i);
+			const alert = await body.findByRole("alert");
+			await within(alert).findByRole("heading", {
+				name: /Failed to update task prompt/i,
+			});
 		});
 	},
 };
