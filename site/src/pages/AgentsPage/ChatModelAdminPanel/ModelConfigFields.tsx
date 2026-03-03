@@ -1,3 +1,10 @@
+import {
+	type FieldSchema,
+	getVisibleGeneralFields,
+	getVisibleProviderFields,
+	resolveProvider,
+	toFormFieldKey,
+} from "api/chatModelOptions";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import {
@@ -17,30 +24,42 @@ import type {
 	ModelFormValues,
 } from "./modelConfigFormLogic";
 
-export const modelConfigReasoningEffortOptions = [
-	"minimal",
-	"low",
-	"medium",
-	"high",
-	"xhigh",
-	"none",
-] as const;
-
-export const modelConfigAnthropicEffortOptions = [
-	"low",
-	"medium",
-	"high",
-	"max",
-] as const;
-
-export const modelConfigTextVerbosityOptions = [
-	"low",
-	"medium",
-	"high",
-] as const;
-
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
+
+// ── Helpers ────────────────────────────────────────────────────
+
+/**
+ * Convert a dot-and-underscore-separated json_name into a
+ * human-readable label.
+ *
+ * @example
+ * snakeToPrettyLabel("thinking.budget_tokens") // "Thinking Budget Tokens"
+ * snakeToPrettyLabel("reasoning_effort")        // "Reasoning Effort"
+ */
+function snakeToPrettyLabel(jsonName: string): string {
+	return jsonName
+		.split(/[._]/)
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ");
+}
+
+/**
+ * Derive a sensible placeholder from the field schema type.
+ */
+function placeholderForField(field: FieldSchema): string {
+	switch (field.type) {
+		case "integer":
+		case "number":
+			return "";
+		case "array":
+			return "[]";
+		case "object":
+			return "{}";
+		default:
+			return "";
+	}
+}
 
 // ── Generic field renderers ────────────────────────────────────
 
@@ -185,213 +204,57 @@ const JSONField: FC<
 	);
 };
 
-// ── Provider-specific field sets ───────────────────────────────
+// ── Schema-driven field renderer ───────────────────────────────
 
-const OpenAIFields: FC<FieldRenderContext> = (props) => (
-	<div className="grid min-w-0 gap-3 sm:grid-cols-2">
-		<SelectField
-			{...props}
-			fieldKey="config.openai.reasoningEffort"
-			label="Reasoning Effort"
-			options={modelConfigReasoningEffortOptions}
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.openai.parallelToolCalls"
-			label="Parallel Tool Calls"
-			options={["true", "false"]}
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.openai.textVerbosity"
-			label="Text Verbosity"
-			options={modelConfigTextVerbosityOptions}
-		/>
-		<InputField
-			{...props}
-			fieldKey="config.openai.serviceTier"
-			label="Service Tier"
-			placeholder="auto"
-		/>
-		<InputField
-			{...props}
-			fieldKey="config.openai.reasoningSummary"
-			label="Reasoning Summary"
-			placeholder="detailed"
-		/>
-		<InputField
-			{...props}
-			fieldKey="config.openai.user"
-			label="User"
-			placeholder="end-user-id"
-		/>
-	</div>
-);
+/**
+ * Render a single field from the schema using the appropriate
+ * generic renderer based on its `input_type`.
+ */
+function renderSchemaField(
+	field: FieldSchema,
+	fieldKey: string,
+	ctx: FieldRenderContext,
+): React.ReactNode {
+	const label = field.description || snakeToPrettyLabel(field.json_name);
 
-const AnthropicFields: FC<FieldRenderContext> = (props) => (
-	<div className="grid min-w-0 gap-3 sm:grid-cols-2">
-		<SelectField
-			{...props}
-			fieldKey="config.anthropic.effort"
-			label="Output Effort"
-			options={modelConfigAnthropicEffortOptions}
-		/>
-		<InputField
-			{...props}
-			fieldKey="config.anthropic.thinkingBudgetTokens"
-			label="Thinking Budget Tokens"
-			placeholder="4000"
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.anthropic.sendReasoning"
-			label="Send Reasoning"
-			options={["true", "false"]}
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.anthropic.disableParallelToolUse"
-			label="Disable Parallel Tool Use"
-			options={["true", "false"]}
-		/>
-	</div>
-);
-
-const GoogleFields: FC<FieldRenderContext> = (props) => (
-	<div className="grid min-w-0 gap-3 sm:grid-cols-2">
-		<InputField
-			{...props}
-			fieldKey="config.google.thinkingBudget"
-			label="Thinking Budget"
-			placeholder="1024"
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.google.includeThoughts"
-			label="Include Thoughts"
-			options={["true", "false"]}
-		/>
-		<InputField
-			{...props}
-			fieldKey="config.google.cachedContent"
-			label="Cached Content"
-			placeholder="cached-contents/abc123"
-		/>
-		<JSONField
-			{...props}
-			fieldKey="config.google.safetySettingsJSON"
-			label="Safety Settings JSON"
-			placeholder={`[
-  {"category":"HARM_CATEGORY_DANGEROUS_CONTENT","threshold":"BLOCK_ONLY_HIGH"}
-]`}
-		/>
-	</div>
-);
-
-const OpenAICompatFields: FC<FieldRenderContext> = (props) => (
-	<div className="grid min-w-0 gap-3 sm:grid-cols-2">
-		<SelectField
-			{...props}
-			fieldKey="config.openaicompat.reasoningEffort"
-			label="Reasoning Effort"
-			options={modelConfigReasoningEffortOptions}
-		/>
-		<InputField
-			{...props}
-			fieldKey="config.openaicompat.user"
-			label="User"
-			placeholder="end-user-id"
-		/>
-	</div>
-);
-
-const OpenRouterFields: FC<FieldRenderContext> = (props) => (
-	<div className="grid min-w-0 gap-3 sm:grid-cols-2">
-		<SelectField
-			{...props}
-			fieldKey="config.openrouter.reasoningEnabled"
-			label="Reasoning Enabled"
-			options={["true", "false"]}
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.openrouter.reasoningEffort"
-			label="Reasoning Effort"
-			options={modelConfigReasoningEffortOptions}
-		/>
-		<InputField
-			{...props}
-			fieldKey="config.openrouter.reasoningMaxTokens"
-			label="Reasoning Max Tokens"
-			placeholder="2048"
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.openrouter.reasoningExclude"
-			label="Reasoning Exclude"
-			options={["true", "false"]}
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.openrouter.parallelToolCalls"
-			label="Parallel Tool Calls"
-			options={["true", "false"]}
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.openrouter.includeUsage"
-			label="Include Usage"
-			options={["true", "false"]}
-		/>
-		<InputField
-			{...props}
-			fieldKey="config.openrouter.user"
-			label="User"
-			placeholder="end-user-id"
-		/>
-	</div>
-);
-
-const VercelFields: FC<FieldRenderContext> = (props) => (
-	<div className="grid min-w-0 gap-3 sm:grid-cols-2">
-		<SelectField
-			{...props}
-			fieldKey="config.vercel.reasoningEnabled"
-			label="Reasoning Enabled"
-			options={["true", "false"]}
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.vercel.reasoningEffort"
-			label="Reasoning Effort"
-			options={modelConfigReasoningEffortOptions}
-		/>
-		<InputField
-			{...props}
-			fieldKey="config.vercel.reasoningMaxTokens"
-			label="Reasoning Max Tokens"
-			placeholder="2048"
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.vercel.reasoningExclude"
-			label="Reasoning Exclude"
-			options={["true", "false"]}
-		/>
-		<SelectField
-			{...props}
-			fieldKey="config.vercel.parallelToolCalls"
-			label="Parallel Tool Calls"
-			options={["true", "false"]}
-		/>
-		<InputField
-			{...props}
-			fieldKey="config.vercel.user"
-			label="User"
-			placeholder="end-user-id"
-		/>
-	</div>
-);
+	switch (field.input_type) {
+		case "input":
+			return (
+				<InputField
+					key={fieldKey}
+					{...ctx}
+					fieldKey={fieldKey}
+					label={label}
+					placeholder={placeholderForField(field)}
+				/>
+			);
+		case "select": {
+			const options: readonly string[] =
+				field.enum ?? (field.type === "boolean" ? ["true", "false"] : []);
+			return (
+				<SelectField
+					key={fieldKey}
+					{...ctx}
+					fieldKey={fieldKey}
+					label={label}
+					options={options}
+				/>
+			);
+		}
+		case "json":
+			return (
+				<JSONField
+					key={fieldKey}
+					{...ctx}
+					fieldKey={fieldKey}
+					label={label}
+					placeholder={placeholderForField(field)}
+				/>
+			);
+		default:
+			return null;
+	}
+}
 
 // ── Main component ─────────────────────────────────────────────
 
@@ -405,6 +268,9 @@ type ModelConfigFieldsProps = {
 /**
  * Provider-specific fields (reasoning, tool calls, etc.) that
  * should be visible at the top level of the model form.
+ *
+ * Fields and their input types are driven by the auto-generated
+ * schema in `api/chatModelOptions`.
  */
 export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	provider,
@@ -412,34 +278,32 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	fieldErrors,
 	disabled,
 }) => {
-	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
 	const normalized = normalizeProvider(provider);
+	const resolved = resolveProvider(normalized);
+	const fields = getVisibleProviderFields(normalized);
 
-	switch (normalized) {
-		case "openai":
-			return <OpenAIFields {...ctx} />;
-		case "azure":
-			return <OpenAIFields {...ctx} />;
-		case "anthropic":
-			return <AnthropicFields {...ctx} />;
-		case "bedrock":
-			return <AnthropicFields {...ctx} />;
-		case "google":
-			return <GoogleFields {...ctx} />;
-		case "openaicompat":
-			return <OpenAICompatFields {...ctx} />;
-		case "openrouter":
-			return <OpenRouterFields {...ctx} />;
-		case "vercel":
-			return <VercelFields {...ctx} />;
-		default:
-			return null;
+	if (fields.length === 0) {
+		return null;
 	}
+
+	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
+
+	return (
+		<div className="grid min-w-0 gap-3 sm:grid-cols-2">
+			{fields.map((field) => {
+				const fieldKey = `config.${toFormFieldKey(resolved, field.json_name)}`;
+				return renderSchemaField(field, fieldKey, ctx);
+			})}
+		</div>
+	);
 };
 
 /**
  * General model config fields (max output tokens, temperature,
  * top P, etc.) intended to be shown under an "Advanced" section.
+ *
+ * Fields are driven by the auto-generated schema in
+ * `api/chatModelOptions`.
  */
 export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	form,
@@ -447,45 +311,31 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	disabled,
 }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
+	const fields = getVisibleGeneralFields();
 
 	return (
 		<>
-			<InputField
-				{...ctx}
-				fieldKey="config.maxOutputTokens"
-				label="Max Output Tokens"
-				placeholder="32000"
-			/>
-			<InputField
-				{...ctx}
-				fieldKey="config.temperature"
-				label="Temperature"
-				placeholder="0.2"
-			/>
-			<InputField
-				{...ctx}
-				fieldKey="config.topP"
-				label="Top P"
-				placeholder="0.95"
-			/>
-			<InputField
-				{...ctx}
-				fieldKey="config.topK"
-				label="Top K"
-				placeholder="40"
-			/>
-			<InputField
-				{...ctx}
-				fieldKey="config.presencePenalty"
-				label="Presence Penalty"
-				placeholder="0"
-			/>
-			<InputField
-				{...ctx}
-				fieldKey="config.frequencyPenalty"
-				label="Frequency Penalty"
-				placeholder="0"
-			/>
+			{fields.map((field) => {
+				// General field keys use camelCase of the json_name directly
+				// under "config.", matching the existing form state shape:
+				// config.maxOutputTokens, config.temperature, etc.
+				const camelName = field.json_name.replace(
+					/_([a-z0-9])/g,
+					(_, ch: string) => ch.toUpperCase(),
+				);
+				const fieldKey = `config.${camelName}`;
+				const label = field.description || snakeToPrettyLabel(field.json_name);
+
+				return (
+					<InputField
+						key={fieldKey}
+						{...ctx}
+						fieldKey={fieldKey}
+						label={label}
+						placeholder={placeholderForField(field)}
+					/>
+				);
+			})}
 		</>
 	);
 };
