@@ -102,7 +102,7 @@ export function isKnownProvider(provider: string): boolean {
  * Only the first character after each underscore is uppercased;
  * the leading character stays lowercase.
  */
-function snakeToCamel(s: string): string {
+export function snakeToCamel(s: string): string {
 	return s.replace(/_([a-z0-9])/g, (_, ch: string) => ch.toUpperCase());
 }
 
