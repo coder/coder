@@ -966,7 +966,7 @@ func New(options *Options) *API {
 		api.workspaceAppServer.Attach(r)
 	})
 
-	if options.DERPServer != nil && expvar.Get("derp") == nil {
+	if options.DERPServer != nil {
 		derpHandler := derphttp.Handler(api.DERPServer)
 		derpHandler, api.derpCloseFunc = tailnet.WithWebsocketSupport(api.DERPServer, derpHandler)
 
@@ -1685,7 +1685,7 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/debug-link", api.userDebugOIDC)
 			})
-			if options.DERPServer != nil && expvar.Get("derp") == nil {
+			if options.DERPServer != nil {
 				r.Route("/derp", func(r chi.Router) {
 					r.Get("/traffic", options.DERPServer.ServeDebugTraffic)
 				})
