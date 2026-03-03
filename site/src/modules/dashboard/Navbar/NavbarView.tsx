@@ -10,7 +10,6 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import type { ProxyContextValue } from "contexts/ProxyContext";
-import { useWebpushNotifications } from "contexts/useWebpushNotifications";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { NotificationsInbox } from "modules/notifications/NotificationsInbox/NotificationsInbox";
 import type { FC } from "react";
@@ -58,7 +57,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAIBridge,
 	proxyContextValue,
 }) => {
-	const webPush = useWebpushNotifications();
 
 	return (
 		<div className="sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6">
