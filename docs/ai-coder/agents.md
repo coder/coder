@@ -1,17 +1,19 @@
 # Coder Agents
 
-Coder Agents is a chat interface and API for delegating development work and research to coding
-agents in your Coder deployment. Developers describe the work they want done,
-and Coder Agents handles the rest — selecting a template, provisioning a
-workspace, and executing the task.
+Coder Agents is a chat interface and API for delegating development work and research to coding agents in your Coder deployment. Developers describe the work they want done, and Coder Agents handles the rest — selecting a template, provisioning a workspace, and executing the task.
 
-Coder Agents includes its own self-hosted, open source, lightweight AI coding
+Coder Agents includes its own self-hosted, lightweight AI coding
 agent that runs the agent loop directly within the Coder control plane
-(`coderd`). It is not a wrapper around third-party agent tools like Claude Code
-or Codex. It is a standalone agent written in Go that implements standard
+(`coderd`).
+
+It is not a wrapper around third-party agent tools like Claude Code
+or Codex.
+
+It is a standalone agent written in Go that implements standard
 agentic patterns — sub-agent delegation, context compaction, file editing, and
-shell execution — and works with any LLM provider you configure. No agent
-harness or API keys are required inside your workspaces.
+shell execution — and works with any LLM provider you configure.
+
+No agent harness or API keys are required inside your workspaces.
 
 ![Placeholder: Coder Agents chat UI showing a conversation with diffs and sub-agent activity](../images/guides/ai-agents/agents-chat-ui.png)
 
@@ -111,12 +113,12 @@ direction.
 
 ## Security benefits of the control plane architecture
 
-Running the agent loop in the control plane rather than inside developer
-compute is an architectural decision that directly addresses the primary
-concern regulated organizations have with AI coding tools: how do you give
-developers access to powerful AI without losing control of your environment?
+Running the agent loop in the control plane rather than inside the developer
+workspace is an architectural decision that directly addresses the primary
+concerns regulated organizations have with AI coding tools: how do you give
+developers access to coding agents without introducing unnecessary risk?
 
-Traditional agent setups run the AI process inside the same compute where code
+Traditionally, agents run inside the same compute where code
 lives. This means the agent needs LLM API keys in the workspace, outbound
 network access to model providers, and often elevated permissions. In a
 regulated environment, this creates a surface area that is difficult to lock
