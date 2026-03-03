@@ -828,7 +828,7 @@ class ApiMethods {
 	 */
 	patchWorkspaceSharingSettings = async (
 		organization: string,
-		data: TypesGen.WorkspaceSharingSettings,
+		data: TypesGen.UpdateWorkspaceSharingSettingsRequest,
 	): Promise<TypesGen.WorkspaceSharingSettings> => {
 		const response = await this.axios.patch<TypesGen.WorkspaceSharingSettings>(
 			`/api/v2/organizations/${organization}/settings/workspace-sharing`,

@@ -50,9 +50,10 @@ interface OrganizationSettingsPageViewProps {
 	error: unknown;
 	onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
 	onDeleteOrganization: () => void;
-	workspaceSharingEnabled?: boolean;
-	onToggleWorkspaceSharing?: (enabled: boolean) => void;
-	isTogglingWorkspaceSharing?: boolean;
+	workspaceSharingGloballyDisabled?: boolean;
+	workspaceSharingEnabled: boolean;
+	onToggleWorkspaceSharing: (enabled: boolean) => void;
+	isTogglingWorkspaceSharing: boolean;
 }
 
 export const OrganizationSettingsPageView: FC<
@@ -62,7 +63,8 @@ export const OrganizationSettingsPageView: FC<
 	error,
 	onSubmit,
 	onDeleteOrganization,
-	workspaceSharingEnabled = true,
+	workspaceSharingGloballyDisabled,
+	workspaceSharingEnabled,
 	onToggleWorkspaceSharing,
 	isTogglingWorkspaceSharing,
 }) => {
@@ -156,11 +158,17 @@ export const OrganizationSettingsPageView: FC<
 						}
 						description="Control whether workspace owners can share their workspaces."
 					>
+						{workspaceSharingGloballyDisabled &&
+							"Dog it's like, disabled and stuff"}
 						<div className="flex items-start gap-3">
 							<Checkbox
 								id="workspace-sharing"
-								checked={workspaceSharingEnabled}
-								disabled={isTogglingWorkspaceSharing}
+								checked={
+									!workspaceSharingGloballyDisabled && workspaceSharingEnabled
+								}
+								disabled={
+									workspaceSharingGloballyDisabled || isTogglingWorkspaceSharing
+								}
 								onCheckedChange={(checked) => {
 									if (checked) {
 										onToggleWorkspaceSharing(true);

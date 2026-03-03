@@ -34,8 +34,10 @@ func (api *API) workspaceSharingSettings(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
+	globallyDisabled := bool(api.DeploymentValues.DisableWorkspaceSharing)
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceSharingSettings{
-		SharingDisabled: org.WorkspaceSharingDisabled,
+		SharingGloballyDisabled: globallyDisabled,
+		SharingDisabled:         org.WorkspaceSharingDisabled || globallyDisabled,
 	})
 }
 
