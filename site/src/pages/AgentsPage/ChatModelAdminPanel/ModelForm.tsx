@@ -10,11 +10,16 @@ import {
 	SelectValue,
 } from "components/Select/Select";
 import { useFormik } from "formik";
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, Loader2Icon } from "lucide-react";
+import {
+	ChevronDownIcon,
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	Loader2Icon,
+} from "lucide-react";
 import { type FC, useMemo, useState } from "react";
 import { cn } from "utils/cn";
 import { getFormHelpers } from "utils/formUtils";
-import { formatProviderLabel } from "../modelOptions";
+
 import * as Yup from "yup";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import {
@@ -33,19 +38,19 @@ import { ProviderIcon } from "./ProviderIcon";
 // ── Validation ──────────────────────────────────────────────────
 
 const validationSchema = Yup.object({
-		model: Yup.string().trim().required("Model ID is required."),
-		displayName: Yup.string(),
-		contextLimit: Yup.string().test(
-			"positive-integer",
-			"Context limit must be a positive integer.",
-			(value) => !value?.trim() || parsePositiveInteger(value) !== null,
-		),
-		compressionThreshold: Yup.string().test(
-			"threshold-range",
-			"Compression threshold must be a number between 0 and 100.",
-			(value) => !value?.trim() || parseThresholdInteger(value) !== null,
-		),
-		isDefault: Yup.boolean(),
+	model: Yup.string().trim().required("Model ID is required."),
+	displayName: Yup.string(),
+	contextLimit: Yup.string().test(
+		"positive-integer",
+		"Context limit must be a positive integer.",
+		(value) => !value?.trim() || parsePositiveInteger(value) !== null,
+	),
+	compressionThreshold: Yup.string().test(
+		"threshold-range",
+		"Compression threshold must be a number between 0 and 100.",
+		(value) => !value?.trim() || parseThresholdInteger(value) !== null,
+	),
+	isDefault: Yup.boolean(),
 });
 
 // ── Component ──────────────────────────────────────────────────
@@ -67,6 +72,7 @@ type ModelFormProps = {
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
 	onCancel: () => void;
+	onDeleteModel?: () => void;
 };
 
 export const ModelForm: FC<ModelFormProps> = ({
@@ -80,6 +86,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	onCreateModel,
 	onUpdateModel,
 	onCancel,
+	onDeleteModel,
 }) => {
 	const isEditing = Boolean(editingModel);
 	const [showAdvanced, setShowAdvanced] = useState(false);
@@ -214,10 +221,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 					{providerStates.map((ps) => (
 						<SelectItem key={ps.provider} value={ps.provider}>
 							<span className="flex items-center gap-2">
-								<ProviderIcon
-									provider={ps.provider}
-									className="h-4 w-4"
-								/>
+								<ProviderIcon provider={ps.provider} className="h-4 w-4" />
 								{ps.label}
 							</span>
 						</SelectItem>
@@ -293,7 +297,6 @@ export const ModelForm: FC<ModelFormProps> = ({
 	// ── Full form ─────────────────────────────────────────────
 
 	const modelField = getFieldHelpers("model");
-	const displayNameField = getFieldHelpers("displayName");
 	const contextLimitField = getFieldHelpers("contextLimit");
 	const compressionThresholdField = getFieldHelpers("compressionThreshold");
 
@@ -334,9 +337,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						disabled={isSaving}
 						className="m-0 w-full border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
 						placeholder={
-							isEditing
-								? (editingModel?.model ?? "Model name")
-								: "Model name"
+							isEditing ? (editingModel?.model ?? "Model name") : "Model name"
 						}
 					/>
 				</div>
@@ -344,10 +345,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 
 			{/* Form body */}
-			<form
-				className="flex flex-1 flex-col"
-				onSubmit={form.handleSubmit}
-			>
+			<form className="flex flex-1 flex-col" onSubmit={form.handleSubmit}>
 				<div className="space-y-5">
 					{/* Model ID + Context Limit */}
 					<div className="grid items-start gap-5 sm:grid-cols-2">
@@ -501,22 +499,33 @@ export const ModelForm: FC<ModelFormProps> = ({
 				<div className="mt-auto pt-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
 					<div className="flex items-center justify-between">
-						<Button
-							variant="outline"
-							size="lg"
-							type="button"
-							onClick={onCancel}
-						>
-							Cancel
-						</Button>
+						{isEditing && editingModel && onDeleteModel ? (
+							<Button
+								variant="outline"
+								size="lg"
+								type="button"
+								className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+								disabled={isSaving}
+								onClick={() => onDeleteModel()}
+							>
+								Delete
+							</Button>
+						) : (
+							<Button
+								variant="outline"
+								size="lg"
+								type="button"
+								onClick={onCancel}
+							>
+								Cancel
+							</Button>
+						)}{" "}
 						<Button
 							size="lg"
 							type="submit"
 							disabled={isSaving || !form.isValid || hasFieldErrors}
 						>
-							{isSaving && (
-								<Loader2Icon className="h-4 w-4 animate-spin" />
-							)}
+							{isSaving && <Loader2Icon className="h-4 w-4 animate-spin" />}
 							{isEditing ? "Save" : "Add"}
 						</Button>
 					</div>

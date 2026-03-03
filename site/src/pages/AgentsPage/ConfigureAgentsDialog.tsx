@@ -137,64 +137,58 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 
 				{/* Content */}
 				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5">
-						{activeSection === "providers" && canManageChatModelConfigs && (
-							<ChatModelAdminPanel
-								section="providers"
-								sectionLabel="Providers"
-							/>
-						)}
-						{activeSection === "system-prompt" && canSetSystemPrompt && (
-							<>
-								<SectionHeader label="Behavior" />
-								<form
-									className="space-y-4"
-									onSubmit={(event) => void onSaveSystemPrompt(event)}
-								>
-									<div className="space-y-2">
-										<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-											System Prompt
-										</h3>
-										<p className="m-0 text-xs text-content-secondary">
-											Admin-only instruction applied to all new chats.
-										</p>
-										<TextareaAutosize
-											className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
-											placeholder="Optional. Set deployment-wide instructions for all new chats."
-											value={systemPromptDraft}
-											onChange={(event) =>
-												onSystemPromptDraftChange(event.target.value)
-											}
-											disabled={isDisabled}
-											minRows={7}
-										/>
-										<div className="flex justify-end gap-2">
-											<Button
-												size="sm"
-												variant="outline"
-												type="button"
-												onClick={() => onSystemPromptDraftChange("")}
-												disabled={isDisabled || !systemPromptDraft}
-											>
-												Clear
-											</Button>
-											<Button
-												size="sm"
-												type="submit"
-												disabled={isDisabled || !isSystemPromptDirty}
-											>
-												Save
-											</Button>
-										</div>
+					{activeSection === "providers" && canManageChatModelConfigs && (
+						<ChatModelAdminPanel section="providers" sectionLabel="Providers" />
+					)}
+					{activeSection === "system-prompt" && canSetSystemPrompt && (
+						<>
+							<SectionHeader label="Behavior" />
+							<form
+								className="space-y-4"
+								onSubmit={(event) => void onSaveSystemPrompt(event)}
+							>
+								<div className="space-y-2">
+									<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+										System Prompt
+									</h3>
+									<p className="m-0 text-xs text-content-secondary">
+										Admin-only instruction applied to all new chats.
+									</p>
+									<TextareaAutosize
+										className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
+										placeholder="Optional. Set deployment-wide instructions for all new chats."
+										value={systemPromptDraft}
+										onChange={(event) =>
+											onSystemPromptDraftChange(event.target.value)
+										}
+										disabled={isDisabled}
+										minRows={7}
+									/>
+									<div className="flex justify-end gap-2">
+										<Button
+											size="sm"
+											variant="outline"
+											type="button"
+											onClick={() => onSystemPromptDraftChange("")}
+											disabled={isDisabled || !systemPromptDraft}
+										>
+											Clear
+										</Button>
+										<Button
+											size="sm"
+											type="submit"
+											disabled={isDisabled || !isSystemPromptDirty}
+										>
+											Save
+										</Button>
 									</div>
-								</form>
-							</>
-						)}
-						{activeSection === "models" && canManageChatModelConfigs && (
-							<ChatModelAdminPanel
-								section="models"
-								sectionLabel="Models"
-							/>
-						)}
+								</div>
+							</form>
+						</>
+					)}
+					{activeSection === "models" && canManageChatModelConfigs && (
+						<ChatModelAdminPanel section="models" sectionLabel="Models" />
+					)}
 				</div>
 			</DialogContent>
 		</Dialog>

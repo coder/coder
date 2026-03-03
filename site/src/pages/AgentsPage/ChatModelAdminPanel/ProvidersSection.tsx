@@ -1,14 +1,13 @@
 import type * as TypesGen from "api/typesGenerated";
 import { CheckCircleIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useEffect, useState } from "react";
+import { cn } from "utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ProviderForm } from "./ProviderForm";
 import { ProviderIcon } from "./ProviderIcon";
 
-type ProviderView =
-	| { mode: "list" }
-	| { mode: "detail"; provider: string };
+type ProviderView = { mode: "list" } | { mode: "detail"; provider: string };
 
 type ProvidersSectionProps = {
 	sectionLabel?: string;
@@ -39,19 +38,22 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	const [view, setView] = useState<ProviderView>({ mode: "list" });
 
 	// ── Detail view ───────────────────────────────────────────
-	if (view.mode === "detail") {
-		const providerState = providerStates.find(
-			(ps) => ps.provider === view.provider,
-		);
+	const detailProvider =
+		view.mode === "detail"
+			? providerStates.find((ps) => ps.provider === view.provider)
+			: undefined;
 
-		// Provider disappeared (e.g. data refreshed) — fall back to list.
-		if (!providerState) {
-			return null;
+	// Provider disappeared (e.g. data refreshed) — fall back to list.
+	useEffect(() => {
+		if (view.mode === "detail" && !detailProvider) {
+			setView({ mode: "list" });
 		}
+	}, [view, detailProvider]);
 
+	if (view.mode === "detail" && detailProvider) {
 		return (
 			<ProviderForm
-				providerState={providerState}
+				providerState={detailProvider}
 				providerConfigsUnavailable={providerConfigsUnavailable}
 				isProviderMutationPending={isProviderMutationPending}
 				onCreateProvider={onCreateProvider}
@@ -89,7 +91,10 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 						key={providerState.provider}
 						role="button"
 						tabIndex={0}
-						className={`flex cursor-pointer items-center gap-3.5 px-3 py-3 transition-colors hover:bg-surface-secondary/30 ${i > 0 ? "border-0 border-t border-solid border-border/50" : ""}`}
+						className={cn(
+							"flex cursor-pointer items-center gap-3.5 px-3 py-3 transition-colors hover:bg-surface-secondary/30",
+							i > 0 && "border-0 border-t border-solid border-border/50",
+						)}
 						onClick={() => {
 							onSelectedProviderChange(providerState.provider);
 							setView({

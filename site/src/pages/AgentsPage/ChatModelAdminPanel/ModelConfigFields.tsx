@@ -189,71 +189,71 @@ const JSONField: FC<
 
 const OpenAIFields: FC<FieldRenderContext> = (props) => (
 	<div className="grid min-w-0 gap-3 sm:grid-cols-2">
-			<SelectField
-				{...props}
-				fieldKey="config.openai.reasoningEffort"
-				label="Reasoning Effort"
-				options={modelConfigReasoningEffortOptions}
-			/>
-			<SelectField
-				{...props}
-				fieldKey="config.openai.parallelToolCalls"
-				label="Parallel Tool Calls"
-				options={["true", "false"]}
-			/>
-			<SelectField
-				{...props}
-				fieldKey="config.openai.textVerbosity"
-				label="Text Verbosity"
-				options={modelConfigTextVerbosityOptions}
-			/>
-			<InputField
-				{...props}
-				fieldKey="config.openai.serviceTier"
-				label="Service Tier"
-				placeholder="auto"
-			/>
-			<InputField
-				{...props}
-				fieldKey="config.openai.reasoningSummary"
-				label="Reasoning Summary"
-				placeholder="detailed"
-			/>
-			<InputField
-				{...props}
-				fieldKey="config.openai.user"
-				label="User"
-				placeholder="end-user-id"
-			/>
+		<SelectField
+			{...props}
+			fieldKey="config.openai.reasoningEffort"
+			label="Reasoning Effort"
+			options={modelConfigReasoningEffortOptions}
+		/>
+		<SelectField
+			{...props}
+			fieldKey="config.openai.parallelToolCalls"
+			label="Parallel Tool Calls"
+			options={["true", "false"]}
+		/>
+		<SelectField
+			{...props}
+			fieldKey="config.openai.textVerbosity"
+			label="Text Verbosity"
+			options={modelConfigTextVerbosityOptions}
+		/>
+		<InputField
+			{...props}
+			fieldKey="config.openai.serviceTier"
+			label="Service Tier"
+			placeholder="auto"
+		/>
+		<InputField
+			{...props}
+			fieldKey="config.openai.reasoningSummary"
+			label="Reasoning Summary"
+			placeholder="detailed"
+		/>
+		<InputField
+			{...props}
+			fieldKey="config.openai.user"
+			label="User"
+			placeholder="end-user-id"
+		/>
 	</div>
 );
 
 const AnthropicFields: FC<FieldRenderContext> = (props) => (
 	<div className="grid min-w-0 gap-3 sm:grid-cols-2">
-			<SelectField
-				{...props}
-				fieldKey="config.anthropic.effort"
-				label="Output Effort"
-				options={modelConfigAnthropicEffortOptions}
-			/>
-			<InputField
-				{...props}
-				fieldKey="config.anthropic.thinkingBudgetTokens"
-				label="Thinking Budget Tokens"
-				placeholder="4000"
-			/>
-			<SelectField
-				{...props}
-				fieldKey="config.anthropic.sendReasoning"
-				label="Send Reasoning"
-				options={["true", "false"]}
-			/>
-			<SelectField
-				{...props}
-				fieldKey="config.anthropic.disableParallelToolUse"
-				label="Disable Parallel Tool Use"
-				options={["true", "false"]}
-			/>
+		<SelectField
+			{...props}
+			fieldKey="config.anthropic.effort"
+			label="Output Effort"
+			options={modelConfigAnthropicEffortOptions}
+		/>
+		<InputField
+			{...props}
+			fieldKey="config.anthropic.thinkingBudgetTokens"
+			label="Thinking Budget Tokens"
+			placeholder="4000"
+		/>
+		<SelectField
+			{...props}
+			fieldKey="config.anthropic.sendReasoning"
+			label="Send Reasoning"
+			options={["true", "false"]}
+		/>
+		<SelectField
+			{...props}
+			fieldKey="config.anthropic.disableParallelToolUse"
+			label="Disable Parallel Tool Use"
+			options={["true", "false"]}
+		/>
 	</div>
 );
 

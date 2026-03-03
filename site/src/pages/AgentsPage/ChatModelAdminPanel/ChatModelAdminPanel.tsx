@@ -308,44 +308,44 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 
 			{/* Content */}
 			<div className="flex flex-1 flex-col">
-			{section === "providers" ? (
-				<ProvidersSection
-					sectionLabel={sectionLabel}
-					providerStates={providerStates}
-					providerConfigsUnavailable={providerConfigsUnavailable}
-					isProviderMutationPending={isProviderMutationPending}
-					onCreateProvider={(req) => createProviderMut.mutateAsync(req)}
-					onUpdateProvider={(providerConfigId, req) =>
-						updateProviderMut.mutateAsync({
-							providerConfigId,
-							req,
-						})
-					}
-					onDeleteProvider={(id) => deleteProviderMut.mutateAsync(id)}
-					onSelectedProviderChange={setRequestedProvider}
-				/>
-			) : (
-				<ModelsSection
-					sectionLabel={sectionLabel}
-					providerStates={providerStates}
-					selectedProvider={selectedProvider}
-					selectedProviderState={selectedProviderState}
-					onSelectedProviderChange={setRequestedProvider}
-					modelConfigs={modelConfigs}
-					modelConfigsUnavailable={modelConfigsUnavailable}
-					isCreating={createModelMut.isPending}
-					isUpdating={updateModelMut.isPending}
-					isDeleting={deleteModelMut.isPending}
-					onCreateModel={(req) => createModelMut.mutateAsync(req)}
-					onUpdateModel={(modelConfigId, req) =>
-						updateModelMut.mutateAsync({
-							modelConfigId,
-							req,
-						})
-					}
-					onDeleteModel={(id) => deleteModelMut.mutateAsync(id)}
-				/>
-			)}
+				{section === "providers" ? (
+					<ProvidersSection
+						sectionLabel={sectionLabel}
+						providerStates={providerStates}
+						providerConfigsUnavailable={providerConfigsUnavailable}
+						isProviderMutationPending={isProviderMutationPending}
+						onCreateProvider={(req) => createProviderMut.mutateAsync(req)}
+						onUpdateProvider={(providerConfigId, req) =>
+							updateProviderMut.mutateAsync({
+								providerConfigId,
+								req,
+							})
+						}
+						onDeleteProvider={(id) => deleteProviderMut.mutateAsync(id)}
+						onSelectedProviderChange={setRequestedProvider}
+					/>
+				) : (
+					<ModelsSection
+						sectionLabel={sectionLabel}
+						providerStates={providerStates}
+						selectedProvider={selectedProvider}
+						selectedProviderState={selectedProviderState}
+						onSelectedProviderChange={setRequestedProvider}
+						modelConfigs={modelConfigs}
+						modelConfigsUnavailable={modelConfigsUnavailable}
+						isCreating={createModelMut.isPending}
+						isUpdating={updateModelMut.isPending}
+						isDeleting={deleteModelMut.isPending}
+						onCreateModel={(req) => createModelMut.mutateAsync(req)}
+						onUpdateModel={(modelConfigId, req) =>
+							updateModelMut.mutateAsync({
+								modelConfigId,
+								req,
+							})
+						}
+						onDeleteModel={(id) => deleteModelMut.mutateAsync(id)}
+					/>
+				)}
 			</div>
 
 			{/* Errors — rendered at the bottom */}

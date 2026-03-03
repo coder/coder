@@ -7,11 +7,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	ChevronLeftIcon,
-	InfoIcon,
-	Loader2Icon,
-} from "lucide-react";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { ChevronLeftIcon, InfoIcon, Loader2Icon } from "lucide-react";
 import {
 	type FC,
 	type FormEvent,
@@ -54,8 +51,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	onDeleteProvider,
 	onBack,
 }) => {
-	const { provider, providerConfig, baseURL, isEnvPreset, label } =
-		providerState;
+	const { provider, providerConfig, baseURL, isEnvPreset } = providerState;
 
 	const apiKeyInputId = useId();
 	const baseURLInputId = useId();
@@ -64,8 +60,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	// so we can detect dirty state.
 	const initialValues = useMemo(
 		() => ({
-			displayName:
-				readOptionalString(providerConfig?.display_name) ?? "",
+			displayName: readOptionalString(providerConfig?.display_name) ?? "",
 			baseURL: baseURL,
 		}),
 		[providerConfig, baseURL],
@@ -77,12 +72,11 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	);
 	const [apiKeyTouched, setApiKeyTouched] = useState(false);
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
+	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
 	useEffect(() => {
 		setDisplayName(initialValues.displayName);
-		setApiKey(
-			providerState.hasManagedAPIKey ? API_KEY_PLACEHOLDER : "",
-		);
+		setApiKey(providerState.hasManagedAPIKey ? API_KEY_PLACEHOLDER : "");
 		setApiKeyTouched(false);
 		setBaseURLValue(initialValues.baseURL);
 	}, [initialValues, providerState.hasManagedAPIKey]);
@@ -92,9 +86,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 	// The actual API key value to submit — ignore the placeholder.
 	const effectiveApiKey =
-		apiKeyTouched && apiKey !== API_KEY_PLACEHOLDER
-			? apiKey.trim()
-			: "";
+		apiKeyTouched && apiKey !== API_KEY_PLACEHOLDER ? apiKey.trim() : "";
 
 	// Dirty detection: has anything changed from the initial state?
 	const isDirty =
@@ -224,8 +216,8 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				<Alert severity="info">
 					<AlertTitle>API key managed by environment variable</AlertTitle>
 					<AlertDetail>
-						This provider key is configured from deployment environment
-						settings and cannot be edited in this UI.
+						This provider key is configured from deployment environment settings
+						and cannot be edited in this UI.
 					</AlertDetail>
 				</Alert>
 			) : (
@@ -235,7 +227,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					autoComplete="off"
 					data-form-type="other"
 				>
-
 					<div className="space-y-5">
 						<ProviderField
 							label="API Key"
@@ -294,11 +285,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									type="button"
 									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
 									disabled={isDisabled}
-									onClick={() => {
-										if (providerConfig) {
-											void onDeleteProvider(providerConfig.id);
-										}
-									}}
+									onClick={() => setShowDeleteDialog(true)}
 								>
 									Delete
 								</Button>
@@ -315,6 +302,21 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					</div>
 				</form>
 			)}
+
+			<DeleteDialog
+				isOpen={showDeleteDialog}
+				onCancel={() => setShowDeleteDialog(false)}
+				onConfirm={() => {
+					if (providerConfig) {
+						void onDeleteProvider(providerConfig.id).finally(() =>
+							setShowDeleteDialog(false),
+						);
+					}
+				}}
+				entity="provider"
+				name={providerState.label}
+				confirmLoading={isProviderMutationPending}
+			/>
 		</div>
 	);
 };

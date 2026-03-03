@@ -81,8 +81,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				? view.provider
 				: selectedProvider;
 		const effectiveProviderState = effectiveProvider
-			? (providerStates.find((ps) => ps.provider === effectiveProvider) ??
-				null)
+			? (providerStates.find((ps) => ps.provider === effectiveProvider) ?? null)
 			: selectedProviderState;
 
 		return (
@@ -104,6 +103,14 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					setView({ mode: "list" });
 				}}
 				onCancel={() => setView({ mode: "list" })}
+				onDeleteModel={
+					editingModel
+						? () => {
+								setModelToDelete(editingModel);
+								setView({ mode: "list" });
+							}
+						: undefined
+				}
 			/>
 		);
 	}
@@ -134,10 +141,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 						}}
 						className="gap-2"
 					>
-						<ProviderIcon
-							provider={ps.provider}
-							className="h-5 w-5"
-						/>
+						<ProviderIcon provider={ps.provider} className="h-5 w-5" />
 						{ps.label}
 					</DropdownMenuItem>
 				))}
@@ -177,7 +181,10 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					{modelConfigs.map((modelConfig, i) => (
 						<div
 							key={modelConfig.id}
-							className={`flex items-center gap-3.5 px-3 py-3 ${i > 0 ? "border-0 border-t border-solid border-border/50" : ""}`}
+							className={cn(
+								"flex items-center gap-3.5 px-3 py-3",
+								i > 0 && "border-0 border-t border-solid border-border/50",
+							)}
 						>
 							{/* Star for default */}
 							<Tooltip>
@@ -216,9 +223,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 								role="button"
 								tabIndex={0}
 								className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 transition-colors hover:opacity-80"
-								onClick={() =>
-									setView({ mode: "edit", model: modelConfig })
-								}
+								onClick={() => setView({ mode: "edit", model: modelConfig })}
 								onKeyDown={(e) => {
 									if (e.key === "Enter" || e.key === " ") {
 										e.preventDefault();
