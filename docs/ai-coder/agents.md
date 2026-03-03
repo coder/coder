@@ -1,6 +1,6 @@
 # Coder Agents
 
-Coder Agents is a chat interface and API for delegating development work and research to coding agents in your Coder deployment. Developers describe the work they want done, and Coder Agents handles the rest — selecting a template, provisioning a workspace, and executing the task.
+Coder Agents is a chat interface and API for delegating development work and research to coding agents in your Coder deployment. Developers describe the work they want done, and Coder Agents handles selecting a template, provisioning a workspace, and executing the task.
 
 Coder Agents includes its own self-hosted, lightweight AI coding
 agent that runs the agent loop directly within the Coder control plane
