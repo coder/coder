@@ -78,6 +78,9 @@ run() {
 	toskip=(
 		# This needs care to update correctly.
 		"kubernetes-metadata"
+		# Require coder provider with subagent_id (not in registry v2.13.1); skip to use committed golden files.
+		"devcontainer-resources"
+		"devcontainer-multiple-agents"
 	)
 	for skip in "${toskip[@]}"; do
 		if [[ $name == "$skip" ]]; then
