@@ -332,7 +332,7 @@ export const CreateAndUpdateProvider: Story = {
 		// Focus the API key field, type a new key, update the base URL,
 		// and save.
 		const apiKeyInput = body.getByLabelText(/API key/i);
-		await userEvent.click(apiKeyInput);
+		await userEvent.clear(apiKeyInput);
 		await userEvent.type(apiKeyInput, "sk-updated-provider-key");
 		const baseURLInput = body.getByLabelText("Base URL");
 		await userEvent.clear(baseURLInput);
@@ -364,11 +364,16 @@ const openAddModelForm = async (
 	providerLabel: string,
 ) => {
 	// Click the dropdown trigger to open the provider menu.
-	await userEvent.click(await body.findByRole("button", { name: "Add model" }));
-	// Select the provider from the dropdown menu.
-	await userEvent.click(
-		await body.findByRole("menuitem", { name: providerLabel }),
-	);
+	const trigger = await body.findByRole("button", { name: "Add model" });
+	await userEvent.click(trigger);
+	// Radix portals dropdown content into the document body.
+	// Wait for the menu to appear and click the provider item.
+	await waitFor(async () => {
+		const item = body.getByRole("menuitem", {
+			name: new RegExp(providerLabel, "i"),
+		});
+		await userEvent.click(item);
+	});
 };
 
 export const NoModelConfigByDefault: Story = {
@@ -397,6 +402,8 @@ export const NoModelConfigByDefault: Story = {
 		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
 
+		// Max output tokens is under the "Advanced" toggle.
+		await userEvent.click(body.getByText("Advanced"));
 		await expect(await body.findByLabelText(/Max output tokens/i)).toHaveValue(
 			"",
 		);
@@ -448,6 +455,8 @@ export const SubmitModelConfigExplicitly: Story = {
 			"gpt-5-pro-custom",
 		);
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
+		// Max output tokens and provider options are under "Advanced".
+		await userEvent.click(body.getByText("Advanced"));
 		await userEvent.type(
 			await body.findByLabelText(/Max output tokens/i),
 			"32000",
@@ -505,6 +514,8 @@ export const ValidatesModelConfigFields: Story = {
 
 		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
+		// Max output tokens is under the "Advanced" toggle.
+		await userEvent.click(body.getByText("Advanced"));
 		const maxOutputTokensInput =
 			await body.findByLabelText(/Max output tokens/i);
 		await userEvent.type(maxOutputTokensInput, "not-a-number");
