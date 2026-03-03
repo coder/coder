@@ -1026,9 +1026,10 @@ provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/tes
 	TZ=UTC go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
 
+# Compare major.minor only so 1.11.5 vs 1.11.6 does not trigger full regenerate (avoids version.txt diff in CI).
 provisioner/terraform/testdata/version:
-	if [[ "$(shell cat provisioner/terraform/testdata/version.txt)" != "$(shell terraform version -json | jq -r '.terraform_version')" ]]; then
-		./provisioner/terraform/testdata/generate.sh
+	if [[ "$$(cat provisioner/terraform/testdata/version.txt | cut -d. -f1-2)" != "$$(terraform version -json | jq -r '.terraform_version' | cut -d. -f1-2)" ]]; then \
+		./provisioner/terraform/testdata/generate.sh; \
 	fi
 .PHONY: provisioner/terraform/testdata/version
 
