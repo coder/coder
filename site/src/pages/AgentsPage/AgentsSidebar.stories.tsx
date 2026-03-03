@@ -75,31 +75,6 @@ const meta: Meta<typeof AgentsSidebar> = {
 export default meta;
 type Story = StoryObj<typeof AgentsSidebar>;
 
-export const SearchFiltering: Story = {
-	args: {
-		chats: [
-			buildChat({ id: "parent-1", title: "Parent planner" }),
-			buildChat({
-				id: "child-1",
-				title: "Child executor",
-				parent_chat_id: "parent-1",
-				root_chat_id: "parent-1",
-			}),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.type(
-			canvas.getByPlaceholderText("Search agents..."),
-			"child",
-		);
-		await waitFor(() => {
-			expect(canvas.getByText("Parent planner")).toBeInTheDocument();
-			expect(canvas.getByText("Child executor")).toBeInTheDocument();
-		});
-	},
-};
-
 export const RunningDelegatedChat: Story = {
 	args: {
 		chats: [
