@@ -427,6 +427,7 @@ SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
+	site/src/api/chatModelOptionsGenerated.json \
 	site/src/theme/icons.json
 
 site/out/index.html: \
@@ -721,6 +722,7 @@ gen/mark-fresh:
 		coderd/rbac/scopes_constants_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
+		site/src/api/chatModelOptionsGenerated.json \
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
@@ -915,6 +917,10 @@ site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typ
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go
 	go run scripts/typegen/main.go countries > "$@"
 	./scripts/biome_format.sh src/api/countriesGenerated.ts
+	touch "$@"
+
+site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go
+	go run ./scripts/modeloptionsgen/main.go | tail -n +2 > "$@"
 	touch "$@"
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES)

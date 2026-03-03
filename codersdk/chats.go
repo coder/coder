@@ -245,134 +245,134 @@ type ChatModelProviderOptions struct {
 
 // ChatModelOpenAIProviderOptions configures OpenAI provider behavior.
 type ChatModelOpenAIProviderOptions struct {
-	Include             []string         `json:"include,omitempty"`
-	Instructions        *string          `json:"instructions,omitempty"`
-	LogitBias           map[string]int64 `json:"logit_bias,omitempty"`
-	LogProbs            *bool            `json:"log_probs,omitempty"`
-	TopLogProbs         *int64           `json:"top_log_probs,omitempty"`
-	MaxToolCalls        *int64           `json:"max_tool_calls,omitempty"`
-	ParallelToolCalls   *bool            `json:"parallel_tool_calls,omitempty"`
-	User                *string          `json:"user,omitempty"`
-	ReasoningEffort     *string          `json:"reasoning_effort,omitempty"`
-	ReasoningSummary    *string          `json:"reasoning_summary,omitempty"`
-	MaxCompletionTokens *int64           `json:"max_completion_tokens,omitempty"`
-	TextVerbosity       *string          `json:"text_verbosity,omitempty"`
-	Prediction          map[string]any   `json:"prediction,omitempty"`
-	Store               *bool            `json:"store,omitempty"`
-	Metadata            map[string]any   `json:"metadata,omitempty"`
-	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty"`
-	SafetyIdentifier    *string          `json:"safety_identifier,omitempty"`
-	ServiceTier         *string          `json:"service_tier,omitempty"`
-	StructuredOutputs   *bool            `json:"structured_outputs,omitempty"`
-	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty"`
+	Include             []string         `json:"include,omitempty" description:"Model names to include in discovery" hidden:"true"`
+	Instructions        *string          `json:"instructions,omitempty" description:"System-level instructions prepended to the conversation" hidden:"true"`
+	LogitBias           map[string]int64 `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
+	LogProbs            *bool            `json:"log_probs,omitempty" description:"Whether to return log probabilities of output tokens" hidden:"true"`
+	TopLogProbs         *int64           `json:"top_log_probs,omitempty" description:"Number of most likely tokens to return log probabilities for" hidden:"true"`
+	MaxToolCalls        *int64           `json:"max_tool_calls,omitempty" description:"Maximum number of tool calls per response"`
+	ParallelToolCalls   *bool            `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
+	User                *string          `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
+	ReasoningEffort     *string          `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"minimal,low,medium,high"`
+	ReasoningSummary    *string          `json:"reasoning_summary,omitempty" description:"Controls whether reasoning tokens are summarized in the response"`
+	MaxCompletionTokens *int64           `json:"max_completion_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
+	TextVerbosity       *string          `json:"text_verbosity,omitempty" description:"Controls the verbosity of the text response" enum:"low,medium,high"`
+	Prediction          map[string]any   `json:"prediction,omitempty" description:"Predicted output content to speed up responses" hidden:"true"`
+	Store               *bool            `json:"store,omitempty" description:"Whether to store the output for model distillation or evals" hidden:"true"`
+	Metadata            map[string]any   `json:"metadata,omitempty" description:"Arbitrary metadata to attach to the request" hidden:"true"`
+	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching" hidden:"true"`
+	SafetyIdentifier    *string          `json:"safety_identifier,omitempty" description:"Developer-specific safety identifier for the request" hidden:"true"`
+	ServiceTier         *string          `json:"service_tier,omitempty" description:"Latency tier to use for processing the request"`
+	StructuredOutputs   *bool            `json:"structured_outputs,omitempty" description:"Whether to enable structured JSON output mode" hidden:"true"`
+	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty" description:"Whether to enforce strict adherence to the JSON schema" hidden:"true"`
 }
 
 // ChatModelAnthropicThinkingOptions configures Anthropic thinking budget.
 type ChatModelAnthropicThinkingOptions struct {
-	BudgetTokens *int64 `json:"budget_tokens,omitempty"`
+	BudgetTokens *int64 `json:"budget_tokens,omitempty" description:"Maximum number of tokens the model may use for thinking"`
 }
 
 // ChatModelAnthropicProviderOptions configures Anthropic provider behavior.
 type ChatModelAnthropicProviderOptions struct {
-	SendReasoning          *bool                              `json:"send_reasoning,omitempty"`
-	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty"`
-	Effort                 *string                            `json:"effort,omitempty"`
-	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty"`
+	SendReasoning          *bool                              `json:"send_reasoning,omitempty" description:"Whether to include reasoning content in the response"`
+	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty" description:"Configuration for extended thinking"`
+	Effort                 *string                            `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"low,medium,high,max"`
+	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty" description:"Whether to disable parallel tool execution"`
 }
 
 // ChatModelGoogleThinkingConfig configures Google thinking behavior.
 type ChatModelGoogleThinkingConfig struct {
-	ThinkingBudget  *int64 `json:"thinking_budget,omitempty"`
-	IncludeThoughts *bool  `json:"include_thoughts,omitempty"`
+	ThinkingBudget  *int64 `json:"thinking_budget,omitempty" description:"Maximum number of tokens the model may use for thinking"`
+	IncludeThoughts *bool  `json:"include_thoughts,omitempty" description:"Whether to include thinking content in the response"`
 }
 
 // ChatModelGoogleSafetySetting configures Google safety filtering.
 type ChatModelGoogleSafetySetting struct {
-	Category  string `json:"category,omitempty"`
-	Threshold string `json:"threshold,omitempty"`
+	Category  string `json:"category,omitempty" description:"The harm category to configure"`
+	Threshold string `json:"threshold,omitempty" description:"The blocking threshold for the harm category"`
 }
 
 // ChatModelGoogleProviderOptions configures Google provider behavior.
 type ChatModelGoogleProviderOptions struct {
-	ThinkingConfig *ChatModelGoogleThinkingConfig `json:"thinking_config,omitempty"`
-	CachedContent  string                         `json:"cached_content,omitempty"`
-	SafetySettings []ChatModelGoogleSafetySetting `json:"safety_settings,omitempty"`
-	Threshold      string                         `json:"threshold,omitempty"`
+	ThinkingConfig *ChatModelGoogleThinkingConfig `json:"thinking_config,omitempty" description:"Configuration for extended thinking"`
+	CachedContent  string                         `json:"cached_content,omitempty" description:"Resource name of a cached content object" hidden:"true"`
+	SafetySettings []ChatModelGoogleSafetySetting `json:"safety_settings,omitempty" description:"Safety filtering settings for harmful content categories" hidden:"true"`
+	Threshold      string                         `json:"threshold,omitempty" hidden:"true"`
 }
 
 // ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
 type ChatModelOpenAICompatProviderOptions struct {
-	User            *string `json:"user,omitempty"`
-	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
+	User            *string `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
+	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"minimal,low,medium,high"`
 }
 
 // ChatModelOpenRouterReasoningOptions configures OpenRouter reasoning behavior.
 type ChatModelOpenRouterReasoningOptions struct {
-	Enabled   *bool   `json:"enabled,omitempty"`
-	Exclude   *bool   `json:"exclude,omitempty"`
-	MaxTokens *int64  `json:"max_tokens,omitempty"`
-	Effort    *string `json:"effort,omitempty"`
+	Enabled   *bool   `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
+	Exclude   *bool   `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
+	MaxTokens *int64  `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
+	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"low,medium,high"`
 }
 
 // ChatModelOpenRouterProvider configures OpenRouter routing preferences.
 type ChatModelOpenRouterProvider struct {
-	Order             []string `json:"order,omitempty"`
-	AllowFallbacks    *bool    `json:"allow_fallbacks,omitempty"`
-	RequireParameters *bool    `json:"require_parameters,omitempty"`
-	DataCollection    *string  `json:"data_collection,omitempty"`
-	Only              []string `json:"only,omitempty"`
-	Ignore            []string `json:"ignore,omitempty"`
-	Quantizations     []string `json:"quantizations,omitempty"`
-	Sort              *string  `json:"sort,omitempty"`
+	Order             []string `json:"order,omitempty" description:"Ordered list of preferred provider names"`
+	AllowFallbacks    *bool    `json:"allow_fallbacks,omitempty" description:"Whether to allow fallback to other providers"`
+	RequireParameters *bool    `json:"require_parameters,omitempty" description:"Whether to require all parameters to be supported by the provider"`
+	DataCollection    *string  `json:"data_collection,omitempty" description:"Data collection policy preference"`
+	Only              []string `json:"only,omitempty" description:"Restrict to only these provider names"`
+	Ignore            []string `json:"ignore,omitempty" description:"Provider names to exclude from routing"`
+	Quantizations     []string `json:"quantizations,omitempty" description:"Allowed model quantization levels"`
+	Sort              *string  `json:"sort,omitempty" description:"Sort order for provider selection"`
 }
 
 // ChatModelOpenRouterProviderOptions configures OpenRouter provider behavior.
 type ChatModelOpenRouterProviderOptions struct {
-	Reasoning         *ChatModelOpenRouterReasoningOptions `json:"reasoning,omitempty"`
-	ExtraBody         map[string]any                       `json:"extra_body,omitempty"`
-	IncludeUsage      *bool                                `json:"include_usage,omitempty"`
-	LogitBias         map[string]int64                     `json:"logit_bias,omitempty"`
-	LogProbs          *bool                                `json:"log_probs,omitempty"`
-	ParallelToolCalls *bool                                `json:"parallel_tool_calls,omitempty"`
-	User              *string                              `json:"user,omitempty"`
-	Provider          *ChatModelOpenRouterProvider         `json:"provider,omitempty"`
+	Reasoning         *ChatModelOpenRouterReasoningOptions `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
+	ExtraBody         map[string]any                       `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
+	IncludeUsage      *bool                                `json:"include_usage,omitempty" description:"Whether to include token usage information in the response" hidden:"true"`
+	LogitBias         map[string]int64                     `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
+	LogProbs          *bool                                `json:"log_probs,omitempty" description:"Whether to return log probabilities of output tokens" hidden:"true"`
+	ParallelToolCalls *bool                                `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
+	User              *string                              `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
+	Provider          *ChatModelOpenRouterProvider         `json:"provider,omitempty" description:"Routing preferences for provider selection" hidden:"true"`
 }
 
 // ChatModelVercelReasoningOptions configures Vercel reasoning behavior.
 type ChatModelVercelReasoningOptions struct {
-	Enabled   *bool   `json:"enabled,omitempty"`
-	MaxTokens *int64  `json:"max_tokens,omitempty"`
-	Effort    *string `json:"effort,omitempty"`
-	Exclude   *bool   `json:"exclude,omitempty"`
+	Enabled   *bool   `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
+	MaxTokens *int64  `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
+	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"minimal,low,medium,high"`
+	Exclude   *bool   `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
 }
 
 // ChatModelVercelGatewayProviderOptions configures Vercel routing behavior.
 type ChatModelVercelGatewayProviderOptions struct {
-	Order  []string `json:"order,omitempty"`
-	Models []string `json:"models,omitempty"`
+	Order  []string `json:"order,omitempty" description:"Ordered list of preferred provider names"`
+	Models []string `json:"models,omitempty" description:"Model identifiers to route across"`
 }
 
 // ChatModelVercelProviderOptions configures Vercel provider behavior.
 type ChatModelVercelProviderOptions struct {
-	Reasoning         *ChatModelVercelReasoningOptions       `json:"reasoning,omitempty"`
-	ProviderOptions   *ChatModelVercelGatewayProviderOptions `json:"providerOptions,omitempty"`
-	User              *string                                `json:"user,omitempty"`
-	LogitBias         map[string]int64                       `json:"logit_bias,omitempty"`
-	LogProbs          *bool                                  `json:"logprobs,omitempty"`
-	TopLogProbs       *int64                                 `json:"top_logprobs,omitempty"`
-	ParallelToolCalls *bool                                  `json:"parallel_tool_calls,omitempty"`
-	ExtraBody         map[string]any                         `json:"extra_body,omitempty"`
+	Reasoning         *ChatModelVercelReasoningOptions       `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
+	ProviderOptions   *ChatModelVercelGatewayProviderOptions `json:"providerOptions,omitempty" description:"Gateway routing options for provider selection" hidden:"true"`
+	User              *string                                `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
+	LogitBias         map[string]int64                       `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
+	LogProbs          *bool                                  `json:"logprobs,omitempty" description:"Whether to return log probabilities of output tokens" hidden:"true"`
+	TopLogProbs       *int64                                 `json:"top_logprobs,omitempty" description:"Number of most likely tokens to return log probabilities for" hidden:"true"`
+	ParallelToolCalls *bool                                  `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
+	ExtraBody         map[string]any                         `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
 }
 
 // ChatModelCallConfig configures per-call model behavior defaults.
 type ChatModelCallConfig struct {
-	MaxOutputTokens  *int64                    `json:"max_output_tokens,omitempty"`
-	Temperature      *float64                  `json:"temperature,omitempty"`
-	TopP             *float64                  `json:"top_p,omitempty"`
-	TopK             *int64                    `json:"top_k,omitempty"`
-	PresencePenalty  *float64                  `json:"presence_penalty,omitempty"`
-	FrequencyPenalty *float64                  `json:"frequency_penalty,omitempty"`
-	ProviderOptions  *ChatModelProviderOptions `json:"provider_options,omitempty"`
+	MaxOutputTokens  *int64                    `json:"max_output_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
+	Temperature      *float64                  `json:"temperature,omitempty" description:"Sampling temperature between 0 and 2"`
+	TopP             *float64                  `json:"top_p,omitempty" description:"Nucleus sampling probability cutoff"`
+	TopK             *int64                    `json:"top_k,omitempty" description:"Number of highest-probability tokens to keep for sampling"`
+	PresencePenalty  *float64                  `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
+	FrequencyPenalty *float64                  `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
+	ProviderOptions  *ChatModelProviderOptions `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
 }
 
 // CreateChatModelConfigRequest creates a chat model config.
