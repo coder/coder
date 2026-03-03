@@ -876,10 +876,10 @@ const AgentDetail: FC = () => {
 	};
 
 	const handleArchiveAndDeleteWorkspaceAction = () => {
-		if (!agentId || isArchived) {
+		if (!agentId || isArchived || !workspaceId) {
 			return;
 		}
-		requestArchiveAndDeleteWorkspace(agentId);
+		requestArchiveAndDeleteWorkspace(agentId, workspaceId);
 	};
 
 	if (chatQuery.isLoading) {

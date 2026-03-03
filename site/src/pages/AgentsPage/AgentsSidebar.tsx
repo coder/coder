@@ -52,7 +52,7 @@ interface AgentsSidebarProps {
 	modelConfigs: readonly ChatModelConfig[];
 	logoUrl?: string;
 	onArchiveAgent: (chatId: string) => void;
-	onArchiveAndDeleteWorkspace: (chatId: string) => void;
+	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onNewAgent: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -266,7 +266,10 @@ interface ChatTreeContextValue {
 	readonly archivingChatId: string | null;
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
-	readonly onArchiveAndDeleteWorkspace: (chatId: string) => void;
+	readonly onArchiveAndDeleteWorkspace: (
+		chatId: string,
+		workspaceId: string,
+	) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -329,6 +332,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	const filesChangedLabel = `${changedFiles} ${
 		changedFiles === 1 ? "file" : "files"
 	}`;
+	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 	const isExecuting =
@@ -473,12 +477,15 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								<ArchiveIcon className="h-3.5 w-3.5" />
 								Archive agent
 							</DropdownMenuItem>
-							{chat.workspace_id && (
+							{workspaceId && (
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
 									disabled={isArchiving}
-									onSelect={() => onArchiveAndDeleteWorkspace(chat.id)}
+									onSelect={() =>
+										onArchiveAndDeleteWorkspace(chat.id, workspaceId)
+									}
 								>
+									{" "}
 									<Trash2Icon className="h-3.5 w-3.5" />
 									Archive & delete workspace
 								</DropdownMenuItem>
