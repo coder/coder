@@ -2,20 +2,37 @@ import type * as TypesGen from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import {
+	ChevronDownIcon,
+	ChevronRightIcon,
+	PlusIcon,
+	StarIcon,
+} from "lucide-react";
 import { type FC, useState } from "react";
 import { cn } from "utils/cn";
-import { formatProviderLabel } from "../modelOptions";
+import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelForm } from "./ModelForm";
 import { ProviderIcon } from "./ProviderIcon";
 
 type ModelView =
 	| { mode: "list" }
-	| { mode: "add" }
+	| { mode: "add"; provider: string }
 	| { mode: "edit"; model: TypesGen.ChatModelConfig };
 
 type ModelsSectionProps = {
+	sectionLabel?: string;
 	providerStates: readonly ProviderState[];
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
@@ -36,6 +53,7 @@ type ModelsSectionProps = {
 };
 
 export const ModelsSection: FC<ModelsSectionProps> = ({
+	sectionLabel,
 	providerStates,
 	selectedProvider,
 	selectedProviderState,
@@ -57,14 +75,19 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	if (view.mode === "add" || view.mode === "edit") {
 		const editingModel = view.mode === "edit" ? view.model : undefined;
 
-		// When editing, select the model's provider so the form shows
-		// the correct provider-specific fields.
-		const effectiveProvider = editingModel
-			? editingModel.provider
-			: selectedProvider;
-		const effectiveProviderState = editingModel
-			? (providerStates.find((ps) => ps.provider === editingModel.provider) ??
-				null)
+		const getEffectiveProvider = () => {
+			if (editingModel) {
+				return editingModel.provider;
+			}
+			if (view.mode === "add") {
+				return view.provider;
+			}
+			return selectedProvider;
+		};
+
+		const effectiveProvider = getEffectiveProvider();
+		const effectiveProviderState = effectiveProvider
+			? (providerStates.find((ps) => ps.provider === effectiveProvider) ?? null)
 			: selectedProviderState;
 
 		return (
@@ -86,130 +109,179 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					setView({ mode: "list" });
 				}}
 				onCancel={() => setView({ mode: "list" })}
+				onDeleteModel={
+					editingModel
+						? () => {
+								setModelToDelete(editingModel);
+								setView({ mode: "list" });
+							}
+						: undefined
+				}
 			/>
 		);
 	}
 
 	// ── List view ──────────────────────────────────────────────
 
+	// Only show providers that have an API key configured.
+	const addableProviders = providerStates.filter(
+		(ps) => ps.providerConfig && ps.hasEffectiveAPIKey,
+	);
+
+	const addButton = addableProviders.length > 0 && (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button size="sm" className="gap-1.5" aria-label="Add model">
+					{" "}
+					<PlusIcon className="h-4 w-4" />
+					Add
+					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary" />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				{addableProviders.map((ps) => (
+					<DropdownMenuItem
+						key={ps.provider}
+						onClick={() => {
+							onSelectedProviderChange(ps.provider);
+							setView({ mode: "add", provider: ps.provider });
+						}}
+						className="gap-2"
+					>
+						<ProviderIcon provider={ps.provider} className="h-5 w-5" />
+						{ps.label}
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
+
+	const handleSetDefault = (modelConfig: TypesGen.ChatModelConfig) => {
+		if (modelConfig.is_default) return;
+		void onUpdateModel(modelConfig.id, { is_default: true });
+	};
+
 	return (
 		<>
-			<div className="space-y-4">
-				{/* Add model button */}
-				<div className="flex items-center justify-end">
-					<Button
-						size="sm"
-						className="gap-1.5"
-						onClick={() => setView({ mode: "add" })}
-					>
-						<PlusIcon className="h-4 w-4" />
-						Add model
-					</Button>
-				</div>
+			{sectionLabel && (
+				<SectionHeader
+					label={sectionLabel}
+					description="Manage models available to Agents."
+					action={addButton || undefined}
+				/>
+			)}
 
-				{/* Model list */}
-				{modelConfigs.length === 0 ? (
-					<div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-surface-secondary/20 px-6 py-12 text-center">
-						<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-tertiary/50">
-							<PlusIcon className="h-5 w-5 text-content-secondary" />
-						</div>
-						<div>
-							<p className="m-0 text-[13px] font-medium text-content-primary">
-								No models configured
-							</p>
-							<p className="m-0 mt-1 text-xs text-content-secondary">
-								Add a model to get started with Agents.
-							</p>
-						</div>
-						<Button
-							size="sm"
-							variant="outline"
-							className="mt-1 gap-1.5"
-							onClick={() => setView({ mode: "add" })}
+			{modelConfigs.length === 0 ? (
+				<div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+					<p className="m-0 text-sm text-content-secondary">
+						No models configured yet.
+					</p>
+					{addableProviders.length > 0 && addButton}
+					{addableProviders.length === 0 && (
+						<p className="m-0 text-xs text-content-secondary">
+							Connect a provider first to add models.
+						</p>
+					)}
+				</div>
+			) : (
+				<div className="divide-y divide-border/50">
+					{modelConfigs.map((modelConfig) => (
+						<div
+							key={modelConfig.id}
+							className="flex items-center gap-3.5 px-3 py-3"
 						>
-							<PlusIcon className="h-3.5 w-3.5" />
-							Add your first model
-						</Button>
-					</div>
-				) : (
-					<div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
-						{modelConfigs.map((modelConfig) => (
+							{" "}
+							{/* Star for default */}
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div
+										tabIndex={0}
+										role="button"
+										onClick={(e) => {
+											e.stopPropagation();
+											handleSetDefault(modelConfig);
+										}}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") {
+												e.stopPropagation();
+												handleSetDefault(modelConfig);
+											}
+										}}
+										onKeyUp={(e) => {
+											if (e.key === " ") {
+												e.stopPropagation();
+												handleSetDefault(modelConfig);
+											}
+										}}
+										aria-disabled={isUpdating || modelConfig.is_default}
+										className={cn(
+											"flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors",
+											modelConfig.is_default
+												? "text-yellow-400"
+												: "cursor-pointer text-content-secondary/30 hover:text-content-secondary",
+										)}
+									>
+										<StarIcon
+											className={cn(
+												"h-4 w-4",
+												modelConfig.is_default && "fill-current",
+											)}
+										/>
+									</div>
+								</TooltipTrigger>
+								<TooltipContent side="right">
+									{modelConfig.is_default
+										? "Default model for new chats"
+										: "Set as default for new chats"}
+								</TooltipContent>
+							</Tooltip>
+							{/* Clickable row content */}
 							<div
-								key={modelConfig.id}
-								className="group flex items-center gap-4 bg-surface-primary px-5 py-3.5 transition-colors hover:bg-surface-secondary/30"
+								tabIndex={0}
+								role="button"
+								onClick={() => setView({ mode: "edit", model: modelConfig })}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										setView({ mode: "edit", model: modelConfig });
+										e.stopPropagation();
+									}
+								}}
+								onKeyUp={(e) => {
+									if (e.key === " ") {
+										setView({ mode: "edit", model: modelConfig });
+										e.stopPropagation();
+									}
+								}}
+								className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 transition-colors hover:opacity-80"
 							>
+								{" "}
 								<ProviderIcon
 									provider={modelConfig.provider}
 									className="h-8 w-8 shrink-0"
-									active={modelConfig.enabled !== false}
 								/>
-
 								<div className="min-w-0 flex-1">
-									<div className="flex items-center gap-2">
-										<span
-											className={cn(
-												"truncate text-[13px] font-semibold",
-												modelConfig.enabled === false
-													? "text-content-secondary"
-													: "text-content-primary",
-											)}
-										>
-											{modelConfig.display_name || modelConfig.model}
-										</span>
-										{modelConfig.is_default && (
-											<Badge size="sm" variant="info">
-												default
-											</Badge>
+									<span
+										className={cn(
+											"block truncate text-[15px] font-medium",
+											modelConfig.enabled === false
+												? "text-content-secondary"
+												: "text-content-primary",
 										)}
-										{modelConfig.enabled === false && (
-											<Badge size="sm" variant="warning">
-												disabled
-											</Badge>
-										)}
-									</div>
-									<div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-content-secondary">
-										<span className="inline-flex items-center gap-1">
-											{formatProviderLabel(modelConfig.provider)}
-										</span>
-										<span className="font-mono">{modelConfig.model}</span>
-										<span>
-											{modelConfig.context_limit.toLocaleString()} ctx
-										</span>
-										<span>{modelConfig.compression_threshold}% compress</span>
-									</div>
-								</div>
-
-								<div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-									<Button
-										size="icon"
-										variant="subtle"
-										className="h-8 w-8 text-content-secondary hover:text-content-primary"
-										onClick={() =>
-											setView({
-												mode: "edit",
-												model: modelConfig,
-											})
-										}
 									>
-										<PencilIcon className="h-4 w-4" />
-										<span className="sr-only">Edit model</span>
-									</Button>
-									<Button
-										size="icon"
-										variant="subtle"
-										className="h-8 w-8 text-content-secondary hover:text-content-destructive"
-										onClick={() => setModelToDelete(modelConfig)}
-										disabled={isDeleting}
-									>
-										<Trash2Icon className="h-4 w-4" />
-										<span className="sr-only">Delete model</span>
-									</Button>
+										{modelConfig.display_name || modelConfig.model}
+									</span>
 								</div>
-							</div>
-						))}
-					</div>
-				)}
-			</div>
+								{modelConfig.enabled === false && (
+									<Badge size="xs" variant="warning">
+										disabled
+									</Badge>
+								)}
+								<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
+							</div>{" "}
+						</div>
+					))}
+				</div>
+			)}
 
 			<DeleteDialog
 				isOpen={modelToDelete !== null}
