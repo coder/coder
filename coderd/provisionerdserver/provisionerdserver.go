@@ -3101,7 +3101,7 @@ func shouldRefreshOIDCToken(link database.UserLink) bool {
 
 // obtainOIDCAccessToken returns a valid OpenID Connect access token
 // for the user if it's able to obtain one, otherwise it returns an empty string.
-func obtainOIDCAccessToken(ctx context.Context, logger *slog.Logger, db database.Store, oidcConfig promoauth.OAuth2Config, userID uuid.UUID) (string, error) {
+func obtainOIDCAccessToken(ctx context.Context, logger slog.Logger, db database.Store, oidcConfig promoauth.OAuth2Config, userID uuid.UUID) (string, error) {
 	link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 		UserID:    userID,
 		LoginType: database.LoginTypeOIDC,
