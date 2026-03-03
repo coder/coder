@@ -1480,6 +1480,7 @@ func New(options *Options) *API {
 							})
 						})
 						r.Route("/webpush", func(r chi.Router) {
+							r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentWebPush))
 							r.Post("/subscription", api.postUserWebpushSubscription)
 							r.Delete("/subscription", api.deleteUserWebpushSubscription)
 							r.Post("/test", api.postUserPushNotificationTest)
