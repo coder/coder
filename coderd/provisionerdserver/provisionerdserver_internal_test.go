@@ -76,7 +76,7 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 	t.Run("NoToken", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		_, err := obtainOIDCAccessToken(ctx, db, nil, uuid.Nil)
+		_, err := obtainOIDCAccessToken(ctx, testutil.Logger(t), db, nil, uuid.Nil)
 		require.NoError(t, err)
 	})
 	t.Run("InvalidConfig", func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 			LoginType:   database.LoginTypeOIDC,
 			OAuthExpiry: dbtime.Now().Add(-time.Hour),
 		})
-		_, err := obtainOIDCAccessToken(ctx, db, &oauth2.Config{}, user.ID)
+		_, err := obtainOIDCAccessToken(ctx, testutil.Logger(t), db, &oauth2.Config{}, user.ID)
 		require.NoError(t, err)
 	})
 	t.Run("MissingLink", func(t *testing.T) {
@@ -98,7 +98,7 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 		user := dbgen.User(t, db, database.User{
 			LoginType: database.LoginTypeOIDC,
 		})
-		tok, err := obtainOIDCAccessToken(ctx, db, &oauth2.Config{}, user.ID)
+		tok, err := obtainOIDCAccessToken(ctx, testutil.Logger(t), db, &oauth2.Config{}, user.ID)
 		require.Empty(t, tok)
 		require.NoError(t, err)
 	})
@@ -111,7 +111,7 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 			LoginType:   database.LoginTypeOIDC,
 			OAuthExpiry: dbtime.Now().Add(-time.Hour),
 		})
-		_, err := obtainOIDCAccessToken(ctx, db, &testutil.OAuth2Config{
+		_, err := obtainOIDCAccessToken(ctx, testutil.Logger(t), db, &testutil.OAuth2Config{
 			Token: &oauth2.Token{
 				AccessToken: "token",
 			},
