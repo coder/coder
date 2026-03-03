@@ -62,7 +62,7 @@ Performance, particularly at scale, improved across nearly every system layer.
 Database queries were optimized, several new indexes were added, and expensive
 migrations—such as migration 371—were reworked to complete faster on large
 deployments. Caching was introduced for Terraform installer files and
-workspace/agent lookups, reducing repeated calls. Notification performance
+workspace/workspace daemon lookups, reducing repeated calls. Notification performance
 improved through more efficient connection pooling. These changes collectively
 enable deployments with hundreds or thousands of workspaces to operate more
 smoothly and with lower resource contention.
@@ -101,9 +101,9 @@ require other manual effort to address:
 | CLI session tokens stored in plaintext file                        | CLI session tokens stored in OS keyring (macOS/Windows)                                               | Update scripts, automation, or SSO flows that read/modify the token file, or use `--use-keyring=false`. See [Sessions & API Tokens](https://coder.com/docs/admin/users/sessions-tokens) and [`coder login` CLI reference](https://coder.com/docs/reference/cli/login).          |
 | `task_app_id` field available in `codersdk.WorkspaceBuild`         | `task_app_id` removed from `codersdk.WorkspaceBuild`                                                  | Migrate integrations to use `Task.WorkspaceAppID` instead. See [REST API reference](https://coder.com/docs/reference/api).                                                                                                                                                      |
 | OIDC session handling more permissive                              | Sessions expire when access tokens expire (typically 1 hour) unless refresh tokens are configured     | Add `offline_access` to `CODER_OIDC_SCOPES` (e.g., `openid,profile,email,offline_access`); Google requires `CODER_OIDC_AUTH_URL_PARAMS='{"access_type":"offline","prompt":"consent"}'`. See [OIDC Refresh Tokens](https://coder.com/docs/admin/users/oidc-auth/refresh-tokens). |
-| Devcontainer agent selection is random when multiple agents exist  | Devcontainer agent selection requires explicit choice                                                 | Update automated workflows to explicitly specify agent selection. See [Dev Containers Integration](https://coder.com/docs/user-guides/devcontainers) and [Configure a template for dev containers](https://coder.com/docs/admin/templates/extending-templates/devcontainers).   |
+| Devcontainer workspace daemon selection is random when multiple workspace daemons exist  | Devcontainer workspace daemon selection requires explicit choice                                                 | Update automated workflows to explicitly specify workspace daemon selection. See [Dev Containers Integration](https://coder.com/docs/user-guides/devcontainers) and [Configure a template for dev containers](https://coder.com/docs/admin/templates/extending-templates/devcontainers).   |
 | Terraform execution uses clean directories per build               | Terraform workflows use persistent or cached directories when enabled                                 | Update templates that rely on clean execution directories or per-build isolation. See [External Provisioners](https://coder.com/docs/admin/provisioners) and [Template Dependencies](https://coder.com/docs/admin/templates/managing-templates/dependencies).                   |
-| Agent and task lifecycle behaviors more permissive                 | Agent and task lifecycle behaviors enforce stricter permission checks, readiness gating, and ordering | Review workflows for compatibility with stricter readiness and permission requirements. See [Workspace Lifecycle](https://coder.com/docs/user-guides/workspace-lifecycle) and [Extending Templates](https://coder.com/docs/admin/templates/extending-templates).                |
+| Workspace daemon and task lifecycle behaviors more permissive                 | Workspace daemon and task lifecycle behaviors enforce stricter permission checks, readiness gating, and ordering | Review workflows for compatibility with stricter readiness and permission requirements. See [Workspace Lifecycle](https://coder.com/docs/user-guides/workspace-lifecycle) and [Extending Templates](https://coder.com/docs/admin/templates/extending-templates).                |
 
 ## Upgrading
 
@@ -116,7 +116,7 @@ The following are recommendations by the Coder team when performing the upgrade:
 - **Audit scripts or tools that rely on the CLI token file:** Since 2.29 uses
   the OS keyring for session tokens on macOS and Windows, update any tooling
   that reads the plaintext token file or plan to use `--use-keyring=false`
-- **Review templates using devcontainers or Terraform:** Explicit agent
+- **Review templates using devcontainers or Terraform:** Explicit workspace daemon
   selection, optional persistent/cached Terraform directories, and updated
   metadata handling mean template authors should retest builds and startup
   behavior
@@ -133,8 +133,8 @@ The following are recommendations by the Coder team when performing the upgrade:
 - **Validate workspace lifecycle automation:** Since updates now require
   stopping the workspace first, confirm that automated update jobs, scripts, or
   scheduled tasks still function correctly in this new model
-- **Retest agent and task automation built on early experimental features:**
-  Updates to agent readiness, permission checks, and lifecycle ordering may
+- **Retest workspace daemon and task automation built on early experimental features:**
+  Updates to workspace daemon readiness, permission checks, and lifecycle ordering may
   affect workflows developed against 2.24’s looser behaviors
 - **Monitor workspace, template, and Terraform build performance:** New caching,
   indexes, and DB optimizations may change build times; observing performance

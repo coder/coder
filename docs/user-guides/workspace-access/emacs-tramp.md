@@ -49,7 +49,7 @@ To fix this:
    data "coder_workspace" "me" {
    }
 
-   resource "coder_agent" "main" {
+   resource "coder_workspace_daemon" "main" {
      # ...
      env = {
        name = "CODER_WORKSPACE_NAME"

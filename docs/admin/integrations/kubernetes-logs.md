@@ -49,7 +49,7 @@ and event data from the API server.
 
 coder-logstream-kube listens for pod creation events with containers that have
 the CODER_AGENT_TOKEN environment variable set. All pod events are streamed as
-logs to the Coder API using the agent token for authentication. For more
+logs to the Coder API using the workspace daemon token for authentication. For more
 details, see the
 [coder-logstream-kube](https://github.com/coder/coder-logstream-kube)
 repository.

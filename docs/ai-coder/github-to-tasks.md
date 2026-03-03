@@ -108,7 +108,7 @@ data "coder_external_auth" "github" {
   id = "github" # Must match your CODER_EXTERNAL_AUTH_0_ID
 }
 
-resource "coder_agent" "dev" {
+resource "coder_workspace_daemon" "dev" {
   # ... other config ...
   env = {
     GITHUB_TOKEN = data.coder_external_auth.github.access_token

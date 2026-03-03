@@ -59,7 +59,7 @@ data "coder_workspace" "me" {}
 
 data "coder_workspace_owner" "me" {}
 
-resource "coder_agent" "main" {
+resource "coder_workspace_daemon" "main" {
   # ... other agent configuration
   env = {
     OPENAI_API_KEY     = data.coder_workspace_owner.me.session_token
@@ -72,7 +72,7 @@ resource "coder_agent" "main" {
 module "mux" {
   source   = "registry.coder.com/coder/mux/coder"
   version  = "~> 1.0" # See the module page for the latest version.
-  agent_id = coder_agent.main.id
+  agent_id = coder_workspace_daemon.main.id
 }
 ```
 

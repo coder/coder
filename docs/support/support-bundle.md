@@ -11,7 +11,7 @@ A support bundle is an archive containing a snapshot of information about your
 Coder deployment.
 
 It contains information about the workspace, the template it uses, running
-agents in the workspace, and other detailed information useful for
+workspace daemons, and other detailed information useful for
 troubleshooting.
 
 It is primarily intended for troubleshooting connectivity issues to workspaces,
@@ -29,21 +29,21 @@ A brief overview of all files contained in the bundle is provided below:
 
 | Filename                          | Description                                                                                                |
 |-----------------------------------|------------------------------------------------------------------------------------------------------------|
-| `agent/agent.json`                | The agent used to connect to the workspace with environment variables stripped.                            |
-| `agent/agent_magicsock.html`      | The contents of the HTTP debug endpoint of the agent's Tailscale Wireguard connection.                     |
+| `agent/agent.json`                | The workspace daemon used to connect to the workspace with environment variables stripped.                 |
+| `agent/agent_magicsock.html`      | The contents of the HTTP debug endpoint of the workspace daemon's Tailscale Wireguard connection.          |
 | `agent/client_magicsock.html`     | The contents of the HTTP debug endpoint of the client's Tailscale Wireguard connection.                    |
-| `agent/listening_ports.json`      | The listening ports detected by the selected agent running in the workspace.                               |
-| `agent/logs.txt`                  | The logs of the selected agent running in the workspace.                                                   |
-| `agent/manifest.json`             | The manifest of the selected agent with environment variables stripped.                                    |
-| `agent/startup_logs.txt`          | Startup logs of the workspace agent.                                                                       |
-| `agent/prometheus.txt`            | The contents of the agent's Prometheus endpoint.                                                           |
+| `agent/listening_ports.json`      | The listening ports detected by the selected workspace daemon running in the workspace.                    |
+| `agent/logs.txt`                  | The logs of the selected workspace daemon running in the workspace.                                        |
+| `agent/manifest.json`             | The manifest of the selected workspace daemon with environment variables stripped.                          |
+| `agent/startup_logs.txt`          | Startup logs of the workspace daemon.                                                                      |
+| `agent/prometheus.txt`            | The contents of the workspace daemon's Prometheus endpoint.                                                |
 | `cli_logs.txt`                    | Logs from running the `coder support bundle` command.                                                      |
 | `deployment/buildinfo.json`       | Coder version and build information.                                                                       |
 | `deployment/config.json`          | Deployment [configuration](../reference/api/general.md#get-deployment-config), with secret values removed. |
 | `deployment/experiments.json`     | Any [experiments](../reference/cli/server.md#--experiments) currently enabled for the deployment.          |
 | `deployment/health.json`          | A snapshot of the [health status](../admin/monitoring/health-check.md) of the deployment.                  |
 | `logs.txt`                        | Logs from the `codersdk.Client` used to generate the bundle.                                               |
-| `network/connection_info.json`    | Information used by workspace agents used to connect to Coder (DERP map etc.)                              |
+| `network/connection_info.json`    | Information used by workspace daemons to connect to Coder (DERP map etc.)                                  |
 | `network/coordinator_debug.html`  | Peers currently connected to each Coder instance and the tunnels established between peers.                |
 | `network/netcheck.json`           | Results of running `coder netcheck` locally.                                                               |
 | `network/tailnet_debug.html`      | Tailnet coordinators, their heartbeat ages, connected peers, and tunnels.                                  |

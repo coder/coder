@@ -75,7 +75,7 @@ To set this up, follow these steps:
      count          = data.coder_workspace.me.start_count
      source         = "registry.coder.com/modules/jfrog-oauth/coder"
      version        = "1.0.19"
-     agent_id       = coder_agent.example.id
+     agent_id       = coder_workspace_daemon.example.id
      jfrog_url      = "https://example.jfrog.io"
      username_field = "username" # If you are using GitHub to login to both Coder and Artifactory, use username_field = "username"
 
@@ -111,7 +111,7 @@ To set this up, follow these steps:
    module "jfrog" {
      source                   = "registry.coder.com/modules/jfrog-token/coder"
      version                  = "1.0.30"
-     agent_id                 = coder_agent.example.id
+     agent_id                 = coder_workspace_daemon.example.id
      jfrog_url                = "https://XXXX.jfrog.io"
      artifactory_access_token = var.artifactory_access_token
      package_managers = {

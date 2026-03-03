@@ -65,9 +65,9 @@ and shown in the UI, but users must manually start it.
 > If this setting is disabled at the template level, containers won't auto-start
 > regardless of this option.
 
-## Custom agent name
+## Custom workspace daemon name
 
-Each dev container gets an agent name derived from the workspace folder path by
+Each dev container gets a name derived from the workspace folder path by
 default. You can set a custom name using the `name` option:
 
 ```json
@@ -234,7 +234,7 @@ Coder provides these environment variables automatically:
 | `CODER_WORKSPACE_NAME`              | Name of the workspace              |
 | `CODER_WORKSPACE_OWNER_NAME`        | Username of the workspace owner    |
 | `CODER_WORKSPACE_AGENT_NAME`        | Name of the dev container agent    |
-| `CODER_WORKSPACE_PARENT_AGENT_NAME` | Name of the parent workspace agent |
+| `CODER_WORKSPACE_PARENT_AGENT_NAME` | Name of the parent workspace daemon |
 | `CODER_URL`                         | URL of the Coder deployment        |
 | `CONTAINER_ID`                      | Docker container ID                |
 

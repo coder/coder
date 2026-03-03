@@ -38,7 +38,7 @@ export function useAgentLogs(
 		const socket = watchWorkspaceAgentLogs(agentId, { after: 0 });
 		socket.addEventListener("message", (e) => {
 			if (e.parseError) {
-				console.warn("Error parsing agent log: ", e.parseError);
+				console.warn("Error parsing workspace daemon log: ", e.parseError);
 				return;
 			}
 
@@ -58,8 +58,8 @@ export function useAgentLogs(
 		});
 
 		socket.addEventListener("error", (error) => {
-			console.error("Error in agent log socket: ", error);
-			toast.error(`Unable to watch "${agentId}" agent logs.`, {
+			console.error("Error in workspace daemon log socket: ", error);
+			toast.error(`Unable to watch "${agentId}" workspace daemon logs.`, {
 				description: "Please try refreshing the browser.",
 			});
 			socket.close();

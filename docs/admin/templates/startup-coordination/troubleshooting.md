@@ -35,7 +35,7 @@ Status: completed
 Ready: true
 ```
 
-If the unit is not known to the agent, you will see output similar to the below:
+If the unit is not known to the workspace daemon, you will see output similar to the below:
 
 ```bash
 # coder exp sync status doesnotexist
@@ -51,19 +51,19 @@ No dependencies found
 
 ### Socket not enabled
 
-If the Coder Agent Socket Server is not enabled, you will see an error message similar to the below when running `coder exp sync ping`:
+If the workspace daemon socket server is not enabled, you will see an error message similar to the below when running `coder exp sync ping`:
 
 ```bash
 error: connect to agent socket: connect to socket: dial unix /tmp/coder-agent.sock: connect: no such file or directory
 ```
 
-Verify `CODER_AGENT_SOCKET_SERVER_ENABLED=true` is set in the Coder agent's environment:
+Verify `CODER_AGENT_SOCKET_SERVER_ENABLED=true` is set in the workspace daemon's environment:
 
 ```bash
 tr '\0' '\n' < /proc/$(pidof -s coder)/environ | grep CODER_AGENT_SOCKET_SERVER_ENABLED
 ```
 
-If the output of the above command is empty, review your template and ensure that the environment variable is set such that it is readable by the Coder agent process. Setting it on the `coder_agent` resource directly is **not** sufficient.
+If the output of the above command is empty, review your template and ensure that the environment variable is set such that it is readable by the workspace daemon process. Setting it on the `coder_workspace_daemon` resource directly is **not** sufficient.
 
 ## Workspace startup script hangs
 

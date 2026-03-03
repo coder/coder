@@ -30,12 +30,12 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 
 	const title =
 		status === agentVersionStatus.Outdated
-			? "Agent Outdated"
-			: "Agent Deprecated";
+			? "Workspace Daemon Outdated"
+			: "Workspace Daemon Deprecated";
 	const opener =
 		status === agentVersionStatus.Outdated
-			? "This agent is an older version than the Coder server."
-			: "This agent is using a deprecated version of the API.";
+			? "This workspace daemon is an older version than the Coder server."
+			: "This workspace daemon is using a deprecated version of the API.";
 	const text = `${opener} This can happen after you update Coder with running workspaces. To fix this, you can stop and start the workspace.`;
 
 	return (

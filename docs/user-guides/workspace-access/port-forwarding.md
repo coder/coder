@@ -61,7 +61,7 @@ proxy the deployment, and port forwarding will work.
 There is a
 [DNS limitation](https://datatracker.ietf.org/doc/html/rfc1035#section-2.3.1)
 where each segment of hostnames must not exceed 63 characters. If your app
-name, agent name, workspace name and username exceed 63 characters in the
+name, workspace daemon name, workspace name and username exceed 63 characters in the
 hostname, port forwarding via the dashboard will not work.
 
 ### From a coder_app resource
@@ -74,7 +74,7 @@ the `subdomain` and `share` settings:
 ```tf
 # node app
 resource "coder_app" "node-react-app" {
-  agent_id  = coder_agent.dev.id
+  agent_id  = coder_workspace_daemon.dev.id
   slug      = "node-react-app"
   icon      = "https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg"
   url       = "http://localhost:3000"
@@ -101,7 +101,7 @@ accessible by users outside of the Coder deployment.
 Another way to port forward in the dashboard is to use the "Open Ports" button
 to specify an arbitrary port. Coder will also detect if apps inside the
 workspace are listening on ports, and list them below the port input (this is
-only supported on Windows and Linux workspace agents).
+only supported on Windows and Linux workspace daemons).
 
 ![Port forwarding in the UI](../../images/networking/listeningports.png)
 

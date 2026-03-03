@@ -16,7 +16,7 @@ Learn how to install & read the docs on the
 
 ## Table of Contents
 
-- [Logs](./logs.md): Learn how to access to Coder server logs, agent logs, and
+- [Logs](./logs.md): Learn how to access to Coder server logs, workspace daemon logs, and
   even how to expose Kubernetes pod scheduling logs.
 - [Metrics](./metrics.md): Learn about the valuable metrics to measure on a
   Coder deployment, regardless of your monitoring stack.

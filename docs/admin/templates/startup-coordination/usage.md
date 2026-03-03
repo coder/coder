@@ -3,7 +3,7 @@
 > [!NOTE]
 > This feature is experimental and may change without notice in future releases.
 
-Startup coordination is built around the concept of **units**. You declare units in your Coder workspace template using the `coder exp sync` command in `coder_script` resources. When the Coder agent starts, it keeps an in-memory directed acyclic graph (DAG) of all units of which it is aware. When you need to synchronize with another unit, you can use `coder exp sync start $UNIT_NAME` to block until all dependencies of that unit have been marked complete.
+Startup coordination is built around the concept of **units**. You declare units in your Coder workspace template using the `coder exp sync` command in `coder_script` resources. When the workspace daemon starts, it keeps an in-memory directed acyclic graph (DAG) of all units of which it is aware. When you need to synchronize with another unit, you can use `coder exp sync start $UNIT_NAME` to block until all dependencies of that unit have been marked complete.
 
 ## What is a unit?
 
@@ -22,13 +22,13 @@ task.
 
 To use startup dependencies in your templates, you must:
 
-- Enable the Coder Agent Socket Server.
+- Enable the workspace daemon socket server.
 - Modify your workspace startup scripts to run in parallel and declare dependencies as required using `coder exp sync`.
 
-### Enable the Coder Agent Socket Server
+### Enable the workspace daemon socket server
 
-The agent socket server provides the communication layer for startup
-coordination. To enable it, set `CODER_AGENT_SOCKET_SERVER_ENABLED=true` in the environment in which the agent is running.
+The workspace daemon socket server provides the communication layer for startup
+coordination. To enable it, set `CODER_AGENT_SOCKET_SERVER_ENABLED=true` in the environment in which the workspace daemon is running.
 The exact method for doing this depends on your infrastructure platform:
 
 <div class="tabs">
@@ -45,7 +45,7 @@ resource "docker_container" "workspace" {
     "CODER_AGENT_SOCKET_SERVER_ENABLED=true"
   ]
 
-  command = ["sh", "-c", coder_agent.main.init_script]
+  command = ["sh", "-c", coder_workspace_daemon.main.init_script]
 }
 ```
 
@@ -64,7 +64,7 @@ resource "kubernetes_pod" "main" {
     container {
       name    = "dev"
       image   = "codercom/enterprise-base:ubuntu"
-      command = ["sh", "-c", coder_agent.main.init_script]
+      command = ["sh", "-c", coder_workspace_daemon.main.init_script]
 
       env {
         name  = "CODER_AGENT_SOCKET_SERVER_ENABLED"
@@ -236,7 +236,7 @@ resource "coder_script" "ide_setup" {
 
 ### Avoid circular dependencies
 
-The Coder Agent detects and rejects circular dependencies, but they indicate a design problem:
+The workspace daemon detects and rejects circular dependencies, but they indicate a design problem:
 
 ```bash
 # This will fail

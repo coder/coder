@@ -104,7 +104,7 @@ To allow other users to access workspace apps, configure subdomain-based access:
    ```hcl
    module "code-server" {
      source    = "registry.coder.com/coder/code-server/coder"
-     agent_id  = coder_agent.main.id
+     agent_id  = coder_workspace_daemon.main.id
      subdomain = true
      # ...
    }

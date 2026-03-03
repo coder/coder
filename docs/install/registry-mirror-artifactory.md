@@ -84,14 +84,14 @@ Update your Coder templates to use Artifactory instead of the public registry:
 module "code-server" {
   source   = "registry.coder.com/coder/code-server/coder"
   version  = "1.4.2"
-  agent_id = coder_agent.main.id
+  agent_id = coder_workspace_daemon.main.id
 }
 
 # After: Through Artifactory mirror
 module "code-server" {
   source   = "https://<your-artifactory-host>/coder/code-server/coder"
   version  = "1.4.2"
-  agent_id = coder_agent.main.id
+  agent_id = coder_workspace_daemon.main.id
 }
 ```
 

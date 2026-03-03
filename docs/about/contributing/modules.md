@@ -115,7 +115,7 @@ terraform {
 
 # Input variables
 variable "agent_id" {
-  description = "The ID of a Coder agent"
+  description = "The ID of a Coder workspace daemon"
   type        = string
 }
 
@@ -217,7 +217,7 @@ module "git_clone" {
   source   = "registry.coder.com/[your-username]/git-clone/coder"
   version  = "~> 1.0"
   
-  agent_id = coder_agent.main.id
+  agent_id = coder_workspace_daemon.main.id
   url      = "https://github.com/coder/coder.git"
   base_dir = "/home/coder/projects"
 }

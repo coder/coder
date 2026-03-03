@@ -151,7 +151,7 @@ Refer to the following resources:
 
 - [Tutorial: Create a template from scratch](../../tutorials/template-from-scratch.md)
 - [Extending templates](./extending-templates/index.md): Features and concepts
-  around templates (agents, parameters, variables, etc)
+  around templates (workspace daemons, parameters, variables, etc)
 - [Coder Registry](https://registry.coder.com/templates): Official and community
   templates for Coder
 - [Coder Terraform Provider Reference](https://registry.terraform.io/providers/coder/coder)

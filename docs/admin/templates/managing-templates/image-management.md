@@ -23,7 +23,7 @@ dependencies to work in your network and work with Coder. Here are some things
 to consider:
 
 - `curl`, `wget`, or `busybox` is required to download and run
-  [the agent](https://github.com/coder/coder/blob/main/provisionersdk/scripts/bootstrap_linux.sh)
+  [the workspace daemon](https://github.com/coder/coder/blob/main/provisionersdk/scripts/bootstrap_linux.sh)
 - `git` is recommended so developers can clone repositories
 - If the Coder server is using a certificate from an internal certificate
   authority (CA), you'll need to add or mount these into your image

@@ -150,7 +150,7 @@ apps.
 The _scaletest-runner_ offers the following configuration options:
 
 - Workspace size selection: minimal/small/medium/large (_default_: minimal,
-  which contains just enough resources for a Coder agent to run without
+  which contains just enough resources for a workspace daemon to run without
   additional workloads)
 - Number of workspaces
 - Wait duration between scenarios or staggered approach
@@ -186,17 +186,17 @@ There are a few cluster options available:
 |----------------|------|--------|-------------------|-------------------------------------------------------|
 | minimal        | 1    | 2 Gi   | None              |                                                       |
 | small          | 1    | 1 Gi   | None              |                                                       |
-| medium         | 2    | 2 Gi   | None              | Medium-sized cluster offers the greedy agent variant. |
+| medium         | 2    | 2 Gi   | None              | Medium-sized cluster offers the greedy workspace daemon variant. |
 | large          | 4    | 4 Gi   | None              |                                                       |
 
 Note: Review the selected cluster template and edit the node affinity to match
 your setup.
 
-#### Greedy agent
+#### Greedy workspace daemon
 
-The greedy agent variant is a template modification that makes the Coder agent
+The greedy workspace daemon variant is a template modification that makes the workspace daemon
 transmit large metadata (size: 4K) while reporting stats. The transmission of
-large chunks puts extra overhead on coderd instances and agents when handling
+large chunks puts extra overhead on coderd instances and workspace daemons when handling
 and storing the data.
 
 Use this template variant to verify limits of the cluster performance.

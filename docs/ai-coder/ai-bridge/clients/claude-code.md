@@ -15,7 +15,7 @@ Template admins can pre-configure Claude Code for a seamless experience. Admins 
 module "claude-code" {
   source          = "registry.coder.com/coder/claude-code/coder"
   version         = "4.7.3"
-  agent_id        = coder_agent.main.id
+  agent_id        = coder_workspace_daemon.main.id
   workdir         = "/path/to/project"  # Set to your project directory
   enable_aibridge = true
 }
@@ -36,7 +36,7 @@ data "coder_task" "me" {}
 module "claude-code" {
   source         = "registry.coder.com/coder/claude-code/coder"
   version        = "4.7.3"
-  agent_id       = coder_agent.main.id
+  agent_id       = coder_workspace_daemon.main.id
   workdir        = "/path/to/project"  # Set to your project directory
   ai_prompt      = data.coder_task.me.prompt
 

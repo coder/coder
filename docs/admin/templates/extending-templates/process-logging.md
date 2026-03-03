@@ -85,7 +85,7 @@ would like to add workspace process logging to, follow these steps:
    ```hcl
    locals {
      # This is the init script for the main workspace container that runs before the
-     # agent starts to configure workspace process logging.
+     # workspace daemon starts to configure workspace process logging.
      exectrace_init_script = <<EOT
        set -eu
        pidns_inum=$(readlink /proc/self/ns/pid | sed 's/[^0-9]//g')
@@ -154,7 +154,7 @@ would like to add workspace process logging to, follow these steps:
          command = [
            "sh",
            "-c",
-           "${local.exectrace_init_script}\n\n${coder_agent.main.init_script}",
+           "${local.exectrace_init_script}\n\n${coder_workspace_daemon.main.init_script}",
          ]
          ...
        }

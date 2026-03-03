@@ -1,13 +1,13 @@
 # Troubleshooting templates
 
 Occasionally, you may run into scenarios where a workspace is created, but the
-agent is either not connected or the
+workspace daemon is either not connected or the
 [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1)
 has failed or timed out.
 
-## Agent connection issues
+## Workspace daemon connection issues
 
-If the agent is not connected, it means the agent or
+If the workspace daemon is not connected, it means the workspace daemon or
 [init script](https://github.com/coder/coder/tree/main/provisionersdk/scripts)
 has failed on the resource.
 
@@ -22,12 +22,12 @@ practices:
 - Ensure the resource has `curl` installed (alternatively, `wget` or `busybox`)
 - Ensure the resource can `curl` your Coder
   [access URL](../../admin/setup/index.md#access-url)
-- Manually connect to the resource and check the agent logs (e.g.,
+- Manually connect to the resource and check the workspace daemon logs (e.g.,
   `kubectl exec`, `docker exec` or AWS console)
-  - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
-  - The Coder agent startup script logs are typically stored in
+  - The workspace daemon logs are typically stored in `/tmp/coder-agent.log`
+  - The workspace daemon startup script logs are typically stored in
     `/tmp/coder-startup-script.log`
-  - The Coder agent shutdown script logs are typically stored in
+  - The workspace daemon shutdown script logs are typically stored in
     `/tmp/coder-shutdown-script.log`
 - This can also happen if the websockets are not being forwarded correctly when
   running Coder behind a reverse proxy.

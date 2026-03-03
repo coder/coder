@@ -104,7 +104,7 @@ In your Coder templates, enable subdomain applications using the `subdomain` par
 
 ```hcl
 resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_workspace_daemon.main.id
   slug         = "code-server"
   display_name = "VS Code"
   url          = "http://localhost:8080"

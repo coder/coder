@@ -67,7 +67,7 @@ The following actions do **not** count as workspace activity:
 - Viewing or editing workspace settings
 - Viewing build logs or audit logs
 - Accessing ports through direct URLs without an active session
-- Background agent statistics reporting
+- Background workspace daemon statistics reporting
 
 To avoid unexpected cloud costs, close your connections, this includes IDE windows, SSH sessions, and others, when you finish using your workspace.
 

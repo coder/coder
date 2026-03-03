@@ -33,7 +33,7 @@ If configuring within a Coder workspace, you can also use the [Codex CLI](https:
 module "codex" {
   source          = "registry.coder.com/coder-labs/codex/coder"
   version         = "~> 4.1"
-  agent_id        = coder_agent.main.id
+  agent_id        = coder_workspace_daemon.main.id
   workdir         = "/path/to/project"  # Set to your project directory
   enable_aibridge = true
 }

@@ -2,7 +2,7 @@
 
 Workspaces are flexible, reproducible, and isolated units of compute. Workspaces
 are created via Terraform, managed through the Coder control plane, accessed
-through the Coder agent, then stopped and deleted again by Terraform.
+through the workspace daemon, then stopped and deleted again by Terraform.
 
 This page covers how workspaces move through this lifecycle. To learn about
 automating workspace schedules for cost control, read the
@@ -30,8 +30,8 @@ If some error occurs during the above, a workspace may fall into one of the
 following broken states:
 
 - Failed: Failure during provisioning, no resource consumption
-- Unhealthy: Resources have been provisioned, but the agent can't facilitate
-  connections
+- Unhealthy: Resources have been provisioned, but the workspace daemon can't
+  facilitate connections
 
 ## Workspace creation
 
@@ -49,17 +49,19 @@ plane. Coder takes this and uses [Terraform](https://www.terraform.io/) to
 provision a workspace defined by your [template](../admin/templates/index.md).
 Generally, templates define the resources and environment of a workspace.
 
-The resources that run the agent are described as _computational resources_,
-while those that don't are called _peripheral resources_. A workspace must
-contain some computational resource to run the Coder agent process.
+The resources that run the workspace daemon are described as _computational
+resources_, while those that don't are called _peripheral resources_. A
+workspace must contain some computational resource to run the workspace daemon
+process.
 
-The provisioned workspace's computational resources start the agent process,
-which opens connections to your workspace via SSH, the terminal, and IDES such
+The provisioned workspace's computational resources start the workspace daemon
+process, which opens connections to your workspace via SSH, the terminal, and
+IDES such
 as [JetBrains](./workspace-access/jetbrains/index.md) or
 [VSCode](./workspace-access/vscode.md).
 
-Once started, the Coder agent is responsible for running your workspace startup
-scripts. These may configure tools, service connections, or personalization with
+Once started, the workspace daemon is responsible for running your workspace
+startup scripts. These may configure tools, service connections, or personalization with
 [dotfiles](./workspace-dotfiles.md). For complex initialization with multiple
 dependent scripts, see
 [Workspace Startup Coordination](../admin/templates/startup-coordination/index.md).
@@ -104,18 +106,19 @@ considered cautiously as orphaning may lead to unaccounted cloud resources.
 During a workspace start or stop build, one of two errors may lead to a broken
 state. If the call to `terraform apply` fails to correctly provision resources,
 a workspace build has **failed**. If the computational resources fail to connect
-the agent, a workspace becomes **unhealthy**.
+the workspace daemon, a workspace becomes **unhealthy**.
 
 A failed workspace is most often caused by misalignment from the definition in
 your template's Terraform file and the target resources on your infrastructure.
-Unhealthy workspaces are usually caused by a misconfiguration in the agent or
-workspace startup scripts.
+Unhealthy workspaces are usually caused by a misconfiguration in the workspace
+daemon or workspace startup scripts.
 
 ## Workspace build times
 
 After a successful build, you can see a timing breakdown of the workspace
 startup process from the dashboard (starting in v2.17). We capture and display
-both time taken to provision the workspace's compute and agent startup steps.
+both time taken to provision the workspace's compute and workspace daemon startup
+steps.
 These include any
 [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)s
 such as [dotfiles](./workspace-dotfiles.md) or

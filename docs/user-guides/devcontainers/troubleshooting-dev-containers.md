@@ -4,7 +4,7 @@
 
 If your dev container fails to start:
 
-1. Check the agent logs for error messages:
+1. Check the workspace daemon logs for error messages:
 
    - `/tmp/coder-agent.log`
    - `/tmp/coder-startup-script.log`
@@ -36,30 +36,30 @@ docker ps  # test access
 
 If you get permission errors, your user may need to be in the `docker` group.
 
-## Finding your dev container agent
+## Finding your dev container workspace daemon
 
-Use `coder show` to list all agents in your workspace, including dev container
-sub-agents:
+Use `coder show` to list all workspace daemons in your workspace, including dev container
+sub-daemons:
 
 ```console
 coder show <workspace>
 ```
 
-The agent name is derived from the workspace folder path. For details on how
-names are generated, see [Agent naming](./index.md#agent-naming).
+The name is derived from the workspace folder path. For details on how
+names are generated, see [Workspace daemon naming](./index.md#workspace-daemon-naming).
 
 ## SSH connection issues
 
 If `coder ssh <workspace>.<agent>` fails:
 
-1. Verify the agent name using `coder show <workspace>`.
+1. Verify the workspace daemon name using `coder show <workspace>`.
 1. Check that the dev container is running:
 
    ```console
    docker ps
    ```
 
-1. Check the workspace agent logs for container-related errors:
+1. Check the workspace daemon logs for container-related errors:
 
    ```console
    grep -i container /tmp/coder-agent.log
@@ -68,12 +68,12 @@ If `coder ssh <workspace>.<agent>` fails:
 ## VS Code connection issues
 
 VS Code connects to dev containers through the Coder extension. The extension
-uses the sub-agent information to route connections through the parent workspace
-agent to the dev container. If VS Code fails to connect:
+uses the sub-daemon information to route connections through the parent workspace
+daemon to the dev container. If VS Code fails to connect:
 
 1. Ensure you have the latest Coder VS Code extension.
 1. Verify the dev container is running in the Coder dashboard.
-1. Check the parent workspace agent is healthy.
+1. Check the parent workspace daemon is healthy.
 1. Try restarting the dev container from the dashboard.
 
 ## Dev container features not working
@@ -110,7 +110,7 @@ If your dev container takes a long time to start:
 
 If you continue to experience issues:
 
-1. Collect logs from `/tmp/coder-agent.log` (both workspace and container).
+1. Collect logs from `/tmp/coder-agent.log` (both workspace daemon and container).
 1. Note the exact error messages.
 1. Check [Coder GitHub issues](https://github.com/coder/coder/issues) for
    similar problems.

@@ -20,7 +20,7 @@ module "coder-base" {
   code_server_version = 4.14.1
 }
 
-resource "coder_agent" "dev" {
+resource "coder_workspace_daemon" "dev" {
   # Modules can provide outputs, such as helper scripts
   startup_script=<<EOF
   #!/bin/sh
@@ -109,7 +109,7 @@ to resolve modules via [Artifactory](https://jfrog.com/artifactory/).
    module "module-name" {
      source = "https://example.jfrog.io/tf__coder/module-name/coder"
      version = "1.0.0"
-     agent_id = coder_agent.example.id
+     agent_id = coder_workspace_daemon.example.id
      ...
    }
    ```

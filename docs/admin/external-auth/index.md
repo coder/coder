@@ -339,7 +339,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 Below is an example configuration with multiple providers:
 
 > [!IMPORTANT]
-> To support regex matching for paths like `github\.com/org`, add the following `git config` line to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
+> To support regex matching for paths like `github\.com/org`, add the following `git config` line to the [workspace daemon startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
 >
 > ```shell
 > git config --global credential.useHttpPath true

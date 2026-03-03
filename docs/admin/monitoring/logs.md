@@ -31,12 +31,12 @@ operations behind workspaces and templates.
 
 ## Workspace Logs
 
-The [Coder agent](../infrastructure/architecture.md#agents) inside workspaces
+The [workspace daemon](../infrastructure/architecture.md#agents) inside workspaces
 provides useful logs around workspace-to-server and client-to-workspace
 connections. For Kubernetes workspaces, these are typically the pod logs as the
-agent runs via the container entrypoint.
+workspace daemon runs via the container entrypoint.
 
-Agent logs are also stored in the workspace filesystem by default:
+Workspace daemon logs are also stored in the workspace filesystem by default:
 
 - macOS/Linux: `/tmp/coder-agent.log`
 - Windows: Refer to the template code (e.g.
