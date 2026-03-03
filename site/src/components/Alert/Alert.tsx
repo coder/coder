@@ -139,7 +139,5 @@ export const AlertTitle: React.FC<React.ComponentPropsWithRef<"h1">> = ({
 	className,
 	...props
 }) => {
-	return (
-		<h1 className={cn("m-0 mb-1 text-sm font-medium", className)} {...props} />
-	);
+	return <h1 className={cn("m-0 text-sm font-medium", className)} {...props} />;
 };
