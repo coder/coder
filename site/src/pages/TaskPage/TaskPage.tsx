@@ -219,13 +219,13 @@ const TaskPage = () => {
 	}, [followUpStage, workspace?.latest_build.status]);
 
 	useEffect(() => {
-		if (!task || !followUpDraft) {
-			return;
-		}
-		if (task.status !== "active") {
-			return;
-		}
-		if (followUpStage !== "waitingForActive") {
+		// Only auto-send a queued follow-up after we explicitly entered the
+		// waiting stage and the task transitions back to active.
+		if (
+			!followUpDraft ||
+			task?.status !== "active" ||
+			followUpStage !== "waitingForActive"
+		) {
 			return;
 		}
 		void startSendingFollowUp(followUpDraft);
