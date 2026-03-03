@@ -654,6 +654,7 @@ GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
 	agent/agentsocket/proto/agentsocket.pb.go \
+	agent/boundarylogproxy/codec/boundary.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
@@ -709,6 +710,7 @@ gen/mark-fresh:
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		agent/agentsocket/proto/agentsocket.pb.go \
+		agent/boundarylogproxy/codec/boundary.pb.go \
 		vpn/vpn.pb.go \
 		enterprise/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
@@ -842,6 +844,12 @@ vpn/vpn.pb.go: vpn/vpn.proto
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		./vpn/vpn.proto
+
+agent/boundarylogproxy/codec/boundary.pb.go: agent/boundarylogproxy/codec/boundary.proto agent/proto/agent.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		./agent/boundarylogproxy/codec/boundary.proto
 
 enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged.proto
 	protoc \
