@@ -526,7 +526,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 							disabled={isSaving || !form.isValid || hasFieldErrors}
 						>
 							{isSaving && <Loader2Icon className="h-4 w-4 animate-spin" />}
-							{isEditing ? "Save" : "Add"}
+							{isEditing ? "Save" : "Add model"}{" "}
 						</Button>
 					</div>
 				</div>

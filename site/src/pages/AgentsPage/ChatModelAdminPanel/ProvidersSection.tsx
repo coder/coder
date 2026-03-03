@@ -91,6 +91,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 						key={providerState.provider}
 						role="button"
 						tabIndex={0}
+						aria-label={providerState.label}
 						className={cn(
 							"flex cursor-pointer items-center gap-3.5 px-3 py-3 transition-colors hover:bg-surface-secondary/30",
 							i > 0 && "border-0 border-t border-solid border-border/50",

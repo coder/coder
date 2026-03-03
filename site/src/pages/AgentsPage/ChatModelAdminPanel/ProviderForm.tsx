@@ -296,7 +296,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								{isProviderMutationPending && (
 									<Loader2Icon className="h-4 w-4 animate-spin" />
 								)}
-								{providerConfig ? "Save" : "Connect"}
+								{providerConfig ? "Save changes" : "Create provider config"}
 							</Button>
 						</div>
 					</div>

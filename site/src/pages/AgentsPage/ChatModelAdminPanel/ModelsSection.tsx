@@ -125,7 +125,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	const addButton = addableProviders.length > 0 && (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button size="sm" className="gap-1.5">
+				<Button size="sm" className="gap-1.5" aria-label="Add model">
+					{" "}
 					<PlusIcon className="h-4 w-4" />
 					Add
 					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary" />

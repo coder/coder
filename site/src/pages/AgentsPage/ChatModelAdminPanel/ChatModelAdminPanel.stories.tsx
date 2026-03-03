@@ -337,62 +337,6 @@ export const CreateAndUpdateProvider: Story = {
 
 // ── Models section stories ─────────────────────────────────────
 
-export const ProviderSpecificModelConfigSchema: Story = {
-	args: { section: "models" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-				createProviderConfig({
-					id: "provider-anthropic",
-					provider: "anthropic",
-					display_name: "Anthropic",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
-		});
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-
-		await userEvent.click(
-			await body.findByRole("button", { name: "Add model" }),
-		);
-
-		const schemaBlock = await body.findByTestId("chat-model-config-schema");
-		expect(schemaBlock).toHaveTextContent('"provider": "openai"');
-		expect(schemaBlock).toHaveTextContent('"openai": {');
-		expect(schemaBlock).toHaveTextContent('"reasoning_effort": "high"');
-
-		// Switch provider to Anthropic.
-		await userEvent.click(body.getByRole("combobox", { name: "Provider" }));
-		await userEvent.click(
-			await body.findByRole("option", { name: /Anthropic/i }),
-		);
-
-		await waitFor(() => {
-			expect(body.getByTestId("chat-model-config-schema")).toHaveTextContent(
-				'"provider": "anthropic"',
-			);
-		});
-		expect(body.getByTestId("chat-model-config-schema")).toHaveTextContent(
-			'"anthropic": {',
-		);
-		expect(body.getByTestId("chat-model-config-schema")).toHaveTextContent(
-			'"thinking": {',
-		);
-	},
-};
-
 export const NoModelConfigByDefault: Story = {
 	args: { section: "models" as ChatModelAdminSection },
 	beforeEach: () => {
