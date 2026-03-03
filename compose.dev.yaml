@@ -10,8 +10,6 @@ services:
       POSTGRES_USER: coder
       POSTGRES_PASSWORD: coder
       POSTGRES_DB: coder
-    ports:
-      - "5432:5432"
     volumes:
       - coder_dev_data:/var/lib/postgresql/data
     healthcheck:
@@ -87,17 +85,20 @@ services:
       build-slim:
         condition: service_completed_successfully
     environment:
-      CODER_PG_CONNECTION_URL: "postgresql://coder:coder@database:5432/coder?sslmode=disable"
-      CODER_HTTP_ADDRESS: "0.0.0.0:3000"
-      CODER_ACCESS_URL: "${CODER_DEV_ACCESS_URL:-http://localhost:3000}"
-      CODER_DEV_ADMIN_PASSWORD: "${CODER_DEV_ADMIN_PASSWORD:-SomeSecurePassword!}"
-      CODER_SWAGGER_ENABLE: "true"
-      CODER_DANGEROUS_ALLOW_CORS_REQUESTS: "true"
-      CODER_TELEMETRY_ENABLE: "false"
-      GOMODCACHE: /go-cache/mod
+      CODER_ACCESS_URL: "${CODER_DEV_ACCESS_URL-http://localhost:3000}"
+      CODER_CACHE_DIRECTORY: "${CODER_CACHE_DIRECTORY-/cache}"
+      CODER_DANGEROUS_ALLOW_CORS_REQUESTS: "${CODER_DANGEROUS_ALLOW_CORS_REQUESTS-true}"
+      CODER_DEV_ADMIN_PASSWORD: "${CODER_DEV_ADMIN_PASSWORD-SomeSecurePassword!}"
+      CODER_EXPERIMENTS: "${CODER_EXPERIMENTS-*}"
+      CODER_HTTP_ADDRESS: "${CODER_HTTP_ADDRESS-0.0.0.0:3000}"
+      CODER_PG_CONNECTION_URL: "${CODER_PG_CONNECTION_URL-postgresql://coder:coder@database:5432/coder?sslmode=disable}"
+      CODER_PROMETHEUS_ENABLE: "${CODER_PROMETHEUS_ENABLE-true}"
+      CODER_SWAGGER_ENABLE: "${CODER_SWAGGER_ENABLE-true}"
+      CODER_TELEMETRY_ENABLE: "${CODER_TELEMETRY_ENABLE-false}"
+      CODER_VERBOSE: "${CODER_VERBOSE-true}"
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST-unix:///var/run/docker.sock}"
       GOCACHE: /go-cache/build
-      CODER_CACHE_DIRECTORY: /cache
-      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+      GOMODCACHE: /go-cache/mod
     # Add the Docker group so coderd can access the Docker socket.
     # Override DOCKER_GROUP if your host's docker group is not 999.
     group_add:
@@ -294,11 +295,11 @@ services:
       - "${DOCKER_GROUP:-999}"
     working_dir: /app
     environment:
-      CODER_URL: "http://coderd:3000"
-      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST:-unix:///var/run/docker.sock}"
+      CODER_URL: "${CODER_URL-http://coderd:3000}"
+      DOCKER_HOST: "${CODER_DEV_DOCKER_HOST-unix:///var/run/docker.sock}"
       GOMODCACHE: /go-cache/mod
       GOCACHE: /go-cache/build
-      CODER_PROMETHEUS_ENABLE: "1"
+      CODER_PROMETHEUS_ENABLE: "${CODER_PROMETHEUS_ENABLE-1}"
     volumes:
       - .:/app
       - go_cache:/go-cache
