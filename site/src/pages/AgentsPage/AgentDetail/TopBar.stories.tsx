@@ -130,6 +130,7 @@ export const ArchivedWithUnarchive: Story = {
 export const ArchiveAndDeleteConfirmDialog: Story = {
 	args: {
 		hasWorkspace: true,
+		workspaceName: "admin/my-workspace",
 	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();

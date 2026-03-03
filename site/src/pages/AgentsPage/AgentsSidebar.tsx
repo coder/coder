@@ -1,3 +1,4 @@
+import { workspaceById } from "api/queries/workspaces";
 import type {
 	Chat,
 	ChatDiffStatus,
@@ -58,6 +59,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import { useQuery } from "react-query";
 import { NavLink, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
@@ -353,6 +355,13 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		changedFiles === 1 ? "file" : "files"
 	}`;
 	const workspaceId = chat.workspace_id;
+	const workspaceQuery = useQuery({
+		...workspaceById(workspaceId ?? ""),
+		enabled: Boolean(workspaceId),
+	});
+	const workspaceName = workspaceQuery.data
+		? `${workspaceQuery.data.owner_name}/${workspaceQuery.data.name}`
+		: undefined;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 	const isExecuting =
@@ -556,8 +565,15 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 						<DialogHeader>
 							<DialogTitle>Archive agent and delete workspace</DialogTitle>
 							<DialogDescription>
-								Are you sure you want to archive this agent and delete its
-								workspace? This action cannot be undone.
+								{workspaceName ? (
+									<>
+										Are you sure you want to archive this agent and delete
+										workspace <strong>{workspaceName}</strong>? This action
+										cannot be undone.
+									</>
+								) : (
+									"Are you sure you want to archive this agent and delete its workspace? This action cannot be undone."
+								)}
 							</DialogDescription>
 						</DialogHeader>
 						<DialogFooter>

@@ -971,6 +971,11 @@ const AgentDetail: FC = () => {
 						onUnarchiveAgent={handleUnarchiveAgentAction}
 						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
 						hasWorkspace={Boolean(workspaceId)}
+						workspaceName={
+							workspace
+								? `${workspace.owner_name}/${workspace.name}`
+								: undefined
+						}
 						isArchived={isArchived}
 						isSidebarCollapsed={isSidebarCollapsed}
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}

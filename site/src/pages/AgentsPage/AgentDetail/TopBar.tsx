@@ -62,6 +62,7 @@ type AgentDetailTopBarProps = {
 	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
 	hasWorkspace?: boolean;
+	workspaceName?: string;
 	isArchived?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
@@ -77,6 +78,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
 	hasWorkspace,
+	workspaceName,
 	isArchived,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
@@ -265,8 +267,15 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 					<DialogHeader>
 						<DialogTitle>Archive agent and delete workspace</DialogTitle>
 						<DialogDescription>
-							Are you sure you want to archive this agent and delete its
-							workspace? This action cannot be undone.
+							{workspaceName ? (
+								<>
+									Are you sure you want to archive this agent and delete
+									workspace <strong>{workspaceName}</strong>? This action cannot
+									be undone.
+								</>
+							) : (
+								"Are you sure you want to archive this agent and delete its workspace? This action cannot be undone."
+							)}
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
