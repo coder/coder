@@ -1920,7 +1920,7 @@ The address the AI Bridge Proxy will listen on.
 | Environment | <code>$CODER_AIBRIDGE_PROXY_TLS_CERT_FILE</code> |
 | YAML        | <code>aibridgeproxy.tls_cert_file</code>         |
 
-Path to the TLS certificate file for the AI Bridge Proxy listener.
+Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.
 
 ### --aibridge-proxy-tls-key-file
 
@@ -1930,7 +1930,7 @@ Path to the TLS certificate file for the AI Bridge Proxy listener.
 | Environment | <code>$CODER_AIBRIDGE_PROXY_TLS_KEY_FILE</code> |
 | YAML        | <code>aibridgeproxy.tls_key_file</code>         |
 
-Path to the TLS private key file for the AI Bridge Proxy listener.
+Path to the TLS private key file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Certificate File.
 
 ### --aibridge-proxy-cert-file
 
