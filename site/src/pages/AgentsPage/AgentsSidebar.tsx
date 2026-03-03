@@ -771,9 +771,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											open={effectiveArchivedExpanded}
 											onOpenChange={setIsArchivedExpanded}
 										>
-											{" "}
-											<CollapsibleTrigger asChild>
-												<div className="mb-1 ml-2.5 flex cursor-pointer items-center justify-between text-xs font-medium text-content-secondary">
+												<CollapsibleTrigger asChild>												<div className="mb-1 ml-2.5 flex cursor-pointer items-center justify-between text-xs font-medium text-content-secondary">
 													<span>Archived ({archivedRootIDs.length})</span>
 													{effectiveArchivedExpanded ? (
 														<ChevronDownIcon className="h-3 w-3" />
@@ -781,9 +779,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 														<ChevronRightIcon className="h-3 w-3" />
 													)}
 												</div>
-											</CollapsibleTrigger>{" "}
-											<CollapsibleContent>
-												<div className="flex flex-col gap-0.5">
+												</CollapsibleTrigger>
+												<CollapsibleContent>												<div className="flex flex-col gap-0.5">
 													{archivedRootIDs.map((id) => {
 														const chat = chatById.get(id);
 														if (!chat) return null;
@@ -800,7 +797,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										</Collapsible>
 									)}
 								</div>
-							)}{" "}
+							)}
 						</ChatTreeContext.Provider>
 					)}
 				</div>
