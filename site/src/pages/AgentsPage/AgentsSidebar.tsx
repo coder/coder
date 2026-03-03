@@ -621,7 +621,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
 			<div className="hidden border-b border-border-default px-3 pb-3 pt-1.5 md:block md:px-3.5">
 				<div className="mb-2.5 flex items-center justify-between">
-					<NavLink to="/workspaces" className="inline-flex opacity-50">
+					<NavLink to="/workspaces" className="inline-flex">
 						{logoUrl ? (
 							<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
 						) : (

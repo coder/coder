@@ -477,7 +477,7 @@ const AgentsPage: FC = () => {
 						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
 							<NavLink
 								to="/workspaces"
-								className="inline-flex shrink-0 opacity-50 md:hidden"
+								className="inline-flex shrink-0 md:hidden"
 							>
 								{appearance.logo_url ? (
 									<ExternalImage
