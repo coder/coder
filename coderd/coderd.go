@@ -898,8 +898,6 @@ func New(options *Options) *API {
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
 
 	// Register DERP on expvar HTTP handler, which we serve below in the router, c.f. expvar.Handler()
-	// These are the metrics the DERP server exposes.
-	// TODO: export via prometheus
 	expDERPOnce.Do(func() {
 		// We need to do this via a global Once because expvar registry is global and panics if we
 		// register multiple times.  In production there is only one Coderd and one DERP server per
@@ -909,6 +907,9 @@ func New(options *Options) *API {
 			expvar.Publish("derp", api.DERPServer.ExpVar())
 		}
 	})
+	if options.PrometheusRegistry != nil {
+		options.PrometheusRegistry.MustRegister(tailnet.NewDERPExpvarCollector())
+	}
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
 

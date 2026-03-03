@@ -207,7 +207,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		expvar.Publish("derp", derpServer.ExpVar())
 	})
 	if opts.PrometheusRegistry != nil {
-		opts.PrometheusRegistry.MustRegister(NewDERPMetricsCollector())
+		opts.PrometheusRegistry.MustRegister(tailnet.NewDERPExpvarCollector())
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
