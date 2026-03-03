@@ -764,40 +764,40 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											})}
 										</div>
 									)}
-
-										{archivedRootIDs.length > 0 && (
-											<Collapsible
-												className="pt-2"
-												open={effectiveArchivedExpanded}
-												onOpenChange={setIsArchivedExpanded}
-											>
-												<CollapsibleTrigger asChild>
-													<div className="mb-1 ml-2.5 flex cursor-pointer items-center justify-between text-xs font-medium text-content-secondary">
-														<span>Archived ({archivedRootIDs.length})</span>
-														{effectiveArchivedExpanded ? (
-															<ChevronDownIcon className="h-3 w-3" />
-														) : (
-															<ChevronRightIcon className="h-3 w-3" />
-														)}
-													</div>
-												</CollapsibleTrigger>
-												<CollapsibleContent>
-													<div className="flex flex-col gap-0.5">
-														{archivedRootIDs.map((id) => {
-															const chat = chatById.get(id);
-															if (!chat) return null;
-															return (
-																<ChatTreeNode
-																	key={chat.id}
-																	chat={chat}
-																	isChildNode={false}
-																/>
-															);
-														})}
-													</div>
-												</CollapsibleContent>
-											</Collapsible>
-										)}								</div>
+									{archivedRootIDs.length > 0 && (
+										<Collapsible
+											className="pt-2"
+											open={effectiveArchivedExpanded}
+											onOpenChange={setIsArchivedExpanded}
+										>
+											<CollapsibleTrigger asChild>
+												<div className="mb-1 ml-2.5 flex cursor-pointer items-center justify-between text-xs font-medium text-content-secondary">
+													<span>Archived ({archivedRootIDs.length})</span>
+													{effectiveArchivedExpanded ? (
+														<ChevronDownIcon className="h-3 w-3" />
+													) : (
+														<ChevronRightIcon className="h-3 w-3" />
+													)}
+												</div>
+											</CollapsibleTrigger>
+											<CollapsibleContent>
+												<div className="flex flex-col gap-0.5">
+													{archivedRootIDs.map((id) => {
+														const chat = chatById.get(id);
+														if (!chat) return null;
+														return (
+															<ChatTreeNode
+																key={chat.id}
+																chat={chat}
+																isChildNode={false}
+															/>
+														);
+													})}
+												</div>
+											</CollapsibleContent>
+										</Collapsible>
+									)}{" "}
+								</div>
 							)}
 						</ChatTreeContext.Provider>
 					)}

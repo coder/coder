@@ -364,13 +364,10 @@ export const ArchivedAgentsCollapsed: Story = {
 			expect(canvas.getByText("Active agent one")).toBeInTheDocument();
 			expect(canvas.getByText("Active agent two")).toBeInTheDocument();
 			expect(canvas.getByText("Archived (2)")).toBeInTheDocument();
-			});
-			expect(
-				canvas.queryByText("Archived agent one"),
-			).not.toBeInTheDocument();
-			expect(
-				canvas.queryByText("Archived agent two"),
-			).not.toBeInTheDocument();	},
+		});
+		expect(canvas.queryByText("Archived agent one")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Archived agent two")).not.toBeInTheDocument();
+	},
 };
 
 export const ArchivedAgentsExpanded: Story = {
