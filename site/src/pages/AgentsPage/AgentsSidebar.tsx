@@ -14,6 +14,14 @@ import {
 	CollapsibleTrigger,
 } from "components/Collapsible/Collapsible";
 import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "components/Dialog/Dialog";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -355,187 +363,263 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 				const c = chatById.get(id);
 				return c?.status === "pending" || c?.status === "running";
 			}));
+	const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
 	return (
-		<div className="flex min-w-0 flex-col">
-			<div
-				data-testid={`agents-tree-node-${chat.id}`}
-				className={cn(
-					"group relative flex min-w-0 items-start gap-1.5 rounded-md pr-1 text-content-secondary",
-					"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
-					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
-					isChildNode &&
-						"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
-				)}
-			>
+		<>
+			<div className="flex min-w-0 flex-col">
 				<div
+					data-testid={`agents-tree-node-${chat.id}`}
 					className={cn(
-						"group/icon relative mt-1.5 h-5 w-5 shrink-0",
-						hasChildren && "cursor-pointer",
+						"group relative flex min-w-0 items-start gap-1.5 rounded-md pr-1 text-content-secondary",
+						"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
+						"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+						isChildNode &&
+							"before:absolute before:-left-2.5 before:top-[17px] before:h-px before:w-2.5 before:bg-border-default/70",
 					)}
 				>
 					<div
 						className={cn(
-							"flex h-5 w-5 items-center justify-center rounded-md",
-							hasChildren &&
-								!isExecuting &&
-								"[@media(hover:hover)]:group-hover:invisible",
-							hasChildren &&
-								isExecuting &&
-								"[@media(hover:hover)]:group-hover/icon:invisible",
+							"group/icon relative mt-1.5 h-5 w-5 shrink-0",
+							hasChildren && "cursor-pointer",
 						)}
 					>
-						<StatusIcon
-							data-testid={
-								isDelegatedExecuting
-									? `agents-tree-executing-${chat.id}`
-									: undefined
-							}
-							className={cn("h-3.5 w-3.5 shrink-0", config.className)}
-						/>
-					</div>
-					{hasChildren && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={() => toggleExpanded(chatID)}
+						<div
 							className={cn(
-								"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-								isExecuting
-									? "[@media(hover:hover)]:group-hover/icon:visible"
-									: "[@media(hover:hover)]:group-hover:visible",
+								"flex h-5 w-5 items-center justify-center rounded-md",
+								hasChildren &&
+									!isExecuting &&
+									"[@media(hover:hover)]:group-hover:invisible",
+								hasChildren &&
+									isExecuting &&
+									"[@media(hover:hover)]:group-hover/icon:invisible",
 							)}
-							data-testid={`agents-tree-toggle-${chat.id}`}
-							aria-label={isExpanded ? "Collapse" : "Expand"}
-							aria-expanded={isExpanded}
 						>
-							{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-						</Button>
-					)}
-				</div>
-				<NavLink
-					to={`/agents/${chat.id}`}
-					className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
-				>
-					{({ isActive }) => (
-						<>
-							<div className="min-w-0 flex-1 overflow-hidden text-left">
-								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-									<span
-										className={cn(
-											"block flex-1 truncate text-[13px] text-content-primary",
-											isActive && "font-medium",
-										)}
-									>
-										{chat.title}
-									</span>
-								</div>
-								<div className="flex min-w-0 items-center gap-1.5">
-									{hasLinkedDiffStatus && hasLineStats && (
+							<StatusIcon
+								data-testid={
+									isDelegatedExecuting
+										? `agents-tree-executing-${chat.id}`
+										: undefined
+								}
+								className={cn("h-3.5 w-3.5 shrink-0", config.className)}
+							/>
+						</div>
+						{hasChildren && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={() => toggleExpanded(chatID)}
+								className={cn(
+									"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
+									isExecuting
+										? "[@media(hover:hover)]:group-hover/icon:visible"
+										: "[@media(hover:hover)]:group-hover:visible",
+								)}
+								data-testid={`agents-tree-toggle-${chat.id}`}
+								aria-label={isExpanded ? "Collapse" : "Expand"}
+								aria-expanded={isExpanded}
+							>
+								{isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+							</Button>
+						)}
+					</div>
+					<NavLink
+						to={`/agents/${chat.id}`}
+						className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+					>
+						{({ isActive }) => (
+							<>
+								<div className="min-w-0 flex-1 overflow-hidden text-left">
+									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
 										<span
-											className="inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-medium leading-none tabular-nums"
-											title={`${filesChangedLabel}, +${additions} -${deletions}`}
-										>
-											{additions > 0 && (
-												<span className="text-green-700 dark:text-green-500">
-													+{additions}
-												</span>
+											className={cn(
+												"block flex-1 truncate text-[13px] text-content-primary",
+												isActive && "font-medium",
 											)}
-											{deletions > 0 && (
-												<span className="text-red-700 dark:text-red-400">
-													&minus;{deletions}
-												</span>
-											)}{" "}
+										>
+											{chat.title}
 										</span>
-									)}
-									<div
-										className={cn(
-											"min-w-0 overflow-hidden text-[13px] leading-4",
-											errorReason
-												? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-												: "truncate text-content-secondary",
+									</div>
+									<div className="flex min-w-0 items-center gap-1.5">
+										{hasLinkedDiffStatus && hasLineStats && (
+											<span
+												className="inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-medium leading-none tabular-nums"
+												title={`${filesChangedLabel}, +${additions} -${deletions}`}
+											>
+												{additions > 0 && (
+													<span className="text-green-700 dark:text-green-500">
+														+{additions}
+													</span>
+												)}
+												{deletions > 0 && (
+													<span className="text-red-700 dark:text-red-400">
+														&minus;{deletions}
+													</span>
+												)}{" "}
+											</span>
 										)}
-										title={subtitle}
-									>
-										{subtitle}
+										<div
+											className={cn(
+												"min-w-0 overflow-hidden text-[13px] leading-4",
+												errorReason
+													? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+													: "truncate text-content-secondary",
+											)}
+											title={subtitle}
+										>
+											{subtitle}
+										</div>
 									</div>
 								</div>
-							</div>
-						</>
-					)}
-				</NavLink>
-				<div className="relative mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
-					{isArchivingThisChat ? (
-						<Loader2Icon className="h-3.5 w-3.5 animate-spin text-content-secondary" />
-					) : (
-						<>
-							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
-								{shortRelativeTime(chat.updated_at)}
-							</span>
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button
-										size="icon"
-										variant="subtle"
-										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-										aria-label={`Open actions for ${chat.title}`}
-									>
-										<EllipsisIcon className="h-3.5 w-3.5" />
-									</Button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
-									{" "}
-									{chat.archived ? (
-										<DropdownMenuItem
-											disabled={isArchiving}
-											onSelect={() => onUnarchiveAgent(chat.id)}
+							</>
+						)}
+					</NavLink>
+					<div className="relative mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+						{isArchivingThisChat ? (
+							<Loader2Icon className="h-3.5 w-3.5 animate-spin text-content-secondary" />
+						) : (
+							<>
+								<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+									{shortRelativeTime(chat.updated_at)}
+								</span>
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button
+											size="icon"
+											variant="subtle"
+											className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+											aria-label={`Open actions for ${chat.title}`}
 										>
-											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
-											Unarchive agent
-										</DropdownMenuItem>
-									) : (
-										<>
+											<EllipsisIcon className="h-3.5 w-3.5" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end">
+										{" "}
+										{chat.archived ? (
 											<DropdownMenuItem
-												className="text-content-destructive focus:text-content-destructive"
 												disabled={isArchiving}
-												onSelect={() => onArchiveAgent(chat.id)}
+												onSelect={() => onUnarchiveAgent(chat.id)}
 											>
-												<ArchiveIcon className="h-3.5 w-3.5" />
-												Archive agent
+												<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+												Unarchive agent
 											</DropdownMenuItem>
-											{workspaceId && (
+										) : (
+											<>
 												<DropdownMenuItem
 													className="text-content-destructive focus:text-content-destructive"
 													disabled={isArchiving}
-													onSelect={() =>
-														onArchiveAndDeleteWorkspace(chat.id, workspaceId)
-													}
+													onSelect={() => setArchiveConfirmOpen(true)}
 												>
-													<Trash2Icon className="h-3.5 w-3.5" />
-													Archive & delete workspace
+													<ArchiveIcon className="h-3.5 w-3.5" />
+													Archive agent
 												</DropdownMenuItem>
-											)}
-										</>
-									)}
-								</DropdownMenuContent>
-							</DropdownMenu>
-						</>
-					)}
+												{workspaceId && (
+													<DropdownMenuItem
+														className="text-content-destructive focus:text-content-destructive"
+														disabled={isArchiving}
+														onSelect={() => setDeleteConfirmOpen(true)}
+													>
+														<Trash2Icon className="h-3.5 w-3.5" />
+														Archive & delete workspace
+													</DropdownMenuItem>
+												)}
+											</>
+										)}
+									</DropdownMenuContent>
+								</DropdownMenu>
+							</>
+						)}
+					</div>
 				</div>
-			</div>
 
-			{hasChildren && isExpanded && (
-				<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
-					{childIDs.map((childID) => {
-						const childChat = chatById.get(childID);
-						if (!childChat) return null;
-						return (
-							<ChatTreeNode key={childChat.id} chat={childChat} isChildNode />
-						);
-					})}
-				</div>
+				{hasChildren && isExpanded && (
+					<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
+						{childIDs.map((childID) => {
+							const childChat = chatById.get(childID);
+							if (!childChat) return null;
+							return (
+								<ChatTreeNode key={childChat.id} chat={childChat} isChildNode />
+							);
+						})}
+					</div>
+				)}
+			</div>
+			<Dialog
+				open={archiveConfirmOpen}
+				onOpenChange={(open) => {
+					if (!open) {
+						setArchiveConfirmOpen(false);
+					}
+				}}
+			>
+				<DialogContent variant="destructive">
+					<DialogHeader>
+						<DialogTitle>Archive agent</DialogTitle>
+						<DialogDescription>
+							Are you sure you want to archive this agent? This action cannot be
+							undone.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setArchiveConfirmOpen(false)}
+						>
+							Cancel
+						</Button>
+						<Button
+							variant="destructive"
+							data-testid="confirm-button"
+							onClick={() => {
+								setArchiveConfirmOpen(false);
+								onArchiveAgent(chat.id);
+							}}
+						>
+							Archive
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+			{workspaceId && (
+				<Dialog
+					open={deleteConfirmOpen}
+					onOpenChange={(open) => {
+						if (!open) {
+							setDeleteConfirmOpen(false);
+						}
+					}}
+				>
+					<DialogContent variant="destructive">
+						<DialogHeader>
+							<DialogTitle>Archive agent and delete workspace</DialogTitle>
+							<DialogDescription>
+								Are you sure you want to archive this agent and delete its
+								workspace? This action cannot be undone.
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setDeleteConfirmOpen(false)}
+							>
+								Cancel
+							</Button>
+							<Button
+								variant="destructive"
+								data-testid="confirm-button"
+								onClick={() => {
+									setDeleteConfirmOpen(false);
+									onArchiveAndDeleteWorkspace(chat.id, workspaceId);
+								}}
+							>
+								Confirm
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
 			)}
-		</div>
+		</>
 	);
 });
 ChatTreeNode.displayName = "ChatTreeNode";
