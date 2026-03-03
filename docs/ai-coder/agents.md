@@ -1,7 +1,7 @@
 # Coder Agents
 
-Coder Agents is a chat interface and API for delegating coding tasks to coding
-agents from your Coder deployment. Developers describe the work they want done,
+Coder Agents is a chat interface and API for delegating development work and research to coding
+agents in your Coder deployment. Developers describe the work they want done,
 and Coder Agents handles the rest — selecting a template, provisioning a
 workspace, and executing the task.
 
@@ -11,13 +11,13 @@ agent that runs the agent loop directly within the Coder control plane
 or Codex. It is a standalone agent written in Go that implements standard
 agentic patterns — sub-agent delegation, context compaction, file editing, and
 shell execution — and works with any LLM provider you configure. No agent
-software or API keys are required inside your workspaces.
+harness or API keys are required inside your workspaces.
 
 ![Placeholder: Coder Agents chat UI showing a conversation with diffs and sub-agent activity](../images/guides/ai-agents/agents-chat-ui.png)
 
 > [!NOTE]
-> Coder Agents is currently in preview. See [Product status](#product-status)
-> for availability details.
+> Coder Agents is currently in internal preview. We are actively developing
+> the feature and demoing it with customers for feedback.
 
 ## Who is Coder Agents for
 
@@ -35,12 +35,8 @@ strong fit for:
   capabilities using their current templates, workspaces, and identity
   providers rather than adopting a separate SaaS product.
 
-Coder Agents runs entirely self-hosted. There is no SaaS component — the agent
+Coder Agents runs entirely self-hosted. There is no SaaS or managed component — the agent
 loop, chat history, and all tool execution happen within your Coder deployment.
-Source code remains on your infrastructure at all times. Prompts and code
-context are sent to whichever LLM provider you configure; if you require
-everything to stay internal, you can connect a fully self-hosted model via any
-OpenAI-compatible endpoint.
 
 Coder Agents is not a replacement for your text editor or IDE. It is the
 primary interface where developers work with and orchestrate coding agents.
@@ -172,8 +168,6 @@ and models from the Coder dashboard or API. Supported providers include:
 
 Most providers support custom base URLs, which allows integration with
 enterprise LLM proxies, self-hosted model endpoints, and internal gateways.
-Azure OpenAI requires a base URL. AWS Bedrock and OpenRouter do not support
-custom base URLs.
 
 Administrators can configure multiple providers simultaneously and set a default
 model. Developers select from enabled models when starting a chat.
@@ -213,12 +207,12 @@ Coder Agents is a new approach that differs from
 | Aspect              | Coder Agents                         | Coder Tasks                                                    |
 |---------------------|--------------------------------------|----------------------------------------------------------------|
 | Agent execution     | Runs in the control plane (`coderd`) | Runs inside the workspace                                      |
-| Agent software      | Built-in, no installation needed     | Requires Claude Code, Codex, or similar installed in workspace |
+| Agent harness       | Built-in, no installation needed     | Requires Claude Code, Codex, or similar installed in workspace |
 | API keys            | Stored in control plane only         | Injected into workspace environment                            |
 | Chat state          | Persisted in database                | Stored in workspace                                            |
 | Workspace selection | Automatic, based on task description | Manual, user selects template                                  |
 | Sub-agents          | Built-in parallel delegation         | Not supported                                                  |
-| Rich UI             | Native chat with diffs, queuing      | AgentAPI-based interface                                       |
+| Modern chat UI      | Native chat with diffs, queuing      | Terminal-based interface                                       |
 
 ## Product status
 
