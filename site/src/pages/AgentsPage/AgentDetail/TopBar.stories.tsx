@@ -2,6 +2,7 @@ import { MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ChatDiffStatusResponse } from "api/api";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { AgentDetailTopBar } from "./TopBar";
 
 const mockDiffStatus: ChatDiffStatusResponse = {
@@ -111,5 +112,21 @@ export const ArchivedWithUnarchive: Story = {
 	args: {
 		isArchived: true,
 		onUnarchiveAgent: () => {},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Open the actions dropdown
+		const trigger = canvas.getByLabelText("Open agent actions");
+		await userEvent.click(trigger);
+		// Verify "Unarchive Agent" is shown instead of "Archive Agent"
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Unarchive Agent")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Archive Agent")).not.toBeInTheDocument();
+		expect(
+			body.queryByText("Archive & Delete Workspace"),
+		).not.toBeInTheDocument();
 	},
 };
