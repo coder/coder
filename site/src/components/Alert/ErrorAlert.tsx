@@ -17,6 +17,8 @@ export const ErrorAlert: FC<ErrorAlertProps> = ({ error, ...alertProps }) => {
 	// not make sense in the FE to showing them duplicated. However, we should always
 	// display the detail if its a 403 Forbidden response.
 	const shouldDisplayDetail = status === 403 || message !== detail;
+	const shouldDisplayResponseData = isAxiosError(error) && error.response?.data;
+	const shouldDisplayStackTrace = error instanceof Error;
 
 	return (
 		<Alert severity="error" prominent {...alertProps}>
@@ -31,31 +33,33 @@ export const ErrorAlert: FC<ErrorAlertProps> = ({ error, ...alertProps }) => {
 					</Link>
 				)}
 			</AlertDescription>
-			<div className="mt-2 min-w-0">
-				{isAxiosError(error) && error.response?.data && (
-					<details className="max-w-full">
-						<summary>Response data</summary>
-						<div className="mt-2 max-w-full overflow-x-auto">
-							<pre className="m-0 w-max min-w-full">
-								{JSON.stringify(error.response?.data, null, 2)}
-							</pre>
-						</div>
-					</details>
-				)}
-				{/*
-				 * Error.isError() is not reliably available in all browsers
-				 * so we fallback to `instanceof Error`. In future we should use
-				 * it is more reliable.
-				 */}
-				{error instanceof Error && (
-					<details className="max-w-full">
-						<summary>Stack Trace</summary>
-						<div className="mt-2 max-w-full overflow-x-auto">
-							<pre className="m-0 w-max min-w-full">{error.stack}</pre>
-						</div>
-					</details>
-				)}
-			</div>
+			{(shouldDisplayResponseData || shouldDisplayStackTrace) && (
+				<div className="mt-2 min-w-0">
+					{shouldDisplayResponseData && (
+						<details className="max-w-full">
+							<summary>Response data</summary>
+							<div className="mt-2 max-w-full overflow-x-auto">
+								<pre className="m-0 w-max min-w-full">
+									{JSON.stringify(error.response?.data, null, 2)}
+								</pre>
+							</div>
+						</details>
+					)}
+					{/*
+					 * Error.isError() is not reliably available in all browsers
+					 * so we fallback to `instanceof Error`. In future we should use
+					 * it is more reliable.
+					 */}
+					{shouldDisplayStackTrace && (
+						<details className="max-w-full">
+							<summary>Stack Trace</summary>
+							<div className="mt-2 max-w-full overflow-x-auto">
+								<pre className="m-0 w-max min-w-full">{error.stack}</pre>
+							</div>
+						</details>
+					)}
+				</div>
+			)}
 		</Alert>
 	);
 };
