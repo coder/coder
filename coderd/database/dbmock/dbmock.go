@@ -1988,18 +1988,18 @@ func (mr *MockStoreMockRecorder) GetChatQueuedMessages(ctx, chatID any) *gomock.
 }
 
 // GetChatsByOwnerID mocks base method.
-func (m *MockStore) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.Chat, error) {
+func (m *MockStore) GetChatsByOwnerID(ctx context.Context, arg database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatsByOwnerID", ctx, ownerID)
+	ret := m.ctrl.Call(m, "GetChatsByOwnerID", ctx, arg)
 	ret0, _ := ret[0].([]database.Chat)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetChatsByOwnerID indicates an expected call of GetChatsByOwnerID.
-func (mr *MockStoreMockRecorder) GetChatsByOwnerID(ctx, ownerID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetChatsByOwnerID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetChatsByOwnerID), ctx, ownerID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetChatsByOwnerID), ctx, arg)
 }
 
 // GetConnectionLogsOffset mocks base method.

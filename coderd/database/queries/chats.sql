@@ -110,7 +110,10 @@ FROM
     chats
 WHERE
     owner_id = @owner_id::uuid
-    AND archived = false
+    AND CASE
+        WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
+        ELSE chats.archived = sqlc.narg('archived') :: boolean
+    END
 ORDER BY
     updated_at DESC;
 

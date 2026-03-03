@@ -3347,13 +3347,21 @@ FROM
     chats
 WHERE
     owner_id = $1::uuid
-    AND archived = false
+    AND CASE
+        WHEN $2 :: boolean IS NULL THEN true
+        ELSE chats.archived = $2 :: boolean
+    END
 ORDER BY
     updated_at DESC
 `
 
-func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, getChatsByOwnerID, ownerID)
+type GetChatsByOwnerIDParams struct {
+	OwnerID  uuid.UUID    `db:"owner_id" json:"owner_id"`
+	Archived sql.NullBool `db:"archived" json:"archived"`
+}
+
+func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, arg GetChatsByOwnerIDParams) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByOwnerID, arg.OwnerID, arg.Archived)
 	if err != nil {
 		return nil, err
 	}

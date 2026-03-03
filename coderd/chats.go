@@ -171,7 +171,24 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	chats, err := api.Database.GetChatsByOwnerID(ctx, apiKey.UserID)
+	params := database.GetChatsByOwnerIDParams{
+		OwnerID: apiKey.UserID,
+	}
+	if v := r.URL.Query().Get("archived"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid query parameter.",
+				Validations: []codersdk.ValidationError{
+					{Field: "archived", Detail: "Must be a valid boolean"},
+				},
+			})
+			return
+		}
+		params.Archived = sql.NullBool{Bool: b, Valid: true}
+	}
+
+	chats, err := api.Database.GetChatsByOwnerID(ctx, params)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chats.",
@@ -1059,7 +1076,9 @@ func (api *API) storeChatGitRef(ctx context.Context, workspaceID, workspaceOwner
 		}
 		chatsToUpdate = []database.Chat{chat}
 	} else {
-		chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)
+		chats, err := api.Database.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+			OwnerID: workspaceOwnerID,
+		})
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to list chats for git ref storage",
 				slog.F("workspace_id", workspaceID),
@@ -1111,7 +1130,9 @@ func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceI
 		}
 		filtered = []database.Chat{chat}
 	} else {
-		chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)
+		chats, err := api.Database.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+			OwnerID: workspaceOwnerID,
+		})
 		if err != nil {
 			api.Logger.Warn(ctx, "failed to list workspace owner chats for diff refresh",
 				slog.F("workspace_id", workspaceID),
@@ -2070,6 +2091,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
+		Archived:          c.Archived,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
 	}
