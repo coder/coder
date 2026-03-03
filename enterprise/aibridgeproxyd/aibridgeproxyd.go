@@ -344,7 +344,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	logger.Info(ctx, "aibridgeproxyd configured",
 		slog.F("listen_addr", listener.Addr().String()),
-		slog.F("tls_enabled", srv.tlsEnabled),
+		slog.F("tls_listener_enabled", srv.tlsEnabled),
 		slog.F("coder_access_url", coderAccessURL.String()),
 		slog.F("domain_allowlist", mitmHosts),
 		slog.F("upstream_proxy", opts.UpstreamProxy),
