@@ -85,10 +85,9 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 			)}
 			<div>
 				{providerStates.map((providerState, i) => (
-					<div
+					<button
+						type="button"
 						key={providerState.provider}
-						tabIndex={0}
-						role="button"
 						aria-label={providerState.label}
 						onClick={() => {
 							onSelectedProviderChange(providerState.provider);
@@ -97,28 +96,8 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 								provider: providerState.provider,
 							});
 						}}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") {
-								onSelectedProviderChange(providerState.provider);
-								setView({
-									mode: "detail",
-									provider: providerState.provider,
-								});
-								e.stopPropagation();
-							}
-						}}
-						onKeyUp={(e) => {
-							if (e.key === " ") {
-								onSelectedProviderChange(providerState.provider);
-								setView({
-									mode: "detail",
-									provider: providerState.provider,
-								});
-								e.stopPropagation();
-							}
-						}}
 						className={cn(
-							"flex cursor-pointer items-center gap-3.5 px-3 py-3 transition-colors hover:bg-surface-secondary/30",
+							"flex w-full cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 px-3 py-3 text-left transition-colors hover:bg-surface-secondary/30",
 							i > 0 && "border-0 border-t border-solid border-border/50",
 						)}
 					>
@@ -126,7 +105,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 							provider={providerState.provider}
 							className="h-8 w-8 shrink-0"
 						/>
-						<span className="min-w-0 flex-1 truncate text-[15px] font-medium text-content-primary">
+						<span className="min-w-0 flex-1 truncate text-[15px] font-medium text-content-primary text-left">
 							{providerState.label}
 						</span>
 						{providerState.hasEffectiveAPIKey ? (
@@ -135,7 +114,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 							<CircleIcon className="h-4 w-4 shrink-0 text-content-secondary opacity-40" />
 						)}
 						<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
-					</div>
+					</button>
 				))}{" "}
 			</div>
 		</>

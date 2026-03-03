@@ -61,18 +61,12 @@ const ReasoningDisclosure: FC<{
 	return (
 		<div className="w-full">
 			{hasText ? (
-				<div
-					role="button"
-					tabIndex={0}
+				<button
+					type="button"
 					aria-expanded={isOpen}
 					aria-controls={id}
-					className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
+					className="flex items-center gap-2 bg-transparent border-0 p-0 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
 					onClick={() => setIsOpen((prev) => !prev)}
-					onKeyDown={(event) => {
-						if (event.key === "Enter" || event.key === " ") {
-							setIsOpen((prev) => !prev);
-						}
-					}}
 				>
 					{labelContent}
 					<ChevronDownIcon
@@ -81,7 +75,7 @@ const ReasoningDisclosure: FC<{
 							isOpen ? "rotate-0" : "-rotate-90",
 						)}
 					/>
-				</div>
+				</button>
 			) : (
 				<div className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary">
 					{labelContent}
