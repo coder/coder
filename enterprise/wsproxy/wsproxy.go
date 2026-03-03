@@ -37,7 +37,6 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
@@ -46,11 +45,10 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
-// expWsproxyDERPOnce guards the global expvar.Publish call for the wsproxy
-// DERP server, similar to expDERPOnce in coderd. We use a different variable
-// name ("wsproxy_derp") to avoid conflicts when both run in the same process
-// during tests.
-var expWsproxyDERPOnce sync.Once
+// expDERPOnce guards the global expvar.Publish call for the DERP server.
+// We need a sync.Once because expvar panics on duplicate registration,
+// and tests may create multiple servers in the same process.
+var expDERPOnce sync.Once
 
 type Options struct {
 	Logger      slog.Logger
@@ -205,17 +203,11 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	}
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("net.derp")))
 	// Publish DERP server metrics via expvar, served at /debug/expvar.
-	expWsproxyDERPOnce.Do(func() {
-		expvar.Publish("wsproxy_derp", derpServer.ExpVar())
+	expDERPOnce.Do(func() {
+		expvar.Publish("derp", derpServer.ExpVar())
 	})
 	if opts.PrometheusRegistry != nil {
-		opts.PrometheusRegistry.MustRegister(collectors.NewExpvarCollector(map[string]*prometheus.Desc{
-			"wsproxy_derp": prometheus.NewDesc(
-				"coder_wsproxy_derp",
-				"DERP server expvar stats",
-				[]string{"metric"}, nil,
-			),
-		}))
+		opts.PrometheusRegistry.MustRegister(NewDERPMetricsCollector())
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -338,31 +330,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	})
 
 	derpHandler := derphttp.Handler(derpServer)
-
-	// Prometheus metrics for DERP websocket connections.
-	derpWSActiveConns := prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "coder_wsproxy",
-		Subsystem: "derp_websocket",
-		Name:      "active_connections",
-		Help:      "Number of active DERP websocket connections.",
-	})
-	derpWSBytesTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "coder_wsproxy",
-		Subsystem: "derp_websocket",
-		Name:      "bytes_total",
-		Help:      "Total bytes flowing through DERP websocket connections.",
-	}, []string{"direction"})
-	if opts.PrometheusRegistry != nil {
-		opts.PrometheusRegistry.MustRegister(derpWSActiveConns, derpWSBytesTotal)
-	}
-
-	derpHandler, s.derpCloseFunc = tailnet.WithWebsocketSupportAndMetrics(
-		derpServer, derpHandler, &tailnet.DERPWebsocketMetrics{
-			OnConnOpen:  func() { derpWSActiveConns.Inc() },
-			OnConnClose: func() { derpWSActiveConns.Dec() },
-			OnRead:      func(n int) { derpWSBytesTotal.WithLabelValues("read").Add(float64(n)) },
-			OnWrite:     func(n int) { derpWSBytesTotal.WithLabelValues("write").Add(float64(n)) },
-		})
+	derpHandler, s.derpCloseFunc = tailnet.WithWebsocketSupport(derpServer, derpHandler)
 
 	// The primary coderd dashboard needs to make some GET requests to
 	// the workspace proxies to check latency.
