@@ -342,7 +342,7 @@ type ChatModelOpenRouterProviderOptions struct {
 type ChatModelVercelReasoningOptions struct {
 	Enabled   *bool   `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
 	MaxTokens *int64  `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
-	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"minimal,low,medium,high"`
+	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
 	Exclude   *bool   `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
 }
 

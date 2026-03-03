@@ -483,10 +483,12 @@
           "description": "Controls the level of reasoning effort",
           "required": false,
           "enum": [
+            "none",
             "minimal",
             "low",
             "medium",
-            "high"
+            "high",
+            "xhigh"
           ],
           "input_type": "select"
         },
