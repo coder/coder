@@ -182,7 +182,7 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 			aria-label="Notification method"
 			css={styles.toggleGroup}
 			onChange={async (_, method) => {
-				if (!canEdit || !method) {
+				if (!method) {
 					return;
 				}
 				try {
