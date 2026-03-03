@@ -389,7 +389,6 @@ export const ArchivedAgentsExpanded: Story = {
 	},
 };
 
-
 export const NoArchivedSection: Story = {
 	args: {
 		chats: [
