@@ -151,7 +151,10 @@ func TestPGPubsubDriver(t *testing.T) {
 	gotChan := make(chan struct{}, 1)
 	defer close(gotChan)
 	subCancel, err := subber.Subscribe("test", func(_ context.Context, _ []byte) {
-		gotChan <- struct{}{}
+		select {
+		case gotChan <- struct{}{}:
+		default:
+		}
 	})
 	require.NoError(t, err)
 	defer subCancel()
