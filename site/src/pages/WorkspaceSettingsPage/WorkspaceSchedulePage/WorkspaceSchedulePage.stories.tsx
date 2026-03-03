@@ -6,10 +6,10 @@ import {
 } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { getAuthorizationKey } from "api/queries/authCheck";
 import { templateByNameKey } from "api/queries/templates";
 import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -68,19 +68,14 @@ function workspaceQueries(workspace: Workspace) {
 			data: workspace,
 		},
 		{
-			key: getAuthorizationKey({
-				checks: {
-					updateWorkspace: {
-						object: {
-							resource_type: "workspace",
-							resource_id: MockWorkspace.id,
-							owner_id: MockWorkspace.owner_id,
-						},
-						action: "update",
-					},
-				},
-			}),
-			data: { updateWorkspace: true },
+			key: ["workspaces", workspace.id, "permissions"],
+			data: {
+				readWorkspace: true,
+				shareWorkspace: true,
+				updateWorkspace: true,
+				updateWorkspaceVersion: true,
+				deleteFailedWorkspace: true,
+			} satisfies WorkspacePermissions,
 		},
 		{
 			key: templateByNameKey(
