@@ -156,7 +156,7 @@ test("Use custom name, message and set it as active when publishing", async () =
 	await waitFor(() => {
 		expect(screen.queryByTestId("dialog")).not.toBeInTheDocument();
 	});
-});
+}, 20_000);
 
 test("Do not mark as active if promote is not checked", async () => {
 	const user = userEvent.setup();

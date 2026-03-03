@@ -9,7 +9,6 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
 import { PlusIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "modules/permissions/RequirePermission";
@@ -80,11 +79,7 @@ const GroupsPage: FC = () => {
 		<div className="w-full max-w-screen-2xl pb-10">
 			{title}
 
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
-			>
+			<div className="flex max-w-full flex-row items-baseline justify-between gap-4">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Groups</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -101,7 +96,7 @@ const GroupsPage: FC = () => {
 						</RouterLink>
 					</Button>
 				)}
-			</Stack>
+			</div>
 
 			<GroupsPageView
 				groups={groupsQuery.data}

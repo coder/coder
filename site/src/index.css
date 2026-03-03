@@ -53,6 +53,18 @@
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
 		--ring: 240 10% 3.9%;
+		/*
+		  shadcn-compatible aliases consumed by streamdown and
+		  internal components (e.g. shimmer). These names are
+		  intentionally generic so they match shadcn conventions.
+		  Do NOT rename without updating every consumer.
+		*/
+		--background: 0 0% 98%;
+		--foreground: 240 10% 4%;
+		--muted: 240 5% 96%;
+		--muted-foreground: 240 5% 34%;
+		--primary: 221 83% 53%;
+		--primary-foreground: 0 0% 98%;
 		--avatar-lg: 2.5rem;
 		--avatar-default: 1.5rem;
 		--avatar-sm: 1.125rem;
@@ -100,6 +112,13 @@
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
 		--ring: 240 4.9% 83.9%;
+		/* shadcn-compatible aliases – see :root block for details. */
+		--background: 240 10% 4%;
+		--foreground: 0 0% 98%;
+		--muted: 240 6% 10%;
+		--muted-foreground: 240 5% 65%;
+		--primary: 213 94% 68%;
+		--primary-foreground: 240 10% 4%;
 	}
 }
 
