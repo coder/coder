@@ -462,7 +462,7 @@ func TestRecordInterception(t *testing.T) {
 				expectedErr: "start interception",
 			},
 			{
-				name: "ok_with_parent_correlation",
+				name: "ok with parent correlation",
 				request: &proto.RecordInterceptionRequest{
 					Id:                    uuid.UUID{3}.String(),
 					ApiKeyId:              uuid.NewString(),
@@ -496,7 +496,68 @@ func TestRecordInterception(t *testing.T) {
 				},
 			},
 			{
-				name: "ok_no_parent_found",
+				name: "no lineage",
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{3}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: strPtr("call_abc"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
+						gomock.Any(),
+						"call_abc",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{}, sql.ErrNoRows)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadRootInterceptionID, "thread root interception ID")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
+			},
+			{
+				name: "parent without root", // This should never happen since GetAIBridgeInterceptionLineageByToolCallID always returns both, but still...
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{3}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: strPtr("call_abc"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+					parentID := uuid.UUID{4}
+
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
+						gomock.Any(),
+						"call_abc",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{
+						ThreadParentID: parentID,
+					}, nil)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{UUID: parentID, Valid: true}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadRootInterceptionID, "thread root interception ID not expected")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
+			},
+			{
+				name: "ok no parent found",
 				request: &proto.RecordInterceptionRequest{
 					Id:                    uuid.UUID{5}.String(),
 					ApiKeyId:              uuid.NewString(),

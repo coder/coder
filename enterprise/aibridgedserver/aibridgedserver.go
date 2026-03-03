@@ -155,6 +155,8 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 			slog.F("started_at", in.StartedAt.AsTime()),
 			slog.F("metadata", metadata),
 			slog.F("correlating_tool_call_id", in.GetCorrelatingToolCallId()),
+			slog.F("thread_parent_id", parentID),
+			slog.F("thread_root_id", rootID),
 		)
 	}
 
@@ -361,10 +363,6 @@ func (s *Server) findInterceptionLineage(ctx context.Context, toolCallID string)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve interception lineage",
 			slog.Error(err), slog.F("tool_call_id", toolCallID))
-		return uuid.Nil, uuid.Nil
-	}
-
-	if lineage.ThreadParentID == uuid.Nil {
 		return uuid.Nil, uuid.Nil
 	}
 

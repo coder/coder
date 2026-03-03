@@ -405,17 +405,15 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 }
 
 const getAIBridgeInterceptionLineageByToolCallID = `-- name: GetAIBridgeInterceptionLineageByToolCallID :one
-WITH linked AS (
+SELECT aibridge_interceptions.id AS thread_parent_id,
+       COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_root_id
+FROM aibridge_interceptions
+WHERE aibridge_interceptions.id = (
   SELECT interception_id FROM aibridge_tool_usages
   WHERE provider_tool_call_id = $1::text
   ORDER BY created_at DESC
   LIMIT 1
 )
-SELECT linked.interception_id AS thread_parent_id,
-       COALESCE(aibridge_interceptions.thread_root_id, linked.interception_id) AS thread_root_id
-FROM aibridge_interceptions
-INNER JOIN linked ON linked.interception_id = aibridge_interceptions.id
-WHERE aibridge_interceptions.id = linked.interception_id
 `
 
 type GetAIBridgeInterceptionLineageByToolCallIDRow struct {

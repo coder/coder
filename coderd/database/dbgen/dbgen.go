@@ -1647,7 +1647,7 @@ func AIBridgeToolUsage(t testing.TB, db database.Store, seed database.InsertAIBr
 		ID:                 takeFirst(seed.ID, uuid.New()),
 		InterceptionID:     takeFirst(seed.InterceptionID, uuid.New()),
 		ProviderResponseID: takeFirst(seed.ProviderResponseID, "provider_response_id"),
-		ProviderToolCallID: sql.NullString{String: takeFirst(seed.ProviderResponseID, testutil.GetRandomName(t)), Valid: true},
+		ProviderToolCallID: takeFirst(seed.ProviderToolCallID),
 		Tool:               takeFirst(seed.Tool, "tool"),
 		ServerUrl:          serverURL,
 		Input:              takeFirst(seed.Input, "input"),

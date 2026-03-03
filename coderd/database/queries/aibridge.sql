@@ -19,17 +19,15 @@ RETURNING *;
 -- which interception recorded a tool usage with the given tool call ID.
 -- COALESCE ensures that if the parent has no thread_root_id (i.e. it IS
 -- the root), we return its own ID as the root.
-WITH linked AS (
+SELECT aibridge_interceptions.id AS thread_parent_id,
+       COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_root_id
+FROM aibridge_interceptions
+WHERE aibridge_interceptions.id = (
   SELECT interception_id FROM aibridge_tool_usages
   WHERE provider_tool_call_id = @tool_call_id::text
   ORDER BY created_at DESC
   LIMIT 1
-)
-SELECT linked.interception_id AS thread_parent_id,
-       COALESCE(aibridge_interceptions.thread_root_id, linked.interception_id) AS thread_root_id
-FROM aibridge_interceptions
-INNER JOIN linked ON linked.interception_id = aibridge_interceptions.id
-WHERE aibridge_interceptions.id = linked.interception_id;
+);
 
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
