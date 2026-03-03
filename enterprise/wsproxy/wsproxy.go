@@ -43,6 +43,7 @@ import (
 	sharedhttpmw "github.com/coder/coder/v2/httpmw"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/derpmetrics"
 )
 
 // expDERPOnce guards the global expvar.Publish call for the DERP server.
@@ -207,7 +208,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		expvar.Publish("derp", derpServer.ExpVar())
 	})
 	if opts.PrometheusRegistry != nil {
-		opts.PrometheusRegistry.MustRegister(tailnet.NewDERPExpvarCollector())
+		opts.PrometheusRegistry.MustRegister(derpmetrics.NewDERPExpvarCollector(derpServer))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

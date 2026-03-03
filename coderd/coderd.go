@@ -99,6 +99,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/derpmetrics"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
@@ -907,8 +908,8 @@ func New(options *Options) *API {
 			expvar.Publish("derp", api.DERPServer.ExpVar())
 		}
 	})
-	if options.PrometheusRegistry != nil {
-		options.PrometheusRegistry.MustRegister(tailnet.NewDERPExpvarCollector())
+	if options.PrometheusRegistry != nil && options.DERPServer != nil {
+		options.PrometheusRegistry.MustRegister(derpmetrics.NewDERPExpvarCollector(options.DERPServer))
 	}
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
