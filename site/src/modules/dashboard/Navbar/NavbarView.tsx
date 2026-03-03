@@ -100,26 +100,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					/>
 				</div>
 
-				{webPush.enabled ? (
-					webPush.subscribed ? (
-						<Button
-							variant="outline"
-							disabled={webPush.loading}
-							onClick={webPush.unsubscribe}
-						>
-							Disable WebPush
-						</Button>
-					) : (
-						<Button
-							variant="outline"
-							disabled={webPush.loading}
-							onClick={webPush.subscribe}
-						>
-							Enable WebPush
-						</Button>
-					)
-				) : null}
-
 				<NotificationsInbox
 					fetchNotifications={API.getInboxNotifications}
 					markAllAsRead={API.markAllInboxNotificationsAsRead}
