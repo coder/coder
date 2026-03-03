@@ -5213,7 +5213,7 @@
 						"CoderSessionToken": []
 					}
 				],
-				"consumes": ["application/json"],
+				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Pause task",
 				"operationId": "pause-task",
@@ -5251,7 +5251,7 @@
 						"CoderSessionToken": []
 					}
 				],
-				"consumes": ["application/json"],
+				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Resume task",
 				"operationId": "resume-task",
