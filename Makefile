@@ -922,7 +922,6 @@ site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen
 site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go
 	go run ./scripts/modeloptionsgen/main.go | tail -n +2 > "$@"
 	cd site && pnpm biome format --write src/api/chatModelOptionsGenerated.json
-	touch "$@"
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES)
 	go run ./scripts/metricsdocgen/scanner > $@

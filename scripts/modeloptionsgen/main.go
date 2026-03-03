@@ -69,7 +69,7 @@ func main() {
 		schema.Providers[p.key] = extractFields(p.typ, "", nil)
 	}
 
-	out, err := json.MarshalIndent(schema, "", "  ")
+	out, err := json.MarshalIndent(schema, "", "\t")
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "marshal schema: %v\n", err)
 		os.Exit(1)
