@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1409,12 +1410,12 @@ func TestProxy_TokenCaching(t *testing.T) {
 	t.Parallel()
 
 	// Track number of validation API calls.
-	var validationCalls int
+	var validationCalls atomic.Int32
 
 	// Create a mock Coder server that counts validation calls.
 	coderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v2/users/me" && r.Method == http.MethodGet {
-			validationCalls++
+			validationCalls.Add(1)
 
 			token := r.Header.Get(codersdk.SessionTokenHeader)
 			if token == "test-token" {
@@ -1468,11 +1469,11 @@ func TestProxy_TokenCaching(t *testing.T) {
 
 	// First request - should validate token.
 	doRequest()
-	require.Equal(t, 1, validationCalls, "first request should validate token")
+	require.Equal(t, int32(1), validationCalls.Load(), "first request should validate token")
 
 	// Second request immediately after - should use cache.
 	doRequest()
-	require.Equal(t, 1, validationCalls, "second request should use cached token")
+	require.Equal(t, int32(1), validationCalls.Load(), "second request should use cached token")
 
 	// Advance clock past cache TTL to expire the token.
 	// Advance in two steps: first to trigger cleanup ticker, then past expiry.
@@ -1481,7 +1482,7 @@ func TestProxy_TokenCaching(t *testing.T) {
 
 	// Third request after expiry - should validate again.
 	doRequest()
-	require.Equal(t, 2, validationCalls, "third request after expiry should validate token again")
+	require.Equal(t, int32(2), validationCalls.Load(), "third request after expiry should validate token again")
 }
 
 // TestServeCACert validates that a configured certificate file can be served correctly by the API.
