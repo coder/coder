@@ -205,7 +205,9 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("net.derp")))
 	// Publish DERP server metrics via expvar, served at /debug/expvar.
 	expDERPOnce.Do(func() {
-		expvar.Publish("derp", derpServer.ExpVar())
+		if expvar.Get("derp") == nil {
+			expvar.Publish("derp", derpServer.ExpVar())
+		}
 	})
 	if opts.PrometheusRegistry != nil {
 		opts.PrometheusRegistry.MustRegister(derpmetrics.NewDERPExpvarCollector(derpServer))
