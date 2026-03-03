@@ -244,6 +244,9 @@ export const Failure: Story = {
 			const submitButton = body.getByRole("button", {
 				name: /update and restart build/i,
 			});
+			await waitFor(() => {
+				expect(submitButton).not.toBeDisabled();
+			});
 			await userEvent.click(submitButton);
 		});
 
