@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/proto"
 
@@ -24,6 +25,13 @@ const (
 	// from workspaces. This buffer size is intended to handle short bursts of workspaces
 	// forwarding batches of logs in parallel.
 	logBufferSize = 100
+)
+
+const (
+	droppedReasonBoundaryChannelFull = "boundary_channel_full"
+	droppedReasonBoundaryBatchFull   = "boundary_batch_full"
+	droppedReasonBufferFull          = "buffer_full"
+	droppedReasonForwardFailed       = "forward_failed"
 )
 
 // DefaultSocketPath returns the default path for the boundary audit log socket.
@@ -43,6 +51,7 @@ type Reporter interface {
 type Server struct {
 	logger     slog.Logger
 	socketPath string
+	metrics    *Metrics
 
 	listener net.Listener
 	cancel   context.CancelFunc
@@ -53,10 +62,11 @@ type Server struct {
 }
 
 // NewServer creates a new boundary log proxy server.
-func NewServer(logger slog.Logger, socketPath string) *Server {
+func NewServer(logger slog.Logger, socketPath string, registerer prometheus.Registerer) *Server {
 	return &Server{
 		logger:     logger.Named("boundary-log-proxy"),
 		socketPath: socketPath,
+		metrics:    newMetrics(registerer),
 		logs:       make(chan *agentproto.ReportBoundaryLogsRequest, logBufferSize),
 	}
 }
@@ -100,9 +110,13 @@ func (s *Server) RunForwarder(ctx context.Context, sender Reporter) error {
 				s.logger.Warn(ctx, "failed to forward boundary logs",
 					slog.Error(err),
 					slog.F("log_count", len(req.Logs)))
+				s.metrics.batchesDropped.WithLabelValues(droppedReasonForwardFailed).Inc()
+				s.metrics.logsDropped.WithLabelValues(droppedReasonForwardFailed).Add(float64(len(req.Logs)))
 				// Continue forwarding other logs. The current batch is lost,
 				// but the socket stays alive.
+				continue
 			}
+			s.metrics.batchesForwarded.Inc()
 		}
 	}
 }
@@ -177,11 +191,22 @@ func (s *Server) handleMessage(ctx context.Context, msg proto.Message) {
 		switch inner := m.Msg.(type) {
 		case *codec.BoundaryMessage_Logs:
 			s.bufferLogs(ctx, inner.Logs)
+		case *codec.BoundaryMessage_Status:
+			s.recordBoundaryStatus(inner.Status)
 		default:
 			s.logger.Warn(ctx, "unknown BoundaryMessage variant")
 		}
 	default:
 		s.logger.Warn(ctx, "unexpected message type")
+	}
+}
+
+func (s *Server) recordBoundaryStatus(status *codec.BoundaryStatus) {
+	if n := status.DroppedChannelFull; n > 0 {
+		s.metrics.logsDropped.WithLabelValues(droppedReasonBoundaryChannelFull).Add(float64(n))
+	}
+	if n := status.DroppedBatchFull; n > 0 {
+		s.metrics.logsDropped.WithLabelValues(droppedReasonBoundaryBatchFull).Add(float64(n))
 	}
 }
 
@@ -191,6 +216,8 @@ func (s *Server) bufferLogs(ctx context.Context, req *agentproto.ReportBoundaryL
 	default:
 		s.logger.Warn(ctx, "dropping boundary logs, buffer full",
 			slog.F("log_count", len(req.Logs)))
+		s.metrics.batchesDropped.WithLabelValues(droppedReasonBufferFull).Inc()
+		s.metrics.logsDropped.WithLabelValues(droppedReasonBufferFull).Add(float64(len(req.Logs)))
 	}
 }
 
