@@ -489,7 +489,7 @@ func workspaceAgent() *serpent.Command {
 		},
 		{
 			Flag:        "socket-server-enabled",
-			Default:     "false",
+			Default:     "true",
 			Env:         "CODER_AGENT_SOCKET_SERVER_ENABLED",
 			Description: "Enable the agent socket server.",
 			Value:       serpent.BoolOf(&socketServerEnabled),

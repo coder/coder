@@ -214,6 +214,7 @@ func TestReinitializeAgent(t *testing.T) {
 				"--agent-token", agentToken.String(),
 				"--agent-url", client.URL.String(),
 				"--log-dir", logDir,
+				"--socket-path", testutil.AgentSocketPath(t),
 			)
 			clitest.Start(t, inv)
 
