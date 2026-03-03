@@ -8,6 +8,11 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "components/Collapsible/Collapsible";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -758,33 +763,32 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											);
 										})}
 
-										{archivedRootIDs.length > 0 && (
-											<div>
-												<button
-													onClick={() => setIsArchivedExpanded((prev) => !prev)}
-													className="mb-1 ml-0.5 flex w-full items-center gap-1 text-xs font-medium text-content-secondary hover:text-content-primary"
+											{archivedRootIDs.length > 0 && (
+												<Collapsible
+													open={effectiveArchivedExpanded}
+													onOpenChange={setIsArchivedExpanded}
 												>
-													{effectiveArchivedExpanded ? (
-														<ChevronDownIcon className="h-3 w-3" />
-													) : (
-														<ChevronRightIcon className="h-3 w-3" />
-													)}
-													<ArchiveIcon className="h-3 w-3" />
-													<span>Archived</span>
-													<span className="text-content-secondary/50">({archivedRootIDs.length})</span>
-												</button>
-												{effectiveArchivedExpanded && (
-													<div className="flex flex-col gap-0.5">
-														{archivedRootIDs.map((id) => {
-															const chat = chatById.get(id);
-															if (!chat) return null;
-															return <ChatTreeNode key={chat.id} chat={chat} isChildNode={false} />;
-														})}
-													</div>
-												)}
-											</div>
-										)}
-									</>
+													<CollapsibleTrigger className="mb-1 ml-0.5 flex w-full items-center gap-1 text-xs font-medium text-content-secondary hover:text-content-primary">
+														{effectiveArchivedExpanded ? (
+															<ChevronDownIcon className="h-3 w-3" />
+														) : (
+															<ChevronRightIcon className="h-3 w-3" />
+														)}
+														<ArchiveIcon className="h-3 w-3" />
+														<span>Archived</span>
+														<span className="text-content-secondary/50">({archivedRootIDs.length})</span>
+													</CollapsibleTrigger>
+													<CollapsibleContent>
+														<div className="flex flex-col gap-0.5">
+															{archivedRootIDs.map((id) => {
+																const chat = chatById.get(id);
+																if (!chat) return null;
+																return <ChatTreeNode key={chat.id} chat={chat} isChildNode={false} />;
+															})}
+														</div>
+													</CollapsibleContent>
+												</Collapsible>
+											)}									</>
 								)}
 							</ChatTreeContext.Provider>
 						)}
