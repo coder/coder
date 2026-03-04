@@ -84,6 +84,8 @@ const noopRequestArchiveAndDeleteWorkspace: AgentsOutletContext["requestArchiveA
 const noopRequestUnarchiveAgent: AgentsOutletContext["requestUnarchiveAgent"] =
 	() => {};
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+/** @internal Exported for testing. */
+export const draftInputStorageKeyPrefix = "agents.draft-input.";
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 const isChatMessage = (
@@ -287,14 +289,28 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	);
 };
 
-function useConversationEditingState(deps: {
+/** @internal Exported for testing. */
+export function useConversationEditingState(deps: {
+	chatID: string | undefined;
 	onSend: (message: string, editedMessageID?: number) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 }) {
-	const { onSend, onDeleteQueuedMessage } = deps;
+	const { chatID, onSend, onDeleteQueuedMessage } = deps;
+	const draftStorageKey = chatID
+		? `${draftInputStorageKeyPrefix}${chatID}`
+		: null;
 	const inputValueRef = useRef("");
 	const chatInputRef = useRef<ChatMessageInputRef>(null);
-	const [editorInitialValue, setEditorInitialValue] = useState("");
+	const [editorInitialValue, setEditorInitialValue] = useState(() => {
+		if (typeof window === "undefined" || !draftStorageKey) {
+			return "";
+		}
+		const saved = localStorage.getItem(draftStorageKey);
+		if (saved) {
+			inputValueRef.current = saved;
+		}
+		return saved ?? "";
+	});
 
 	// -- History editing state --
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
@@ -361,6 +377,9 @@ function useConversationEditingState(deps: {
 				chatInputRef.current?.clear();
 				chatInputRef.current?.focus();
 				inputValueRef.current = "";
+				if (typeof window !== "undefined" && draftStorageKey) {
+					localStorage.removeItem(draftStorageKey);
+				}
 				if (editingMessageId !== null) {
 					setEditingMessageId(null);
 					setDraftBeforeHistoryEdit(null);
@@ -372,7 +391,27 @@ function useConversationEditingState(deps: {
 				}
 			});
 		},
-		[editingMessageId, editingQueuedMessageID, onDeleteQueuedMessage, onSend],
+		[
+			editingMessageId,
+			editingQueuedMessageID,
+			onDeleteQueuedMessage,
+			onSend,
+			draftStorageKey,
+		],
+	);
+
+	const handleContentChange = useCallback(
+		(content: string) => {
+			inputValueRef.current = content;
+			if (typeof window !== "undefined" && draftStorageKey) {
+				if (content) {
+					localStorage.setItem(draftStorageKey, content);
+				} else {
+					localStorage.removeItem(draftStorageKey);
+				}
+			}
+		},
+		[draftStorageKey],
 	);
 
 	return {
@@ -386,6 +425,7 @@ function useConversationEditingState(deps: {
 		handleStartQueueEdit,
 		handleCancelQueueEdit,
 		handleSendFromInput,
+		handleContentChange,
 	};
 }
 
@@ -674,6 +714,7 @@ const AgentDetail: FC = () => {
 	);
 
 	const editing = useConversationEditingState({
+		chatID: agentId,
 		onSend: handleSend,
 		onDeleteQueuedMessage: handleDeleteQueuedMessage,
 	});
@@ -974,9 +1015,7 @@ const AgentDetail: FC = () => {
 						modelCatalogStatusMessage={modelCatalogStatusMessage}
 						inputRef={editing.chatInputRef}
 						initialValue={editing.editorInitialValue}
-						onContentChange={(content) => {
-							editing.inputValueRef.current = content;
-						}}
+						onContentChange={editing.handleContentChange}
 						editingQueuedMessageID={editing.editingQueuedMessageID}
 						onStartQueueEdit={editing.handleStartQueueEdit}
 						onCancelQueueEdit={editing.handleCancelQueueEdit}

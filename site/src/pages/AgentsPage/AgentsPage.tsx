@@ -56,6 +56,7 @@ import {
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { WebPushButton } from "./WebPushButton";
 
+/** @internal Exported for testing. */
 const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
@@ -343,8 +344,11 @@ const AgentsPage: FC = () => {
 	};
 
 	const handleNewAgent = () => {
-		if (typeof window !== "undefined") {
-			localStorage.setItem(emptyInputStorageKey, "");
+		// Only clear the draft when the user is already on the empty
+		// state and explicitly requests a blank slate.  When navigating
+		// back from a conversation the existing draft is preserved.
+		if (typeof window !== "undefined" && !agentId) {
+			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate("/agents");
 	};
@@ -753,7 +757,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	const handleContentChange = useCallback((content: string) => {
 		inputValueRef.current = content;
 		if (typeof window !== "undefined") {
-			localStorage.setItem(emptyInputStorageKey, content);
+			if (content) {
+				localStorage.setItem(emptyInputStorageKey, content);
+			} else {
+				localStorage.removeItem(emptyInputStorageKey);
+			}
 		}
 	}, []);
 	const handleModelChange = useCallback((value: string) => {
