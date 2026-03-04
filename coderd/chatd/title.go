@@ -6,6 +6,13 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyazure "charm.land/fantasy/providers/azure"
+	fantasybedrock "charm.land/fantasy/providers/bedrock"
+	fantasygoogle "charm.land/fantasy/providers/google"
+	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
+	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -31,13 +38,13 @@ var preferredTitleModels = []struct {
 	provider string
 	model    string
 }{
-	{"anthropic", "claude-haiku-4-5"},
-	{"openai", "gpt-4o-mini"},
-	{"google", "gemini-2.5-flash"},
-	{"azure", "gpt-4o-mini"},
-	{"bedrock", "anthropic.claude-haiku-4-5-20251001-v1:0"},
-	{"openrouter", "anthropic/claude-3.5-haiku"},
-	{"vercel", "anthropic/claude-haiku-4.5"},
+	{fantasyanthropic.Name, "claude-haiku-4-5"},
+	{fantasyopenai.Name, "gpt-4o-mini"},
+	{fantasygoogle.Name, "gemini-2.5-flash"},
+	{fantasyazure.Name, "gpt-4o-mini"},
+	{fantasybedrock.Name, "anthropic.claude-haiku-4-5-20251001-v1:0"},
+	{fantasyopenrouter.Name, "anthropic/claude-3.5-haiku"},
+	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
 }
 
 // titleModelCandidates returns an ordered list of models to try for
