@@ -46,11 +46,11 @@ import (
 	"github.com/coder/coder/v2/tailnet/derpmetrics"
 )
 
-// expDERPOnce guards the global expvar.Publish call for the DERP server.
-// We need a sync.Once because expvar panics on duplicate registration,
-// and tests may create multiple servers in the same process.
-var expDERPOnce sync.Once
 
+// expDERPOnce guards the global expvar.Publish call for the DERP server.
+// expvar panics on duplicate registration, and tests may create multiple
+// servers in the same process.
+var expDERPOnce sync.Once
 type Options struct {
 	Logger      slog.Logger
 	Experiments codersdk.Experiments
@@ -203,7 +203,9 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("create DERP mesh tls config: %w", err)
 	}
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("net.derp")))
-	// Publish DERP server metrics via expvar, served at /debug/expvar.
+	// Publish DERP stats to expvar, available via the pprof
+	// debug server (--pprof-enable) at /debug/vars. This avoids
+	// exposing expvar on the public HTTP router.
 	expDERPOnce.Do(func() {
 		if expvar.Get("derp") == nil {
 			expvar.Publish("derp", derpServer.ExpVar())
@@ -436,7 +438,6 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("OK")) })
 	// TODO: @emyrk should this be authenticated or debounced?
 	r.Get("/healthz-report", s.healthReport)
-	r.Method("GET", "/debug/expvar", expvar.Handler())
 	r.NotFound(func(rw http.ResponseWriter, r *http.Request) {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Title:      "Head to the Dashboard",
