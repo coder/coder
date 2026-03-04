@@ -1,5 +1,9 @@
 # Coder Agents
 
+> [!NOTE]
+> Coder Agents is currently in internal preview. We are actively developing
+> the feature and demoing it with customers for feedback.
+
 Coder Agents is a chat interface and API for delegating development work and research to coding agents in your Coder deployment. Developers describe the work they want done, and Coder Agents handles selecting a template, provisioning a workspace, and executing the task.
 
 Coder Agents includes its own self-hosted, lightweight AI coding
@@ -20,9 +24,6 @@ No agent harness or API keys are required inside your workspaces.
   Your browser does not support the video tag.
 </video>
 
-> [!NOTE]
-> Coder Agents is currently in internal preview. We are actively developing
-> the feature and demoing it with customers for feedback.
 
 ## Who is Coder Agents for
 
@@ -67,7 +68,7 @@ The workspace itself has no knowledge of AI. It is standard compute
 infrastructure — there are no LLM API keys, no agent harnesses, and no special
 software installed. All intelligence lives in the control plane.
 
-![Placeholder: Architecture diagram showing coderd in the center, with arrows out to LLM providers and arrows to workspaces](../images/guides/ai-agents/agents-architecture.png)
+![Architecture diagram showing coderd in the center, with arrows out to LLM providers and arrows to workspaces](../images/guides/ai-agents/agent-loop.png)
 
 <small>The agent loop runs in coderd. It makes outbound requests to LLM
 providers and connects to workspaces only when tool execution is needed.</small>
