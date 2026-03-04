@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 )
 
@@ -49,6 +50,10 @@ type Config struct {
 		cancel func(),
 		err error,
 	)
+	// Clock is used for creating timers. In production use
+	// quartz.NewReal(); in tests use quartz.NewMock(t) to
+	// control reconnect timing deterministically.
+	Clock quartz.Clock
 }
 
 // dial returns the dialer function to use for relay connections.
@@ -83,8 +88,17 @@ func (c Config) dial() func(
 		func(),
 		error,
 	) {
-		return dialRelay(ctx, chatID, workerID, requestHeader, c)
+		return dialRelay(ctx, chatID, workerID, requestHeader, c, c.clock())
 	}
+}
+
+// clock returns the quartz.Clock to use. Defaults to a real clock
+// when not set.
+func (c Config) clock() quartz.Clock {
+	if c.Clock != nil {
+		return c.Clock
+	}
+	return quartz.NewReal()
 }
 
 // NewMultiReplicaSubscribeFn returns a SubscribeFn that merges local
@@ -161,7 +175,7 @@ func NewMultiReplicaSubscribeFn(
 		var expectedWorkerID uuid.UUID
 
 		// Reconnect timer state.
-		var reconnectTimer *time.Timer
+		var reconnectTimer *quartz.Timer
 		var reconnectCh <-chan time.Time
 
 		// Helper to close relay and stop any pending reconnect
@@ -291,7 +305,7 @@ func NewMultiReplicaSubscribeFn(
 			if reconnectTimer != nil {
 				reconnectTimer.Stop()
 			}
-			reconnectTimer = time.NewTimer(500 * time.Millisecond)
+			reconnectTimer = cfg.clock().NewTimer(500*time.Millisecond, "reconnect")
 			reconnectCh = reconnectTimer.C
 		}
 
@@ -608,6 +622,7 @@ func dialRelay(
 	workerID uuid.UUID,
 	requestHeader http.Header,
 	cfg Config,
+	clk quartz.Clock,
 ) (
 	snapshot []codersdk.ChatStreamEvent,
 	parts <-chan codersdk.ChatStreamEvent,
@@ -642,7 +657,7 @@ func dialRelay(
 	// case where the remote side has buffered parts but hasn't
 	// flushed them to the WebSocket yet.
 	const drainTimeout = time.Second
-	drainTimer := time.NewTimer(drainTimeout)
+	drainTimer := clk.NewTimer(drainTimeout, "drain")
 	defer drainTimer.Stop()
 
 drainInitial:

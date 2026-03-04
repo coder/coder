@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/coder/quartz"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -43,6 +44,7 @@ func newTestServer(
 		func(),
 		error,
 	),
+	clock quartz.Clock,
 ) *osschatd.Server {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -51,7 +53,7 @@ func newTestServer(
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		Pubsub:                     ps,
-		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(entchatd.Config{DialerFn: dialer}),
+		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(entchatd.Config{DialerFn: dialer, Clock: clock}),
 		PendingChatAcquireInterval: testutil.WaitSuperLong,
 	})
 	t.Cleanup(func() {
@@ -134,7 +136,13 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 		return nil, ch, func() {}, nil
 	}
 
-	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+	mclk := quartz.NewMock(t)
+	// Trap the reconnect timer so we can fire it deterministically
+	// instead of waiting real time.
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	subscriber := newTestServer(t, db, ps, subscriberID, provider, mclk)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -176,8 +184,13 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 		}
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
-	// After the first relay closes, a reconnection should happen and
-	// deliver the second relay part.
+	// Wait for the reconnect timer to be created after the relay
+	// drop, then advance the mock clock to fire it immediately.
+	trapReconnect.MustWait(ctx).MustRelease(ctx)
+	mclk.Advance(500 * time.Millisecond).MustWait(ctx)
+
+	// After the first relay closes, the reconnection should deliver
+	// the second relay part.
 	require.Eventually(t, func() bool {
 		select {
 		case event := <-events:
@@ -223,7 +236,7 @@ func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 		return nil, ch, func() {}, nil
 	}
 
-	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -330,7 +343,7 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 		return snapshot, ch, func() {}, nil
 	}
 
-	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -444,7 +457,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 		return nil, ch, func() {}, nil
 	}
 
-	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -607,7 +620,7 @@ func TestSubscribeCancelDuringInFlightDial(t *testing.T) {
 		return nil, nil, nil, ctx.Err()
 	}
 
-	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -705,7 +718,7 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 		return nil, ch, func() {}, nil
 	}
 
-	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -820,7 +833,12 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 		return nil, ch, func() {}, nil
 	}
 
-	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+	mclk := quartz.NewMock(t)
+	// Trap the reconnect timer so we can fire it deterministically.
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	subscriber := newTestServer(t, db, ps, subscriberID, provider, mclk)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -848,10 +866,9 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Now mark the chat as running on the remote worker in the DB.
-	// The reconnect timer (500ms) fires and calls
-	// params.DB.GetChatByID to check if the chat is still running
-	// on a remote worker, so this must be set before the timer
-	// fires.
+	// The reconnect timer calls params.DB.GetChatByID to check if
+	// the chat is still running on a remote worker, so this must be
+	// set before we advance the clock.
 	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 		ID:          chat.ID,
 		Status:      database.ChatStatusRunning,
@@ -873,9 +890,14 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payload)
 	require.NoError(t, err)
 
-	// After the reconnect timer fires (~500ms) the merge loop
-	// re-checks the DB, sees the chat is still running on the
-	// remote worker, and dials again. The second dial succeeds.
+	// Wait for the reconnect timer to be created (after the failed
+	// dial), then advance the mock clock to fire it.
+	trapReconnect.MustWait(ctx).MustRelease(ctx)
+	mclk.Advance(500 * time.Millisecond).MustWait(ctx)
+
+	// The merge loop re-checks the DB, sees the chat is still
+	// running on the remote worker, and dials again. The second
+	// dial succeeds.
 	require.Eventually(t, func() bool {
 		select {
 		case event := <-events:
@@ -926,7 +948,7 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 		return nil, ch, func() {}, nil
 	}
 
-	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+	subscriber := newTestServer(t, db, ps, subscriberID, provider, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -1028,7 +1050,13 @@ func TestSubscribeRelayMultipleReconnects(t *testing.T) {
 		return nil, ch, func() {}, nil
 	}
 
-	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+	mclk := quartz.NewMock(t)
+	// Trap the reconnect timer so we can fire both reconnects
+	// deterministically.
+	trapReconnect := mclk.Trap().NewTimer("reconnect")
+	defer trapReconnect.Close()
+
+	subscriber := newTestServer(t, db, ps, subscriberID, provider, mclk)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -1056,22 +1084,40 @@ func TestSubscribeRelayMultipleReconnects(t *testing.T) {
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
-	// Collect all three relay parts. Each relay drop triggers a
-	// 500ms reconnect timer, so this takes ~1s total.
-	var receivedTexts []string
-	require.Eventually(t, func() bool {
-		select {
-		case event := <-events:
-			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
-				event.MessagePart != nil {
-				receivedTexts = append(receivedTexts, event.MessagePart.Part.Text)
+	// Helper to consume a specific relay part.
+	consumePart := func(text string) {
+		t.Helper()
+		require.Eventually(t, func() bool {
+			select {
+			case event := <-events:
+				if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+					event.MessagePart != nil &&
+					event.MessagePart.Part.Text == text {
+					return true
+				}
+				return false
+			default:
+				return false
 			}
-			return len(receivedTexts) >= 3
-		default:
-			return false
-		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+		}, testutil.WaitMedium, testutil.IntervalFast)
+	}
 
-	require.Equal(t, []string{"relay-1", "relay-2", "relay-3"}, receivedTexts)
+	// First relay: consumed immediately (synchronous dial).
+	consumePart("relay-1")
+
+	// First relay drops → reconnect timer created. Advance clock
+	// to fire it.
+	trapReconnect.MustWait(ctx).MustRelease(ctx)
+	mclk.Advance(500 * time.Millisecond).MustWait(ctx)
+
+	// Second relay part.
+	consumePart("relay-2")
+
+	// Second relay drops → another reconnect timer. Advance again.
+	trapReconnect.MustWait(ctx).MustRelease(ctx)
+	mclk.Advance(500 * time.Millisecond).MustWait(ctx)
+
+	// Third relay part (channel stays open).
+	consumePart("relay-3")
 	require.GreaterOrEqual(t, int(callCount.Load()), 3)
 }
