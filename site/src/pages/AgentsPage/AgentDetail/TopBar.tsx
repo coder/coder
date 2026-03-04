@@ -29,6 +29,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { ChimeButton } from "../ChimeButton";
 import { WebPushButton } from "../WebPushButton";
 
 interface DiffStatsBadgeProps {
@@ -265,7 +266,8 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
-				<WebPushButton />
+				<ChimeButton />
+				<WebPushButton />{" "}
 			</div>
 			<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
 				<UserDropdown

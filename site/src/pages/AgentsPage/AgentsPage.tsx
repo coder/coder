@@ -45,6 +45,7 @@ import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
+import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 import {
@@ -353,6 +354,12 @@ const AgentsPage: FC = () => {
 		navigate("/agents");
 	};
 
+	// Track the active chat ID in a ref so the watchChats
+	// WebSocket handler can read it without re-subscribing on
+	// every navigation.
+	const activeChatIDRef = useRef(agentId);
+	activeChatIDRef.current = agentId;
+
 	useEffect(() => {
 		const ws = watchChats();
 		ws.addEventListener("open", () => {
@@ -374,6 +381,21 @@ const AgentsPage: FC = () => {
 			}
 			const chatEvent = sse.data;
 			const updatedChat = chatEvent.chat;
+
+			// Read the previous status from the query cache, which
+			// is synchronously updated by both the per-chat WebSocket
+			// (via updateSidebarChat) and this handler. This avoids
+			// the async-lag of a useEffect-based status map.
+			const currentChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			const prevStatus = currentChats?.find(
+				(c) => c.id === updatedChat.id,
+			)?.status;
+			maybePlayChime(
+				prevStatus,
+				updatedChat.status,
+				updatedChat.id,
+				activeChatIDRef.current,
+			);
 
 			if (chatEvent.kind === "deleted") {
 				queryClient.setQueryData(
@@ -447,7 +469,9 @@ const AgentsPage: FC = () => {
 				},
 			);
 		});
-		return () => ws.close();
+		return () => {
+			ws.close();
+		};
 	}, [queryClient]);
 
 	useEffect(() => {
