@@ -26,6 +26,7 @@ import {
 	memo,
 	useCallback,
 	useEffect,
+	useLayoutEffect,
 	useImperativeHandle,
 	useMemo,
 	useRef,
@@ -228,7 +229,7 @@ const EditableStatePlugin: FC<{ disabled: boolean }> = memo(
 	function EditableStatePlugin({ disabled }) {
 		const [editor] = useLexicalComposerContext();
 
-		useEffect(() => {
+		useLayoutEffect(() => {
 			editor.setEditable(!disabled);
 		}, [editor, disabled]);
 
