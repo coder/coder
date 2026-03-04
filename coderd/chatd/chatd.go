@@ -1944,7 +1944,10 @@ func (p *Server) runChat(
 			p.providerAPIKeys, dbProviders,
 		)
 
-		// Preferred lightweight models for title generation.
+		// Preferred lightweight models for title generation,
+		// one per provider type. Each provider uses its
+		// cheapest/fastest small model as identified by the
+		// charmbracelet/catwalk model catalog.
 		candidates := make([]fantasy.LanguageModel, 0, 3)
 		for _, c := range []struct {
 			provider string
@@ -1952,6 +1955,11 @@ func (p *Server) runChat(
 		}{
 			{"anthropic", "claude-haiku-4-5"},
 			{"openai", "gpt-4o-mini"},
+			{"google", "gemini-2.5-flash"},
+			{"azure", "gpt-4o-mini"},
+			{"bedrock", "anthropic.claude-haiku-4-5-20251001-v1:0"},
+			{"openrouter", "anthropic/claude-3.5-haiku"},
+			{"vercel", "anthropic/claude-haiku-4.5"},
 		} {
 			m, err := chatprovider.ModelFromConfig(
 				c.provider, c.model, keys,
