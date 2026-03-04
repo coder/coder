@@ -168,6 +168,61 @@ func TestPush(t *testing.T) {
 		}
 	})
 
+	t.Run("GoneAndFailedSubscriptions", func(t *testing.T) {
+		// When one subscription returns 410 Gone and another returns an
+		// error (e.g. 400), the stale subscription should still be
+		// cleaned up from the database.
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		manager, store, serverBadURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+			assertWebpushPayload(t, r)
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte("Invalid request"))
+		})
+
+		serverGone := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assertWebpushPayload(t, r)
+			w.WriteHeader(http.StatusGone)
+		}))
+		defer serverGone.Close()
+		serverGoneURL := serverGone.URL
+
+		user := dbgen.User(t, store, database.User{})
+
+		subBad, err := store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
+			UserID:            user.ID,
+			Endpoint:          serverBadURL,
+			EndpointAuthKey:   validEndpointAuthKey,
+			EndpointP256dhKey: validEndpointP256dhKey,
+			CreatedAt:         dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		_, err = store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
+			UserID:            user.ID,
+			Endpoint:          serverGoneURL,
+			EndpointAuthKey:   validEndpointAuthKey,
+			EndpointP256dhKey: validEndpointP256dhKey,
+			CreatedAt:         dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		msg := randomWebpushMessage(t)
+		err = manager.Dispatch(ctx, user.ID, msg)
+		// Should still return an error for the failed delivery.
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Invalid request")
+
+		// The gone subscription should have been cleaned up despite the
+		// error from the other subscription.
+		subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, user.ID)
+		require.NoError(t, err)
+		if assert.Len(t, subscriptions, 1, "Only the non-gone subscription should remain") {
+			assert.Equal(t, subscriptions[0].ID, subBad.ID, "The failed (non-gone) subscription should not be deleted")
+		}
+	})
+
 	t.Run("NotificationPayload", func(t *testing.T) {
 		t.Parallel()
 
