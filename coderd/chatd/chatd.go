@@ -93,9 +93,6 @@ type cachedInstruction struct {
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
 
-// ReplicaAddressResolver maps a replica ID to its relay address.
-type ReplicaAddressResolver func(context.Context, uuid.UUID) (string, bool)
-
 // SubscribeFn replaces the default local-only subscription with a
 // multi-replica-aware implementation that merges pubsub notifications,
 // remote relay streams, and local parts into a single event channel.
