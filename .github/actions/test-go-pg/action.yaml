@@ -38,26 +38,11 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Set up XFS with reflink for CoW clones (Linux)
-      if: runner.os == 'Linux'
-      shell: bash
-      run: |
-        set -euo pipefail
-        if ! command -v mkfs.xfs >/dev/null 2>&1; then
-          sudo apt-get install -yqq xfsprogs
-        fi
-        sudo truncate -s 8G /dev/shm/pgdata.img
-        sudo mkfs.xfs -f -m reflink=1 /dev/shm/pgdata.img
-        sudo mkdir -p /mnt/pgdata
-        sudo mount -o loop /dev/shm/pgdata.img /mnt/pgdata
-        sudo chmod 777 /mnt/pgdata
-
     - name: Start PostgreSQL Docker container (Linux)
       if: runner.os == 'Linux'
       shell: bash
       env:
         POSTGRES_VERSION: ${{ inputs.postgres-version }}
-        PGDATA_DIR: /mnt/pgdata
       run: make test-postgres-docker
 
     - name: Setup Embedded Postgres (Windows/macOS)

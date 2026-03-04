@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -87,12 +86,6 @@ func main() {
 		`ALTER SYSTEM SET shared_buffers = '1GB';`,
 		`ALTER SYSTEM SET synchronous_commit = 'off';`,
 		`ALTER SYSTEM SET client_encoding = 'UTF8';`,
-	}
-	// file_copy_method=clone uses CoW filesystem clones for
-	// CREATE DATABASE ... STRATEGY FILE_COPY. macOS APFS supports
-	// this natively. Skip on Windows where NTFS has no CoW support.
-	if runtime.GOOS != "windows" {
-		paramQueries = append(paramQueries, `ALTER SYSTEM SET file_copy_method = 'clone';`)
 	}
 	db, err := sql.Open("postgres", "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable")
 	if err != nil {

@@ -40,22 +40,6 @@ VERSION      := $(shell ./scripts/version.sh)
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= postgres:$(POSTGRES_VERSION)
 
-# file_copy_method=clone requires PostgreSQL 17+ and a CoW filesystem
-# (e.g. xfs with reflink). PGDATA_DIR should point to such a mount.
-ifeq ($(shell test $(POSTGRES_VERSION) -ge 17 2>/dev/null && echo yes),yes)
-POSTGRES_EXTRA_FLAGS = -c file_copy_method=clone
-else
-POSTGRES_EXTRA_FLAGS =
-endif
-
-# When PGDATA_DIR is set (to an xfs+reflink mount), bind-mount it into
-# the container so FICLONE works. Otherwise fall back to --tmpfs.
-ifdef PGDATA_DIR
-PGDATA_DOCKER_ARGS = -v $(PGDATA_DIR):/tmp
-else
-PGDATA_DOCKER_ARGS = --tmpfs /tmp
-endif
-
 # Use the highest ZSTD compression level in CI.
 ifdef CI
 ZSTDFLAGS := -22 --ultra
@@ -1192,7 +1176,7 @@ test-postgres-docker:
 		--env POSTGRES_USER=postgres \
 		--env POSTGRES_DB=postgres \
 		--env PGDATA=/tmp \
-		${PGDATA_DOCKER_ARGS} \
+		--tmpfs /tmp \
 		--publish 5432:5432 \
 		--name test-postgres-docker-${POSTGRES_VERSION} \
 		--restart no \
@@ -1206,8 +1190,7 @@ test-postgres-docker:
 		-c fsync=off \
 		-c synchronous_commit=off \
 		-c full_page_writes=off \
-		-c log_statement=all \
-		${POSTGRES_EXTRA_FLAGS}
+		-c log_statement=all
 	while ! pg_isready -h 127.0.0.1
 	do
 		echo "$(date) - waiting for database to start"
