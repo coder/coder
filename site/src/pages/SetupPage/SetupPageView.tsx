@@ -166,7 +166,13 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 				<FormFields>
 					{authMethods?.github.enabled && (
 						<>
-							<Button className="w-full" asChild type="submit" size="lg">
+							<Button
+								className="w-full"
+								asChild
+								type="submit"
+								size="lg"
+								variant="outline"
+							>
 								<a href="/api/v2/users/oauth2/github/callback">
 									<ExternalImage src="/icon/github.svg" />
 									{Language.githubCreate}
