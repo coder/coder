@@ -23,9 +23,11 @@ so the agent itself stays alive under resource pressure.
 
 ## Environment variables
 
-Configure the feature with environment variables on the
-`coder_agent` resource. You can set these in the `env` block
-of your template.
+Configure the feature with environment variables in the
+environment that launches the agent binary. These must be set
+on the workspace container or host, not in the `coder_agent`
+resource's `env` block — the agent reads them from its own
+process environment at startup.
 
 | Variable                | Required | Default                       | Description                                                                              |
 |-------------------------|----------|-------------------------------|------------------------------------------------------------------------------------------|
