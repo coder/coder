@@ -12,22 +12,14 @@ import {
 	createChat,
 	unarchiveChat,
 } from "api/queries/chats";
-import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
 import { useAuthenticated } from "hooks";
-import { MonitorIcon, PanelLeftIcon } from "lucide-react";
+import { PanelLeftIcon } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
@@ -56,6 +48,7 @@ import {
 } from "./modelOptions";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { WebPushButton } from "./WebPushButton";
+import { WorkspaceCombobox } from "./WorkspaceCombobox";
 
 /** @internal Exported for testing. */
 const emptyInputStorageKey = "agents.empty-input";
@@ -705,15 +698,12 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		useState(initialSystemPrompt);
 	const [systemPromptDraft, setSystemPromptDraft] =
 		useState(initialSystemPrompt);
-	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 50 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
 			if (typeof window === "undefined") return null;
 			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
 		},
 	);
-	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
-	const autoCreateWorkspaceValue = "__auto_create_workspace__";
 	const hasAdminControls = canSetSystemPrompt || canManageChatModelConfigs;
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
@@ -764,17 +754,14 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	selectedModelRef.current = selectedModel;
 	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
 
-	const handleWorkspaceChange = (value: string) => {
-		if (value === autoCreateWorkspaceValue) {
-			setSelectedWorkspaceId(null);
-			if (typeof window !== "undefined") {
-				localStorage.removeItem(selectedWorkspaceIdStorageKey);
-			}
-			return;
-		}
+	const handleWorkspaceChange = (value: string | null) => {
 		setSelectedWorkspaceId(value);
 		if (typeof window !== "undefined") {
-			localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+			if (value === null) {
+				localStorage.removeItem(selectedWorkspaceIdStorageKey);
+			} else {
+				localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+			}
 		}
 	};
 
@@ -827,20 +814,10 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		[onCreateChat],
 	);
 
-	const selectedWorkspace = selectedWorkspaceId
-		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)
-		: undefined;
-	const selectedWorkspaceLabel = selectedWorkspace
-		? `${selectedWorkspace.owner_name}/${selectedWorkspace.name}`
-		: undefined;
-
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
 				{createError ? <ErrorAlert error={createError} /> : null}
-				{workspacesQuery.isError && (
-					<ErrorAlert error={workspacesQuery.error} />
-				)}
 
 				<AgentChatInput
 					onSend={handleSend}
@@ -857,38 +834,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					inputStatusText={inputStatusText}
 					modelCatalogStatusMessage={modelCatalogStatusMessage}
 					leftActions={
-						<Select
-							value={selectedWorkspaceId ?? autoCreateWorkspaceValue}
+						<WorkspaceCombobox
+							value={selectedWorkspaceId}
 							onValueChange={handleWorkspaceChange}
-							disabled={isCreating || workspacesQuery.isLoading}
-						>
-							<SelectTrigger className="h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary [&>svg]:transition-colors [&>svg]:hover:text-content-primary focus:ring-0 focus-visible:ring-0">
-								<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary group-hover:text-content-primary" />
-								<SelectValue>
-									{selectedWorkspaceLabel ?? "Workspace"}
-								</SelectValue>
-							</SelectTrigger>
-							<SelectContent
-								side="top"
-								align="center"
-								className="[&_[role=option]]:text-xs"
-							>
-								<SelectItem value={autoCreateWorkspaceValue}>
-									Auto-create Workspace
-								</SelectItem>
-								{workspaceOptions.map((workspace) => (
-									<SelectItem key={workspace.id} value={workspace.id}>
-										{workspace.owner_name}/{workspace.name}
-									</SelectItem>
-								))}
-								{workspaceOptions.length === 0 &&
-									!workspacesQuery.isLoading && (
-										<SelectItem value="no-workspaces" disabled>
-											No workspaces found
-										</SelectItem>
-									)}
-							</SelectContent>
-						</Select>
+							disabled={isCreating}
+						/>
 					}
 				/>
 			</div>
