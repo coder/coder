@@ -1025,6 +1025,13 @@ func (a *agent) run() (retErr error) {
 		}
 	}()
 
+	// The socket server accepts requests from processes running inside the workspace and forwards
+	// some of the requests to Coderd over the DRPC connection.
+	if a.socketServer != nil {
+		a.socketServer.SetAgentAPI(aAPI)
+		defer a.socketServer.ClearAgentAPI()
+	}
+
 	// A lot of routines need the agent API / tailnet API connection.  We run them in their own
 	// goroutines in parallel, but errors in any routine will cause them all to exit so we can
 	// redial the coder server and retry.
