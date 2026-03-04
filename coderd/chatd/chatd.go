@@ -1766,11 +1766,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 					} else {
 						status = database.ChatStatusPending
 
-						sdkMsg := db2sdk.ChatMessage(msg)
-						p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
-							Type:    codersdk.ChatStreamEventTypeMessage,
-							Message: &sdkMsg,
-						})
+						p.publishMessage(chat.ID, msg)
 
 						remaining, qErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
 						if qErr == nil {

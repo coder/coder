@@ -18,15 +18,15 @@ export const chat = (chatId: string) => ({
 
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) => API.createChat(req),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: chatsKey });
+	onSuccess: () => {
+		void queryClient.invalidateQueries({ queryKey: chatsKey });
 	},
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) => API.archiveChat(chatId),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: chatsKey });
+	onSuccess: () => {
+		void queryClient.invalidateQueries({ queryKey: chatsKey });
 	},
 });
 
@@ -36,8 +36,8 @@ export const createChatMessage = (
 ) => ({
 	mutationFn: (req: TypesGen.CreateChatMessageRequest) =>
 		API.createChatMessage(chatId, req),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: chatsKey });
+	onSuccess: () => {
+		void queryClient.invalidateQueries({ queryKey: chatsKey });
 	},
 });
 
@@ -49,18 +49,16 @@ type EditChatMessageMutationArgs = {
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.editChatMessage(chatId, messageId, req),
-	onSuccess: async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: chatsKey }),
-			queryClient.invalidateQueries({ queryKey: chatKey(chatId) }),
-		]);
+	onSuccess: () => {
+		void queryClient.invalidateQueries({ queryKey: chatsKey });
+		void queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
 	},
 });
 
 export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.interruptChat(chatId),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: chatsKey });
+	onSuccess: () => {
+		void queryClient.invalidateQueries({ queryKey: chatsKey });
 	},
 });
 
@@ -81,11 +79,9 @@ export const promoteChatQueuedMessage = (
 ) => ({
 	mutationFn: (queuedMessageId: number) =>
 		API.promoteChatQueuedMessage(chatId, queuedMessageId),
-	onSuccess: async () => {
-		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: chatsKey }),
-			queryClient.invalidateQueries({ queryKey: chatKey(chatId) }),
-		]);
+	onSuccess: () => {
+		void queryClient.invalidateQueries({ queryKey: chatsKey });
+		void queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
 	},
 });
 

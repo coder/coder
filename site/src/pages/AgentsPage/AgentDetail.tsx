@@ -88,23 +88,6 @@ const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
 ): message is TypesGen.ChatMessage => Boolean(message);
 
-const toOptimisticMessageParts = (
-	inputParts: readonly TypesGen.ChatInputPart[],
-): readonly TypesGen.ChatMessagePart[] =>
-	inputParts.map((part) => ({
-		type: "text",
-		...(part.text !== undefined ? { text: part.text } : {}),
-	}));
-
-const getOrderedMessagesFromStore = (
-	store: ChatStoreHandle,
-): readonly TypesGen.ChatMessage[] => {
-	const snapshot = store.getSnapshot();
-	return snapshot.orderedMessageIDs
-		.map((messageID) => snapshot.messagesByID.get(messageID))
-		.filter(isChatMessage);
-};
-
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
 	chatID: string;
@@ -298,54 +281,15 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			inputStatusText={inputStatusText}
 			modelCatalogStatusMessage={modelCatalogStatusMessage}
-			sticky
 		/>
 	);
 };
 
-interface AgentDetailConversationProps {
-	store: ChatStoreHandle;
-	chatID: string;
-	persistedErrorReason: string | undefined;
-	compressionThreshold: number | undefined;
-	onDeleteQueuedMessage: (id: number) => Promise<void>;
-	onPromoteQueuedMessage: (id: number) => Promise<void>;
+function useConversationEditingState(deps: {
 	onSend: (message: string, editedMessageID?: number) => Promise<void>;
-	onInterrupt: () => void;
-	isInputDisabled: boolean;
-	isSendPending: boolean;
-	isInterruptPending: boolean;
-	hasModelOptions: boolean;
-	selectedModel: string;
-	onModelChange: (modelID: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	modelSelectorPlaceholder: string;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
-	savingMessageId?: number | null;
-}
-
-const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
-	store,
-	chatID,
-	persistedErrorReason,
-	compressionThreshold,
-	onDeleteQueuedMessage,
-	onPromoteQueuedMessage,
-	onSend,
-	onInterrupt,
-	isInputDisabled,
-	isSendPending,
-	isInterruptPending,
-	hasModelOptions,
-	selectedModel,
-	onModelChange,
-	modelOptions,
-	modelSelectorPlaceholder,
-	inputStatusText,
-	modelCatalogStatusMessage,
-	savingMessageId,
-}) => {
+	onDeleteQueuedMessage: (id: number) => Promise<void>;
+}) {
+	const { onSend, onDeleteQueuedMessage } = deps;
 	const inputValueRef = useRef("");
 	const chatInputRef = useRef<ChatMessageInputRef>(null);
 	const [editorInitialValue, setEditorInitialValue] = useState("");
@@ -410,74 +354,38 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 				editingMessageId !== null ? editingMessageId : undefined;
 			const queueEditID = editingQueuedMessageID;
 
-			// Clear input and editing state optimistically.
-			setEditorInitialValue("");
-			inputValueRef.current = "";
-			if (editingMessageId !== null) {
-				setEditingMessageId(null);
-				setDraftBeforeHistoryEdit(null);
-			}
-			if (queueEditID !== null) {
-				setEditingQueuedMessageID(null);
-				setDraftBeforeQueueEdit(null);
-			}
-
-			void onSend(message, editedMessageID)
-				.then(() => {
-					if (queueEditID !== null) {
-						void onDeleteQueuedMessage(queueEditID);
-					}
-				})
-				.catch(() => {
-					// Restore input so the user can retry.
-					setEditorInitialValue(message);
-					inputValueRef.current = message;
-				});
+			void onSend(message, editedMessageID).then(() => {
+				// Clear input and editing state on success.
+				chatInputRef.current?.clear();
+				chatInputRef.current?.focus();
+				inputValueRef.current = "";
+				if (editingMessageId !== null) {
+					setEditingMessageId(null);
+					setDraftBeforeHistoryEdit(null);
+				}
+				if (queueEditID !== null) {
+					setEditingQueuedMessageID(null);
+					setDraftBeforeQueueEdit(null);
+					void onDeleteQueuedMessage(queueEditID);
+				}
+			});
 		},
 		[editingMessageId, editingQueuedMessageID, onDeleteQueuedMessage, onSend],
 	);
 
-	return (
-		<>
-			<AgentDetailTimeline
-				store={store}
-				chatID={chatID}
-				persistedErrorReason={persistedErrorReason}
-				onEditUserMessage={handleEditUserMessage}
-				editingMessageId={editingMessageId}
-				savingMessageId={savingMessageId}
-			/>
-			<AgentDetailInput
-				store={store}
-				compressionThreshold={compressionThreshold}
-				onSend={handleSendFromInput}
-				onDeleteQueuedMessage={onDeleteQueuedMessage}
-				onPromoteQueuedMessage={onPromoteQueuedMessage}
-				onInterrupt={onInterrupt}
-				isInputDisabled={isInputDisabled}
-				isSendPending={isSendPending}
-				isInterruptPending={isInterruptPending}
-				hasModelOptions={hasModelOptions}
-				selectedModel={selectedModel}
-				onModelChange={onModelChange}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder={modelSelectorPlaceholder}
-				inputStatusText={inputStatusText}
-				modelCatalogStatusMessage={modelCatalogStatusMessage}
-				inputRef={chatInputRef}
-				initialValue={editorInitialValue}
-				onContentChange={(content) => {
-					inputValueRef.current = content;
-				}}
-				editingQueuedMessageID={editingQueuedMessageID}
-				onStartQueueEdit={handleStartQueueEdit}
-				onCancelQueueEdit={handleCancelQueueEdit}
-				isEditingHistoryMessage={editingMessageId !== null}
-				onCancelHistoryEdit={handleCancelHistoryEdit}
-			/>
-		</>
-	);
-};
+	return {
+		inputValueRef,
+		chatInputRef,
+		editorInitialValue,
+		editingMessageId,
+		handleEditUserMessage,
+		handleCancelHistoryEdit,
+		editingQueuedMessageID,
+		handleStartQueueEdit,
+		handleCancelQueueEdit,
+		handleSendFromInput,
+	};
+}
 
 const AgentDetail: FC = () => {
 	const navigate = useNavigate();
@@ -670,32 +578,12 @@ const AgentDetail: FC = () => {
 			if (scrollContainerRef.current) {
 				scrollContainerRef.current.scrollTop = 0;
 			}
-			const previousChatStatus = store.getSnapshot().chatStatus;
-			const previousMessages = getOrderedMessagesFromStore(store);
-			const messageIndex = previousMessages.findIndex(
-				(msg) => msg.id === editedMessageID,
-			);
-			if (messageIndex !== -1) {
-				const optimisticEditedMessage: TypesGen.ChatMessage = {
-					...previousMessages[messageIndex],
-					content: toOptimisticMessageParts(request.content),
-				};
-				store.replaceMessages([
-					...previousMessages.slice(0, messageIndex),
-					optimisticEditedMessage,
-				]);
-			}
 			store.clearStreamState();
-			store.setChatStatus("pending");
 			try {
 				await editMutation.mutateAsync({
 					messageId: editedMessageID,
 					req: request,
 				});
-			} catch (error) {
-				store.replaceMessages(previousMessages);
-				store.setChatStatus(previousChatStatus);
-				throw error;
 			} finally {
 				setPendingEditMessageId(null);
 			}
@@ -713,38 +601,16 @@ const AgentDetail: FC = () => {
 			scrollContainerRef.current.scrollTop = 0;
 		}
 
-		// Inject an optimistic user message so the bubble appears in
-		// the timeline immediately, without waiting for the server.
-		const previousMessages = getOrderedMessagesFromStore(store);
-		const previousChatStatus = store.getSnapshot().chatStatus;
-		const optimisticMessage: TypesGen.ChatMessage = {
-			id: -Date.now(),
-			chat_id: agentId,
-			created_at: new Date().toISOString(),
-			role: "user",
-			content: toOptimisticMessageParts(content),
-		};
-		store.upsertDurableMessage(optimisticMessage);
+		// No optimistic rendering — the message will appear in the
+		// timeline when the server confirms via the POST response or
+		// via the SSE stream.
 		store.clearStreamState();
-		store.setChatStatus("pending");
-
-		try {
-			const response = await sendMutation.mutateAsync(request);
-			if (response.queued) {
-				// The server queued the message instead of processing
-				// it immediately (the agent is already busy). Roll back
-				// the optimistic timeline message so it doesn't appear
-				// as a sent message. The queue_update SSE event will
-				// add it to the queued messages list.
-				store.replaceMessages(previousMessages);
-				store.setChatStatus(previousChatStatus);
-			}
-		} catch (error) {
-			// Roll back the optimistic message so the timeline
-			// returns to its previous state.
-			store.replaceMessages(previousMessages);
-			store.setChatStatus(previousChatStatus);
-			throw error;
+		const response = await sendMutation.mutateAsync(request);
+		// When the server accepts the message immediately (not
+		// queued), insert it into the store so it appears in the
+		// timeline without waiting for the SSE stream.
+		if (!response.queued && response.message) {
+			store.upsertDurableMessage(response.message);
 		}
 		if (typeof window !== "undefined") {
 			if (selectedModelConfigID) {
@@ -802,6 +668,11 @@ const AgentDetail: FC = () => {
 		},
 		[promoteQueuedMutation, store],
 	);
+
+	const editing = useConversationEditingState({
+		onSend: handleSend,
+		onDeleteQueuedMessage: handleDeleteQueuedMessage,
+	});
 
 	const chatTitle = chatQuery.data?.chat?.title;
 
@@ -920,7 +791,7 @@ const AgentDetail: FC = () => {
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
-				<div className="flex h-full flex-col-reverse overflow-hidden">
+				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
 					<div className="px-4">
 						<div className="mx-auto w-full max-w-3xl py-6">
 							<div className="flex flex-col gap-3">
@@ -948,21 +819,22 @@ const AgentDetail: FC = () => {
 								</div>
 							</div>
 						</div>
-						<AgentChatInput
-							onSend={() => {}}
-							initialValue=""
-							isDisabled={isInputDisabled}
-							isLoading={false}
-							selectedModel={selectedModel}
-							onModelChange={setSelectedModel}
-							modelOptions={modelOptions}
-							modelSelectorPlaceholder={modelSelectorPlaceholder}
-							hasModelOptions={hasModelOptions}
-							inputStatusText={inputStatusText}
-							modelCatalogStatusMessage={modelCatalogStatusMessage}
-							sticky
-						/>
 					</div>
+				</div>
+				<div className="shrink-0 px-4">
+					<AgentChatInput
+						onSend={() => {}}
+						initialValue=""
+						isDisabled={isInputDisabled}
+						isLoading={false}
+						selectedModel={selectedModel}
+						onModelChange={setSelectedModel}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						hasModelOptions={hasModelOptions}
+						inputStatusText={inputStatusText}
+						modelCatalogStatusMessage={modelCatalogStatusMessage}
+					/>
 				</div>
 			</div>
 		);
@@ -1053,33 +925,50 @@ const AgentDetail: FC = () => {
 				</div>
 				<div
 					ref={scrollContainerRef}
-					className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+					className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 				>
 					<div className="px-4">
-						<AgentDetailConversation
+						<AgentDetailTimeline
 							store={store}
 							chatID={agentId}
 							persistedErrorReason={
 								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
 							}
-							compressionThreshold={compressionThreshold}
-							onDeleteQueuedMessage={handleDeleteQueuedMessage}
-							onPromoteQueuedMessage={handlePromoteQueuedMessage}
-							onSend={handleSend}
-							onInterrupt={handleInterrupt}
-							isInputDisabled={isInputDisabled}
-							isSendPending={isSubmissionPending}
-							isInterruptPending={interruptMutation.isPending}
-							hasModelOptions={hasModelOptions}
-							selectedModel={selectedModel}
-							onModelChange={setSelectedModel}
-							modelOptions={modelOptions}
-							modelSelectorPlaceholder={modelSelectorPlaceholder}
-							inputStatusText={inputStatusText}
-							modelCatalogStatusMessage={modelCatalogStatusMessage}
+							onEditUserMessage={editing.handleEditUserMessage}
+							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
 						/>
 					</div>
+				</div>
+				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+					<AgentDetailInput
+						store={store}
+						compressionThreshold={compressionThreshold}
+						onSend={editing.handleSendFromInput}
+						onDeleteQueuedMessage={handleDeleteQueuedMessage}
+						onPromoteQueuedMessage={handlePromoteQueuedMessage}
+						onInterrupt={handleInterrupt}
+						isInputDisabled={isInputDisabled}
+						isSendPending={isSubmissionPending}
+						isInterruptPending={interruptMutation.isPending}
+						hasModelOptions={hasModelOptions}
+						selectedModel={selectedModel}
+						onModelChange={setSelectedModel}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						inputStatusText={inputStatusText}
+						modelCatalogStatusMessage={modelCatalogStatusMessage}
+						inputRef={editing.chatInputRef}
+						initialValue={editing.editorInitialValue}
+						onContentChange={(content) => {
+							editing.inputValueRef.current = content;
+						}}
+						editingQueuedMessageID={editing.editingQueuedMessageID}
+						onStartQueueEdit={editing.handleStartQueueEdit}
+						onCancelQueueEdit={editing.handleCancelQueueEdit}
+						isEditingHistoryMessage={editing.editingMessageId !== null}
+						onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+					/>
 				</div>
 			</div>
 			<DiffRightPanel isOpen={shouldShowDiffPanel}>

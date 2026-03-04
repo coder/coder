@@ -82,9 +82,6 @@ interface AgentChatInputProps {
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
 	// Omit entirely to hide the indicator.
 	contextUsage?: AgentContextUsage | null;
-	// When true the entire input sticks to the bottom of the scroll
-	// container (used in the detail page).
-	sticky?: boolean;
 }
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -239,7 +236,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		isEditingHistoryMessage = false,
 		onCancelHistoryEdit,
 		contextUsage,
-		sticky = false,
 	}) => {
 		const internalRef = useRef<ChatMessageInputRef>(null);
 
@@ -296,7 +292,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 
 			onSend(text);
-			internalRef.current?.clear();
 			internalRef.current?.focus();
 		}, [
 			isDisabled,
@@ -396,7 +391,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						initialValue={initialValue}
 						onChange={handleContentChange}
 						onEnter={handleSubmit}
-						disabled={isDisabled}
+						disabled={isDisabled || isLoading}
 						rows={4}
 						autoFocus
 					/>
@@ -466,12 +461,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				</div>
 			</div>
 		);
-
-		if (sticky) {
-			return (
-				<div className="sticky bottom-0 z-50 bg-surface-primary">{content}</div>
-			);
-		}
 
 		return content;
 	},
