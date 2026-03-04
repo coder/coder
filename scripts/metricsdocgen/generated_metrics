@@ -1,3 +1,12 @@
+# HELP agent_boundary_log_proxy_batches_dropped_total Total number of boundary log batches dropped before reaching coderd. Reason: buffer_full = the agent's internal buffer is full, meaning boundary is producing logs faster than the agent can forward them to coderd; forward_failed = the agent failed to send the batch to coderd, potentially because coderd is unreachable or the connection was interrupted.
+# TYPE agent_boundary_log_proxy_batches_dropped_total counter
+agent_boundary_log_proxy_batches_dropped_total{reason=""} 0
+# HELP agent_boundary_log_proxy_batches_forwarded_total Total number of boundary log batches successfully forwarded to coderd. Compare with batches_dropped_total to compute a drop rate.
+# TYPE agent_boundary_log_proxy_batches_forwarded_total counter
+agent_boundary_log_proxy_batches_forwarded_total 0
+# HELP agent_boundary_log_proxy_logs_dropped_total Total number of individual boundary log entries dropped before reaching coderd. Reason: buffer_full = the agent's internal buffer is full; forward_failed = the agent failed to send the batch to coderd; boundary_channel_full = boundary's internal send channel overflowed, meaning boundary is generating logs faster than it can batch and send them; boundary_batch_full = boundary's outgoing batch buffer overflowed after a failed flush, meaning boundary could not write to the agent's socket.
+# TYPE agent_boundary_log_proxy_logs_dropped_total counter
+agent_boundary_log_proxy_logs_dropped_total{reason=""} 0
 # HELP coder_pubsub_connected Whether we are connected (1) or not connected (0) to postgres
 # TYPE coder_pubsub_connected gauge
 coder_pubsub_connected 0

@@ -1674,6 +1674,27 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 	}()
 
+	// Start buffering stream events BEFORE publishing the running
+	// status. This closes a race where a subscriber sees
+	// status=running but misses message_part events because
+	// buffering hasn't started yet — the subscriber gets an empty
+	// snapshot and publishToStream drops message_parts while
+	// buffering is false.
+	p.streamMu.Lock()
+	startState := p.streamStateLocked(chat.ID)
+	startState.buffer = nil
+	startState.buffering = true
+	p.streamMu.Unlock()
+	defer func() {
+		p.streamMu.Lock()
+		if stopState, ok := p.chatStreams[chat.ID]; ok {
+			stopState.buffer = nil
+			stopState.buffering = false
+			p.cleanupStreamIfIdleLocked(chat.ID, stopState)
+		}
+		p.streamMu.Unlock()
+	}()
+
 	p.publishStatus(chat.ID, database.ChatStatusRunning, uuid.NullUUID{
 		UUID:  p.workerID,
 		Valid: true,
@@ -1745,11 +1766,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 					} else {
 						status = database.ChatStatusPending
 
-						sdkMsg := db2sdk.ChatMessage(msg)
-						p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
-							Type:    codersdk.ChatStreamEventTypeMessage,
-							Message: &sdkMsg,
-						})
+						p.publishMessage(chat.ID, msg)
 
 						remaining, qErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
 						if qErr == nil {
@@ -1846,6 +1863,21 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		status = database.ChatStatusError
 		return
 	}
+
+	// If runChat completed successfully but the server context was
+	// canceled (e.g. during Close()), the chat should be returned
+	// to pending so another replica can pick it up. There is a
+	// race where the LLM stream finishes just as the server is
+	// shutting down — the HTTP response completes before context
+	// cancellation propagates, so runChat returns nil instead of
+	// a context.Canceled error. Without this check the chat would
+	// be marked "waiting" and never retried.
+	if ctx.Err() != nil {
+		logger.Info(ctx, "chat completed during shutdown; returning to pending")
+		status = database.ChatStatusPending
+		lastError = ""
+		return
+	}
 }
 
 func isShutdownCancellation(
@@ -1905,22 +1937,11 @@ func (p *Server) runChat(
 		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
 	}
 
-	// Start buffering stream events for this chat so that new
-	// subscribers receive a snapshot of in-flight message parts.
-	p.streamMu.Lock()
-	startState := p.streamStateLocked(chat.ID)
-	startState.buffer = nil
-	startState.buffering = true
-	p.streamMu.Unlock()
-	defer func() {
-		p.streamMu.Lock()
-		if stopState, ok := p.chatStreams[chat.ID]; ok {
-			stopState.buffer = nil
-			stopState.buffering = false
-			p.cleanupStreamIfIdleLocked(chat.ID, stopState)
-		}
-		p.streamMu.Unlock()
-	}()
+	// NOTE: Buffering was already started in processChat before
+	// the running status was published, so message_part events
+	// are captured from the moment subscribers can see
+	// status=running. The deferred cleanup also lives in
+	// processChat.
 
 	currentChat := chat
 	loadChatSnapshot := func(
@@ -2156,22 +2177,6 @@ func (p *Server) runChat(
 
 	// Here are all the tools we have for the chat.
 	tools := []fantasy.AgentTool{
-		chattool.ListTemplates(chattool.ListTemplatesOptions{
-			DB:      p.db,
-			OwnerID: chat.OwnerID,
-		}),
-		chattool.ReadTemplate(chattool.ReadTemplateOptions{
-			DB:      p.db,
-			OwnerID: chat.OwnerID,
-		}),
-		chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
-			DB:          p.db,
-			OwnerID:     chat.OwnerID,
-			ChatID:      chat.ID,
-			CreateFn:    p.createWorkspaceFn,
-			AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
-			WorkspaceMu: &workspaceMu,
-		}),
 		chattool.ReadFile(chattool.ReadFileOptions{
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
@@ -2195,10 +2200,29 @@ func (p *Server) runChat(
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
 	}
-	// Only root chats (not delegated subagents) get subagent tools.
-	// Child agents must not spawn further subagents — they should
+	// Only root chats (not delegated subagents) get workspace
+	// provisioning and subagent tools. Child agents must not
+	// create workspaces or spawn further subagents — they should
 	// focus on completing their delegated task.
 	if !chat.ParentChatID.Valid {
+		tools = append(tools,
+			chattool.ListTemplates(chattool.ListTemplatesOptions{
+				DB:      p.db,
+				OwnerID: chat.OwnerID,
+			}),
+			chattool.ReadTemplate(chattool.ReadTemplateOptions{
+				DB:      p.db,
+				OwnerID: chat.OwnerID,
+			}),
+			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
+				DB:          p.db,
+				OwnerID:     chat.OwnerID,
+				ChatID:      chat.ID,
+				CreateFn:    p.createWorkspaceFn,
+				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
+				WorkspaceMu: &workspaceMu,
+			}),
+		)
 		tools = append(tools, p.subagentTools(func() database.Chat {
 			return chat
 		})...)

@@ -237,17 +237,6 @@ export const createChatStore = (): ChatStore => {
 		const nextMessagesByID = new Map(state.messagesByID);
 		nextMessagesByID.set(message.id, message);
 
-		// When a real server message (positive ID) arrives, remove any
-		// optimistic placeholder (negative ID) for the same role so the
-		// user doesn't momentarily see the message twice.
-		if (message.id > 0) {
-			for (const [id, existing] of nextMessagesByID) {
-				if (id < 0 && existing.role === message.role) {
-					nextMessagesByID.delete(id);
-				}
-			}
-		}
-
 		const needsReorder =
 			!isDuplicate || nextMessagesByID.size !== state.messagesByID.size;
 		const nextOrderedMessageIDs = needsReorder

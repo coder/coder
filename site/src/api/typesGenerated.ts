@@ -2838,11 +2838,11 @@ export interface GetInboxNotificationResponse {
 
 // From codersdk/insights.go
 export interface GetUserStatusCountsRequest {
+	readonly timezone: string;
 	/**
-	 * Timezone offset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local)
-	 * for the local timezone.
+	 * Deprecated: Use Timezone instead. Offset is ignored when Timezone is provided.
 	 */
-	readonly offset: number;
+	readonly offset?: number;
 }
 
 // From codersdk/insights.go
@@ -3214,6 +3214,14 @@ export interface LinkConfig {
 	readonly target: string;
 	readonly icon: string;
 	readonly location?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ListChatsOptions are optional parameters for ListChats.
+ */
+export interface ListChatsOptions {
+	readonly Archived: boolean | null;
 }
 
 // From codersdk/inboxnotification.go
@@ -6137,6 +6145,7 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 // From codersdk/users.go
 export type TerminalFontName =
 	| "fira-code"
+	| "geist-mono"
 	| "ibm-plex-mono"
 	| "jetbrains-mono"
 	| "source-code-pro"
@@ -6144,6 +6153,7 @@ export type TerminalFontName =
 
 export const TerminalFontNames: TerminalFontName[] = [
 	"fira-code",
+	"geist-mono",
 	"ibm-plex-mono",
 	"jetbrains-mono",
 	"source-code-pro",

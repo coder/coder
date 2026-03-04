@@ -37,7 +37,7 @@ type GetVSCodeHrefParams = {
 };
 
 export const getVSCodeHref = (
-	app: "vscode" | "vscode-insiders",
+	app: "vscode" | "vscode-insiders" | "cursor",
 	{ owner, workspace, token, agent, folder }: GetVSCodeHrefParams,
 ) => {
 	const query = new URLSearchParams({

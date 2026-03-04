@@ -30,6 +30,7 @@ type OpenAIRequest struct {
 	Model    string          `json:"model"`
 	Messages []OpenAIMessage `json:"messages"`
 	Stream   bool            `json:"stream,omitempty"`
+	Tools    []OpenAITool    `json:"tools,omitempty"`
 	Prompt   []interface{}   `json:"prompt,omitempty"` // For responses API
 	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
 	Options map[string]interface{} `json:",inline"` //nolint:revive
@@ -39,6 +40,17 @@ type OpenAIRequest struct {
 type OpenAIMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+}
+
+// OpenAIToolFunction represents the function definition inside a tool.
+type OpenAIToolFunction struct {
+	Name string `json:"name"`
+}
+
+// OpenAITool represents a tool definition in an OpenAI request.
+type OpenAITool struct {
+	Type     string             `json:"type"`
+	Function OpenAIToolFunction `json:"function"`
 }
 
 // OpenAIToolCallFunction represents the function details in a tool call.

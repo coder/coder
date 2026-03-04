@@ -15,6 +15,8 @@ module.exports = {
 		extend: {
 			fontFamily: {
 				sans: `"Geist Variable", system-ui, sans-serif`,
+				// `monospace, monospace` resets the font-size to 16px with the fallback.
+				mono: `"Geist Mono Variable", monospace, monospace`,
 			},
 			size: {
 				"icon-lg": "1.5rem",
@@ -32,6 +34,7 @@ module.exports = {
 				lg: "var(--radius)",
 				md: "calc(var(--radius) - 2px)",
 				sm: "calc(var(--radius) - 4px)",
+				xs: "calc(var(--radius) - 6px)",
 			},
 			colors: {
 				content: {

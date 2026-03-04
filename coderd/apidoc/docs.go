@@ -1804,11 +1804,16 @@ const docTemplate = `{
                 "operationId": "get-insights-about-user-status-counts",
                 "parameters": [
                     {
+                        "type": "string",
+                        "description": "IANA timezone name (e.g. America/St_Johns)",
+                        "name": "timezone",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
-                        "description": "Time-zone offset (e.g. -2)",
+                        "description": "Deprecated: Time-zone offset (e.g. -2). Use timezone instead.",
                         "name": "tz_offset",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -5950,7 +5955,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
+                "produces": [
                     "application/json"
                 ],
                 "tags": [
@@ -5992,7 +5997,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
+                "produces": [
                     "application/json"
                 ],
                 "tags": [
@@ -19861,6 +19866,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "",
+                "geist-mono",
                 "ibm-plex-mono",
                 "fira-code",
                 "source-code-pro",
@@ -19868,6 +19874,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "TerminalFontUnknown",
+                "TerminalFontGeistMono",
                 "TerminalFontIBMPlexMono",
                 "TerminalFontFiraCode",
                 "TerminalFontSourceCodePro",

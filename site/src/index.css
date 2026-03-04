@@ -66,8 +66,8 @@
 		--primary: 221 83% 53%;
 		--primary-foreground: 0 0% 98%;
 		--avatar-lg: 2.5rem;
-		--avatar-default: 1.5rem;
-		--avatar-sm: 1.125rem;
+		--avatar-default: 2rem;
+		--avatar-sm: 1.5rem;
 	}
 	.dark {
 		--content-primary: 0 0% 100%;

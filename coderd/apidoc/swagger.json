@@ -1576,11 +1576,16 @@
 				"operationId": "get-insights-about-user-status-counts",
 				"parameters": [
 					{
+						"type": "string",
+						"description": "IANA timezone name (e.g. America/St_Johns)",
+						"name": "timezone",
+						"in": "query"
+					},
+					{
 						"type": "integer",
-						"description": "Time-zone offset (e.g. -2)",
+						"description": "Deprecated: Time-zone offset (e.g. -2). Use timezone instead.",
 						"name": "tz_offset",
-						"in": "query",
-						"required": true
+						"in": "query"
 					}
 				],
 				"responses": {
@@ -5261,7 +5266,7 @@
 						"CoderSessionToken": []
 					}
 				],
-				"consumes": ["application/json"],
+				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Pause task",
 				"operationId": "pause-task",
@@ -5299,7 +5304,7 @@
 						"CoderSessionToken": []
 					}
 				],
-				"consumes": ["application/json"],
+				"produces": ["application/json"],
 				"tags": ["Tasks"],
 				"summary": "Resume task",
 				"operationId": "resume-task",
@@ -18190,6 +18195,7 @@
 			"type": "string",
 			"enum": [
 				"",
+				"geist-mono",
 				"ibm-plex-mono",
 				"fira-code",
 				"source-code-pro",
@@ -18197,6 +18203,7 @@
 			],
 			"x-enum-varnames": [
 				"TerminalFontUnknown",
+				"TerminalFontGeistMono",
 				"TerminalFontIBMPlexMono",
 				"TerminalFontFiraCode",
 				"TerminalFontSourceCodePro",

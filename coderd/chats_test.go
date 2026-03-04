@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
@@ -322,7 +323,7 @@ func TestListChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chats, err := client.ListChats(ctx)
+		chats, err := client.ListChats(ctx, nil)
 		require.NoError(t, err)
 		require.Len(t, chats, 2)
 
@@ -361,7 +362,7 @@ func TestListChats(t *testing.T) {
 			require.Less(t, chatIndexes[firstChatB.ID], chatIndexes[firstChatA.ID])
 		}
 
-		memberChats, err := memberClient.ListChats(ctx)
+		memberChats, err := memberClient.ListChats(ctx, nil)
 		require.NoError(t, err)
 		require.Len(t, memberChats, 1)
 		require.Equal(t, memberDBChat.ID, memberChats[0].ID)
@@ -381,7 +382,7 @@ func TestListChats(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		unauthenticatedClient := codersdk.New(client.URL)
-		_, err := unauthenticatedClient.ListChats(ctx)
+		_, err := unauthenticatedClient.ListChats(ctx, nil)
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
 }
@@ -1185,18 +1186,35 @@ func TestArchiveChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chatsBeforeArchive, err := client.ListChats(ctx)
+		chatsBeforeArchive, err := client.ListChats(ctx, nil)
 		require.NoError(t, err)
 		require.Len(t, chatsBeforeArchive, 2)
 
 		err = client.ArchiveChat(ctx, chatToArchive.ID)
 		require.NoError(t, err)
 
-		// Archived chats should not appear in the list.
-		chatsAfterArchive, err := client.ListChats(ctx)
+		// Default (no filter) returns all chats including archived.
+		allChats, err := client.ListChats(ctx, nil)
 		require.NoError(t, err)
-		require.Len(t, chatsAfterArchive, 1)
-		require.Equal(t, chatToKeep.ID, chatsAfterArchive[0].ID)
+		require.Len(t, allChats, 2)
+
+		// archived=false returns only non-archived chats.
+		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Archived: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+		require.Len(t, activeChats, 1)
+		require.Equal(t, chatToKeep.ID, activeChats[0].ID)
+		require.False(t, activeChats[0].Archived)
+
+		// archived=true returns only archived chats.
+		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Archived: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.Len(t, archivedChats, 1)
+		require.Equal(t, chatToArchive.ID, archivedChats[0].ID)
+		require.True(t, archivedChats[0].Archived)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -1252,10 +1270,12 @@ func TestArchiveChat(t *testing.T) {
 		err = client.ArchiveChat(ctx, parentChat.ID)
 		require.NoError(t, err)
 
-		// List chats — none of the family should appear.
-		chats, err := client.ListChats(ctx)
+		// archived=false should exclude the entire archived family.
+		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Archived: ptr.Ref(false),
+		})
 		require.NoError(t, err)
-		for _, c := range chats {
+		for _, c := range activeChats {
 			require.NotEqual(t, parentChat.ID, c.ID, "parent should not appear")
 			require.NotEqual(t, child1.ID, c.ID, "child1 should not appear")
 			require.NotEqual(t, child2.ID, c.ID, "child2 should not appear")
@@ -1269,6 +1289,95 @@ func TestArchiveChat(t *testing.T) {
 		dbChild2, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), child2.ID)
 		require.NoError(t, err)
 		require.True(t, dbChild2.Archived, "child2 should be archived")
+	})
+}
+
+func TestUnarchiveChat(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "archive then unarchive me",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Archive the chat first.
+		err = client.ArchiveChat(ctx, chat.ID)
+		require.NoError(t, err)
+
+		// Verify it's archived.
+		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Archived: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.Len(t, archivedChats, 1)
+		require.True(t, archivedChats[0].Archived)
+
+		// Unarchive the chat.
+		err = client.UnarchiveChat(ctx, chat.ID)
+		require.NoError(t, err)
+
+		// Verify it's no longer archived.
+		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Archived: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+		require.Len(t, activeChats, 1)
+		require.Equal(t, chat.ID, activeChats[0].ID)
+		require.False(t, activeChats[0].Archived)
+
+		// No archived chats remain.
+		archivedChats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Archived: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.Empty(t, archivedChats)
+	})
+
+	t.Run("NotArchived", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "not archived",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Trying to unarchive a non-archived chat should fail.
+		err = client.UnarchiveChat(ctx, chat.ID)
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		err := client.UnarchiveChat(ctx, uuid.New())
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 }
 
