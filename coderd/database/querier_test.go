@@ -4421,7 +4421,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 							assert.True(
 								t,
 								rowDate.Equal(expectedDate),
-								"expected date %s, but got %s for row %n",
+								"expected date %s, but got %s for row %d",
 								expectedDate.String(),
 								rowDate.String(),
 								i,
@@ -4594,7 +4594,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 							require.True(
 								t,
 								rowDate.Equal(expectedDate),
-								"expected date %s, but got %s for row %n",
+								"expected date %s, but got %s for row %d",
 								expectedDate.String(),
 								rowDate.String(),
 								i,
@@ -4797,7 +4797,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 					require.True(
 						t,
 						row.Date.In(tc.location).Equal(dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, 1+i)),
-						"expected date %s, but got %s for row %n",
+						"expected date %s, but got %s for row %d",
 						dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, 1+i),
 						row.Date.In(tc.location).String(),
 						i,
@@ -4864,7 +4864,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 					assert.True(
 						t,
 						row.Date.Equal(target),
-						"expected date %s, but got %s for row %n",
+						"expected date %s, but got %s for row %d",
 						target.String(),
 						row.Date.String(),
 						i,
