@@ -143,12 +143,14 @@ func generateTitle(
 		},
 	}
 
+	var maxOutputTokens int64 = 256
+
 	var response *fantasy.Response
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error
 		response, genErr = model.Generate(retryCtx, fantasy.Call{
 			Prompt:          prompt,
-			MaxOutputTokens: ptr(int64(256)),
+			MaxOutputTokens: &maxOutputTokens,
 		})
 		return genErr
 	}, nil)
@@ -162,8 +164,6 @@ func generateTitle(
 	}
 	return title, nil
 }
-
-func ptr[T any](v T) *T { return &v }
 
 // titleInput returns the first user message text and whether title
 // generation should proceed. It returns false when the chat already
