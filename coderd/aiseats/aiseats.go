@@ -1,3 +1,5 @@
+// Package aiseats is the AGPL version the package.
+// The actual implementation is in `enterprise/aiseats`.
 package aiseats
 
 import (

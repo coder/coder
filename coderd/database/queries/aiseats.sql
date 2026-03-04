@@ -14,7 +14,10 @@ SET
 	last_used_at = EXCLUDED.last_used_at,
 	last_event_type = EXCLUDED.last_event_type,
 	last_event_description = EXCLUDED.last_event_description,
-	updated_at = EXCLUDED.updated_at;
+	updated_at = EXCLUDED.updated_at
+	WHERE
+		-- Seat tracking does not need fine-grained updates for every event.
+		ai_seat_state.updated_at < NOW() - INTERVAL '6 hours';
 
 -- name: GetActiveAISeatCount :one
 SELECT

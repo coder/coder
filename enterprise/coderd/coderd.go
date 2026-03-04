@@ -218,7 +218,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		},
 	})
 
-	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"))
+	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal())
 
 	api.AGPL = coderd.New(options.Options)
 	api.AGPL.AISeatTracker = api.aiSeatTracker

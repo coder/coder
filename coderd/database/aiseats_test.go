@@ -29,7 +29,7 @@ func TestUpsertAISeatState(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t2 := dbtime.Now()
+	t2 := t1.Add(time.Hour)
 	err = db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
 		UserID:               user.ID,
 		FirstUsedAt:          t2,
@@ -43,9 +43,10 @@ func TestUpsertAISeatState(t *testing.T) {
 	require.Len(t, rows, 1)
 	require.Equal(t, user.ID, rows[0].UserID)
 	require.True(t, t1.Equal(rows[0].FirstUsedAt))
-	require.True(t, t2.Equal(rows[0].LastUsedAt))
-	require.Equal(t, database.AiSeatUsageReasonTask, rows[0].LastEventType)
-	require.Equal(t, "second", rows[0].LastEventDescription)
+	require.True(t, t1.Equal(rows[0].LastUsedAt))
+	require.Equal(t, database.AiSeatUsageReasonAibridge, rows[0].LastEventType)
+	require.Equal(t, "first", rows[0].LastEventDescription)
+
 }
 
 func TestGetActiveAISeatCount(t *testing.T) {
