@@ -30,6 +30,7 @@ var scanDirs = []string{
 	"coderd",
 	"enterprise",
 	"provisionerd",
+	"tailnet",
 }
 
 // skipPaths lists files that should be excluded from scanning. Their metrics
