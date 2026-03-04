@@ -8,7 +8,7 @@ Coder Agents is a chat interface and API for delegating development work and res
 
 Coder Agents includes its own self-hosted, lightweight AI coding
 agent that runs the agent loop directly within the Coder control plane
-(`coderd`).
+(`coder server`).
 
 It is not a wrapper around third-party agent tools like Claude Code
 or Codex.
@@ -50,7 +50,7 @@ other editor to review, refine, and complete work that the agent produces.
 
 ## How it works
 
-The agent loop runs inside `coderd`, the Coder control plane. When a user
+The agent loop runs inside `coder server`, the Coder control plane. When a user
 submits a prompt, the control plane:
 
 1. Sends the prompt to the configured LLM provider (Anthropic, OpenAI, Google,
@@ -67,9 +67,9 @@ The workspace itself has no knowledge of AI. It is standard compute
 infrastructure — there are no LLM API keys, no agent harnesses, and no special
 software installed. All intelligence lives in the control plane.
 
-![Architecture diagram showing coderd in the center, with arrows out to LLM providers and arrows to workspaces](../images/guides/ai-agents/agent-loop.png)
+![Architecture diagram showing the Coder server in the center, with arrows out to LLM providers and arrows to workspaces](../images/guides/ai-agents/agent-loop.png)
 
-<small>The agent loop runs in coderd. It makes outbound requests to LLM
+<small>The agent loop runs in the Coder server. It makes outbound requests to LLM
 providers and connects to workspaces only when tool execution is needed.</small>
 
 ### Automatic template and workspace selection
@@ -209,15 +209,15 @@ the workspace.
 Coder Agents is a new approach that differs from
 [Coder Tasks](./tasks.md) in several ways:
 
-| Aspect              | Coder Agents                         | Coder Tasks                                                    |
-|---------------------|--------------------------------------|----------------------------------------------------------------|
-| Agent execution     | Runs in the control plane (`coderd`) | Runs inside the workspace                                      |
-| Agent harness       | Built-in, no installation needed     | Requires Claude Code, Codex, or similar installed in workspace |
-| API keys            | Stored in control plane only         | Injected into workspace environment                            |
-| Chat state          | Persisted in database                | Stored in workspace                                            |
-| Workspace selection | Automatic, based on task description | Manual, user selects template                                  |
-| Sub-agents          | Built-in parallel delegation         | Not supported                                                  |
-| Modern chat UI      | Native chat with diffs, queuing      | Terminal-based interface                                       |
+| Aspect              | Coder Agents                               | Coder Tasks                                                    |
+|---------------------|--------------------------------------------|----------------------------------------------------------------|
+| Agent execution     | Runs in the control plane (`coder server`) | Runs inside the workspace                                      |
+| Agent harness       | Built-in, no installation needed           | Requires Claude Code, Codex, or similar installed in workspace |
+| API keys            | Stored in control plane only               | Injected into workspace environment                            |
+| Chat state          | Persisted in database                      | Stored in workspace                                            |
+| Workspace selection | Automatic, based on task description       | Manual, user selects template                                  |
+| Sub-agents          | Built-in parallel delegation               | Not supported                                                  |
+| Modern chat UI      | Native chat with diffs, queuing            | Terminal-based interface                                       |
 
 ## Product status
 
