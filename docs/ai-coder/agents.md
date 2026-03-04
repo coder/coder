@@ -72,19 +72,37 @@ software installed. All intelligence lives in the control plane.
 <small>The agent loop runs in the Coder server. It makes outbound requests to LLM
 providers and connects to workspaces only when tool execution is needed.</small>
 
-### Automatic template and workspace selection
+### Automatic workspace provisioning
 
-When a user describes a task, the agent reads the available templates —
-including their descriptions and parameters — and selects the appropriate one.
-It then creates a workspace from that template or connects to an existing one.
+Not every chat requires a workspace. The agent runs in `coder server` and can
+answer questions, discuss architecture, or plan an approach without any
+infrastructure. Workspaces are only provisioned when the agent needs to take
+action — reading code, running commands, or editing files.
 
-Developers don't need to think about templates or workspaces. They describe
-their work, and the agent provisions the right environment automatically.
+This means:
 
-Platform teams control this by writing clear template descriptions. For
-example, a template description like "Use this template for Python backend
-services in the payments repo" helps the agent route tasks to the correct
-infrastructure.
+- **Faster responses** — conversations that don't require workspace access
+  start immediately with no provisioning delay.
+- **Lower infrastructure cost** — workspaces are only created when the agent
+  needs to do real development work.
+
+When a workspace _is_ needed, the agent reads the available templates —
+including their descriptions and parameters — selects the appropriate one, and
+creates a workspace automatically. If a suitable workspace already exists, the
+agent connects to it instead.
+
+Platform teams control template routing by writing clear template descriptions.
+For example, a description like "Use this template for Python backend services
+in the payments repo" helps the agent select the correct infrastructure.
+
+**Examples of what triggers workspace creation:**
+
+| No workspace needed | Workspace provisioned |
+|---|---|
+| "What are the tradeoffs between REST and gRPC?" | "Find and fix the nil pointer crash in the auth service" |
+| "Help me draft an RFC for adding a caching layer" | "Run the test suite and fix any failures" |
+| "What's the best way to handle retry logic in Go?" | "Refactor the handler to use the new SDK types" |
+| "Compare connection pooling strategies for Postgres" | "Read the config file and add the new feature flag" |
 
 ### Sub-agents
 
