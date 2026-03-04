@@ -239,9 +239,9 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
-	// ChatRemotePartsProvider provides cross-replica message_part streaming.
+	// ChatSubscribeFn provides cross-replica subscription merging.
 	// Set by enterprise for HA deployments. Nil in AGPL single-replica.
-	ChatRemotePartsProvider chatd.RemotePartsProvider
+	ChatSubscribeFn chatd.SubscribeFn
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -763,7 +763,7 @@ func New(options *Options) *API {
 		Logger:              options.Logger.Named("chats"),
 		Database:            options.Database,
 		ReplicaID:           api.ID,
-		RemotePartsProvider: options.ChatRemotePartsProvider,
+		SubscribeFn:         options.ChatSubscribeFn,
 		ProviderAPIKeys:     chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
 		AgentConn:           api.agentProvider.AgentConn,
 		CreateWorkspace:     api.chatCreateWorkspace,

@@ -62,7 +62,7 @@ type Server struct {
 	workerID uuid.UUID
 	logger   slog.Logger
 
-	remotePartsProvider RemotePartsProvider
+	subscribeFn SubscribeFn
 
 	agentConnFn       AgentConnFunc
 	createWorkspaceFn chattool.CreateWorkspaceFn
@@ -96,21 +96,37 @@ type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.Ag
 // ReplicaAddressResolver maps a replica ID to its relay address.
 type ReplicaAddressResolver func(context.Context, uuid.UUID) (string, bool)
 
-// RemotePartsProvider returns a snapshot and live stream of message_part
-// events from the replica that is running the chat. Called when the chat
-// is actively running on a different replica. Nil in AGPL single-replica
-// deployments.
-type RemotePartsProvider func(
+// SubscribeFn replaces the default local-only subscription with a
+// multi-replica-aware implementation that merges pubsub notifications,
+// remote relay streams, and local parts into a single event channel.
+// When set, Subscribe delegates the event-merge goroutine to this
+// function instead of using simple local forwarding.
+//
+// Parameters:
+//   - ctx: subscription lifetime context (cancelled on unsubscribe).
+//   - params: all state needed to build the merged stream.
+//
+// Returns the merged event channel and a cleanup function.
+// Set by enterprise for HA deployments. Nil in AGPL single-replica.
+type SubscribeFn func(
 	ctx context.Context,
-	chatID uuid.UUID,
-	workerID uuid.UUID,
-	requestHeader http.Header,
-) (
-	snapshot []codersdk.ChatStreamEvent,
-	parts <-chan codersdk.ChatStreamEvent,
-	cancel func(),
-	err error,
-)
+	params SubscribeMultiReplicaParams,
+) (<-chan codersdk.ChatStreamEvent, func())
+
+// SubscribeMultiReplicaParams carries the state that the enterprise
+// SubscribeFn implementation needs from the OSS Subscribe preamble.
+type SubscribeMultiReplicaParams struct {
+	ChatID        uuid.UUID
+	Chat          database.Chat
+	WorkerID      uuid.UUID
+	LocalParts    <-chan codersdk.ChatStreamEvent
+	LocalCancel   func()
+	LastMessageID int64
+	RequestHeader http.Header
+	DB            database.Store
+	Pubsub        pubsub.Pubsub
+	Logger        slog.Logger
+}
 
 type chatStreamState struct {
 	buffer      []codersdk.ChatStreamEvent
@@ -830,7 +846,7 @@ type Config struct {
 	Logger                     slog.Logger
 	Database                   database.Store
 	ReplicaID                  uuid.UUID
-	RemotePartsProvider        RemotePartsProvider
+	SubscribeFn                SubscribeFn
 	PendingChatAcquireInterval time.Duration
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
@@ -867,7 +883,7 @@ func New(cfg Config) *Server {
 		db:                         cfg.Database,
 		workerID:                   workerID,
 		logger:                     cfg.Logger.Named("chat-processor"),
-		remotePartsProvider:        cfg.RemotePartsProvider,
+		subscribeFn:               cfg.SubscribeFn,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
 		pubsub:                     cfg.Pubsub,
@@ -1068,22 +1084,6 @@ func (p *Server) Subscribe(
 
 	// Get initial chat state to determine if we need a relay
 	chat, err := p.db.GetChatByID(ctx, chatID)
-	var relayCancel func()
-	var relayParts <-chan codersdk.ChatStreamEvent
-	if err == nil && chat.Status == database.ChatStatusRunning && chat.WorkerID.Valid && chat.WorkerID.UUID != p.workerID && p.remotePartsProvider != nil {
-		// Open relay for initial snapshot
-		snapshot, parts, cancel, err := p.remotePartsProvider(ctx, chatID, chat.WorkerID.UUID, requestHeader)
-		if err == nil {
-			relayCancel = cancel
-			relayParts = parts
-			// Add relay message_parts to snapshot
-			for _, event := range snapshot {
-				if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-					initialSnapshot = append(initialSnapshot, event)
-				}
-			}
-		}
-	}
 
 	// Include the current chat status in the snapshot so the
 	// frontend can gate message_part processing correctly from
@@ -1108,357 +1108,47 @@ func (p *Server) Subscribe(
 		lastMessageID = messages[len(messages)-1].ID
 	}
 
-	// Merge all event sources
+	// Merge all event sources.
 	mergedCtx, mergedCancel := context.WithCancel(ctx)
+
+	// When an enterprise SubscribeFn is provided, delegate the
+	// full event-merge lifecycle (pubsub, relay, reconnect) to it.
+	if p.subscribeFn != nil {
+		mergedEvents, cleanup := p.subscribeFn(mergedCtx, SubscribeMultiReplicaParams{
+			ChatID:        chatID,
+			Chat:          chat,
+			WorkerID:      p.workerID,
+			LocalParts:    localParts,
+			LocalCancel:   localCancel,
+			LastMessageID: lastMessageID,
+			RequestHeader: requestHeader,
+			DB:            p.db,
+			Pubsub:        p.pubsub,
+			Logger:        p.logger,
+		})
+		cancel := func() {
+			mergedCancel()
+			cleanup()
+		}
+		return initialSnapshot, mergedEvents, cancel, true
+	}
+
+	// AGPL single-instance: simple local-only forwarding.
 	mergedEvents := make(chan codersdk.ChatStreamEvent, 128)
-	var allCancels []func()
-	allCancels = append(allCancels, localCancel)
-	if relayCancel != nil {
-		allCancels = append(allCancels, relayCancel)
-	}
-
-	// Channel for async relay establishment.
-	type relayResult struct {
-		parts    <-chan codersdk.ChatStreamEvent
-		cancel   func()
-		workerID uuid.UUID // the worker this dial targeted
-	}
-	relayReadyCh := make(chan relayResult, 1)
-
-	// Per-dial context so in-flight dials can be cancelled when
-	// a new dial is initiated or the relay is closed.
-	var dialCancel context.CancelFunc
-
-	// expectedWorkerID tracks which replica we expect the next
-	// relay result to target. Stale results are discarded.
-	var expectedWorkerID uuid.UUID
-
-	// Reconnect timer state.
-	var reconnectTimer *time.Timer
-	var reconnectCh <-chan time.Time
-
-	// Helper to close relay and stop any pending reconnect timer.
-	closeRelay := func() {
-		// Cancel any in-flight dial goroutine first.
-		if dialCancel != nil {
-			dialCancel()
-			dialCancel = nil
-		}
-		// Drain any buffered relay result from a cancelled dial.
-		select {
-		case result := <-relayReadyCh:
-			if result.cancel != nil {
-				result.cancel()
-			}
-		default:
-		}
-		expectedWorkerID = uuid.Nil
-		if relayCancel != nil {
-			relayCancel()
-			relayCancel = nil
-		}
-		relayParts = nil
-		if reconnectTimer != nil {
-			reconnectTimer.Stop()
-			reconnectTimer = nil
-			reconnectCh = nil
-		}
-	}
-
-	// openRelayAsync dials the remote replica in a background
-	// goroutine and delivers the result on relayReadyCh so the
-	// main select loop is never blocked by network I/O.
-	openRelayAsync := func(workerID uuid.UUID) {
-		if p.remotePartsProvider == nil {
-			return
-		}
-		closeRelay()
-		// Create a per-dial context so this goroutine is cancelled
-		// if closeRelay() or openRelayAsync() is called again before
-		// the dial completes.
-		var dialCtx context.Context
-		dialCtx, dialCancel = context.WithCancel(mergedCtx)
-		expectedWorkerID = workerID
-		go func() {
-			snapshot, parts, cancel, err := p.remotePartsProvider(dialCtx, chatID, workerID, requestHeader)
-			if err != nil {
-				p.logger.Warn(mergedCtx, "failed to open relay for message parts",
-					slog.F("chat_id", chatID),
-					slog.F("worker_id", workerID),
-					slog.Error(err),
-				)
-				return
-			}
-			// Wrap the relay channel so snapshot parts are
-			// delivered through the same channel as live parts.
-			wrappedParts := make(chan codersdk.ChatStreamEvent, 128)
-			go func() {
-				defer close(wrappedParts)
-				for _, event := range snapshot {
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-						select {
-						case wrappedParts <- event:
-						case <-dialCtx.Done():
-							cancel()
-							return
-						}
-					}
-				}
-				for event := range parts {
-					select {
-					case wrappedParts <- event:
-					case <-dialCtx.Done():
-						cancel()
-						return
-					}
-				}
-			}()
-			select {
-			case relayReadyCh <- relayResult{parts: wrappedParts, cancel: cancel, workerID: workerID}:
-			case <-dialCtx.Done():
-				cancel()
-			}
-		}()
-	}
-
-	// scheduleRelayReconnect arms a short timer so the select
-	// loop can re-check chat status and reopen the relay without
-	// spinning in a tight loop.
-	scheduleRelayReconnect := func() {
-		if p.remotePartsProvider == nil {
-			return
-		}
-		if reconnectTimer != nil {
-			reconnectTimer.Stop()
-		}
-		reconnectTimer = time.NewTimer(500 * time.Millisecond)
-		reconnectCh = reconnectTimer.C
-	}
-
-	//nolint:nestif
-	if p.pubsub != nil {
-		notifications := make(chan coderdpubsub.ChatStreamNotifyMessage, 10)
-		errCh := make(chan error, 1)
-
-		listener := func(_ context.Context, message []byte, err error) {
-			if err != nil {
-				select {
-				case <-mergedCtx.Done():
-				case errCh <- err:
-				}
-				return
-			}
-			var notify coderdpubsub.ChatStreamNotifyMessage
-			if unmarshalErr := json.Unmarshal(message, &notify); unmarshalErr != nil {
-				select {
-				case <-mergedCtx.Done():
-				case errCh <- xerrors.Errorf("unmarshal chat stream notify: %w", unmarshalErr):
-				}
-				return
-			}
+	go func() {
+		defer close(mergedEvents)
+		for event := range localParts {
 			select {
 			case <-mergedCtx.Done():
-			case notifications <- notify:
+				return
+			case mergedEvents <- event:
 			}
 		}
-
-		// Subscribe to pubsub for durable events
-		if pubsubCancel, err := p.pubsub.SubscribeWithErr(
-			coderdpubsub.ChatStreamNotifyChannel(chatID),
-			listener,
-		); err == nil {
-			allCancels = append(allCancels, pubsubCancel)
-		} else {
-			p.logger.Warn(mergedCtx, "failed to subscribe to chat stream notifications",
-				slog.F("chat_id", chatID),
-				slog.Error(err),
-			)
-		}
-
-		// Handle pubsub notifications in a goroutine
-		go func() {
-			defer close(mergedEvents)
-			defer closeRelay()
-
-			for {
-				relayPartsCh := relayParts
-				select {
-				case <-mergedCtx.Done():
-					return
-				case err := <-errCh:
-					p.logger.Error(mergedCtx, "chat stream pubsub error",
-						slog.F("chat_id", chatID),
-						slog.Error(err),
-					)
-					mergedEvents <- codersdk.ChatStreamEvent{
-						Type:   codersdk.ChatStreamEventTypeError,
-						ChatID: chatID,
-						Error: &codersdk.ChatStreamError{
-							Message: err.Error(),
-						},
-					}
-					return
-				case result := <-relayReadyCh:
-					// Discard stale relay results from a previous
-					// dial that was superseded.
-					if result.workerID != expectedWorkerID {
-						if result.cancel != nil {
-							result.cancel()
-						}
-						continue
-					}
-					// An async relay dial completed; swap in the
-					// new relay channel.
-					if relayCancel != nil {
-						relayCancel()
-					}
-					relayParts = result.parts
-					relayCancel = result.cancel
-				case <-reconnectCh:
-					reconnectCh = nil
-					// Re-check whether the chat is still running
-					// on a remote worker before reconnecting.
-					currentChat, chatErr := p.db.GetChatByID(mergedCtx, chatID)
-					if chatErr == nil && currentChat.Status == database.ChatStatusRunning &&
-						currentChat.WorkerID.Valid && currentChat.WorkerID.UUID != p.workerID {
-						openRelayAsync(currentChat.WorkerID.UUID)
-					}
-				case notify := <-notifications:
-					// Handle different notification types
-					if notify.AfterMessageID > 0 {
-						// Read only new messages from DB.
-						messages, err := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
-							ChatID:  chatID,
-							AfterID: lastMessageID,
-						})
-						if err == nil {
-							for _, msg := range messages {
-								sdkMsg := db2sdk.ChatMessage(msg)
-								select {
-								case <-mergedCtx.Done():
-									return
-								case mergedEvents <- codersdk.ChatStreamEvent{
-									Type:    codersdk.ChatStreamEventTypeMessage,
-									ChatID:  chatID,
-									Message: &sdkMsg,
-								}:
-								}
-								lastMessageID = msg.ID
-							}
-						}
-					}
-					if notify.Status != "" {
-						status := database.ChatStatus(notify.Status)
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- codersdk.ChatStreamEvent{
-							Type:   codersdk.ChatStreamEventTypeStatus,
-							ChatID: chatID,
-							Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
-						}:
-						}
-						// Manage relay lifecycle based on status.
-						if status == database.ChatStatusRunning && notify.WorkerID != "" {
-							workerID, err := uuid.Parse(notify.WorkerID)
-							if err == nil && workerID != p.workerID {
-								openRelayAsync(workerID)
-							} else if workerID == p.workerID {
-								closeRelay()
-							}
-						} else {
-							closeRelay()
-						}
-					}
-					if notify.Error != "" {
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- codersdk.ChatStreamEvent{
-							Type:   codersdk.ChatStreamEventTypeError,
-							ChatID: chatID,
-							Error: &codersdk.ChatStreamError{
-								Message: notify.Error,
-							},
-						}:
-						}
-					}
-					if notify.QueueUpdate {
-						queued, err := p.db.GetChatQueuedMessages(mergedCtx, chatID)
-						if err == nil {
-							select {
-							case <-mergedCtx.Done():
-								return
-							case mergedEvents <- codersdk.ChatStreamEvent{
-								Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-								ChatID:         chatID,
-								QueuedMessages: db2sdk.ChatQueuedMessages(queued),
-							}:
-							}
-						}
-					}
-				case event, ok := <-localParts:
-					if !ok {
-						// Local parts channel closed, but continue with pubsub
-						continue
-					}
-					// Only forward message_part events from local (durable events come via pubsub)
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- event:
-						}
-					}
-				case event, ok := <-relayPartsCh:
-					if !ok {
-						if relayCancel != nil {
-							relayCancel()
-							relayCancel = nil
-						}
-						relayParts = nil
-						// Schedule reconnection instead of giving up.
-						scheduleRelayReconnect()
-						continue
-					}
-					// Only forward message_part events from relay (durable events come via pubsub)
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- event:
-						}
-					}
-				}
-			}
-		}()
-	} else {
-		// No pubsub, just merge local parts.
-		// localSnapshot was already included in initialSnapshot,
-		// so only forward new events here.
-		go func() {
-			defer close(mergedEvents)
-			for event := range localParts {
-				select {
-				case <-mergedCtx.Done():
-					return
-				case mergedEvents <- event:
-				}
-			}
-		}()
-	}
+	}()
 	cancel := func() {
 		mergedCancel()
-		for _, cancelFn := range allCancels {
-			if cancelFn != nil {
-				cancelFn()
-			}
-		}
-		if reconnectTimer != nil {
-			reconnectTimer.Stop()
-		}
+		localCancel()
 	}
-
 	return initialSnapshot, mergedEvents, cancel, true
 }
 

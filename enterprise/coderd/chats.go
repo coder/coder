@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/websocket"
 )
@@ -22,14 +21,29 @@ const (
 	cookieHeader        = "Cookie"
 )
 
-// newRemotePartsProvider creates a RemotePartsProvider that dials a remote
+// remotePartsProvider returns a snapshot and live stream of
+// message_part events from the replica that is running the chat.
+// Called when the chat is actively running on a different replica.
+type remotePartsProvider func(
+	ctx context.Context,
+	chatID uuid.UUID,
+	workerID uuid.UUID,
+	requestHeader http.Header,
+) (
+	snapshot []codersdk.ChatStreamEvent,
+	parts <-chan codersdk.ChatStreamEvent,
+	cancel func(),
+	err error,
+)
+
+// newRemotePartsProvider creates a remotePartsProvider that dials a remote
 // replica's stream endpoint to fetch message_part events. It filters to only
 // forward message_part events since durable events come via pubsub.
 func newRemotePartsProvider(
 	resolveReplicaAddress func(context.Context, uuid.UUID) (string, bool),
 	replicaHTTPClient *http.Client,
 	replicaID uuid.UUID,
-) chatd.RemotePartsProvider {
+) remotePartsProvider {
 	return func(
 		ctx context.Context,
 		chatID uuid.UUID,
