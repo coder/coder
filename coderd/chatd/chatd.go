@@ -1046,7 +1046,7 @@ func (p *Server) Subscribe(
 	// Subscribe to local stream for message_parts (ephemeral).
 	localSnapshot, localParts, localCancel := p.subscribeToStream(chatID)
 
-	// Build initial snapshot synchronously
+	// Build initial snapshot synchronously.
 	initialSnapshot := make([]codersdk.ChatStreamEvent, 0)
 	// Add local message_parts to snapshot
 	for _, event := range localSnapshot {
@@ -1074,7 +1074,7 @@ func (p *Server) Subscribe(
 		}
 	}
 
-	// Load initial queue
+	// Load initial queue.
 	queued, err := p.db.GetChatQueuedMessages(ctx, chatID)
 	if err == nil && len(queued) > 0 {
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
@@ -1084,7 +1084,7 @@ func (p *Server) Subscribe(
 		})
 	}
 
-	// Get initial chat state to determine if we need a relay
+	// Get initial chat state to determine if we need a relay.
 	chat, err := p.db.GetChatByID(ctx, chatID)
 
 	// Include the current chat status in the snapshot so the

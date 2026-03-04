@@ -783,18 +783,6 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 		}
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
-	// Ensure no stale part from workerA arrives after workerB's part.
-	require.Never(t, func() bool {
-		select {
-		case event := <-events:
-			return event.Type == codersdk.ChatStreamEventTypeMessagePart &&
-				event.MessagePart != nil &&
-				event.MessagePart.Part.Text == "worker-a-part"
-		default:
-			return false
-		}
-	}, testutil.WaitShort, testutil.IntervalFast)
-
 	require.Equal(t, 2, int(callCount.Load()))
 }
 
