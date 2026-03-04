@@ -3025,7 +3025,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	// Then: the histogram value for prebuilt workspace creation should be updated.
 	// The metric update is asynchronous (it happens after the build completes in the
 	// provisioner server), so we must poll until it appears.
-	var prebuildCreationLabels = prometheus.Labels{
+	prebuildCreationLabels := prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templatePrebuild.Name,
 		"preset_name":       presetsPrebuild[0].Name,
@@ -3056,7 +3056,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 
 	// Then: the histogram value for prebuilt workspace claim should be updated.
 	// The metric update is asynchronous, so we must poll until it appears.
-	var prebuildClaimLabels = prometheus.Labels{
+	prebuildClaimLabels := prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templatePrebuild.Name,
 		"preset_name":       presetsPrebuild[0].Name,
@@ -3086,7 +3086,7 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 
 	// Then: the histogram value for regular workspace creation should be updated.
 	// The metric update is asynchronous, so we must poll until it appears.
-	var regularWorkspaceLabels = prometheus.Labels{
+	regularWorkspaceLabels := prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templateNoPrebuild.Name,
 		"preset_name":       presetsNoPrebuild[0].Name,
