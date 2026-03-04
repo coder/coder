@@ -1,5 +1,3 @@
-import { MockUserOwner } from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ChatDiffStatusResponse } from "api/api";
 import { expect, userEvent, waitFor, within } from "storybook/test";
@@ -40,10 +38,8 @@ const defaultProps = {
 const meta: Meta<typeof AgentDetailTopBar> = {
 	title: "pages/AgentsPage/AgentDetail/TopBar",
 	component: AgentDetailTopBar,
-	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		layout: "fullscreen",
-		user: MockUserOwner,
 	},
 	args: defaultProps,
 };

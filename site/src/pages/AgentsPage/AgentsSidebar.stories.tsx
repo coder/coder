@@ -1,3 +1,5 @@
+import { MockUserOwner } from "testHelpers/entities";
+import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
@@ -56,6 +58,7 @@ const agentsRouting = [
 const meta: Meta<typeof AgentsSidebar> = {
 	title: "pages/AgentsPage/AgentsSidebar",
 	component: AgentsSidebar,
+	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		chatErrorReasons: {},
 		modelOptions: defaultModelOptions,
@@ -68,6 +71,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 	},
 	parameters: {
 		layout: "fullscreen",
+		user: MockUserOwner,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
 			routing: agentsRouting,
