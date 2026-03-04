@@ -27,15 +27,29 @@ export function useSyncFormParameters({
 	useEffect(() => {
 		if (!parameters) return;
 		const currentFormValues = formValuesRef.current;
-
-		const newParameterValues = parameters.map((param) => ({
-			name: param.name,
-			value: param.value.valid ? param.value.value : "",
-		}));
-
 		const currentFormValuesMap = new Map(
 			currentFormValues.map((value) => [value.name, value.value]),
 		);
+
+		const newParameterValues = parameters.map((param) => {
+			// When the server value is not valid (e.g., the initial
+			// WebSocket response before any user input is sent),
+			// preserve the current form value. This prevents the sync
+			// hook from overwriting autofilled values (from the
+			// previous build) with empty strings before the server
+			// has had a chance to process them.
+			if (!param.value.valid) {
+				const existingValue = currentFormValuesMap.get(param.name);
+				if (existingValue !== undefined) {
+					return { name: param.name, value: existingValue };
+				}
+			}
+
+			return {
+				name: param.name,
+				value: param.value.valid ? param.value.value : "",
+			};
+		});
 
 		const isChanged =
 			currentFormValues.length !== newParameterValues.length ||
