@@ -205,7 +205,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// Use a closure that captures api by reference so it can access
 	// api.AGPL.ID after coderd.New is called. The SubscribeFn is
 	// only invoked from Subscribe, which happens after init.
-	options.Options.ChatSubscribeFn = entchatd.NewMultiReplicaSubscribeFn(entchatd.Config{
+	options.Options.ChatSubscribeFn = entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{
 		ResolveReplicaAddress: resolveReplicaAddress,
 		ReplicaHTTPClient:     replicaHTTPClient,
 		ReplicaIDFn: func() uuid.UUID {

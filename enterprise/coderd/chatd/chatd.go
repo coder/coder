@@ -25,14 +25,14 @@ const (
 	cookieHeader        = "Cookie"
 )
 
-// Config holds the dependencies for multi-replica chat
+// MultiReplicaSubscribeConfig holds the dependencies for multi-replica chat
 // subscription. ReplicaIDFn is called lazily because the
 // replica ID may not be known at construction time.
 //
 // DialerFn, when set, overrides the default WebSocket relay
 // dialer. This is used in tests to inject mock relay behavior
 // without requiring real HTTP servers.
-type Config struct {
+type MultiReplicaSubscribeConfig struct {
 	ResolveReplicaAddress func(context.Context, uuid.UUID) (string, bool)
 	ReplicaHTTPClient     *http.Client
 	ReplicaIDFn           func() uuid.UUID
@@ -55,9 +55,9 @@ type Config struct {
 
 // dial returns the dialer function to use for relay connections.
 // If DialerFn is set (e.g. in tests), it takes precedence.
-// Otherwise, dialRelay is used with the real Config dependencies.
+// Otherwise, dialRelay is used with the real MultiReplicaSubscribeConfig dependencies.
 // Returns nil when no relay capability is configured.
-func (c Config) dial() func(
+func (c MultiReplicaSubscribeConfig) dial() func(
 	ctx context.Context,
 	chatID uuid.UUID,
 	workerID uuid.UUID,
@@ -91,7 +91,7 @@ func (c Config) dial() func(
 
 // clock returns the quartz.Clock to use. Defaults to a real clock
 // when not set.
-func (c Config) clock() quartz.Clock {
+func (c MultiReplicaSubscribeConfig) clock() quartz.Clock {
 	if c.Clock != nil {
 		return c.Clock
 	}
@@ -106,7 +106,7 @@ func (c Config) clock() quartz.Clock {
 //
 //nolint:gocognit // Complexity is inherent to the multi-source merge loop.
 func NewMultiReplicaSubscribeFn(
-	cfg Config,
+	cfg MultiReplicaSubscribeConfig,
 ) osschatd.SubscribeFn {
 	return func(ctx context.Context, params osschatd.SubscribeFnParams) (<-chan codersdk.ChatStreamEvent, func()) {
 		chatID := params.ChatID
@@ -421,7 +421,7 @@ func dialRelay(
 	chatID uuid.UUID,
 	workerID uuid.UUID,
 	requestHeader http.Header,
-	cfg Config,
+	cfg MultiReplicaSubscribeConfig,
 	clk quartz.Clock,
 ) (
 	snapshot []codersdk.ChatStreamEvent,

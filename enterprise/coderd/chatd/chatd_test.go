@@ -53,7 +53,7 @@ func newTestServer(
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		Pubsub:                     ps,
-		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(entchatd.Config{DialerFn: dialer, Clock: clock}),
+		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{DialerFn: dialer, Clock: clock}),
 		PendingChatAcquireInterval: testutil.WaitSuperLong,
 	})
 	t.Cleanup(func() {
