@@ -35,7 +35,7 @@ func main() {
 
 	ep := embeddedpostgres.NewDatabase(
 		embeddedpostgres.DefaultConfig().
-			Version(embeddedpostgres.V17).
+			Version(embeddedpostgres.V18).
 			BinariesPath(filepath.Join(postgresPath, "bin")).
 			BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
 			DataPath(filepath.Join(postgresPath, "data")).
@@ -85,6 +85,7 @@ func main() {
 		`ALTER SYSTEM SET max_connections = '1000';`,
 		`ALTER SYSTEM SET shared_buffers = '1GB';`,
 		`ALTER SYSTEM SET synchronous_commit = 'off';`,
+		`ALTER SYSTEM SET file_copy_method = 'clone';`,
 		`ALTER SYSTEM SET client_encoding = 'UTF8';`,
 	}
 	db, err := sql.Open("postgres", "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable")

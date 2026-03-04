@@ -5,7 +5,7 @@ inputs:
   postgres-version:
     description: "PostgreSQL version to use"
     required: false
-    default: "17"
+    default: "18"
   test-parallelism-packages:
     description: "Number of packages to test in parallel (-p flag)"
     required: false
