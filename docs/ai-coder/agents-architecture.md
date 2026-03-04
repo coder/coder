@@ -278,10 +278,6 @@ happens elsewhere:
 - **The control plane** primarily proxies streaming responses and dispatches
   tool calls over existing network connections.
 
-Administrators can configure how many concurrent chat sessions each control
-plane instance handles. For deployments that need to isolate agent traffic from
-the main API, the chat processing component can be run separately.
-
 ## Next steps
 
 - [Coder Agents overview](./agents.md) — feature overview, LLM provider setup,
