@@ -117,9 +117,7 @@ func NewMultiReplicaSubscribeFn(
 			params.Chat.WorkerID.Valid &&
 			params.Chat.WorkerID.UUID != params.WorkerID &&
 			cfg.dial() != nil {
-			dialCtx, dialTimeoutCancel := context.WithTimeout(ctx, 5*time.Second)
-			snapshot, parts, cancel, err := cfg.dial()(dialCtx, chatID, params.Chat.WorkerID.UUID, requestHeader)
-			dialTimeoutCancel()
+			snapshot, parts, cancel, err := cfg.dial()(ctx, chatID, params.Chat.WorkerID.UUID, requestHeader)
 			if err == nil {
 				relayCancel = cancel
 				relayParts = parts
@@ -501,6 +499,7 @@ func NewMultiReplicaSubscribeFn(
 			// so only forward new events here.
 			go func() {
 				defer close(mergedEvents)
+				defer closeRelay()
 				for event := range localParts {
 					select {
 					case <-ctx.Done():

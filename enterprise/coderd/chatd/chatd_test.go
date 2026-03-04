@@ -581,3 +581,296 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 		}
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
+
+// TestSubscribeCancelDuringInFlightDial verifies that calling the
+// subscription's cancel function while a relay dial goroutine is
+// still blocking in the provider causes the provider's context to
+// be cancelled and the goroutine to return cleanly.
+func TestSubscribeCancelDuringInFlightDial(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+
+	dialStarted := make(chan struct{})
+	dialExited := make(chan struct{})
+
+	provider := func(ctx context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
+		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
+	) {
+		// Signal the dial has started, then block until the context
+		// is cancelled.
+		close(dialStarted)
+		<-ctx.Done()
+		close(dialExited)
+		return nil, nil, nil, ctx.Err()
+	}
+
+	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "cancel-inflight-dial",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	// Put the chat in waiting state so Subscribe does not open a
+	// synchronous relay.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	_, _, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+
+	// Publish a running notification to trigger openRelayAsync.
+	notify := coderdpubsub.ChatStreamNotifyMessage{
+		Status:   string(database.ChatStatusRunning),
+		WorkerID: workerID.String(),
+	}
+	payload, err := json.Marshal(notify)
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payload)
+	require.NoError(t, err)
+
+	// Wait for the dial goroutine to block inside the provider.
+	select {
+	case <-dialStarted:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for dial to start")
+	}
+
+	// Cancel the subscription while the dial is still in-flight.
+	cancel()
+
+	// The provider context must be cancelled, causing the goroutine
+	// to return cleanly.
+	require.Eventually(t, func() bool {
+		select {
+		case <-dialExited:
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+// TestSubscribeRelayRunningToRunningSwitch verifies that when a chat
+// transitions directly from running(workerA) to running(workerB)
+// without an intermediate waiting state, the relay switches to the
+// new worker and discards parts from the old one.
+func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerA := uuid.New()
+	workerB := uuid.New()
+	subscriberID := uuid.New()
+
+	var callCount atomic.Int32
+
+	provider := func(ctx context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
+		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
+	) {
+		call := callCount.Add(1)
+		ch := make(chan codersdk.ChatStreamEvent, 10)
+		if call == 1 {
+			ch <- codersdk.ChatStreamEvent{
+				Type: codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{
+					Role: "assistant",
+					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "worker-a-part"},
+				},
+			}
+			// Keep the channel open so parts could arrive later.
+		} else {
+			ch <- codersdk.ChatStreamEvent{
+				Type: codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{
+					Role: "assistant",
+					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "worker-b-part"},
+				},
+			}
+		}
+		return nil, ch, func() {}, nil
+	}
+
+	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "running-to-running",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	// Start in waiting state so Subscribe does not open a relay.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Transition to running on workerA.
+	notifyA := coderdpubsub.ChatStreamNotifyMessage{
+		Status:   string(database.ChatStatusRunning),
+		WorkerID: workerA.String(),
+	}
+	payloadA, err := json.Marshal(notifyA)
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payloadA)
+	require.NoError(t, err)
+
+	// Immediately transition to running on workerB (no waiting in
+	// between).
+	notifyB := coderdpubsub.ChatStreamNotifyMessage{
+		Status:   string(database.ChatStatusRunning),
+		WorkerID: workerB.String(),
+	}
+	payloadB, err := json.Marshal(notifyB)
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payloadB)
+	require.NoError(t, err)
+
+	// We should receive the part from workerB.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil &&
+				event.MessagePart.Part.Text == "worker-b-part" {
+				return true
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// Ensure no stale part from workerA arrives after workerB's part.
+	require.Never(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil &&
+				event.MessagePart.Part.Text == "worker-a-part"
+		default:
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	require.GreaterOrEqual(t, int(callCount.Load()), 2)
+}
+
+// TestSubscribeRunningLocalWorkerClosesRelay verifies that when a chat
+// is running on a remote worker and a pubsub notification arrives
+// saying the local worker (subscriberID) now owns the chat, the
+// existing relay is closed and no new dial is started (the local
+// worker serves directly without relaying).
+func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	remoteWorkerID := uuid.New()
+	subscriberID := uuid.New()
+
+	var callCount atomic.Int32
+
+	provider := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
+		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
+	) {
+		call := callCount.Add(1)
+		ch := make(chan codersdk.ChatStreamEvent, 10)
+		if call == 1 {
+			// Initial synchronous dial to the remote worker.
+			ch <- codersdk.ChatStreamEvent{
+				Type: codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{
+					Role: "assistant",
+					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "remote-part"},
+				},
+			}
+			// Keep channel open so the relay stays active.
+		}
+		return nil, ch, func() {}, nil
+	}
+
+	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Create the chat already running on a remote worker so Subscribe
+	// opens a synchronous relay.
+	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "local-worker-closes-relay",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: remoteWorkerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Consume the remote-part from the initial relay.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil &&
+				event.MessagePart.Part.Text == "remote-part" {
+				return true
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// Notify that the LOCAL worker now owns the chat. This should
+	// close the relay without opening a new one.
+	notify := coderdpubsub.ChatStreamNotifyMessage{
+		Status:   string(database.ChatStatusRunning),
+		WorkerID: subscriberID.String(),
+	}
+	payload, err := json.Marshal(notify)
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payload)
+	require.NoError(t, err)
+
+	// Give the system time to process the notification. No additional
+	// dial should happen — only the initial synchronous one.
+	require.Never(t, func() bool {
+		return int(callCount.Load()) > 1
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	require.Equal(t, 1, int(callCount.Load()),
+		"only the initial synchronous dial should have happened")
+}
