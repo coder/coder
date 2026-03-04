@@ -2131,8 +2131,8 @@ CREATE VIEW tasks_with_status AS
     tasks.created_at,
     tasks.deleted_at,
     tasks.display_name,
-    workspaces.group_acl AS workspace_group_acl,
-    workspaces.user_acl AS workspace_user_acl,
+    COALESCE(workspaces.group_acl, '{}'::jsonb) AS workspace_group_acl,
+    COALESCE(workspaces.user_acl, '{}'::jsonb) AS workspace_user_acl,
         CASE
             WHEN (tasks.workspace_id IS NULL) THEN 'pending'::task_status
             WHEN (build_status.status <> 'active'::task_status) THEN build_status.status

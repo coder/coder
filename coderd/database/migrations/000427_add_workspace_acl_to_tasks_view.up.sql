@@ -8,8 +8,8 @@ CREATE VIEW
 AS
 	SELECT
 		tasks.*,
-		workspaces.group_acl as workspace_group_acl,
-		workspaces.user_acl as workspace_user_acl,
+		coalesce(workspaces.group_acl, '{}'::jsonb) as workspace_group_acl,
+		coalesce(workspaces.user_acl, '{}'::jsonb) as workspace_user_acl,
 		-- Combine component statuses with precedence: build -> agent -> app.
 		CASE
 			WHEN tasks.workspace_id IS NULL THEN 'pending'::task_status

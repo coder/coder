@@ -84,10 +84,10 @@ sql:
               type: "StringMapOfInt"
           - column: "tasks_with_status.workspace_user_acl"
             go_type:
-              type: "*WorkspaceACL"
+              type: "WorkspaceACL"
           - column: "tasks_with_status.workspace_group_acl"
             go_type:
-              type: "*WorkspaceACL"
+              type: "WorkspaceACL"
           - column: "workspaces.user_acl"
             go_type:
               type: "WorkspaceACL"
