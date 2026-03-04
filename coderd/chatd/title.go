@@ -10,6 +10,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -25,6 +26,64 @@ const titleGenerationPrompt = "Generate a concise title (2-8 words) for the user
 // generation. Models are returned in preference order — cheap, fast
 // models first, with the user's chat model as a last resort.
 type TitleModelFunc func() []fantasy.LanguageModel
+
+// preferredTitleModels are lightweight models used for title
+// generation, one per provider type. Each entry uses the
+// cheapest/fastest small model for that provider as identified
+// by the charmbracelet/catwalk model catalog. Providers that
+// aren't configured (no API key) are silently skipped.
+var preferredTitleModels = []struct {
+	provider string
+	model    string
+}{
+	{"anthropic", "claude-haiku-4-5"},
+	{"openai", "gpt-4o-mini"},
+	{"google", "gemini-2.5-flash"},
+	{"azure", "gpt-4o-mini"},
+	{"bedrock", "anthropic.claude-haiku-4-5-20251001-v1:0"},
+	{"openrouter", "anthropic/claude-3.5-haiku"},
+	{"vercel", "anthropic/claude-haiku-4.5"},
+}
+
+// titleModelCandidates returns an ordered list of models to try for
+// title generation. It resolves provider keys, attempts to create
+// each preferred lightweight model, and appends fallback as the
+// last resort.
+func (p *Server) titleModelCandidates(
+	ctx context.Context,
+	fallback fantasy.LanguageModel,
+) []fantasy.LanguageModel {
+	providers, err := p.db.GetEnabledChatProviders(ctx)
+	if err != nil {
+		return []fantasy.LanguageModel{fallback}
+	}
+	dbProviders := make(
+		[]chatprovider.ConfiguredProvider, 0, len(providers),
+	)
+	for _, provider := range providers {
+		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
+			Provider: provider.Provider,
+			APIKey:   provider.APIKey,
+			BaseURL:  provider.BaseUrl,
+		})
+	}
+	keys := chatprovider.MergeProviderAPIKeys(
+		p.providerAPIKeys, dbProviders,
+	)
+
+	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
+	for _, c := range preferredTitleModels {
+		m, err := chatprovider.ModelFromConfig(
+			c.provider, c.model, keys,
+		)
+		if err == nil {
+			candidates = append(candidates, m)
+		}
+	}
+	// Always fall back to the user's chat model.
+	candidates = append(candidates, fallback)
+	return candidates
+}
 
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
