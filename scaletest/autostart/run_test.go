@@ -88,12 +88,13 @@ func TestRun(t *testing.T) {
 	}
 
 	// Start watching all workspace builds.
-	buildUpdates, err := client.WatchAllWorkspaceBuilds(ctx)
+	decoder, err := client.WatchAllWorkspaceBuilds(ctx)
 	require.NoError(t, err)
+	defer decoder.Close()
 
 	// Start the dispatcher goroutine.
 	go func() {
-		for update := range buildUpdates {
+		for update := range decoder.Chan() {
 			if ch, ok := workspaceChannels[update.WorkspaceName]; ok {
 				select {
 				case ch <- update:

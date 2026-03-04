@@ -1863,14 +1863,15 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			}
 			dispatcher := autostart.NewWorkspaceDispatcher(workspaceNames)
 
-			buildUpdates, err := client.WatchAllWorkspaceBuilds(ctx)
+			decoder, err := client.WatchAllWorkspaceBuilds(ctx)
 			if err != nil {
 				return xerrors.Errorf("watch all workspace builds: %w", err)
 			}
+			defer decoder.Close()
 
 			// Start the dispatcher. It will run in a goroutine and automatically
 			// close all workspace channels when the build updates channel closes.
-			dispatcher.Start(ctx, buildUpdates)
+			dispatcher.Start(ctx, decoder.Chan())
 
 			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
 			for workspaceName, buildUpdatesChannel := range dispatcher.Channels {

@@ -808,7 +808,9 @@ type WorkspaceBuildUpdate struct {
 
 // WatchAllWorkspaceBuilds watches for workspace build updates across all workspaces.
 // This requires the workspace-build-updates experiment to be enabled.
-func (c *Client) WatchAllWorkspaceBuilds(ctx context.Context) (<-chan WorkspaceBuildUpdate, error) {
+// The returned decoder should be closed by calling Close() when done to properly
+// clean up the WebSocket connection.
+func (c *Client) WatchAllWorkspaceBuilds(ctx context.Context) (*wsjson.Decoder[WorkspaceBuildUpdate], error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -842,7 +844,7 @@ func (c *Client) WatchAllWorkspaceBuilds(ctx context.Context) (<-chan WorkspaceB
 	}
 
 	d := wsjson.NewDecoder[WorkspaceBuildUpdate](conn, websocket.MessageText, c.logger)
-	return d.Chan(), nil
+	return d, nil
 }
 
 // WorkspaceAvailableUsers returns users available for workspace creation.

@@ -3710,9 +3710,11 @@ func TestWatchAllWorkspaceBuilds(t *testing.T) {
 
 	// Subscribe to all workspace build updates via SSE BEFORE creating workspaces
 	// so we can use it to wait for the initial builds.
-	updates, err := client.WatchAllWorkspaceBuilds(ctx)
+	decoder, err := client.WatchAllWorkspaceBuilds(ctx)
 	require.NoError(t, err)
+	defer decoder.Close()
 
+	updates := decoder.Chan()
 	logger := testutil.Logger(t).Named(t.Name())
 
 	// Helper to wait for a specific update.
