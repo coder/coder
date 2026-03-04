@@ -19,7 +19,7 @@ Three components are involved in every Coder Agents interaction:
    reads and writes files, and executes processes — exactly what it does when a
    developer connects via their IDE.
 
-![Placeholder: Architecture diagram showing the control plane running the agent loop, connecting to LLM providers outbound, and reaching workspaces over the same Tailnet connection used by IDEs and terminals](../images/guides/ai-agents/agents-architecture.png)
+![Matt TODO: Architecture diagram ](../images/guides/ai-agents/agents-architecture.png)
 
 ## The same connection your IDE uses
 
