@@ -1923,10 +1923,51 @@ func (p *Server) runChat(
 	// Fire title generation asynchronously so it doesn't block the
 	// chat response. It uses a detached context so it can finish
 	// even after the chat processing context is canceled.
+	titleModels := func() []fantasy.LanguageModel {
+		// Resolve provider keys so we can try lightweight models
+		// before falling back to the user's chat model.
+		providers, err := p.db.GetEnabledChatProviders(ctx)
+		if err != nil {
+			return []fantasy.LanguageModel{model}
+		}
+		dbProviders := make(
+			[]chatprovider.ConfiguredProvider, 0, len(providers),
+		)
+		for _, provider := range providers {
+			dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
+				Provider: provider.Provider,
+				APIKey:   provider.APIKey,
+				BaseURL:  provider.BaseUrl,
+			})
+		}
+		keys := chatprovider.MergeProviderAPIKeys(
+			p.providerAPIKeys, dbProviders,
+		)
+
+		// Preferred lightweight models for title generation.
+		candidates := make([]fantasy.LanguageModel, 0, 3)
+		for _, c := range []struct {
+			provider string
+			model    string
+		}{
+			{"anthropic", "claude-haiku-4-5"},
+			{"openai", "gpt-4o-mini"},
+		} {
+			m, err := chatprovider.ModelFromConfig(
+				c.provider, c.model, keys,
+			)
+			if err == nil {
+				candidates = append(candidates, m)
+			}
+		}
+		// Always fall back to the user's chat model.
+		candidates = append(candidates, model)
+		return candidates
+	}
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
-		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, logger)
+		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, titleModels, logger)
 	}()
 
 	prompt, err := chatprompt.ConvertMessages(messages)

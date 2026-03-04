@@ -15,9 +15,16 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
 
-const titleGenerationPrompt = "Generate a concise title (max 8 words, under 128 characters) for " +
-	"the user's first message. Return plain text only — no quotes, no emoji, " +
-	"no markdown, no special characters."
+const titleGenerationPrompt = "Generate a concise title (2-8 words) for the user's message. " +
+	"Use verb-noun format describing the primary intent (e.g. \"Fix sidebar layout\", " +
+	"\"Add user authentication\", \"Refactor database queries\"). " +
+	"Return plain text only — no quotes, no emoji, no markdown, no code fences, " +
+	"no special characters, no trailing punctuation. Sentence case."
+
+// TitleModelFunc returns candidate language models for title
+// generation. Models are returned in preference order — cheap, fast
+// models first, with the user's chat model as a last resort.
+type TitleModelFunc func() []fantasy.LanguageModel
 
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
@@ -27,7 +34,7 @@ func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
-	model fantasy.LanguageModel,
+	titleModels TitleModelFunc,
 	logger slog.Logger,
 ) {
 	input, ok := titleInput(chat, messages)
@@ -38,31 +45,44 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	title, err := generateTitle(titleCtx, model, input)
-	if err != nil {
-		logger.Debug(ctx, "failed to generate chat title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return
-	}
-	if title == "" || title == chat.Title {
+	candidates := titleModels()
+	var lastErr error
+	for _, model := range candidates {
+		title, err := generateTitle(titleCtx, model, input)
+		if err != nil {
+			lastErr = err
+			logger.Debug(ctx, "title model candidate failed",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+			continue
+		}
+		if title == "" || title == chat.Title {
+			return
+		}
+
+		_, err = p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+			ID:    chat.ID,
+			Title: title,
+		})
+		if err != nil {
+			logger.Warn(ctx, "failed to update generated chat title",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+			return
+		}
+		chat.Title = title
+		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange)
 		return
 	}
 
-	_, err = p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-		ID:    chat.ID,
-		Title: title,
-	})
-	if err != nil {
-		logger.Warn(ctx, "failed to update generated chat title",
+	if lastErr != nil {
+		logger.Debug(ctx, "all title model candidates failed",
 			slog.F("chat_id", chat.ID),
-			slog.Error(err),
+			slog.Error(lastErr),
 		)
-		return
 	}
-	chat.Title = title
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange)
 }
 
 // generateTitle calls the model with a title-generation system prompt
@@ -87,14 +107,13 @@ func generateTitle(
 			},
 		},
 	}
-	toolChoice := fantasy.ToolChoiceNone
 
 	var response *fantasy.Response
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error
 		response, genErr = model.Generate(retryCtx, fantasy.Call{
-			Prompt:     prompt,
-			ToolChoice: &toolChoice,
+			Prompt:          prompt,
+			MaxOutputTokens: int64Ptr(256),
 		})
 		return genErr
 	}, nil)
@@ -108,6 +127,8 @@ func generateTitle(
 	}
 	return title, nil
 }
+
+func int64Ptr(v int64) *int64 { return &v }
 
 // titleInput returns the first user message text and whether title
 // generation should proceed. It returns false when the chat already
