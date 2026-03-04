@@ -23,13 +23,16 @@ import {
 	PanelRightOpenIcon,
 	TerminalIcon,
 	Trash2Icon,
+	Volume2Icon,
+	VolumeOffIcon,
 } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { WebPushButton } from "../WebPushButton";
+import { getChimeEnabled, setChimeEnabled } from "./useAgentChime";
 
 interface DiffStatsBadgeProps {
 	status: ChatDiffStatusResponse;
@@ -114,6 +117,14 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	const navigate = useNavigate();
 	const { user, signOut } = useAuthenticated();
 	const { appearance, buildInfo } = useDashboard();
+
+	const [isChimeEnabled, setIsChimeEnabled] = useState(getChimeEnabled);
+
+	const handleToggleChime = () => {
+		const next = !isChimeEnabled;
+		setIsChimeEnabled(next);
+		setChimeEnabled(next);
+	};
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
@@ -236,6 +247,16 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						>
 							<MonitorIcon className="h-3.5 w-3.5" />
 							View Workspace
+						</DropdownMenuItem>
+						<DropdownMenuItem onSelect={handleToggleChime}>
+							{isChimeEnabled ? (
+								<Volume2Icon className="h-3.5 w-3.5" />
+							) : (
+								<VolumeOffIcon className="h-3.5 w-3.5" />
+							)}
+							{isChimeEnabled
+								? "Sound on completion"
+								: "Sound on completion (off)"}
 						</DropdownMenuItem>
 						<DropdownMenuSeparator />
 						{isArchived ? (
