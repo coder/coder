@@ -1,6 +1,8 @@
 import { API, type ChatDiffStatusResponse } from "api/api";
+import { getErrorMessage } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import type { QueryClient } from "react-query";
+import { toast } from "sonner";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
@@ -39,7 +41,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		return { previousChats, previousChat };
 	},
 	onError: (
-		_error: unknown,
+		error: unknown,
 		chatId: string,
 		context:
 			| {
@@ -60,6 +62,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 				context.previousChat,
 			);
 		}
+		toast.error(getErrorMessage(error, "Failed to archive agent."));
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
 		await queryClient.invalidateQueries({ queryKey: chatsKey });
@@ -90,7 +93,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		return { previousChats, previousChat };
 	},
 	onError: (
-		_error: unknown,
+		error: unknown,
 		chatId: string,
 		context:
 			| {
@@ -111,6 +114,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 				context.previousChat,
 			);
 		}
+		toast.error(getErrorMessage(error, "Failed to unarchive agent."));
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
 		await queryClient.invalidateQueries({ queryKey: chatsKey });
