@@ -19,7 +19,7 @@ shell execution — and works with any LLM provider you configure.
 
 No agent harness or API keys are required inside your workspaces.
 
-<video autoplay loop muted playsinline width="100%">
+<video autoplay loop muted playsinline controls width="100%">
   <source src="../images/guides/ai-agents/coder-agents-ui.mp4" type="video/mp4">
   Your browser does not support the video tag.
 </video>
