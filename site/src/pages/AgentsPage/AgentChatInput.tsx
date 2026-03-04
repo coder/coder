@@ -13,12 +13,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	ArrowUpIcon,
-	Loader2Icon,
-	Square,
-	XIcon,
-} from "lucide-react";
+import { ArrowUpIcon, Loader2Icon, Square, XIcon } from "lucide-react";
 import { memo, type ReactNode, useCallback, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "./modelOptions";
@@ -316,8 +311,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 		};
 
-		const sendButtonLabel =
-			editingQueuedMessageID !== null ? "Save" : "Send";
+		const sendButtonLabel = editingQueuedMessageID !== null ? "Save" : "Send";
 
 		const content = (
 			<div className="mx-auto w-full max-w-3xl pb-4">
