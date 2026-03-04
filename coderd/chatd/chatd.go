@@ -1904,7 +1904,7 @@ func (p *Server) runChat(
 	chat database.Chat,
 	logger slog.Logger,
 ) error {
-	model, modelConfig, err := p.resolveChatModel(ctx, chat)
+	model, modelConfig, providerKeys, err := p.resolveChatModel(ctx, chat)
 	if err != nil {
 		return err
 	}
@@ -1926,7 +1926,7 @@ func (p *Server) runChat(
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
-		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, logger)
+		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, providerKeys, logger)
 	}()
 
 	prompt, err := chatprompt.ConvertMessages(messages)
@@ -2403,17 +2403,17 @@ func (p *Server) persistChatContextSummary(
 func (p *Server) resolveChatModel(
 	ctx context.Context,
 	chat database.Chat,
-) (fantasy.LanguageModel, database.ChatModelConfig, error) {
+) (fantasy.LanguageModel, database.ChatModelConfig, chatprovider.ProviderAPIKeys, error) {
 	dbConfig, err := p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
 			"resolve model config: %w", err,
 		)
 	}
 
 	providers, err := p.db.GetEnabledChatProviders(ctx)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
 			"get enabled chat providers: %w", err,
 		)
 	}
@@ -2435,11 +2435,11 @@ func (p *Server) resolveChatModel(
 		dbConfig.Provider, dbConfig.Model, keys,
 	)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
 			"create model: %w", err,
 		)
 	}
-	return model, dbConfig, nil
+	return model, dbConfig, keys, nil
 }
 
 // resolveModelConfig looks up the chat's model config by its

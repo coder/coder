@@ -47,55 +47,18 @@ var preferredTitleModels = []struct {
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
 }
 
-// titleModelCandidates returns an ordered list of models to try for
-// title generation. It resolves provider keys, attempts to create
-// each preferred lightweight model, and appends fallback as the
-// last resort.
-func (p *Server) titleModelCandidates(
-	ctx context.Context,
-	fallback fantasy.LanguageModel,
-) []fantasy.LanguageModel {
-	providers, err := p.db.GetEnabledChatProviders(ctx)
-	if err != nil {
-		return []fantasy.LanguageModel{fallback}
-	}
-	dbProviders := make(
-		[]chatprovider.ConfiguredProvider, 0, len(providers),
-	)
-	for _, provider := range providers {
-		dbProviders = append(dbProviders, chatprovider.ConfiguredProvider{
-			Provider: provider.Provider,
-			APIKey:   provider.APIKey,
-			BaseURL:  provider.BaseUrl,
-		})
-	}
-	keys := chatprovider.MergeProviderAPIKeys(
-		p.providerAPIKeys, dbProviders,
-	)
-
-	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
-	for _, c := range preferredTitleModels {
-		m, err := chatprovider.ModelFromConfig(
-			c.provider, c.model, keys,
-		)
-		if err == nil {
-			candidates = append(candidates, m)
-		}
-	}
-	// Always fall back to the user's chat model.
-	candidates = append(candidates, fallback)
-	return candidates
-}
-
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
 // current title is either empty or still the fallback truncation).
-// It is a best-effort operation that logs and swallows errors.
+// It tries cheap, fast models first and falls back to the user's
+// chat model. It is a best-effort operation that logs and swallows
+// errors.
 func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
 	fallbackModel fantasy.LanguageModel,
+	keys chatprovider.ProviderAPIKeys,
 	logger slog.Logger,
 ) {
 	input, ok := titleInput(chat, messages)
@@ -106,7 +69,18 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	candidates := p.titleModelCandidates(ctx, fallbackModel)
+	// Build candidate list: preferred lightweight models first,
+	// then the user's chat model as last resort.
+	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
+	for _, c := range preferredTitleModels {
+		m, err := chatprovider.ModelFromConfig(
+			c.provider, c.model, keys,
+		)
+		if err == nil {
+			candidates = append(candidates, m)
+		}
+	}
+	candidates = append(candidates, fallbackModel)
 	var lastErr error
 	for _, model := range candidates {
 		title, err := generateTitle(titleCtx, model, input)
@@ -174,7 +148,7 @@ func generateTitle(
 		var genErr error
 		response, genErr = model.Generate(retryCtx, fantasy.Call{
 			Prompt:          prompt,
-			MaxOutputTokens: int64Ptr(256),
+			MaxOutputTokens: ptr(int64(256)),
 		})
 		return genErr
 	}, nil)
@@ -189,7 +163,7 @@ func generateTitle(
 	return title, nil
 }
 
-func int64Ptr(v int64) *int64 { return &v }
+func ptr[T any](v T) *T { return &v }
 
 // titleInput returns the first user message text and whether title
 // generation should proceed. It returns false when the chat already
