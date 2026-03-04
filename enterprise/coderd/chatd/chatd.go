@@ -372,8 +372,6 @@ func NewMultiReplicaSubscribeFn(
 					}
 					if sn.Status == database.ChatStatusRunning && sn.WorkerID != uuid.Nil && sn.WorkerID != params.WorkerID {
 						openRelayAsync(sn.WorkerID)
-					} else if sn.WorkerID == params.WorkerID {
-						closeRelay()
 					} else {
 						closeRelay()
 					}
