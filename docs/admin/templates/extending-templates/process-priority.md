@@ -2,34 +2,24 @@
 
 Coder's agent can automatically lower the scheduling priority
 and raise the OOM (out-of-memory) kill score of user processes
-so the agent itself stays alive under resource pressure. This
-feature is Linux-only and available in the OSS edition.
-
-When enabled, every command the agent spawns — SSH sessions,
-reconnecting PTY terminals, and other child processes — is
-wrapped with `coder agent-exec`, which adjusts nice and OOM
-scores before exec'ing the target command.
+so the agent itself stays alive under resource pressure.
 
 ## Prerequisites
 
 - **Linux** — The feature is ignored on other operating systems.
 - **`CAP_SYS_NICE`** — Required if the agent needs to lower
-  the nice value below its current value, or adjust OOM scores
-  in certain configurations. In Docker, add it with:
+  the nice value below its current value. In Kubernetes, add
+  it to the container's security context:
 
   ```hcl
-  capabilities {
-    add = ["CAP_SYS_NICE"]
+  container {
+    security_context {
+      capabilities {
+        add = ["CAP_SYS_NICE"]
+      }
+    }
   }
   ```
-
-> [!NOTE]
-> When Linux capabilities like `cap_net_admin` are set on
-> the agent binary, the kernel disables `PR_SET_DUMPABLE`,
-> which prevents adjusting `oom_score_adj`. The agent handles
-> this automatically by dropping effective capabilities and
-> re-enabling `PR_SET_DUMPABLE` before writing the OOM score,
-> then disabling it again for safety.
 
 ## Environment variables
 
@@ -65,52 +55,47 @@ children to its own nice value plus 5, capped at 19. This
 gives the agent more CPU scheduling priority than user
 workloads.
 
-## How it works
-
-When `CODER_PROC_PRIO_MGMT` is set:
-
-1. The agent resolves its own binary path at startup.
-1. Every spawned command is wrapped as:
-
-   ```sh
-   coder agent-exec [--coder-oom=N] [--coder-nice=N] -- <original command>
-   ```
-
-1. The `agent-exec` subcommand then:
-   1. Locks the OS thread (nice is per-thread on Linux).
-   1. Drops effective capabilities for security.
-   1. Sets `PR_SET_DUMPABLE` to allow OOM score adjustment.
-   1. Writes the OOM score to `/proc/self/oom_score_adj`.
-   1. Resets `PR_SET_DUMPABLE` to `0`.
-   1. Calls `setpriority()` to set the nice value.
-   1. Strips all `CODER_PROC_*` environment variables from
-      the child environment.
-   1. Calls `syscall.Exec()` to replace itself with the
-      target command.
-
-> [!NOTE]
-> Errors during priority adjustment are logged to stderr but
-> do **not** prevent the command from running. The user's
-> session still starts normally.
-
 ## Example
 
-Add the following `env` and `capabilities` blocks to a Docker
-or Kubernetes template's `coder_agent` or container resource:
+The following Kubernetes template snippet enables process
+priority management on the workspace container:
 
 ```hcl
-resource "docker_container" "workspace" {
+resource "kubernetes_deployment" "workspace" {
   # ... other configuration
 
-  env = [
-    "CODER_AGENT_TOKEN=${coder_agent.main.token}",
-    "CODER_PROC_PRIO_MGMT=1",
-    "CODER_PROC_OOM_SCORE=10",
-    "CODER_PROC_NICE_SCORE=1",
-  ]
+  spec {
+    template {
+      spec {
+        container {
+          name  = "dev"
+          image = "codercom/enterprise-base:ubuntu"
 
-  capabilities {
-    add = ["CAP_NET_ADMIN", "CAP_SYS_NICE"]
+          env {
+            name  = "CODER_AGENT_TOKEN"
+            value = coder_agent.main.token
+          }
+          env {
+            name  = "CODER_PROC_PRIO_MGMT"
+            value = "1"
+          }
+          env {
+            name  = "CODER_PROC_OOM_SCORE"
+            value = "10"
+          }
+          env {
+            name  = "CODER_PROC_NICE_SCORE"
+            value = "1"
+          }
+
+          security_context {
+            capabilities {
+              add = ["CAP_SYS_NICE"]
+            }
+          }
+        }
+      }
+    }
   }
 }
 ```
@@ -119,25 +104,25 @@ resource "docker_container" "workspace" {
   elevated OOM score while keeping them well below the maximum.
 - `CODER_PROC_NICE_SCORE=1` gives children a mildly lower CPU
   priority than the agent.
-- `CAP_SYS_NICE` allows the agent to set nice and OOM values.
-- `CAP_NET_ADMIN` is not required for process priority but is
-  commonly included for improved networking performance.
+- `CAP_SYS_NICE` allows the agent to set nice values.
 
 ## Troubleshooting
 
-### OOM score adjustment fails silently
+### OOM score adjustment fails
 
-If you see `error adjusting oom score` in stderr but the
+If you see `failed to adjust oom score` in stderr but the
 process still starts, the agent likely lacks permission to
-write to `/proc/self/oom_score_adj`. Add `CAP_SYS_NICE` to
-the container capabilities.
+write to `/proc/self/oom_score_adj`. Ensure the process is
+dumpable — this is handled automatically by the agent, but
+can fail if the container runtime restricts `prctl` calls.
 
 ### Nice value is not applied
 
-Nice values can only be increased (lowered in priority)
-without `CAP_SYS_NICE`. If your template sets a
-`CODER_PROC_NICE_SCORE` lower than the agent's current nice
-value, you need the capability.
+If you see `failed to adjust niceness` in stderr, nice values
+can only be increased (lowered in priority) without
+`CAP_SYS_NICE`. If your template sets a `CODER_PROC_NICE_SCORE`
+lower than the agent's current nice value, add the capability
+to the container's security context.
 
 ### Environment variables leak to nested Coder agents
 
