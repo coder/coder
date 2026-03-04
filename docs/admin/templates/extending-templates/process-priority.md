@@ -131,6 +131,20 @@ environments automatically. This prevents interference in
 "Coder on Coder" development scenarios where a workspace
 runs another Coder agent.
 
+### Verifying the feature is enabled
+
+The agent logs whether process priority management is active
+at startup. Look for these lines in the agent log:
+
+```text
+"process priority management enabled"
+"process priority management not enabled (linux-only)"
+```
+
+The log entry includes the `CODER_PROC_PRIO_MGMT` value and
+the operating system. Check the agent log file at
+`<log-dir>/coder-agent.log` or stderr output.
+
 ### Feature has no effect on macOS or Windows
 
 Process priority management is Linux-only. Setting
