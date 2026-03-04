@@ -1,3 +1,12 @@
+# HELP agent_boundary_log_proxy_batches_dropped_total Total number of boundary log batches dropped before reaching coderd. Reason: buffer_full = the agent's internal buffer is full, meaning boundary is producing logs faster than the agent can forward them to coderd; forward_failed = the agent failed to send the batch to coderd, potentially because coderd is unreachable or the connection was interrupted.
+# TYPE agent_boundary_log_proxy_batches_dropped_total counter
+agent_boundary_log_proxy_batches_dropped_total{reason=""} 0
+# HELP agent_boundary_log_proxy_batches_forwarded_total Total number of boundary log batches successfully forwarded to coderd. Compare with batches_dropped_total to compute a drop rate.
+# TYPE agent_boundary_log_proxy_batches_forwarded_total counter
+agent_boundary_log_proxy_batches_forwarded_total 0
+# HELP agent_boundary_log_proxy_logs_dropped_total Total number of individual boundary log entries dropped before reaching coderd. Reason: buffer_full = the agent's internal buffer is full; forward_failed = the agent failed to send the batch to coderd; boundary_channel_full = boundary's internal send channel overflowed, meaning boundary is generating logs faster than it can batch and send them; boundary_batch_full = boundary's outgoing batch buffer overflowed after a failed flush, meaning boundary could not write to the agent's socket.
+# TYPE agent_boundary_log_proxy_logs_dropped_total counter
+agent_boundary_log_proxy_logs_dropped_total{reason=""} 0
 # HELP coder_pubsub_connected Whether we are connected (1) or not connected (0) to postgres
 # TYPE coder_pubsub_connected gauge
 coder_pubsub_connected 0
@@ -159,13 +168,13 @@ coderd_dbpurge_records_purged_total{record_type=""} 0
 coderd_experiments{experiment=""} 0
 # HELP coderd_insights_applications_usage_seconds The application usage per template.
 # TYPE coderd_insights_applications_usage_seconds gauge
-coderd_insights_applications_usage_seconds{template_name="",application_name="",slug=""} 0
+coderd_insights_applications_usage_seconds{template_name="",application_name="",slug="",organization_name=""} 0
 # HELP coderd_insights_parameters The parameter usage per template.
 # TYPE coderd_insights_parameters gauge
-coderd_insights_parameters{template_name="",parameter_name="",parameter_type="",parameter_value=""} 0
+coderd_insights_parameters{template_name="",parameter_name="",parameter_type="",parameter_value="",organization_name=""} 0
 # HELP coderd_insights_templates_active_users The number of active users of the template.
 # TYPE coderd_insights_templates_active_users gauge
-coderd_insights_templates_active_users{template_name=""} 0
+coderd_insights_templates_active_users{template_name="",organization_name=""} 0
 # HELP coderd_license_active_users The number of active users.
 # TYPE coderd_license_active_users gauge
 coderd_license_active_users 0
@@ -265,6 +274,9 @@ coderd_prebuilt_workspaces_metrics_last_updated 0
 # HELP coderd_prebuilt_workspaces_preset_hard_limited Indicates whether a given preset has reached the hard failure limit (1 = hard-limited). Metric is omitted otherwise.
 # TYPE coderd_prebuilt_workspaces_preset_hard_limited gauge
 coderd_prebuilt_workspaces_preset_hard_limited{template_name="",preset_name="",organization_name=""} 0
+# HELP coderd_prebuilt_workspaces_preset_validation_failed Indicates whether a given preset has validation failures (1 = validation failed). Metric is omitted otherwise.
+# TYPE coderd_prebuilt_workspaces_preset_validation_failed gauge
+coderd_prebuilt_workspaces_preset_validation_failed{template_name="",preset_name="",organization_name=""} 0
 # HELP coderd_prebuilt_workspaces_reconciliation_paused Indicates whether prebuilds reconciliation is currently paused (1 = paused, 0 = not paused).
 # TYPE coderd_prebuilt_workspaces_reconciliation_paused gauge
 coderd_prebuilt_workspaces_reconciliation_paused 0

@@ -55,6 +55,19 @@ export const useWebpushNotifications = (): WebpushNotifications => {
 	const subscribe = async (): Promise<void> => {
 		try {
 			setLoading(true);
+
+			// Explicitly request notification permission before subscribing
+			// to the push manager. Without this, pushManager.subscribe()
+			// throws a generic "Registration failed - permission denied"
+			// DOMException when the permission state is "denied", which
+			// gives no opportunity to show a clear message to the user.
+			const permission = await Notification.requestPermission();
+			if (permission !== "granted") {
+				throw new Error(
+					"Notifications are blocked by your browser. Please allow notifications for this site in your browser settings.",
+				);
+			}
+
 			const registration = await navigator.serviceWorker.ready;
 			const vapidPublicKey = buildInfoQuery.data?.webpush_public_key;
 
@@ -89,6 +102,9 @@ export const useWebpushNotifications = (): WebpushNotifications => {
 			const subscription = await registration.pushManager.getSubscription();
 
 			if (subscription) {
+				await API.deleteWebPushSubscription("me", {
+					endpoint: subscription.endpoint,
+				});
 				await subscription.unsubscribe();
 				setSubscribed(false);
 			}

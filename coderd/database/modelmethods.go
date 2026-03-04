@@ -174,6 +174,10 @@ func (t Task) RBACObject() rbac.Object {
 	return obj
 }
 
+func (c Chat) RBACObject() rbac.Object {
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String())
+}
+
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
 	case ApiKeyScopeCoderAll:

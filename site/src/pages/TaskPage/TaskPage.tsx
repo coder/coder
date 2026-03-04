@@ -12,7 +12,6 @@ import type {
 } from "api/typesGenerated";
 import isChromatic from "chromatic/isChromatic";
 import { Button } from "components/Button/Button";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -46,6 +45,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
 import type { FixedSizeList } from "react-window";
+import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
@@ -448,7 +448,9 @@ const TaskPaused: FC<TaskPausedProps> = ({ task, workspace, onEditPrompt }) => {
 		...resumeTask(task, queryClient),
 		onError: (error: unknown) => {
 			if (!isApiError(error)) {
-				displayError(getErrorMessage(error, "Failed to resume task."));
+				toast.error(getErrorMessage(error, "Failed to resume task."), {
+					description: getErrorDetail(error),
+				});
 			}
 		},
 	});
@@ -616,7 +618,9 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 	const pauseMutation = useMutation({
 		...pauseTask(task, queryClient),
 		onError: (error: unknown) => {
-			displayError(getErrorMessage(error, "Failed to pause task."));
+			toast.error(getErrorMessage(error, "Failed to pause task."), {
+				description: getErrorDetail(error),
+			});
 		},
 	});
 	const pauseDisabled = isPauseDisabled(task.status);

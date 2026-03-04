@@ -123,3 +123,31 @@ Set to `0` to retain data indefinitely.
 
 For duration formats, how retention works, and best practices, see the
 [Data Retention](../../admin/setup/data-retention.md) documentation.
+
+## Structured Logging
+
+AI Bridge can emit structured logs for every interception record, making it
+straightforward to export data to external SIEM or observability platforms.
+
+Enable with `--aibridge-structured-logging` or `CODER_AIBRIDGE_STRUCTURED_LOGGING`:
+
+```sh
+coder server --aibridge-structured-logging=true
+```
+
+Or in YAML:
+
+```yaml
+aibridge:
+  structured_logging: true
+```
+
+These logs are written to the same output stream as all other `coderd` logs,
+using the format configured by
+[`--log-human`](../../reference/cli/server.md#--log-human) (default, writes to
+stderr) or [`--log-json`](../../reference/cli/server.md#--log-json). For machine
+ingestion, set `--log-json` to a file path or `/dev/stderr` so that records are
+emitted as JSON.
+
+Filter for AI Bridge records in your logging pipeline by matching on the
+`"interception log"` message.

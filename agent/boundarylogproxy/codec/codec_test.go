@@ -89,7 +89,7 @@ func TestReadFrameInvalidTag(t *testing.T) {
 	// reading the invalid tag.
 	const (
 		dataLength uint32 = 10
-		bogusTag   uint32 = 2
+		bogusTag   uint32 = 222
 	)
 	header := bogusTag<<codec.DataLength | dataLength
 	data := make([]byte, 4)
@@ -139,7 +139,7 @@ func TestWriteFrameInvalidTag(t *testing.T) {
 
 	var buf bytes.Buffer
 	data := make([]byte, 1)
-	const bogusTag = 2
+	const bogusTag = 222
 	err := codec.WriteFrame(&buf, codec.Tag(bogusTag), data)
 	require.ErrorIs(t, err, codec.ErrUnsupportedTag)
 }

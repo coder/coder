@@ -138,6 +138,27 @@ export const watchWorkspace = (
 	});
 };
 
+export const watchChat = (
+	chatId: string,
+	afterMessageId?: number,
+): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+	const params = new URLSearchParams();
+	if (afterMessageId !== undefined && afterMessageId > 0) {
+		params.set("after_id", afterMessageId.toString());
+	}
+	const query = params.toString();
+	const route = `/api/experimental/chats/${chatId}/stream${query ? `?${query}` : ""}`;
+	return new OneWayWebSocket({
+		apiRoute: route,
+	});
+};
+
+export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+	return new OneWayWebSocket({
+		apiRoute: "/api/experimental/chats/watch",
+	});
+};
+
 export const watchAgentContainers = (
 	agentId: string,
 ): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
@@ -324,6 +345,29 @@ export type GetTemplatesQuery = Readonly<{
 	readonly q: string;
 }>;
 
+interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
+	readonly patch?: string;
+	readonly diff_patch?: string;
+	readonly unified_diff?: string;
+	readonly diffs_url?: string;
+	readonly diff_url?: string;
+	readonly diffs_link?: string;
+}
+
+export type ChatDiffStatusResponse = Readonly<
+	{
+		chat_id: string;
+		url?: string;
+		pull_request_state?: string;
+		changes_requested: boolean;
+		additions: number;
+		deletions: number;
+		changed_files: number;
+		refreshed_at?: string;
+		stale_at?: string;
+	} & Record<string, unknown>
+>;
+
 function normalizeGetTemplatesOptions(
 	options: GetTemplatesOptions | GetTemplatesQuery = {},
 ): Record<string, string> {
@@ -356,6 +400,9 @@ export type DeploymentConfig = Readonly<{
 	config: TypesGen.DeploymentValues;
 	options: TypesGen.SerpentOption[];
 }>;
+
+const chatProviderConfigsPath = "/api/experimental/chats/providers";
+const chatModelConfigsPath = "/api/experimental/chats/model-configs";
 
 type Claims = {
 	license_expires: number;
@@ -781,7 +828,7 @@ class ApiMethods {
 	 */
 	patchWorkspaceSharingSettings = async (
 		organization: string,
-		data: TypesGen.WorkspaceSharingSettings,
+		data: TypesGen.UpdateWorkspaceSharingSettingsRequest,
 	): Promise<TypesGen.WorkspaceSharingSettings> => {
 		const response = await this.axios.patch<TypesGen.WorkspaceSharingSettings>(
 			`/api/v2/organizations/${organization}/settings/workspace-sharing`,
@@ -2486,11 +2533,14 @@ class ApiMethods {
 		return response.data;
 	};
 
+	// Intl.DateTimeFormat().resolvedOptions().timeZone returns an IANA timezone
+	// name (e.g. "America/New_York") per ECMA-402. Go's time.LoadLocation and
+	// PostgreSQL's timezone() both accept IANA names, so these are compatible.
 	getInsightsUserStatusCounts = async (
-		offset = Math.trunc(new Date().getTimezoneOffset() / 60),
+		timezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
 	): Promise<TypesGen.GetUserStatusCountsResponse> => {
 		const searchParams = new URLSearchParams({
-			tz_offset: offset.toString(),
+			timezone,
 		});
 		const response = await this.axios.get(
 			`/api/v2/insights/user-status-counts?${searchParams}`,
@@ -2862,6 +2912,197 @@ class ApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
+		return response.data;
+	};
+
+	// Chat API methods
+	getChats = async (): Promise<TypesGen.Chat[]> => {
+		const response = await this.axios.get<TypesGen.Chat[]>(
+			"/api/experimental/chats",
+		);
+		return response.data;
+	};
+
+	getChat = async (chatId: string): Promise<TypesGen.ChatWithMessages> => {
+		const response = await this.axios.get<TypesGen.ChatWithMessages>(
+			`/api/experimental/chats/${chatId}`,
+		);
+		return response.data;
+	};
+
+	createChat = async (
+		req: TypesGen.CreateChatRequest,
+	): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			"/api/experimental/chats",
+			req,
+		);
+		return response.data;
+	};
+
+	archiveChat = async (chatId: string): Promise<void> => {
+		await this.axios.post(`/api/experimental/chats/${chatId}/archive`);
+	};
+
+	unarchiveChat = async (chatId: string): Promise<void> => {
+		await this.axios.post(`/api/experimental/chats/${chatId}/unarchive`);
+	};
+
+	createChatMessage = async (
+		chatId: string,
+		req: TypesGen.CreateChatMessageRequest,
+	): Promise<TypesGen.CreateChatMessageResponse> => {
+		const response = await this.axios.post<TypesGen.CreateChatMessageResponse>(
+			`/api/experimental/chats/${chatId}/messages`,
+			req,
+		);
+		return response.data;
+	};
+
+	editChatMessage = async (
+		chatId: string,
+		messageId: number,
+		req: TypesGen.EditChatMessageRequest,
+	): Promise<TypesGen.ChatMessage> => {
+		const response = await this.axios.patch<TypesGen.ChatMessage>(
+			`/api/experimental/chats/${chatId}/messages/${messageId}`,
+			req,
+		);
+		return response.data;
+	};
+
+	interruptChat = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/experimental/chats/${chatId}/interrupt`,
+		);
+		return response.data;
+	};
+
+	deleteChatQueuedMessage = async (
+		chatId: string,
+		queuedMessageId: number,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/chats/${chatId}/queue/${queuedMessageId}`,
+		);
+	};
+
+	promoteChatQueuedMessage = async (
+		chatId: string,
+		queuedMessageId: number,
+	): Promise<TypesGen.ChatMessage> => {
+		const response = await this.axios.post<TypesGen.ChatMessage>(
+			`/api/experimental/chats/${chatId}/queue/${queuedMessageId}/promote`,
+		);
+		return response.data;
+	};
+
+	getChatGitChanges = async (
+		chatId: string,
+	): Promise<ChatGitChangeResponse[]> => {
+		const response = await this.axios.get<ChatGitChangeResponse[]>(
+			`/api/experimental/chats/${chatId}/git-changes`,
+		);
+		return response.data;
+	};
+
+	getChatDiffStatus = async (
+		chatId: string,
+	): Promise<ChatDiffStatusResponse> => {
+		const response = await this.axios.get<ChatDiffStatusResponse>(
+			`/api/experimental/chats/${chatId}/diff-status`,
+		);
+		return response.data;
+	};
+
+	getChatDiffContents = async (
+		chatId: string,
+	): Promise<TypesGen.ChatDiffContents> => {
+		const response = await this.axios.get<TypesGen.ChatDiffContents>(
+			`/api/experimental/chats/${chatId}/diff`,
+		);
+		return response.data;
+	};
+
+	getChatModels = async (): Promise<TypesGen.ChatModelsResponse> => {
+		const response = await this.axios.get<TypesGen.ChatModelsResponse>(
+			"/api/experimental/chats/models",
+		);
+		return response.data;
+	};
+
+	getChatProviderConfigs = async (): Promise<TypesGen.ChatProviderConfig[]> => {
+		const response = await this.axios.get<TypesGen.ChatProviderConfig[]>(
+			chatProviderConfigsPath,
+		);
+		return response.data;
+	};
+
+	createChatProviderConfig = async (
+		req: TypesGen.CreateChatProviderConfigRequest,
+	): Promise<TypesGen.ChatProviderConfig> => {
+		const response = await this.axios.post<TypesGen.ChatProviderConfig>(
+			chatProviderConfigsPath,
+			req,
+		);
+		return response.data;
+	};
+
+	updateChatProviderConfig = async (
+		providerConfigId: string,
+		req: TypesGen.UpdateChatProviderConfigRequest,
+	): Promise<TypesGen.ChatProviderConfig> => {
+		const response = await this.axios.patch<TypesGen.ChatProviderConfig>(
+			`${chatProviderConfigsPath}/${encodeURIComponent(providerConfigId)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatProviderConfig = async (
+		providerConfigId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`${chatProviderConfigsPath}/${encodeURIComponent(providerConfigId)}`,
+		);
+	};
+
+	getChatModelConfigs = async (): Promise<TypesGen.ChatModelConfig[]> => {
+		const response =
+			await this.axios.get<TypesGen.ChatModelConfig[]>(chatModelConfigsPath);
+		return response.data;
+	};
+
+	createChatModelConfig = async (
+		req: TypesGen.CreateChatModelConfigRequest,
+	): Promise<TypesGen.ChatModelConfig> => {
+		const response = await this.axios.post<TypesGen.ChatModelConfig>(
+			chatModelConfigsPath,
+			req,
+		);
+		return response.data;
+	};
+
+	updateChatModelConfig = async (
+		modelConfigId: string,
+		req: TypesGen.UpdateChatModelConfigRequest,
+	): Promise<TypesGen.ChatModelConfig> => {
+		const response = await this.axios.patch<TypesGen.ChatModelConfig>(
+			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatModelConfig = async (modelConfigId: string): Promise<void> => {
+		await this.axios.delete(
+			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
+		);
+	};
+	getAIBridgeModels = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+
+		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
 }

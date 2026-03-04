@@ -1,6 +1,6 @@
 import { MockLicenseResponse } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LicenseCard } from "./LicenseCard";
 
@@ -56,7 +56,8 @@ describe("LicenseCard", () => {
 		const removeButton = await screen.findByRole("button", { name: /remove/i });
 		await user.click(removeButton);
 
-		await screen.findByText(/This license has already expired/);
+		const dialog = await screen.findByTestId("dialog");
+		expect(dialog).toHaveTextContent(/This license has already expired/);
 	});
 
 	it("shows disabling features warning for active licenses", async () => {
@@ -105,5 +106,41 @@ describe("LicenseCard", () => {
 
 		// Then
 		await screen.findByText("1 / 3");
+	});
+
+	it("requires typing the license ID before allowing removal", async () => {
+		const user = userEvent.setup();
+		const onRemove = vi.fn();
+		const license = MockLicenseResponse[0];
+
+		render(
+			<LicenseCard
+				license={license}
+				userLimitActual={1}
+				userLimitLimit={10}
+				onRemove={onRemove}
+				isRemoving={false}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: /remove/i }));
+
+		const dialog = await screen.findByTestId("dialog");
+		const dialogScope = within(dialog);
+		const confirmButton = dialogScope.getByRole("button", { name: "Remove" });
+		expect(confirmButton).toBeDisabled();
+
+		const confirmationInput = dialogScope.getByTestId(
+			"delete-dialog-name-confirmation",
+		);
+		await user.type(confirmationInput, "wrong");
+		expect(confirmButton).toBeDisabled();
+
+		await user.clear(confirmationInput);
+		await user.type(confirmationInput, String(license.id));
+		expect(confirmButton).toBeEnabled();
+
+		await user.click(confirmButton);
+		expect(onRemove).toHaveBeenCalledWith(license.id);
 	});
 });

@@ -94,12 +94,8 @@ PACKAGE_OS_ARCHES := linux_amd64 linux_armv7 linux_arm64
 # All architectures we build Docker images for (Linux only).
 DOCKER_ARCHES := amd64 arm64 armv7
 
-# All ${OS}_${ARCH} combos we build the desktop dylib for.
-DYLIB_ARCHES := darwin_amd64 darwin_arm64
-
 # Computed variables based on the above.
 CODER_SLIM_BINARIES      := $(addprefix build/coder-slim_$(VERSION)_,$(OS_ARCHES))
-CODER_DYLIBS             := $(foreach os_arch, $(DYLIB_ARCHES), build/coder-vpn_$(VERSION)_$(os_arch).dylib)
 CODER_FAT_BINARIES       := $(addprefix build/coder_$(VERSION)_,$(OS_ARCHES))
 CODER_ALL_BINARIES       := $(CODER_SLIM_BINARIES) $(CODER_FAT_BINARIES)
 CODER_TAR_GZ_ARCHIVES    := $(foreach os_arch, $(ARCHIVE_TAR_GZ), build/coder_$(VERSION)_$(os_arch).tar.gz)
@@ -261,26 +257,6 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 		fi
 	fi
 
-# This task builds Coder Desktop dylibs
-$(CODER_DYLIBS): go.mod go.sum $(MOST_GO_SRC_FILES)
-	@if [ "$(shell uname)" = "Darwin" ]; then
-		$(get-mode-os-arch-ext)
-		./scripts/build_go.sh \
-			--os "$$os" \
-			--arch "$$arch" \
-			--version "$(VERSION)" \
-			--output "$@" \
-			--dylib
-
-	else
-		echo "ERROR: Can't build dylib on non-Darwin OS" 1>&2
-		exit 1
-	fi
-
-# This task builds both dylibs
-build/coder-dylib: $(CODER_DYLIBS)
-.PHONY: build/coder-dylib
-
 # This task builds all archives. It parses the target name to get the metadata
 # for the build, so it must be specified in this format:
 #     build/coder_${version}_${os}_${arch}.${format}
@@ -427,6 +403,7 @@ SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
+	site/src/api/chatModelOptionsGenerated.json \
 	site/src/theme/icons.json
 
 site/out/index.html: \
@@ -654,6 +631,7 @@ GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
 	agent/agentsocket/proto/agentsocket.pb.go \
+	agent/boundarylogproxy/codec/boundary.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
@@ -709,6 +687,7 @@ gen/mark-fresh:
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		agent/agentsocket/proto/agentsocket.pb.go \
+		agent/boundarylogproxy/codec/boundary.pb.go \
 		vpn/vpn.pb.go \
 		enterprise/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
@@ -719,6 +698,7 @@ gen/mark-fresh:
 		coderd/rbac/scopes_constants_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
+		site/src/api/chatModelOptionsGenerated.json \
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
@@ -813,7 +793,7 @@ agent/proto/agent.pb.go: agent/proto/agent.proto
 		--go-drpc_opt=paths=source_relative \
 		./agent/proto/agent.proto
 
-agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto
+agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto agent/proto/agent.proto
 	protoc \
 		--go_out=. \
 		--go_opt=paths=source_relative \
@@ -843,6 +823,12 @@ vpn/vpn.pb.go: vpn/vpn.proto
 		--go_opt=paths=source_relative \
 		./vpn/vpn.proto
 
+agent/boundarylogproxy/codec/boundary.pb.go: agent/boundarylogproxy/codec/boundary.proto agent/proto/agent.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		./agent/boundarylogproxy/codec/boundary.proto
+
 enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged.proto
 	protoc \
 		--go_out=. \
@@ -854,7 +840,7 @@ enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	# -C sets the directory for the go run command
 	go run -C ./scripts/apitypings main.go > $@
-	(cd site/ && pnpm exec biome format --write src/api/typesGenerated.ts)
+	./scripts/biome_format.sh src/api/typesGenerated.ts
 	touch "$@"
 
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
@@ -863,7 +849,7 @@ site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/prot
 
 site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
 	go run ./scripts/gensite/ -icons "$@"
-	(cd site/ && pnpm exec biome format --write src/theme/icons.json)
+	./scripts/biome_format.sh src/theme/icons.json
 	touch "$@"
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
@@ -901,13 +887,17 @@ codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scope
 
 site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	go run scripts/typegen/main.go rbac typescript > "$@"
-	(cd site/ && pnpm exec biome format --write src/api/rbacresourcesGenerated.ts)
+	./scripts/biome_format.sh src/api/rbacresourcesGenerated.ts
 	touch "$@"
 
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go
 	go run scripts/typegen/main.go countries > "$@"
-	(cd site/ && pnpm exec biome format --write src/api/countriesGenerated.ts)
+	./scripts/biome_format.sh src/api/countriesGenerated.ts
 	touch "$@"
+
+site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go
+	go run ./scripts/modeloptionsgen/main.go | tail -n +2 > "$@"
+	cd site && pnpm biome format --write src/api/chatModelOptionsGenerated.json
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES)
 	go run ./scripts/metricsdocgen/scanner > $@
@@ -950,11 +940,11 @@ coderd/apidoc/.gen: \
 	touch "$@"
 
 docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md
-	(cd site/ && pnpm exec biome format --write ../docs/manifest.json)
+	./scripts/biome_format.sh ../docs/manifest.json
 	touch "$@"
 
 coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen
-	(cd site/ && pnpm exec biome format --write ../coderd/apidoc/swagger.json)
+	./scripts/biome_format.sh ../coderd/apidoc/swagger.json
 	touch "$@"
 
 update-golden-files:
@@ -999,11 +989,19 @@ enterprise/tailnet/testdata/.gen-golden: $(wildcard enterprise/tailnet/testdata/
 	touch "$@"
 
 helm/coder/tests/testdata/.gen-golden: $(wildcard helm/coder/tests/testdata/*.yaml) $(wildcard helm/coder/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/coder/tests/*_test.go)
-	TZ=UTC go test ./helm/coder/tests -run=TestUpdateGoldenFiles -update
+	if command -v helm >/dev/null 2>&1; then
+		TZ=UTC go test ./helm/coder/tests -run=TestUpdateGoldenFiles -update
+	else
+		echo "WARNING: helm not found; skipping helm/coder golden generation" >&2
+	fi
 	touch "$@"
 
 helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/testdata/*.yaml) $(wildcard helm/provisioner/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/provisioner/tests/*_test.go)
-	TZ=UTC go test ./helm/provisioner/tests -run=TestUpdateGoldenFiles -update
+	if command -v helm >/dev/null 2>&1; then
+		TZ=UTC go test ./helm/provisioner/tests -run=TestUpdateGoldenFiles -update
+	else
+		echo "WARNING: helm not found; skipping helm/provisioner golden generation" >&2
+	fi
 	touch "$@"
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)

@@ -1,11 +1,11 @@
 import { API } from "api/api";
 import { authMethods, updatePassword } from "api/queries/users";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "hooks";
 import type { ComponentProps, FC } from "react";
 import { useMutation, useQuery } from "react-query";
+import { toast } from "sonner";
 import { Section } from "../Section";
 import { SecurityForm } from "./SecurityForm";
 import {
@@ -39,7 +39,7 @@ const SecurityPage: FC = () => {
 							userId: me.id,
 							...data,
 						});
-						displaySuccess("Updated password.");
+						toast.success("Updated password.");
 						// Refresh the browser session. We need to improve the AuthProvider
 						// to include better API to handle these scenarios
 						window.location.href = location.origin;

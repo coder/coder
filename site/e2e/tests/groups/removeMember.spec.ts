@@ -37,5 +37,7 @@ test("remove member", async ({ page, baseURL }) => {
 	const menu = page.getByRole("menu");
 	await menu.getByText("Remove").click({ timeout: 1_000 });
 
-	await expect(page.getByText("Member removed successfully.")).toBeVisible();
+	await expect(
+		page.getByText(/has been removed from .* successfully/),
+	).toBeVisible();
 });

@@ -1,8 +1,8 @@
 import TextField from "@mui/material/TextField";
+import { getErrorDetail } from "api/errors";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { FileUpload } from "components/FileUpload/FileUpload";
-import { displayError } from "components/GlobalSnackbar/utils";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -12,6 +12,7 @@ import { Stack } from "components/Stack/Stack";
 import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import { toast } from "sonner";
 import { Fieldset } from "../Fieldset";
 import { DividerWithText } from "./DividerWithText";
 
@@ -33,8 +34,10 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 
 			onSaveLicenseKey(licenseKey);
 
-			fileReader.onerror = () => {
-				displayError("Failed to read file");
+			fileReader.onerror = (error) => {
+				toast.error("Failed to read file.", {
+					description: getErrorDetail(error),
+				});
 			};
 		};
 
