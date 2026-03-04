@@ -19,9 +19,9 @@ shell execution — and works with any LLM provider you configure.
 
 No specialized software, API keys, or network access is required inside your workspace. The only requirement is network access between the control plane and external LLM providers.
 
-<video autoplay loop muted playsinline controls width="100%">
-  <source src="../images/guides/ai-agents/coder-agents-ui.mp4" type="video/mp4">
-  Your browser does not support the video tag.
+<video autoplay playsinline loop>
+  <source src="https://github.com/coder/coder/blob/main/docs/images/guides/ai-agents/coder-agents-ui.mp4?raw=true" type="video/mp4">
+Your browser does not support the video tag.
 </video>
 
 ## Who is Coder Agents for
