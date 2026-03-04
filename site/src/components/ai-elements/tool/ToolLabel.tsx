@@ -25,6 +25,12 @@ export const ToolLabel: React.FC<{
 				</span>
 			);
 		}
+		case "process_output":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Reading process output
+				</span>
+			);
 		case "read_file":
 			return (
 				<span className="truncate text-sm text-content-secondary">

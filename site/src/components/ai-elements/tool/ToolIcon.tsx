@@ -17,6 +17,7 @@ export const ToolIcon: React.FC<{ name: string; isError: boolean }> = ({
 	const base = cn("h-4 w-4 shrink-0", color);
 	switch (name) {
 		case "execute":
+		case "process_output":
 			return <TerminalIcon className={base} />;
 		case "read_file":
 		case "list_templates":

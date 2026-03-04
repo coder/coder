@@ -13,6 +13,7 @@ import {
 	WaitForExternalAuthTool,
 } from "./ExecuteTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
+import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ReadFileTool } from "./ReadFileTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { SubagentTool } from "./SubagentTool";
@@ -100,6 +101,29 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			command={command}
 			output={output}
 			status={status}
+			isError={isError}
+		/>
+	);
+};
+
+const ProcessOutputRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const output = rec ? asString(rec.output).trim() : "";
+	const exitCode = rec
+		? rec.exit_code !== undefined && rec.exit_code !== null
+			? Number(rec.exit_code)
+			: null
+		: null;
+
+	return (
+		<ProcessOutputTool
+			output={output}
+			isRunning={status === "running"}
+			exitCode={exitCode}
 			isError={isError}
 		/>
 	);
@@ -424,6 +448,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 
 const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	execute: ExecuteRenderer,
+	process_output: ProcessOutputRenderer,
 	wait_for_external_auth: WaitForExternalAuthRenderer,
 	read_file: ReadFileRenderer,
 	write_file: WriteFileRenderer,
@@ -461,7 +486,9 @@ export const Tool = memo(
 			<div
 				ref={ref}
 				className={cn(
-					name === "execute" ? "w-full py-0.5" : "py-0.5",
+					name === "execute" || name === "process_output"
+						? "w-full py-0.5"
+						: "py-0.5",
 					className,
 				)}
 				{...props}
