@@ -352,9 +352,6 @@ jobs:
       - name: Install shfmt
         run: ./.github/scripts/retry.sh -- go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
-
       - name: make fmt
         timeout-minutes: 7
         run: |
