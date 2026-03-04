@@ -21,10 +21,10 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({ queryKey: chatsKey });
 		await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
-		const previousChats =
-			queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
-		const previousChat =
-			queryClient.getQueryData<TypesGen.ChatWithMessages>(chatKey(chatId));
+		const previousChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+		const previousChat = queryClient.getQueryData<TypesGen.ChatWithMessages>(
+			chatKey(chatId),
+		);
 		queryClient.setQueryData<TypesGen.Chat[]>(chatsKey, (old) =>
 			old?.map((chat) =>
 				chat.id === chatId ? { ...chat, archived: true } : chat,
@@ -38,6 +38,29 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		}
 		return { previousChats, previousChat };
 	},
+	onError: (
+		_error: unknown,
+		chatId: string,
+		context:
+			| {
+					previousChats?: TypesGen.Chat[];
+					previousChat?: TypesGen.ChatWithMessages;
+			  }
+			| undefined,
+	) => {
+		if (context?.previousChats) {
+			queryClient.setQueryData<TypesGen.Chat[]>(
+				chatsKey,
+				context.previousChats,
+			);
+		}
+		if (context?.previousChat) {
+			queryClient.setQueryData<TypesGen.ChatWithMessages>(
+				chatKey(chatId),
+				context.previousChat,
+			);
+		}
+	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
 		await queryClient.invalidateQueries({ queryKey: chatsKey });
 		await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
@@ -49,10 +72,10 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({ queryKey: chatsKey });
 		await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
-		const previousChats =
-			queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
-		const previousChat =
-			queryClient.getQueryData<TypesGen.ChatWithMessages>(chatKey(chatId));
+		const previousChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+		const previousChat = queryClient.getQueryData<TypesGen.ChatWithMessages>(
+			chatKey(chatId),
+		);
 		queryClient.setQueryData<TypesGen.Chat[]>(chatsKey, (old) =>
 			old?.map((chat) =>
 				chat.id === chatId ? { ...chat, archived: false } : chat,
@@ -65,6 +88,29 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 			});
 		}
 		return { previousChats, previousChat };
+	},
+	onError: (
+		_error: unknown,
+		chatId: string,
+		context:
+			| {
+					previousChats?: TypesGen.Chat[];
+					previousChat?: TypesGen.ChatWithMessages;
+			  }
+			| undefined,
+	) => {
+		if (context?.previousChats) {
+			queryClient.setQueryData<TypesGen.Chat[]>(
+				chatsKey,
+				context.previousChats,
+			);
+		}
+		if (context?.previousChat) {
+			queryClient.setQueryData<TypesGen.ChatWithMessages>(
+				chatKey(chatId),
+				context.previousChat,
+			);
+		}
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
 		await queryClient.invalidateQueries({ queryKey: chatsKey });

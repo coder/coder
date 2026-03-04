@@ -158,16 +158,19 @@ const AgentsPage: FC = () => {
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const createMutation = useMutation(createChat(queryClient));
-		const archiveAgentMutation = useMutation({
-			...archiveChat(queryClient),
-			onSuccess: (_data, chatId) => {
-				clearChatErrorReason(chatId);
-				toast.success("Agent archived.");
-			},
-			onError: (error) => {
-				toast.error(getErrorMessage(error, "Failed to archive agent."));
-			},
-		});	const archiveAndDeleteMutation = useMutation({
+	const archiveChatBase = archiveChat(queryClient);
+	const archiveAgentMutation = useMutation({
+		...archiveChatBase,
+		onSuccess: (_data, chatId) => {
+			clearChatErrorReason(chatId);
+			toast.success("Agent archived.");
+		},
+		onError: (error, chatId, context) => {
+			archiveChatBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const archiveAndDeleteMutation = useMutation({
 		mutationFn: async ({
 			chatId,
 			workspaceId,
@@ -190,15 +193,18 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
 		},
 	});
-		const unarchiveAgentMutation = useMutation({
-			...unarchiveChat(queryClient),
-			onSuccess: () => {
-				toast.success("Agent unarchived.");
-			},
-			onError: (error) => {
-				toast.error(getErrorMessage(error, "Failed to unarchive agent."));
-			},
-		});	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
+	const unarchiveChatBase = unarchiveChat(queryClient);
+	const unarchiveAgentMutation = useMutation({
+		...unarchiveChatBase,
+		onSuccess: () => {
+			toast.success("Agent unarchived.");
+		},
+		onError: (error, chatId, context) => {
+			unarchiveChatBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
+	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
