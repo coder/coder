@@ -658,7 +658,8 @@ export const ModelDeleteConfirmation: Story = {
 		// Click Delete to show the inline confirmation.
 		await userEvent.click(deleteButton);
 
-		// The confirmation strip should appear.
+		// The confirmation strip should appear — leave it visible
+		// so the Chromatic snapshot captures this state.
 		await expect(
 			await body.findByText(/Are you sure\? This action is irreversible/i),
 		).toBeInTheDocument();
@@ -668,11 +669,48 @@ export const ModelDeleteConfirmation: Story = {
 		await expect(
 			body.getByRole("button", { name: "Cancel" }),
 		).toBeInTheDocument();
+	},
+};
 
-		// Cancel should return to the normal footer.
+export const ModelDeleteCancelled: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [
+				createModelConfig({
+					id: "model-1",
+					provider: "openai",
+					model: "gpt-4o",
+					display_name: "GPT-4o",
+				}),
+			],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to edit form, trigger confirmation, then cancel.
+		await userEvent.click(await body.findByText("GPT-4o"));
+		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
+		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+
+		// Normal footer should be restored.
 		await expect(
 			await body.findByRole("button", { name: "Delete" }),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByRole("button", { name: "Save" }),
 		).toBeInTheDocument();
 	},
 };
@@ -746,7 +784,8 @@ export const ProviderDeleteConfirmation: Story = {
 		const deleteButton = await body.findByRole("button", { name: "Delete" });
 		await userEvent.click(deleteButton);
 
-		// The confirmation strip should appear.
+		// The confirmation strip should appear — leave it visible
+		// so the Chromatic snapshot captures this state.
 		await expect(
 			await body.findByText(/Are you sure\? This action is irreversible/i),
 		).toBeInTheDocument();
@@ -756,11 +795,41 @@ export const ProviderDeleteConfirmation: Story = {
 		await expect(
 			body.getByRole("button", { name: "Cancel" }),
 		).toBeInTheDocument();
+	},
+};
 
-		// Cancel should return to the normal footer.
+export const ProviderDeleteCancelled: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to provider detail, trigger confirmation, then cancel.
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
+		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+
+		// Normal footer should be restored.
 		await expect(
 			await body.findByRole("button", { name: "Delete" }),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByRole("button", { name: "Save changes" }),
 		).toBeInTheDocument();
 	},
 };
