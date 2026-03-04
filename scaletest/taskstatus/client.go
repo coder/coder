@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/quartz"
@@ -41,15 +42,20 @@ type client interface {
 	initialize(logger slog.Logger)
 }
 
-// appStatusPatcher abstracts the details of using agentsdk.Client for updating app status.
-// This interface is separate from client because it requires an agent token which is only
-// available after creating an external workspace.
-type appStatusPatcher interface {
-	// patchAppStatus updates the status of a workspace app.
-	patchAppStatus(ctx context.Context, req agentsdk.PatchAppStatus) error
+// appStatusUpdater abstracts the details of updating app status via the
+// Agent dRPC API. This interface is separate from client because it
+// requires an agent token which is only available after creating an
+// external workspace.
+type appStatusUpdater interface {
+	// updateAppStatus sends a status update for a workspace app.
+	updateAppStatus(ctx context.Context, req *agentproto.UpdateAppStatusRequest) error
 
-	// initialize sets up the patcher with the provided logger and agent token.
-	initialize(logger slog.Logger, agentToken string)
+	// initialize establishes the dRPC connection using the provided
+	// agent token. Must be called before updateAppStatus.
+	initialize(ctx context.Context, logger slog.Logger, agentToken string) error
+
+	// close cleanly shuts down the underlying dRPC connection.
+	close() error
 }
 
 // sdkClient is the concrete implementation of the client interface using
@@ -103,42 +109,57 @@ func (c *sdkClient) initialize(logger slog.Logger) {
 	c.coderClient.SetLogBodies(true)
 }
 
-// sdkAppStatusPatcher is the concrete implementation of the appStatusPatcher interface
-// using agentsdk.Client.
-type sdkAppStatusPatcher struct {
-	agentClient *agentsdk.Client
-	url         *url.URL
-	httpClient  *http.Client
+// sdkAppStatusUpdater is the concrete implementation of the
+// appStatusUpdater interface. It dials the Agent dRPC endpoint once
+// during initialize and reuses the connection for all subsequent
+// UpdateAppStatus calls.
+type sdkAppStatusUpdater struct {
+	drpcClient agentproto.DRPCAgentClient28
+	url        *url.URL
+	httpClient *http.Client
 }
 
-// newAppStatusPatcher creates a new appStatusPatcher implementation.
-func newAppStatusPatcher(client *codersdk.Client) appStatusPatcher {
-	return &sdkAppStatusPatcher{
+// newAppStatusUpdater creates a new appStatusUpdater implementation.
+func newAppStatusUpdater(client *codersdk.Client) appStatusUpdater {
+	return &sdkAppStatusUpdater{
 		url:        client.URL,
 		httpClient: client.HTTPClient,
 	}
 }
 
-func (p *sdkAppStatusPatcher) patchAppStatus(ctx context.Context, req agentsdk.PatchAppStatus) error {
-	if p.agentClient == nil {
-		panic("agentClient not initialized - call initialize first")
+func (u *sdkAppStatusUpdater) updateAppStatus(ctx context.Context, req *agentproto.UpdateAppStatusRequest) error {
+	if u.drpcClient == nil {
+		return xerrors.New("dRPC client not initialized - call initialize first")
 	}
-	return p.agentClient.PatchAppStatus(ctx, req)
+	_, err := u.drpcClient.UpdateAppStatus(ctx, req)
+	return err
 }
 
-func (p *sdkAppStatusPatcher) initialize(logger slog.Logger, agentToken string) {
-	// Create and configure the agent client with the provided token
-	p.agentClient = agentsdk.New(
-		p.url,
+func (u *sdkAppStatusUpdater) close() error {
+	if u.drpcClient == nil {
+		return nil
+	}
+	return u.drpcClient.DRPCConn().Close()
+}
+
+func (u *sdkAppStatusUpdater) initialize(ctx context.Context, logger slog.Logger, agentToken string) error {
+	agentClient := agentsdk.New(
+		u.url,
 		agentsdk.WithFixedToken(agentToken),
-		codersdk.WithHTTPClient(p.httpClient),
+		codersdk.WithHTTPClient(u.httpClient),
 		codersdk.WithLogger(logger),
 		codersdk.WithLogBodies(),
 	)
+	drpcClient, _, err := agentClient.ConnectRPC28WithRole(ctx, "")
+	if err != nil {
+		return xerrors.Errorf("connect to agent dRPC endpoint: %w", err)
+	}
+	u.drpcClient = drpcClient
+	return nil
 }
 
 // Ensure sdkClient implements the client interface.
 var _ client = (*sdkClient)(nil)
 
-// Ensure sdkAppStatusPatcher implements the appStatusPatcher interface.
-var _ appStatusPatcher = (*sdkAppStatusPatcher)(nil)
+// Ensure sdkAppStatusUpdater implements the appStatusUpdater interface.
+var _ appStatusUpdater = (*sdkAppStatusUpdater)(nil)
