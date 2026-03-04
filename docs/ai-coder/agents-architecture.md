@@ -19,36 +19,7 @@ Three components are involved in every Coder Agents interaction:
    reads and writes files, and executes processes — exactly what it does when a
    developer connects via their IDE.
 
-```
-┌──────────────────────────────────┐
-│         Control Plane            │
-│                                  │
-│  ┌───────────┐   ┌───────────┐  │
-│  │ Agent     │──▶│ LLM       │──┼──▶ LLM Provider
-│  │ Loop      │◀──│ Streaming │  │    (Anthropic, OpenAI, etc.)
-│  └─────┬─────┘   └───────────┘  │
-│        │                        │
-│        │ Tool calls             │
-│        ▼                        │
-│  ┌───────────┐                  │
-│  │ Tailnet   │                  │
-│  │ Connection│                  │
-│  └─────┬─────┘                  │
-│        │                        │
-└────────┼────────────────────────┘
-         │ Same connection path as
-         │ IDE, SSH, web terminal
-         ▼
-┌──────────────────────────────────┐
-│         Workspace                │
-│                                  │
-│  ┌───────────┐                  │
-│  │ Workspace │  No AI software  │
-│  │ Daemon    │  No API keys     │
-│  │           │  No LLM access   │
-│  └───────────┘                  │
-└──────────────────────────────────┘
-```
+![Placeholder: Architecture diagram showing the control plane running the agent loop, connecting to LLM providers outbound, and reaching workspaces over the same Tailnet connection used by IDEs and terminals](../images/guides/ai-agents/agents-architecture.png)
 
 ## The same connection your IDE uses
 
@@ -278,9 +249,3 @@ happens elsewhere:
 - **The control plane** primarily proxies streaming responses and dispatches
   tool calls over existing network connections.
 
-## Next steps
-
-- [Coder Agents overview](./agents.md) — feature overview, LLM provider setup,
-  and built-in tools.
-- [Security best practices](./security.md) — general guidance for AI coding
-  workflows in Coder.
