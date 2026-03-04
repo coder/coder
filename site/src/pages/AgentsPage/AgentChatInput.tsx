@@ -292,7 +292,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 
 			onSend(text);
-			internalRef.current?.clear();
 			internalRef.current?.focus();
 		}, [
 			isDisabled,
@@ -392,7 +391,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						initialValue={initialValue}
 						onChange={handleContentChange}
 						onEnter={handleSubmit}
-						disabled={isDisabled}
+						disabled={isDisabled || isLoading}
 						rows={4}
 						autoFocus
 					/>
