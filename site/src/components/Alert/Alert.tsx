@@ -96,31 +96,32 @@ export const Alert: FC<AlertProps> = ({
 			className={cn(alertVariants({ severity, prominent }), className)}
 			{...props}
 		>
-			<div className="flex items-center justify-between gap-4 text-sm">
-				<div className="flex flex-row items-start gap-3">
+			<div className="flex flex-col justify-between gap-4 text-sm relative pr-8">
+				<div className="flex flex-row items-start gap-3 flex-1">
 					<Icon className={cn("size-icon-sm mt-[3px]", iconClassName)} />
-					<div className="flex-1">{children}</div>
-				</div>
-				<div className="flex items-center gap-2">
-					{actions}
-
-					{dismissible && (
-						<Button
-							variant="subtle"
-							size="icon"
-							className="!size-auto !min-w-0 !p-0"
-							onClick={() => {
-								setOpen(false);
-								onDismiss?.();
-							}}
-							data-testid="dismiss-banner-btn"
-							aria-label="Dismiss"
-						>
-							<XIcon className="!p-0" />
-						</Button>
-					)}
+					<div className="flex flex-col gap-4 flex-1">
+						<div className="flex-1">{children}</div>
+						{actions && (
+							<div className="flex items-center gap-2">{actions}</div>
+						)}
+					</div>
 				</div>
 			</div>
+			{dismissible && (
+				<Button
+					variant="subtle"
+					size="icon"
+					className="size-8 !min-w-0 !p-0 absolute top-3 right-3"
+					onClick={() => {
+						setOpen(false);
+						onDismiss?.();
+					}}
+					data-testid="dismiss-banner-btn"
+					aria-label="Dismiss"
+				>
+					<XIcon className="!p-0 size-icon-lg" />
+				</Button>
+			)}
 		</div>
 	);
 };
@@ -139,7 +140,5 @@ export const AlertTitle: React.FC<React.ComponentPropsWithRef<"h1">> = ({
 	className,
 	...props
 }) => {
-	return (
-		<h1 className={cn("m-0 mb-1 text-sm font-medium", className)} {...props} />
-	);
+	return <h1 className={cn("m-0 text-sm", className)} {...props} />;
 };
