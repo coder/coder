@@ -475,7 +475,7 @@ ref="$(git rev-parse HEAD)"
 short_ref="${ref:0:12}"
 
 if ((tag_exists == 0)); then
-	echo -e "${BOLD}I'm going to create an annotated tag:${RESET}"
+	echo -e "${BOLD}Next step: create an annotated tag.${RESET}"
 	log "  Tag:    ${new_version}"
 	log "  Commit: ${short_ref}"
 	log "  Branch: ${current_branch}"
@@ -494,7 +494,7 @@ fi
 
 # --- Push Tag --------------------------------------------------------------
 
-echo -e "${BOLD}I'm going to push the tag '${new_version}' to origin.${RESET}"
+echo -e "${BOLD}Next step: push tag '${new_version}' to origin.${RESET}"
 log "  This will run: git push origin ${new_version}"
 log
 if confirm "Push tag?"; then
@@ -512,7 +512,7 @@ release_json=$(jq -n \
 	--arg release_notes "$release_notes" \
 	'{dry_run: "false", release_channel: $release_channel, release_notes: $release_notes}')
 
-echo -e "${BOLD}I'm going to trigger the 'release.yaml' GitHub Actions workflow.${RESET}"
+echo -e "${BOLD}Next step: trigger the 'release.yaml' GitHub Actions workflow.${RESET}"
 log "  Ref:     ${new_version}"
 log "  Channel: ${channel}"
 log "  Payload:"
@@ -529,24 +529,7 @@ else
 fi
 log
 
-# --- Watch Workflow --------------------------------------------------------
-
-if confirm "Watch the release workflow?"; then
-	log "Waiting for workflow run to appear..."
-	for _ in $(seq 1 60); do
-		output="$(gh run list -w release.yaml \
-			--limit 1 \
-			--json status,databaseId \
-			--jq '.[] | (.databaseId | tostring), .status')"
-		mapfile -t run <<<"$output"
-		if [[ ${run[1]:-} == "in_progress" ]] || [[ ${run[1]:-} == "queued" ]]; then
-			gh run watch --exit-status "${run[0]}"
-			exit 0
-		fi
-		sleep 10
-	done
-	warn "Timed out waiting for workflow to start. Check GitHub Actions manually."
-fi
-
 log
 success "Done! 🎉"
+log
+info "Follow the release workflow: https://github.com/coder/coder/actions/workflows/release.yaml"
