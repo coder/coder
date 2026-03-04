@@ -23,7 +23,7 @@ import type {
 	VariableValue,
 	WorkspaceResource,
 } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Sidebar } from "#/components/FullPageLayout/Sidebar";
 import {
@@ -306,16 +306,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								prominent
 								dismissible
 								actions={
-									<Button
-										variant="subtle"
-										size="sm"
-										onClick={onCreateWorkspace}
-									>
+									<Button size="sm" onClick={onCreateWorkspace}>
 										Create a workspace
 									</Button>
 								}
 							>
-								Successfully published {publishedVersion.name}!
+								<AlertTitle>
+									Successfully published {publishedVersion.name}!
+								</AlertTitle>
 							</Alert>
 						</div>
 					)}
