@@ -1694,7 +1694,7 @@ func TestStreamChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		events, closer, err := client.StreamChat(ctx, chat.ID)
+		events, closer, err := client.StreamChat(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		defer closer.Close()
 

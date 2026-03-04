@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"net/url"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"cdr.dev/slog/v3"
 	osschatd "github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 	"github.com/coder/websocket"
@@ -419,6 +421,9 @@ func NewMultiReplicaSubscribeFn(
 // dialRelay opens a WebSocket relay connection to the replica
 // identified by workerID and returns a snapshot of buffered
 // message_part events plus a live channel of subsequent events.
+// It passes afterID=MaxInt64 so the remote replica skips the
+// full message history snapshot, since the relay only needs
+// live message_part events.
 func dialRelay(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -448,7 +453,9 @@ func dialRelay(
 	sdkClient.SessionTokenProvider = relayHeaderTokenProvider{
 		header: relayHeaders(requestHeader, replicaID),
 	}
-	sourceEvents, sourceStream, err := sdkClient.StreamChat(relayCtx, chatID)
+	sourceEvents, sourceStream, err := sdkClient.StreamChat(relayCtx, chatID, &codersdk.StreamChatOptions{
+		AfterID: ptr.Ref(int64(math.MaxInt64)),
+	})
 	if err != nil {
 		relayCancel()
 		return nil, nil, nil, xerrors.Errorf("dial relay stream: %w", err)

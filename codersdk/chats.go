@@ -670,15 +670,29 @@ func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, e
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
 
+// StreamChatOptions are optional parameters for StreamChat.
+type StreamChatOptions struct {
+	// AfterID limits the initial snapshot to messages created
+	// after the given ID. This is useful for relay connections
+	// that only need live message_part events and can skip the
+	// full message history.
+	AfterID *int64
+}
+
 // StreamChat streams chat updates in real time.
 //
 // The returned channel includes initial snapshot events first, followed by
 // live updates. Callers must close the returned io.Closer to release the
 // websocket connection when done.
-func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID) (<-chan ChatStreamEvent, io.Closer, error) {
+func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
+	path := fmt.Sprintf("/api/experimental/chats/%s/stream", chatID)
+	if opts != nil && opts.AfterID != nil {
+		path += fmt.Sprintf("?after_id=%d", *opts.AfterID)
+	}
+
 	conn, err := c.Dial(
 		ctx,
-		fmt.Sprintf("/api/experimental/chats/%s/stream", chatID),
+		path,
 		&websocket.DialOptions{CompressionMode: websocket.CompressionDisabled},
 	)
 	if err != nil {
