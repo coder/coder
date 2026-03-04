@@ -48,7 +48,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 			);
 		}
 	},
-	onSuccess: () => {
+	onSettled: () => {
 		void queryClient.invalidateQueries({ queryKey: chatsKey });
 	},
 });
@@ -78,7 +78,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 			);
 		}
 	},
-	onSuccess: async () => {
+	onSettled: async () => {
 		await queryClient.invalidateQueries({ queryKey: chatsKey });
 	},
 });
