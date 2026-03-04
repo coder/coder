@@ -166,7 +166,7 @@ func NewMultiReplicaSubscribeFn(
 		}
 		relayReadyCh := make(chan relayResult, 1)
 
-		// Per-dial context so in-flight dials can be cancelled when
+		// Per-dial context so in-flight dials can be canceled when
 		// a new dial is initiated or the relay is closed.
 		var dialCancel context.CancelFunc
 
@@ -186,7 +186,7 @@ func NewMultiReplicaSubscribeFn(
 				dialCancel()
 				dialCancel = nil
 			}
-			// Drain any buffered relay result from a cancelled
+			// Drain any buffered relay result from a canceled
 			// dial.
 			select {
 			case result := <-relayReadyCh:
@@ -217,7 +217,7 @@ func NewMultiReplicaSubscribeFn(
 			}
 			closeRelay()
 			// Create a per-dial context so this goroutine is
-			// cancelled if closeRelay() or openRelayAsync() is
+			// canceled if closeRelay() or openRelayAsync() is
 			// called again before the dial completes.
 			var dialCtx context.Context
 			dialCtx, dialCancel = context.WithCancel(ctx)
@@ -225,7 +225,7 @@ func NewMultiReplicaSubscribeFn(
 			go func() {
 				snapshot, parts, cancel, err := cfg.dial()(dialCtx, chatID, workerID, requestHeader)
 				if err != nil {
-					// Don't log context-cancelled errors
+					// Don't log context-canceled errors
 					// since they are expected when a dial is
 					// superseded by a newer one.
 					if dialCtx.Err() == nil {
@@ -242,7 +242,7 @@ func NewMultiReplicaSubscribeFn(
 					case <-dialCtx.Done():
 					}
 					return
-				} // If the dial context was cancelled while the
+				} // If the dial context was canceled while the
 				// dial was in progress, discard the result to
 				// avoid starting a wrappedParts goroutine for
 				// a stale connection.
@@ -254,10 +254,10 @@ func NewMultiReplicaSubscribeFn(
 				// are delivered through the same channel as
 				// live parts. This goroutine only forwards
 				// events — it does not own the relay
-				// lifecycle. When dialCtx is cancelled it
+				// lifecycle. When dialCtx is canceled it
 				// simply returns, closing wrappedParts via
 				// its defer. The cancel() is called by
-				// whoever cancelled dialCtx (closeRelay or
+				// whoever canceled dialCtx (closeRelay or
 				// the send-fallback select below).
 				wrappedParts := make(chan codersdk.ChatStreamEvent, 128)
 				go func() {
@@ -601,7 +601,7 @@ func NewMultiReplicaSubscribeFn(
 		// sources (local stream, pubsub subscription). The
 		// merge goroutine owns all relay state (reconnectTimer,
 		// relayCancel, dialCancel, etc.) and cleans it up via
-		// its defer closeRelay() when ctx is cancelled.
+		// its defer closeRelay() when ctx is canceled.
 		cancel := func() {
 			for _, cancelFn := range allCancels {
 				if cancelFn != nil {

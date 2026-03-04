@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-	"github.com/coder/quartz"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/quartz"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	osschatd "github.com/coder/coder/v2/coderd/chatd"
@@ -404,7 +405,7 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 // TestSubscribeRelayStaleDialDiscardedAfterInterrupt verifies that when a
 // user interrupts a streaming chat and sends a new message (which gets
 // picked up by a different replica), an in-flight relay dial to the
-// OLD replica is cancelled/discarded and the relay connects to the
+// OLD replica is canceled/discarded and the relay connects to the
 // NEW replica correctly.
 func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 	t.Parallel()
@@ -427,14 +428,14 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 		ch := make(chan codersdk.ChatStreamEvent, 10)
 		if call == 1 {
 			// First dial (to old worker): signal that we started,
-			// then block until released or context cancelled.
+			// then block until released or context canceled.
 			close(firstDialStarted)
 			select {
 			case <-releaseFirstDial:
 			case <-ctx.Done():
 				return nil, nil, nil, ctx.Err()
 			}
-			// If we get here after being released (not cancelled),
+			// If we get here after being released (not canceled),
 			// return a stale part — this should be discarded.
 			ch <- codersdk.ChatStreamEvent{
 				Type: codersdk.ChatStreamEventTypeMessagePart,
@@ -555,7 +556,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), runningPayload)
 	require.NoError(t, err)
 
-	// Now release the first dial (if it wasn't already cancelled).
+	// Now release the first dial (if it wasn't already canceled).
 	close(releaseFirstDial)
 
 	// The subscriber should receive parts from the NEW worker, not the stale one.
@@ -598,7 +599,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 // TestSubscribeCancelDuringInFlightDial verifies that calling the
 // subscription's cancel function while a relay dial goroutine is
 // still blocking in the provider causes the provider's context to
-// be cancelled and the goroutine to return cleanly.
+// be canceled and the goroutine to return cleanly.
 func TestSubscribeCancelDuringInFlightDial(t *testing.T) {
 	t.Parallel()
 
@@ -613,7 +614,7 @@ func TestSubscribeCancelDuringInFlightDial(t *testing.T) {
 		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
 	) {
 		// Signal the dial has started, then block until the context
-		// is cancelled.
+		// is canceled.
 		close(dialStarted)
 		<-ctx.Done()
 		close(dialExited)
@@ -664,7 +665,7 @@ func TestSubscribeCancelDuringInFlightDial(t *testing.T) {
 	// Cancel the subscription while the dial is still in-flight.
 	cancel()
 
-	// The provider context must be cancelled, causing the goroutine
+	// The provider context must be canceled, causing the goroutine
 	// to return cleanly.
 	require.Eventually(t, func() bool {
 		select {
@@ -700,7 +701,7 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 		call := callCount.Add(1)
 		if call == 1 {
 			// First dial (to workerA): signal that we started,
-			// then block until the context is cancelled.
+			// then block until the context is canceled.
 			close(dialAStarted)
 			<-ctx.Done()
 			close(dialAExited)
@@ -771,7 +772,7 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payloadB)
 	require.NoError(t, err)
 
-	// Verify that the relay cancelled workerA's stale dial.
+	// Verify that the relay canceled workerA's stale dial.
 	require.Eventually(t, func() bool {
 		select {
 		case <-dialAExited:

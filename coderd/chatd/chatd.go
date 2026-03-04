@@ -103,7 +103,7 @@ type ReplicaAddressResolver func(context.Context, uuid.UUID) (string, bool)
 // function instead of using simple local forwarding.
 //
 // Parameters:
-//   - ctx: subscription lifetime context (cancelled on unsubscribe).
+//   - ctx: subscription lifetime context (canceled on unsubscribe).
 //   - params: all state needed to build the merged stream.
 //
 // Returns the merged event channel and a cleanup function.
@@ -150,7 +150,7 @@ var (
 	// processChat cleanup transaction to signal that another
 	// worker acquired the chat, so all post-TX side effects
 	// (status publish, pubsub, web push) must be skipped.
-	errChatTakenByOtherWorker = errors.New("chat acquired by another worker")
+	errChatTakenByOtherWorker = xerrors.New("chat acquired by another worker")
 )
 
 // CreateOptions controls chat creation in the shared chat mutation path.
