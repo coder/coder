@@ -178,7 +178,7 @@ enterprise LLM proxies, self-hosted model endpoints, and internal gateways.
 Administrators can configure multiple providers simultaneously and set a default
 model. Developers select from enabled models when starting a chat.
 
-![Placeholder: Screenshot of the provider/model configuration admin panel](../images/guides/ai-agents/agents-model-config.png)
+![Screenshot of the provider/model configuration admin panel](../images/guides/ai-agents/llm-providers.png)
 
 <small>The model configuration panel in the Coder dashboard.</small>
 
