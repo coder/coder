@@ -1185,7 +1185,14 @@
 				{
 					"title": "Coder Agents",
 					"description": "Self-hosted agent by Coder",
-					"path": "./ai-coder/agents.md"
+					"path": "./ai-coder/agents.md",
+					"children": [
+						{
+							"title": "Architecture",
+							"description": "How the agent in the control plane communicates with workspaces",
+							"path": "./ai-coder/agents-architecture.md"
+						}
+					]
 				}
 			]
 		},

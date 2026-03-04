@@ -7,8 +7,7 @@
 Coder Agents is a chat interface and API for delegating development work and research to coding agents in your Coder deployment. Developers describe the work they want done, and Coder Agents handles selecting a template, provisioning a workspace, and executing the task.
 
 Coder Agents includes its own self-hosted AI coding
-agent that runs the agent loop directly within the Coder control plane
-(`coder server`).
+agent that runs the agent loop directly within the Coder control plane.
 
 It is not a wrapper around third-party agent tools like Claude Code
 or Codex.
@@ -50,7 +49,7 @@ other editor to review, refine, and complete work that the agent produces.
 
 ## How it works
 
-The agent loop runs inside `coder server`, the Coder control plane. When a user
+The agent loop runs inside the control plane. When a user
 submits a prompt, the control plane:
 
 1. Sends the prompt to the configured LLM provider (Anthropic, OpenAI, Google,
@@ -58,7 +57,7 @@ submits a prompt, the control plane:
 1. Receives the model's response, which may include tool calls such as reading
    files, writing code, or running shell commands.
 1. Executes tool calls by connecting to a Coder workspace over the existing
-   workspace daemon connection — the same path used for web terminals, port
+   workspace connection — the same path used for web terminals, port
    forwarding, and IDE access.
 1. Returns tool results to the model and continues the loop until the task is
    complete.
@@ -74,7 +73,7 @@ providers and connects to workspaces only when tool execution is needed.</small>
 
 ### Automatic workspace provisioning
 
-Not every chat requires a workspace. The agent runs in `coder server` and can
+Not every chat requires a workspace. The agent runs in the control plane and can
 answer questions, discuss architecture, or plan an approach without any
 infrastructure. Workspaces are only provisioned when the agent needs to take
 action — reading code, running commands, or editing files.
@@ -228,7 +227,7 @@ Coder Agents is a new approach that differs from
 
 | Aspect              | Coder Agents                               | Coder Tasks                                                    |
 |---------------------|--------------------------------------------|----------------------------------------------------------------|
-| Agent execution     | Runs in the control plane (`coder server`) | Runs inside the workspace                                      |
+| Agent execution     | Runs in the control plane | Runs inside the workspace                                      |
 | Agent harness       | Built-in, no installation needed           | Requires Claude Code, Codex, or similar installed in workspace |
 | API keys            | Stored in control plane only               | Injected into workspace environment                            |
 | Chat state          | Persisted in database                      | Stored in workspace                                            |

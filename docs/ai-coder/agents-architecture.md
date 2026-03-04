@@ -1,0 +1,300 @@
+# How Coder Agents Communicates with Workspaces
+
+The Coder agent in the control plane interacts with workspaces using the exact
+same connection path as a developer's IDE, web terminal, or SSH session. There
+is no special protocol, no sidecar process, and no new ports. If your
+developers can already connect to their workspaces, the agent can too.
+
+This page explains the internal architecture of Coder Agents for platform
+engineers, security reviewers, and anyone who wants to understand what happens
+between a prompt and a code change.
+
+## Architecture at a glance
+
+Three components are involved in every Coder Agents interaction:
+
+1. **The control plane** runs the agent loop. It receives prompts, streams them
+   to the LLM provider, interprets tool calls, and dispatches them to
+   workspaces.
+1. **The LLM provider** (Anthropic, OpenAI, Google, Azure, AWS Bedrock, or any
+   OpenAI-compatible endpoint) performs model inference. It never communicates
+   with the workspace directly.
+1. **The workspace** is standard compute infrastructure. It runs shell commands,
+   reads and writes files, and executes processes — exactly what it does when a
+   developer connects via their IDE.
+
+```
+┌──────────────────────────────────┐
+│         Control Plane            │
+│                                  │
+│  ┌───────────┐   ┌───────────┐  │
+│  │ Agent     │──▶│ LLM       │──┼──▶ LLM Provider
+│  │ Loop      │◀──│ Streaming │  │    (Anthropic, OpenAI, etc.)
+│  └─────┬─────┘   └───────────┘  │
+│        │                        │
+│        │ Tool calls             │
+│        ▼                        │
+│  ┌───────────┐                  │
+│  │ Tailnet   │                  │
+│  │ Connection│                  │
+│  └─────┬─────┘                  │
+│        │                        │
+└────────┼────────────────────────┘
+         │ Same connection path as
+         │ IDE, SSH, web terminal
+         ▼
+┌──────────────────────────────────┐
+│         Workspace                │
+│                                  │
+│  ┌───────────┐                  │
+│  │ Workspace │  No AI software  │
+│  │ Agent     │  No API keys     │
+│  │ (daemon)  │  No LLM access   │
+│  └───────────┘                  │
+└──────────────────────────────────┘
+```
+
+> [!NOTE]
+> The term "workspace agent" in Coder refers to the lightweight daemon that runs
+> inside every workspace to provide connectivity. It is not an AI agent. This
+> page uses "workspace agent (daemon)" when referring to the connectivity daemon
+> and "the agent" or "Coder agent" when referring to the AI agent in the control
+> plane.
+
+## The same connection your IDE uses
+
+This is the key architectural insight: the Coder agent reaches into a workspace
+using the identical network path that a developer's tools already use.
+
+When a developer opens a web terminal in the Coder dashboard, connects via
+VS Code Remote, or runs `coder ssh`, the traffic follows this path:
+
+1. The client connects to the control plane.
+1. The control plane routes the connection through its internal Tailnet node.
+1. The connection reaches the workspace agent (daemon) over a DERP relay or
+   direct peer-to-peer link.
+1. The workspace agent (daemon) handles the request — spawning a shell,
+   forwarding a port, or serving a file.
+
+When the Coder agent executes a tool call — reading a file, running a command,
+writing code — it follows the exact same path:
+
+1. The agent loop in the control plane issues a tool call.
+1. The control plane routes the call through its internal Tailnet node.
+1. The call reaches the workspace agent (daemon) over the same DERP relay or
+   peer-to-peer link.
+1. The workspace agent (daemon) handles the request — reading a file, starting
+   a process, or writing content.
+
+The workspace cannot distinguish between the two. A `read_file` from the Coder
+agent and an file open from VS Code traverse the same tunnel, authenticate the
+same way, and hit the same workspace agent (daemon) API.
+
+### No inbound ports
+
+The workspace agent (daemon) always dials _out_ to the control plane — never
+the reverse. The control plane then uses that established tunnel to reach back
+in. This means:
+
+- The workspace needs no inbound ports or exposed services.
+- You can block all inbound traffic to the workspace.
+- The only required outbound connection from the workspace is to the control
+  plane itself.
+
+This is unchanged from how workspaces already operate in Coder. Enabling
+Coder Agents does not change your workspace network requirements.
+
+## The agent loop
+
+When a user submits a prompt, the control plane processes it as a background
+job:
+
+1. The prompt is saved to the database and the chat is marked `pending`.
+1. A worker picks up the chat and marks it `running`.
+1. The worker streams the conversation to the configured LLM provider.
+1. The model responds with text, reasoning, or tool calls.
+1. If the response includes tool calls, the control plane executes them
+   (connecting to the workspace as needed) and returns the results to the model.
+1. Steps 3–5 repeat until the model produces a final response with no further
+   tool calls.
+1. The chat is marked `waiting` for the next user message.
+
+This loop runs inside the control plane process. There is no separate service
+to deploy — it is part of the same binary that serves the dashboard and API.
+
+### Context compaction
+
+As conversations grow, the agent automatically summarizes older context to stay
+within the model's context window. When token usage exceeds a threshold, the
+agent generates a compressed summary and replaces earlier messages with it. This
+happens transparently and keeps long-running sessions productive.
+
+### Message queuing
+
+Users can send follow-up messages while the agent is actively working. Messages
+are queued in the database and delivered when the agent completes its current
+step. There is no need to wait for a response before providing additional
+context or redirecting the agent.
+
+## Tool execution
+
+Tools are how the agent takes action. Each tool call from the LLM translates to
+a concrete operation — either inside a workspace or within the control plane
+itself.
+
+### Workspace connection lifecycle
+
+The connection to a workspace is **lazy**. It is not established when a chat
+starts — only when the first tool call requires workspace access. Once
+established, the connection is cached and reused for the duration of that chat
+session.
+
+This means chats that don't need workspace access (answering questions, planning
+an approach, discussing architecture) never provision or connect to a workspace.
+
+### Workspace tools
+
+These tools execute inside the workspace via the workspace agent (daemon) API.
+They are the same API endpoints used by the web terminal and IDE integrations.
+
+| Tool             | What it does                                                                                    |
+|------------------|-------------------------------------------------------------------------------------------------|
+| `read_file`      | Reads file contents with line-number pagination.                                                |
+| `write_file`     | Writes content to a file.                                                                       |
+| `edit_files`     | Performs atomic search-and-replace edits across one or more files.                               |
+| `execute`        | Runs a shell command (foreground or background).                                                |
+| `process_output` | Retrieves output from a background process.                                                     |
+| `process_list`   | Lists all tracked processes in the workspace.                                                   |
+| `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a background process.                                    |
+
+### Platform tools
+
+These tools run entirely within the control plane. They do not require a
+workspace connection.
+
+| Tool               | What it does                                                        |
+|--------------------|---------------------------------------------------------------------|
+| `list_templates`   | Browses available workspace templates, sorted by popularity.        |
+| `read_template`    | Gets template details and configurable parameters.                  |
+| `create_workspace` | Creates a workspace from a template and waits for it to be ready.   |
+
+### Orchestration tools
+
+These tools manage sub-agents — child chats that work on independent tasks in
+parallel.
+
+| Tool            | What it does                                                          |
+|-----------------|-----------------------------------------------------------------------|
+| `spawn_agent`   | Delegates a task to a sub-agent with its own context window.          |
+| `wait_agent`    | Waits for a sub-agent to finish and collects its result.              |
+| `message_agent` | Sends a follow-up message to a running sub-agent.                     |
+| `close_agent`   | Stops a running sub-agent.                                            |
+
+## What runs where
+
+Understanding the split between the control plane and the workspace is central
+to the security model.
+
+| Responsibility          | Where it runs     | Details                                                                      |
+|-------------------------|-------------------|------------------------------------------------------------------------------|
+| Agent loop              | Control plane     | Prompt processing, tool dispatch, step iteration.                            |
+| LLM inference           | LLM provider      | The control plane streams requests to the external provider.                 |
+| Chat state              | Control plane     | All messages, token usage, and status stored in the database.                |
+| Git authentication      | Control plane     | Uses existing Coder external auth (GitHub, GitLab, Bitbucket).              |
+| User identity           | Control plane     | Every action is tied to the user who submitted the prompt.                   |
+| Model/prompt config     | Control plane     | Administrators configure providers, models, and system prompts centrally.    |
+| File read/write         | Workspace         | The workspace file system is the source of truth for code.                   |
+| Shell execution         | Workspace         | Commands run in the workspace's environment with its packages and tools.     |
+| Git operations          | Workspace         | Commits, pushes, and branch management happen inside the workspace.          |
+| Build and test          | Workspace         | Compilation, test suites, and dev servers run on workspace compute.          |
+
+The workspace has **zero AI awareness**. There are no LLM API keys, no agent
+processes, and no AI-specific software installed. If you inspect a workspace
+created by the Coder agent, it looks identical to one a developer created
+manually.
+
+## Chat state and persistence
+
+All chat data is stored in the control plane database, not in the workspace.
+
+- **Chat metadata** — status, owner, associated workspace, timestamps, and
+  parent/child relationships for sub-agents.
+- **Messages** — every message (user, assistant, tool calls, tool results) is
+  stored as a separate record with role, content, and token usage.
+- **Compressed context** — when the agent compacts the conversation, summaries
+  are stored with a compression flag so the original context budget is
+  preserved.
+- **Queued messages** — follow-up messages sent while the agent is working are
+  held in a queue and delivered in order.
+
+Because state lives in the database:
+
+- Chat history survives workspace stops, rebuilds, and deletions.
+- An administrator can inspect any chat for audit or debugging.
+- The agent can resume work by targeting a new workspace and continuing from the
+  last git branch or checkpoint.
+
+## Security implications
+
+The control plane architecture has direct consequences for how you secure AI
+coding workflows.
+
+### No API keys in workspaces
+
+LLM provider credentials exist only in the control plane. The workspace never
+sees them. There is nothing for a developer, a compromised dependency, or a
+rogue process to exfiltrate.
+
+### Workspaces can be fully network-isolated
+
+Because the workspace does not need to reach any LLM provider, you can restrict
+its network access to only:
+
+- The control plane (required for the workspace agent daemon to function).
+- Your git provider (for push/pull operations).
+
+Everything else can be blocked. The AI functionality comes from the control
+plane, not from the workspace's network.
+
+> [!TIP]
+> For sensitive environments, create dedicated templates for agent workloads
+> with stricter egress rules than your standard developer templates. Because
+> the AI comes from the control plane, these templates do not need any
+> outbound access to LLM providers.
+
+### Centralized enforcement
+
+Model selection, system prompts, and tool configuration are set by
+administrators in the control plane. These are server-side settings — they are
+not user preferences that developers can override. When an administrator
+restricts a model or modifies the system prompt, the change applies to all
+agent sessions immediately.
+
+### User identity on every action
+
+Every action the agent takes — PRs opened, code committed, commands executed —
+is tied to the user who submitted the prompt. There is no shared bot account or
+anonymous identity. If a developer submits a prompt that results in a pull
+request, that pull request is attributed to them via the git authentication
+already configured in your Coder deployment.
+
+## Scaling and resource impact
+
+The control plane overhead for Coder Agents is minimal. The heavy computation
+happens elsewhere:
+
+- **LLM inference** runs on the external provider's infrastructure.
+- **File I/O, builds, and tests** run on workspace compute.
+- **The control plane** primarily proxies streaming responses and dispatches
+  tool calls over existing network connections.
+
+Administrators can configure how many concurrent chat sessions each control
+plane instance handles. For deployments that need to isolate agent traffic from
+the main API, the chat processing component can be run separately.
+
+## Next steps
+
+- [Coder Agents overview](./agents.md) — feature overview, LLM provider setup,
+  and built-in tools.
+- [Security best practices](./security.md) — general guidance for AI coding
+  workflows in Coder.
