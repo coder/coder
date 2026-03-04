@@ -516,7 +516,6 @@ echo -e "${BOLD}Next step: trigger the 'release.yaml' GitHub Actions workflow.${
 log "  Ref:     ${new_version}"
 log "  Channel: ${channel}"
 log "  Payload:"
-log "    dry_run:         false"
 log "    release_channel: ${channel}"
 log "    release_notes:   (${#release_notes} chars, written to ${release_notes_file})"
 log
