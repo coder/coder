@@ -135,8 +135,7 @@ itself.
 
 The connection to a workspace is **lazy**. It is not established when a chat
 starts — only when something needs to reach the workspace. This is typically
-triggered by loading workspace instruction files (like `AGENTS.md`) during
-prompt setup, or by the first tool call that requires workspace access. Once
+triggered by the first tool call that requires workspace access. Once
 established, the connection is cached and reused for the duration of that chat
 session.
 
