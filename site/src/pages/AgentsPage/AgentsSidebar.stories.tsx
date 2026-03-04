@@ -30,14 +30,16 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	},
 ];
 
+const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	owner_id: "owner-1",
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
-	created_at: "2026-02-18T00:00:00.000Z",
-	updated_at: "2026-02-18T00:00:00.000Z",
+	created_at: oneWeekAgo,
+	updated_at: oneWeekAgo,
 	archived: false,
 	last_error: null,
 	...overrides,
@@ -417,5 +419,43 @@ export const NoArchivedSection: Story = {
 			expect(canvas.getByText("Second active agent")).toBeInTheDocument();
 		});
 		expect(canvas.queryByText(/^Archived \(/)).not.toBeInTheDocument();
+	},
+};
+
+export const ArchivingShowsSpinnerOnly: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archiving-chat",
+				title: "Chat being archived",
+				updated_at: todayTimestamp,
+			}),
+		],
+		isArchiving: true,
+		archivingChatId: "archiving-chat",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const DefaultShowsTimestampHidesMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "default-chat",
+				title: "Default state agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
 	},
 };
