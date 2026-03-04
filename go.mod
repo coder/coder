@@ -480,7 +480,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v1.0.8-0.20260302094220-3db08de348bb // TODO: replace with merge commit.
+	github.com/coder/aibridge v1.0.8-0.20260304121423-bff1cbf0516a // TODO: replace with merge commit.
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab
 	github.com/coder/preview v1.0.7
