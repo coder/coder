@@ -5,10 +5,6 @@ same connection path as a developer's IDE, web terminal, or SSH session. There
 is no special protocol, no sidecar process, and no new ports. If your
 developers can already connect to their workspaces, the agent can too.
 
-This page explains the internal architecture of Coder Agents for platform
-engineers, security reviewers, and anyone who wants to understand what happens
-between a prompt and a code change.
-
 ## Architecture at a glance
 
 Three components are involved in every Coder Agents interaction:
