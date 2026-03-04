@@ -211,14 +211,24 @@ func NewMultiReplicaSubscribeFn(
 			go func() {
 				snapshot, parts, cancel, err := cfg.dial()(dialCtx, chatID, workerID, requestHeader)
 				if err != nil {
-					logger.Warn(ctx, "failed to open relay for message parts",
-						slog.F("chat_id", chatID),
-						slog.F("worker_id", workerID),
-						slog.Error(err),
-					)
+					// Don't log context-cancelled errors
+					// since they are expected when a dial is
+					// superseded by a newer one.
+					if dialCtx.Err() == nil {
+						logger.Warn(ctx, "failed to open relay for message parts",
+							slog.F("chat_id", chatID),
+							slog.F("worker_id", workerID),
+							slog.Error(err),
+						)
+					}
+					// Send an empty result so the merge loop
+					// can schedule a reconnect attempt.
+					select {
+					case relayReadyCh <- relayResult{workerID: workerID}:
+					case <-dialCtx.Done():
+					}
 					return
-				}
-				// If the dial context was cancelled while the
+				} // If the dial context was cancelled while the
 				// dial was in progress, discard the result to
 				// avoid starting a wrappedParts goroutine for
 				// a stale connection.
@@ -370,6 +380,12 @@ func NewMultiReplicaSubscribeFn(
 							}
 							continue
 						}
+						// A nil parts channel signals the dial
+						// failed — schedule a retry.
+						if result.parts == nil {
+							scheduleRelayReconnect()
+							continue
+						}
 						// An async relay dial completed; swap
 						// in the new relay channel.
 						if relayCancel != nil {
@@ -383,12 +399,22 @@ func NewMultiReplicaSubscribeFn(
 						// running on a remote worker before
 						// reconnecting.
 						currentChat, chatErr := params.DB.GetChatByID(ctx, chatID)
-						if chatErr == nil && currentChat.Status == database.ChatStatusRunning &&
+						if chatErr != nil {
+							logger.Warn(ctx, "failed to get chat for relay reconnect",
+								slog.F("chat_id", chatID),
+								slog.Error(chatErr),
+							)
+							// Retry on transient DB errors to
+							// avoid permanently stalling the
+							// stream.
+							scheduleRelayReconnect()
+							continue
+						}
+						if currentChat.Status == database.ChatStatusRunning &&
 							currentChat.WorkerID.Valid && currentChat.WorkerID.UUID != params.WorkerID {
 							openRelayAsync(currentChat.WorkerID.UUID)
 						}
-					case notify := <-notifications:
-						// Handle different notification types.
+					case notify := <-notifications: // Handle different notification types.
 						if notify.AfterMessageID > 0 {
 							// Read only new messages from DB.
 							messages, err := params.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
