@@ -111,7 +111,7 @@ func (c Config) clock() quartz.Clock {
 func NewMultiReplicaSubscribeFn(
 	cfg Config,
 ) osschatd.SubscribeFn {
-	return func(ctx context.Context, params osschatd.SubscribeMultiReplicaParams) (<-chan codersdk.ChatStreamEvent, func()) {
+	return func(ctx context.Context, params osschatd.SubscribeFnParams) (<-chan codersdk.ChatStreamEvent, func()) {
 		chatID := params.ChatID
 		localParts := params.LocalParts
 		localCancel := params.LocalCancel

@@ -107,12 +107,12 @@ type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.Ag
 // Set by enterprise for HA deployments. Nil in AGPL single-replica.
 type SubscribeFn func(
 	ctx context.Context,
-	params SubscribeMultiReplicaParams,
+	params SubscribeFnParams,
 ) (<-chan codersdk.ChatStreamEvent, func())
 
-// SubscribeMultiReplicaParams carries the state that the enterprise
+// SubscribeFnParams carries the state that the enterprise
 // SubscribeFn implementation needs from the OSS Subscribe preamble.
-type SubscribeMultiReplicaParams struct {
+type SubscribeFnParams struct {
 	ChatID        uuid.UUID
 	Chat          database.Chat
 	WorkerID      uuid.UUID
@@ -1118,7 +1118,7 @@ func (p *Server) Subscribe(
 	// incorrect behavior. On lookup failure we fall through to
 	// the AGPL local-only forwarding path instead.
 	if p.subscribeFn != nil && err == nil {
-		mergedEvents, cleanup := p.subscribeFn(mergedCtx, SubscribeMultiReplicaParams{
+		mergedEvents, cleanup := p.subscribeFn(mergedCtx, SubscribeFnParams{
 			ChatID:        chatID,
 			Chat:          chat,
 			WorkerID:      p.workerID,
