@@ -1113,7 +1113,12 @@ func (p *Server) Subscribe(
 
 	// When an enterprise SubscribeFn is provided, delegate the
 	// full event-merge lifecycle (pubsub, relay, reconnect) to it.
-	if p.subscribeFn != nil {
+	// We only delegate when the chat lookup succeeded — the
+	// enterprise code uses Chat.Status and Chat.WorkerID to decide
+	// whether to open a relay, so a zero-value chat would cause
+	// incorrect behavior. On lookup failure we fall through to
+	// the AGPL local-only forwarding path instead.
+	if p.subscribeFn != nil && err == nil {
 		mergedEvents, cleanup := p.subscribeFn(mergedCtx, SubscribeMultiReplicaParams{
 			ChatID:        chatID,
 			Chat:          chat,

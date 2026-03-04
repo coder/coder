@@ -117,7 +117,9 @@ func NewMultiReplicaSubscribeFn(
 			params.Chat.WorkerID.Valid &&
 			params.Chat.WorkerID.UUID != params.WorkerID &&
 			cfg.dial() != nil {
-			snapshot, parts, cancel, err := cfg.dial()(ctx, chatID, params.Chat.WorkerID.UUID, requestHeader)
+			dialCtx, dialTimeoutCancel := context.WithTimeout(ctx, 5*time.Second)
+			snapshot, parts, cancel, err := cfg.dial()(dialCtx, chatID, params.Chat.WorkerID.UUID, requestHeader)
+			dialTimeoutCancel()
 			if err == nil {
 				relayCancel = cancel
 				relayParts = parts
@@ -211,6 +213,14 @@ func NewMultiReplicaSubscribeFn(
 						slog.F("worker_id", workerID),
 						slog.Error(err),
 					)
+					return
+				}
+				// If the dial context was cancelled while the
+				// dial was in progress, discard the result to
+				// avoid starting a wrappedParts goroutine for
+				// a stale connection.
+				if dialCtx.Err() != nil {
+					cancel()
 					return
 				}
 				// Wrap the relay channel so snapshot parts are

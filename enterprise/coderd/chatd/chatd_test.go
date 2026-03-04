@@ -565,4 +565,19 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 			return false
 		}
 	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// Drain the events channel for a while to ensure no late-arriving
+	// stale part sneaks in after the require.Eventually above returned.
+	// This closes the timing gap where "stale-part" could arrive after
+	// "new-worker-part" was already consumed.
+	require.Never(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil &&
+				event.MessagePart.Part.Text == "stale-part"
+		default:
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
