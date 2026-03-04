@@ -187,7 +187,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [existingMessage],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -268,7 +267,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [existingMessage],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -343,7 +341,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [existingMessage],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -437,7 +434,6 @@ describe("useChatStore", () => {
 				chatRecord: makeChat(chatID),
 				chatData: {
 					chat: makeChat(chatID),
-					messages: [existingMessage],
 					queued_messages: [],
 				},
 				chatQueuedMessages: [],
@@ -511,7 +507,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [existingMessage],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -586,7 +581,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [existingMessage],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -674,7 +668,6 @@ describe("useChatStore", () => {
 			chatRecord: makeChat(chatID),
 			chatData: {
 				chat: makeChat(chatID),
-				messages: [existingMessage],
 				queued_messages: [queuedMessage],
 			},
 			chatQueuedMessages: [queuedMessage],
@@ -721,7 +714,6 @@ describe("useChatStore", () => {
 					...makeChat(chatID),
 					updated_at: "2025-01-01T00:00:01.000Z",
 				},
-				messages: [existingMessage],
 				queued_messages: [queuedMessage],
 			},
 			chatQueuedMessages: [queuedMessage],
@@ -751,7 +743,6 @@ describe("useChatStore", () => {
 		});
 		const initialChatData: TypesGen.ChatWithMessages = {
 			chat: makeChat(chatID),
-			messages: [existingMessage],
 			queued_messages: [queuedMessage],
 		};
 		queryClient.setQueryData(chatKey(chatID), initialChatData);
@@ -833,7 +824,6 @@ describe("useChatStore", () => {
 			chatRecord: makeChat(chatID1),
 			chatData: {
 				chat: makeChat(chatID1),
-				messages: [msg1],
 				queued_messages: [] as TypesGen.ChatQueuedMessage[],
 			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
@@ -882,7 +872,6 @@ describe("useChatStore", () => {
 			chatRecord: makeChat(chatID2),
 			chatData: {
 				chat: makeChat(chatID2),
-				messages: [msg2],
 				queued_messages: [],
 			},
 		});
@@ -920,7 +909,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [existingMessage],
 						queued_messages: [queuedMessage],
 					},
 					chatQueuedMessages: [queuedMessage],
@@ -976,7 +964,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [existingMessage],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -1078,7 +1065,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [existingMessage],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -1174,7 +1160,6 @@ describe("useChatStore", () => {
 			chatRecord: makeChat(chatID1),
 			chatData: {
 				chat: makeChat(chatID1),
-				messages: [msg1],
 				queued_messages: [] as TypesGen.ChatQueuedMessage[],
 			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
@@ -1223,7 +1208,6 @@ describe("useChatStore", () => {
 			chatRecord: makeChat(chatID2),
 			chatData: {
 				chat: makeChat(chatID2),
-				messages: [msg2],
 				queued_messages: [],
 			},
 		});
@@ -1265,7 +1249,6 @@ describe("useChatStore", () => {
 			chatRecord: makeChat(chatID1),
 			chatData: {
 				chat: makeChat(chatID1),
-				messages: [msg1],
 				queued_messages: [queuedMsg],
 			},
 			chatQueuedMessages: [queuedMsg],
@@ -1301,7 +1284,6 @@ describe("useChatStore", () => {
 			chatRecord: makeChat(chatID2),
 			chatData: {
 				chat: makeChat(chatID2),
-				messages: [],
 				queued_messages: [],
 			},
 			chatQueuedMessages: [],
@@ -1337,7 +1319,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -1407,7 +1388,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -1468,7 +1448,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -1521,7 +1500,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -1582,7 +1560,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -1657,7 +1634,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -1719,7 +1695,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -1768,7 +1743,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],
@@ -1832,7 +1806,6 @@ describe("useChatStore", () => {
 					chatRecord: makeChat(chatID),
 					chatData: {
 						chat: makeChat(chatID),
-						messages: [],
 						queued_messages: [],
 					},
 					chatQueuedMessages: [],

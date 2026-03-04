@@ -35,16 +35,29 @@ WHERE
     id = @id::bigint;
 
 -- name: GetChatMessagesByChatID :many
-SELECT
-    *
-FROM
-    chat_messages
-WHERE
-    chat_id = @chat_id::uuid
-    AND id > @after_id::bigint
-    AND visibility IN ('user', 'both')
+SELECT * FROM (
+    SELECT
+        *
+    FROM
+        chat_messages
+    WHERE
+        chat_id = @chat_id::uuid
+        AND visibility IN ('user', 'both')
+        AND CASE
+            WHEN sqlc.narg('before_id')::bigint IS NOT NULL THEN id < sqlc.narg('before_id')::bigint
+            WHEN @after_id::bigint > 0 THEN id > @after_id::bigint
+            ELSE TRUE
+        END
+    ORDER BY
+        created_at DESC, id DESC
+    LIMIT
+        CASE
+            WHEN @limit_opt::integer > 0 THEN @limit_opt::integer
+            ELSE NULL
+        END
+) AS sub
 ORDER BY
-    created_at ASC;
+    created_at ASC, id ASC;
 
 -- name: GetChatMessagesForPromptByChatID :many
 WITH latest_compressed_summary AS (

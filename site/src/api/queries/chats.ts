@@ -4,6 +4,8 @@ import type { QueryClient } from "react-query";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
+export const chatMessagesKey = (chatId: string, beforeId?: number) =>
+	["chats", chatId, "messages", beforeId ?? "latest"] as const;
 
 export const chats = () => ({
 	queryKey: chatsKey,
@@ -14,6 +16,12 @@ export const chats = () => ({
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
 	queryFn: () => API.getChat(chatId),
+});
+
+export const chatMessages = (chatId: string, beforeId?: number) => ({
+	queryKey: chatMessagesKey(chatId, beforeId),
+	queryFn: () =>
+		API.getChatMessages(chatId, beforeId ? { before_id: beforeId } : undefined),
 });
 
 export const createChat = (queryClient: QueryClient) => ({

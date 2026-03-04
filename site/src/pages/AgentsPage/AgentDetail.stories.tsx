@@ -14,6 +14,7 @@ import {
 	chatDiffContentsKey,
 	chatDiffStatusKey,
 	chatKey,
+	chatMessagesKey,
 	chatModelsKey,
 	chatsKey,
 } from "api/queries/chats";
@@ -132,36 +133,55 @@ index abc1234..def5678 100644
 
 /** Build `parameters.queries` entries for a given chat data object. */
 const buildQueries = (
-	chatData: TypesGen.ChatWithMessages,
+	chatAndMessages: {
+		chat: TypesGen.Chat;
+		messages?: readonly TypesGen.ChatMessage[];
+		queued_messages: readonly TypesGen.ChatQueuedMessage[];
+	},
 	opts?: { diffUrl?: string },
-) => [
-	{ key: chatKey(CHAT_ID), data: chatData },
-	{ key: chatsKey, data: [chatData.chat] },
-	{
-		key: chatDiffStatusKey(CHAT_ID),
-		data: {
-			chat_id: CHAT_ID,
-			url: opts?.diffUrl,
-			changes_requested: false,
-			additions: opts?.diffUrl ? 4 : 0,
-			deletions: opts?.diffUrl ? 1 : 0,
-			changed_files: opts?.diffUrl ? 2 : 0,
-		} satisfies TypesGen.ChatDiffStatus,
-	},
-	{
-		key: chatDiffContentsKey(CHAT_ID),
-		data: {
-			chat_id: CHAT_ID,
-			diff: opts?.diffUrl ? sampleDiff : undefined,
-			pull_request_url: opts?.diffUrl,
-		} satisfies TypesGen.ChatDiffContents,
-	},
-	{
-		key: workspaceByIdKey(mockWorkspace.id),
-		data: mockWorkspace,
-	},
-	{ key: chatModelsKey, data: mockModelCatalog },
-];
+) => {
+	const chatData: TypesGen.ChatWithMessages = {
+		chat: chatAndMessages.chat,
+		queued_messages: chatAndMessages.queued_messages,
+	};
+	const messages = chatAndMessages.messages ?? [];
+	return [
+		{ key: chatKey(CHAT_ID), data: chatData },
+		{ key: chatsKey, data: [chatData.chat] },
+		{
+			key: chatMessagesKey(CHAT_ID),
+			data: {
+				messages,
+				after_id: messages.length > 0 ? messages[0].id : 0,
+				has_more: false,
+			} satisfies TypesGen.ChatMessagesResponse,
+		},
+		{
+			key: chatDiffStatusKey(CHAT_ID),
+			data: {
+				chat_id: CHAT_ID,
+				url: opts?.diffUrl,
+				changes_requested: false,
+				additions: opts?.diffUrl ? 4 : 0,
+				deletions: opts?.diffUrl ? 1 : 0,
+				changed_files: opts?.diffUrl ? 2 : 0,
+			} satisfies TypesGen.ChatDiffStatus,
+		},
+		{
+			key: chatDiffContentsKey(CHAT_ID),
+			data: {
+				chat_id: CHAT_ID,
+				diff: opts?.diffUrl ? sampleDiff : undefined,
+				pull_request_url: opts?.diffUrl,
+			} satisfies TypesGen.ChatDiffContents,
+		},
+		{
+			key: workspaceByIdKey(mockWorkspace.id),
+			data: mockWorkspace,
+		},
+		{ key: chatModelsKey, data: mockModelCatalog },
+	];
+};
 
 /**
  * Wrap a chat stream event payload in the JSON string format that

@@ -85,8 +85,11 @@ func TestPostChats(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, chatWithMessages.Chat.ID)
 
+		messagesResp, err := client.GetChatMessages(ctx, chat.ID, nil, nil)
+		require.NoError(t, err)
+
 		foundUserMessage := false
-		for _, message := range chatWithMessages.Messages {
+		for _, message := range messagesResp.Messages {
 			if message.Role != "user" {
 				continue
 			}
@@ -121,7 +124,10 @@ func TestPostChats(t *testing.T) {
 
 		chatWithMessages, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
-		for _, message := range chatWithMessages.Messages {
+		_ = chatWithMessages
+		messagesResp, err := client.GetChatMessages(ctx, chat.ID, nil, nil)
+		require.NoError(t, err)
+		for _, message := range messagesResp.Messages {
 			require.NotEqual(t, "system", message.Role)
 		}
 	})
@@ -1113,11 +1119,13 @@ func TestGetChat(t *testing.T) {
 		require.Equal(t, "get chat route payload", chatWithMessages.Chat.Title)
 		require.NotZero(t, chatWithMessages.Chat.CreatedAt)
 		require.NotZero(t, chatWithMessages.Chat.UpdatedAt)
-		require.NotEmpty(t, chatWithMessages.Messages)
+		messagesResp, err := client.GetChatMessages(ctx, createdChat.ID, nil, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, messagesResp.Messages)
 		require.Empty(t, chatWithMessages.QueuedMessages)
 
 		foundUserMessage := false
-		for _, message := range chatWithMessages.Messages {
+		for _, message := range messagesResp.Messages {
 			require.Equal(t, createdChat.ID, message.ChatID)
 			require.NotEqual(t, "system", message.Role)
 			for _, part := range message.Content {
@@ -1442,7 +1450,11 @@ func TestPostChatMessages(t *testing.T) {
 						return true
 					}
 				}
-				for _, message := range chatWithMessages.Messages {
+				messagesResp, getErr := client.GetChatMessages(ctx, chat.ID, nil, nil)
+				if getErr != nil {
+					return false
+				}
+				for _, message := range messagesResp.Messages {
 					if message.Role == "user" && hasTextPart(message.Content, messageText) {
 						return true
 					}
@@ -1458,11 +1470,11 @@ func TestPostChatMessages(t *testing.T) {
 			require.True(t, hasTextPart(created.Message.Content, messageText))
 
 			require.Eventually(t, func() bool {
-				chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+				messagesResp, getErr := client.GetChatMessages(ctx, chat.ID, nil, nil)
 				if getErr != nil {
 					return false
 				}
-				for _, message := range chatWithMessages.Messages {
+				for _, message := range messagesResp.Messages {
 					if message.ID == created.Message.ID &&
 						message.Role == "user" &&
 						hasTextPart(message.Content, messageText) {
@@ -1548,9 +1560,13 @@ func TestPatchChatMessage(t *testing.T) {
 
 		chatWithMessages, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
+		_ = chatWithMessages
+
+		messagesResp, err := client.GetChatMessages(ctx, chat.ID, nil, nil)
+		require.NoError(t, err)
 
 		var userMessageID int64
-		for _, message := range chatWithMessages.Messages {
+		for _, message := range messagesResp.Messages {
 			if message.Role == "user" {
 				userMessageID = message.ID
 				break
@@ -1580,9 +1596,12 @@ func TestPatchChatMessage(t *testing.T) {
 
 		updatedChat, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
+		_ = updatedChat
+		updatedMsgsResp, err := client.GetChatMessages(ctx, chat.ID, nil, nil)
+		require.NoError(t, err)
 		foundEditedInChat := false
 		foundOriginalInChat := false
-		for _, message := range updatedChat.Messages {
+		for _, message := range updatedMsgsResp.Messages {
 			if message.Role != "user" {
 				continue
 			}

@@ -1019,8 +1019,10 @@ func (p *Server) Subscribe(
 	// endpoint), so we only fetch newer ones to avoid sending
 	// duplicate data.
 	messages, err := p.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chatID,
-		AfterID: afterMessageID,
+		ChatID:   chatID,
+		AfterID:  afterMessageID,
+		BeforeID: sql.NullInt64{},
+		LimitOpt: 0,
 	})
 	if err == nil {
 		for _, msg := range messages {
@@ -1265,8 +1267,10 @@ func (p *Server) Subscribe(
 					if notify.AfterMessageID > 0 {
 						// Read only new messages from DB.
 						messages, err := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
-							ChatID:  chatID,
-							AfterID: lastMessageID,
+							ChatID:   chatID,
+							AfterID:  lastMessageID,
+							BeforeID: sql.NullInt64{},
+							LimitOpt: 0,
 						})
 						if err == nil {
 							for _, msg := range messages {

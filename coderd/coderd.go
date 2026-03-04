@@ -1131,6 +1131,7 @@ func New(options *Options) *API {
 				r.Get("/", api.getChat)
 				r.Post("/archive", api.archiveChat)
 				r.Post("/unarchive", api.unarchiveChat)
+				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
 				r.Get("/stream", api.streamChat)

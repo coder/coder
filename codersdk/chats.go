@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -141,11 +142,21 @@ type CreateChatMessageResponse struct {
 	Queued        bool               `json:"queued"`
 }
 
-// ChatWithMessages is a chat along with its messages.
+// ChatWithMessages is a chat along with its queued messages.
 type ChatWithMessages struct {
 	Chat           Chat                `json:"chat"`
-	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
+}
+
+// ChatMessagesResponse is the paginated response for chat messages.
+type ChatMessagesResponse struct {
+	Messages []ChatMessage `json:"messages"`
+	// AfterID is the ID of the oldest message in this page.
+	// Use this as the before_id parameter to fetch the previous
+	// page.
+	AfterID int64 `json:"after_id"`
+	// HasMore indicates if there are older messages to fetch.
+	HasMore bool `json:"has_more"`
 }
 
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
@@ -792,7 +803,7 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID) (<-chan ChatS
 	}), nil
 }
 
-// GetChat returns a chat by ID, including its messages.
+// GetChat returns a chat by ID, including its queued messages.
 func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (ChatWithMessages, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)
 	if err != nil {
@@ -804,6 +815,33 @@ func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (ChatWithMessage
 	}
 	var chat ChatWithMessages
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// GetChatMessages returns paginated messages for a chat.
+// Use beforeID to fetch messages older than a given ID.
+// Default limit is 100.
+func (c *Client) GetChatMessages(ctx context.Context, chatID uuid.UUID, beforeID *int64, limit *int) (ChatMessagesResponse, error) {
+	qp := url.Values{}
+	if beforeID != nil {
+		qp.Set("before_id", strconv.FormatInt(*beforeID, 10))
+	}
+	if limit != nil {
+		qp.Set("limit", strconv.Itoa(*limit))
+	}
+	reqURL := fmt.Sprintf("/api/experimental/chats/%s/messages", chatID)
+	if len(qp) > 0 {
+		reqURL += "?" + qp.Encode()
+	}
+	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return ChatMessagesResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatMessagesResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatMessagesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 func (c *Client) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {

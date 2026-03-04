@@ -3153,25 +3153,45 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 }
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
-SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
-FROM
-    chat_messages
-WHERE
-    chat_id = $1::uuid
-    AND id > $2::bigint
-    AND visibility IN ('user', 'both')
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed FROM (
+    SELECT
+        id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+    FROM
+        chat_messages
+    WHERE
+        chat_id = $1::uuid
+        AND visibility IN ('user', 'both')
+        AND CASE
+            WHEN $2::bigint IS NOT NULL THEN id < $2::bigint
+            WHEN $3::bigint > 0 THEN id > $3::bigint
+            ELSE TRUE
+        END
+    ORDER BY
+        created_at DESC, id DESC
+    LIMIT
+        CASE
+            WHEN $4::integer > 0 THEN $4::integer
+            ELSE NULL
+        END
+) AS sub
 ORDER BY
-    created_at ASC
+    created_at ASC, id ASC
 `
 
 type GetChatMessagesByChatIDParams struct {
-	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
-	AfterID int64     `db:"after_id" json:"after_id"`
+	ChatID   uuid.UUID     `db:"chat_id" json:"chat_id"`
+	BeforeID sql.NullInt64 `db:"before_id" json:"before_id"`
+	AfterID  int64         `db:"after_id" json:"after_id"`
+	LimitOpt int32         `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMessagesByChatIDParams) ([]ChatMessage, error) {
-	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatID, arg.ChatID, arg.AfterID)
+	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatID,
+		arg.ChatID,
+		arg.BeforeID,
+		arg.AfterID,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
