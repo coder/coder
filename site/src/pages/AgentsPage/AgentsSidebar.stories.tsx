@@ -419,3 +419,41 @@ export const NoArchivedSection: Story = {
 		expect(canvas.queryByText(/^Archived \(/)).not.toBeInTheDocument();
 	},
 };
+
+export const ArchivingShowsSpinnerOnly: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archiving-chat",
+				title: "Chat being archived",
+				updated_at: todayTimestamp,
+			}),
+		],
+		isArchiving: true,
+		archivingChatId: "archiving-chat",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const DefaultShowsTimestampHidesMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "default-chat",
+				title: "Default state agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};

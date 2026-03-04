@@ -450,52 +450,50 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 						</>
 					)}
 				</NavLink>
-				<div className="relative mr-1 mt-1 h-6 w-7 shrink-0 text-right">
-					<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity [@media(hover:hover)]:group-hover:opacity-0">
-						{shortRelativeTime(chat.updated_at)}
-					</span>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								className={cn(
-									"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100",
-									isArchivingThisChat && "opacity-100",
-								)}
-								aria-label={`Open actions for ${chat.title}`}
-							>
-								{isArchivingThisChat ? (
-									<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-								) : (
-									<EllipsisIcon className="h-3.5 w-3.5" />
-								)}
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								disabled={isArchiving}
-								onSelect={() => onArchiveAgent(chat.id)}
-							>
-								<ArchiveIcon className="h-3.5 w-3.5" />
-								Archive agent
-							</DropdownMenuItem>
-							{workspaceId && (
-								<DropdownMenuItem
-									className="text-content-destructive focus:text-content-destructive"
-									disabled={isArchiving}
-									onSelect={() =>
-										onArchiveAndDeleteWorkspace(chat.id, workspaceId)
-									}
-								>
-									{" "}
-									<Trash2Icon className="h-3.5 w-3.5" />
-									Archive & delete workspace
-								</DropdownMenuItem>
-							)}
-						</DropdownMenuContent>{" "}
-					</DropdownMenu>
+				<div className="mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+					{isArchivingThisChat ? (
+						<Loader2Icon className="h-3.5 w-3.5 animate-spin text-content-secondary" />
+					) : (
+						<>
+							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+								{shortRelativeTime(chat.updated_at)}
+							</span>
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										size="icon"
+										variant="subtle"
+										className="hidden h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex"
+										aria-label={`Open actions for ${chat.title}`}
+									>
+										<EllipsisIcon className="h-3.5 w-3.5" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end">
+									<DropdownMenuItem
+										className="text-content-destructive focus:text-content-destructive"
+										disabled={isArchiving}
+										onSelect={() => onArchiveAgent(chat.id)}
+									>
+										<ArchiveIcon className="h-3.5 w-3.5" />
+										Archive agent
+									</DropdownMenuItem>
+									{workspaceId && (
+										<DropdownMenuItem
+											className="text-content-destructive focus:text-content-destructive"
+											disabled={isArchiving}
+											onSelect={() =>
+												onArchiveAndDeleteWorkspace(chat.id, workspaceId)
+											}
+										>
+											<Trash2Icon className="h-3.5 w-3.5" />
+											Archive & delete workspace
+										</DropdownMenuItem>
+									)}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</>
+					)}
 				</div>
 			</div>
 
@@ -778,7 +776,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 												</div>
 											</CollapsibleContent>
 										</Collapsible>
-									)}{" "}
+									)}
 								</div>
 							)}
 						</ChatTreeContext.Provider>
