@@ -58,6 +58,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = (props) => {
 		<InnerAutocomplete<User>
 			error={usersQuery.error}
 			isFetching={usersQuery.isFetching}
+			shouldFilter={false}
 			setFilter={setFilter}
 			users={usersQuery.data?.users}
 			{...props}
@@ -85,6 +86,7 @@ export const MemberAutocomplete: FC<MemberAutocompleteProps> = ({
 		<InnerAutocomplete<OrganizationMemberWithUserData>
 			error={membersQuery.error}
 			isFetching={membersQuery.isFetching}
+			shouldFilter={true}
 			setFilter={setFilter}
 			users={membersQuery.data?.members}
 			{...props}
@@ -114,6 +116,7 @@ export const WorkspaceUserAutocomplete: FC<WorkspaceUserAutocompleteProps> = ({
 		<InnerAutocomplete<MinimalUser>
 			error={availableUsersQuery.error}
 			isFetching={availableUsersQuery.isFetching}
+			shouldFilter={false}
 			setFilter={setFilter}
 			users={availableUsersQuery.data}
 			{...props}
@@ -126,6 +129,8 @@ type InnerAutocompleteProps<T extends SelectedUser> =
 		/** The error is null if not loaded or no error. */
 		error: unknown;
 		isFetching: boolean;
+		/** Enable cmdk filtering for non-API-filtered variants. */
+		shouldFilter: boolean;
 		/** Filter is undefined if the autocomplete is closed. */
 		setFilter: (filter: string | undefined) => void;
 		/** Users are undefined if not loaded or errored. */
@@ -137,6 +142,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 	error,
 	label,
 	onChange,
+	shouldFilter,
 	setFilter,
 	isFetching,
 	users,
@@ -204,7 +210,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 				</ComboboxTrigger>
 				<ComboboxContent
 					className="w-[var(--radix-popover-trigger-width)] p-0"
-					shouldFilter={false}
+					shouldFilter={shouldFilter}
 				>
 					<ComboboxInput
 						placeholder="Username or email"
