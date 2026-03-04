@@ -3022,15 +3022,19 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	runningPrebuilds := coderdenttest.GetRunningPrebuilds(ctx, t, db, 1)
 	require.Len(t, runningPrebuilds, 1)
 
-	// Then: the histogram value for prebuilt workspace creation should be updated
-	prebuildCreationHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+	// Then: the histogram value for prebuilt workspace creation should be updated.
+	// The metric update is asynchronous (it happens after the build completes in the
+	// provisioner server), so we must poll until it appears.
+	var prebuildCreationLabels = prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templatePrebuild.Name,
 		"preset_name":       presetsPrebuild[0].Name,
 		"type":              "prebuild",
-	})
-	require.NotNil(t, prebuildCreationHistogram)
-	require.Equal(t, uint64(1), prebuildCreationHistogram.GetSampleCount())
+	}
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		m := promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", prebuildCreationLabels)
+		return m != nil && m.GetHistogram() != nil && m.GetHistogram().GetSampleCount() == 1
+	}, testutil.IntervalFast, "prebuild creation histogram not found")
 
 	// Given: a running prebuilt workspace, ready to be claimed
 	prebuild := coderdtest.MustWorkspace(t, client, runningPrebuilds[0].ID)
@@ -3050,14 +3054,17 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	workspace := coderdenttest.MustClaimPrebuild(ctx, t, client, userClient, user.Username, versionPrebuild, presetsPrebuild[0].ID)
 	require.Equal(t, prebuild.ID, workspace.ID)
 
-	// Then: the histogram value for prebuilt workspace claim should be updated
-	prebuildClaimHistogram := promhelp.HistogramValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prometheus.Labels{
+	// Then: the histogram value for prebuilt workspace claim should be updated.
+	// The metric update is asynchronous, so we must poll until it appears.
+	var prebuildClaimLabels = prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templatePrebuild.Name,
 		"preset_name":       presetsPrebuild[0].Name,
-	})
-	require.NotNil(t, prebuildClaimHistogram)
-	require.Equal(t, uint64(1), prebuildClaimHistogram.GetSampleCount())
+	}
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		m := promhelp.MetricValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prebuildClaimLabels)
+		return m != nil && m.GetHistogram() != nil && m.GetHistogram().GetSampleCount() == 1
+	}, testutil.IntervalFast, "prebuild claim histogram not found")
 
 	// Given: no histogram value for regular workspaces creation
 	regularWorkspaceHistogramMetric := promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
@@ -3077,15 +3084,18 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	require.NoError(t, err)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, regularWorkspace.LatestBuild.ID)
 
-	// Then: the histogram value for regular workspace creation should be updated
-	regularWorkspaceHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+	// Then: the histogram value for regular workspace creation should be updated.
+	// The metric update is asynchronous, so we must poll until it appears.
+	var regularWorkspaceLabels = prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templateNoPrebuild.Name,
 		"preset_name":       presetsNoPrebuild[0].Name,
 		"type":              "regular",
-	})
-	require.NotNil(t, regularWorkspaceHistogram)
-	require.Equal(t, uint64(1), regularWorkspaceHistogram.GetSampleCount())
+	}
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		m := promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", regularWorkspaceLabels)
+		return m != nil && m.GetHistogram() != nil && m.GetHistogram().GetSampleCount() == 1
+	}, testutil.IntervalFast, "regular workspace creation histogram not found")
 }
 
 // TestWorkspaceTemplateParamsChange tests a workspace with a parameter that
