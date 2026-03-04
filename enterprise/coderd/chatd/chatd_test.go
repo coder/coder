@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/quartz"
-
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	osschatd "github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/database"
@@ -27,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	entchatd "github.com/coder/coder/v2/enterprise/coderd/chatd"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func newTestServer(
