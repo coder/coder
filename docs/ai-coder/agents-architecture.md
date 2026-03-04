@@ -19,7 +19,7 @@ Three components are involved in every Coder Agents interaction:
    reads and writes files, and executes processes — exactly what it does when a
    developer connects via their IDE.
 
-![Architecture diagram ](../images/guides/ai-agents/agents-loop-detailed.png)
+![Architecture diagram ](../images/guides/ai-agents/agent-loop-detailed.png)
 
 ## The same connection your IDE uses
 
