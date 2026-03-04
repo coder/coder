@@ -88,8 +88,7 @@ This means:
 
 When a workspace _is_ needed, the agent reads the available templates —
 including their descriptions and parameters — selects the appropriate one, and
-creates a workspace automatically. If a suitable workspace already exists, the
-agent connects to it instead.
+creates a workspace automatically. Users can also manually choose which workspace is used when starting a new chat.
 
 Platform teams control template routing by writing clear template descriptions.
 For example, a description like "Use this template for Python backend services
