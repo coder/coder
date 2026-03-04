@@ -176,7 +176,6 @@ func writeDocs(sections [][]byte) error {
 		Path        string   `json:"path,omitempty"`
 		IconPath    string   `json:"icon_path,omitempty"`
 		State       []string `json:"state,omitempty"`
-		Navigable   *bool    `json:"navigable,omitempty"`
 		Children    []route  `json:"children,omitempty"`
 	}
 
