@@ -221,6 +221,21 @@ interface ChatMessageInputProps
 	"aria-label"?: string;
 }
 
+// Keeps the Lexical editor's editable state in sync with the
+// disabled prop so that the underlying contentEditable element
+// becomes truly non-interactive when the input is disabled.
+const EditableStatePlugin: FC<{ disabled: boolean }> = memo(
+	function EditableStatePlugin({ disabled }) {
+		const [editor] = useLexicalComposerContext();
+
+		useEffect(() => {
+			editor.setEditable(!disabled);
+		}, [editor, disabled]);
+
+		return null;
+	},
+);
+
 const ChatMessageInput = memo(
 	({
 		className,
@@ -243,7 +258,11 @@ const ChatMessageInput = memo(
 				},
 				onError: (error: Error) => console.error("Lexical error:", error),
 				nodes: [],
+				editable: !disabled,
 			}),
+			// Intentionally only uses the initial disabled value;
+			// runtime changes are handled by EditableStatePlugin.
+			// eslint-disable-next-line react-hooks/exhaustive-deps
 			[],
 		);
 		const style = useMemo(
@@ -380,6 +399,7 @@ const ChatMessageInput = memo(
 					<ContentChangePlugin onChange={handleContentChange} />
 					<ValueSyncPlugin initialValue={initialValue} />
 					<InsertTextPlugin onEditorReady={handleEditorReady} />
+					<EditableStatePlugin disabled={!!disabled} />
 					{autoFocus && <AutoFocusPlugin />}
 				</div>
 			</LexicalComposer>
