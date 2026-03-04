@@ -2247,6 +2247,23 @@ func (p *Server) runChat(
 			p.publishMessagePart(chat.ID, string(role), part)
 		},
 		Compaction: compactionOptions,
+		ReloadMessages: func(reloadCtx context.Context) ([]fantasy.Message, error) {
+			reloadedDBMessages, err := p.db.GetChatMessagesForPromptByChatID(reloadCtx, chat.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("reload chat messages: %w", err)
+			}
+			reloadedPrompt, err := chatprompt.ConvertMessages(reloadedDBMessages)
+			if err != nil {
+				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
+			}
+			if chat.ParentChatID.Valid {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, defaultSubagentInstruction)
+			}
+			if instruction := p.resolveInstructions(reloadCtx, chat, getWorkspaceConn); instruction != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			}
+			return reloadedPrompt, nil
+		},
 
 		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
 			logger.Warn(ctx, "retrying LLM stream",

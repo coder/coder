@@ -250,9 +250,29 @@ func Run(ctx context.Context, opts RunOptions) error {
 				persistInterruptedStep(ctx, opts, &result)
 				return ErrInterrupted
 			}
+			// Attempt compaction before returning the error.
+			// When a step fails (e.g. context length exceeded),
+			// we use the last successful step's usage to decide
+			// whether compaction is needed. If this is the first
+			// step, lastUsage is zero-valued and tryCompact
+			// safely skips via contextTokensFromUsage <= 0.
+			if !alreadyCompacted && opts.Compaction != nil {
+				if _, compactErr := tryCompact(
+					ctx,
+					opts.Model,
+					opts.Compaction,
+					opts.ContextLimitFallback,
+					lastUsage,
+					lastProviderMetadata,
+					messages,
+				); compactErr != nil {
+					if opts.Compaction.OnError != nil {
+						opts.Compaction.OnError(compactErr)
+					}
+				}
+			}
 			return xerrors.Errorf("stream response: %w", err)
 		}
-
 		// Execute tools before persisting so that tool results
 		// are included in the persisted step content. The
 		// persistence layer splits assistant and tool-result

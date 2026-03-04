@@ -462,4 +462,93 @@ func TestRun_Compaction(t *testing.T) {
 		require.Error(t, compactionErr)
 		require.ErrorContains(t, compactionErr, "generate summary text")
 	})
+
+	t.Run("CompactsOnStreamError", func(t *testing.T) {
+		t.Parallel()
+
+		var mu sync.Mutex
+		var streamCallCount int
+		persistCompactionCalls := 0
+		var persistedCompaction CompactionResult
+
+		const summaryText = "summary after stream error"
+
+		model := &loopTestModel{
+			provider: "fake",
+			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				mu.Lock()
+				step := streamCallCount
+				streamCallCount++
+				mu.Unlock()
+
+				switch step {
+				case 0:
+					// Step 0: tool call with high usage (80/100 = 80% > 70%).
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "read_file"},
+						{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{}`},
+						{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+						{
+							Type:          fantasy.StreamPartTypeToolCall,
+							ID:            "tc-1",
+							ToolCallName:  "read_file",
+							ToolCallInput: `{}`,
+						},
+						{
+							Type:         fantasy.StreamPartTypeFinish,
+							FinishReason: fantasy.FinishReasonToolCalls,
+							Usage: fantasy.Usage{
+								InputTokens: 80,
+								TotalTokens: 85,
+							},
+						},
+					}), nil
+				default:
+					// Step 1: simulate context length exceeded error.
+					return nil, xerrors.New("context length exceeded")
+				}
+			},
+			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				return &fantasy.Response{
+					Content: []fantasy.Content{
+						fantasy.TextContent{Text: summaryText},
+					},
+				}, nil
+			},
+		}
+
+		err := Run(context.Background(), RunOptions{
+			Model: model,
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "hello"),
+			},
+			Tools: []fantasy.AgentTool{
+				newNoopTool("read_file"),
+			},
+			MaxSteps: 5,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			ContextLimitFallback: 100,
+			Compaction: &CompactionOptions{
+				ThresholdPercent: 70,
+				SummaryPrompt:    "summarize now",
+				Persist: func(_ context.Context, result CompactionResult) error {
+					persistCompactionCalls++
+					persistedCompaction = result
+					return nil
+				},
+			},
+		})
+		// Run returns the stream error.
+		require.Error(t, err)
+		require.ErrorContains(t, err, "context length exceeded")
+
+		// Compaction should have fired using step 0's usage
+		// before the error was returned.
+		require.Equal(t, 1, persistCompactionCalls)
+		require.Contains(t, persistedCompaction.SystemSummary, summaryText)
+		require.Equal(t, int64(80), persistedCompaction.ContextTokens)
+		require.Equal(t, int64(100), persistedCompaction.ContextLimit)
+	})
 }
