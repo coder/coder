@@ -1,7 +1,6 @@
 import { API, watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
-	archiveChat,
 	chatDiffContentsKey,
 	chatDiffStatusKey,
 	chatKey,
@@ -10,7 +9,6 @@ import {
 	chats,
 	chatsKey,
 	createChat,
-	unarchiveChat,
 } from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
@@ -158,44 +156,54 @@ const AgentsPage: FC = () => {
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const createMutation = useMutation(createChat(queryClient));
-	const archiveChatBase = archiveChat(queryClient);
-	const archiveAgentMutation = useMutation({
-		...archiveChatBase,
-		onMutate: async (chatId: string) => {
-			const baseContext = await archiveChatBase.onMutate?.(chatId);
-			await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
-			const previousChat =
-				queryClient.getQueryData<TypesGen.ChatWithMessages>(
-					chatKey(chatId),
+		const archiveAgentMutation = useMutation({
+			mutationFn: (chatId: string) => API.archiveChat(chatId),
+			onMutate: async (chatId: string) => {
+				await queryClient.cancelQueries({ queryKey: chatsKey });
+				await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
+				const previousChats =
+					queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+				const previousChat =
+					queryClient.getQueryData<TypesGen.ChatWithMessages>(
+						chatKey(chatId),
+					);
+				queryClient.setQueryData<TypesGen.Chat[]>(chatsKey, (old) =>
+					old?.map((chat) =>
+						chat.id === chatId ? { ...chat, archived: true } : chat,
+					),
 				);
-			if (previousChat) {
-				queryClient.setQueryData<TypesGen.ChatWithMessages>(
-					chatKey(chatId),
-					{ ...previousChat, chat: { ...previousChat.chat, archived: true } },
-				);
-			}
-			return { ...baseContext, previousChat };
-		},
-		onError: (error, chatId, context) => {
-			archiveChatBase.onError?.(error, chatId, context);
-			if (context?.previousChat) {
-				queryClient.setQueryData<TypesGen.ChatWithMessages>(
-					chatKey(chatId),
-					context.previousChat,
-				);
-			}
-			toast.error(getErrorMessage(error, "Failed to archive agent."));
-		},
-		onSuccess: (_data, chatId) => {
-			clearChatErrorReason(chatId);
-			toast.success("Agent archived.");
-		},
-		onSettled: async (_data, _error, chatId) => {
-			archiveChatBase.onSettled?.();
-			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
-		},
-	});
-	const archiveAndDeleteMutation = useMutation({
+				if (previousChat) {
+					queryClient.setQueryData<TypesGen.ChatWithMessages>(
+						chatKey(chatId),
+						{ ...previousChat, chat: { ...previousChat.chat, archived: true } },
+					);
+				}
+				return { previousChats, previousChat };
+			},
+			onError: (error, chatId, context) => {
+				if (context?.previousChats) {
+					queryClient.setQueryData<TypesGen.Chat[]>(
+						chatsKey,
+						context.previousChats,
+					);
+				}
+				if (context?.previousChat) {
+					queryClient.setQueryData<TypesGen.ChatWithMessages>(
+						chatKey(chatId),
+						context.previousChat,
+					);
+				}
+				toast.error(getErrorMessage(error, "Failed to archive agent."));
+			},
+			onSuccess: (_data, chatId) => {
+				clearChatErrorReason(chatId);
+				toast.success("Agent archived.");
+			},
+			onSettled: async (_data, _error, chatId) => {
+				await queryClient.invalidateQueries({ queryKey: chatsKey });
+				await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+			},
+		});	const archiveAndDeleteMutation = useMutation({
 		mutationFn: async ({
 			chatId,
 			workspaceId,
@@ -218,43 +226,53 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
 		},
 	});
-	const unarchiveChatBase = unarchiveChat(queryClient);
-	const unarchiveAgentMutation = useMutation({
-		...unarchiveChatBase,
-		onMutate: async (chatId: string) => {
-			const baseContext = await unarchiveChatBase.onMutate?.(chatId);
-			await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
-			const previousChat =
-				queryClient.getQueryData<TypesGen.ChatWithMessages>(
-					chatKey(chatId),
+		const unarchiveAgentMutation = useMutation({
+			mutationFn: (chatId: string) => API.unarchiveChat(chatId),
+			onMutate: async (chatId: string) => {
+				await queryClient.cancelQueries({ queryKey: chatsKey });
+				await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
+				const previousChats =
+					queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+				const previousChat =
+					queryClient.getQueryData<TypesGen.ChatWithMessages>(
+						chatKey(chatId),
+					);
+				queryClient.setQueryData<TypesGen.Chat[]>(chatsKey, (old) =>
+					old?.map((chat) =>
+						chat.id === chatId ? { ...chat, archived: false } : chat,
+					),
 				);
-			if (previousChat) {
-				queryClient.setQueryData<TypesGen.ChatWithMessages>(
-					chatKey(chatId),
-					{ ...previousChat, chat: { ...previousChat.chat, archived: false } },
-				);
-			}
-			return { ...baseContext, previousChat };
-		},
-		onError: (error, chatId, context) => {
-			unarchiveChatBase.onError?.(error, chatId, context);
-			if (context?.previousChat) {
-				queryClient.setQueryData<TypesGen.ChatWithMessages>(
-					chatKey(chatId),
-					context.previousChat,
-				);
-			}
-			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
-		},
-		onSuccess: (_data, _chatId) => {
-			toast.success("Agent unarchived.");
-		},
-		onSettled: async (_data, _error, chatId) => {
-			unarchiveChatBase.onSettled?.();
-			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
-		},
-	});
-
+				if (previousChat) {
+					queryClient.setQueryData<TypesGen.ChatWithMessages>(
+						chatKey(chatId),
+						{ ...previousChat, chat: { ...previousChat.chat, archived: false } },
+					);
+				}
+				return { previousChats, previousChat };
+			},
+			onError: (error, chatId, context) => {
+				if (context?.previousChats) {
+					queryClient.setQueryData<TypesGen.Chat[]>(
+						chatsKey,
+						context.previousChats,
+					);
+				}
+				if (context?.previousChat) {
+					queryClient.setQueryData<TypesGen.ChatWithMessages>(
+						chatKey(chatId),
+						context.previousChat,
+					);
+				}
+				toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+			},
+			onSuccess: () => {
+				toast.success("Agent unarchived.");
+			},
+			onSettled: async (_data, _error, chatId) => {
+				await queryClient.invalidateQueries({ queryKey: chatsKey });
+				await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+			},
+		});
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
