@@ -118,56 +118,56 @@ approach, discussing architecture) never provision or connect to a workspace.
 These tools execute inside the workspace via the workspace daemon API.
 They are the same API endpoints used by the web terminal and IDE integrations.
 
-| Tool             | What it does                                                                                    |
-|------------------|-------------------------------------------------------------------------------------------------|
-| `read_file`      | Reads file contents with line-number pagination.                                                |
-| `write_file`     | Writes content to a file.                                                                       |
-| `edit_files`     | Performs atomic search-and-replace edits across one or more files.                               |
-| `execute`        | Runs a shell command (foreground or background).                                                |
-| `process_output` | Retrieves output from a background process.                                                     |
-| `process_list`   | Lists all tracked processes in the workspace.                                                   |
-| `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a background process.                                    |
+| Tool             | What it does                                                       |
+|------------------|--------------------------------------------------------------------|
+| `read_file`      | Reads file contents with line-number pagination.                   |
+| `write_file`     | Writes content to a file.                                          |
+| `edit_files`     | Performs atomic search-and-replace edits across one or more files. |
+| `execute`        | Runs a shell command (foreground or background).                   |
+| `process_output` | Retrieves output from a background process.                        |
+| `process_list`   | Lists all tracked processes in the workspace.                      |
+| `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a background process.       |
 
 ### Platform tools
 
 These tools run entirely within the control plane. They do not require a
 workspace connection.
 
-| Tool               | What it does                                                        |
-|--------------------|---------------------------------------------------------------------|
-| `list_templates`   | Browses available workspace templates, sorted by popularity.        |
-| `read_template`    | Gets template details and configurable parameters.                  |
-| `create_workspace` | Creates a workspace from a template and waits for it to be ready.   |
+| Tool               | What it does                                                      |
+|--------------------|-------------------------------------------------------------------|
+| `list_templates`   | Browses available workspace templates, sorted by popularity.      |
+| `read_template`    | Gets template details and configurable parameters.                |
+| `create_workspace` | Creates a workspace from a template and waits for it to be ready. |
 
 ### Orchestration tools
 
 These tools manage sub-agents — child chats that work on independent tasks in
 parallel.
 
-| Tool            | What it does                                                          |
-|-----------------|-----------------------------------------------------------------------|
-| `spawn_agent`   | Delegates a task to a sub-agent with its own context window.          |
-| `wait_agent`    | Waits for a sub-agent to finish and collects its result.              |
-| `message_agent` | Sends a follow-up message to a running sub-agent.                     |
-| `close_agent`   | Stops a running sub-agent.                                            |
+| Tool            | What it does                                                 |
+|-----------------|--------------------------------------------------------------|
+| `spawn_agent`   | Delegates a task to a sub-agent with its own context window. |
+| `wait_agent`    | Waits for a sub-agent to finish and collects its result.     |
+| `message_agent` | Sends a follow-up message to a running sub-agent.            |
+| `close_agent`   | Stops a running sub-agent.                                   |
 
 ## What runs where
 
 Understanding the split between the control plane and the workspace is central
 to the security model.
 
-| Responsibility          | Where it runs     | Details                                                                      |
-|-------------------------|-------------------|------------------------------------------------------------------------------|
-| Agent loop              | Control plane     | Prompt processing, tool dispatch, step iteration.                            |
-| LLM inference           | LLM provider      | The control plane streams requests to the external provider.                 |
-| Chat state              | Control plane     | All messages, token usage, and status stored in the database.                |
-| Git authentication      | Control plane     | Uses existing Coder external auth (GitHub, GitLab, Bitbucket).              |
-| User identity           | Control plane     | Every action is tied to the user who submitted the prompt.                   |
-| Model/prompt config     | Control plane     | Administrators configure providers, models, and system prompts centrally.    |
-| File read/write         | Workspace         | The workspace file system is the source of truth for code.                   |
-| Shell execution         | Workspace         | Commands run in the workspace's environment with its packages and tools.     |
-| Git operations          | Workspace         | Commits, pushes, and branch management happen inside the workspace.          |
-| Build and test          | Workspace         | Compilation, test suites, and dev servers run on workspace compute.          |
+| Responsibility      | Where it runs | Details                                                                   |
+|---------------------|---------------|---------------------------------------------------------------------------|
+| Agent loop          | Control plane | Prompt processing, tool dispatch, step iteration.                         |
+| LLM inference       | LLM provider  | The control plane streams requests to the external provider.              |
+| Chat state          | Control plane | All messages, token usage, and status stored in the database.             |
+| Git authentication  | Control plane | Uses existing Coder external auth (GitHub, GitLab, Bitbucket).            |
+| User identity       | Control plane | Every action is tied to the user who submitted the prompt.                |
+| Model/prompt config | Control plane | Administrators configure providers, models, and system prompts centrally. |
+| File read/write     | Workspace     | The workspace file system is the source of truth for code.                |
+| Shell execution     | Workspace     | Commands run in the workspace's environment with its packages and tools.  |
+| Git operations      | Workspace     | Commits, pushes, and branch management happen inside the workspace.       |
+| Build and test      | Workspace     | Compilation, test suites, and dev servers run on workspace compute.       |
 
 The workspace has **zero AI awareness**. There are no LLM API keys, no agent
 processes, and no AI-specific software installed. If you inspect a workspace
@@ -248,4 +248,3 @@ happens elsewhere:
 - **File I/O, builds, and tests** run on workspace compute.
 - **The control plane** primarily proxies streaming responses and dispatches
   tool calls over existing network connections.
-
