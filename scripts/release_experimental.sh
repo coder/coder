@@ -457,16 +457,13 @@ fi
 
 # --- Release Channel -------------------------------------------------------
 
-log "Is this a stable or mainline release?"
-channel=""
-while [[ -z "$channel" ]]; do
-	read -r -p "Channel (stable/mainline): " channel_input
-	case "$channel_input" in
-	stable | s) channel="stable" ;;
-	mainline | m) channel="mainline" ;;
-	*) echo "Please enter 'stable' or 'mainline'." && channel="" ;;
-	esac
-done
+if confirm "Mark this as the latest stable release on GitHub?"; then
+	channel="stable"
+	info "Channel: stable (will be marked as GitHub Latest)."
+else
+	channel="mainline"
+	info "Channel: mainline (will be marked as prerelease)."
+fi
 log
 
 # --- Tag -------------------------------------------------------------------
