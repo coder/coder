@@ -390,12 +390,15 @@ const AgentsPage: FC = () => {
 			const prevStatus = currentChats?.find(
 				(c) => c.id === updatedChat.id,
 			)?.status;
-			maybePlayChime(
-				prevStatus,
-				updatedChat.status,
-				updatedChat.id,
-				activeChatIDRef.current,
-			);
+			// Only play the chime for top-level chats, not sub-agents.
+			if (!updatedChat.parent_chat_id) {
+				maybePlayChime(
+					prevStatus,
+					updatedChat.status,
+					updatedChat.id,
+					activeChatIDRef.current,
+				);
+			}
 
 			if (chatEvent.kind === "deleted") {
 				queryClient.setQueryData(
