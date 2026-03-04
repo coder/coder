@@ -134,12 +134,14 @@ itself.
 ### Workspace connection lifecycle
 
 The connection to a workspace is **lazy**. It is not established when a chat
-starts — only when the first tool call requires workspace access. Once
+starts — only when something needs to reach the workspace. This is typically
+triggered by loading workspace instruction files (like `AGENTS.md`) during
+prompt setup, or by the first tool call that requires workspace access. Once
 established, the connection is cached and reused for the duration of that chat
 session.
 
-This means chats that don't need workspace access (answering questions, planning
-an approach, discussing architecture) never provision or connect to a workspace.
+Chats that don't need workspace access (answering questions, planning an
+approach, discussing architecture) never provision or connect to a workspace.
 
 ### Workspace tools
 
