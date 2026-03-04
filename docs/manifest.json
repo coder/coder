@@ -959,8 +959,7 @@
 					{
 						"title": "Coder Agents",
 						"description": "Self-hosted agent by Coder",
-						"path": "./ai-coder/agents.md",
-					},
+							"path": "./ai-coder/agents.md"					},
 					{
 						"title": "Best Practices",					"description": "Best Practices running Coding Agents",
 					"path": "./ai-coder/best-practices.md"
