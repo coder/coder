@@ -883,7 +883,7 @@ func New(cfg Config) *Server {
 		db:                         cfg.Database,
 		workerID:                   workerID,
 		logger:                     cfg.Logger.Named("chat-processor"),
-		subscribeFn:               cfg.SubscribeFn,
+		subscribeFn:                cfg.SubscribeFn,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
 		pubsub:                     cfg.Pubsub,

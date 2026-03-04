@@ -92,6 +92,8 @@ func (c Config) dial() func(
 // and pubsub-driven durable events into a single output channel.
 // This captures all relay/pubsub merge logic that enterprise
 // multi-replica deployments require.
+//
+//nolint:gocognit // Complexity is inherent to the multi-source merge loop.
 func NewMultiReplicaSubscribeFn(
 	cfg Config,
 ) osschatd.SubscribeFn {

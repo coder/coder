@@ -1131,7 +1131,6 @@ func newTestServer(
 	return server
 }
 
-
 func seedChatDependencies(
 	ctx context.Context,
 	t *testing.T,
@@ -1187,8 +1186,6 @@ func setOpenAIProviderBaseURL(
 	})
 	require.NoError(t, err)
 }
-
-
 
 func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {
 	t.Parallel()

@@ -760,15 +760,15 @@ func New(options *Options) *API {
 	api.agentProvider = stn
 
 	api.chatDaemon = chatd.New(chatd.Config{
-		Logger:              options.Logger.Named("chats"),
-		Database:            options.Database,
-		ReplicaID:           api.ID,
-		SubscribeFn:         options.ChatSubscribeFn,
-		ProviderAPIKeys:     chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
-		AgentConn:           api.agentProvider.AgentConn,
-		CreateWorkspace:     api.chatCreateWorkspace,
-		Pubsub:              options.Pubsub,
-		WebpushDispatcher:   options.WebPushDispatcher,
+		Logger:            options.Logger.Named("chats"),
+		Database:          options.Database,
+		ReplicaID:         api.ID,
+		SubscribeFn:       options.ChatSubscribeFn,
+		ProviderAPIKeys:   chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+		AgentConn:         api.agentProvider.AgentConn,
+		CreateWorkspace:   api.chatCreateWorkspace,
+		Pubsub:            options.Pubsub,
+		WebpushDispatcher: options.WebPushDispatcher,
 	})
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
