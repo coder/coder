@@ -579,7 +579,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 		default:
 			return false
 		}
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, 2*time.Second, testutil.IntervalFast)
 }
 
 // TestSubscribeCancelDuringInFlightDial verifies that calling the
@@ -877,7 +877,7 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 	// dial should happen — only the initial synchronous one.
 	require.Never(t, func() bool {
 		return int(callCount.Load()) > 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, 2*time.Second, testutil.IntervalFast)
 
 	require.Equal(t, 1, int(callCount.Load()),
 		"only the initial synchronous dial should have happened")

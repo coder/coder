@@ -128,6 +128,11 @@ func NewMultiReplicaSubscribeFn(
 						initialRelaySnapshot = append(initialRelaySnapshot, event)
 					}
 				}
+			} else {
+				logger.Warn(ctx, "failed to open initial relay for chat stream",
+					slog.F("chat_id", chatID),
+					slog.Error(err),
+				)
 			}
 		}
 
@@ -390,7 +395,12 @@ func NewMultiReplicaSubscribeFn(
 								ChatID:  chatID,
 								AfterID: lastMessageID,
 							})
-							if err == nil {
+							if err != nil {
+								logger.Warn(ctx, "failed to get chat messages after pubsub notification",
+									slog.F("chat_id", chatID),
+									slog.Error(err),
+								)
+							} else {
 								for _, msg := range messages {
 									sdkMsg := db2sdk.ChatMessage(msg)
 									select {
@@ -445,7 +455,12 @@ func NewMultiReplicaSubscribeFn(
 						}
 						if notify.QueueUpdate {
 							queued, err := params.DB.GetChatQueuedMessages(ctx, chatID)
-							if err == nil {
+							if err != nil {
+								logger.Warn(ctx, "failed to get queued messages after pubsub notification",
+									slog.F("chat_id", chatID),
+									slog.Error(err),
+								)
+							} else {
 								select {
 								case <-ctx.Done():
 									return
@@ -513,6 +528,7 @@ func NewMultiReplicaSubscribeFn(
 					}
 				}
 				for {
+					relayPartsCh := relayParts
 					select {
 					case <-ctx.Done():
 						return
@@ -525,11 +541,22 @@ func NewMultiReplicaSubscribeFn(
 							return
 						case mergedEvents <- event:
 						}
+					case event, ok := <-relayPartsCh:
+						if !ok {
+							relayParts = nil
+							continue
+						}
+						if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+							select {
+							case <-ctx.Done():
+								return
+							case mergedEvents <- event:
+							}
+						}
 					}
 				}
 			}()
 		}
-
 		// The cancel function only tears down the upstream
 		// sources (local stream, pubsub subscription). The
 		// merge goroutine owns all relay state (reconnectTimer,
