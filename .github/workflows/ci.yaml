@@ -497,7 +497,7 @@ jobs:
         if: runner.os == 'Linux'
         uses: ./.github/actions/test-go-pg
         with:
-          postgres-version: "15"
+          postgres-version: "17"
           # Our Linux runners have 8 cores.
           test-parallelism-packages: "8"
           test-parallelism-tests: "8"
@@ -509,7 +509,7 @@ jobs:
         if: runner.os == 'macOS'
         uses: ./.github/actions/test-go-pg
         with:
-          postgres-version: "15"
+          postgres-version: "17"
           # Our macOS runners have 8 cores.
           # Even though this parallelism seems high, we've observed relatively low flakiness in the past.
           # See https://github.com/coder/coder/pull/21091#discussion_r2609891540.
@@ -527,7 +527,7 @@ jobs:
         if: runner.os == 'Windows'
         uses: ./.github/actions/test-go-pg
         with:
-          postgres-version: "15"
+          postgres-version: "17"
           # Our Windows runners have 16 cores.
           # On Windows Postgres chokes up when we have 16x16=256 tests
           # running in parallel, and dbtestutil.NewDB starts to take more than
