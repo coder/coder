@@ -46,11 +46,11 @@ import (
 	"github.com/coder/coder/v2/tailnet/derpmetrics"
 )
 
-
 // expDERPOnce guards the global expvar.Publish call for the DERP server.
 // expvar panics on duplicate registration, and tests may create multiple
 // servers in the same process.
 var expDERPOnce sync.Once
+
 type Options struct {
 	Logger      slog.Logger
 	Experiments codersdk.Experiments
