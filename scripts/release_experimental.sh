@@ -457,11 +457,37 @@ fi
 
 # --- Release Channel -------------------------------------------------------
 
-if confirm "Mark this as the latest stable release on GitHub?"; then
-	channel="stable"
+# Suggest stable if this version's minor is the stable minor.
+if ((new_minor == stable_minor)); then
+	stable_default="Y/n"
+	stable_hint=" (this looks like a stable release)"
+else
+	stable_default="y/N"
+	stable_hint=""
+fi
+
+reply=""
+while true; do
+	read -r -p "Mark this as the latest stable release on GitHub?${stable_hint} (${stable_default}) " reply
+	case "$reply" in
+	[Yy]) channel="stable" && break ;;
+	[Nn]) channel="mainline" && break ;;
+	"")
+		# Enter = use the suggested default.
+		if ((new_minor == stable_minor)); then
+			channel="stable"
+		else
+			channel="mainline"
+		fi
+		break
+		;;
+	*) echo "Please answer y or n." ;;
+	esac
+done
+
+if [[ "$channel" == "stable" ]]; then
 	info "Channel: stable (will be marked as GitHub Latest)."
 else
-	channel="mainline"
 	info "Channel: mainline (will be marked as prerelease)."
 fi
 log
