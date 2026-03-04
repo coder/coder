@@ -38,35 +38,35 @@ func TestDERPExpvarCollector(t *testing.T) {
 		}
 
 		expectedCounters := []string{
-			"coder_derp_accepts_total",
-			"coder_derp_bytes_received_total",
-			"coder_derp_bytes_sent_total",
-			"coder_derp_packets_received_total",
-			"coder_derp_packets_sent_total",
-			"coder_derp_packets_dropped_total",
-			"coder_derp_packets_forwarded_in_total",
-			"coder_derp_packets_forwarded_out_total",
-			"coder_derp_home_moves_in_total",
-			"coder_derp_home_moves_out_total",
-			"coder_derp_got_ping_total",
-			"coder_derp_sent_pong_total",
-			"coder_derp_peer_gone_disconnected_total",
-			"coder_derp_peer_gone_not_here_total",
-			"coder_derp_unknown_frames_total",
+			"coder_derp_server_accepts_total",
+			"coder_derp_server_bytes_received_total",
+			"coder_derp_server_bytes_sent_total",
+			"coder_derp_server_packets_received_total",
+			"coder_derp_server_packets_sent_total",
+			"coder_derp_server_packets_dropped_total",
+			"coder_derp_server_packets_forwarded_in_total",
+			"coder_derp_server_packets_forwarded_out_total",
+			"coder_derp_server_home_moves_in_total",
+			"coder_derp_server_home_moves_out_total",
+			"coder_derp_server_got_ping_total",
+			"coder_derp_server_sent_pong_total",
+			"coder_derp_server_peer_gone_disconnected_total",
+			"coder_derp_server_peer_gone_not_here_total",
+			"coder_derp_server_unknown_frames_total",
 		}
 		expectedGauges := []string{
-			"coder_derp_connections",
-			"coder_derp_home_connections",
-			"coder_derp_clients",
-			"coder_derp_clients_local",
-			"coder_derp_clients_remote",
-			"coder_derp_watchers",
-			"coder_derp_average_queue_duration_ms",
+			"coder_derp_server_connections",
+			"coder_derp_server_home_connections",
+			"coder_derp_server_clients",
+			"coder_derp_server_clients_local",
+			"coder_derp_server_clients_remote",
+			"coder_derp_server_watchers",
+			"coder_derp_server_average_queue_duration_ms",
 		}
 		expectedLabeled := []string{
-			"coder_derp_packets_dropped_reason_total",
-			"coder_derp_packets_dropped_type_total",
-			"coder_derp_packets_received_kind_total",
+			"coder_derp_server_packets_dropped_reason_total",
+			"coder_derp_server_packets_dropped_type_total",
+			"coder_derp_server_packets_received_kind_total",
 		}
 
 		for _, name := range expectedCounters {
@@ -98,13 +98,13 @@ func TestDERPExpvarCollector(t *testing.T) {
 		metrics, err := reg.Gather()
 		require.NoError(t, err)
 		for _, m := range metrics {
-			if m.GetName() == "coder_derp_bytes_received_total" {
+			if m.GetName() == "coder_derp_server_bytes_received_total" {
 				require.Len(t, m.GetMetric(), 1)
 				assert.Equal(t, float64(0), m.GetMetric()[0].GetCounter().GetValue())
 				return
 			}
 		}
-		t.Fatal("coder_derp_bytes_received_total not found")
+		t.Fatal("coder_derp_server_bytes_received_total not found")
 	})
 
 	t.Run("GaugeTypes", func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestDERPExpvarCollector(t *testing.T) {
 		metrics, err := reg.Gather()
 		require.NoError(t, err)
 		for _, m := range metrics {
-			if m.GetName() == "coder_derp_connections" {
+			if m.GetName() == "coder_derp_server_connections" {
 				require.Len(t, m.GetMetric(), 1)
 				// Gauge type check — GetGauge should be non-nil.
 				assert.NotNil(t, m.GetMetric()[0].GetGauge())
@@ -128,7 +128,7 @@ func TestDERPExpvarCollector(t *testing.T) {
 				return
 			}
 		}
-		t.Fatal("coder_derp_connections not found")
+		t.Fatal("coder_derp_server_connections not found")
 	})
 
 	t.Run("LabeledCounters", func(t *testing.T) {
@@ -145,7 +145,7 @@ func TestDERPExpvarCollector(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, m := range metrics {
-			if m.GetName() == "coder_derp_packets_dropped_reason_total" {
+			if m.GetName() == "coder_derp_server_packets_dropped_reason_total" {
 				// Should have labeled sub-metrics (one per reason).
 				require.NotEmpty(t, m.GetMetric(), "expected labeled metrics for drop reasons")
 				// Each metric should have a "reason" label.
@@ -157,7 +157,7 @@ func TestDERPExpvarCollector(t *testing.T) {
 				return
 			}
 		}
-		t.Fatal("coder_derp_packets_dropped_reason_total not found")
+		t.Fatal("coder_derp_server_packets_dropped_reason_total not found")
 	})
 
 	t.Run("NoDuplicateRegistration", func(t *testing.T) {

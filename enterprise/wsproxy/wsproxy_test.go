@@ -1268,10 +1268,10 @@ func TestWorkspaceProxyDERPMetrics(t *testing.T) {
 		names[m.GetName()] = struct{}{}
 	}
 
-	assert.Contains(t, names, "coder_derp_connections",
-		"expected coder_derp_connections to be registered")
-	assert.Contains(t, names, "coder_derp_bytes_received_total",
-		"expected coder_derp_bytes_received_total to be registered")
-	assert.Contains(t, names, "coder_derp_packets_dropped_reason_total",
-		"expected coder_derp_packets_dropped_reason_total to be registered")
+	assert.Contains(t, names, "coder_derp_server_connections",
+		"expected coder_derp_server_connections to be registered")
+	assert.Contains(t, names, "coder_derp_server_bytes_received_total",
+		"expected coder_derp_server_bytes_received_total to be registered")
+	assert.Contains(t, names, "coder_derp_server_packets_dropped_reason_total",
+		"expected coder_derp_server_packets_dropped_reason_total to be registered")
 }
