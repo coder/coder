@@ -2838,11 +2838,11 @@ export interface GetInboxNotificationResponse {
 
 // From codersdk/insights.go
 export interface GetUserStatusCountsRequest {
+	readonly timezone: string;
 	/**
-	 * Timezone offset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local)
-	 * for the local timezone.
+	 * Deprecated: Use Timezone instead. Offset is ignored when Timezone is provided.
 	 */
-	readonly offset: number;
+	readonly offset?: number;
 }
 
 // From codersdk/insights.go
