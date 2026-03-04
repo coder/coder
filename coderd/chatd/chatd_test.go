@@ -237,6 +237,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 			"subagent chat should NOT have subagent tool %q", tool)
 	}
 }
+
 func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
 	t.Parallel()
 
