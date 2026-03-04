@@ -25,12 +25,22 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func newTestServerWithSubscribeFn(
+func newTestServer(
 	t *testing.T,
 	db database.Store,
 	ps dbpubsub.Pubsub,
 	replicaID uuid.UUID,
-	provider entchatd.RemotePartsProvider,
+	dialer func(
+		ctx context.Context,
+		chatID uuid.UUID,
+		workerID uuid.UUID,
+		requestHeader http.Header,
+	) (
+		[]codersdk.ChatStreamEvent,
+		<-chan codersdk.ChatStreamEvent,
+		func(),
+		error,
+	),
 ) *osschatd.Server {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -39,7 +49,7 @@ func newTestServerWithSubscribeFn(
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		Pubsub:                     ps,
-		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(provider),
+		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(entchatd.Config{DialerFn: dialer}),
 		PendingChatAcquireInterval: testutil.WaitSuperLong,
 	})
 	t.Cleanup(func() {
@@ -122,7 +132,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 		return nil, ch, func() {}, nil
 	}
 
-	subscriber := newTestServerWithSubscribeFn(t, db, ps, subscriberID, provider)
+	subscriber := newTestServer(t, db, ps, subscriberID, provider)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -211,7 +221,7 @@ func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 		return nil, ch, func() {}, nil
 	}
 
-	subscriber := newTestServerWithSubscribeFn(t, db, ps, subscriberID, provider)
+	subscriber := newTestServer(t, db, ps, subscriberID, provider)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -318,7 +328,7 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 		return snapshot, ch, func() {}, nil
 	}
 
-	subscriber := newTestServerWithSubscribeFn(t, db, ps, subscriberID, provider)
+	subscriber := newTestServer(t, db, ps, subscriberID, provider)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
@@ -434,7 +444,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 		return nil, ch, func() {}, nil
 	}
 
-	subscriber := newTestServerWithSubscribeFn(t, db, ps, subscriberID, provider)
+	subscriber := newTestServer(t, db, ps, subscriberID, provider)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
