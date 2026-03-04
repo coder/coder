@@ -10,7 +10,7 @@ export const WorkspaceDeletedBanner: FC<WorkspaceDeletedBannerProps> = ({
 	handleClick,
 }) => {
 	const NewWorkspaceButton = (
-		<Button onClick={handleClick} size="sm" variant="subtle">
+		<Button onClick={handleClick} size="sm">
 			Create new workspace
 		</Button>
 	);
