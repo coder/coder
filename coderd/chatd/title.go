@@ -6,28 +6,59 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyazure "charm.land/fantasy/providers/azure"
+	fantasybedrock "charm.land/fantasy/providers/bedrock"
+	fantasygoogle "charm.land/fantasy/providers/google"
+	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
+	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
 
-const titleGenerationPrompt = "Generate a concise title (max 8 words, under 128 characters) for " +
-	"the user's first message. Return plain text only — no quotes, no emoji, " +
-	"no markdown, no special characters."
+const titleGenerationPrompt = "Generate a concise title (2-8 words) for the user's message. " +
+	"Use verb-noun format describing the primary intent (e.g. \"Fix sidebar layout\", " +
+	"\"Add user authentication\", \"Refactor database queries\"). " +
+	"Return plain text only — no quotes, no emoji, no markdown, no code fences, " +
+	"no special characters, no trailing punctuation. Sentence case."
+
+// preferredTitleModels are lightweight models used for title
+// generation, one per provider type. Each entry uses the
+// cheapest/fastest small model for that provider as identified
+// by the charmbracelet/catwalk model catalog. Providers that
+// aren't configured (no API key) are silently skipped.
+var preferredTitleModels = []struct {
+	provider string
+	model    string
+}{
+	{fantasyanthropic.Name, "claude-haiku-4-5"},
+	{fantasyopenai.Name, "gpt-4o-mini"},
+	{fantasygoogle.Name, "gemini-2.5-flash"},
+	{fantasyazure.Name, "gpt-4o-mini"},
+	{fantasybedrock.Name, "anthropic.claude-haiku-4-5-20251001-v1:0"},
+	{fantasyopenrouter.Name, "anthropic/claude-3.5-haiku"},
+	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
+}
 
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
 // current title is either empty or still the fallback truncation).
-// It is a best-effort operation that logs and swallows errors.
+// It tries cheap, fast models first and falls back to the user's
+// chat model. It is a best-effort operation that logs and swallows
+// errors.
 func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
-	model fantasy.LanguageModel,
+	fallbackModel fantasy.LanguageModel,
+	keys chatprovider.ProviderAPIKeys,
 	logger slog.Logger,
 ) {
 	input, ok := titleInput(chat, messages)
@@ -38,31 +69,55 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	title, err := generateTitle(titleCtx, model, input)
-	if err != nil {
-		logger.Debug(ctx, "failed to generate chat title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
+	// Build candidate list: preferred lightweight models first,
+	// then the user's chat model as last resort.
+	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
+	for _, c := range preferredTitleModels {
+		m, err := chatprovider.ModelFromConfig(
+			c.provider, c.model, keys,
 		)
-		return
+		if err == nil {
+			candidates = append(candidates, m)
+		}
 	}
-	if title == "" || title == chat.Title {
+	candidates = append(candidates, fallbackModel)
+	var lastErr error
+	for _, model := range candidates {
+		title, err := generateTitle(titleCtx, model, input)
+		if err != nil {
+			lastErr = err
+			logger.Debug(ctx, "title model candidate failed",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+			continue
+		}
+		if title == "" || title == chat.Title {
+			return
+		}
+
+		_, err = p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
+			ID:    chat.ID,
+			Title: title,
+		})
+		if err != nil {
+			logger.Warn(ctx, "failed to update generated chat title",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+			return
+		}
+		chat.Title = title
+		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange)
 		return
 	}
 
-	_, err = p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-		ID:    chat.ID,
-		Title: title,
-	})
-	if err != nil {
-		logger.Warn(ctx, "failed to update generated chat title",
+	if lastErr != nil {
+		logger.Debug(ctx, "all title model candidates failed",
 			slog.F("chat_id", chat.ID),
-			slog.Error(err),
+			slog.Error(lastErr),
 		)
-		return
 	}
-	chat.Title = title
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange)
 }
 
 // generateTitle calls the model with a title-generation system prompt
@@ -87,14 +142,15 @@ func generateTitle(
 			},
 		},
 	}
-	toolChoice := fantasy.ToolChoiceNone
+
+	var maxOutputTokens int64 = 256
 
 	var response *fantasy.Response
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error
 		response, genErr = model.Generate(retryCtx, fantasy.Call{
-			Prompt:     prompt,
-			ToolChoice: &toolChoice,
+			Prompt:          prompt,
+			MaxOutputTokens: &maxOutputTokens,
 		})
 		return genErr
 	}, nil)
