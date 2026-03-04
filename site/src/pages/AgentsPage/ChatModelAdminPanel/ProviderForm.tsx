@@ -1,7 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Input } from "components/Input/Input";
 import {
 	Tooltip,
@@ -62,7 +61,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	);
 	const [apiKeyTouched, setApiKeyTouched] = useState(false);
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
-	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const isAPIKeyEnvManaged = isEnvPreset && !providerConfig;
 	const requiresAPIKey = !providerConfig && !isAPIKeyEnvManaged;
@@ -250,49 +249,70 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						</ProviderField>
 					</div>
 
-					{/* Footer — pushed to bottom */}
-					<div className="mt-auto pt-6">
-						<hr className="mb-4 border-0 border-t border-solid border-border" />
-						<div className="flex items-center justify-between">
-							{providerConfig ? (
-								<Button
-									variant="outline"
-									size="lg"
-									type="button"
-									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
-									disabled={isDisabled}
-									onClick={() => setShowDeleteDialog(true)}
-								>
-									Delete
-								</Button>
+						{/* Footer — pushed to bottom */}
+						<div className="mt-auto pt-6">
+							<hr className="mb-4 border-0 border-t border-solid border-border" />
+							{confirmingDelete ? (
+								<div className="space-y-3">
+									<p className="m-0 text-sm text-content-secondary">
+										Are you sure you want to delete this provider? This action is
+										irreversible.
+									</p>
+									<div className="flex items-center justify-end gap-2">
+										<Button
+											variant="outline"
+											size="lg"
+											type="button"
+											onClick={() => setConfirmingDelete(false)}
+											disabled={isProviderMutationPending}
+										>
+											Cancel
+										</Button>
+										<Button
+											variant="destructive"
+											size="lg"
+											type="button"
+											disabled={isProviderMutationPending}
+											onClick={() => {
+												if (providerConfig) {
+													void onDeleteProvider(providerConfig.id);
+												}
+											}}
+										>
+											{isProviderMutationPending && (
+												<Loader2Icon className="h-4 w-4 animate-spin" />
+											)}
+											Delete provider
+										</Button>
+									</div>
+								</div>
 							) : (
-								<div />
+								<div className="flex items-center justify-between">
+									{providerConfig ? (
+										<Button
+											variant="outline"
+											size="lg"
+											type="button"
+											className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+											disabled={isDisabled}
+											onClick={() => setConfirmingDelete(true)}
+										>
+											Delete
+										</Button>
+									) : (
+										<div />
+									)}
+									<Button size="lg" type="submit" disabled={!canSave}>
+										{isProviderMutationPending && (
+											<Loader2Icon className="h-4 w-4 animate-spin" />
+										)}
+										{providerConfig ? "Save changes" : "Create provider config"}
+									</Button>
+								</div>
 							)}
-							<Button size="lg" type="submit" disabled={!canSave}>
-								{isProviderMutationPending && (
-									<Loader2Icon className="h-4 w-4 animate-spin" />
-								)}
-								{providerConfig ? "Save changes" : "Create provider config"}
-							</Button>
 						</div>
-					</div>
-				</form>
-			)}
-
-			<DeleteDialog
-				isOpen={showDeleteDialog}
-				onCancel={() => setShowDeleteDialog(false)}
-				onConfirm={() => {
-					if (providerConfig) {
-						void onDeleteProvider(providerConfig.id).finally(() =>
-							setShowDeleteDialog(false),
-						);
-					}
-				}}
-				entity="provider"
-				name={providerState.label}
-				confirmLoading={isProviderMutationPending}
-			/>
+					</form>
+				)}
 		</div>
 	);
 };

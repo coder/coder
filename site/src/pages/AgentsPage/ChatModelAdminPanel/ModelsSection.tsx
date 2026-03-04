@@ -1,7 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -68,8 +67,6 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	onDeleteModel,
 }) => {
 	const [view, setView] = useState<ModelView>({ mode: "list" });
-	const [modelToDelete, setModelToDelete] =
-		useState<TypesGen.ChatModelConfig | null>(null);
 
 	// When the form is open it takes over the full panel.
 	if (view.mode === "add" || view.mode === "edit") {
@@ -100,24 +97,24 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				onSelectedProviderChange={onSelectedProviderChange}
 				modelConfigsUnavailable={modelConfigsUnavailable}
 				isSaving={isCreating || isUpdating}
-				onCreateModel={async (req) => {
-					await onCreateModel(req);
-					setView({ mode: "list" });
-				}}
-				onUpdateModel={async (id, req) => {
-					await onUpdateModel(id, req);
-					setView({ mode: "list" });
-				}}
-				onCancel={() => setView({ mode: "list" })}
-				onDeleteModel={
-					editingModel
-						? () => {
-								setModelToDelete(editingModel);
-								setView({ mode: "list" });
-							}
-						: undefined
-				}
-			/>
+					isDeleting={isDeleting}
+					onCreateModel={async (req) => {
+						await onCreateModel(req);
+						setView({ mode: "list" });
+					}}
+					onUpdateModel={async (id, req) => {
+						await onUpdateModel(id, req);
+						setView({ mode: "list" });
+					}}
+					onCancel={() => setView({ mode: "list" })}
+					onDeleteModel={
+						editingModel
+							? async (id) => {
+									await onDeleteModel(id);
+									setView({ mode: "list" });
+								}
+							: undefined
+					}			/>
 		);
 	}
 
@@ -256,20 +253,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				</div>
 			)}
 
-			<DeleteDialog
-				isOpen={modelToDelete !== null}
-				onCancel={() => setModelToDelete(null)}
-				onConfirm={() => {
-					if (modelToDelete) {
-						void onDeleteModel(modelToDelete.id).finally(() =>
-							setModelToDelete(null),
-						);
-					}
-				}}
-				entity="model"
-				name={modelToDelete?.display_name || modelToDelete?.model || ""}
-				confirmLoading={isDeleting}
-			/>
+
 		</>
 	);
 };
