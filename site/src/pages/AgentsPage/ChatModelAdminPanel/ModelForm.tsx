@@ -462,80 +462,78 @@ export const ModelForm: FC<ModelFormProps> = ({
 					</div>
 				</div>
 
-					{/* Footer — pushed to bottom */}
-					<div className="mt-auto pt-6">
-						<hr className="mb-4 border-0 border-t border-solid border-border" />
-						{confirmingDelete ? (
-							<div className="space-y-3">
-								<p className="m-0 text-sm text-content-secondary">
-									Are you sure you want to delete this model? This action is
-									irreversible.
-								</p>
-								<div className="flex items-center justify-end gap-2">
-									<Button
-										variant="outline"
-										size="lg"
-										type="button"
-										onClick={() => setConfirmingDelete(false)}
-										disabled={isDeleting}
-									>
-										Cancel
-									</Button>
-									<Button
-										variant="destructive"
-										size="lg"
-										type="button"
-										disabled={isDeleting}
-										onClick={() => {
-											if (editingModel && onDeleteModel) {
-												void onDeleteModel(editingModel.id);
-											}
-										}}
-									>
-										{isDeleting && (
-											<Loader2Icon className="h-4 w-4 animate-spin" />
-										)}
-										Delete model
-									</Button>
-								</div>
-							</div>
-						) : (
-							<div className="flex items-center justify-between">
-								{isEditing && editingModel && onDeleteModel ? (
-									<Button
-										variant="outline"
-										size="lg"
-										type="button"
-										className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
-										disabled={isSaving}
-										onClick={() => setConfirmingDelete(true)}
-									>
-										Delete
-									</Button>
-								) : (
-									<Button
-										variant="outline"
-										size="lg"
-										type="button"
-										onClick={onCancel}
-									>
-										Cancel
-									</Button>
-								)}{" "}
+				{/* Footer — pushed to bottom */}
+				<div className="mt-auto pt-6">
+					<hr className="mb-4 border-0 border-t border-solid border-border" />
+					{confirmingDelete ? (
+						<div className="space-y-3">
+							<p className="m-0 text-sm text-content-secondary">
+								Are you sure you want to delete this model? This action is
+								irreversible.
+							</p>
+							<div className="flex items-center justify-end gap-2">
 								<Button
+									variant="outline"
 									size="lg"
-									type="submit"
-									disabled={isSaving || !form.isValid || hasFieldErrors}
+									type="button"
+									onClick={() => setConfirmingDelete(false)}
+									disabled={isDeleting}
 								>
-									{isSaving && (
+									Cancel
+								</Button>
+								<Button
+									variant="destructive"
+									size="lg"
+									type="button"
+									disabled={isDeleting}
+									onClick={() => {
+										if (editingModel && onDeleteModel) {
+											void onDeleteModel(editingModel.id);
+										}
+									}}
+								>
+									{isDeleting && (
 										<Loader2Icon className="h-4 w-4 animate-spin" />
 									)}
-									{isEditing ? "Save" : "Add model"}{" "}
+									Delete model
 								</Button>
 							</div>
-						)}
-					</div>
-				</form>
-			</div>
+						</div>
+					) : (
+						<div className="flex items-center justify-between">
+							{isEditing && editingModel && onDeleteModel ? (
+								<Button
+									variant="outline"
+									size="lg"
+									type="button"
+									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+									disabled={isSaving}
+									onClick={() => setConfirmingDelete(true)}
+								>
+									Delete
+								</Button>
+							) : (
+								<Button
+									variant="outline"
+									size="lg"
+									type="button"
+									onClick={onCancel}
+								>
+									Cancel
+								</Button>
+							)}{" "}
+							<Button
+								size="lg"
+								type="submit"
+								disabled={isSaving || !form.isValid || hasFieldErrors}
+							>
+								{isSaving && <Loader2Icon className="h-4 w-4 animate-spin" />}
+								{isEditing ? "Save" : "Add model"}{" "}
+							</Button>
+						</div>
+					)}
+				</div>
+			</form>
+		</div>
 	);
 };

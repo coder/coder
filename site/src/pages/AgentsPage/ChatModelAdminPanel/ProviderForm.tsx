@@ -249,70 +249,70 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						</ProviderField>
 					</div>
 
-						{/* Footer — pushed to bottom */}
-						<div className="mt-auto pt-6">
-							<hr className="mb-4 border-0 border-t border-solid border-border" />
-							{confirmingDelete ? (
-								<div className="space-y-3">
-									<p className="m-0 text-sm text-content-secondary">
-										Are you sure you want to delete this provider? This action is
-										irreversible.
-									</p>
-									<div className="flex items-center justify-end gap-2">
-										<Button
-											variant="outline"
-											size="lg"
-											type="button"
-											onClick={() => setConfirmingDelete(false)}
-											disabled={isProviderMutationPending}
-										>
-											Cancel
-										</Button>
-										<Button
-											variant="destructive"
-											size="lg"
-											type="button"
-											disabled={isProviderMutationPending}
-											onClick={() => {
-												if (providerConfig) {
-													void onDeleteProvider(providerConfig.id);
-												}
-											}}
-										>
-											{isProviderMutationPending && (
-												<Loader2Icon className="h-4 w-4 animate-spin" />
-											)}
-											Delete provider
-										</Button>
-									</div>
-								</div>
-							) : (
-								<div className="flex items-center justify-between">
-									{providerConfig ? (
-										<Button
-											variant="outline"
-											size="lg"
-											type="button"
-											className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
-											disabled={isDisabled}
-											onClick={() => setConfirmingDelete(true)}
-										>
-											Delete
-										</Button>
-									) : (
-										<div />
-									)}
-									<Button size="lg" type="submit" disabled={!canSave}>
+					{/* Footer — pushed to bottom */}
+					<div className="mt-auto pt-6">
+						<hr className="mb-4 border-0 border-t border-solid border-border" />
+						{confirmingDelete ? (
+							<div className="space-y-3">
+								<p className="m-0 text-sm text-content-secondary">
+									Are you sure you want to delete this provider? This action is
+									irreversible.
+								</p>
+								<div className="flex items-center justify-end gap-2">
+									<Button
+										variant="outline"
+										size="lg"
+										type="button"
+										onClick={() => setConfirmingDelete(false)}
+										disabled={isProviderMutationPending}
+									>
+										Cancel
+									</Button>
+									<Button
+										variant="destructive"
+										size="lg"
+										type="button"
+										disabled={isProviderMutationPending}
+										onClick={() => {
+											if (providerConfig) {
+												void onDeleteProvider(providerConfig.id);
+											}
+										}}
+									>
 										{isProviderMutationPending && (
 											<Loader2Icon className="h-4 w-4 animate-spin" />
 										)}
-										{providerConfig ? "Save changes" : "Create provider config"}
+										Delete provider
 									</Button>
 								</div>
-							)}
-						</div>
-					</form>
-				)}
+							</div>
+						) : (
+							<div className="flex items-center justify-between">
+								{providerConfig ? (
+									<Button
+										variant="outline"
+										size="lg"
+										type="button"
+										className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+										disabled={isDisabled}
+										onClick={() => setConfirmingDelete(true)}
+									>
+										Delete
+									</Button>
+								) : (
+									<div />
+								)}
+								<Button size="lg" type="submit" disabled={!canSave}>
+									{isProviderMutationPending && (
+										<Loader2Icon className="h-4 w-4 animate-spin" />
+									)}
+									{providerConfig ? "Save changes" : "Create provider config"}
+								</Button>
+							</div>
+						)}
+					</div>
+				</form>
+			)}
 		</div>
 	);
 };

@@ -97,24 +97,25 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				onSelectedProviderChange={onSelectedProviderChange}
 				modelConfigsUnavailable={modelConfigsUnavailable}
 				isSaving={isCreating || isUpdating}
-					isDeleting={isDeleting}
-					onCreateModel={async (req) => {
-						await onCreateModel(req);
-						setView({ mode: "list" });
-					}}
-					onUpdateModel={async (id, req) => {
-						await onUpdateModel(id, req);
-						setView({ mode: "list" });
-					}}
-					onCancel={() => setView({ mode: "list" })}
-					onDeleteModel={
-						editingModel
-							? async (id) => {
-									await onDeleteModel(id);
-									setView({ mode: "list" });
-								}
-							: undefined
-					}			/>
+				isDeleting={isDeleting}
+				onCreateModel={async (req) => {
+					await onCreateModel(req);
+					setView({ mode: "list" });
+				}}
+				onUpdateModel={async (id, req) => {
+					await onUpdateModel(id, req);
+					setView({ mode: "list" });
+				}}
+				onCancel={() => setView({ mode: "list" })}
+				onDeleteModel={
+					editingModel
+						? async (id) => {
+								await onDeleteModel(id);
+								setView({ mode: "list" });
+							}
+						: undefined
+				}
+			/>
 		);
 	}
 
@@ -252,8 +253,6 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					))}
 				</div>
 			)}
-
-
 		</>
 	);
 };
