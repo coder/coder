@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/scripts/atomicwrite"
 )
 
 const (
@@ -226,7 +228,7 @@ func writeDocs(sections [][]byte) error {
 		return xerrors.Errorf("json.Marshal failed: %w", err)
 	}
 
-	err = os.WriteFile(manifestPath, manifestFile, 0o644) // #nosec
+	err = atomicwrite.File(manifestPath, manifestFile)
 	if err != nil {
 		return xerrors.Errorf("can't write manifest file: %w", err)
 	}

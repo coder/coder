@@ -11,6 +11,8 @@ import (
 
 	"golang.org/x/tools/imports"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/scripts/atomicwrite"
 )
 
 type constraintType string
@@ -135,7 +137,7 @@ const (
 	if err != nil {
 		return err
 	}
-	return atomicWriteFile(outputPath, data)
+	return atomicwrite.File(outputPath, data)
 }
 
 // generateUniqueConstraints generates the UniqueConstraint enum.
