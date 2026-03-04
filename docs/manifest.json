@@ -1,7 +1,5 @@
 {
-	"versions": [
-		"main"
-	],
+	"versions": ["main"],
 	"routes": [
 		{
 			"title": "About",
@@ -247,9 +245,7 @@
 									"title": "JetBrains Toolbox",
 									"description": "Access Coder workspaces from JetBrains Toolbox",
 									"path": "./user-guides/workspace-access/jetbrains/toolbox.md",
-									"state": [
-										"beta"
-									]
+									"state": ["beta"]
 								}
 							]
 						},
@@ -329,9 +325,7 @@
 					"description": "Sharing workspaces",
 					"path": "./user-guides/shared-workspaces.md",
 					"icon_path": "./images/icons/generic.svg",
-					"state": [
-						"beta"
-					]
+					"state": ["beta"]
 				},
 				{
 					"title": "Workspace Scheduling",
@@ -392,9 +386,7 @@
 							"title": "Appearance",
 							"description": "Learn how to configure the appearance of Coder",
 							"path": "./admin/setup/appearance.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Telemetry",
@@ -510,33 +502,25 @@
 							"title": "Groups \u0026 Roles",
 							"description": "Manage access control with user groups and role-based permissions for Coder resources",
 							"path": "./admin/users/groups-roles.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "IdP Sync",
 							"description": "Synchronize user groups, roles, and organizations from your identity provider to Coder",
 							"path": "./admin/users/idp-sync.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Organizations",
 							"description": "Segment and isolate resources by creating separate organizations for different teams or projects",
 							"path": "./admin/users/organizations.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Quotas",
 							"description": "Control resource usage by implementing workspace budgets and credit-based cost management",
 							"path": "./admin/users/quotas.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Sessions \u0026 API Tokens",
@@ -590,10 +574,7 @@
 									"title": "External Workspaces",
 									"description": "Learn how to manage external workspaces",
 									"path": "./admin/templates/managing-templates/external-workspaces.md",
-									"state": [
-										"premium",
-										"early access"
-									]
+									"state": ["premium", "early access"]
 								}
 							]
 						},
@@ -621,9 +602,7 @@
 									"title": "Prebuilt workspaces",
 									"description": "Pre-provision a ready-to-deploy workspace with a defined set of parameters",
 									"path": "./admin/templates/extending-templates/prebuilt-workspaces.md",
-									"state": [
-										"premium"
-									]
+									"state": ["premium"]
 								},
 								{
 									"title": "Icons",
@@ -699,17 +678,13 @@
 									"title": "Process Logging",
 									"description": "Log workspace processes",
 									"path": "./admin/templates/extending-templates/process-logging.md",
-									"state": [
-										"premium"
-									]
+									"state": ["premium"]
 								},
 								{
 									"title": "Startup Dependencies",
 									"description": "Coordinate workspace startup with dependency management",
 									"path": "./admin/templates/startup-coordination/index.md",
-									"state": [
-										"early access"
-									],
+									"state": ["early access"],
 									"children": [
 										{
 											"title": "Usage",
@@ -739,9 +714,7 @@
 							"title": "Permissions \u0026 Policies",
 							"description": "Learn how to create templates with Terraform",
 							"path": "./admin/templates/template-permissions.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Troubleshooting Templates",
@@ -755,17 +728,13 @@
 					"description": "Learn how to run external provisioners with Coder",
 					"path": "./admin/provisioners/index.md",
 					"icon_path": "./images/icons/key.svg",
-					"state": [
-						"premium"
-					],
+					"state": ["premium"],
 					"children": [
 						{
 							"title": "Manage Provisioner Jobs",
 							"description": "Learn how to run external provisioners with Coder",
 							"path": "./admin/provisioners/manage-provisioner-jobs.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						}
 					]
 				},
@@ -882,17 +851,13 @@
 							"title": "Workspace Proxies",
 							"description": "Run geo distributed workspace proxies",
 							"path": "./admin/networking/workspace-proxies.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "High Availability",
 							"description": "Learn how to configure Coder for High Availability",
 							"path": "./admin/networking/high-availability.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Wildcard Access URL",
@@ -931,9 +896,7 @@
 							"title": "Connection Logs",
 							"description": "Monitor connections to workspaces",
 							"path": "./admin/monitoring/connection-logs.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Notifications",
@@ -964,9 +927,7 @@
 							"title": "Audit Logs",
 							"description": "Audit actions taken inside Coder",
 							"path": "./admin/security/audit-logs.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						},
 						{
 							"title": "Secrets",
@@ -977,9 +938,7 @@
 							"title": "Database Encryption",
 							"description": "Encrypt the database to prevent unauthorized access",
 							"path": "./admin/security/database-encryption.md",
-							"state": [
-								"premium"
-							]
+							"state": ["premium"]
 						}
 					]
 				},
@@ -996,16 +955,15 @@
 			"description": "Learn how to run and integrate agentic AI coding agents like GPT-Code, OpenDevin, or SWE-Agent in Coder workspaces to boost developer productivity.",
 			"path": "./ai-coder/index.md",
 			"icon_path": "./images/icons/wand.svg",
-			"children": [
-				{
-					"title": "Coder Agents",
-					"description": "Self-hosted agent by Coder",
-					"path": "./ai-coder/agents.md",
-					"navigable": false
-				},
-				{
-					"title": "Best Practices",
-					"description": "Best Practices running Coding Agents",
+				"children": [
+					{
+						"title": "Coder Agents",
+						"description": "Self-hosted agent by Coder",
+						"path": "./ai-coder/agents.md",
+						"navigable": false
+					},
+					{
+						"title": "Best Practices",					"description": "Best Practices running Coding Agents",
 					"path": "./ai-coder/best-practices.md"
 				},
 				{
@@ -1049,17 +1007,13 @@
 					"title": "AI Governance Add-On",
 					"description": "Features around managing agents at scale",
 					"path": "./ai-coder/ai-governance.md",
-					"state": [
-						"premium"
-					],
+					"state": ["premium"],
 					"children": [
 						{
 							"title": "Agent Boundaries",
 							"description": "Understanding Agent Boundaries in Coder Tasks",
 							"path": "./ai-coder/agent-boundaries/index.md",
-							"state": [
-								"premium"
-							],
+							"state": ["premium"],
 							"children": [
 								{
 									"title": "NS Jail",
@@ -1105,9 +1059,7 @@
 							"description": "AI Gateway for Enterprise Governance \u0026 Observability",
 							"path": "./ai-coder/ai-bridge/index.md",
 							"icon_path": "./images/icons/api.svg",
-							"state": [
-								"premium"
-							],
+							"state": ["premium"],
 							"children": [
 								{
 									"title": "Setup",
@@ -1185,17 +1137,13 @@
 									"title": "MCP Tools Injection",
 									"description": "How to configure MCP servers for tools injection through AI Bridge",
 									"path": "./ai-coder/ai-bridge/mcp.md",
-									"state": [
-										"early access"
-									]
+									"state": ["early access"]
 								},
 								{
 									"title": "AI Bridge Proxy",
 									"description": "Proxy for AI coding tools without base URL override support",
 									"path": "./ai-coder/ai-bridge/ai-bridge-proxy/index.md",
-									"state": [
-										"premium"
-									],
+									"state": ["premium"],
 									"children": [
 										{
 											"title": "Setup",
@@ -1227,9 +1175,7 @@
 					"title": "MCP Server",
 					"description": "Connect to agents Coder with a MCP server",
 					"path": "./ai-coder/mcp-server.md",
-					"state": [
-						"beta"
-					]
+					"state": ["beta"]
 				}
 			]
 		},

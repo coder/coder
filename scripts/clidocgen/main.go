@@ -184,7 +184,7 @@ func main() {
 		flog.Fatalf("could not find Command Line route in manifest")
 	}
 
-	manifestByt, err = json.MarshalIndent(manifest, "", "\t")
+	manifestByt, err = json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		flog.Fatalf("marshaling manifest: %v", err)
 	}
