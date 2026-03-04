@@ -135,7 +135,7 @@ const (
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(outputPath, data, 0o600)
+	return atomicWriteFile(outputPath, data)
 }
 
 // generateUniqueConstraints generates the UniqueConstraint enum.

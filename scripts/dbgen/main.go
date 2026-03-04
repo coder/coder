@@ -245,7 +245,32 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 	if err != nil {
 		return xerrors.Errorf("process imports: %w", err)
 	}
-	return os.WriteFile(filePath, data, 0o600)
+	return atomicWriteFile(filePath, data)
+}
+
+// atomicWriteFile writes data to a file atomically by writing to a
+// temporary file in the same directory and then renaming it to the
+// final path. This prevents partial writes from corrupting the
+// target file.
+func atomicWriteFile(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp.*")
+	if err != nil {
+		return xerrors.Errorf("create temp file: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return xerrors.Errorf("write temp file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return xerrors.Errorf("close temp file: %w", err)
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return xerrors.Errorf("rename temp file: %w", err)
+	}
+	return nil
 }
 
 // compileFuncDecl extracts the function declaration from the given code.

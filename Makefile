@@ -613,7 +613,7 @@ DB_GEN_FILES := \
 	coderd/database/dump.sql \
 	coderd/database/querier.go \
 	coderd/database/unique_constraint.go \
-	coderd/database/dbmetrics/dbmetrics.go \
+	coderd/database/dbmetrics/querymetrics.go \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
 
@@ -648,6 +648,7 @@ GEN_FILES := \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	provisioner/terraform/testdata/version \
+	scripts/metricsdocgen/generated_metrics \
 	site/e2e/provisionerGenerated.ts \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
@@ -691,11 +692,17 @@ gen/mark-fresh:
 		vpn/vpn.pb.go \
 		enterprise/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
-		$(DB_GEN_FILES) \
+		coderd/database/querier.go \
+		coderd/database/unique_constraint.go \
+		coderd/database/dbmetrics/querymetrics.go \
+		coderd/database/dbauthz/dbauthz.go \
+		coderd/database/dbmock/dbmock.go \
+		coderd/database/pubsub/psmock/psmock.go \
 		site/src/api/typesGenerated.ts \
 		coderd/rbac/object_gen.go \
 		codersdk/rbacresources_gen.go \
 		coderd/rbac/scopes_constants_gen.go \
+		codersdk/apikey_scopes_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
 		site/src/api/chatModelOptionsGenerated.json \
@@ -707,8 +714,8 @@ gen/mark-fresh:
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
 		examples/examples.gen.json \
+		scripts/metricsdocgen/generated_metrics \
 		$(TAILNETTEST_MOCKS) \
-		coderd/database/pubsub/psmock/psmock.go \
 		agent/agentcontainers/acmock/acmock.go \
 		agent/agentcontainers/dcspec/dcspec_gen.go \
 		coderd/httpmw/loggermw/loggermock/loggermock.go \
@@ -737,9 +744,19 @@ coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/dat
 # Generates Go code for querying the database.
 # coderd/database/queries.sql.go
 # coderd/database/models.go
-coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
-	./coderd/database/generate.sh
-	touch "$@"
+#
+# NOTE: grouped target (&:) ensures generate.sh runs only once even
+# with -j and all outputs are considered produced together. These
+# files are all written by generate.sh (via sqlc and scripts/dbgen).
+coderd/database/querier.go \
+coderd/database/unique_constraint.go \
+coderd/database/dbmetrics/querymetrics.go \
+coderd/database/dbauthz/dbauthz.go &: \
+	coderd/database/sqlc.yaml \
+	coderd/database/dump.sql \
+	$(wildcard coderd/database/queries/*.sql)
+	SKIP_DUMP_SQL=1 ./coderd/database/generate.sh
+	touch coderd/database/querier.go coderd/database/unique_constraint.go coderd/database/dbmetrics/querymetrics.go coderd/database/dbauthz/dbauthz.go
 
 coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
@@ -863,7 +880,10 @@ coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/mai
 	rmdir -v "$$tempdir"
 	touch "$@"
 
-coderd/rbac/scopes_constants_gen.go: scripts/typegen/scopenames.gotmpl scripts/typegen/main.go coderd/rbac/policy/policy.go
+# NOTE: depends on object_gen.go because `go run` compiles
+# coderd/rbac which includes it.
+coderd/rbac/scopes_constants_gen.go: scripts/typegen/scopenames.gotmpl scripts/typegen/main.go coderd/rbac/policy/policy.go \
+	coderd/rbac/object_gen.go
 	# Generate typed low-level ScopeName constants from RBACPermissions
 	# Write to a temp file first to avoid truncating the package during build
 	# since the generator imports the rbac package.
@@ -872,20 +892,29 @@ coderd/rbac/scopes_constants_gen.go: scripts/typegen/scopenames.gotmpl scripts/t
 	mv -v "$$tempfile" coderd/rbac/scopes_constants_gen.go
 	touch "$@"
 
-codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
+# NOTE: depends on object_gen.go and scopes_constants_gen.go because
+# `go run` compiles coderd/rbac which includes both.
+codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
+	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go
 	# Do no overwrite codersdk/rbacresources_gen.go directly, as it would make the file empty, breaking
  	# the `codersdk` package and any parallel build targets.
 	go run scripts/typegen/main.go rbac codersdk > /tmp/rbacresources_gen.go
 	mv /tmp/rbacresources_gen.go codersdk/rbacresources_gen.go
 	touch "$@"
 
-codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go
+# NOTE: depends on object_gen.go and scopes_constants_gen.go because
+# `go run` compiles coderd/rbac which includes both.
+codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go \
+	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go
 	# Generate SDK constants for external API key scopes.
 	go run ./scripts/apikeyscopesgen > /tmp/apikey_scopes_gen.go
 	mv /tmp/apikey_scopes_gen.go codersdk/apikey_scopes_gen.go
 	touch "$@"
 
-site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
+# NOTE: depends on object_gen.go and scopes_constants_gen.go because
+# `go run` compiles coderd/rbac which includes both.
+site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
+	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go
 	go run scripts/typegen/main.go rbac typescript > "$@"
 	./scripts/biome_format.sh src/api/rbacresourcesGenerated.ts
 	touch "$@"
