@@ -24,7 +24,6 @@ No agent harness or API keys are required inside your workspaces.
   Your browser does not support the video tag.
 </video>
 
-
 ## Who is Coder Agents for
 
 Coder Agents is designed for organizations that need to self-host their AI
