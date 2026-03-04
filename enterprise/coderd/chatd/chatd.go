@@ -454,69 +454,77 @@ func NewMultiReplicaSubscribeFn(
 								}
 							}
 						}
-					case event, ok := <-localParts:
-						if !ok {
-							// Local parts channel closed, but
-							// continue with pubsub.
-							continue
-						}
-						// Only forward message_part events from
-						// local (durable events come via pubsub).
-						if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-							select {
-							case <-ctx.Done():
-								return
-							case mergedEvents <- event:
+						case event, ok := <-localParts:
+							if !ok {
+								localParts = nil
+								// Local parts channel closed, but
+								// continue with pubsub.
+								continue
 							}
-						}
-					case event, ok := <-relayPartsCh:
-						if !ok {
-							if relayCancel != nil {
-								relayCancel()
-								relayCancel = nil
+							// Only forward message_part events from
+							// local (durable events come via pubsub).
+							if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+								select {
+								case <-ctx.Done():
+									return
+								case mergedEvents <- event:
+								}
 							}
-							relayParts = nil
-							// Schedule reconnection instead of
-							// giving up.
-							scheduleRelayReconnect()
-							continue
-						}
-						// Only forward message_part events from
-						// relay (durable events come via pubsub).
-						if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-							select {
-							case <-ctx.Done():
-								return
-							case mergedEvents <- event:
+						case event, ok := <-relayPartsCh:
+							if !ok {
+								if relayCancel != nil {
+									relayCancel()
+									relayCancel = nil
+								}
+								relayParts = nil
+								// Schedule reconnection instead of
+								// giving up.
+								scheduleRelayReconnect()
+								continue
+							}
+							// Only forward message_part events from
+							// relay (durable events come via pubsub).
+							if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+								select {
+								case <-ctx.Done():
+									return
+								case mergedEvents <- event:
+								}
 							}
 						}
 					}
-				}
-			}()
-		} else {
-			// No pubsub, just merge local parts.
-			// localSnapshot was already included in initialSnapshot,
-			// so only forward new events here.
-			go func() {
-				defer close(mergedEvents)
-				defer closeRelay()
-				for event := range localParts {
-					select {
-					case <-ctx.Done():
-						return
-					case mergedEvents <- event:
+				}()
+			} else {
+				// No pubsub, just merge local parts.
+				// localSnapshot was already included in initialSnapshot,
+				// so only forward new events here.
+				go func() {
+					defer close(mergedEvents)
+					defer closeRelay()
+					// Forward any initial relay snapshot parts.
+					for _, event := range initialRelaySnapshot {
+						select {
+						case <-ctx.Done():
+							return
+						case mergedEvents <- event:
+						}
 					}
-				}
-			}()
-		}
+					for event := range localParts {
+						select {
+						case <-ctx.Done():
+							return
+						case mergedEvents <- event:
+						}
+					}
+				}()
+			}
 
-		// The cancel function only tears down the upstream
-		// sources (local stream, pubsub subscription). The
-		// merge goroutine owns all relay state (reconnectTimer,
-		// relayCancel, dialCancel, etc.) and cleans it up via
-		// its defer closeRelay() when ctx is cancelled.
-		cancel := func() {
-			for _, cancelFn := range allCancels {
+			// The cancel function only tears down the upstream
+			// sources (local stream, pubsub subscription). The
+			// merge goroutine owns all relay state (reconnectTimer,
+			// relayCancel, dialCancel, etc.) and cleans it up via
+			// its defer closeRelay() when ctx is cancelled.
+			cancel := func() {			for _, cancelFn := range allCancels {
 				if cancelFn != nil {
 					cancelFn()
 				}
