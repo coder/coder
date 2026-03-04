@@ -158,14 +158,16 @@ const AgentsPage: FC = () => {
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const createMutation = useMutation(createChat(queryClient));
-	const archiveAgentMutation = useMutation({
-		...archiveChat(queryClient),
-		onSuccess: (_data, chatId) => {
-			clearChatErrorReason(chatId);
-			toast.success("Agent archived.");
-		},
-	});
-	const archiveAndDeleteMutation = useMutation({
+		const archiveAgentMutation = useMutation({
+			...archiveChat(queryClient),
+			onSuccess: (_data, chatId) => {
+				clearChatErrorReason(chatId);
+				toast.success("Agent archived.");
+			},
+			onError: (error) => {
+				toast.error(getErrorMessage(error, "Failed to archive agent."));
+			},
+		});	const archiveAndDeleteMutation = useMutation({
 		mutationFn: async ({
 			chatId,
 			workspaceId,
@@ -188,13 +190,15 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
 		},
 	});
-	const unarchiveAgentMutation = useMutation({
-		...unarchiveChat(queryClient),
-		onSuccess: () => {
-			toast.success("Agent unarchived.");
-		},
-	});
-	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
+		const unarchiveAgentMutation = useMutation({
+			...unarchiveChat(queryClient),
+			onSuccess: () => {
+				toast.success("Agent unarchived.");
+			},
+			onError: (error) => {
+				toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+			},
+		});	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
