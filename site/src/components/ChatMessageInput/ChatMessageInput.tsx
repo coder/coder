@@ -258,11 +258,7 @@ const ChatMessageInput = memo(
 				},
 				onError: (error: Error) => console.error("Lexical error:", error),
 				nodes: [],
-				editable: !disabled,
 			}),
-			// Intentionally only uses the initial disabled value;
-			// runtime changes are handled by EditableStatePlugin.
-			// eslint-disable-next-line react-hooks/exhaustive-deps
 			[],
 		);
 		const style = useMemo(
