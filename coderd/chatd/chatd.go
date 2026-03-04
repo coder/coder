@@ -993,10 +993,12 @@ func (p *Server) subscribeToStream(chatID uuid.UUID) (
 		p.streamMu.Lock()
 		state, ok := p.chatStreams[chatID]
 		if ok {
-			if subscriber, exists := state.subscribers[id]; exists {
-				delete(state.subscribers, id)
-				close(subscriber)
-			}
+			// Remove the subscriber but do not close the channel.
+			// publishToStream copies subscriber references under
+			// streamMu then sends outside the lock; closing here
+			// races with that send and can panic. The channel
+			// becomes unreachable once removed and will be GC'd.
+			delete(state.subscribers, id)
 			p.cleanupStreamIfIdleLocked(chatID, state)
 		}
 		p.streamMu.Unlock()
@@ -1142,11 +1144,19 @@ func (p *Server) Subscribe(
 	mergedEvents := make(chan codersdk.ChatStreamEvent, 128)
 	go func() {
 		defer close(mergedEvents)
-		for event := range localParts {
+		for {
 			select {
 			case <-mergedCtx.Done():
 				return
-			case mergedEvents <- event:
+			case event, ok := <-localParts:
+				if !ok {
+					return
+				}
+				select {
+				case <-mergedCtx.Done():
+					return
+				case mergedEvents <- event:
+				}
 			}
 		}
 	}()

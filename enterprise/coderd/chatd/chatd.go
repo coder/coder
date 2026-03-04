@@ -509,11 +509,19 @@ func NewMultiReplicaSubscribeFn(
 						case mergedEvents <- event:
 						}
 					}
-					for event := range localParts {
+					for {
 						select {
 						case <-ctx.Done():
 							return
-						case mergedEvents <- event:
+						case event, ok := <-localParts:
+							if !ok {
+								return
+							}
+							select {
+							case <-ctx.Done():
+								return
+							case mergedEvents <- event:
+							}
 						}
 					}
 				}()

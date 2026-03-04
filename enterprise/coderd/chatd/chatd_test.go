@@ -675,30 +675,32 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 	workerB := uuid.New()
 	subscriberID := uuid.New()
 
+	// Gate to hold workerA's dial until we verify cancellation.
+	dialAStarted := make(chan struct{})
+	dialAExited := make(chan struct{})
+
 	var callCount atomic.Int32
 
 	provider := func(ctx context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
 		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
 	) {
 		call := callCount.Add(1)
-		ch := make(chan codersdk.ChatStreamEvent, 10)
 		if call == 1 {
-			ch <- codersdk.ChatStreamEvent{
-				Type: codersdk.ChatStreamEventTypeMessagePart,
-				MessagePart: &codersdk.ChatStreamMessagePart{
-					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "worker-a-part"},
-				},
-			}
-			// Keep the channel open so parts could arrive later.
-		} else {
-			ch <- codersdk.ChatStreamEvent{
-				Type: codersdk.ChatStreamEventTypeMessagePart,
-				MessagePart: &codersdk.ChatStreamMessagePart{
-					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "worker-b-part"},
-				},
-			}
+			// First dial (to workerA): signal that we started,
+			// then block until the context is cancelled.
+			close(dialAStarted)
+			<-ctx.Done()
+			close(dialAExited)
+			return nil, nil, nil, ctx.Err()
+		}
+		// Second dial (to workerB): return a valid part.
+		ch := make(chan codersdk.ChatStreamEvent, 10)
+		ch <- codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: "assistant",
+				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "worker-b-part"},
+			},
 		}
 		return nil, ch, func() {}, nil
 	}
@@ -737,8 +739,16 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payloadA)
 	require.NoError(t, err)
 
+	// Wait for the workerA dial goroutine to block inside the
+	// provider before publishing the workerB notification.
+	select {
+	case <-dialAStarted:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for workerA dial to start")
+	}
+
 	// Immediately transition to running on workerB (no waiting in
-	// between).
+	// between). This should cancel workerA's in-flight dial.
 	notifyB := coderdpubsub.ChatStreamNotifyMessage{
 		Status:   string(database.ChatStatusRunning),
 		WorkerID: workerB.String(),
@@ -747,6 +757,16 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 	require.NoError(t, err)
 	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payloadB)
 	require.NoError(t, err)
+
+	// Verify that the relay cancelled workerA's stale dial.
+	require.Eventually(t, func() bool {
+		select {
+		case <-dialAExited:
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
 
 	// We should receive the part from workerB.
 	require.Eventually(t, func() bool {
@@ -775,7 +795,7 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 		}
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	require.GreaterOrEqual(t, int(callCount.Load()), 2)
+	require.Equal(t, 2, int(callCount.Load()))
 }
 
 // TestSubscribeRunningLocalWorkerClosesRelay verifies that when a chat
