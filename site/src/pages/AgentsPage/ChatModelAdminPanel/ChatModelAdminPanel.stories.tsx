@@ -660,7 +660,7 @@ export const ModelDeleteConfirmation: Story = {
 
 		// The confirmation strip should appear.
 		await expect(
-			await body.findByText(/Are you sure you want to delete this model/i),
+			await body.findByText(/Are you sure\? This action is irreversible/i),
 		).toBeInTheDocument();
 		await expect(
 			body.getByRole("button", { name: "Delete model" }),
@@ -748,7 +748,7 @@ export const ProviderDeleteConfirmation: Story = {
 
 		// The confirmation strip should appear.
 		await expect(
-			await body.findByText(/Are you sure you want to delete this provider/i),
+			await body.findByText(/Are you sure\? This action is irreversible/i),
 		).toBeInTheDocument();
 		await expect(
 			body.getByRole("button", { name: "Delete provider" }),

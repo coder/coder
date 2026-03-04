@@ -252,13 +252,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					{/* Footer — pushed to bottom */}
 					<div className="mt-auto pt-6">
 						<hr className="mb-4 border-0 border-t border-solid border-border" />
-						{confirmingDelete ? (
-							<div className="space-y-3">
-								<p className="m-0 text-sm text-content-secondary">
-									Are you sure you want to delete this provider? This action is
-									irreversible.
+						{confirmingDelete && providerConfig ? (
+							<div className="flex items-center gap-3">
+								<p className="m-0 flex-1 text-sm text-content-secondary">
+									Are you sure? This action is irreversible.
 								</p>
-								<div className="flex items-center justify-end gap-2">
+								<div className="flex shrink-0 items-center gap-2">
 									<Button
 										variant="outline"
 										size="lg"
@@ -273,11 +272,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 										size="lg"
 										type="button"
 										disabled={isProviderMutationPending}
-										onClick={() => {
-											if (providerConfig) {
-												void onDeleteProvider(providerConfig.id);
-											}
-										}}
+										onClick={() => void onDeleteProvider(providerConfig.id)}
 									>
 										{isProviderMutationPending && (
 											<Loader2Icon className="h-4 w-4 animate-spin" />
