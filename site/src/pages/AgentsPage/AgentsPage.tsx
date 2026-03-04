@@ -790,6 +790,10 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 
 	const handleSend = useCallback(
 		(message: string) => {
+			// Clear the draft synchronously before the async
+			// onCreateChat call so that editor change events
+			// firing during the async gap cannot re-persist it.
+			localStorage.removeItem(emptyInputStorageKey);
 			void onCreateChat({
 				message,
 				workspaceId: selectedWorkspaceIdRef.current ?? undefined,

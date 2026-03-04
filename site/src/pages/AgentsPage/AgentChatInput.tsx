@@ -15,7 +15,6 @@ import {
 } from "components/Tooltip/Tooltip";
 import {
 	ArrowUpIcon,
-	ListPlusIcon,
 	Loader2Icon,
 	Square,
 	XIcon,
@@ -318,7 +317,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		};
 
 		const sendButtonLabel =
-			isStreaming && editingQueuedMessageID === null ? "Queue message" : "Send";
+			editingQueuedMessageID !== null ? "Save" : "Send";
 
 		const content = (
 			<div className="mx-auto w-full max-w-3xl pb-4">
@@ -430,22 +429,22 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									<span className="sr-only">Stop</span>
 								</Button>
 							)}
-							<Button
-								size="icon"
-								variant="default"
-								className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
-								onClick={handleSubmit}
-								disabled={!canSend}
-							>
-								{isLoading ? (
-									<Loader2Icon className="animate-spin" />
-								) : isStreaming && editingQueuedMessageID === null ? (
-									<ListPlusIcon />
-								) : (
-									<ArrowUpIcon />
-								)}
-								<span className="sr-only">{sendButtonLabel}</span>
-							</Button>
+							{!(isStreaming && editingQueuedMessageID === null) && (
+								<Button
+									size="icon"
+									variant="default"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
+									onClick={handleSubmit}
+									disabled={!canSend}
+								>
+									{isLoading ? (
+										<Loader2Icon className="animate-spin" />
+									) : (
+										<ArrowUpIcon />
+									)}
+									<span className="sr-only">{sendButtonLabel}</span>
+								</Button>
+							)}
 						</div>
 					</div>
 					{inputStatusText && (
