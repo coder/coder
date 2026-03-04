@@ -29,11 +29,11 @@ on the workspace container or host, not in the `coder_agent`
 resource's `env` block — the agent reads them from its own
 process environment at startup.
 
-| Variable                | Required | Default                       | Description                                                                              |
-|-------------------------|----------|-------------------------------|------------------------------------------------------------------------------------------|
-| `CODER_PROC_PRIO_MGMT`  | Yes      | —                             | Set to any non-empty value (e.g., `1`) to enable the feature.                            |
-| `CODER_PROC_OOM_SCORE`  | No       | Computed from agent's score   | Explicit `oom_score_adj` value for child processes. Range: `-1000` to `1000`.            |
-| `CODER_PROC_NICE_SCORE` | No       | Agent nice + 5 (capped at 19) | Explicit nice value for child processes. Range: `-20` to `19` (higher = lower priority). |
+| Variable                | Required | Default                       | Description                                                                                                                                                                                   |
+|-------------------------|----------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `CODER_PROC_PRIO_MGMT`  | Yes      | —                             | Set to enable the feature. The agent checks whether the variable is present, not its value — even an empty string enables it. Use `1` by convention. To disable, unset the variable entirely. |
+| `CODER_PROC_OOM_SCORE`  | No       | Computed from agent's score   | Explicit `oom_score_adj` value for child processes. Range: `-1000` to `1000`.                                                                                                                 |
+| `CODER_PROC_NICE_SCORE` | No       | Agent nice + 5 (capped at 19) | Explicit nice value for child processes. Range: `-20` to `19` (higher = lower priority).                                                                                                      |
 
 ### OOM score defaults
 
