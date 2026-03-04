@@ -21,7 +21,7 @@ export default meta;
 type Story = StoryObj<typeof ErrorAlert>;
 
 const ExampleAction = (
-	<Button onClick={() => null} size="sm" variant="subtle">
+	<Button onClick={() => null} size="sm">
 		Button
 	</Button>
 );
