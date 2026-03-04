@@ -12,6 +12,8 @@ on:
     paths:
       - "docs/manifest.json"
 
+permissions: {}
+
 jobs:
   deploy-docs:
     runs-on: ubuntu-latest
