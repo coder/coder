@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	osschatd "github.com/coder/coder/v2/coderd/chatd"
@@ -373,9 +375,7 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 		}
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
-	require.Contains(t, receivedTexts, "snap-one")
-	require.Contains(t, receivedTexts, "snap-two")
-	require.Contains(t, receivedTexts, "live-part")
+	require.Equal(t, []string{"snap-one", "snap-two", "live-part"}, receivedTexts)
 
 	// The initial snapshot should still contain the status event
 	// from the OSS preamble.
@@ -786,6 +786,113 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 	require.Equal(t, 2, int(callCount.Load()))
 }
 
+// TestSubscribeRelayFailedDialRetries verifies that when an async relay
+// dial fails (returns an error), the merge loop schedules a reconnect
+// timer and eventually re-dials successfully. This exercises the
+// result.parts == nil path and the scheduleRelayReconnect() logic.
+func TestSubscribeRelayFailedDialRetries(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	remoteWorkerID := uuid.New()
+	subscriberID := uuid.New()
+
+	var callCount atomic.Int32
+
+	provider := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
+		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
+	) {
+		call := callCount.Add(1)
+		if call == 1 {
+			// First dial: fail with an error to trigger
+			// scheduleRelayReconnect via the result.parts == nil path.
+			return nil, nil, nil, xerrors.New("transient dial failure")
+		}
+		// Second dial: succeed and return a part.
+		ch := make(chan codersdk.ChatStreamEvent, 10)
+		ch <- codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: "assistant",
+				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "retry-success"},
+			},
+		}
+		return nil, ch, func() {}, nil
+	}
+
+	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Create a chat in waiting state so Subscribe does not open a
+	// synchronous relay.
+	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "failed-dial-retry",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	// Keep the chat in waiting state so Subscribe does not attempt
+	// a synchronous relay dial.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Now mark the chat as running on the remote worker in the DB.
+	// The reconnect timer (500ms) fires and calls
+	// params.DB.GetChatByID to check if the chat is still running
+	// on a remote worker, so this must be set before the timer
+	// fires.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: remoteWorkerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	// Publish a running notification with a remote workerID to
+	// trigger openRelayAsync. The first dial will fail, causing
+	// scheduleRelayReconnect to be called.
+	notify := coderdpubsub.ChatStreamNotifyMessage{
+		Status:   string(database.ChatStatusRunning),
+		WorkerID: remoteWorkerID.String(),
+	}
+	payload, err := json.Marshal(notify)
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payload)
+	require.NoError(t, err)
+
+	// After the reconnect timer fires (~500ms) the merge loop
+	// re-checks the DB, sees the chat is still running on the
+	// remote worker, and dials again. The second dial succeeds.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil &&
+				event.MessagePart.Part.Text == "retry-success" {
+				return true
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.GreaterOrEqual(t, int(callCount.Load()), 2)
+}
+
 // TestSubscribeRunningLocalWorkerClosesRelay verifies that when a chat
 // is running on a remote worker and a pubsub notification arrives
 // saying the local worker (subscriberID) now owns the chat, the
@@ -881,4 +988,90 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 
 	require.Equal(t, 1, int(callCount.Load()),
 		"only the initial synchronous dial should have happened")
+}
+
+// TestSubscribeRelayMultipleReconnects verifies that the reconnect
+// loop handles multiple consecutive relay drops, proving it is
+// robust across repeated iterations — not just the single reconnect
+// already covered by TestSubscribeRelayReconnectsOnDrop.
+func TestSubscribeRelayMultipleReconnects(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+
+	var callCount atomic.Int32
+
+	provider := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
+		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
+	) {
+		call := callCount.Add(1)
+		ch := make(chan codersdk.ChatStreamEvent, 10)
+		part := codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: "assistant",
+				Part: codersdk.ChatMessagePart{
+					Type: codersdk.ChatMessagePartTypeText,
+					Text: fmt.Sprintf("relay-%d", call),
+				},
+			},
+		}
+		ch <- part
+		if call <= 2 {
+			// First two dials: close channel to simulate relay
+			// drop. This triggers scheduleRelayReconnect.
+			close(ch)
+		}
+		// Third dial: keep channel open.
+		return nil, ch, func() {}, nil
+	}
+
+	subscriber := newTestServer(t, db, ps, subscriberID, provider)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Create a chat already running on a remote worker so
+	// Subscribe opens a synchronous relay immediately.
+	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "multiple-reconnects",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Collect all three relay parts. Each relay drop triggers a
+	// 500ms reconnect timer, so this takes ~1s total.
+	var receivedTexts []string
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil {
+				receivedTexts = append(receivedTexts, event.MessagePart.Part.Text)
+			}
+			return len(receivedTexts) >= 3
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.Equal(t, []string{"relay-1", "relay-2", "relay-3"}, receivedTexts)
+	require.GreaterOrEqual(t, int(callCount.Load()), 3)
 }
