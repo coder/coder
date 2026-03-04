@@ -129,6 +129,12 @@ var (
 	ErrEditedMessageNotFound = xerrors.New("edited message not found")
 	// ErrEditedMessageNotUser indicates a non-user message edit attempt.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
+
+	// errChatTakenByOtherWorker is a sentinel used inside the
+	// processChat cleanup transaction to signal that another
+	// worker acquired the chat, so all post-TX side effects
+	// (status publish, pubsub, web push) must be skipped.
+	errChatTakenByOtherWorker = errors.New("chat acquired by another worker")
 )
 
 // CreateOptions controls chat creation in the shared chat mutation path.
@@ -1794,12 +1800,13 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				return xerrors.Errorf("lock chat for release: %w", lockErr)
 			}
 
-			// If another worker has already acquired this chat, bail
-			// out — we must not overwrite their running status.
+			// If another worker has already acquired this chat,
+			// bail out — we must not overwrite their running
+			// status or publish spurious events.
 			if latestChat.Status == database.ChatStatusRunning &&
 				latestChat.WorkerID.Valid &&
 				latestChat.WorkerID.UUID != p.workerID {
-				return nil
+				return errChatTakenByOtherWorker
 			}
 
 			// If someone else already set the chat to pending (e.g.
@@ -1856,6 +1863,12 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			})
 			return updateErr
 		}, nil)
+		if errors.Is(err, errChatTakenByOtherWorker) {
+			// Another worker owns this chat now — skip all
+			// post-TX side effects (status publish, pubsub,
+			// web push) to avoid overwriting their state.
+			return
+		}
 		if err != nil {
 			logger.Error(cleanupCtx, "failed to release chat", slog.Error(err))
 		}

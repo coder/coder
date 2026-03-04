@@ -1728,9 +1728,20 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), waitingPayload)
 	require.NoError(t, err)
 
-	// Small pause to let the merge loop process the waiting status
-	// and call closeRelay().
-	time.Sleep(50 * time.Millisecond)
+	// Wait for the merge loop to process the waiting notification
+	// and emit the status event before publishing the new running
+	// notification. This avoids time.Sleep (banned by project
+	// policy) and provides a deterministic sync point.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeStatus &&
+				event.Status != nil &&
+				event.Status.Status == codersdk.ChatStatusWaiting
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
 
 	// Now the chat transitions to running on the NEW worker.
 	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
