@@ -675,7 +675,7 @@
 									"path": "./admin/templates/extending-templates/devcontainers.md"
 								},
 								{
-									"title": "Process Priority",
+									"title": "Improving Agent Resiliency",
 									"description": "Manage agent child process CPU and OOM priority",
 									"path": "./admin/templates/extending-templates/process-priority.md"
 								},
