@@ -22,11 +22,6 @@ const titleGenerationPrompt = "Generate a concise title (2-8 words) for the user
 	"Return plain text only — no quotes, no emoji, no markdown, no code fences, " +
 	"no special characters, no trailing punctuation. Sentence case."
 
-// TitleModelFunc returns candidate language models for title
-// generation. Models are returned in preference order — cheap, fast
-// models first, with the user's chat model as a last resort.
-type TitleModelFunc func() []fantasy.LanguageModel
-
 // preferredTitleModels are lightweight models used for title
 // generation, one per provider type. Each entry uses the
 // cheapest/fastest small model for that provider as identified
@@ -93,7 +88,7 @@ func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
-	titleModels TitleModelFunc,
+	fallbackModel fantasy.LanguageModel,
 	logger slog.Logger,
 ) {
 	input, ok := titleInput(chat, messages)
@@ -104,7 +99,7 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	candidates := titleModels()
+	candidates := p.titleModelCandidates(ctx, fallbackModel)
 	var lastErr error
 	for _, model := range candidates {
 		title, err := generateTitle(titleCtx, model, input)

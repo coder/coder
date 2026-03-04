@@ -1926,9 +1926,7 @@ func (p *Server) runChat(
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
-		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, func() []fantasy.LanguageModel {
-			return p.titleModelCandidates(ctx, model)
-		}, logger)
+		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, logger)
 	}()
 
 	prompt, err := chatprompt.ConvertMessages(messages)
