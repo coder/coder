@@ -1,6 +1,7 @@
 import { chromatic } from "testHelpers/chromatic";
 import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import { SetupPageView } from "./SetupPageView";
 
 const meta: Meta<typeof SetupPageView> = {
@@ -34,5 +35,32 @@ export const TrialError: Story = {
 export const Loading: Story = {
 	args: {
 		isLoading: true,
+	},
+};
+
+export const WithGithubAuth: Story = {
+	args: {
+		authMethods: {
+			github: {
+				enabled: true,
+				default_provider_configured: false,
+			},
+			password: {
+				enabled: true,
+			},
+			oidc: {
+				enabled: false,
+				signInText: "",
+				iconUrl: "",
+			},
+		},
+	},
+};
+
+export const WithEnterpriseTrial: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trialCheckbox = await canvas.findByTestId("trial");
+		await userEvent.click(trialCheckbox);
 	},
 };
