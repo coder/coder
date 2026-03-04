@@ -95,6 +95,11 @@ func main() {
 		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
 	)
 
+	if d := os.Getenv("DOCS_DIR"); d != "" {
+		docsDir = d
+		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
+	}
+
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	if err != nil {
 		flog.Fatalf("creating command: %v", err)

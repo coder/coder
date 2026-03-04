@@ -128,7 +128,7 @@ func writeDocs(sections [][]byte) error {
 	log.Println("Write docs to destination")
 
 	apiDir := path.Join(docsDirectory, apiSubdir)
-	err := os.WriteFile(path.Join(apiDir, apiIndexFile), []byte(apiIndexContent), 0o644) // #nosec
+	err := atomicwrite.File(path.Join(apiDir, apiIndexFile), []byte(apiIndexContent))
 	if err != nil {
 		return xerrors.Errorf(`can't write the index file: %w`, err)
 	}
@@ -149,7 +149,7 @@ func writeDocs(sections [][]byte) error {
 
 		mdFilename := toMdFilename(sectionName)
 		docPath := path.Join(apiDir, mdFilename)
-		err = os.WriteFile(docPath, section, 0o644) // #nosec
+		err = atomicwrite.File(docPath, section)
 		if err != nil {
 			return xerrors.Errorf(`can't write doc file "%s": %w`, docPath, err)
 		}

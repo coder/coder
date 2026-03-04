@@ -10,6 +10,11 @@ source "$(dirname "$(dirname "${BASH_SOURCE[0]}")")/lib.sh"
 APIDOCGEN_DIR=$(dirname "${BASH_SOURCE[0]}")
 API_MD_TMP_FILE=$(mktemp /tmp/coder-apidocgen.XXXXXX)
 
+# SWAG_OUTPUT_DIR controls where swag writes swagger.json and docs.go.
+# The caller may set it to a temp directory to avoid writing directly
+# into the working tree.
+SWAG_OUTPUT_DIR="${SWAG_OUTPUT_DIR:-./coderd/apidoc}"
+
 cleanup() {
 	rm -f "${API_MD_TMP_FILE}"
 }
@@ -28,14 +33,14 @@ pushd "${APIDOCGEN_DIR}"
 
 # Make sure that widdershins is installed correctly.
 pnpm exec -- widdershins --version
-# Render the Markdown file.
+# Render the Markdown file from the swagger output.
 pnpm exec -- widdershins \
 	--user_templates "./markdown-template" \
 	--search false \
 	--omitHeader true \
 	--language_tabs "shell:curl" \
-	--summary "../../coderd/apidoc/swagger.json" \
+	--summary "${SWAG_OUTPUT_DIR}/swagger.json" \
 	--outfile "${API_MD_TMP_FILE}"
 # Perform the postprocessing
-go run postprocess/main.go -in-md-file-single "${API_MD_TMP_FILE}"
+go run postprocess/main.go -in-md-file-single "${API_MD_TMP_FILE}" -docs-directory "${APIDOCGEN_DOCS_DIR:-../../docs}"
 popd

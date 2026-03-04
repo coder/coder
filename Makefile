@@ -23,6 +23,33 @@ SHELL := bash
 # See https://stackoverflow.com/questions/25752543/make-delete-on-error-for-directory-targets
 .DELETE_ON_ERROR:
 
+# Protect git-tracked generated files from deletion on interrupt.
+# .DELETE_ON_ERROR is desirable for most targets but for files that
+# are committed to git and serve as inputs to other rules, deletion
+# is worse than a stale file — `git restore` is the recovery path.
+.PRECIOUS: \
+	coderd/database/dump.sql \
+	coderd/database/querier.go \
+	coderd/database/unique_constraint.go \
+	coderd/database/dbmetrics/querymetrics.go \
+	coderd/database/dbauthz/dbauthz.go \
+	site/src/api/typesGenerated.ts \
+	site/e2e/provisionerGenerated.ts \
+	site/src/api/chatModelOptionsGenerated.json \
+	site/src/api/rbacresourcesGenerated.ts \
+	site/src/api/countriesGenerated.ts \
+	site/src/theme/icons.json \
+	examples/examples.gen.json \
+	docs/manifest.json \
+	docs/admin/integrations/prometheus.md \
+	docs/admin/security/audit-logs.md \
+	docs/reference/cli/index.md \
+	coderd/apidoc/swagger.json \
+	coderd/rbac/object_gen.go \
+	coderd/rbac/scopes_constants_gen.go \
+	codersdk/rbacresources_gen.go \
+	codersdk/apikey_scopes_gen.go
+
 # Don't print the commands in the file unless you specify VERBOSE. This is
 # essentially the same as putting "@" at the start of each line.
 ifndef VERBOSE
@@ -855,23 +882,26 @@ enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged
 		./enterprise/aibridged/proto/aibridged.proto
 
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
-	# -C sets the directory for the go run command
-	go run -C ./scripts/apitypings main.go > $@
-	./scripts/biome_format.sh src/api/typesGenerated.ts
-	touch "$@"
+	# Generate to a temp file, format it, then atomically move to
+	# the target so that an interrupt never leaves a partial or
+	# unformatted file in the working tree.
+	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+		go run -C ./scripts/apitypings main.go > "$$tmpfile" && \
+		./scripts/biome_format.sh "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	(cd site/ && pnpm run gen:provisioner)
 	touch "$@"
 
 site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
-	go run ./scripts/gensite/ -icons "$@"
-	./scripts/biome_format.sh src/theme/icons.json
-	touch "$@"
+	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+		go run ./scripts/gensite/ -icons "$$tmpfile" && \
+		./scripts/biome_format.sh "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
-	go run ./scripts/examplegen/main.go > examples/examples.gen.json
-	touch "$@"
+	go run ./scripts/examplegen/main.go > "$@.tmp" && mv "$@.tmp" "$@"
 
 coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	tempdir=$(shell mktemp -d /tmp/typegen_rbac_object.XXXXXX)
@@ -915,39 +945,49 @@ codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scope
 # `go run` compiles coderd/rbac which includes both.
 site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
 	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go
-	go run scripts/typegen/main.go rbac typescript > "$@"
-	./scripts/biome_format.sh src/api/rbacresourcesGenerated.ts
-	touch "$@"
+	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+		go run scripts/typegen/main.go rbac typescript > "$$tmpfile" && \
+		./scripts/biome_format.sh "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go
-	go run scripts/typegen/main.go countries > "$@"
-	./scripts/biome_format.sh src/api/countriesGenerated.ts
-	touch "$@"
+	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+		go run scripts/typegen/main.go countries > "$$tmpfile" && \
+		./scripts/biome_format.sh "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 
 site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go
-	go run ./scripts/modeloptionsgen/main.go | tail -n +2 > "$@"
-	cd site && pnpm biome format --write src/api/chatModelOptionsGenerated.json
+	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+		go run ./scripts/modeloptionsgen/main.go | tail -n +2 > "$$tmpfile" && \
+		./scripts/biome_format.sh "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES)
-	go run ./scripts/metricsdocgen/scanner > $@
+	go run ./scripts/metricsdocgen/scanner > $@.tmp && mv $@.tmp $@
 
 docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics scripts/metricsdocgen/generated_metrics
-	go run scripts/metricsdocgen/main.go
-	pnpm exec markdownlint-cli2 --fix ./docs/admin/integrations/prometheus.md
-	pnpm exec markdown-table-formatter ./docs/admin/integrations/prometheus.md
-	touch "$@"
+	tmpfile=$$(mktemp -d)/$(notdir $@) && cp "$@" "$$tmpfile" && \
+		go run scripts/metricsdocgen/main.go --prometheus-doc-file="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 
 docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
-	CI=true BASE_PATH="." go run ./scripts/clidocgen
-	pnpm exec markdownlint-cli2 --fix ./docs/reference/cli/*.md
-	pnpm exec markdown-table-formatter ./docs/reference/cli/*.md
-	touch "$@"
+	tmpdir=$$(mktemp -d) && \
+		mkdir -p "$$tmpdir/docs/reference/cli" && \
+		cp docs/manifest.json "$$tmpdir/docs/manifest.json" && \
+		CI=true DOCS_DIR="$$tmpdir/docs" go run ./scripts/clidocgen && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpdir/docs/reference/cli/*.md" && \
+		pnpm exec markdown-table-formatter "$$tmpdir/docs/reference/cli/*.md" && \
+		cp "$$tmpdir/docs/reference/cli/"*.md docs/reference/cli/ && \
+		rm -rf "$$tmpdir"
 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
-	go run scripts/auditdocgen/main.go
-	pnpm exec markdownlint-cli2 --fix ./docs/admin/security/audit-logs.md
-	pnpm exec markdown-table-formatter ./docs/admin/security/audit-logs.md
-	touch "$@"
+	tmpfile=$$(mktemp -d)/$(notdir $@) && cp "$@" "$$tmpfile" && \
+		go run scripts/auditdocgen/main.go --audit-doc-file="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 
 coderd/apidoc/.gen: \
 	node_modules/.installed \
@@ -963,17 +1003,26 @@ coderd/apidoc/.gen: \
 	scripts/apidocgen/swaginit/main.go \
 	$(wildcard scripts/apidocgen/postprocess/*) \
 	$(wildcard scripts/apidocgen/markdown-template/*)
-	./scripts/apidocgen/generate.sh
-	pnpm exec markdownlint-cli2 --fix ./docs/reference/api/*.md
-	pnpm exec markdown-table-formatter ./docs/reference/api/*.md
+	tmpdir=$$(mktemp -d) && swagtmp=$$(mktemp -d) && \
+		mkdir -p "$$tmpdir/reference/api" && \
+		cp docs/manifest.json "$$tmpdir/manifest.json" && \
+		SWAG_OUTPUT_DIR="$$swagtmp" APIDOCGEN_DOCS_DIR="$$tmpdir" ./scripts/apidocgen/generate.sh && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpdir/reference/api/*.md" && \
+		pnpm exec markdown-table-formatter "$$tmpdir/reference/api/*.md" && \
+		./scripts/biome_format.sh "$$swagtmp/swagger.json" && \
+		cp "$$tmpdir/reference/api/"*.md docs/reference/api/ && \
+		cp "$$tmpdir/manifest.json" docs/manifest.json && \
+		cp "$$swagtmp/docs.go" coderd/apidoc/docs.go && \
+		cp "$$swagtmp/swagger.json" coderd/apidoc/swagger.json && \
+		rm -rf "$$tmpdir" "$$swagtmp"
 	touch "$@"
 
 docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md
-	./scripts/biome_format.sh ../docs/manifest.json
-	touch "$@"
+	tmpfile=$$(mktemp -d)/$(notdir $@) && cp "$@" "$$tmpfile" && \
+		./scripts/biome_format.sh "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 
 coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen
-	./scripts/biome_format.sh ../coderd/apidoc/swagger.json
 	touch "$@"
 
 update-golden-files:
