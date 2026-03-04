@@ -5,6 +5,7 @@ import type {
 	ChatStatus,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
@@ -22,6 +23,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
@@ -36,6 +38,8 @@ import {
 	SquarePenIcon,
 	Trash2Icon,
 } from "lucide-react";
+import { UserDropdownContent } from "modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	createContext,
 	type FC,
@@ -554,6 +558,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		chatId?: string;
 	}>();
 	const activeChatId = agentId ?? chatId;
+	const { user, signOut } = useAuthenticated();
+	const { appearance, buildInfo } = useDashboard();
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
@@ -690,7 +696,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					New Agent
 				</Button>
 			</div>
-
 			<ScrollArea
 				className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
 				scrollBarClassName="w-1.5"
@@ -803,6 +808,37 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					)}
 				</div>
 			</ScrollArea>
+			<div className="hidden border-0 border-t border-solid md:block">
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<button
+							type="button"
+							className="flex w-full items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-2 text-left hover:bg-surface-tertiary/50 transition-colors"
+						>
+							<Avatar
+								fallback={user.username}
+								src={user.avatar_url}
+								size="sm"
+							/>
+							<span className="truncate text-sm text-content-secondary">
+								{user.name || user.username}
+							</span>
+						</button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
+						<UserDropdownContent
+							user={user}
+							buildInfo={buildInfo}
+							supportLinks={
+								appearance.support_links?.filter(
+									(link) => link.location !== "navbar",
+								) ?? []
+							}
+							onSignOut={signOut}
+						/>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</div>{" "}
 		</div>
 	);
 };

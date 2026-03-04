@@ -28,7 +28,6 @@ import {
 } from "components/Select/Select";
 import { useAuthenticated } from "hooks";
 import { MonitorIcon, PanelLeftIcon } from "lucide-react";
-import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
@@ -47,6 +46,7 @@ import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import { AgentsSidebar } from "./AgentsSidebar";
+import { ChimeButton } from "./ChimeButton";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 import {
 	getModelCatalogStatusMessage,
@@ -104,8 +104,8 @@ const AgentsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { agentId } = useParams();
-	const { permissions, user, signOut } = useAuthenticated();
-	const { appearance, buildInfo } = useDashboard();
+	const { permissions, user } = useAuthenticated();
+	const { appearance } = useDashboard();
 	const isAgentsAdmin =
 		permissions.editDeploymentConfig ||
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
@@ -551,7 +551,8 @@ const AgentsPage: FC = () => {
 							)}
 							<div className="flex min-w-0 flex-1 items-center" />
 							<div className="flex items-center gap-2">
-								<WebPushButton />
+								<ChimeButton />
+								<WebPushButton />{" "}
 								{isAgentsAdmin && (
 									<Button
 										variant="subtle"
@@ -562,18 +563,6 @@ const AgentsPage: FC = () => {
 										Admin
 									</Button>
 								)}
-							</div>
-							<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
-								<UserDropdown
-									user={user}
-									buildInfo={buildInfo}
-									supportLinks={
-										appearance.support_links?.filter(
-											(link) => link.location !== "navbar",
-										) ?? []
-									}
-									onSignOut={signOut}
-								/>
 							</div>
 						</div>
 						<AgentsEmptyState
