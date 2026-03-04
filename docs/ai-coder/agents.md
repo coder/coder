@@ -66,9 +66,9 @@ The workspace itself has no knowledge of AI. It is standard compute
 infrastructure — there are no LLM API keys, no agent harnesses, and no special
 software installed. All intelligence lives in the control plane.
 
-![Architecture diagram showing the Coder server in the center, with arrows out to LLM providers and arrows to workspaces](../images/guides/ai-agents/agent-loop.png)
+![Architecture diagram showing the control plane in the center, with arrows out to LLM providers and arrows to workspaces](../images/guides/ai-agents/agent-loop.png)
 
-<small>The agent loop runs in the Coder server. It makes outbound requests to LLM
+<small>The agent loop runs in the control plane. It makes outbound requests to LLM
 providers and connects to workspaces only when tool execution is needed.</small>
 
 ### Automatic workspace provisioning
