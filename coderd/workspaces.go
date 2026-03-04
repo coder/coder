@@ -2218,6 +2218,10 @@ func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request)
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "done")
 
+	// CloseRead starts a goroutine to read and discard messages from the client,
+	// including Pong messages sent in response to our Ping heartbeats.
+	_ = conn.CloseRead(context.Background())
+
 	ctx, cancel := context.WithCancel(ctx)
 	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
 	defer cancel()
