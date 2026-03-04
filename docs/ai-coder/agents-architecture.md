@@ -1,6 +1,6 @@
 # How Coder Agents Communicates with Workspaces
 
-The Coder agent in the control plane interacts with workspaces using the exact
+The Coder Agent in the control plane interacts with workspaces using the exact
 same connection path as a developer's IDE, web terminal, or SSH session. There
 is no special protocol, no sidecar process, and no new ports. If your
 developers can already connect to their workspaces, the agent can too.
@@ -52,7 +52,7 @@ Three components are involved in every Coder Agents interaction:
 
 ## The same connection your IDE uses
 
-This is the key architectural insight: the Coder agent reaches into a workspace
+This is the key architectural insight: the Coder Agent reaches into a workspace
 using the identical network path that a developer's tools already use.
 
 When a developer opens a web terminal in the Coder dashboard, connects via
@@ -65,7 +65,7 @@ VS Code Remote, or runs `coder ssh`, the traffic follows this path:
 1. The workspace daemon handles the request — spawning a shell,
    forwarding a port, or serving a file.
 
-When the Coder agent executes a tool call — reading a file, running a command,
+When the Coder Agent executes a tool call — reading a file, running a command,
 writing code — it follows the exact same path:
 
 1. The agent loop in the control plane issues a tool call.
@@ -200,7 +200,7 @@ to the security model.
 
 The workspace has **zero AI awareness**. There are no LLM API keys, no agent
 processes, and no AI-specific software installed. If you inspect a workspace
-created by the Coder agent, it looks identical to one a developer created
+created by the Coder Agent, it looks identical to one a developer created
 manually.
 
 ## Chat state and persistence
