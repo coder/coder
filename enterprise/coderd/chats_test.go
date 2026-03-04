@@ -131,7 +131,7 @@ func TestChatStreamRelay(t *testing.T) {
 			)
 		}
 
-		firstEvents, firstStream, err := localClient.StreamChat(ctx, chat.ID)
+		firstEvents, firstStream, err := localClient.StreamChat(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		defer firstStream.Close()
 
@@ -151,7 +151,7 @@ func TestChatStreamRelay(t *testing.T) {
 		firstEvent := waitForStreamTextPart(ctx, t, firstEvents, firstChunkText)
 		require.Equal(t, "assistant", firstEvent.MessagePart.Role)
 
-		secondEvents, secondStream, err := relayClient.StreamChat(ctx, chat.ID)
+		secondEvents, secondStream, err := relayClient.StreamChat(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		defer secondStream.Close()
 
@@ -277,7 +277,7 @@ func TestChatStreamRelay(t *testing.T) {
 
 		// Subscribe on the local (worker) replica so the stream is
 		// consumed and chunks flow through the pipeline.
-		localEvents, localStream, err := localClient.StreamChat(ctx, chat.ID)
+		localEvents, localStream, err := localClient.StreamChat(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		defer localStream.Close()
 
@@ -308,7 +308,7 @@ func TestChatStreamRelay(t *testing.T) {
 		// NOW connect the relay subscriber on the non-worker replica.
 		// The relay must pick up all three buffered parts in its
 		// initial snapshot via the drainInitial loop.
-		relayEvents, relayStream, err := relayClient.StreamChat(ctx, chat.ID)
+		relayEvents, relayStream, err := relayClient.StreamChat(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		defer relayStream.Close()
 
