@@ -6523,6 +6523,15 @@ export interface UpdateWorkspaceRequest {
 	readonly name?: string;
 }
 
+// From codersdk/workspacesharing.go
+/**
+ * UpdateWorkspaceSharingSettingsRequest represents workspace sharing settings
+ * that can be updated for an organization.
+ */
+export interface UpdateWorkspaceSharingSettingsRequest {
+	readonly sharing_disabled: boolean;
+}
+
 // From codersdk/workspaces.go
 /**
  * UpdateWorkspaceTTLRequest is a request to update a workspace's TTL.
@@ -7556,9 +7565,15 @@ export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
 
 // From codersdk/workspacesharing.go
 /**
- * WorkspaceSharingSettings represents workspace sharing settings for an organization.
+ * WorkspaceSharingSettings represents workspace sharing settings affecting an
+ * organization.
  */
 export interface WorkspaceSharingSettings {
+	/**
+	 * SharingGloballyDisabled is true if sharing has been disabled for this
+	 * organization because of a deployment-wide setting.
+	 */
+	readonly sharing_globally_disabled: boolean;
 	readonly sharing_disabled: boolean;
 }
 

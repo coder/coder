@@ -4,6 +4,7 @@ import type {
 	Organization,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
+import { Alert, AlertTitle } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
@@ -50,9 +51,10 @@ interface OrganizationSettingsPageViewProps {
 	error: unknown;
 	onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
 	onDeleteOrganization: () => void;
-	workspaceSharingEnabled?: boolean;
-	onToggleWorkspaceSharing?: (enabled: boolean) => void;
-	isTogglingWorkspaceSharing?: boolean;
+	workspaceSharingGloballyDisabled?: boolean;
+	workspaceSharingEnabled: boolean;
+	onToggleWorkspaceSharing: (enabled: boolean) => void;
+	isTogglingWorkspaceSharing: boolean;
 }
 
 export const OrganizationSettingsPageView: FC<
@@ -62,7 +64,8 @@ export const OrganizationSettingsPageView: FC<
 	error,
 	onSubmit,
 	onDeleteOrganization,
-	workspaceSharingEnabled = true,
+	workspaceSharingGloballyDisabled,
+	workspaceSharingEnabled,
 	onToggleWorkspaceSharing,
 	isTogglingWorkspaceSharing,
 }) => {
@@ -156,29 +159,44 @@ export const OrganizationSettingsPageView: FC<
 						}
 						description="Control whether workspace owners can share their workspaces."
 					>
-						<div className="flex items-start gap-3">
-							<Checkbox
-								id="workspace-sharing"
-								checked={workspaceSharingEnabled}
-								disabled={isTogglingWorkspaceSharing}
-								onCheckedChange={(checked) => {
-									if (checked) {
-										onToggleWorkspaceSharing(true);
-									} else {
-										setIsDisableSharingDialogOpen(true);
+						<div className="flex flex-col gap-2">
+							{workspaceSharingGloballyDisabled && (
+								<Alert severity="warning" className="mb-4">
+									<AlertTitle>Disabled by deployment settings</AlertTitle>
+									Workspace sharing has been disallowed by an administrator.
+									Sharing must be allowed by an administrator before sharing can
+									be used in this organization.
+								</Alert>
+							)}
+							<div className="flex items-start gap-3">
+								<Checkbox
+									id="workspace-sharing"
+									checked={
+										!workspaceSharingGloballyDisabled && workspaceSharingEnabled
 									}
-								}}
-							/>
-							<div className="flex flex-col">
-								<label
-									htmlFor="workspace-sharing"
-									className="text-sm cursor-pointer"
-								>
-									Allow workspace sharing
-								</label>
-								<div className="text-sm text-content-secondary">
-									When enabled, workspace owners can share their workspaces with
-									other users in this organization.
+									disabled={
+										workspaceSharingGloballyDisabled ||
+										isTogglingWorkspaceSharing
+									}
+									onCheckedChange={(checked) => {
+										if (checked) {
+											onToggleWorkspaceSharing(true);
+										} else {
+											setIsDisableSharingDialogOpen(true);
+										}
+									}}
+								/>
+								<div className="flex flex-col">
+									<label
+										htmlFor="workspace-sharing"
+										className="text-sm cursor-pointer"
+									>
+										Allow workspace sharing
+									</label>
+									<div className="text-sm text-content-secondary">
+										When enabled, workspace owners can share their workspaces
+										with other users in this organization.
+									</div>
 								</div>
 							</div>
 						</div>

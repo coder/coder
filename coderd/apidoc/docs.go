@@ -4808,7 +4808,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceSharingSettingsRequest"
                         }
                     }
                 }
@@ -20283,6 +20283,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateWorkspaceSharingSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "sharing_disabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceTTLRequest": {
             "type": "object",
             "properties": {
@@ -22120,6 +22128,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "sharing_disabled": {
+                    "type": "boolean"
+                },
+                "sharing_globally_disabled": {
+                    "description": "SharingGloballyDisabled is true if sharing has been disabled for this\norganization because of a deployment-wide setting.",
                     "type": "boolean"
                 }
             }
