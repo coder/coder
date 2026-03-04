@@ -719,14 +719,31 @@ func setChatPendingWithStore(
 }
 
 func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
-	updatedChat, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chatID,
-		Status:      database.ChatStatusWaiting,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
-	})
+	var updatedChat database.Chat
+	err := p.db.InTx(func(tx database.Store) error {
+		locked, lockErr := tx.GetChatByIDForUpdate(ctx, chatID)
+		if lockErr != nil {
+			return xerrors.Errorf("lock chat for waiting: %w", lockErr)
+		}
+		// If the chat has already transitioned to pending (e.g.
+		// SendMessage with interrupt behavior), don't overwrite
+		// it — the pending status takes priority so the new
+		// message gets processed.
+		if locked.Status == database.ChatStatusPending {
+			updatedChat = locked
+			return nil
+		}
+		var updateErr error
+		updatedChat, updateErr = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:          chatID,
+			Status:      database.ChatStatusWaiting,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+		})
+		return updateErr
+	}, nil)
 	if err != nil {
 		return database.Chat{}, err
 	}
@@ -1121,6 +1138,14 @@ func (p *Server) Subscribe(
 			dialCancel()
 			dialCancel = nil
 		}
+		// Drain any buffered relay result from a cancelled dial.
+		select {
+		case result := <-relayReadyCh:
+			if result.cancel != nil {
+				result.cancel()
+			}
+		default:
+		}
 		expectedWorkerID = uuid.Nil
 		if relayCancel != nil {
 			relayCancel()
@@ -1177,6 +1202,7 @@ func (p *Server) Subscribe(
 					select {
 					case wrappedParts <- event:
 					case <-dialCtx.Done():
+						cancel()
 						return
 					}
 				}
@@ -1380,6 +1406,10 @@ func (p *Server) Subscribe(
 					}
 				case event, ok := <-relayPartsCh:
 					if !ok {
+						if relayCancel != nil {
+							relayCancel()
+							relayCancel = nil
+						}
 						relayParts = nil
 						// Schedule reconnection instead of giving up.
 						scheduleRelayReconnect()
@@ -1762,6 +1792,14 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			latestChat, lockErr := tx.GetChatByIDForUpdate(cleanupCtx, chat.ID)
 			if lockErr != nil {
 				return xerrors.Errorf("lock chat for release: %w", lockErr)
+			}
+
+			// If another worker has already acquired this chat, bail
+			// out — we must not overwrite their running status.
+			if latestChat.Status == database.ChatStatusRunning &&
+				latestChat.WorkerID.Valid &&
+				latestChat.WorkerID.UUID != p.workerID {
+				return nil
 			}
 
 			// If someone else already set the chat to pending (e.g.
