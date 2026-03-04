@@ -28,7 +28,7 @@ export function setChimeEnabled(enabled: boolean): void {
  */
 let chimeAudio: HTMLAudioElement | null = null;
 
-export function playChime(): void {
+function playChime(): void {
 	try {
 		if (!chimeAudio) {
 			chimeAudio = new Audio("/chime.wav");
