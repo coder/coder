@@ -26,8 +26,8 @@ import {
 	memo,
 	useCallback,
 	useEffect,
-	useLayoutEffect,
 	useImperativeHandle,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 } from "react";
@@ -259,8 +259,9 @@ const ChatMessageInput = memo(
 				},
 				onError: (error: Error) => console.error("Lexical error:", error),
 				nodes: [],
+				editable: !disabled,
 			}),
-			[],
+			[disabled],
 		);
 		const style = useMemo(
 			() => ({

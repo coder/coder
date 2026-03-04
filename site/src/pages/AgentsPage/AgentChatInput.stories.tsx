@@ -84,7 +84,9 @@ export const DisabledInput: Story = {
 		// The editor should be non-editable so users cannot click
 		// into it and type (e.g. archived chats).
 		const editor = canvas.getByTestId("chat-message-input");
-		expect(editor).toHaveAttribute("contenteditable", "false");
+		await waitFor(() => {
+			expect(editor).toHaveAttribute("contenteditable", "false");
+		});
 	},
 };
 
