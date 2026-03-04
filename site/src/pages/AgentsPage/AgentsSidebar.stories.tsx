@@ -61,6 +61,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 		modelOptions: defaultModelOptions,
 		modelConfigs: defaultModelConfigs,
 		onArchiveAgent: fn(),
+		onUnarchiveAgent: fn(),
 		onArchiveAndDeleteWorkspace: fn(),
 		onNewAgent: fn(),
 		isCreating: false,
@@ -457,5 +458,51 @@ export const DefaultShowsTimestampHidesMenu: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
+	},
+};
+
+export const ArchivedAgentUnarchiveOption: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-unarchive",
+				title: "Archived agent with unarchive",
+				archived: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Expand archived section
+		await waitFor(() => {
+			expect(canvas.getByText("Archived (1)")).toBeInTheDocument();
+		});
+		await userEvent.click(canvas.getByText("Archived (1)"));
+		await waitFor(() => {
+			expect(
+				canvas.getByText("Archived agent with unarchive"),
+			).toBeInTheDocument();
+		});
+		// Open the dropdown menu for the archived agent
+		const trigger = canvas.getByLabelText(
+			"Open actions for Archived agent with unarchive",
+		);
+		await userEvent.click(trigger);
+		// Verify "Unarchive agent" is shown instead of "Archive agent"
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Unarchive agent")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
+		expect(
+			body.queryByText("Archive & delete workspace"),
+		).not.toBeInTheDocument();
 	},
 };

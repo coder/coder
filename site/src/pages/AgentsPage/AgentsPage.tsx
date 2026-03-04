@@ -10,6 +10,7 @@ import {
 	chats,
 	chatsKey,
 	createChat,
+	unarchiveChat,
 } from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
@@ -88,6 +89,7 @@ export interface AgentsOutletContext {
 	setChatErrorReason: (chatId: string, reason: string) => void;
 	clearChatErrorReason: (chatId: string) => void;
 	requestArchiveAgent: (chatId: string) => void;
+	requestUnarchiveAgent: (chatId: string) => void;
 	requestArchiveAndDeleteWorkspace: (
 		chatId: string,
 		workspaceId: string,
@@ -188,6 +190,16 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
 		},
 	});
+	const unarchiveAgentMutation = useMutation({
+		...unarchiveChat(queryClient),
+		onSuccess: async (_data, chatId) => {
+			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+			toast.success("Agent unarchived.");
+		},
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
 
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
@@ -276,6 +288,12 @@ const AgentsPage: FC = () => {
 		},
 		[isArchiving, archiveAndDeleteMutation],
 	);
+	const requestUnarchiveAgent = useCallback(
+		(chatId: string) => {
+			unarchiveAgentMutation.mutate(chatId);
+		},
+		[unarchiveAgentMutation],
+	);
 	const handleToggleSidebarCollapsed = useCallback(
 		() => setIsSidebarCollapsed((prev) => !prev),
 		[],
@@ -286,6 +304,7 @@ const AgentsPage: FC = () => {
 			setChatErrorReason,
 			clearChatErrorReason,
 			requestArchiveAgent,
+			requestUnarchiveAgent,
 			requestArchiveAndDeleteWorkspace,
 			isSidebarCollapsed,
 			onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
@@ -295,6 +314,7 @@ const AgentsPage: FC = () => {
 			setChatErrorReason,
 			clearChatErrorReason,
 			requestArchiveAgent,
+			requestUnarchiveAgent,
 			requestArchiveAndDeleteWorkspace,
 			isSidebarCollapsed,
 			handleToggleSidebarCollapsed,
@@ -452,6 +472,7 @@ const AgentsPage: FC = () => {
 					modelConfigs={chatModelConfigsQuery.data ?? []}
 					logoUrl={appearance.logo_url}
 					onArchiveAgent={requestArchiveAgent}
+					onUnarchiveAgent={requestUnarchiveAgent}
 					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 					onNewAgent={handleNewAgent}
 					isCreating={createMutation.isPending}

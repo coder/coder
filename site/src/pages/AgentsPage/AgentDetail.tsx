@@ -81,6 +81,8 @@ const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
 	() => {};
 const noopRequestArchiveAndDeleteWorkspace: AgentsOutletContext["requestArchiveAndDeleteWorkspace"] =
 	() => {};
+const noopRequestUnarchiveAgent: AgentsOutletContext["requestUnarchiveAgent"] =
+	() => {};
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -407,6 +409,8 @@ const AgentDetail: FC = () => {
 	const requestArchiveAndDeleteWorkspace =
 		outletContext?.requestArchiveAndDeleteWorkspace ??
 		noopRequestArchiveAndDeleteWorkspace;
+	const requestUnarchiveAgent =
+		outletContext?.requestUnarchiveAgent ?? noopRequestUnarchiveAgent;
 	const isSidebarCollapsed = outletContext?.isSidebarCollapsed ?? false;
 	const onToggleSidebarCollapsed =
 		outletContext?.onToggleSidebarCollapsed ?? (() => {});
@@ -766,6 +770,13 @@ const AgentDetail: FC = () => {
 		requestArchiveAndDeleteWorkspace(agentId, workspaceId);
 	};
 
+	const handleUnarchiveAgentAction = () => {
+		if (!agentId || !isArchived) {
+			return;
+		}
+		requestUnarchiveAgent(agentId);
+	};
+
 	if (chatQuery.isLoading) {
 		return (
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
@@ -786,6 +797,7 @@ const AgentDetail: FC = () => {
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
+					onUnarchiveAgent={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
 					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
@@ -860,6 +872,7 @@ const AgentDetail: FC = () => {
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
+					onUnarchiveAgent={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
 					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
@@ -900,6 +913,7 @@ const AgentDetail: FC = () => {
 							sshCommand,
 						}}
 						onArchiveAgent={handleArchiveAgentAction}
+						onUnarchiveAgent={handleUnarchiveAgentAction}
 						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
 						hasWorkspace={Boolean(workspaceId)}
 						isArchived={isArchived}

@@ -2944,6 +2944,10 @@ class ApiMethods {
 		await this.axios.post(`/api/experimental/chats/${chatId}/archive`);
 	};
 
+	unarchiveChat = async (chatId: string): Promise<void> => {
+		await this.axios.post(`/api/experimental/chats/${chatId}/unarchive`);
+	};
+
 	createChatMessage = async (
 		chatId: string,
 		req: TypesGen.CreateChatMessageRequest,
