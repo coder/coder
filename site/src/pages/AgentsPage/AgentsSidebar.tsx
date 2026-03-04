@@ -510,7 +510,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								</DropdownMenuContent>
 							</DropdownMenu>
 						</>
-					)}{" "}
+					)}
 				</div>
 			</div>
 

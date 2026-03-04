@@ -263,7 +263,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								)}
 							</>
 						)}
-					</DropdownMenuContent>{" "}
+					</DropdownMenuContent>
 				</DropdownMenu>
 				<WebPushButton />
 			</div>
