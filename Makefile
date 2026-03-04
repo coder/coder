@@ -40,13 +40,6 @@ VERSION      := $(shell ./scripts/version.sh)
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
 
-# file_copy_method=clone requires PostgreSQL 17+.
-ifeq ($(shell test $(POSTGRES_VERSION) -ge 17 2>/dev/null && echo yes),yes)
-POSTGRES_EXTRA_FLAGS = -c file_copy_method=clone
-else
-POSTGRES_EXTRA_FLAGS =
-endif
-
 # Use the highest ZSTD compression level in CI.
 ifdef CI
 ZSTDFLAGS := -22 --ultra
@@ -1197,8 +1190,7 @@ test-postgres-docker:
 		-c fsync=off \
 		-c synchronous_commit=off \
 		-c full_page_writes=off \
-		-c log_statement=all \
-		${POSTGRES_EXTRA_FLAGS}
+		-c log_statement=all
 	while ! pg_isready -h 127.0.0.1
 	do
 		echo "$(date) - waiting for database to start"
