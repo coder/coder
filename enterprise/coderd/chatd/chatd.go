@@ -302,6 +302,7 @@ func NewMultiReplicaSubscribeFn(
 			reconnectCh = reconnectTimer.C
 		}
 
+		statusNotifications := params.StatusNotifications
 		go func() {
 			defer close(mergedEvents)
 			defer closeRelay()
@@ -364,7 +365,11 @@ func NewMultiReplicaSubscribeFn(
 						currentChat.WorkerID.Valid && currentChat.WorkerID.UUID != params.WorkerID {
 						openRelayAsync(currentChat.WorkerID.UUID)
 					}
-				case sn := <-params.StatusNotifications:
+				case sn, ok := <-statusNotifications:
+					if !ok {
+						statusNotifications = nil
+						continue
+					}
 					if sn.Status == database.ChatStatusRunning && sn.WorkerID != uuid.Nil && sn.WorkerID != params.WorkerID {
 						openRelayAsync(sn.WorkerID)
 					} else if sn.WorkerID == params.WorkerID {

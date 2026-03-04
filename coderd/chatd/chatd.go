@@ -1105,8 +1105,11 @@ func (p *Server) Subscribe(
 		initialSnapshot = append([]codersdk.ChatStreamEvent{statusEvent}, initialSnapshot...)
 	}
 
-	// Track the last message ID we've seen for DB queries
-	var lastMessageID int64
+	// Track the last message ID we've seen for DB queries.
+	// Initialize from afterMessageID so that when the caller passes
+	// afterMessageID > 0 but no new messages exist yet, the first
+	// pubsub catch-up doesn't re-fetch already-seen messages.
+	lastMessageID := afterMessageID
 	if len(messages) > 0 {
 		lastMessageID = messages[len(messages)-1].ID
 	}
@@ -1187,11 +1190,20 @@ func (p *Server) Subscribe(
 		relayEvents = relayEvCh
 	}
 
-	hasPubsub := p.pubsub != nil
+	hasPubsub := false
+	if p.pubsub != nil {
+		// hasPubsub is only true when we actually subscribed
+		// successfully above (allCancels will contain the pubsub
+		// cancel func in that case).
+		hasPubsub = len(allCancels) > 1
+	}
 
 	//nolint:nestif
 	go func() {
 		defer close(mergedEvents)
+		if statusNotifications != nil {
+			defer close(statusNotifications)
+		}
 		for {
 			select {
 			case <-mergedCtx.Done():
@@ -1349,9 +1361,6 @@ func (p *Server) Subscribe(
 		}
 		if relayCleanup != nil {
 			relayCleanup()
-		}
-		if statusNotifications != nil {
-			close(statusNotifications)
 		}
 	}
 	return initialSnapshot, mergedEvents, cancel, true
