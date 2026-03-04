@@ -2,6 +2,7 @@ import { API } from "api/api";
 import {
 	chat,
 	chatDiffStatus,
+	chatMessages as chatMessagesQuery,
 	chatModelConfigs,
 	chatModels,
 	chats,
@@ -99,6 +100,9 @@ interface AgentDetailTimelineProps {
 	onEditUserMessage?: (messageId: number, text: string) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
+	hasMoreOnServer?: boolean;
+	onFetchMore?: () => void;
+	isFetchingMore?: boolean;
 }
 
 const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
@@ -108,6 +112,9 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
+	hasMoreOnServer,
+	onFetchMore,
+	isFetchingMore,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -135,6 +142,9 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		useMessageWindow({
 			messages,
 			resetKey: chatID,
+			hasMoreOnServer,
+			onFetchMore,
+			isFetchingMore,
 		});
 	const parsedMessages = useMemo(
 		() => parseMessagesWithMergedTools(windowedMessages),
@@ -460,6 +470,10 @@ const AgentDetail: FC = () => {
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
+	const messagesQuery = useQuery({
+		...chatMessagesQuery(agentId ?? ""),
+		enabled: Boolean(agentId),
+	});
 	const chatsQuery = useQuery(chats());
 	const workspaceId = chatQuery.data?.chat?.workspace_id;
 	const workspaceQuery = useQuery({
@@ -479,7 +493,8 @@ const AgentDetail: FC = () => {
 	const chatData = chatQuery.data;
 	const chatRecord = chatData?.chat;
 	const isArchived = chatRecord?.archived ?? false;
-	const chatMessages = chatData?.messages;
+	const chatMessages = messagesQuery.data?.messages;
+	const messagesHasMore = messagesQuery.data?.has_more ?? false;
 	const chatQueuedMessages = chatData?.queued_messages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
@@ -553,6 +568,39 @@ const AgentDetail: FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 	});
+
+	const [isFetchingMore, setIsFetchingMore] = useState(false);
+	const fetchMoreMessages = useCallback(async () => {
+		if (!agentId || isFetchingMore) return;
+		const oldestId = messagesQuery.data?.after_id;
+		if (!oldestId || !messagesQuery.data?.has_more) return;
+
+		setIsFetchingMore(true);
+		try {
+			const olderPage = await API.getChatMessages(agentId, {
+				before_id: oldestId,
+			});
+			queryClient.setQueryData<TypesGen.ChatMessagesResponse>(
+				chatMessagesQuery(agentId).queryKey,
+				(current) => {
+					if (!current) return current;
+					return {
+						messages: [...olderPage.messages, ...current.messages],
+						after_id: olderPage.after_id,
+						has_more: olderPage.has_more,
+					};
+				},
+			);
+		} finally {
+			setIsFetchingMore(false);
+		}
+	}, [
+		agentId,
+		isFetchingMore,
+		messagesQuery.data?.after_id,
+		messagesQuery.data?.has_more,
+		queryClient,
+	]);
 
 	useEffect(() => {
 		setSelectedModel((current) => {
@@ -992,6 +1040,9 @@ const AgentDetail: FC = () => {
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
+							hasMoreOnServer={messagesHasMore}
+							onFetchMore={fetchMoreMessages}
+							isFetchingMore={isFetchingMore}
 						/>
 					</div>
 				</div>

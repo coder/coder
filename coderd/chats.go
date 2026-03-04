@@ -385,18 +385,6 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	messages, err := api.Database.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chatID,
-		AfterID: 0,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat messages.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	queuedMessages, err := api.Database.GetChatQueuedMessages(ctx, chatID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -408,8 +396,77 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatWithMessages{
 		Chat:           convertChat(chat, nil),
-		Messages:       convertChatMessages(messages),
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
+	})
+}
+
+const defaultChatMessageLimit = 100
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
+
+	var beforeID int64
+	if v := r.URL.Query().Get("before_id"); v != "" {
+		var err error
+		beforeID, err = strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid before_id parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	limit := defaultChatMessageLimit
+	if v := r.URL.Query().Get("limit"); v != "" {
+		var err error
+		limit, err = strconv.Atoi(v)
+		if err != nil || limit < 1 || limit > 1000 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid limit parameter. Must be between 1 and 1000.",
+			})
+			return
+		}
+	}
+
+	// Request one extra to determine if there are more messages.
+	//nolint:gosec // limit is validated to be between 1 and 1000.
+	dbLimit := int32(limit + 1)
+
+	messages, err := api.Database.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:   chatID,
+		AfterID:  0,
+		BeforeID: sql.NullInt64{Int64: beforeID, Valid: beforeID > 0},
+		LimitOpt: dbLimit,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	hasMore := len(messages) > limit
+	if hasMore {
+		messages = messages[1:] // Remove the oldest extra message.
+	}
+
+	var afterID int64
+	if len(messages) > 0 {
+		afterID = messages[0].ID
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
+		Messages: convertChatMessages(messages),
+		AfterID:  afterID,
+		HasMore:  hasMore,
 	})
 }
 

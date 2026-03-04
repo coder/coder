@@ -2930,6 +2930,17 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getChatMessages = async (
+		chatId: string,
+		params?: { before_id?: number; limit?: number },
+	): Promise<TypesGen.ChatMessagesResponse> => {
+		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(
+			`/api/experimental/chats/${chatId}/messages`,
+			{ params },
+		);
+		return response.data;
+	};
+
 	createChat = async (
 		req: TypesGen.CreateChatRequest,
 	): Promise<TypesGen.Chat> => {

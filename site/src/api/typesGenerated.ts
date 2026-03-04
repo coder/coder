@@ -1195,6 +1195,24 @@ export interface ChatMessageUsage {
 
 // From codersdk/chats.go
 /**
+ * ChatMessagesResponse is the paginated response for chat messages.
+ */
+export interface ChatMessagesResponse {
+	readonly messages: readonly ChatMessage[];
+	/**
+	 * AfterID is the ID of the oldest message in this page.
+	 * Use this as the before_id parameter to fetch the previous
+	 * page.
+	 */
+	readonly after_id: number;
+	/**
+	 * HasMore indicates if there are older messages to fetch.
+	 */
+	readonly has_more: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * ChatModel represents a model in the chat model catalog.
  */
 export interface ChatModel {
@@ -1581,11 +1599,10 @@ export interface ChatStreamStatus {
 
 // From codersdk/chats.go
 /**
- * ChatWithMessages is a chat along with its messages.
+ * ChatWithMessages is a chat along with its queued messages.
  */
 export interface ChatWithMessages {
 	readonly chat: Chat;
-	readonly messages: readonly ChatMessage[];
 	readonly queued_messages: readonly ChatQueuedMessage[];
 }
 

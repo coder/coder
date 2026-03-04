@@ -360,8 +360,10 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	require.Len(t, queued, 1)
 
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
+		ChatID:   chat.ID,
+		AfterID:  0,
+		BeforeID: sql.NullInt64{},
+		LimitOpt: 0,
 	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
@@ -413,8 +415,10 @@ func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
 	require.Len(t, queued, 0)
 
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
+		ChatID:   chat.ID,
+		AfterID:  0,
+		BeforeID: sql.NullInt64{},
+		LimitOpt: 0,
 	})
 	require.NoError(t, err)
 	require.Len(t, messages, 2)
@@ -439,8 +443,10 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.NoError(t, err)
 
 	initialMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
+		ChatID:   chat.ID,
+		AfterID:  0,
+		BeforeID: sql.NullInt64{},
+		LimitOpt: 0,
 	})
 	require.NoError(t, err)
 	require.Len(t, initialMessages, 1)
@@ -489,8 +495,10 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.Equal(t, "edited", editedSDK.Content[0].Text)
 
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
+		ChatID:   chat.ID,
+		AfterID:  0,
+		BeforeID: sql.NullInt64{},
+		LimitOpt: 0,
 	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
@@ -1066,7 +1074,9 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	require.Equal(t, workspaceName, workspace.Name)
 
 	var foundCreateWorkspaceResult bool
-	for _, message := range chatWithMessages.Messages {
+	messagesResp, err := client.GetChatMessages(ctx, chat.ID, nil, nil)
+	require.NoError(t, err)
+	for _, message := range messagesResp.Messages {
 		if message.Role != "tool" {
 			continue
 		}

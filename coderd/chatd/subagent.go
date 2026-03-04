@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"sort"
 	"strings"
@@ -398,8 +399,10 @@ func latestSubagentAssistantMessage(
 	chatID uuid.UUID,
 ) (string, error) {
 	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chatID,
-		AfterID: 0,
+		ChatID:   chatID,
+		AfterID:  0,
+		BeforeID: sql.NullInt64{},
+		LimitOpt: 0,
 	})
 	if err != nil {
 		return "", xerrors.Errorf("get chat messages: %w", err)
