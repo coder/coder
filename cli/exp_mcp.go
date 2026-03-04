@@ -382,9 +382,6 @@ type taskReport struct {
 	// message only happens when interacting via the AI AgentAPI (as opposed to
 	// interacting with the terminal directly).
 	messageID *int64
-	// selfReported must be set if the update is directly from the AI agent
-	// (as opposed to the screen watcher).
-	selfReported bool
 	// state must always be set.
 	state codersdk.WorkspaceAppStatusState
 	// summary is optional.
@@ -428,30 +425,7 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 					*lastReport.messageID >= *report.messageID {
 					return report, false
 				}
-				// If this is not a user message, and the status is "working" and not
-				// self-reported (meaning it came from the screen watcher), then it
-				// means one of two things:
-				//
-				// 1. The AI agent is not working; the user is interacting with the
-				//    terminal directly.
-				// 2. The AI agent is working.
-				//
-				// At the moment, we have no way to tell the difference between these
-				// two states. In the future, if we can reliably distinguish between
-				// user and AI agent activity, we can change this.
-				//
-				// If this is our first update, we assume it is the AI agent working and
-				// accept the update.
-				//
-				// Otherwise we discard the update.  This risks missing cases where the
-				// user manually submits a new prompt and the AI agent becomes active
-				// (and does not update itself), but it avoids spamming useless status
-				// updates as the user is typing, so the tradeoff is worth it.
-				if report.messageID == nil &&
-					report.state == codersdk.WorkspaceAppStatusStateWorking &&
-					!report.selfReported && lastReport.state != "" {
-					return report, false
-				}
+
 				// Keep track of the last message ID so we can tell when a message is
 				// new or if it has been re-emitted.
 				if report.messageID == nil {
@@ -651,7 +625,7 @@ func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
 							}
 						}
 					case err := <-errCh:
-						if !errors.Is(err, context.Canceled) {
+						if err != nil && !errors.Is(err, context.Canceled) {
 							cliui.Warnf(inv.Stderr, "Received error from screen event watcher: %s", err)
 						}
 						break loop
@@ -706,10 +680,9 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 				state = codersdk.WorkspaceAppStatusStateWorking
 			}
 			return s.queue.Push(taskReport{
-				link:         args.Link,
-				selfReported: true,
-				state:        state,
-				summary:      args.Summary,
+				link:    args.Link,
+				state:   state,
+				summary: args.Summary,
 			})
 		}),
 	}
