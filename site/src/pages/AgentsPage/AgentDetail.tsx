@@ -11,12 +11,17 @@ import {
 	interruptChat,
 	promoteChatQueuedMessage,
 } from "api/queries/chats";
+import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { ArchiveIcon } from "lucide-react";
-import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
+import {
+	getTerminalHref,
+	getVSCodeHref,
+	openAppInNewWindow,
+} from "modules/apps/apps";
 import {
 	type FC,
 	useCallback,
@@ -515,6 +520,7 @@ const AgentDetail: FC = () => {
 	});
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const hasDiffStatus = Boolean(diffStatusQuery.data?.url);
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
@@ -818,54 +824,61 @@ const AgentDetail: FC = () => {
 		: null;
 	const canOpenWorkspace = Boolean(workspaceRoute);
 	const canOpenEditors = Boolean(workspace && workspaceAgent);
+	const terminalHref =
+		workspace && workspaceAgent
+			? getTerminalHref({
+					username: workspace.owner_name,
+					workspace: workspace.name,
+					agent: workspaceAgent.name,
+				})
+			: null;
+	const sshCommand =
+		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
+			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
+			: undefined;
 	const shouldShowDiffPanel = hasDiffStatus && showDiffPanel;
 
-	const handleOpenInEditor = async (editor: "cursor" | "vscode") => {
+	const generateKeyMutation = useMutation({
+		mutationFn: () => API.getApiKey(),
+	});
+
+	const handleOpenInEditor = (editor: "cursor" | "vscode") => {
 		if (!workspace || !workspaceAgent) {
 			return;
 		}
 
-		try {
-			const { key } = await API.getApiKey();
-			const vscodeHref = getVSCodeHref("vscode", {
-				owner: workspace.owner_name,
-				workspace: workspace.name,
-				token: key,
-				agent: workspaceAgent.name,
-				folder: workspaceAgent.expanded_directory,
-			});
-
-			if (editor === "cursor") {
-				const cursorApp = workspaceAgent.apps.find((app) => {
-					const name = (app.display_name ?? app.slug).toLowerCase();
-					return app.slug.toLowerCase() === "cursor" || name === "cursor";
+		generateKeyMutation.mutate(undefined, {
+			onSuccess: ({ key }) => {
+				location.href = getVSCodeHref(editor, {
+					owner: workspace.owner_name,
+					workspace: workspace.name,
+					token: key,
+					agent: workspaceAgent.name,
+					folder: workspaceAgent.expanded_directory,
 				});
-				if (cursorApp?.external && cursorApp.url) {
-					const href = cursorApp.url.includes(SESSION_TOKEN_PLACEHOLDER)
-						? cursorApp.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, key)
-						: cursorApp.url;
-					window.location.assign(href);
-					return;
-				}
-				window.location.assign(vscodeHref.replace(/^vscode:/, "cursor:"));
-				return;
-			}
-
-			window.location.assign(vscodeHref);
-		} catch {
-			toast.error(
-				editor === "cursor"
-					? "Failed to open in Cursor."
-					: "Failed to open in VS Code.",
-			);
-		}
+			},
+			onError: () => {
+				toast.error(
+					editor === "cursor"
+						? "Failed to open in Cursor."
+						: "Failed to open in VS Code.",
+				);
+			},
+		});
 	};
 
 	const handleViewWorkspace = () => {
 		if (!workspaceRoute) {
 			return;
 		}
-		navigate(workspaceRoute);
+		window.open(workspaceRoute, "_blank");
+	};
+
+	const handleOpenTerminal = () => {
+		if (!terminalHref) {
+			return;
+		}
+		openAppInNewWindow(terminalHref);
 	};
 
 	const handleArchiveAgentAction = () => {
@@ -876,10 +889,10 @@ const AgentDetail: FC = () => {
 	};
 
 	const handleArchiveAndDeleteWorkspaceAction = () => {
-		if (!agentId || isArchived) {
+		if (!agentId || isArchived || !workspaceId) {
 			return;
 		}
-		requestArchiveAndDeleteWorkspace(agentId);
+		requestArchiveAndDeleteWorkspace(agentId, workspaceId);
 	};
 
 	if (chatQuery.isLoading) {
@@ -897,6 +910,8 @@ const AgentDetail: FC = () => {
 						canOpenWorkspace: false,
 						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
+						onOpenTerminal: () => {},
+						sshCommand: undefined,
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
@@ -968,6 +983,8 @@ const AgentDetail: FC = () => {
 						canOpenWorkspace: false,
 						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
+						onOpenTerminal: () => {},
+						sshCommand: undefined,
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
@@ -1005,10 +1022,10 @@ const AgentDetail: FC = () => {
 						workspace={{
 							canOpenEditors,
 							canOpenWorkspace,
-							onOpenInEditor: (editor) => {
-								void handleOpenInEditor(editor);
-							},
+							onOpenInEditor: handleOpenInEditor,
 							onViewWorkspace: handleViewWorkspace,
+							onOpenTerminal: handleOpenTerminal,
+							sshCommand,
 						}}
 						onArchiveAgent={handleArchiveAgentAction}
 						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}

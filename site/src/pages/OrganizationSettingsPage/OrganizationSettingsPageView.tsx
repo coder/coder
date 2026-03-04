@@ -172,14 +172,14 @@ export const OrganizationSettingsPageView: FC<
 							<div className="flex flex-col">
 								<label
 									htmlFor="workspace-sharing"
-									className="text-sm font-medium cursor-pointer leading-none"
+									className="text-sm cursor-pointer"
 								>
 									Allow workspace sharing
 								</label>
-								<p className="text-sm font-medium text-content-secondary mt-2">
+								<div className="text-sm text-content-secondary">
 									When enabled, workspace owners can share their workspaces with
 									other users in this organization.
-								</p>
+								</div>
 							</div>
 						</div>
 					</HorizontalSection>

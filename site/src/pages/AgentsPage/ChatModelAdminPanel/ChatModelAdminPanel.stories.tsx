@@ -217,27 +217,47 @@ export const EnvPresetProviders: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+
+		// Both providers should be visible in the list.
 		await expect(
-			await body.findByText("API key managed by environment variable."),
-		).toBeVisible();
-		expect(body.getByText("Anthropic")).toBeInTheDocument();
+			await body.findByRole("button", { name: /OpenAI/i }),
+		).toBeInTheDocument();
 		expect(
-			body.getByText(
-				"This provider API key is managed by an environment variable.",
-			),
-		).toBeVisible();
-		expect(
-			body.getByText(
+			body.getByRole("button", { name: /Anthropic/i }),
+		).toBeInTheDocument();
+
+		// Navigate to OpenAI detail view.
+		await userEvent.click(body.getByRole("button", { name: /OpenAI/i }));
+
+		// In the detail view we should see the env-managed alert.
+		await expect(
+			await body.findByText(
 				"This provider key is configured from deployment environment settings and cannot be edited in this UI.",
 			),
 		).toBeVisible();
+		// No API key input or create button should be present.
 		expect(body.queryByLabelText(/API key/i)).not.toBeInTheDocument();
 		expect(
 			body.queryByRole("button", {
 				name: "Create provider config",
 			}),
 		).not.toBeInTheDocument();
+
+		// Navigate back to the list.
+		await userEvent.click(body.getByText("Back"));
+
+		// Verify Anthropic is visible in the list again.
+		await expect(
+			await body.findByRole("button", { name: /Anthropic/i }),
+		).toBeInTheDocument();
+
+		// Navigate to Anthropic detail view and verify it's also env-managed.
+		await userEvent.click(body.getByRole("button", { name: /Anthropic/i }));
+		await expect(
+			await body.findByText(
+				"This provider key is configured from deployment environment settings and cannot be edited in this UI.",
+			),
+		).toBeVisible();
 	},
 };
 
@@ -271,7 +291,7 @@ export const CreateAndUpdateProvider: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Expand the accordion.
+		// Navigate to the OpenAI detail view.
 		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
 
 		// Fill in form to create a provider config.
@@ -299,26 +319,24 @@ export const CreateAndUpdateProvider: Story = {
 			}),
 		);
 
-		// After creation the form should switch to "Save changes".
+		// After creation, queries refetch and the component re-keys
+		// because providerConfig now exists. Navigate back to the list
+		// and re-enter the detail view to interact with the updated form.
 		await waitFor(() => {
 			expect(
 				body.getByRole("button", { name: "Save changes" }),
 			).toBeInTheDocument();
 		});
 
-		// Update the display name and base URL.
-		const displayNameInput = body.getByPlaceholderText(
-			"Friendly provider label",
-		);
-		await userEvent.clear(displayNameInput);
-		await userEvent.type(displayNameInput, "Primary OpenAI");
+		// The form was re-rendered with the new providerConfig.
+		// Focus the API key field, type a new key, update the base URL,
+		// and save.
+		const apiKeyInput = body.getByLabelText(/API key/i);
+		await userEvent.clear(apiKeyInput);
+		await userEvent.type(apiKeyInput, "sk-updated-provider-key");
 		const baseURLInput = body.getByLabelText("Base URL");
 		await userEvent.clear(baseURLInput);
 		await userEvent.type(baseURLInput, "https://internal-proxy.example.com/v2");
-		await userEvent.type(
-			body.getByLabelText(/API key/i),
-			"sk-updated-provider-key",
-		);
 		await userEvent.click(body.getByRole("button", { name: "Save changes" }));
 
 		await waitFor(() => {
@@ -327,7 +345,6 @@ export const CreateAndUpdateProvider: Story = {
 		expect(API.updateChatProviderConfig).toHaveBeenCalledWith(
 			expect.any(String),
 			expect.objectContaining({
-				display_name: "Primary OpenAI",
 				api_key: "sk-updated-provider-key",
 				base_url: "https://internal-proxy.example.com/v2",
 			}),
@@ -337,60 +354,26 @@ export const CreateAndUpdateProvider: Story = {
 
 // ── Models section stories ─────────────────────────────────────
 
-export const ProviderSpecificModelConfigSchema: Story = {
-	args: { section: "models" as ChatModelAdminSection },
-	beforeEach: () => {
-		setupChatSpies({
-			providerConfigs: [
-				createProviderConfig({
-					id: "provider-openai",
-					provider: "openai",
-					display_name: "OpenAI",
-					source: "database",
-					has_api_key: true,
-				}),
-				createProviderConfig({
-					id: "provider-anthropic",
-					provider: "anthropic",
-					display_name: "Anthropic",
-					source: "database",
-					has_api_key: true,
-				}),
-			],
-			modelConfigs: [],
-			modelCatalog: { providers: [] },
+/**
+ * Helper to open the "Add model" dropdown and select a provider.
+ * The "Add model" button is a DropdownMenuTrigger. Clicking it opens
+ * a dropdown of addable providers. We then select the given provider.
+ */
+const openAddModelForm = async (
+	body: ReturnType<typeof within>,
+	providerLabel: string,
+) => {
+	// Click the dropdown trigger to open the provider menu.
+	const trigger = await body.findByRole("button", { name: "Add model" });
+	await userEvent.click(trigger);
+	// Radix portals dropdown content into the document body.
+	// Wait for the menu to appear and click the provider item.
+	await waitFor(async () => {
+		const item = body.getByRole("menuitem", {
+			name: new RegExp(providerLabel, "i"),
 		});
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-
-		await userEvent.click(
-			await body.findByRole("button", { name: "Add model" }),
-		);
-
-		const schemaBlock = await body.findByTestId("chat-model-config-schema");
-		expect(schemaBlock).toHaveTextContent('"provider": "openai"');
-		expect(schemaBlock).toHaveTextContent('"openai": {');
-		expect(schemaBlock).toHaveTextContent('"reasoning_effort": "high"');
-
-		// Switch provider to Anthropic.
-		await userEvent.click(body.getByRole("combobox", { name: "Provider" }));
-		await userEvent.click(
-			await body.findByRole("option", { name: /Anthropic/i }),
-		);
-
-		await waitFor(() => {
-			expect(body.getByTestId("chat-model-config-schema")).toHaveTextContent(
-				'"provider": "anthropic"',
-			);
-		});
-		expect(body.getByTestId("chat-model-config-schema")).toHaveTextContent(
-			'"anthropic": {',
-		);
-		expect(body.getByTestId("chat-model-config-schema")).toHaveTextContent(
-			'"thinking": {',
-		);
-	},
+		await userEvent.click(item);
+	});
 };
 
 export const NoModelConfigByDefault: Story = {
@@ -413,16 +396,19 @@ export const NoModelConfigByDefault: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		await userEvent.click(
-			await body.findByRole("button", { name: "Add model" }),
-		);
-		await userEvent.type(body.getByLabelText(/Model ID/i), "gpt-5-pro");
+		// Open "Add model" dropdown and select the OpenAI provider.
+		await openAddModelForm(body, "OpenAI");
+
+		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
 
+		// Max output tokens is under the "Advanced" toggle.
+		await userEvent.click(body.getByText("Advanced"));
 		await expect(await body.findByLabelText(/Max output tokens/i)).toHaveValue(
 			"",
 		);
 
+		// The submit button in ModelForm also says "Add model".
 		await userEvent.click(body.getByRole("button", { name: "Add model" }));
 		await waitFor(() => {
 			expect(API.createChatModelConfig).toHaveBeenCalledTimes(1);
@@ -461,18 +447,23 @@ export const SubmitModelConfigExplicitly: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		await userEvent.click(
-			await body.findByRole("button", { name: "Add model" }),
+		// Open "Add model" dropdown and select the OpenAI provider.
+		await openAddModelForm(body, "OpenAI");
+
+		await userEvent.type(
+			body.getByLabelText(/Model Identifier/i),
+			"gpt-5-pro-custom",
 		);
-		await userEvent.type(body.getByLabelText(/Model ID/i), "gpt-5-pro-custom");
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
+		// Max output tokens and provider options are under "Advanced".
+		await userEvent.click(body.getByText("Advanced"));
 		await userEvent.type(
 			await body.findByLabelText(/Max output tokens/i),
 			"32000",
 		);
 		await userEvent.click(
 			body.getByRole("combobox", {
-				name: "Reasoning effort",
+				name: "Reasoning Effort",
 			}),
 		);
 		await userEvent.click(await body.findByRole("option", { name: "high" }));
@@ -498,6 +489,138 @@ export const SubmitModelConfigExplicitly: Story = {
 	},
 };
 
+// ── Per-provider model form stories ────────────────────────────
+// Each story opens the "Add model" form for a specific provider
+// so you can visually verify the schema-driven fields render.
+
+const providerFormSetup = (provider: string, displayName: string) => ({
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: `provider-${provider}`,
+					provider,
+					display_name: displayName,
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+});
+
+export const ModelFormOpenAI: Story = {
+	...providerFormSetup("openai", "OpenAI"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI");
+		await expect(
+			await body.findByLabelText(/Reasoning Effort/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Parallel Tool Calls/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormAnthropic: Story = {
+	...providerFormSetup("anthropic", "Anthropic"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Anthropic");
+		await expect(
+			await body.findByLabelText(/Send Reasoning/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Thinking Budget Tokens/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormGoogle: Story = {
+	...providerFormSetup("google", "Google"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Google");
+		await expect(
+			await body.findByLabelText(/Thinking Config Thinking Budget/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Thinking Config Include Thoughts/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormOpenAICompat: Story = {
+	...providerFormSetup("openaicompat", "OpenAI-compatible"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenAI-compatible");
+		await expect(
+			await body.findByLabelText(/Reasoning Effort/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormOpenRouter: Story = {
+	...providerFormSetup("openrouter", "OpenRouter"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "OpenRouter");
+		await expect(
+			await body.findByLabelText(/Reasoning Enabled/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Reasoning Max Tokens/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormVercel: Story = {
+	...providerFormSetup("vercel", "Vercel AI Gateway"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Vercel AI Gateway");
+		await expect(
+			await body.findByLabelText(/Reasoning Enabled/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Parallel Tool Calls/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormAzure: Story = {
+	...providerFormSetup("azure", "Azure OpenAI"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "Azure OpenAI");
+		// Azure aliases to OpenAI fields.
+		await expect(
+			await body.findByLabelText(/Reasoning Effort/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Service Tier/i),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelFormBedrock: Story = {
+	...providerFormSetup("bedrock", "AWS Bedrock"),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await openAddModelForm(body, "AWS Bedrock");
+		// Bedrock aliases to Anthropic fields.
+		await expect(
+			await body.findByLabelText(/Send Reasoning/i),
+		).toBeInTheDocument();
+		await expect(await body.findByLabelText(/Effort/i)).toBeInTheDocument();
+	},
+};
+
 export const ValidatesModelConfigFields: Story = {
 	args: { section: "models" as ChatModelAdminSection },
 	beforeEach: () => {
@@ -518,11 +641,13 @@ export const ValidatesModelConfigFields: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		await userEvent.click(
-			await body.findByRole("button", { name: "Add model" }),
-		);
-		await userEvent.type(body.getByLabelText(/Model ID/i), "gpt-5-pro");
+		// Open "Add model" dropdown and select the OpenAI provider.
+		await openAddModelForm(body, "OpenAI");
+
+		await userEvent.type(body.getByLabelText(/Model Identifier/i), "gpt-5-pro");
 		await userEvent.type(body.getByLabelText(/Context limit/i), "200000");
+		// Max output tokens is under the "Advanced" toggle.
+		await userEvent.click(body.getByText("Advanced"));
 		const maxOutputTokensInput =
 			await body.findByLabelText(/Max output tokens/i);
 		await userEvent.type(maxOutputTokensInput, "not-a-number");

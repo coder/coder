@@ -59,6 +59,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 		modelOptions: defaultModelOptions,
 		modelConfigs: defaultModelConfigs,
 		onArchiveAgent: fn(),
+		onArchiveAndDeleteWorkspace: fn(),
 		onNewAgent: fn(),
 		isCreating: false,
 	},
@@ -73,31 +74,6 @@ const meta: Meta<typeof AgentsSidebar> = {
 
 export default meta;
 type Story = StoryObj<typeof AgentsSidebar>;
-
-export const SearchFiltering: Story = {
-	args: {
-		chats: [
-			buildChat({ id: "parent-1", title: "Parent planner" }),
-			buildChat({
-				id: "child-1",
-				title: "Child executor",
-				parent_chat_id: "parent-1",
-				root_chat_id: "parent-1",
-			}),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.type(
-			canvas.getByPlaceholderText("Search agents..."),
-			"child",
-		);
-		await waitFor(() => {
-			expect(canvas.getByText("Parent planner")).toBeInTheDocument();
-			expect(canvas.getByText("Child executor")).toBeInTheDocument();
-		});
-	},
-};
 
 export const RunningDelegatedChat: Story = {
 	args: {
@@ -321,5 +297,125 @@ export const ActiveChatAncestryExpanded: Story = {
 		await expect(
 			canvas.getByTestId("agents-tree-toggle-child-active"),
 		).toHaveAttribute("aria-expanded", "true");
+	},
+};
+
+const todayTimestamp = new Date().toISOString();
+
+export const ArchivedAgentsCollapsed: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-1",
+				title: "Active agent one",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "active-2",
+				title: "Active agent two",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "archived-1",
+				title: "Archived agent one",
+				archived: true,
+			}),
+			buildChat({
+				id: "archived-2",
+				title: "Archived agent two",
+				archived: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Active agent one")).toBeInTheDocument();
+			expect(canvas.getByText("Active agent two")).toBeInTheDocument();
+			expect(canvas.getByText("Archived (2)")).toBeInTheDocument();
+		});
+		expect(canvas.queryByText("Archived agent one")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Archived agent two")).not.toBeInTheDocument();
+	},
+};
+
+export const ArchivedAgentsExpanded: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-1",
+				title: "Active agent one",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "active-2",
+				title: "Active agent two",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "archived-1",
+				title: "Archived agent one",
+				archived: true,
+			}),
+			buildChat({
+				id: "archived-2",
+				title: "Archived agent two",
+				archived: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Archived (2)")).toBeInTheDocument();
+		});
+		await userEvent.click(canvas.getByText("Archived (2)"));
+		await waitFor(() => {
+			expect(canvas.getByText("Archived agent one")).toBeInTheDocument();
+			expect(canvas.getByText("Archived agent two")).toBeInTheDocument();
+		});
+	},
+};
+
+export const NoArchivedSection: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-a",
+				title: "First active agent",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "chat-b",
+				title: "Second active agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("First active agent")).toBeInTheDocument();
+			expect(canvas.getByText("Second active agent")).toBeInTheDocument();
+		});
+		expect(canvas.queryByText(/^Archived \(/)).not.toBeInTheDocument();
 	},
 };

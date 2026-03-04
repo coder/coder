@@ -530,8 +530,9 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("GetChatsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		c1 := testutil.Fake(s.T(), faker, database.Chat{})
 		c2 := testutil.Fake(s.T(), faker, database.Chat{})
-		dbm.EXPECT().GetChatsByOwnerID(gomock.Any(), c1.OwnerID).Return([]database.Chat{c1, c2}, nil).AnyTimes()
-		check.Args(c1.OwnerID).Asserts(c1, policy.ActionRead, c2, policy.ActionRead).Returns([]database.Chat{c1, c2})
+		params := database.GetChatsByOwnerIDParams{OwnerID: c1.OwnerID}
+		dbm.EXPECT().GetChatsByOwnerID(gomock.Any(), params).Return([]database.Chat{c1, c2}, nil).AnyTimes()
+		check.Args(params).Asserts(c1, policy.ActionRead, c2, policy.ActionRead).Returns([]database.Chat{c1, c2})
 	}))
 	s.Run("GetChatQueuedMessages", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -5072,6 +5073,16 @@ func (s *MethodTestSuite) TestAIBridge() {
 		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
 		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intID).Return(intc, nil).AnyTimes()
 		check.Args(intID).Asserts(intc, policy.ActionRead).Returns(intc)
+	}))
+
+	s.Run("GetAIBridgeInterceptionLineageByToolCallID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		toolCallID := "call_123"
+		row := database.GetAIBridgeInterceptionLineageByToolCallIDRow{
+			ThreadParentID: uuid.UUID{1},
+			ThreadRootID:   uuid.UUID{2},
+		}
+		db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(gomock.Any(), toolCallID).Return(row, nil).AnyTimes()
+		check.Args(toolCallID).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns(row)
 	}))
 
 	s.Run("GetAIBridgeInterceptions", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

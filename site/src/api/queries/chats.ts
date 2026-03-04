@@ -159,6 +159,14 @@ export const updateChatProviderConfig = (queryClient: QueryClient) => ({
 	},
 });
 
+export const deleteChatProviderConfig = (queryClient: QueryClient) => ({
+	mutationFn: (providerConfigId: string) =>
+		API.deleteChatProviderConfig(providerConfigId),
+	onSuccess: async () => {
+		await invalidateChatConfigurationQueries(queryClient);
+	},
+});
+
 export const createChatModelConfig = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatModelConfigRequest) =>
 		API.createChatModelConfig(req),

@@ -5,6 +5,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { useAuthenticated } from "hooks";
@@ -12,18 +13,21 @@ import {
 	ArchiveIcon,
 	ArrowLeftIcon,
 	ChevronRightIcon,
+	CopyIcon,
 	EllipsisIcon,
 	ExternalLinkIcon,
 	MonitorIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
+	TerminalIcon,
 	Trash2Icon,
 } from "lucide-react";
 import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { WebPushButton } from "../WebPushButton";
 
 interface DiffStatsBadgeProps {
@@ -73,6 +77,8 @@ interface WorkspaceActions {
 	canOpenWorkspace: boolean;
 	onOpenInEditor: (editor: "cursor" | "vscode") => void;
 	onViewWorkspace: () => void;
+	onOpenTerminal: () => void;
+	sshCommand: string | undefined;
 }
 
 type AgentDetailTopBarProps = {
@@ -198,12 +204,37 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							Open in VS Code
 						</DropdownMenuItem>
 						<DropdownMenuItem
+							// You can think of the web terminal as an editor if you squint.
+							disabled={!workspace.canOpenEditors}
+							onSelect={workspace.onOpenTerminal}
+						>
+							<TerminalIcon className="h-3.5 w-3.5" />
+							Open Terminal
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							disabled={!workspace.sshCommand}
+							onSelect={async () => {
+								if (!workspace.sshCommand) return;
+								try {
+									await navigator.clipboard.writeText(workspace.sshCommand);
+									toast.success("SSH command copied to clipboard");
+								} catch {
+									toast.error("Failed to copy SSH command");
+								}
+							}}
+						>
+							<CopyIcon className="h-3.5 w-3.5" />
+							Copy SSH Command
+						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
 							disabled={!workspace.canOpenWorkspace}
 							onSelect={workspace.onViewWorkspace}
 						>
 							<MonitorIcon className="h-3.5 w-3.5" />
 							View Workspace
 						</DropdownMenuItem>
+						<DropdownMenuSeparator />
 						{!isArchived && (
 							<DropdownMenuItem
 								className="text-content-destructive focus:text-content-destructive"

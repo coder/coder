@@ -88,10 +88,6 @@ func TestBlockNonBrowser(t *testing.T) {
 func TestReinitializeAgent(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS == "windows" {
-		t.Skip("test startup script is not supported on windows")
-	}
-
 	// Ensure that workspace agents can reinitialize against claimed prebuilds in non-default organizations:
 	for _, useDefaultOrg := range []bool{true, false} {
 		t.Run(fmt.Sprintf("useDefaultOrg=%t", useDefaultOrg), func(t *testing.T) {
@@ -99,7 +95,17 @@ func TestReinitializeAgent(t *testing.T) {
 
 			tempAgentLog := testutil.CreateTemp(t, "", "testReinitializeAgent")
 
-			startupScript := fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name())
+			// Use a cross-platform command to dump environment variables.
+			// On Linux, the agent shell is bash/sh which has `printenv`.
+			// On Windows, the agent shell is powershell or cmd.exe; `cmd /c set`
+			// produces KEY=VALUE output from either and avoids `printenv` which
+			// is unavailable on Windows.
+			var startupScript string
+			if runtime.GOOS == "windows" {
+				startupScript = fmt.Sprintf("cmd /c set >> %s & echo --- >> %s", tempAgentLog.Name(), tempAgentLog.Name())
+			} else {
+				startupScript = fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name())
+			}
 
 			db, ps := dbtestutil.NewDB(t)
 			// GIVEN a live enterprise API with the prebuilds feature enabled
@@ -208,6 +214,7 @@ func TestReinitializeAgent(t *testing.T) {
 				"--agent-token", agentToken.String(),
 				"--agent-url", client.URL.String(),
 				"--log-dir", logDir,
+				"--socket-path", testutil.AgentSocketPath(t),
 			)
 			clitest.Start(t, inv)
 

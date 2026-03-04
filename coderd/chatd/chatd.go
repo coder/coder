@@ -1674,6 +1674,27 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 	}()
 
+	// Start buffering stream events BEFORE publishing the running
+	// status. This closes a race where a subscriber sees
+	// status=running but misses message_part events because
+	// buffering hasn't started yet — the subscriber gets an empty
+	// snapshot and publishToStream drops message_parts while
+	// buffering is false.
+	p.streamMu.Lock()
+	startState := p.streamStateLocked(chat.ID)
+	startState.buffer = nil
+	startState.buffering = true
+	p.streamMu.Unlock()
+	defer func() {
+		p.streamMu.Lock()
+		if stopState, ok := p.chatStreams[chat.ID]; ok {
+			stopState.buffer = nil
+			stopState.buffering = false
+			p.cleanupStreamIfIdleLocked(chat.ID, stopState)
+		}
+		p.streamMu.Unlock()
+	}()
+
 	p.publishStatus(chat.ID, database.ChatStatusRunning, uuid.NullUUID{
 		UUID:  p.workerID,
 		Valid: true,
@@ -1846,6 +1867,21 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		status = database.ChatStatusError
 		return
 	}
+
+	// If runChat completed successfully but the server context was
+	// canceled (e.g. during Close()), the chat should be returned
+	// to pending so another replica can pick it up. There is a
+	// race where the LLM stream finishes just as the server is
+	// shutting down — the HTTP response completes before context
+	// cancellation propagates, so runChat returns nil instead of
+	// a context.Canceled error. Without this check the chat would
+	// be marked "waiting" and never retried.
+	if ctx.Err() != nil {
+		logger.Info(ctx, "chat completed during shutdown; returning to pending")
+		status = database.ChatStatusPending
+		lastError = ""
+		return
+	}
 }
 
 func isShutdownCancellation(
@@ -1905,22 +1941,11 @@ func (p *Server) runChat(
 		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
 	}
 
-	// Start buffering stream events for this chat so that new
-	// subscribers receive a snapshot of in-flight message parts.
-	p.streamMu.Lock()
-	startState := p.streamStateLocked(chat.ID)
-	startState.buffer = nil
-	startState.buffering = true
-	p.streamMu.Unlock()
-	defer func() {
-		p.streamMu.Lock()
-		if stopState, ok := p.chatStreams[chat.ID]; ok {
-			stopState.buffer = nil
-			stopState.buffering = false
-			p.cleanupStreamIfIdleLocked(chat.ID, stopState)
-		}
-		p.streamMu.Unlock()
-	}()
+	// NOTE: Buffering was already started in processChat before
+	// the running status was published, so message_part events
+	// are captured from the moment subscribers can see
+	// status=running. The deferred cleanup also lives in
+	// processChat.
 
 	currentChat := chat
 	loadChatSnapshot := func(
@@ -2183,6 +2208,7 @@ func (p *Server) runChat(
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: getWorkspaceConn,
+			ChatID:           chat.ID.String(),
 		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{
 			GetWorkspaceConn: getWorkspaceConn,

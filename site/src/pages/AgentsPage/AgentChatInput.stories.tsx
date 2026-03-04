@@ -125,3 +125,15 @@ export const LoadingDisablesSend: Story = {
 		expect(sendButton).toBeDisabled();
 	},
 };
+
+const longContent = Array.from(
+	{ length: 60 },
+	(_, i) =>
+		`Line ${i + 1}: This is a long line of text used to test overflow and scrollability of the chat input editor.`,
+).join("\n");
+
+export const LongContentScrollable: Story = {
+	args: {
+		initialValue: longContent,
+	},
+};

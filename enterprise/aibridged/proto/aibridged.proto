@@ -45,6 +45,7 @@ message RecordInterceptionRequest {
   string api_key_id = 7;
   string client = 8;
   string user_agent = 9;
+  optional string correlating_tool_call_id = 10;
 }
 
 message RecordInterceptionResponse {}
@@ -85,6 +86,7 @@ message RecordToolUsageRequest {
   optional string invocation_error = 7; // Only injected tools are invoked.
   map<string, google.protobuf.Any> metadata = 8;
   google.protobuf.Timestamp created_at = 9;
+  string tool_call_id = 10; // The ID of the tool call provided by the AI provider.
 }
 message RecordToolUsageResponse {}
 

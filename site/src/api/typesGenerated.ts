@@ -3216,6 +3216,14 @@ export interface LinkConfig {
 	readonly location?: string;
 }
 
+// From codersdk/chats.go
+/**
+ * ListChatsOptions are optional parameters for ListChats.
+ */
+export interface ListChatsOptions {
+	readonly Archived: boolean | null;
+}
+
 // From codersdk/inboxnotification.go
 export interface ListInboxNotificationsRequest {
 	readonly targets?: string;
@@ -6137,6 +6145,7 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 // From codersdk/users.go
 export type TerminalFontName =
 	| "fira-code"
+	| "geist-mono"
 	| "ibm-plex-mono"
 	| "jetbrains-mono"
 	| "source-code-pro"
@@ -6144,6 +6153,7 @@ export type TerminalFontName =
 
 export const TerminalFontNames: TerminalFontName[] = [
 	"fira-code",
+	"geist-mono",
 	"ibm-plex-mono",
 	"jetbrains-mono",
 	"source-code-pro",
