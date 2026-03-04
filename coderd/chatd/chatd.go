@@ -2177,22 +2177,6 @@ func (p *Server) runChat(
 
 	// Here are all the tools we have for the chat.
 	tools := []fantasy.AgentTool{
-		chattool.ListTemplates(chattool.ListTemplatesOptions{
-			DB:      p.db,
-			OwnerID: chat.OwnerID,
-		}),
-		chattool.ReadTemplate(chattool.ReadTemplateOptions{
-			DB:      p.db,
-			OwnerID: chat.OwnerID,
-		}),
-		chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
-			DB:          p.db,
-			OwnerID:     chat.OwnerID,
-			ChatID:      chat.ID,
-			CreateFn:    p.createWorkspaceFn,
-			AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
-			WorkspaceMu: &workspaceMu,
-		}),
 		chattool.ReadFile(chattool.ReadFileOptions{
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
@@ -2216,10 +2200,29 @@ func (p *Server) runChat(
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
 	}
-	// Only root chats (not delegated subagents) get subagent tools.
-	// Child agents must not spawn further subagents — they should
+	// Only root chats (not delegated subagents) get workspace
+	// provisioning and subagent tools. Child agents must not
+	// create workspaces or spawn further subagents — they should
 	// focus on completing their delegated task.
 	if !chat.ParentChatID.Valid {
+		tools = append(tools,
+			chattool.ListTemplates(chattool.ListTemplatesOptions{
+				DB:      p.db,
+				OwnerID: chat.OwnerID,
+			}),
+			chattool.ReadTemplate(chattool.ReadTemplateOptions{
+				DB:      p.db,
+				OwnerID: chat.OwnerID,
+			}),
+			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
+				DB:          p.db,
+				OwnerID:     chat.OwnerID,
+				ChatID:      chat.ID,
+				CreateFn:    p.createWorkspaceFn,
+				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
+				WorkspaceMu: &workspaceMu,
+			}),
+		)
 		tools = append(tools, p.subagentTools(func() database.Chat {
 			return chat
 		})...)

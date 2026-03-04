@@ -84,6 +84,159 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
+func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues:         deploymentValues,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	_ = agenttest.New(t, client.URL, agentToken)
+
+	// Track tools sent in LLM requests. The first call is for the
+	// root chat which spawns a subagent; the second call is for the
+	// subagent itself.
+	var toolsMu sync.Mutex
+	toolsByCall := make([][]string, 0, 2)
+
+	var callCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("ok")
+		}
+
+		names := make([]string, 0, len(req.Tools))
+		for _, tool := range req.Tools {
+			names = append(names, tool.Function.Name)
+		}
+		toolsMu.Lock()
+		toolsByCall = append(toolsByCall, names)
+		toolsMu.Unlock()
+
+		if callCount.Add(1) == 1 {
+			// Root chat: model calls spawn_agent.
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("spawn_agent", `{"prompt":"do the thing","title":"sub"}`),
+			)
+		}
+		// Subsequent calls (including the subagent): just reply.
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Done.")...,
+		)
+	})
+
+	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider: "openai-compat",
+		APIKey:   "test-api-key",
+		BaseURL:  openAIURL,
+	})
+	require.NoError(t, err)
+
+	contextLimit := int64(4096)
+	isDefault := true
+	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+	})
+	require.NoError(t, err)
+
+	// Create a root chat whose first model call will spawn a subagent.
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Spawn a subagent to do the thing.",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for the root chat AND the subagent to finish.
+	// The root chat finishes first, then the chatd server
+	// picks up and runs the child (subagent) chat.
+	require.Eventually(t, func() bool {
+		got, getErr := client.GetChat(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		if got.Chat.Status != codersdk.ChatStatusWaiting && got.Chat.Status != codersdk.ChatStatusError {
+			return false
+		}
+		// Also ensure the subagent LLM call has been made.
+		toolsMu.Lock()
+		n := len(toolsByCall)
+		toolsMu.Unlock()
+		// Expect at least 3 calls: root-1 (spawn_agent), child-1, root-2.
+		return n >= 3
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// There should be at least two streamed calls: one for the root
+	// chat and one for the subagent child chat.
+	toolsMu.Lock()
+	recorded := append([][]string(nil), toolsByCall...)
+	toolsMu.Unlock()
+
+	require.GreaterOrEqual(t, len(recorded), 2,
+		"expected at least 2 streamed LLM calls (root + subagent)")
+
+	workspaceTools := []string{"list_templates", "read_template", "create_workspace"}
+	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "close_agent"}
+
+	// Identify root and subagent calls. Root chat calls include
+	// spawn_agent; the subagent call does not. Because the root chat
+	// makes multiple LLM calls (before and after spawn_agent), we
+	// find exactly one call that lacks spawn_agent — that's the
+	// subagent.
+	var rootCalls, childCalls [][]string
+	for _, tools := range recorded {
+		hasSpawnAgent := slice.Contains(tools, "spawn_agent")
+		if hasSpawnAgent {
+			rootCalls = append(rootCalls, tools)
+		} else {
+			childCalls = append(childCalls, tools)
+		}
+	}
+
+	require.NotEmpty(t, rootCalls, "expected at least one root chat LLM call")
+	require.NotEmpty(t, childCalls, "expected at least one subagent LLM call")
+
+	// Root chat calls must include workspace and subagent tools.
+	for _, tool := range workspaceTools {
+		require.Contains(t, rootCalls[0], tool,
+			"root chat should have workspace tool %q", tool)
+	}
+	for _, tool := range subagentTools {
+		require.Contains(t, rootCalls[0], tool,
+			"root chat should have subagent tool %q", tool)
+	}
+
+	// Subagent calls must NOT include workspace or subagent tools.
+	for _, tool := range workspaceTools {
+		require.NotContains(t, childCalls[0], tool,
+			"subagent chat should NOT have workspace tool %q", tool)
+	}
+	for _, tool := range subagentTools {
+		require.NotContains(t, childCalls[0], tool,
+			"subagent chat should NOT have subagent tool %q", tool)
+	}
+}
 func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
 	t.Parallel()
 
