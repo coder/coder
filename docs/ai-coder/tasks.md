@@ -10,7 +10,7 @@ You can also interact with Coder Tasks from your IDE. The [Coder extension for V
 
 ![VS Code IDE Extension](../images/guides/ai-agents/vs_code_tasks_extension.png)
 
-The Task details view provides a single place to inspect a Task’s execution end to end, including the complete chat history between the user and the agent. It also surfaces workspace status and, when the workspace is starting or running, the relevant build and startup logs so you can understand what the Task is doing and troubleshoot failures. This makes it easier to confirm progress and diagnose issues without leaving the Task workflow.
+The Task details view shows the user's complete chat, workspace status and, build or startup logs so you can understand what the Task is doing and troubleshoot failures. This makes it easier to confirm progress and diagnose issues without leaving the Task workflow.
 
 ![VS Code IDE Extension Details View](../images/guides/ai-agents/vs_code_tasks_extension_details.png)
 
