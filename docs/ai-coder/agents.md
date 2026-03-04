@@ -49,7 +49,7 @@ other editor to review, refine, and complete work that the agent produces.
 
 ## How it works
 
-The agent loop runs inside the control plane. When a user
+The agent loop runs inside [the control plane](./agents-architecture.md). When a user
 submits a prompt, the control plane:
 
 1. Sends the prompt to the configured LLM provider (Anthropic, OpenAI, Google,
