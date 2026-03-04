@@ -1,30 +1,46 @@
-package coderd
+package chatd
 
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/chatd"
+	osschatd "github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// newMultiReplicaSubscribeFn returns a SubscribeFn that merges local
+// RemotePartsProvider returns a snapshot and live stream of
+// message_part events from the replica that is running the chat.
+// Called when the chat is actively running on a different replica.
+type RemotePartsProvider func(
+	ctx context.Context,
+	chatID uuid.UUID,
+	workerID uuid.UUID,
+	requestHeader http.Header,
+) (
+	snapshot []codersdk.ChatStreamEvent,
+	parts <-chan codersdk.ChatStreamEvent,
+	cancel func(),
+	err error,
+)
+
+// NewMultiReplicaSubscribeFn returns a SubscribeFn that merges local
 // message_part events, relay (remote-replica) message_part events,
 // and pubsub-driven durable events into a single output channel.
 // This captures all relay/pubsub merge logic that enterprise
 // multi-replica deployments require.
-func newMultiReplicaSubscribeFn(
-	remotePartsProvider remotePartsProvider,
-) chatd.SubscribeFn {
-	return func(ctx context.Context, params chatd.SubscribeMultiReplicaParams) (<-chan codersdk.ChatStreamEvent, func()) {
+func NewMultiReplicaSubscribeFn(
+	provider RemotePartsProvider,
+) osschatd.SubscribeFn {
+	return func(ctx context.Context, params osschatd.SubscribeMultiReplicaParams) (<-chan codersdk.ChatStreamEvent, func()) {
 		chatID := params.ChatID
 		localParts := params.LocalParts
 		localCancel := params.LocalCancel
@@ -43,8 +59,8 @@ func newMultiReplicaSubscribeFn(
 		if params.Chat.Status == database.ChatStatusRunning &&
 			params.Chat.WorkerID.Valid &&
 			params.Chat.WorkerID.UUID != params.WorkerID &&
-			remotePartsProvider != nil {
-			snapshot, parts, cancel, err := remotePartsProvider(ctx, chatID, params.Chat.WorkerID.UUID, requestHeader)
+			provider != nil {
+			snapshot, parts, cancel, err := provider(ctx, chatID, params.Chat.WorkerID.UUID, requestHeader)
 			if err == nil {
 				relayCancel = cancel
 				relayParts = parts
@@ -120,7 +136,7 @@ func newMultiReplicaSubscribeFn(
 		// goroutine and delivers the result on relayReadyCh so the
 		// main select loop is never blocked by network I/O.
 		openRelayAsync := func(workerID uuid.UUID) {
-			if remotePartsProvider == nil {
+			if provider == nil {
 				return
 			}
 			closeRelay()
@@ -131,7 +147,7 @@ func newMultiReplicaSubscribeFn(
 			dialCtx, dialCancel = context.WithCancel(ctx)
 			expectedWorkerID = workerID
 			go func() {
-				snapshot, parts, cancel, err := remotePartsProvider(dialCtx, chatID, workerID, requestHeader)
+				snapshot, parts, cancel, err := provider(dialCtx, chatID, workerID, requestHeader)
 				if err != nil {
 					logger.Warn(ctx, "failed to open relay for message parts",
 						slog.F("chat_id", chatID),
@@ -144,35 +160,36 @@ func newMultiReplicaSubscribeFn(
 				// delivered through the same channel as live
 				// parts.
 				wrappedParts := make(chan codersdk.ChatStreamEvent, 128)
-					go func() {
-						defer close(wrappedParts)
-						for _, event := range snapshot {
-							if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-								select {
-								case wrappedParts <- event:
-								case <-dialCtx.Done():
-									cancel()
-									return
-								}
-							}
-						}
-						for {
+				go func() {
+					defer close(wrappedParts)
+					for _, event := range snapshot {
+						if event.Type == codersdk.ChatStreamEventTypeMessagePart {
 							select {
-							case event, ok := <-parts:
-								if !ok {
-									return
-								}
-								select {
-								case wrappedParts <- event:
-								case <-dialCtx.Done():
-									cancel()
-									return
-								}
+							case wrappedParts <- event:
 							case <-dialCtx.Done():
 								cancel()
 								return
 							}
-						}				}()
+						}
+					}
+					for {
+						select {
+						case event, ok := <-parts:
+							if !ok {
+								return
+							}
+							select {
+							case wrappedParts <- event:
+							case <-dialCtx.Done():
+								cancel()
+								return
+							}
+						case <-dialCtx.Done():
+							cancel()
+							return
+						}
+					}
+				}()
 				select {
 				case relayReadyCh <- relayResult{parts: wrappedParts, cancel: cancel, workerID: workerID}:
 				case <-dialCtx.Done():
@@ -185,7 +202,7 @@ func newMultiReplicaSubscribeFn(
 		// loop can re-check chat status and reopen the relay
 		// without spinning in a tight loop.
 		scheduleRelayReconnect := func() {
-			if remotePartsProvider == nil {
+			if provider == nil {
 				return
 			}
 			if reconnectTimer != nil {

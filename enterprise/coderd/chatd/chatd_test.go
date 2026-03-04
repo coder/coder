@@ -1,4 +1,4 @@
-package coderd
+package chatd_test
 
 import (
 	"context"
@@ -14,13 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/chatd"
+	osschatd "github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
+	entchatd "github.com/coder/coder/v2/enterprise/coderd/chatd"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -29,16 +30,16 @@ func newTestServerWithSubscribeFn(
 	db database.Store,
 	ps dbpubsub.Pubsub,
 	replicaID uuid.UUID,
-	provider remotePartsProvider,
-) *chatd.Server {
+	provider entchatd.RemotePartsProvider,
+) *osschatd.Server {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(chatd.Config{
+	server := osschatd.New(osschatd.Config{
 		Logger:                     logger,
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		Pubsub:                     ps,
-		SubscribeFn:                newMultiReplicaSubscribeFn(provider),
+		SubscribeFn:                entchatd.NewMultiReplicaSubscribeFn(provider),
 		PendingChatAcquireInterval: testutil.WaitSuperLong,
 	})
 	t.Cleanup(func() {
@@ -127,7 +128,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 	user, model := seedChatDependencies(ctx, t, db)
 
 	// Create a chat and mark it as running on a remote worker.
-	chat, err := subscriber.CreateChat(ctx, chatd.CreateOptions{
+	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
 		Title:              "relay-reconnect",
 		ModelConfigID:      model.ID,
@@ -216,7 +217,7 @@ func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 	user, model := seedChatDependencies(ctx, t, db)
 
 	// Create a chat in pending status.
-	chat, err := subscriber.CreateChat(ctx, chatd.CreateOptions{
+	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
 		Title:              "relay-async-nonblock",
 		ModelConfigID:      model.ID,
@@ -323,7 +324,7 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 	user, model := seedChatDependencies(ctx, t, db)
 
 	// Create a chat already running on a remote worker.
-	chat, err := subscriber.CreateChat(ctx, chatd.CreateOptions{
+	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
 		Title:              "relay-snapshot",
 		ModelConfigID:      model.ID,
@@ -438,7 +439,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
-	chat, err := subscriber.CreateChat(ctx, chatd.CreateOptions{
+	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
 		Title:              "stale-dial-test",
 		ModelConfigID:      model.ID,
