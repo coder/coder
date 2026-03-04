@@ -2321,6 +2321,10 @@ func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Tim
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
 
+func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
 		return nil, err
@@ -5139,6 +5143,13 @@ func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, 
 	return q.db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIDs)
 }
 
+func (q *querier) ListAISeatState(ctx context.Context) ([]database.AiSeatState, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceLicense); err != nil {
+		return nil, err
+	}
+	return q.db.ListAISeatState(ctx)
+}
+
 func (q *querier) ListChatsByRootID(ctx context.Context, rootChatID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListChatsByRootID)(ctx, rootChatID)
 }
@@ -6458,6 +6469,13 @@ func (q *querier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg datab
 		return err
 	}
 	return q.db.UpdateWorkspacesTTLByTemplateID(ctx, arg)
+}
+
+func (q *querier) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertAISeatState(ctx, arg)
 }
 
 func (q *querier) UpsertAnnouncementBanners(ctx context.Context, value string) error {

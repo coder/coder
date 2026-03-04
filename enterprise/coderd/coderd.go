@@ -45,6 +45,7 @@ import (
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/aiseats"
 	entchatd "github.com/coder/coder/v2/enterprise/coderd/chatd"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
 	"github.com/coder/coder/v2/enterprise/coderd/dbauthz"
@@ -217,7 +218,10 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		},
 	})
 
+	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"))
+
 	api.AGPL = coderd.New(options.Options)
+	api.AGPL.AISeatTracker = api.aiSeatTracker
 	defer func() {
 		if err != nil {
 			_ = api.Close()
@@ -785,6 +789,7 @@ type API struct {
 
 	aibridgedHandler      http.Handler
 	aibridgeproxydHandler http.Handler
+	aiSeatTracker         *aiseats.SeatTracker
 }
 
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
