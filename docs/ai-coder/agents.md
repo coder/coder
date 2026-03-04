@@ -97,12 +97,12 @@ in the payments repo" helps the agent select the correct infrastructure.
 
 **Examples of what triggers workspace creation:**
 
-| No workspace needed | Workspace provisioned |
-|---|---|
-| "What are the tradeoffs between REST and gRPC?" | "Find and fix the nil pointer crash in the auth service" |
-| "Help me draft an RFC for adding a caching layer" | "Run the test suite and fix any failures" |
-| "What's the best way to handle retry logic in Go?" | "Refactor the handler to use the new SDK types" |
-| "Compare connection pooling strategies for Postgres" | "Read the config file and add the new feature flag" |
+| No workspace needed                                  | Workspace provisioned                                    |
+|------------------------------------------------------|----------------------------------------------------------|
+| "What are the tradeoffs between REST and gRPC?"      | "Find and fix the nil pointer crash in the auth service" |
+| "Help me draft an RFC for adding a caching layer"    | "Run the test suite and fix any failures"                |
+| "What's the best way to handle retry logic in Go?"   | "Refactor the handler to use the new SDK types"          |
+| "Compare connection pooling strategies for Postgres" | "Read the config file and add the new feature flag"      |
 
 ### Sub-agents
 
