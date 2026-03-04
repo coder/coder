@@ -201,6 +201,98 @@ type Story = StoryObj<typeof AgentDetailLayout>;
 // Stories
 // ---------------------------------------------------------------------------
 
+/** Multi-turn conversation with message history and the chat input visible. */
+export const WithMessageHistory: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				chat: {
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Help me refactor this module",
+					status: "completed",
+				},
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:01:00.000Z",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "Can you help me refactor the authentication module? It's gotten pretty messy.",
+							},
+						],
+					},
+					{
+						id: 2,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:01:30.000Z",
+						role: "assistant",
+						content: [
+							{
+								type: "text",
+								text: "Sure! I'll start by looking at the current structure. The main issues I can see are:\n\n1. **Mixed concerns** — token validation and session management are interleaved\n2. **No error hierarchy** — all auth errors are treated the same\n3. **Duplicated middleware** — the same checks appear in three places\n\nLet me propose a cleaner separation.",
+							},
+						],
+					},
+					{
+						id: 3,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:02:00.000Z",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "That sounds right. Can you start with the token validation? I want to make sure we handle JWT expiration properly.",
+							},
+						],
+					},
+					{
+						id: 4,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:02:30.000Z",
+						role: "assistant",
+						content: [
+							{
+								type: "text",
+								text: "Here's the refactored token validation:\n\n```go\nfunc ValidateToken(ctx context.Context, token string) (*Claims, error) {\n    claims, err := parseToken(token)\n    if err != nil {\n        return nil, ErrInvalidToken\n    }\n    if claims.ExpiresAt.Before(time.Now()) {\n        return nil, ErrTokenExpired\n    }\n    return claims, nil\n}\n```\n\nKey changes:\n- Separated parsing from expiration checking\n- Added typed errors (`ErrInvalidToken`, `ErrTokenExpired`) so callers can distinguish between a malformed token and an expired one\n- The context parameter allows us to add tracing later",
+							},
+						],
+					},
+					{
+						id: 5,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:03:00.000Z",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "Looks good. Now what about the middleware deduplication?",
+							},
+						],
+					},
+					{
+						id: 6,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:03:30.000Z",
+						role: "assistant",
+						content: [
+							{
+								type: "text",
+								text: "I've consolidated the three middleware instances into a single composable chain:\n\n```go\nfunc AuthMiddleware(opts ...AuthOption) func(http.Handler) http.Handler {\n    cfg := defaultAuthConfig()\n    for _, opt := range opts {\n        opt(&cfg)\n    }\n    return func(next http.Handler) http.Handler {\n        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n            claims, err := ValidateToken(r.Context(), extractToken(r))\n            if err != nil {\n                cfg.ErrorHandler(w, r, err)\n                return\n            }\n            ctx := context.WithValue(r.Context(), claimsKey, claims)\n            next.ServeHTTP(w, r.WithContext(ctx))\n        })\n    }\n}\n```\n\nThe functional options pattern lets each route customize behavior (e.g. optional auth, different error responses) without duplicating the core logic.",
+							},
+						],
+					},
+				],
+				queued_messages: [],
+			},
+			{ diffUrl: undefined },
+		),
+	},
+};
+
 /** Skeleton placeholder when no query data is available yet. */
 export const Loading: Story = {};
 

@@ -298,54 +298,15 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			inputStatusText={inputStatusText}
 			modelCatalogStatusMessage={modelCatalogStatusMessage}
-			sticky
 		/>
 	);
 };
 
-interface AgentDetailConversationProps {
-	store: ChatStoreHandle;
-	chatID: string;
-	persistedErrorReason: string | undefined;
-	compressionThreshold: number | undefined;
-	onDeleteQueuedMessage: (id: number) => Promise<void>;
-	onPromoteQueuedMessage: (id: number) => Promise<void>;
+function useConversationEditingState(deps: {
 	onSend: (message: string, editedMessageID?: number) => Promise<void>;
-	onInterrupt: () => void;
-	isInputDisabled: boolean;
-	isSendPending: boolean;
-	isInterruptPending: boolean;
-	hasModelOptions: boolean;
-	selectedModel: string;
-	onModelChange: (modelID: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	modelSelectorPlaceholder: string;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
-	savingMessageId?: number | null;
-}
-
-const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
-	store,
-	chatID,
-	persistedErrorReason,
-	compressionThreshold,
-	onDeleteQueuedMessage,
-	onPromoteQueuedMessage,
-	onSend,
-	onInterrupt,
-	isInputDisabled,
-	isSendPending,
-	isInterruptPending,
-	hasModelOptions,
-	selectedModel,
-	onModelChange,
-	modelOptions,
-	modelSelectorPlaceholder,
-	inputStatusText,
-	modelCatalogStatusMessage,
-	savingMessageId,
-}) => {
+	onDeleteQueuedMessage: (id: number) => Promise<void>;
+}) {
+	const { onSend, onDeleteQueuedMessage } = deps;
 	const inputValueRef = useRef("");
 	const chatInputRef = useRef<ChatMessageInputRef>(null);
 	const [editorInitialValue, setEditorInitialValue] = useState("");
@@ -437,47 +398,19 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 		[editingMessageId, editingQueuedMessageID, onDeleteQueuedMessage, onSend],
 	);
 
-	return (
-		<>
-			<AgentDetailTimeline
-				store={store}
-				chatID={chatID}
-				persistedErrorReason={persistedErrorReason}
-				onEditUserMessage={handleEditUserMessage}
-				editingMessageId={editingMessageId}
-				savingMessageId={savingMessageId}
-			/>
-			<AgentDetailInput
-				store={store}
-				compressionThreshold={compressionThreshold}
-				onSend={handleSendFromInput}
-				onDeleteQueuedMessage={onDeleteQueuedMessage}
-				onPromoteQueuedMessage={onPromoteQueuedMessage}
-				onInterrupt={onInterrupt}
-				isInputDisabled={isInputDisabled}
-				isSendPending={isSendPending}
-				isInterruptPending={isInterruptPending}
-				hasModelOptions={hasModelOptions}
-				selectedModel={selectedModel}
-				onModelChange={onModelChange}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder={modelSelectorPlaceholder}
-				inputStatusText={inputStatusText}
-				modelCatalogStatusMessage={modelCatalogStatusMessage}
-				inputRef={chatInputRef}
-				initialValue={editorInitialValue}
-				onContentChange={(content) => {
-					inputValueRef.current = content;
-				}}
-				editingQueuedMessageID={editingQueuedMessageID}
-				onStartQueueEdit={handleStartQueueEdit}
-				onCancelQueueEdit={handleCancelQueueEdit}
-				isEditingHistoryMessage={editingMessageId !== null}
-				onCancelHistoryEdit={handleCancelHistoryEdit}
-			/>
-		</>
-	);
-};
+	return {
+		inputValueRef,
+		chatInputRef,
+		editorInitialValue,
+		editingMessageId,
+		handleEditUserMessage,
+		handleCancelHistoryEdit,
+		editingQueuedMessageID,
+		handleStartQueueEdit,
+		handleCancelQueueEdit,
+		handleSendFromInput,
+	};
+}
 
 const AgentDetail: FC = () => {
 	const navigate = useNavigate();
@@ -803,6 +736,11 @@ const AgentDetail: FC = () => {
 		[promoteQueuedMutation, store],
 	);
 
+	const editing = useConversationEditingState({
+		onSend: handleSend,
+		onDeleteQueuedMessage: handleDeleteQueuedMessage,
+	});
+
 	const chatTitle = chatQuery.data?.chat?.title;
 
 	// Update the browser tab title when navigating to / between agents.
@@ -920,7 +858,7 @@ const AgentDetail: FC = () => {
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
-				<div className="flex h-full flex-col-reverse overflow-hidden">
+				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
 					<div className="px-4">
 						<div className="mx-auto w-full max-w-3xl py-6">
 							<div className="flex flex-col gap-3">
@@ -948,21 +886,22 @@ const AgentDetail: FC = () => {
 								</div>
 							</div>
 						</div>
-						<AgentChatInput
-							onSend={() => {}}
-							initialValue=""
-							isDisabled={isInputDisabled}
-							isLoading={false}
-							selectedModel={selectedModel}
-							onModelChange={setSelectedModel}
-							modelOptions={modelOptions}
-							modelSelectorPlaceholder={modelSelectorPlaceholder}
-							hasModelOptions={hasModelOptions}
-							inputStatusText={inputStatusText}
-							modelCatalogStatusMessage={modelCatalogStatusMessage}
-							sticky
-						/>
 					</div>
+				</div>
+				<div className="shrink-0 px-4">
+					<AgentChatInput
+						onSend={() => {}}
+						initialValue=""
+						isDisabled={isInputDisabled}
+						isLoading={false}
+						selectedModel={selectedModel}
+						onModelChange={setSelectedModel}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						hasModelOptions={hasModelOptions}
+						inputStatusText={inputStatusText}
+						modelCatalogStatusMessage={modelCatalogStatusMessage}
+					/>
 				</div>
 			</div>
 		);
@@ -1053,33 +992,50 @@ const AgentDetail: FC = () => {
 				</div>
 				<div
 					ref={scrollContainerRef}
-					className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+					className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 				>
 					<div className="px-4">
-						<AgentDetailConversation
+						<AgentDetailTimeline
 							store={store}
 							chatID={agentId}
 							persistedErrorReason={
 								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
 							}
-							compressionThreshold={compressionThreshold}
-							onDeleteQueuedMessage={handleDeleteQueuedMessage}
-							onPromoteQueuedMessage={handlePromoteQueuedMessage}
-							onSend={handleSend}
-							onInterrupt={handleInterrupt}
-							isInputDisabled={isInputDisabled}
-							isSendPending={isSubmissionPending}
-							isInterruptPending={interruptMutation.isPending}
-							hasModelOptions={hasModelOptions}
-							selectedModel={selectedModel}
-							onModelChange={setSelectedModel}
-							modelOptions={modelOptions}
-							modelSelectorPlaceholder={modelSelectorPlaceholder}
-							inputStatusText={inputStatusText}
-							modelCatalogStatusMessage={modelCatalogStatusMessage}
+							onEditUserMessage={editing.handleEditUserMessage}
+							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
 						/>
 					</div>
+				</div>
+				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+					<AgentDetailInput
+						store={store}
+						compressionThreshold={compressionThreshold}
+						onSend={editing.handleSendFromInput}
+						onDeleteQueuedMessage={handleDeleteQueuedMessage}
+						onPromoteQueuedMessage={handlePromoteQueuedMessage}
+						onInterrupt={handleInterrupt}
+						isInputDisabled={isInputDisabled}
+						isSendPending={isSubmissionPending}
+						isInterruptPending={interruptMutation.isPending}
+						hasModelOptions={hasModelOptions}
+						selectedModel={selectedModel}
+						onModelChange={setSelectedModel}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						inputStatusText={inputStatusText}
+						modelCatalogStatusMessage={modelCatalogStatusMessage}
+						inputRef={editing.chatInputRef}
+						initialValue={editing.editorInitialValue}
+						onContentChange={(content) => {
+							editing.inputValueRef.current = content;
+						}}
+						editingQueuedMessageID={editing.editingQueuedMessageID}
+						onStartQueueEdit={editing.handleStartQueueEdit}
+						onCancelQueueEdit={editing.handleCancelQueueEdit}
+						isEditingHistoryMessage={editing.editingMessageId !== null}
+						onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+					/>
 				</div>
 			</div>
 			<DiffRightPanel isOpen={shouldShowDiffPanel}>
