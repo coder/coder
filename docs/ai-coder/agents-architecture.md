@@ -44,18 +44,11 @@ Three components are involved in every Coder Agents interaction:
 │                                  │
 │  ┌───────────┐                  │
 │  │ Workspace │  No AI software  │
-│  │ Agent     │  No API keys     │
-│  │ (daemon)  │  No LLM access   │
+│  │ Daemon    │  No API keys     │
+│  │           │  No LLM access   │
 │  └───────────┘                  │
 └──────────────────────────────────┘
 ```
-
-> [!NOTE]
-> The term "workspace agent" in Coder refers to the lightweight daemon that runs
-> inside every workspace to provide connectivity. It is not an AI agent. This
-> page uses "workspace agent (daemon)" when referring to the connectivity daemon
-> and "the agent" or "Coder agent" when referring to the AI agent in the control
-> plane.
 
 ## The same connection your IDE uses
 
@@ -67,9 +60,9 @@ VS Code Remote, or runs `coder ssh`, the traffic follows this path:
 
 1. The client connects to the control plane.
 1. The control plane routes the connection through its internal Tailnet node.
-1. The connection reaches the workspace agent (daemon) over a DERP relay or
+1. The connection reaches the workspace daemon over a DERP relay or
    direct peer-to-peer link.
-1. The workspace agent (daemon) handles the request — spawning a shell,
+1. The workspace daemon handles the request — spawning a shell,
    forwarding a port, or serving a file.
 
 When the Coder agent executes a tool call — reading a file, running a command,
@@ -77,18 +70,18 @@ writing code — it follows the exact same path:
 
 1. The agent loop in the control plane issues a tool call.
 1. The control plane routes the call through its internal Tailnet node.
-1. The call reaches the workspace agent (daemon) over the same DERP relay or
+1. The call reaches the workspace daemon over the same DERP relay or
    peer-to-peer link.
-1. The workspace agent (daemon) handles the request — reading a file, starting
+1. The workspace daemon handles the request — reading a file, starting
    a process, or writing content.
 
 The workspace cannot distinguish between the two. A `read_file` from the Coder
 agent and an file open from VS Code traverse the same tunnel, authenticate the
-same way, and hit the same workspace agent (daemon) API.
+same way, and hit the same workspace daemon API.
 
 ### No inbound ports
 
-The workspace agent (daemon) always dials _out_ to the control plane — never
+The workspace daemon always dials _out_ to the control plane — never
 the reverse. The control plane then uses that established tunnel to reach back
 in. This means:
 
@@ -150,7 +143,7 @@ an approach, discussing architecture) never provision or connect to a workspace.
 
 ### Workspace tools
 
-These tools execute inside the workspace via the workspace agent (daemon) API.
+These tools execute inside the workspace via the workspace daemon API.
 They are the same API endpoints used by the web terminal and IDE integrations.
 
 | Tool             | What it does                                                                                    |
@@ -246,7 +239,7 @@ rogue process to exfiltrate.
 Because the workspace does not need to reach any LLM provider, you can restrict
 its network access to only:
 
-- The control plane (required for the workspace agent daemon to function).
+- The control plane (required for the workspace daemon to function).
 - Your git provider (for push/pull operations).
 
 Everything else can be blocked. The AI functionality comes from the control
