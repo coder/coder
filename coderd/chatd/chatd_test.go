@@ -1606,3 +1606,171 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 			!fromDB.LastError.Valid
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
+
+// TestSubscribeRelayStaleDialDiscardedAfterInterrupt verifies that when a
+// user interrupts a streaming chat and sends a new message (which gets
+// picked up by a different replica), an in-flight relay dial to the
+// OLD replica is cancelled/discarded and the relay connects to the
+// NEW replica correctly.
+func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	oldWorkerID := uuid.New()
+	newWorkerID := uuid.New()
+	subscriberID := uuid.New()
+
+	// Gate to hold the first dial until we're ready.
+	firstDialStarted := make(chan struct{})
+	releaseFirstDial := make(chan struct{})
+
+	var callCount atomic.Int32
+
+	provider := func(ctx context.Context, _ uuid.UUID, workerID uuid.UUID, _ http.Header) (
+		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
+	) {
+		call := callCount.Add(1)
+		ch := make(chan codersdk.ChatStreamEvent, 10)
+		if call == 1 {
+			// First dial (to old worker): signal that we started,
+			// then block until released or context cancelled.
+			close(firstDialStarted)
+			select {
+			case <-releaseFirstDial:
+			case <-ctx.Done():
+				return nil, nil, nil, ctx.Err()
+			}
+			// If we get here after being released (not cancelled),
+			// return a stale part — this should be discarded.
+			ch <- codersdk.ChatStreamEvent{
+				Type: codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{
+					Role: "assistant",
+					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "stale-part"},
+				},
+			}
+			close(ch)
+			return nil, ch, func() {}, nil
+		}
+		// Second dial (to new worker): return a valid part.
+		ch <- codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: "assistant",
+				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "new-worker-part"},
+			},
+		}
+		return nil, ch, func() {}, nil
+	}
+
+	subscriber := newTestServerWithRelay(t, db, ps, subscriberID, provider)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := subscriber.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "stale-dial-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	// Start chat in waiting state so Subscribe does NOT try an initial relay.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	// Subscribe while chat is in "waiting" state — no relay opened.
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Now simulate the chat being picked up by the OLD worker via pubsub.
+	// This triggers openRelayAsync in the merge loop.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: oldWorkerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+	oldRunningNotify := coderdpubsub.ChatStreamNotifyMessage{
+		Status:   string(database.ChatStatusRunning),
+		WorkerID: oldWorkerID.String(),
+	}
+	oldRunningPayload, err := json.Marshal(oldRunningNotify)
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), oldRunningPayload)
+	require.NoError(t, err)
+
+	// Wait for the first dial goroutine to start (it's blocked in the provider).
+	select {
+	case <-firstDialStarted:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for first dial to start")
+	}
+
+	// Simulate interrupt: chat goes to "waiting".
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+	waitingNotify := coderdpubsub.ChatStreamNotifyMessage{
+		Status: string(database.ChatStatusWaiting),
+	}
+	waitingPayload, err := json.Marshal(waitingNotify)
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), waitingPayload)
+	require.NoError(t, err)
+
+	// Small pause to let the merge loop process the waiting status
+	// and call closeRelay().
+	time.Sleep(50 * time.Millisecond)
+
+	// Now the chat transitions to running on the NEW worker.
+	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: newWorkerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+	runningNotify := coderdpubsub.ChatStreamNotifyMessage{
+		Status:   string(database.ChatStatusRunning),
+		WorkerID: newWorkerID.String(),
+	}
+	runningPayload, err := json.Marshal(runningNotify)
+	require.NoError(t, err)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), runningPayload)
+	require.NoError(t, err)
+
+	// Now release the first dial (if it wasn't already cancelled).
+	close(releaseFirstDial)
+
+	// The subscriber should receive parts from the NEW worker, not the stale one.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil &&
+				event.MessagePart.Part.Text == "new-worker-part" {
+				return true
+			}
+			// If we get the stale part, the bug is present.
+			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
+				event.MessagePart != nil &&
+				event.MessagePart.Part.Text == "stale-part" {
+				t.Fatal("received stale part from old worker — relay did not cancel in-flight dial")
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}

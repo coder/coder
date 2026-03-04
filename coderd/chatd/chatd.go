@@ -1096,10 +1096,19 @@ func (p *Server) Subscribe(
 
 	// Channel for async relay establishment.
 	type relayResult struct {
-		parts  <-chan codersdk.ChatStreamEvent
-		cancel func()
+		parts    <-chan codersdk.ChatStreamEvent
+		cancel   func()
+		workerID uuid.UUID // the worker this dial targeted
 	}
 	relayReadyCh := make(chan relayResult, 1)
+
+	// Per-dial context so in-flight dials can be cancelled when
+	// a new dial is initiated or the relay is closed.
+	var dialCancel context.CancelFunc
+
+	// expectedWorkerID tracks which replica we expect the next
+	// relay result to target. Stale results are discarded.
+	var expectedWorkerID uuid.UUID
 
 	// Reconnect timer state.
 	var reconnectTimer *time.Timer
@@ -1107,6 +1116,12 @@ func (p *Server) Subscribe(
 
 	// Helper to close relay and stop any pending reconnect timer.
 	closeRelay := func() {
+		// Cancel any in-flight dial goroutine first.
+		if dialCancel != nil {
+			dialCancel()
+			dialCancel = nil
+		}
+		expectedWorkerID = uuid.Nil
 		if relayCancel != nil {
 			relayCancel()
 			relayCancel = nil
@@ -1127,8 +1142,14 @@ func (p *Server) Subscribe(
 			return
 		}
 		closeRelay()
+		// Create a per-dial context so this goroutine is cancelled
+		// if closeRelay() or openRelayAsync() is called again before
+		// the dial completes.
+		var dialCtx context.Context
+		dialCtx, dialCancel = context.WithCancel(mergedCtx)
+		expectedWorkerID = workerID
 		go func() {
-			snapshot, parts, cancel, err := p.remotePartsProvider(mergedCtx, chatID, workerID, requestHeader)
+			snapshot, parts, cancel, err := p.remotePartsProvider(dialCtx, chatID, workerID, requestHeader)
 			if err != nil {
 				p.logger.Warn(mergedCtx, "failed to open relay for message parts",
 					slog.F("chat_id", chatID),
@@ -1146,7 +1167,7 @@ func (p *Server) Subscribe(
 					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
 						select {
 						case wrappedParts <- event:
-						case <-mergedCtx.Done():
+						case <-dialCtx.Done():
 							cancel()
 							return
 						}
@@ -1155,14 +1176,14 @@ func (p *Server) Subscribe(
 				for event := range parts {
 					select {
 					case wrappedParts <- event:
-					case <-mergedCtx.Done():
+					case <-dialCtx.Done():
 						return
 					}
 				}
 			}()
 			select {
-			case relayReadyCh <- relayResult{parts: wrappedParts, cancel: cancel}:
-			case <-mergedCtx.Done():
+			case relayReadyCh <- relayResult{parts: wrappedParts, cancel: cancel, workerID: workerID}:
+			case <-dialCtx.Done():
 				cancel()
 			}
 		}()
@@ -1246,9 +1267,19 @@ func (p *Server) Subscribe(
 					}
 					return
 				case result := <-relayReadyCh:
+					// Discard stale relay results from a previous
+					// dial that was superseded.
+					if result.workerID != expectedWorkerID {
+						if result.cancel != nil {
+							result.cancel()
+						}
+						continue
+					}
 					// An async relay dial completed; swap in the
 					// new relay channel.
-					closeRelay()
+					if relayCancel != nil {
+						relayCancel()
+					}
 					relayParts = result.parts
 					relayCancel = result.cancel
 				case <-reconnectCh:
