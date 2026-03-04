@@ -277,12 +277,15 @@ func NewMultiReplicaSubscribeFn(
 							slog.F("chat_id", chatID),
 							slog.Error(err),
 						)
-						mergedEvents <- codersdk.ChatStreamEvent{
+						select {
+						case mergedEvents <- codersdk.ChatStreamEvent{
 							Type:   codersdk.ChatStreamEventTypeError,
 							ChatID: chatID,
 							Error: &codersdk.ChatStreamError{
 								Message: err.Error(),
 							},
+						}:
+						case <-ctx.Done():
 						}
 						return
 					case result := <-relayReadyCh:
@@ -441,17 +444,18 @@ func NewMultiReplicaSubscribeFn(
 			}()
 		}
 
-		cancel := func() {
-			for _, cancelFn := range allCancels {
-				if cancelFn != nil {
-					cancelFn()
+			// The cancel function only tears down the upstream
+			// sources (local stream, pubsub subscription). The
+			// merge goroutine owns all relay state (reconnectTimer,
+			// relayCancel, dialCancel, etc.) and cleans it up via
+			// its defer closeRelay() when ctx is cancelled.
+			cancel := func() {
+				for _, cancelFn := range allCancels {
+					if cancelFn != nil {
+						cancelFn()
+					}
 				}
 			}
-			if reconnectTimer != nil {
-				reconnectTimer.Stop()
-			}
-		}
-
 		return mergedEvents, cancel
 	}
 }
