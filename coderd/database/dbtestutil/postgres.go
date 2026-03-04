@@ -185,14 +185,14 @@ func Open(t TBSubset, opts ...OpenOption) (string, error) {
 // If templateDBName is empty, it will create a new template database based on
 // the current migrations, and name it "tpl_<migrations_hash>". Or if it's
 // already been created, it will use that.
-func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, db *sql.DB, newDBName string, templateDBName string) error {
+func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, db *sql.DB, newDBName string, templateDBName string, pgVersion int) error {
 	t.Helper()
 
 	emptyTemplateDBName := templateDBName == ""
 	if emptyTemplateDBName {
 		templateDBName = fmt.Sprintf("tpl_%s", migrations.GetMigrationsHash()[:32])
 	}
-	_, err := db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName)
+	_, err := db.Exec(createFromTemplateExpr(newDBName, templateDBName, pgVersion))
 	if err == nil {
 		// Template database already exists and we successfully created the new database.
 		return nil
@@ -220,7 +220,7 @@ func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, db *sql
 	}
 
 	// Try to create the database again now that a template exists.
-	if _, err = db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName); err != nil {
+	if _, err = db.Exec(createFromTemplateExpr(newDBName, templateDBName, pgVersion)); err != nil {
 		return xerrors.Errorf("create db with template after migrations: %w", err)
 	}
 	return nil
@@ -494,6 +494,27 @@ func OpenContainerized(t TBSubset, opts DBContainerOptions) (string, func(), err
 	}
 
 	return dbURL, containerCleanup, nil
+}
+
+// pgMajorVersion returns the major version of PostgreSQL, e.g. 17.
+func pgMajorVersion(db *sql.DB) (int, error) {
+	var version int
+	err := db.QueryRow("SHOW server_version_num").Scan(&version)
+	if err != nil {
+		return 0, xerrors.Errorf("query server version: %w", err)
+	}
+	// server_version_num is formatted as XXYYYZZ (major, minor, patch)
+	return version / 10000, nil
+}
+
+// createFromTemplateExpr returns a CREATE DATABASE statement that optionally
+// uses STRATEGY FILE_COPY for PostgreSQL 15+.
+func createFromTemplateExpr(newDBName, templateDBName string, pgVersion int) string {
+	stmt := "CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName
+	if pgVersion >= 15 {
+		stmt += " STRATEGY FILE_COPY"
+	}
+	return stmt
 }
 
 func containsAnySubstring(s string, substrings []string) bool {

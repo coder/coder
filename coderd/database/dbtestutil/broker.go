@@ -66,12 +66,17 @@ func (b *Broker) Create(t TBSubset, opts ...OpenOption) (ConnectionParams, error
 		return ConnectionParams{}, xerrors.Errorf("insert test_database row: %w", err)
 	}
 
+	pgVersion, err := pgMajorVersion(b.coderTestingDB)
+	if err != nil {
+		return ConnectionParams{}, xerrors.Errorf("get pg version: %w", err)
+	}
+
 	// if empty createDatabaseFromTemplate will create a new template db
 	templateDBName := os.Getenv("DB_FROM")
 	if openOptions.DBFrom != nil {
 		templateDBName = *openOptions.DBFrom
 	}
-	if err = createDatabaseFromTemplate(t, defaultConnectionParams, b.coderTestingDB, dbName, templateDBName); err != nil {
+	if err = createDatabaseFromTemplate(t, defaultConnectionParams, b.coderTestingDB, dbName, templateDBName, pgVersion); err != nil {
 		return ConnectionParams{}, xerrors.Errorf("create database: %w", err)
 	}
 
