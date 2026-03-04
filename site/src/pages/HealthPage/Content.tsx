@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
@@ -14,6 +13,7 @@ import {
 	type ReactElement,
 } from "react";
 import type { HealthCode, HealthSeverity } from "#/api/typesGenerated";
+import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 import { healthyColor } from "./healthyColor";
 
@@ -242,6 +242,7 @@ export const HealthMessageDocsLink: FC<HealthMessageDocsLinkProps> = ({
 			href={docs(`/admin/monitoring/health-check#${code.toLocaleLowerCase()}`)}
 			target="_blank"
 			rel="noreferrer"
+			className="mx-0"
 		>
 			Docs for {code}
 		</Link>
