@@ -2456,6 +2456,57 @@ func TestPostChatFile(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("MissingOrganization", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		coderdtest.CreateFirstUser(t, client)
+
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/files", bytes.NewReader(data), func(r *http.Request) {
+			r.Header.Set("Content-Type", "image/png")
+		})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		err = codersdk.ReadBodyAsError(res)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "Missing organization")
+	})
+
+	t.Run("InvalidOrganization", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		coderdtest.CreateFirstUser(t, client)
+
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/files?organization=not-a-uuid", bytes.NewReader(data), func(r *http.Request) {
+			r.Header.Set("Content-Type", "image/png")
+		})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		err = codersdk.ReadBodyAsError(res)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "Invalid organization ID")
+	})
+
+	t.Run("WrongOrganization", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		coderdtest.CreateFirstUser(t, client)
+
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		_, err := client.UploadChatFile(ctx, uuid.New(), "image/png", "test.png", bytes.NewReader(data))
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		// dbauthz returns 404 or 500 depending on how the org lookup
+		// fails; 403 is also possible. Any non-success code is valid.
+		require.GreaterOrEqual(t, sdkErr.StatusCode(), http.StatusBadRequest,
+			"expected error status, got %d", sdkErr.StatusCode())
+	})
+
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
