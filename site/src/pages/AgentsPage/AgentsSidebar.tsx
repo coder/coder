@@ -340,7 +340,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
 	const deletions = diffStatus?.deletions ?? 0;
-	const hasLineStats = additions > 0 || deletions > 0;
+	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
 	const filesChangedLabel = `${changedFiles} ${
 		changedFiles === 1 ? "file" : "files"
 	}`;
@@ -436,18 +436,14 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 											className="inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-medium leading-none tabular-nums"
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
-											{additions > 0 && (
-												<span className="text-green-700 dark:text-green-500">
-													+{additions}
-												</span>
-											)}
-											{deletions > 0 && (
-												<span className="text-red-700 dark:text-red-400">
-													&minus;{deletions}
-												</span>
-											)}{" "}
+											<span className="text-green-700 dark:text-green-500">
+												+{additions}
+											</span>
+											<span className="text-red-700 dark:text-red-400">
+												&minus;{deletions}
+											</span>{" "}
 										</span>
-									)}
+									)}{" "}
 									<div
 										className={cn(
 											"min-w-0 overflow-hidden text-[13px] leading-4",
