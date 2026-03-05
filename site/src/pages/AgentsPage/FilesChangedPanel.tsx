@@ -408,7 +408,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 	const handleFileClick = useCallback((name: string) => {
 		const el = fileRefs.current.get(name);
 		if (el) {
-			el.scrollIntoView({ behavior: "smooth", block: "start" });
+			el.scrollIntoView({ block: "start" });
 			setActiveFile(name);
 		}
 	}, []);
