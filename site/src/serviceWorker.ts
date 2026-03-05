@@ -26,13 +26,27 @@ self.addEventListener("push", (event) => {
 	}
 
 	event.waitUntil(
-		self.registration.showNotification(payload.title, {
-			body: payload.body || "",
-			icon: payload.icon || "/favicon.ico",
-			data: payload.data,
-		}),
-	);
-});
+			self.clients
+				.matchAll({ type: "window", includeUncontrolled: true })
+				.then((clientList) => {
+					const chatURL = payload.data?.url;
+					if (chatURL) {
+						const isVisible = clientList.some(
+							(client) =>
+								client.visibilityState === "visible" &&
+								client.url.includes(chatURL),
+						);
+						if (isVisible) {
+							return;
+						}
+					}
+					return self.registration.showNotification(payload.title, {
+						body: payload.body || "",
+						icon: payload.icon || "/favicon.ico",
+						data: payload.data,
+					});
+				}),
+		);});
 
 // Handle notification click — navigate to the specific chat or agents page.
 self.addEventListener("notificationclick", (event) => {
