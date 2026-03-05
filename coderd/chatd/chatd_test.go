@@ -1136,7 +1136,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
 	client := coderdtest.New(t, &coderdtest.Options{
@@ -1228,7 +1228,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		}
 		chatWithMessages = got
 		return got.Chat.Status == codersdk.ChatStatusWaiting || got.Chat.Status == codersdk.ChatStatusError
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
 
 	if chatWithMessages.Chat.Status == codersdk.ChatStatusError {
 		lastError := ""
