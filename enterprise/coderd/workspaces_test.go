@@ -4788,7 +4788,7 @@ func TestWorkspaceAITask(t *testing.T) {
 		wrk := coderdtest.CreateWorkspace(t, client, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
-		require.Len(t, usage.GetEvents(), 0)
+		require.Len(t, usage.GetDiscreteEvents(), 0)
 	})
 
 	t.Run("CreateTaskWorkspace", func(t *testing.T) {
@@ -4815,7 +4815,7 @@ func TestWorkspaceAITask(t *testing.T) {
 
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
-		require.Len(t, usage.GetEvents(), 1)
+		require.Len(t, usage.GetDiscreteEvents(), 1)
 
 		usage.Reset() // Clean slate for easy checks
 		// Stopping the workspace should not create additional usage.
@@ -4825,7 +4825,7 @@ func TestWorkspaceAITask(t *testing.T) {
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
-		require.Len(t, usage.GetEvents(), 0)
+		require.Len(t, usage.GetDiscreteEvents(), 0)
 
 		usage.Reset() // Clean slate for easy checks
 		// Starting the workspace manually **WILL** create usage, as it's
@@ -4836,6 +4836,6 @@ func TestWorkspaceAITask(t *testing.T) {
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
-		require.Len(t, usage.GetEvents(), 1)
+		require.Len(t, usage.GetDiscreteEvents(), 1)
 	})
 }

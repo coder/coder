@@ -29,11 +29,14 @@ type UsageEventType string
 // ParseEventWithType function.
 const (
 	UsageEventTypeDCManagedAgentsV1 UsageEventType = "dc_managed_agents_v1"
+	UsageEventTypeHBAISeatsV1       UsageEventType = "hb_ai_seats_v1"
 )
 
 func (e UsageEventType) Valid() bool {
 	switch e {
 	case UsageEventTypeDCManagedAgentsV1:
+		return true
+	case UsageEventTypeHBAISeatsV1:
 		return true
 	default:
 		return false
@@ -96,6 +99,12 @@ func ParseEventWithType(eventType UsageEventType, data json.RawMessage) (Event, 
 			return nil, err
 		}
 		return event, nil
+	case UsageEventTypeHBAISeatsV1:
+		var event HBAISeats
+		if err := ParseEvent(data, &event); err != nil {
+			return nil, err
+		}
+		return event, nil
 	default:
 		return nil, UnknownEventTypeError{EventType: string(eventType)}
 	}
@@ -119,6 +128,12 @@ type Event interface {
 type DiscreteEvent interface {
 	Event
 	discreteUsageEvent() // marker method, also prevents external types from implementing this interface
+}
+
+// HeartbeatEvent is a usage event that is collected as a heartbeat.
+type HeartbeatEvent interface {
+	Event
+	heartbeatUsageEvent() // marker method, also prevents external types from implementing this interface
 }
 
 // DCManagedAgentsV1 is a discrete usage event for the number of managed agents.
@@ -146,6 +161,33 @@ func (e DCManagedAgentsV1) Valid() error {
 }
 
 func (e DCManagedAgentsV1) Fields() map[string]any {
+	return map[string]any{
+		"count": e.Count,
+	}
+}
+
+// HBAISeats is a heartbeat event for the total number of AI seats consumed.
+type HBAISeats struct {
+	Count int64 `json:"count"`
+}
+
+var _ HeartbeatEvent = HBAISeats{}
+
+func (HBAISeats) usageEvent()          {}
+func (HBAISeats) heartbeatUsageEvent() {}
+func (HBAISeats) EventType() UsageEventType {
+	return UsageEventTypeHBAISeatsV1
+}
+
+func (e HBAISeats) Valid() error {
+	if e.Count < 0 {
+		return xerrors.New("count cannot be negative")
+	}
+	// The count can be 0
+	return nil
+}
+
+func (e HBAISeats) Fields() map[string]any {
 	return map[string]any{
 		"count": e.Count,
 	}

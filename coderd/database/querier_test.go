@@ -8315,6 +8315,80 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.WithinDuration(t, time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), rows[1].Day, time.Second)
 	})
 
+	t.Run("HeartbeatAISeats", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+		// Insert a heartbeat event.
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "hb-1",
+			EventType: "hb_ai_seats_v1",
+			EventData: []byte(`{"count": 10}`),
+			CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		rows := getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.Equal(t, "hb_ai_seats_v1", rows[0].EventType)
+		require.JSONEq(t, `{"count": 10}`, string(rows[0].UsageData))
+
+		// Insert a higher count on the same day — should take the max.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "hb-2",
+			EventType: "hb_ai_seats_v1",
+			EventData: []byte(`{"count": 50}`),
+			CreatedAt: time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.JSONEq(t, `{"count": 50}`, string(rows[0].UsageData))
+
+		// Insert a lower count on the same day — should keep the max (50).
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "hb-3",
+			EventType: "hb_ai_seats_v1",
+			EventData: []byte(`{"count": 25}`),
+			CreatedAt: time.Date(2025, 1, 1, 18, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.JSONEq(t, `{"count": 50}`, string(rows[0].UsageData))
+
+		// Insert on a different day.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "hb-4",
+			EventType: "hb_ai_seats_v1",
+			EventData: []byte(`{"count": 5}`),
+			CreatedAt: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 2)
+		require.JSONEq(t, `{"count": 50}`, string(rows[0].UsageData))
+		require.JSONEq(t, `{"count": 5}`, string(rows[1].UsageData))
+
+		// Also insert a dc_managed_agents_v1 on the same first day to
+		// verify different event types get separate daily rows.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "dc-1",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 7}`),
+			CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 3)
+	})
+
 	t.Run("UnknownEventType", func(t *testing.T) {
 		t.Parallel()
 

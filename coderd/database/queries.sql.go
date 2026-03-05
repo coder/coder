@@ -18845,6 +18845,19 @@ func (q *sqlQuerier) UpdateUsageEventsPostPublish(ctx context.Context, arg Updat
 	return err
 }
 
+const usageEventExistsByID = `-- name: UsageEventExistsByID :one
+SELECT EXISTS(
+    SELECT 1 FROM usage_events WHERE id = $1
+)::bool
+`
+
+func (q *sqlQuerier) UsageEventExistsByID(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, usageEventExistsByID, id)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
 	user_links.user_id, user_links.login_type, user_links.linked_id, user_links.oauth_access_token, user_links.oauth_refresh_token, user_links.oauth_expiry, user_links.oauth_access_token_key_id, user_links.oauth_refresh_token_key_id, user_links.claims
