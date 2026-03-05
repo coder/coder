@@ -48,6 +48,7 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { NavLink, useParams } from "react-router";
@@ -315,6 +316,27 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
 	} = useChatTree();
+
+	// When an archive/unarchive action is selected from the
+	// dropdown, the optimistic cache update moves this node
+	// between the active and archived lists, unmounting the
+	// trigger element.  If the dropdown portal is still alive
+	// (mid-exit-animation) it loses its Popper anchor and
+	// briefly flashes at the top of the viewport.
+	//
+	// To avoid this we close the menu *without* an exit
+	// animation so Radix Presence unmounts the portal
+	// synchronously, then fire the mutation one frame later.
+	const [menuOpen, setMenuOpen] = useState(false);
+	const pendingAction = useRef<(() => void) | null>(null);
+	const handleMenuOpenChange = useCallback((open: boolean) => {
+		setMenuOpen(open);
+		if (!open && pendingAction.current) {
+			const action = pendingAction.current;
+			pendingAction.current = null;
+			requestAnimationFrame(action);
+		}
+	}, []);
 	const chatID = chat.id;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
 		visibleChatIDs.has(childID),
@@ -466,7 +488,12 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 								{shortRelativeTime(chat.updated_at)}
 							</span>
-							<DropdownMenu>
+							<DropdownMenu
+								open={menuOpen}
+								onOpenChange={handleMenuOpenChange}
+								modal={false}
+							>
+								{" "}
 								<DropdownMenuTrigger asChild>
 									<Button
 										size="icon"
@@ -477,11 +504,17 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 										<EllipsisIcon className="h-3.5 w-3.5" />
 									</Button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
+								<DropdownMenuContent
+									align="end"
+									className="data-[state=closed]:animate-none"
+								>
+									{" "}
 									{chat.archived ? (
 										<DropdownMenuItem
 											disabled={isArchiving}
-											onSelect={() => onUnarchiveAgent(chat.id)}
+											onSelect={() => {
+												pendingAction.current = () => onUnarchiveAgent(chat.id);
+											}}
 										>
 											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
 											Unarchive agent
@@ -492,7 +525,9 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 											<DropdownMenuItem
 												className="text-content-destructive focus:text-content-destructive"
 												disabled={isArchiving}
-												onSelect={() => onArchiveAgent(chat.id)}
+												onSelect={() => {
+													pendingAction.current = () => onArchiveAgent(chat.id);
+												}}
 											>
 												<ArchiveIcon className="h-3.5 w-3.5" />
 												Archive agent
@@ -501,9 +536,10 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 												<DropdownMenuItem
 													className="text-content-destructive focus:text-content-destructive"
 													disabled={isArchiving}
-													onSelect={() =>
-														onArchiveAndDeleteWorkspace(chat.id, workspaceId)
-													}
+													onSelect={() => {
+														pendingAction.current = () =>
+															onArchiveAndDeleteWorkspace(chat.id, workspaceId);
+													}}
 												>
 													<Trash2Icon className="h-3.5 w-3.5" />
 													Archive & delete workspace
@@ -512,7 +548,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 										</>
 									)}
 								</DropdownMenuContent>
-							</DropdownMenu>
+							</DropdownMenu>{" "}
 						</>
 					)}
 				</div>
