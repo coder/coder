@@ -93,6 +93,21 @@ func TestUniqueNameWithLength(t *testing.T) {
 	}
 }
 
+func TestNameDigitWithLength(t *testing.T) {
+	t.Parallel()
+
+	const iter = 10000
+	for range iter {
+		name := NameDigitWith("_")
+		assert.LessOrEqual(t, len(name), maxNameLen)
+		assert.Contains(t, name, "_")
+		assert.Equal(t, name, strings.ToLower(name))
+		verifyNoWhitespace(t, name)
+		// Must end with exactly 2 digits.
+		assert.Regexp(t, `[a-z]\d{2}$`, name)
+	}
+}
+
 func verifyNoWhitespace(t *testing.T, s string) {
 	t.Helper()
 	for _, r := range s {
