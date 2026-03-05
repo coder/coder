@@ -192,7 +192,7 @@ const FileTreeNodeView: FC<{
 				<button
 					type="button"
 					onClick={() => setExpanded((v) => !v)}
-					className="flex w-full items-center gap-1.5 py-1 text-left text-2xs text-content-secondary hover:bg-surface-secondary cursor-pointer"
+					className="flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left text-2xs text-content-secondary hover:bg-surface-secondary cursor-pointer"
 					style={{ paddingLeft: 8 + depth * 12 }}
 				>
 					<ChevronRightIcon
@@ -224,7 +224,7 @@ const FileTreeNodeView: FC<{
 			type="button"
 			onClick={() => onFileClick(node.fullPath)}
 			className={cn(
-				"flex w-full items-center gap-1.5 py-1 text-left cursor-pointer",
+				"flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left cursor-pointer",
 				"hover:bg-surface-secondary",
 				isActive &&
 					"bg-surface-secondary border-0 border-r-2 border-solid border-content-link",
