@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/coderd/aiseats"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -630,6 +631,8 @@ func New(options *Options) *API {
 		dbRolluper:       options.DatabaseRolluper,
 		ProfileCollector: defaultProfileCollector{},
 	}
+	api.AISeatTracker = aiseats.Noop{}
+
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
 		options.Logger.Named("workspaceapps"),
@@ -2033,6 +2036,8 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
+	// AISeatTracker records AI seat usage.
+	AISeatTracker aiseats.SeatTracker
 	// gitSyncWorker refreshes stale chat diff statuses in the
 	// background.
 	gitSyncWorker *gitsync.Worker
@@ -2245,6 +2250,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		provisionerdserver.Options{
 			OIDCConfig:          api.OIDCConfig,
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
+			AISeatTracker:       api.AISeatTracker,
 			Clock:               api.Clock,
 			HeartbeatFn:         options.heartbeatFn,
 		},
