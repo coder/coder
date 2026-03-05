@@ -1,6 +1,7 @@
 package chatprompt_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 
@@ -88,4 +89,28 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 			require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
 		})
 	}
+}
+
+func TestMarshalToolResult_SanitizesNullBytes(t *testing.T) {
+	t.Parallel()
+
+	result := json.RawMessage(`{"output":"hello\u0000world"}`)
+	got, err := chatprompt.MarshalToolResult("call_1", "my_tool", result, false)
+	require.NoError(t, err)
+	require.True(t, got.Valid)
+	require.False(t, bytes.Contains(got.RawMessage, []byte(`\u0000`)),
+		"output should not contain \\u0000 escape sequences")
+}
+
+func TestMarshalContent_SanitizesNullBytes(t *testing.T) {
+	t.Parallel()
+
+	blocks := []fantasy.Content{
+		fantasy.TextContent{Text: "before\u0000after"},
+	}
+	got, err := chatprompt.MarshalContent(blocks)
+	require.NoError(t, err)
+	require.True(t, got.Valid)
+	require.False(t, bytes.Contains(got.RawMessage, []byte(`\u0000`)),
+		"output should not contain \\u0000 escape sequences")
 }
