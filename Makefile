@@ -570,7 +570,7 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 lint/site-icons:
@@ -599,6 +599,11 @@ lint/shellcheck: $(SHELL_SRC_FILES)
 	echo "--- shellcheck"
 	shellcheck --external-sources $(SHELL_SRC_FILES)
 .PHONY: lint/shellcheck
+
+lint/bootstrap:
+	bash scripts/check_bootstrap_quotes.sh
+.PHONY: lint/bootstrap
+
 
 lint/helm:
 	cd helm/
