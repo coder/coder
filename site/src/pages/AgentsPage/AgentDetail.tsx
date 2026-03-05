@@ -262,6 +262,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		[messagesByID, orderedMessageIDs],
 	);
 	const { organizations } = useDashboard();
+	const organizationId = organizations[0]?.id;
 	const latestContextUsage = useMemo(() => {
 		const usage = getLatestContextUsage(messages);
 		if (!usage) {
@@ -279,7 +280,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		setAttachments,
 		setPreviewUrls,
 		setUploadStates,
-	} = useFileAttachments(organizations[0]?.id);
+	} = useFileAttachments(organizationId);
 	// Holds raw block data for edit-mode files so we can reconstruct
 	// the full File content lazily at submit time instead of eagerly
 	// decoding base64 on every edit click.
@@ -370,9 +371,12 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 										type: blockData.mediaType,
 									});
 								}
+								if (!organizationId) {
+									throw new Error("No organization context");
+								}
 								const uploaded = await API.uploadChatFile(
 									fileToUpload,
-									organizations[0]?.id ?? "",
+									organizationId,
 								);
 								fileIds.push(uploaded.id);
 							}

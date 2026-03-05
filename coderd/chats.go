@@ -2198,8 +2198,12 @@ func normalizeChatCompressionThreshold(
 	return threshold, nil
 }
 
-// maxChatFileSize is the maximum size of a chat file upload (10 MB).
-const maxChatFileSize = 10 << 20
+const (
+	// maxChatFileSize is the maximum size of a chat file upload (10 MB).
+	maxChatFileSize = 10 << 20
+	// maxChatFileName is the maximum length of an uploaded file name.
+	maxChatFileName = 255
+)
 
 // allowedChatFileMIMETypes lists the content types accepted for chat
 // file uploads. SVG is explicitly excluded because it can contain scripts.
@@ -2274,6 +2278,11 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
+	// Strip parameters (e.g. "image/png; charset=utf-8" → "image/png")
+	// so the allowlist check matches the base media type.
+	if mediaType, _, err := mime.ParseMediaType(contentType); err == nil {
+		contentType = mediaType
+	}
 
 	if allowed, ok := allowedChatFileMIMETypes[contentType]; !ok || !allowed {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2309,6 +2318,9 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if cd := r.Header.Get("Content-Disposition"); cd != "" {
 		if _, params, err := mime.ParseMediaType(cd); err == nil {
 			filename = params["filename"]
+			if len(filename) > maxChatFileName {
+				filename = filename[:maxChatFileName]
+			}
 		}
 	}
 

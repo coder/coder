@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -2556,6 +2557,30 @@ func TestGetChatFile(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		require.Equal(t, "private, max-age=31536000, immutable", res.Header.Get("Cache-Control"))
 		require.Contains(t, res.Header.Get("Content-Disposition"), "inline")
+		require.Contains(t, res.Header.Get("Content-Disposition"), "test.png")
+	})
+
+	t.Run("LongFilename", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		longName := strings.Repeat("a", 300) + ".png"
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", longName, bytes.NewReader(data))
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		// Filename should be truncated to maxChatFileName (255) bytes.
+		cd := res.Header.Get("Content-Disposition")
+		require.Contains(t, cd, "inline")
+		require.Contains(t, cd, strings.Repeat("a", 255))
+		require.NotContains(t, cd, strings.Repeat("a", 256))
 	})
 
 	t.Run("NotFound", func(t *testing.T) {

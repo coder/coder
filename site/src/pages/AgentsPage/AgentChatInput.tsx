@@ -286,7 +286,7 @@ export const AttachmentPreview = memo<{
 									</div>
 								</TooltipTrigger>
 								<TooltipContent side="top">
-									<p className="text-xs">
+									<p className="max-w-xs text-xs">
 										{uploadState.error ?? "Upload failed"}
 									</p>
 								</TooltipContent>

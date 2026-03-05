@@ -131,13 +131,13 @@ export function useFileAttachments(
 	}, []);
 
 	const resetAttachments = useCallback(() => {
-		for (const [, url] of previewUrls) {
+		for (const [, url] of previewUrlsRef.current) {
 			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 		}
 		setPreviewUrls(new Map());
 		setUploadStates(new Map());
 		setAttachments([]);
-	}, [previewUrls]);
+	}, []);
 
 	return {
 		attachments,
