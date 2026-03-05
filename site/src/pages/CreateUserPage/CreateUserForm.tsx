@@ -216,7 +216,7 @@ export const CreateUserForm: FC<
 								form.values.login_type !== "password" &&
 								"No password required for this login type",
 						})}
-						autoComplete="current-password"
+						autoComplete="new-password"
 						fullWidth
 						id="password"
 						data-testid="password-input"
