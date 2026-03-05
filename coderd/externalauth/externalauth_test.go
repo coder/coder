@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -337,7 +336,7 @@ func TestRefreshToken(t *testing.T) {
 		require.Equal(t, 1, validateCalls, "token is validated")
 		require.Equal(t, 1, refreshCalls, "token is refreshed")
 		require.NotEqualf(t, link.OAuthAccessToken, updated.OAuthAccessToken, "token is updated")
-		dbLink, err := db.GetExternalAuthLink(dbauthz.AsSystemRestricted(context.Background()), database.GetExternalAuthLinkParams{
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,
 		})
