@@ -109,12 +109,12 @@ function changeColor(type?: ChangeTypes): string | undefined {
 		case "new":
 			return "text-green-700 dark:text-green-300";
 		case "deleted":
-			return "text-content-destructive";
+			return "text-red-700 dark:text-red-300";
 		case "rename-pure":
 		case "rename-changed":
-			return "text-content-warning";
+			return "text-orange-700 dark:text-orange-300";
 		case "change":
-			return "text-content-warning";
+			return "text-orange-700 dark:text-orange-300";
 		default:
 			return undefined;
 	}
