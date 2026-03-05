@@ -6798,6 +6798,7 @@ export interface WebpushMessage {
 	readonly icon: string;
 	readonly title: string;
 	readonly body: string;
+	readonly tag?: string;
 	readonly actions: readonly WebpushMessageAction[];
 	readonly data?: Record<string, string>;
 }
