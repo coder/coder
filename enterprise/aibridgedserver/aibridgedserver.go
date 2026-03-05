@@ -143,6 +143,13 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	// Look up the interception lineage using the correlating tool call ID.
 	parentID, rootID := s.findInterceptionLineage(ctx, in.GetCorrelatingToolCallId())
 
+	// Fall back to server time if the client did not provide a
+	// timestamp, so we never persist a zero value.
+	startedAt := in.StartedAt.AsTime()
+	if startedAt.IsZero() {
+		startedAt = dbtime.Now()
+	}
+
 	if s.structuredLogging {
 		s.logger.Info(ctx, InterceptionLogMarker,
 			slog.F("record_type", "interception_start"),
@@ -152,7 +159,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 			slog.F("provider", in.Provider),
 			slog.F("model", in.Model),
 			slog.F("client", in.Client),
-			slog.F("started_at", in.StartedAt.AsTime()),
+			slog.F("started_at", startedAt),
 			slog.F("metadata", metadata),
 			slog.F("correlating_tool_call_id", in.GetCorrelatingToolCallId()),
 			slog.F("thread_parent_id", parentID),
@@ -173,7 +180,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		Provider:                   in.Provider,
 		Model:                      in.Model,
 		Metadata:                   out,
-		StartedAt:                  in.StartedAt.AsTime(),
+		StartedAt:                  startedAt,
 		ThreadParentInterceptionID: uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
 		ThreadRootInterceptionID:   uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
 	})
@@ -193,17 +200,24 @@ func (s *Server) RecordInterceptionEnded(ctx context.Context, in *proto.RecordIn
 		return nil, xerrors.Errorf("invalid interception ID %q: %w", in.GetId(), err)
 	}
 
+	// Fall back to server time if the client did not provide a
+	// timestamp, so we never persist a zero value.
+	endedAt := in.EndedAt.AsTime()
+	if endedAt.IsZero() {
+		endedAt = dbtime.Now()
+	}
+
 	if s.structuredLogging {
 		s.logger.Info(ctx, InterceptionLogMarker,
 			slog.F("record_type", "interception_end"),
 			slog.F("interception_id", intcID.String()),
-			slog.F("ended_at", in.EndedAt.AsTime()),
+			slog.F("ended_at", endedAt),
 		)
 	}
 
 	_, err = s.store.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
 		ID:      intcID,
-		EndedAt: in.EndedAt.AsTime(),
+		EndedAt: endedAt,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("end interception: %w", err)
@@ -223,6 +237,13 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 
 	metadata := metadataToMap(in.GetMetadata())
 
+	// Fall back to server time if the client did not provide a
+	// timestamp, so we never persist a zero value.
+	createdAt := in.GetCreatedAt().AsTime()
+	if createdAt.IsZero() {
+		createdAt = dbtime.Now()
+	}
+
 	if s.structuredLogging {
 		s.logger.Info(ctx, InterceptionLogMarker,
 			slog.F("record_type", "token_usage"),
@@ -230,7 +251,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 			slog.F("msg_id", in.GetMsgId()),
 			slog.F("input_tokens", in.GetInputTokens()),
 			slog.F("output_tokens", in.GetOutputTokens()),
-			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("created_at", createdAt),
 			slog.F("metadata", metadata),
 		)
 	}
@@ -247,7 +268,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 		InputTokens:        in.GetInputTokens(),
 		OutputTokens:       in.GetOutputTokens(),
 		Metadata:           out,
-		CreatedAt:          in.GetCreatedAt().AsTime(),
+		CreatedAt:          createdAt,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert token usage: %w", err)
@@ -267,13 +288,20 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 
 	metadata := metadataToMap(in.GetMetadata())
 
+	// Fall back to server time if the client did not provide a
+	// timestamp, so we never persist a zero value.
+	createdAt := in.GetCreatedAt().AsTime()
+	if createdAt.IsZero() {
+		createdAt = dbtime.Now()
+	}
+
 	if s.structuredLogging {
 		s.logger.Info(ctx, InterceptionLogMarker,
 			slog.F("record_type", "prompt_usage"),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
 			slog.F("prompt", in.GetPrompt()),
-			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("created_at", createdAt),
 			slog.F("metadata", metadata),
 		)
 	}
@@ -289,7 +317,7 @@ func (s *Server) RecordPromptUsage(ctx context.Context, in *proto.RecordPromptUs
 		ProviderResponseID: in.GetMsgId(),
 		Prompt:             in.GetPrompt(),
 		Metadata:           out,
-		CreatedAt:          in.GetCreatedAt().AsTime(),
+		CreatedAt:          createdAt,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert user prompt: %w", err)
@@ -309,6 +337,13 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 
 	metadata := metadataToMap(in.GetMetadata())
 
+	// Fall back to server time if the client did not provide a
+	// timestamp, so we never persist a zero value.
+	createdAt := in.GetCreatedAt().AsTime()
+	if createdAt.IsZero() {
+		createdAt = dbtime.Now()
+	}
+
 	if s.structuredLogging {
 		s.logger.Info(ctx, InterceptionLogMarker,
 			slog.F("record_type", "tool_usage"),
@@ -320,7 +355,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 			slog.F("server_url", in.GetServerUrl()),
 			slog.F("injected", in.GetInjected()),
 			slog.F("invocation_error", in.GetInvocationError()),
-			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("created_at", createdAt),
 			slog.F("metadata", metadata),
 		)
 	}
@@ -341,7 +376,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		Injected:           in.GetInjected(),
 		InvocationError:    sql.NullString{String: in.GetInvocationError(), Valid: in.InvocationError != nil},
 		Metadata:           out,
-		CreatedAt:          in.GetCreatedAt().AsTime(),
+		CreatedAt:          createdAt,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert tool usage: %w", err)
