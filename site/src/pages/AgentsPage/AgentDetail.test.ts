@@ -1,5 +1,5 @@
-import type React from "react";
 import { act, renderHook } from "@testing-library/react";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	draftInputStorageKeyPrefix,
@@ -100,7 +100,7 @@ describe("useConversationEditingState", () => {
 			getValue: vi.fn().mockReturnValue(""),
 		};
 		// The hook exposes chatInputRef – assign the mock to it.
-		(result.current.chatInputRef as React.MutableRefObject<any>).current = mockInputRef;
+		result.current.chatInputRef.current = mockInputRef;
 
 		await act(async () => {
 			result.current.handleSendFromInput("hello");
