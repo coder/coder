@@ -36,26 +36,59 @@ func TestShouldRefreshOIDCToken(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "ExpiredBeyondAssumedWindow",
+			name: "LongExpired",
 			link: database.UserLink{
 				OAuthRefreshToken: "refresh",
-				OAuthExpiry:       now.Add(-20 * time.Minute),
+				OAuthExpiry:       now.Add(-1 * time.Hour),
 			},
 			want: true,
 		},
 		{
-			name: "ExpiredWithinAssumedWindow",
+			// Edge being "+/- 10 minutes"
+			name: "EdgeExpired",
 			link: database.UserLink{
 				OAuthRefreshToken: "refresh",
-				OAuthExpiry:       now.Add(-5 * time.Minute),
+				OAuthExpiry:       now.Add(-1 * time.Minute * 10),
 			},
-			want: false,
+			want: true,
+		},
+		{
+			name: "Expired",
+			link: database.UserLink{
+				OAuthRefreshToken: "refresh",
+				OAuthExpiry:       now.Add(-1 * time.Minute),
+			},
+			want: true,
+		},
+		{
+			name: "SoonToBeExpired",
+			link: database.UserLink{
+				OAuthRefreshToken: "refresh",
+				OAuthExpiry:       now.Add(5 * time.Minute),
+			},
+			want: true,
+		},
+		{
+			name: "SoonToBeExpiredEdge",
+			link: database.UserLink{
+				OAuthRefreshToken: "refresh",
+				OAuthExpiry:       now.Add(9 * time.Minute),
+			},
+			want: true,
 		},
 		{
 			name: "NotExpired",
 			link: database.UserLink{
 				OAuthRefreshToken: "refresh",
 				OAuthExpiry:       now.Add(time.Hour),
+			},
+			want: false,
+		},
+		{
+			name: "NotEvenCloseExpired",
+			link: database.UserLink{
+				OAuthRefreshToken: "refresh",
+				OAuthExpiry:       now.Add(time.Hour * 24),
 			},
 			want: false,
 		},
