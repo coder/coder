@@ -15214,9 +15214,12 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "agents",
-                "mcp-server-http"
+                "mcp-server-http",
+                "workspace-sharing",
+                "ai-template-editor"
             ],
             "x-enum-comments": {
+                "ExperimentAITemplateEditor": "Enables the AI assistant in the template editor.",
                 "ExperimentAgents": "Enables agent-powered chat functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
@@ -15224,6 +15227,7 @@ const docTemplate = `{
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
+                "ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
@@ -15234,7 +15238,9 @@ const docTemplate = `{
                 "Enables web push notifications through the browser.",
                 "Enables OAuth2 provider functionality.",
                 "Enables agent-powered chat functionality.",
-                "Enables the MCP HTTP server functionality."
+                "Enables the MCP HTTP server functionality.",
+                "Enables updating workspace ACLs for sharing with users and groups.",
+                "Enables the AI assistant in the template editor."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -15244,7 +15250,9 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentAgents",
-                "ExperimentMCPServerHTTP"
+                "ExperimentMCPServerHTTP",
+                "ExperimentWorkspaceSharing",
+                "ExperimentAITemplateEditor"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

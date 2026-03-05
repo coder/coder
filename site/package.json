@@ -35,6 +35,8 @@
 		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis && cp -f ./node_modules/emoji-datasource-apple/img/apple/sheets-256/64.png ./static/emojis/spritesheet.png"
 	},
 	"dependencies": {
+		"@ai-sdk/anthropic": "^3.0.46",
+		"@ai-sdk/openai": "^3.0.30",
 		"@emoji-mart/data": "1.2.1",
 		"@emoji-mart/react": "1.1.1",
 		"@emotion/cache": "11.14.0",
@@ -76,6 +78,7 @@
 		"@xterm/addon-web-links": "0.11.0",
 		"@xterm/addon-webgl": "0.18.0",
 		"@xterm/xterm": "5.5.0",
+		"ai": "^6.0.97",
 		"ansi-to-html": "0.7.2",
 		"axios": "1.13.2",
 		"chroma-js": "2.6.0",
@@ -127,7 +130,8 @@
 		"unique-names-generator": "4.7.1",
 		"uuid": "9.0.1",
 		"websocket-ts": "2.2.1",
-		"yup": "1.7.1"
+		"yup": "1.7.1",
+		"zod": "^3.25.76"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.2.4",

@@ -92,7 +92,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 		{
 			name: "unrecognized header",
 			reqHeaders: map[string]string{
-				codersdk.SessionTokenHeader: "key", // Coder-Session-Token is not supported; requests originate with AI clients, not coder CLI.
+				"X-Unrecognized-Header": "key", // Unrecognized headers should be ignored for auth extraction.
 			},
 			applyMocksFn:   func(client *mock.MockDRPCClient, _ *mock.MockPooler) {},
 			expectedErr:    aibridged.ErrNoAuthKey,
@@ -174,7 +174,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 	}
 }
 
-func TestServeHTTP_CoderTokenRemoved(t *testing.T) {
+func TestServeHTTPStripsCoderTokenHeader(t *testing.T) {
 	t.Parallel()
 
 	mockHandler := &mockHandler{}
@@ -192,9 +192,13 @@ func TestServeHTTP_CoderTokenRemoved(t *testing.T) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, httpSrv.URL+"/openai/v1/chat/completions", nil)
 	require.NoError(t, err)
 
-	// X-Coder-Token is used for authentication and should be stripped.
+	// Coder auth credentials are used for authentication and should be stripped.
 	// Other authorization headers should be preserved.
 	req.Header.Set(agplaibridge.HeaderCoderAuth, "coder-token")
+	req.Header.Set(codersdk.SessionTokenHeader, "session-key")
+	req.AddCookie(&http.Cookie{Name: codersdk.SessionTokenCookie, Value: "session-cookie"})
+	// Also add a non-auth cookie that should still be stripped.
+	req.AddCookie(&http.Cookie{Name: "_csrf", Value: "csrf-token"})
 	req.Header.Set("Authorization", "Bearer some-token")
 	req.Header.Set("X-Api-Key", "some-api-key")
 
@@ -204,10 +208,16 @@ func TestServeHTTP_CoderTokenRemoved(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Verify X-Coder-Token was removed before forwarding to handler.
+	// Verify Coder auth headers were removed before forwarding to handler.
 	require.NotNil(t, mockHandler.headersReceived)
 	require.Empty(t, mockHandler.headersReceived.Get(agplaibridge.HeaderCoderAuth),
 		"X-Coder-Token should be removed before forwarding to handler")
+	require.Empty(t, mockHandler.headersReceived.Get(codersdk.SessionTokenHeader),
+		"Coder-Session-Token should be removed before forwarding to handler")
+
+	// Verify all cookies were stripped.
+	require.Empty(t, mockHandler.cookiesReceived,
+		"all cookies should be removed before forwarding to handler")
 
 	// Verify other headers were preserved.
 	require.Equal(t, "Bearer some-token", mockHandler.headersReceived.Get("Authorization"))
@@ -220,6 +230,7 @@ func TestExtractAuthToken(t *testing.T) {
 	cases := []struct {
 		name        string
 		headers     map[string]string
+		cookies     []*http.Cookie
 		expectedKey string
 	}{
 		{
@@ -285,17 +296,64 @@ func TestExtractAuthToken(t *testing.T) {
 			headers:     map[string]string{"X-Api-Key": "key"},
 			expectedKey: "key",
 		},
+		{
+			name:    "coder-session-token-header/empty",
+			headers: map[string]string{codersdk.SessionTokenHeader: ""},
+		},
+		{
+			name:        "coder-session-token-header/ok",
+			headers:     map[string]string{codersdk.SessionTokenHeader: "session-key"},
+			expectedKey: "session-key",
+		},
+		{
+			name: "coder-session-token-header/priority over cookie",
+			headers: map[string]string{
+				codersdk.SessionTokenHeader: "session-key",
+			},
+			cookies: []*http.Cookie{{
+				Name:  codersdk.SessionTokenCookie,
+				Value: "cookie-key",
+			}},
+			expectedKey: "session-key",
+		},
+		{
+			name: "session-cookie/empty",
+			cookies: []*http.Cookie{{
+				Name:  codersdk.SessionTokenCookie,
+				Value: "",
+			}},
+		},
+		{
+			name: "session-cookie/ok",
+			cookies: []*http.Cookie{{
+				Name:  codersdk.SessionTokenCookie,
+				Value: "cookie-key",
+			}},
+			expectedKey: "cookie-key",
+		},
+		{
+			name: "x-api-key/priority over session-header",
+			headers: map[string]string{
+				"X-Api-Key":                 "api-key",
+				codersdk.SessionTokenHeader: "session-key",
+			},
+			expectedKey: "api-key",
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			headers := make(http.Header, len(tc.headers))
+			r := httptest.NewRequest(http.MethodGet, "/", nil)
 			for k, v := range tc.headers {
-				headers.Add(k, v)
+				r.Header.Add(k, v)
 			}
-			key := agplaibridge.ExtractAuthToken(headers)
+			for _, c := range tc.cookies {
+				r.AddCookie(c)
+			}
+
+			key := agplaibridge.ExtractAuthToken(r)
 			require.Equal(t, tc.expectedKey, key)
 		})
 	}
@@ -305,10 +363,12 @@ var _ http.Handler = &mockHandler{}
 
 type mockHandler struct {
 	headersReceived http.Header
+	cookiesReceived []*http.Cookie
 }
 
 func (h *mockHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	h.headersReceived = r.Header.Clone()
+	h.cookiesReceived = r.Cookies()
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write([]byte(r.URL.Path))
 }

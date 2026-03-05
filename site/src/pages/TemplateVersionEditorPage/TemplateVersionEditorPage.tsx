@@ -30,6 +30,7 @@ import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
+import type { PublishVersionData } from "./types";
 
 const TemplateVersionEditorPage: FC = () => {
 	const getLink = useLinks();
@@ -116,6 +117,25 @@ const TemplateVersionEditorPage: FC = () => {
 		navigateToVersion(newVersion);
 	};
 
+	const doPublish = async ({
+		isActiveVersion,
+		...data
+	}: PublishVersionData) => {
+		const templateVersion = activeTemplateVersion!;
+		await publishVersionMutation.mutateAsync({
+			isActiveVersion,
+			data,
+			version: templateVersion,
+		});
+		const publishedVersion = {
+			...templateVersion,
+			...data,
+		};
+		setLastSuccessfulPublishedVersion(publishedVersion);
+		queryClient.setQueryData(templateVersionOptions.queryKey, publishedVersion);
+		return publishedVersion;
+	};
+
 	// Provisioner Tags
 	const [provisionerTags, setProvisionerTags] = useState<
 		Record<string, string>
@@ -165,23 +185,22 @@ const TemplateVersionEditorPage: FC = () => {
 					onCancelPublish={() => {
 						setIsPublishingDialogOpen(false);
 					}}
-					onConfirmPublish={async ({ isActiveVersion, ...data }) => {
-						await publishVersionMutation.mutateAsync({
-							isActiveVersion,
-							data,
-							version: activeTemplateVersion,
-						});
-						const publishedVersion = {
-							...activeTemplateVersion,
-							...data,
-						};
+					onConfirmPublish={async (data) => {
+						const publishedVersion = await doPublish(data);
 						setIsPublishingDialogOpen(false);
-						setLastSuccessfulPublishedVersion(publishedVersion);
-						queryClient.setQueryData(
-							templateVersionOptions.queryKey,
-							publishedVersion,
-						);
 						navigateToVersion(publishedVersion);
+					}}
+					onPublishVersion={async (data) => {
+						const publishedVersion = await doPublish(data);
+						// Update the route to reflect the published version name.
+						// Using replace: true avoids adding a new history entry
+						// while keeping React Router state in sync with the URL.
+						const templatePath = `${getLink(
+							linkToTemplate(organizationName, templateName),
+						)}/versions/${publishedVersion.name}/edit`;
+						const query = searchParams.toString();
+						const nextPath = query ? `${templatePath}?${query}` : templatePath;
+						navigate(nextPath, { replace: true });
 					}}
 					isAskingPublishParameters={isPublishingDialogOpen}
 					isPublishing={publishVersionMutation.isPending}
