@@ -49,7 +49,7 @@ other editor to review, refine, and complete work that the agent produces.
 
 ## How it works
 
-The agent loop runs inside [the control plane](./agents-architecture.md). When a user
+The agent loop runs inside [the control plane](./architecture.md). When a user
 submits a prompt, the control plane:
 
 1. Sends the prompt to the configured LLM provider (Anthropic, OpenAI, Google,
@@ -66,7 +66,7 @@ The workspace itself has no knowledge of AI. It is standard compute
 infrastructure — there are no LLM API keys, no agent harnesses, and no special
 software installed. All intelligence lives in the control plane.
 
-![Architecture diagram showing the control plane in the center, with arrows out to LLM providers and arrows to workspaces](../images/guides/ai-agents/agent-loop.png)
+![Architecture diagram showing the control plane in the center, with arrows out to LLM providers and arrows to workspaces](../../images/guides/ai-agents/agent-loop.png)
 
 <small>The agent loop runs in the control plane. It makes outbound requests to LLM
 providers and connects to workspaces only when tool execution is needed.</small>
@@ -193,7 +193,7 @@ enterprise LLM proxies, self-hosted model endpoints, and internal gateways.
 Administrators can configure multiple providers simultaneously and set a default
 model. Developers select from enabled models when starting a chat.
 
-![Screenshot of the provider/model configuration admin panel](../images/guides/ai-agents/llm-providers.png)
+![Screenshot of the provider/model configuration admin panel](../../images/guides/ai-agents/llm-providers.png)
 
 <small>The model configuration panel in the Coder dashboard.</small>
 
@@ -223,7 +223,7 @@ the workspace.
 ## Comparison to Coder Tasks
 
 Coder Agents is a new approach that differs from
-[Coder Tasks](./tasks.md) in several ways:
+[Coder Tasks](../tasks.md) in several ways:
 
 | Aspect              | Coder Agents                         | Coder Tasks                                                    |
 |---------------------|--------------------------------------|----------------------------------------------------------------|
