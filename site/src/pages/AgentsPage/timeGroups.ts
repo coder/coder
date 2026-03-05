@@ -8,7 +8,7 @@ export const TIME_GROUPS = [
 	"This Week",
 	"Older",
 ] as const;
-export type TimeGroup = (typeof TIME_GROUPS)[number];
+type TimeGroup = (typeof TIME_GROUPS)[number];
 
 export function getTimeGroup(dateStr: string): TimeGroup {
 	const now = new Date();
