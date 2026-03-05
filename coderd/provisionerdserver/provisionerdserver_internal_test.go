@@ -77,6 +77,14 @@ func TestShouldRefreshOIDCToken(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "AfterEdge",
+			link: database.UserLink{
+				OAuthRefreshToken: "refresh",
+				OAuthExpiry:       now.Add(11 * time.Minute),
+			},
+			want: false,
+		},
+		{
 			name: "NotExpired",
 			link: database.UserLink{
 				OAuthRefreshToken: "refresh",
