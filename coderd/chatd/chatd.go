@@ -2644,43 +2644,37 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 // given chat and returns a short text summary suitable for a push
 // notification body. Returns "" if no usable text is found.
 func (p *Server) lastAssistantSummary(ctx context.Context, chatID uuid.UUID) string {
-	msgs, err := p.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chatID,
-		AfterID: 0,
+	msg, err := p.db.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+		ChatID: chatID,
+		Role:   "assistant",
 	})
-	if err != nil || len(msgs) == 0 {
+	if err != nil {
 		return ""
 	}
 
-	// Walk backwards to find the last assistant message with text.
-	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].Role != "assistant" {
-			continue
-		}
-		content, err := chatprompt.ParseContent(msgs[i].Role, msgs[i].Content)
-		if err != nil {
-			return ""
-		}
-		// Collect only text blocks, ignoring tool calls and
-		// reasoning content.
-		var text string
-		for _, block := range content {
-			switch v := block.(type) {
-			case fantasy.TextContent:
+	content, err := chatprompt.ParseContent(msg.Role, msg.Content)
+	if err != nil {
+		return ""
+	}
+
+	// Collect only text blocks, ignoring tool calls and
+	// reasoning content.
+	var text string
+	for _, block := range content {
+		switch v := block.(type) {
+		case fantasy.TextContent:
+			text += v.Text
+		case *fantasy.TextContent:
+			if v != nil {
 				text += v.Text
-			case *fantasy.TextContent:
-				if v != nil {
-					text += v.Text
-				}
 			}
 		}
-		text = strings.TrimSpace(text)
-		if text == "" {
-			continue
-		}
-		return truncateAtWordBoundary(text, 100)
 	}
-	return ""
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
+	}
+	return truncateAtWordBoundary(text, 100)
 }
 
 // truncateAtWordBoundary shortens s to at most maxLen characters,

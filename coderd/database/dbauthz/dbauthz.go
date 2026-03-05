@@ -2795,6 +2795,15 @@ func (q *querier) GetInboxNotificationsByUserID(ctx context.Context, userID data
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetInboxNotificationsByUserID)(ctx, userID)
 }
 
+func (q *querier) GetLastChatMessageByRole(ctx context.Context, arg database.GetLastChatMessageByRoleParams) (database.ChatMessage, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	return q.db.GetLastChatMessageByRole(ctx, arg)
+}
+
 func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return "", err
