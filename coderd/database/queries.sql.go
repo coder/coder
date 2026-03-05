@@ -340,6 +340,11 @@ WITH
     WHERE started_at < $1::timestamp with time zone
   ),
   -- CTEs are executed in order.
+  model_thoughts AS (
+    DELETE FROM aibridge_model_thoughts
+    WHERE interception_id IN (SELECT id FROM to_delete)
+    RETURNING 1
+  ),
   tool_usages AS (
     DELETE FROM aibridge_tool_usages
     WHERE interception_id IN (SELECT id FROM to_delete)
@@ -361,6 +366,7 @@ WITH
     RETURNING 1
   )
 SELECT (
+  (SELECT COUNT(*) FROM model_thoughts) +
   (SELECT COUNT(*) FROM tool_usages) +
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +
@@ -657,6 +663,45 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.ThreadParentID,
 		&i.ThreadRootID,
 		&i.ClientSessionID,
+	)
+	return i, err
+}
+
+const insertAIBridgeModelThought = `-- name: InsertAIBridgeModelThought :one
+INSERT INTO aibridge_model_thoughts (
+  id, interception_id, tool_usage_id, content, metadata, created_at
+) VALUES (
+  $1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
+)
+RETURNING id, interception_id, tool_usage_id, content, metadata, created_at
+`
+
+type InsertAIBridgeModelThoughtParams struct {
+	ID             uuid.NullUUID   `db:"id" json:"id"`
+	InterceptionID uuid.UUID       `db:"interception_id" json:"interception_id"`
+	ToolUsageID    uuid.UUID       `db:"tool_usage_id" json:"tool_usage_id"`
+	Content        sql.NullString  `db:"content" json:"content"`
+	Metadata       json.RawMessage `db:"metadata" json:"metadata"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIBridgeModelThought(ctx context.Context, arg InsertAIBridgeModelThoughtParams) (AIBridgeModelThought, error) {
+	row := q.db.QueryRowContext(ctx, insertAIBridgeModelThought,
+		arg.ID,
+		arg.InterceptionID,
+		arg.ToolUsageID,
+		arg.Content,
+		arg.Metadata,
+		arg.CreatedAt,
+	)
+	var i AIBridgeModelThought
+	err := row.Scan(
+		&i.ID,
+		&i.InterceptionID,
+		&i.ToolUsageID,
+		&i.Content,
+		&i.Metadata,
+		&i.CreatedAt,
 	)
 	return i, err
 }

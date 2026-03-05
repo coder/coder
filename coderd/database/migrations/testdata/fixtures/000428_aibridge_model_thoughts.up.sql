@@ -1,0 +1,17 @@
+INSERT INTO
+    aibridge_model_thoughts (
+        id,
+        interception_id,
+        tool_usage_id,
+        content,
+        metadata,
+        created_at
+    )
+VALUES (
+    'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    'be003e1e-b38f-43bf-847d-928074dd0aa8', -- from 000370_aibridge.up.sql
+    '613b4cfa-a257-4e88-99e6-4d2e99ea25f0', -- from 000370_aibridge.up.sql (tool usage)
+    'The user is asking about their workspaces. I should use the coder_list_workspaces tool to retrieve this information.',
+    '{"thinking_tokens": 42}',
+    '2025-09-15 12:45:19.123456+00'
+);
