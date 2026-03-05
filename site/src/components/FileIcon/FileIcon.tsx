@@ -27,24 +27,6 @@ const setiDefaultIconDefinition: SetiIconDefinition = setiIconDefinitions[
 	fontCharacter: "\\E023",
 };
 
-// Register the @font-face for the Seti icon font exactly once.
-let fontRegistered = false;
-function ensureSetiFontRegistered(): void {
-	if (fontRegistered || typeof document === "undefined") {
-		return;
-	}
-	fontRegistered = true;
-	const style = document.createElement("style");
-	style.textContent = `@font-face {
-  font-family: "Seti";
-  src: url("/seti.woff") format("woff");
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}`;
-	document.head.appendChild(style);
-}
-
 const decodeFontCharacter = (encoded?: string): string => {
 	if (!encoded) {
 		return "";
@@ -280,8 +262,6 @@ export const FileIcon: FC<FileIconProps> = ({
 	className,
 	style,
 }) => {
-	ensureSetiFontRegistered();
-
 	const targetName =
 		fileName ?? (filePath ? (filePath.split("/").pop() ?? "") : "");
 
