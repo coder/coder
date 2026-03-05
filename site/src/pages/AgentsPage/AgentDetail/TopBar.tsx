@@ -34,6 +34,10 @@ const DiffStatsInline: FC<{
 	const additions = status.additions ?? 0;
 	const deletions = status.deletions ?? 0;
 
+	if (additions === 0 && deletions === 0) {
+		return null;
+	}
+
 	return (
 		<button
 			type="button"

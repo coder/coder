@@ -400,6 +400,10 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		roRef.current = ro;
 	}, []);
 
+	useEffect(() => {
+		return () => roRef.current?.disconnect();
+	}, []);
+
 	const showTree =
 		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
 		sortedFiles.length > 0;
@@ -479,7 +483,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 
 		viewport.addEventListener("scroll", onScroll, { passive: true });
 		return () => viewport.removeEventListener("scroll", onScroll);
-	}, [showTree, sortedFiles]);
+	}, [showTree, sortedFiles.length]);
 
 	const handleFileClick = useCallback((name: string) => {
 		const el = fileRefs.current.get(name);
@@ -581,7 +585,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 						<Columns2Icon className="!p-0 !size-3.5" />
 					</Button>
 				</div>
-			</div>{" "}
+			</div>
 			{/* Diff contents */}
 			{sortedFiles.length === 0 ? (
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">
@@ -625,7 +629,6 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 							diffViewportRef.current = vp ?? null;
 						}}
 					>
-						{" "}
 						<div className="min-w-0 text-xs">
 							{sortedFiles.map((fileDiff) => (
 								<div
@@ -637,7 +640,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 							))}
 							{/* Spacer so the last file can scroll fully to the top. */}
 							<div className="h-[calc(100vh-100px)]" />
-						</div>{" "}
+						</div>
 					</ScrollArea>
 				</div>
 			)}

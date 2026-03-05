@@ -1057,7 +1057,7 @@ const AgentDetail: FC = () => {
 				tabMeta={{
 					git: <DiffStats diffStatus={diffStatusQuery.data} />,
 				}}
-			/>{" "}
+			/>
 		</div>
 	);
 };
@@ -1073,14 +1073,14 @@ const DiffStats: FC<{ diffStatus?: ChatDiffStatusResponse }> = ({
 		return null;
 	}
 	return (
-		<span className="inline-flex h-full items-center self-stretch font-mono text-xs font-medium">
+		<span className="inline-flex h-full items-center self-stretch overflow-hidden rounded-[calc(theme(borderRadius.md)-1px)] font-mono text-xs font-medium">
 			{additions > 0 && (
 				<span className="flex h-full items-center bg-green-950 px-1.5 text-green-500">
 					+{additions}
 				</span>
 			)}
 			{deletions > 0 && (
-				<span className="flex h-full items-center rounded-r-[calc(theme(borderRadius.md)-1px)] bg-red-950 px-1.5 text-red-400">
+				<span className="flex h-full items-center bg-red-950 px-1.5 text-red-400">
 					&minus;{deletions}
 				</span>
 			)}
