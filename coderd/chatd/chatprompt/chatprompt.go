@@ -1,7 +1,6 @@
 package chatprompt
 
 import (
-	"bytes"
 	"encoding/json"
 	"regexp"
 	"strings"
@@ -423,7 +422,6 @@ func MarshalContent(blocks []fantasy.Content) (pqtype.NullRawMessage, error) {
 	if err != nil {
 		return pqtype.NullRawMessage{}, xerrors.Errorf("encode content blocks: %w", err)
 	}
-	data = sanitizeJSONForPG(data)
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }
 
@@ -441,7 +439,6 @@ func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isEr
 	if err != nil {
 		return pqtype.NullRawMessage{}, xerrors.Errorf("encode tool result: %w", err)
 	}
-	data = sanitizeJSONForPG(data)
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }
 
@@ -836,22 +833,6 @@ func sanitizeToolCallID(id string) string {
 		return ""
 	}
 	return toolCallIDSanitizer.ReplaceAllString(id, "_")
-}
-
-// jsonNullEscape is the JSON escape sequence for Unicode null (U+0000).
-var jsonNullEscape = []byte(`\u0000`)
-
-// sanitizeJSONForPG strips \u0000 escape sequences from JSON data.
-// PostgreSQL's jsonb type rejects the Unicode null character (U+0000)
-// with "unsupported Unicode escape sequence", even though \u0000 is
-// valid JSON per RFC 8259. Tool results from agents may contain this
-// sequence (e.g. binary data or C-style strings), so we strip it
-// before insertion.
-func sanitizeJSONForPG(data []byte) []byte {
-	if bytes.Contains(data, jsonNullEscape) {
-		data = bytes.ReplaceAll(data, jsonNullEscape, nil)
-	}
-	return data
 }
 
 func marshalContentBlock(block fantasy.Content) (json.RawMessage, error) {
