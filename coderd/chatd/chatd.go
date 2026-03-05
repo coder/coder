@@ -2448,8 +2448,8 @@ func (p *Server) resolveModelConfig(
 		}
 		if !xerrors.Is(err, sql.ErrNoRows) {
 			return database.ChatModelConfig{}, xerrors.Errorf(
-					"get chat model config %s: %w",
-					chat.LastModelConfigID.UUID, err,			)
+				"get chat model config %s: %w",
+				chat.LastModelConfigID.UUID, err)
 		}
 		// Model config was deleted, fall through to default.
 	}
