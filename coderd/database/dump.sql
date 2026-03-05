@@ -3549,6 +3549,8 @@ CREATE UNIQUE INDEX idx_provisioner_daemons_org_name_owner_key ON provisioner_da
 
 COMMENT ON INDEX idx_provisioner_daemons_org_name_owner_key IS 'Allow unique provisioner daemon names by organization and user';
 
+CREATE INDEX idx_provisioner_job_timings_job_id_started_at ON provisioner_job_timings USING btree (job_id, started_at);
+
 CREATE INDEX idx_provisioner_jobs_status ON provisioner_jobs USING btree (job_status);
 
 CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordinator_id);
@@ -3584,8 +3586,6 @@ CREATE UNIQUE INDEX notification_messages_dedupe_hash_idx ON notification_messag
 CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btree (is_default) WHERE (is_default = true);
 
 CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING btree (job_id, id);
-
-CREATE INDEX idx_provisioner_job_timings_job_id_started_at ON provisioner_job_timings USING btree (job_id, started_at);
 
 CREATE INDEX provisioner_jobs_started_at_idx ON provisioner_jobs USING btree (started_at) WHERE (started_at IS NULL);
 
