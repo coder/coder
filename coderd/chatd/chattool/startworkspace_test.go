@@ -13,7 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
@@ -28,9 +28,6 @@ func TestStartWorkspace(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, _ := dbtestutil.NewDB(t)
-
-		//nolint:gocritic // Unit test needs system context for DB seeding.
-		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		user := dbgen.User(t, db, database.User{})
 		modelCfg := seedModelConfig(ctx, t, db, user.ID)
@@ -62,9 +59,6 @@ func TestStartWorkspace(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, _ := dbtestutil.NewDB(t)
 
-		//nolint:gocritic // Unit test needs system context for DB seeding.
-		ctx = dbauthz.AsSystemRestricted(ctx)
-
 		user := dbgen.User(t, db, database.User{})
 		modelCfg := seedModelConfig(ctx, t, db, user.ID)
 		org := dbgen.Organization(t, db, database.Organization{})
@@ -72,31 +66,13 @@ func TestStartWorkspace(t *testing.T) {
 			UserID:         user.ID,
 			OrganizationID: org.ID,
 		})
-		tpl := dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			CreatedBy:      user.ID,
-		})
-		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
-		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			OrganizationID: org.ID,
-			CompletedAt:    sql.NullTime{Time: dbtestutil.NowInDefaultTimezone(), Valid: true},
-		})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       ws.ID,
-			TemplateVersionID: tv.ID,
-			JobID:             job.ID,
-			Transition:        database.WorkspaceTransitionStart,
-			BuildNumber:       1,
-		})
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStart,
+		}).Do()
+		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OwnerID:           user.ID,
@@ -137,9 +113,6 @@ func TestStartWorkspace(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, _ := dbtestutil.NewDB(t)
 
-		//nolint:gocritic // Unit test needs system context for DB seeding.
-		ctx = dbauthz.AsSystemRestricted(ctx)
-
 		user := dbgen.User(t, db, database.User{})
 		modelCfg := seedModelConfig(ctx, t, db, user.ID)
 		org := dbgen.Organization(t, db, database.Organization{})
@@ -147,32 +120,14 @@ func TestStartWorkspace(t *testing.T) {
 			UserID:         user.ID,
 			OrganizationID: org.ID,
 		})
-		tpl := dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
-			CreatedBy:      user.ID,
-		})
-		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		// Create a completed "stop" build so the workspace is stopped.
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
-		// Create a completed "stop" build so the workspace is stopped.
-		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			OrganizationID: org.ID,
-			CompletedAt:    sql.NullTime{Time: dbtestutil.NowInDefaultTimezone(), Valid: true},
-		})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       ws.ID,
-			TemplateVersionID: tv.ID,
-			JobID:             job.ID,
-			Transition:        database.WorkspaceTransitionStop,
-			BuildNumber:       1,
-		})
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStop,
+		}).Do()
+		ws := wsResp.Workspace
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OwnerID:           user.ID,
@@ -189,17 +144,10 @@ func TestStartWorkspace(t *testing.T) {
 			require.Equal(t, ws.ID, wsID)
 
 			// Simulate start by inserting a new completed "start" build.
-			newJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-				OrganizationID: org.ID,
-				CompletedAt:    sql.NullTime{Time: dbtestutil.NowInDefaultTimezone(), Valid: true},
-			})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:       ws.ID,
-				TemplateVersionID: tv.ID,
-				JobID:             newJob.ID,
-				Transition:        database.WorkspaceTransitionStart,
-				BuildNumber:       2,
-			})
+			dbfake.WorkspaceBuild(t, db, ws).Seed(database.WorkspaceBuild{
+				Transition:  database.WorkspaceTransitionStart,
+				BuildNumber: 2,
+			}).Do()
 			return codersdk.WorkspaceBuild{}, nil
 		}
 
