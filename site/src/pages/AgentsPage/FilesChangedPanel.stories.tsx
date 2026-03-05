@@ -160,13 +160,12 @@ function generateLargeDiff(
 			delPct: 0.05,
 		},
 		{
-			path: "site/src/pages/AgentsPage/DiffRightPanel.tsx",
+			path: "site/src/pages/AgentsPage/RightPanel.tsx",
 			addPct: 0.05,
 			delPct: 0.1,
 		},
 		{ path: "site/src/hooks/useDiffViewer.ts", addPct: 0.05, delPct: 0.05 },
 	];
-
 	const patches: string[] = [];
 	for (const f of files) {
 		const add = Math.round(totalAdditions * f.addPct);
