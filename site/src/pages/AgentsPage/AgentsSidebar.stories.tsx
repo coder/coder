@@ -494,6 +494,8 @@ export const ArchivedAgentUnarchiveOption: Story = {
 			).toBeInTheDocument();
 		});
 		// Open the dropdown menu for the archived agent
+		const node = canvas.getByTestId("agents-tree-node-archived-unarchive");
+		await userEvent.hover(node);
 		const trigger = canvas.getByLabelText(
 			"Open actions for Archived agent with unarchive",
 		);
