@@ -2,7 +2,7 @@
 #
 # release_experimental.sh — Interactive release tagging script for coder/coder.
 #
-# Usage: ./scripts/release_experimental.sh
+# Usage: ./scripts/release_experimental.sh [--dry-run]
 #
 # Run this from a release branch (release/X.Y). The script will:
 #   1. Detect the release branch and infer the next version from existing tags.
@@ -79,7 +79,18 @@ semver_eq() {
 	[[ "${1#v}" == "${2#v}" ]]
 }
 
+# Run a command, or print it if in dry-run mode.
+run() {
+	if ((dry_run)); then
+		echo -e "${YELLOW}DRY RUN, would execute: $*${RESET}" >&2
+	else
+		"$@"
+	fi
+}
+
 # --- Argument Parsing ------------------------------------------------------
+
+dry_run=0
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -87,11 +98,20 @@ while [[ $# -gt 0 ]]; do
 		sed -n '2,/^$/s/^# \?//p' "${BASH_SOURCE[0]}"
 		exit 0
 		;;
+	--dry-run)
+		dry_run=1
+		shift
+		;;
 	*)
-		error "Unknown argument: $1. This script takes no arguments — just run it from a release branch."
+		error "Unknown argument: $1. Usage: ./scripts/release_experimental.sh [--dry-run]"
 		;;
 	esac
 done
+
+if ((dry_run)); then
+	warn "DRY RUN — write actions will be printed instead of executed."
+	log
+fi
 
 # --- GitHub Auth -----------------------------------------------------------
 
@@ -504,7 +524,7 @@ if ((tag_exists == 0)); then
 	log "  Branch: ${current_branch}"
 	log
 	if confirm "Create tag?"; then
-		git tag -a "$new_version" -m "Release $new_version" "$ref"
+		run git tag -a "$new_version" -m "Release $new_version" "$ref"
 		success "Tag ${new_version} created."
 	else
 		error "Cannot proceed without a tag. Aborting."
@@ -521,7 +541,7 @@ echo -e "${BOLD}Next step: push tag '${new_version}' to origin.${RESET}"
 log "  This will run: git push origin ${new_version}"
 log
 if confirm "Push tag?"; then
-	git push origin "$new_version"
+	run git push origin "$new_version"
 	success "Tag pushed."
 else
 	error "Cannot trigger release without pushing the tag. Aborting."
@@ -543,7 +563,11 @@ log "    release_channel: ${channel}"
 log "    release_notes:   (${#release_notes} chars, written to ${release_notes_file})"
 log
 if confirm "Trigger release workflow?"; then
-	echo "$release_json" | gh workflow run release.yaml --json --ref "${new_version}"
+	if ((dry_run)); then
+		echo -e "${YELLOW}DRY RUN, would execute: echo <payload> | gh workflow run release.yaml --json --ref ${new_version}${RESET}" >&2
+	else
+		echo "$release_json" | gh workflow run release.yaml --json --ref "${new_version}"
+	fi
 	success "Release workflow triggered!"
 else
 	log "Skipped workflow trigger. You can trigger it manually:"
