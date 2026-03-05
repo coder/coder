@@ -16,8 +16,8 @@ import {
 import {
 	AlertTriangleIcon,
 	ArrowUpIcon,
+	ImageIcon,
 	Loader2Icon,
-	PaperclipIcon,
 	Square,
 	XIcon,
 } from "lucide-react";
@@ -279,12 +279,18 @@ export const AttachmentPreview = memo<{
 							</div>
 						)}
 						{uploadState?.status === "error" && (
-							<div
-								className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay"
-								title={uploadState.error ?? "Upload failed"}
-							>
-								<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
-							</div>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
+										<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
+									</div>
+								</TooltipTrigger>
+								<TooltipContent side="top">
+									<p className="text-xs">
+										{uploadState.error ?? "Upload failed"}
+									</p>
+								</TooltipContent>
+							</Tooltip>
 						)}
 						<button
 							type="button"
@@ -605,6 +611,16 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								dropdownAlign="center"
 							/>
 							{leftActions}
+							{inputStatusText && (
+								<span className="hidden text-xs text-content-secondary sm:inline">
+									{inputStatusText}
+								</span>
+							)}
+						</div>
+						<div className="flex items-center gap-2">
+							{contextUsage !== undefined && (
+								<ContextUsageIndicator usage={contextUsage} />
+							)}
 							{onAttach && (
 								<>
 									<input
@@ -624,19 +640,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 										disabled={isDisabled}
 										aria-label="Attach files"
 									>
-										<PaperclipIcon className="h-4 w-4" />
+										<ImageIcon className="h-4 w-4" />
 									</Button>
 								</>
-							)}
-							{inputStatusText && (
-								<span className="hidden text-xs text-content-secondary sm:inline">
-									{inputStatusText}
-								</span>
-							)}
-						</div>
-						<div className="flex items-center gap-2">
-							{contextUsage !== undefined && (
-								<ContextUsageIndicator usage={contextUsage} />
 							)}
 							{isStreaming && onInterrupt && (
 								<Button
