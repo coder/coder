@@ -185,13 +185,15 @@ func TestTokens(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
-	var expiredAtBefore time.Time
+
 	// Precondition: validate token is not expired before expiring
-	if token, err := client.APIKeyByName(ctx, secondUser.ID.String(), "token-two"); assert.NoError(t, err) {
-		now := dbtime.Now()
-		require.True(t, token.ExpiresAt.After(now), "token should not be expired yet (expiresAt=%s, now=%s)", token.ExpiresAt.UTC(), now)
-		expiredAtBefore = token.ExpiresAt
-	}
+	var expiredAtBefore time.Time
+	token, err := client.APIKeyByName(ctx, secondUser.ID.String(), "token-two")
+	require.NoError(t, err)
+	now := dbtime.Now()
+	require.True(t, token.ExpiresAt.After(now), "token should not be expired yet (expiresAt=%s, now=%s)", token.ExpiresAt.UTC(), now)
+	expiredAtBefore = token.ExpiresAt
+
 	err = inv.WithContext(ctx).Run()
 	require.NoError(t, err)
 	// Validate that token was expired
