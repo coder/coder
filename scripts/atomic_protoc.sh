@@ -15,9 +15,9 @@ trap 'rm -rf "$tmpdir"' EXIT
 args=()
 for arg in "$@"; do
 	case "$arg" in
-		--go_out=.)      args+=("--go_out=$tmpdir") ;;
-		--go-drpc_out=.) args+=("--go-drpc_out=$tmpdir") ;;
-		*)               args+=("$arg") ;;
+	--go_out=.) args+=("--go_out=$tmpdir") ;;
+	--go-drpc_out=.) args+=("--go-drpc_out=$tmpdir") ;;
+	*) args+=("$arg") ;;
 	esac
 done
 
