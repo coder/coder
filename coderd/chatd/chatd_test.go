@@ -1256,12 +1256,11 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 	})
 
 	user, model := seedChatDependencies(ctx, t, db)
-	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+		setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "interrupt-no-push",
-		ModelConfigID:      model.ID,
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:            user.ID,
+			Title:              "interrupt-no-push",		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
 	require.NoError(t, err)
@@ -1452,11 +1451,8 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks(assistantText)...,
-		)
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks(assistantText)...)
 	})
-
 	mockPush := &mockWebpushDispatcher{}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -1476,7 +1472,7 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 	user, model := seedChatDependencies(ctx, t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+	_, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
 		Title:              "summary-push-test",
 		ModelConfigID:      model.ID,
@@ -1484,16 +1480,14 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Wait for the chat to finish processing.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid
+	// Wait for the web push notification to be dispatched.
+	// We poll dispatchCount rather than DB status because the
+	// push fires after the status update, creating a small race
+	// window.
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		return mockPush.dispatchCount.Load() >= 1
 	}, testutil.IntervalFast)
 
-	// A push notification should have been dispatched.
 	require.Equal(t, int32(1), mockPush.dispatchCount.Load(),
 		"expected exactly one web push dispatch")
 
