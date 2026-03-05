@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -2030,6 +2033,272 @@ func TestGetChatDiffContents(t *testing.T) {
 		_, err = otherClient.GetChatDiffContents(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
+}
+
+func TestGetChatDiffFileContent(t *testing.T) {
+	t.Parallel()
+
+	// setupGitHubChat creates a test server with a GitHub external auth
+	// config, inserts a chat with a cached diff reference pointing at a
+	// GitHub repository, and returns the SDK client, API handle, and
+	// chat ID. The caller can then set api.HTTPClient to intercept
+	// outbound GitHub API calls made by the handler.
+	setupGitHubChat := func(t *testing.T) (*codersdk.Client, *coderd.API, uuid.UUID) {
+		t.Helper()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues: chatDeploymentValues(t),
+			ExternalAuthConfigs: []*externalauth.Config{
+				{
+					ID:    "github-test",
+					Type:  string(codersdk.EnhancedExternalAuthProviderGitHub),
+					Regex: regexp.MustCompile(`github\.com`),
+				},
+			},
+		})
+		db := api.Database
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "file content test",
+		})
+		require.NoError(t, err)
+
+		_, err = db.UpsertChatDiffStatusReference(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpsertChatDiffStatusReferenceParams{
+				ChatID:          chat.ID,
+				Url:             sql.NullString{},
+				GitBranch:       "feat/images",
+				GitRemoteOrigin: "https://github.com/acme/repo.git",
+				StaleAt:         time.Now().UTC().Add(time.Hour),
+			},
+		)
+		require.NoError(t, err)
+
+		return client, api, chat.ID
+	}
+
+	t.Run("MissingPath", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, chatID := setupGitHubChat(t)
+
+		// Call with ref but no path.
+		_, _, err := client.GetChatDiffFileContent(ctx, chatID, "", "abc123")
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("MissingRef", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, chatID := setupGitHubChat(t)
+
+		// Call with path but no ref.
+		_, _, err := client.GetChatDiffFileContent(ctx, chatID, "img/logo.png", "")
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("PathTraversal", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, chatID := setupGitHubChat(t)
+
+		// Paths containing ".." must be rejected to prevent
+		// traversal outside the repository tree.
+		_, _, err := client.GetChatDiffFileContent(ctx, chatID, "../../../etc/passwd", "abc123")
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("AbsolutePath", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, chatID := setupGitHubChat(t)
+
+		// Absolute paths must be rejected — only relative
+		// repository paths are valid.
+		_, _, err := client.GetChatDiffFileContent(ctx, chatID, "/etc/passwd", "abc123")
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("NoGitHubReference", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// Create a chat with no diff reference at all.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "no ref",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, _, err = client.GetChatDiffFileContent(ctx, chat.ID, "img/logo.png", "abc123")
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("NotFoundForDifferentUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues: chatDeploymentValues(t),
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "private file content",
+				},
+			},
+		})
+		require.NoError(t, err)
+		_ = api
+
+		otherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		_, _, err = otherClient.GetChatDiffFileContent(ctx, chat.ID, "img/logo.png", "abc123")
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api, chatID := setupGitHubChat(t)
+
+		// Fake GitHub API server that validates the request and
+		// returns a small PNG-like payload.
+		wantBody := []byte("\x89PNG fake image data")
+		github := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// The reference resolver also hits /pulls to look
+			// for open PRs — return an empty list for that.
+			if strings.HasPrefix(r.URL.Path, "/repos/acme/repo/pulls") {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("[]"))
+				return
+			}
+
+			// Verify the file content request.
+			require.Equal(t, "/repos/acme/repo/contents/img/logo.png", r.URL.Path)
+			require.Equal(t, "abc123", r.URL.Query().Get("ref"))
+			require.Equal(t, "application/vnd.github.raw+json", r.Header.Get("Accept"))
+
+			w.Header().Set("Content-Type", "image/png")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(wantBody)
+		}))
+		t.Cleanup(github.Close)
+
+		// Route outbound HTTP through the fake server by
+		// rewriting the URL in a custom RoundTripper.
+		api.HTTPClient = &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				req.URL.Scheme = "http"
+				req.URL.Host = strings.TrimPrefix(github.URL, "http://")
+				return http.DefaultTransport.RoundTrip(req)
+			}),
+		}
+
+		data, ct, err := client.GetChatDiffFileContent(ctx, chatID, "img/logo.png", "abc123")
+		require.NoError(t, err)
+		require.Equal(t, "image/png", ct)
+		require.Equal(t, wantBody, data)
+	})
+
+	t.Run("GitHubReturnsError", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api, chatID := setupGitHubChat(t)
+
+		github := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/repos/acme/repo/pulls") {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("[]"))
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+		}))
+		t.Cleanup(github.Close)
+
+		api.HTTPClient = &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				req.URL.Scheme = "http"
+				req.URL.Host = strings.TrimPrefix(github.URL, "http://")
+				return http.DefaultTransport.RoundTrip(req)
+			}),
+		}
+
+		_, _, err := client.GetChatDiffFileContent(ctx, chatID, "img/missing.png", "abc123")
+		requireSDKError(t, err, http.StatusBadGateway)
+	})
+
+	t.Run("PathSegmentsAreEscaped", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, api, chatID := setupGitHubChat(t)
+
+		var capturedPath string
+		github := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/repos/acme/repo/pulls") {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("[]"))
+				return
+			}
+			capturedPath = r.URL.EscapedPath()
+			w.Header().Set("Content-Type", "image/png")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+		}))
+		t.Cleanup(github.Close)
+
+		api.HTTPClient = &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				req.URL.Scheme = "http"
+				req.URL.Host = strings.TrimPrefix(github.URL, "http://")
+				return http.DefaultTransport.RoundTrip(req)
+			}),
+		}
+
+		// A path with characters that need escaping.
+		_, _, err := client.GetChatDiffFileContent(ctx, chatID, "dir with spaces/image (1).png", "main")
+		require.NoError(t, err)
+		// r.URL.EscapedPath() preserves percent-encoding, while
+		// r.URL.Path decodes it. Verify the raw request was escaped.
+		require.Equal(t, "/repos/acme/repo/contents/dir%20with%20spaces/image%20%281%29.png", capturedPath)
+	})
+}
+
+// roundTripperFunc adapts a plain function to the http.RoundTripper
+// interface, making it easy to intercept outbound HTTP requests in
+// tests.
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func TestDeleteChatQueuedMessage(t *testing.T) {

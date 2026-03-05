@@ -861,6 +861,198 @@ func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, diff)
 }
 
+// @Summary Get file content from a chat's linked GitHub repository
+// @ID get-chat-diff-file-content
+// @Security CoderSessionToken
+// @Produce application/octet-stream
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param path query string true "Repo-relative file path"
+// @Param ref query string true "Git ref (SHA or branch name)"
+// @Success 200
+// @Router /chats/{chat}/diff/file-content [get]
+//
+// getChatDiffFileContent proxies a single file's raw content from
+// the chat's linked GitHub repository. The frontend uses this to
+// render image diffs for binary files that cannot be shown as text.
+// It resolves the repository owner/name from the chat's cached diff
+// reference and streams the raw bytes back from the GitHub Contents
+// API with a 10 MiB body limit.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatDiffFileContent(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	filePath := r.URL.Query().Get("path")
+	if filePath == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing required query parameter: path.",
+		})
+		return
+	}
+	// Reject absolute paths and path traversal attempts. The path
+	// must be a clean relative path within the repository tree.
+	if strings.HasPrefix(filePath, "/") {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameter 'path' must be a relative file path.",
+		})
+		return
+	}
+	if strings.Contains(filePath, "..") {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameter 'path' must not contain path traversal segments.",
+		})
+		return
+	}
+
+	ref := r.URL.Query().Get("ref")
+	if ref == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing required query parameter: ref.",
+		})
+		return
+	}
+
+	owner, repo, token, err := api.resolveGitHubRepoForChat(ctx, chat)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to resolve repository for chat.",
+		})
+		return
+	}
+	if owner == "" || repo == "" {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Chat does not have a GitHub repository reference.",
+		})
+		return
+	}
+
+	contentType, body, err := api.fetchGitHubFileContent(ctx, owner, repo, filePath, ref, token)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to fetch file content from GitHub.",
+		})
+		return
+	}
+
+	rw.Header().Set("Content-Type", contentType)
+	rw.Header().Set("Cache-Control", "private, max-age=300")
+	rw.WriteHeader(http.StatusOK)
+	_, _ = rw.Write(body)
+}
+
+// resolveGitHubRepoForChat resolves the GitHub owner, repo, and
+// access token for a chat by looking up its cached diff reference.
+// Returns empty owner/repo when the chat is not linked to a GitHub
+// repository.
+func (api *API) resolveGitHubRepoForChat(
+	ctx context.Context,
+	chat database.Chat,
+) (owner, repo, token string, err error) {
+	status, found, err := api.getCachedChatDiffStatus(ctx, chat.ID)
+	if err != nil {
+		return "", "", "", xerrors.Errorf("get cached diff status: %w", err)
+	}
+
+	reference, err := api.resolveChatDiffReference(ctx, chat, found, status)
+	if err != nil {
+		return "", "", "", xerrors.Errorf("resolve diff reference: %w", err)
+	}
+
+	if reference.RepositoryRef == nil ||
+		!strings.EqualFold(reference.RepositoryRef.Provider, string(codersdk.EnhancedExternalAuthProviderGitHub)) {
+		return "", "", "", nil
+	}
+
+	token = api.resolveChatGitHubAccessToken(ctx, chat.OwnerID)
+
+	owner = reference.RepositoryRef.Owner
+	repo = reference.RepositoryRef.Repo
+	if owner == "" || repo == "" {
+		if reference.PullRequestURL != "" {
+			prRef, ok := parseGitHubPullRequestURL(reference.PullRequestURL)
+			if ok {
+				owner = prRef.Owner
+				repo = prRef.Repo
+			}
+		}
+	}
+
+	return owner, repo, token, nil
+}
+
+// fetchGitHubFileContent fetches raw file content from the GitHub
+// Contents API. Each path segment is individually URL-escaped to
+// prevent path traversal. The response body is limited to 10 MiB.
+func (api *API) fetchGitHubFileContent(
+	ctx context.Context,
+	owner, repo, filePath, ref, token string,
+) (contentType string, body []byte, err error) {
+	// Escape each path segment individually so directory separators
+	// are preserved but special characters cannot break out.
+	segments := strings.Split(filePath, "/")
+	for i, seg := range segments {
+		segments[i] = url.PathEscape(seg)
+	}
+	safePath := strings.Join(segments, "/")
+
+	requestURL := fmt.Sprintf(
+		"%s/repos/%s/%s/contents/%s?ref=%s",
+		githubAPIBaseURL, url.PathEscape(owner), url.PathEscape(repo), safePath, url.QueryEscape(ref),
+	)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return "", nil, xerrors.Errorf("create github file content request: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github.raw+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("User-Agent", "coder-chat-diff")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	httpClient := api.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", nil, xerrors.Errorf("execute github file content request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		errBody, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
+		if readErr != nil {
+			return "", nil, xerrors.Errorf(
+				"github file content request failed with status %d",
+				resp.StatusCode,
+			)
+		}
+		return "", nil, xerrors.Errorf(
+			"github file content request failed with status %d: %s",
+			resp.StatusCode,
+			strings.TrimSpace(string(errBody)),
+		)
+	}
+
+	contentType = resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	const maxFileSize = 10 << 20 // 10 MiB
+	body, err = io.ReadAll(io.LimitReader(resp.Body, maxFileSize))
+	if err != nil {
+		return "", nil, xerrors.Errorf("read github file content response: %w", err)
+	}
+
+	return contentType, body, nil
+}
+
 // chatCreateWorkspace provides workspace creation for the chat
 // processor. RBAC authorization uses context-based checks via
 // dbauthz.As rather than fake *http.Request objects.

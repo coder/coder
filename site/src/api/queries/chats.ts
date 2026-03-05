@@ -196,6 +196,21 @@ export const chatDiffContents = (chatId: string) => ({
 	queryFn: () => API.getChatDiffContents(chatId),
 });
 
+export const chatDiffFileContentKey = (
+	chatId: string,
+	path: string,
+	ref: string,
+) => ["chats", chatId, "diff-file-content", path, ref] as const;
+
+export const chatDiffFileContent = (
+	chatId: string,
+	path: string,
+	ref: string,
+) => ({
+	queryKey: chatDiffFileContentKey(chatId, path, ref),
+	queryFn: () => API.getChatDiffFileContent(chatId, path, ref),
+});
+
 export const chatModelsKey = ["chat-models"] as const;
 
 export const chatModels = () => ({
