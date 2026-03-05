@@ -1920,7 +1920,7 @@ The address the AI Bridge Proxy will listen on.
 | Environment | <code>$CODER_AIBRIDGE_PROXY_CERT_FILE</code> |
 | YAML        | <code>aibridgeproxy.cert_file</code>         |
 
-Path to the CA certificate file for AI Bridge Proxy.
+Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.
 
 ### --aibridge-proxy-key-file
 
@@ -1930,7 +1930,7 @@ Path to the CA certificate file for AI Bridge Proxy.
 | Environment | <code>$CODER_AIBRIDGE_PROXY_KEY_FILE</code> |
 | YAML        | <code>aibridgeproxy.key_file</code>         |
 
-Path to the CA private key file for AI Bridge Proxy.
+Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI clients.
 
 ### --aibridge-proxy-upstream
 
