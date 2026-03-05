@@ -57,8 +57,11 @@ const DisableFormattingPlugin: FC = memo(function DisableFormattingPlugin() {
 });
 
 // Intercepts paste events and inserts clipboard content as plain text,
-// stripping any rich-text formatting.
-const PasteSanitizationPlugin: FC = memo(function PasteSanitizationPlugin() {
+// stripping any rich-text formatting. Image files are forwarded to
+// the parent via the onFilePaste callback instead of being inserted.
+const PasteSanitizationPlugin: FC<{
+	onFilePaste?: (file: File) => void;
+}> = memo(function PasteSanitizationPlugin({ onFilePaste }) {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
@@ -68,6 +71,22 @@ const PasteSanitizationPlugin: FC = memo(function PasteSanitizationPlugin() {
 				if (!event) return false;
 				const clipboardData = event.clipboardData;
 				if (!clipboardData) return false;
+
+				// Check for image files in the clipboard (e.g. pasted
+				// screenshots). Forward them to the parent via callback
+				// instead of inserting text.
+				if (onFilePaste && clipboardData.files.length > 0) {
+					const images = Array.from(clipboardData.files).filter((f) =>
+						f.type.startsWith("image/"),
+					);
+					if (images.length > 0) {
+						event.preventDefault();
+						for (const file of images) {
+							onFilePaste(file);
+						}
+						return true;
+					}
+				}
 
 				const text = clipboardData.getData("text/plain");
 				if (!text) return false;
@@ -106,7 +125,7 @@ const PasteSanitizationPlugin: FC = memo(function PasteSanitizationPlugin() {
 			},
 			COMMAND_PRIORITY_HIGH,
 		);
-	}, [editor]);
+	}, [editor, onFilePaste]);
 
 	return null;
 });
@@ -217,6 +236,7 @@ interface ChatMessageInputProps
 	onChange?: (content: string) => void;
 	rows?: number;
 	onEnter?: () => void;
+	onFilePaste?: (file: File) => void;
 	disabled?: boolean;
 	autoFocus?: boolean;
 	"aria-label"?: string;
@@ -245,6 +265,7 @@ const ChatMessageInput = memo(
 		onChange,
 		rows,
 		onEnter,
+		onFilePaste,
 		disabled,
 		autoFocus,
 		"aria-label": ariaLabel,
@@ -392,7 +413,7 @@ const ChatMessageInput = memo(
 					/>
 					<HistoryPlugin />
 					<DisableFormattingPlugin />
-					<PasteSanitizationPlugin />
+					<PasteSanitizationPlugin onFilePaste={onFilePaste} />
 					<EnterKeyPlugin onEnter={disabled ? undefined : onEnter} />
 					<ContentChangePlugin onChange={handleContentChange} />
 					<ValueSyncPlugin initialValue={initialValue} />

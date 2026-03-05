@@ -1120,12 +1120,13 @@ export interface ChatGitChange {
 export interface ChatInputPart {
 	readonly type: ChatInputPartType;
 	readonly text?: string;
+	readonly file_id?: string;
 }
 
 // From codersdk/chats.go
-export type ChatInputPartType = "text";
+export type ChatInputPartType = "file" | "text";
 
-export const ChatInputPartTypes: ChatInputPartType[] = ["text"];
+export const ChatInputPartTypes: ChatInputPartType[] = ["file", "text"];
 
 // From codersdk/chats.go
 /**
@@ -6554,6 +6555,14 @@ export interface UpdateWorkspaceSharingSettingsRequest {
  */
 export interface UpdateWorkspaceTTLRequest {
 	readonly ttl_ms: number | null;
+}
+
+// From codersdk/chats.go
+/**
+ * UploadChatFileResponse is the response from uploading a chat file.
+ */
+export interface UploadChatFileResponse {
+	readonly id: string;
 }
 
 // From codersdk/files.go

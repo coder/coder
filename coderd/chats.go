@@ -1,11 +1,13 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -247,7 +249,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, titleSource, inputError := createChatInputFromRequest(req)
+	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
 		return
@@ -647,7 +649,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -721,7 +723,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -2196,19 +2198,198 @@ func normalizeChatCompressionThreshold(
 	return threshold, nil
 }
 
+// maxChatFileSize is the maximum size of a chat file upload (10 MB).
+const maxChatFileSize = 10 << 20
+
+// allowedChatFileMIMETypes lists the content types accepted for chat
+// file uploads. SVG is explicitly excluded because it can contain scripts.
+var allowedChatFileMIMETypes = map[string]bool{
+	"image/png":     true,
+	"image/jpeg":    true,
+	"image/gif":     true,
+	"image/webp":    true,
+	"image/svg+xml": false, // SVG can contain scripts.
+}
+
+var (
+	webpMagicRIFF = []byte("RIFF")
+	webpMagicWEBP = []byte("WEBP")
+)
+
+// detectChatFileType detects the MIME type of the given data.
+// It extends http.DetectContentType with support for WebP, which
+// Go's standard sniffer does not recognize.
+func detectChatFileType(data []byte) string {
+	if len(data) >= 12 &&
+		bytes.Equal(data[0:4], webpMagicRIFF) &&
+		bytes.Equal(data[8:12], webpMagicWEBP) {
+		return "image/webp"
+	}
+	return http.DetectContentType(data)
+}
+
 func defaultChatSystemPrompt() string {
 	return chatd.DefaultSystemPrompt
 }
 
-func createChatInputFromRequest(req codersdk.CreateChatRequest) (
+// @Summary Upload a chat file
+// @ID upload-chat-file
+// @Security CoderSessionToken
+// @Accept application/octet-stream
+// @Produce json
+// @Tags Chats
+// @Param Content-Type header string true "Content-Type must be an image type (image/png, image/jpeg, image/gif, image/webp)"
+// @Success 201 {object} codersdk.UploadChatFileResponse
+// @Failure 400 {object} codersdk.Response
+// @Failure 401 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response
+// @Failure 500 {object} codersdk.Response
+// @Router /chats/files [post]
+func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// TODO(multi-org): This takes the first org, which is correct for
+	// single-org deployments but arbitrary for multi-org. The client
+	// should specify the org, or we should use a default org policy.
+	organizations, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+		UserID:  apiKey.UserID,
+		Deleted: sql.NullBool{Bool: false, Valid: true},
+	})
+	if err != nil || len(organizations) == 0 {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine organization.",
+		})
+		return
+	}
+	orgID := organizations[0].ID
+
+	contentType := r.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	if allowed, ok := allowedChatFileMIMETypes[contentType]; !ok || !allowed {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unsupported file type.",
+			Detail:  "Allowed types: image/png, image/jpeg, image/gif, image/webp.",
+		})
+		return
+	}
+
+	r.Body = http.MaxBytesReader(rw, r.Body, maxChatFileSize)
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to read file from request.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Verify the actual content matches a safe image type so that
+	// a client cannot spoof Content-Type to serve active content.
+	detected := detectChatFileType(data)
+	if allowed, ok := allowedChatFileMIMETypes[detected]; !ok || !allowed {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unsupported file type.",
+			Detail:  "Allowed types: image/png, image/jpeg, image/gif, image/webp.",
+		})
+		return
+	}
+
+	// Extract filename from Content-Disposition header if provided.
+	var filename string
+	if cd := r.Header.Get("Content-Disposition"); cd != "" {
+		if _, params, err := mime.ParseMediaType(cd); err == nil {
+			filename = params["filename"]
+		}
+	}
+
+	chatFile, err := api.Database.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        apiKey.UserID,
+		OrganizationID: orgID,
+		Name:           filename,
+		Mimetype:       detected,
+		Data:           data,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to save chat file.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.UploadChatFileResponse{
+		ID: chatFile.ID,
+	})
+}
+
+// @Summary Get a chat file
+// @ID get-chat-file
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param file path string true "File ID" format(uuid)
+// @Success 200
+// @Failure 400 {object} codersdk.Response
+// @Failure 401 {object} codersdk.Response
+// @Failure 404 {object} codersdk.Response
+// @Failure 500 {object} codersdk.Response
+// @Router /chats/files/{file} [get]
+func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	fileIDStr := chi.URLParam(r, "file")
+	fileID, err := uuid.Parse(fileIDStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid file ID.",
+		})
+		return
+	}
+
+	chatFile, err := api.Database.GetChatFileByID(ctx, fileID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat file.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.Header().Set("Content-Type", chatFile.Mimetype)
+	if chatFile.Name != "" {
+		rw.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": chatFile.Name}))
+	} else {
+		rw.Header().Set("Content-Disposition", "inline")
+	}
+	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	rw.Header().Set("Content-Length", strconv.Itoa(len(chatFile.Data)))
+	rw.WriteHeader(http.StatusOK)
+	_, _ = rw.Write(chatFile.Data)
+}
+
+func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest) (
 	[]fantasy.Content,
 	string,
 	*codersdk.Response,
 ) {
-	return createChatInputFromParts(req.Content, "content")
+	return createChatInputFromParts(ctx, db, req.Content, "content")
 }
 
 func createChatInputFromParts(
+	ctx context.Context,
+	db database.Store,
 	parts []codersdk.ChatInputPart,
 	fieldName string,
 ) ([]fantasy.Content, string, *codersdk.Response) {
@@ -2233,6 +2414,30 @@ func createChatInputFromParts(
 			}
 			content = append(content, fantasy.TextContent{Text: text})
 			textParts = append(textParts, text)
+		case string(codersdk.ChatInputPartTypeFile):
+			if part.FileID == uuid.Nil {
+				return nil, "", &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
+				}
+			}
+			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
+			if err != nil {
+				if httpapi.Is404Error(err) {
+					return nil, "", &codersdk.Response{
+						Message: "Invalid input part.",
+						Detail:  fmt.Sprintf("%s[%d].file_id references a file that does not exist.", fieldName, i),
+					}
+				}
+				return nil, "", &codersdk.Response{
+					Message: "Internal error.",
+					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
+				}
+			}
+			content = append(content, fantasy.FileContent{
+				Data:      chatFile.Data,
+				MediaType: chatFile.Mimetype,
+			})
 		default:
 			return nil, "", &codersdk.Response{
 				Message: "Invalid input part.",
@@ -2246,13 +2451,15 @@ func createChatInputFromParts(
 		}
 	}
 
-	titleSource := strings.TrimSpace(strings.Join(textParts, " "))
-	if titleSource == "" {
+	// Allow file-only messages. The titleSource may be empty
+	// when only file parts are provided, callers handle this.
+	if len(content) == 0 {
 		return nil, "", &codersdk.Response{
 			Message: "Content is required.",
-			Detail:  "Content must include at least one text part.",
+			Detail:  fmt.Sprintf("%s must include at least one text or file part.", fieldName),
 		}
 	}
+	titleSource := strings.TrimSpace(strings.Join(textParts, " "))
 	return content, titleSource, nil
 }
 

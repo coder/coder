@@ -59,6 +59,7 @@ import {
 } from "./modelOptions";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
+import { useFileAttachments } from "./useFileAttachments";
 import { WebPushButton } from "./WebPushButton";
 
 /** @internal Exported for testing. */
@@ -72,6 +73,7 @@ type ChatModelOption = ModelSelectorOption;
 
 type CreateChatOptions = {
 	message: string;
+	fileIDs?: string[];
 	workspaceId?: string;
 	model?: string;
 };
@@ -329,11 +331,20 @@ const AgentsPage: FC = () => {
 		],
 	);
 	const handleCreateChat = async (options: CreateChatOptions) => {
-		const { message, workspaceId, model } = options;
+		const { message, fileIDs, workspaceId, model } = options;
 		const modelConfigID =
 			(model && modelConfigIDByModelID.get(model)) || nilUUID;
+		const content: TypesGen.ChatInputPart[] = [];
+		if (message.trim()) {
+			content.push({ type: "text", text: message });
+		}
+		if (fileIDs) {
+			for (const fileID of fileIDs) {
+				content.push({ type: "file", file_id: fileID });
+			}
+		}
 		const createdChat = await createMutation.mutateAsync({
-			content: [{ type: "text", text: message }],
+			content,
 			workspace_id: workspaceId,
 			model_config_id: modelConfigID,
 		});
@@ -855,10 +866,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	);
 
 	const handleSend = useCallback(
-		(message: string) => {
+		async (message: string, fileIDs?: string[]) => {
 			submitDraft();
-			void onCreateChat({
+			await onCreateChat({
 				message,
+				fileIDs,
 				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
 				model: selectedModelRef.current || undefined,
 			}).catch(() => {
@@ -877,6 +889,34 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		? `${selectedWorkspace.owner_name}/${selectedWorkspace.name}`
 		: undefined;
 
+	const {
+		attachments,
+		uploadStates,
+		previewUrls,
+		handleAttach,
+		handleRemoveAttachment,
+		resetAttachments,
+	} = useFileAttachments();
+
+	const handleSendWithAttachments = useCallback(
+		async (message: string) => {
+			const fileIds: string[] = [];
+			for (const file of attachments) {
+				const state = uploadStates.get(file);
+				if (state?.status === "uploaded" && state.fileId) {
+					fileIds.push(state.fileId);
+				}
+			}
+			try {
+				await handleSend(message, fileIds.length > 0 ? fileIds : undefined);
+				resetAttachments();
+			} catch {
+				// Attachments preserved for retry on failure.
+			}
+		},
+		[attachments, handleSend, resetAttachments, uploadStates],
+	);
+
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
@@ -886,7 +926,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 				)}
 
 				<AgentChatInput
-					onSend={handleSend}
+					onSend={handleSendWithAttachments}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
 					isDisabled={isCreating}
 					isLoading={isCreating}
@@ -899,6 +939,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					hasModelOptions={hasModelOptions}
 					inputStatusText={inputStatusText}
 					modelCatalogStatusMessage={modelCatalogStatusMessage}
+					attachments={attachments}
+					onAttach={handleAttach}
+					onRemoveAttachment={handleRemoveAttachment}
+					uploadStates={uploadStates}
+					previewUrls={previewUrls}
 					leftActions={
 						<Combobox
 							value={selectedWorkspaceId ?? autoCreateWorkspaceValue}

@@ -216,6 +216,17 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					parsed.blocks = ensureToolBlock(parsed.blocks, id);
 					break;
 				}
+				case "file": {
+					const mediaType = asString(typedBlock.media_type);
+					const data = asString(typedBlock.data);
+					if (mediaType && data) {
+						parsed.blocks = [
+							...parsed.blocks,
+							{ type: "file", mediaType, data },
+						];
+					}
+					break;
+				}
 				default: {
 					const text = asString(typedBlock.text);
 					parsed.markdown = appendText(parsed.markdown, text);

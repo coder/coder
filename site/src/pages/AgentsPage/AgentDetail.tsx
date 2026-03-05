@@ -74,6 +74,7 @@ import {
 } from "./modelOptions";
 import { RightPanel } from "./RightPanel";
 import { SidebarTabView } from "./SidebarTabView";
+import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
 
 const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
@@ -99,7 +100,11 @@ interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
 	chatID: string;
 	persistedErrorReason: string | undefined;
-	onEditUserMessage?: (messageId: number, text: string) => void;
+	onEditUserMessage?: (
+		messageId: number,
+		text: string,
+		fileBlocks?: Array<{ mediaType: string; data: string }>,
+	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 }
@@ -186,7 +191,7 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 interface AgentDetailInputProps {
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
-	onSend: (message: string) => void;
+	onSend: (message: string, fileIds?: string[]) => void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -210,6 +215,9 @@ interface AgentDetailInputProps {
 	onCancelQueueEdit: () => void;
 	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
+	// File blocks from the message being edited, converted to
+	// File objects and pre-populated into attachments.
+	editingFileBlocks?: Array<{ mediaType: string; data: string }>;
 }
 
 const AgentDetailInput: FC<AgentDetailInputProps> = ({
@@ -237,6 +245,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage,
 	onCancelHistoryEdit,
+	editingFileBlocks,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -258,12 +267,124 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		}
 		return { ...usage, compressionThreshold };
 	}, [messages, compressionThreshold]);
+	const {
+		attachments,
+		uploadStates,
+		previewUrls,
+		handleAttach,
+		handleRemoveAttachment: hookRemoveAttachment,
+		resetAttachments,
+		setAttachments,
+		setPreviewUrls,
+		setUploadStates,
+	} = useFileAttachments();
+	// Holds raw block data for edit-mode files so we can reconstruct
+	// the full File content lazily at submit time instead of eagerly
+	// decoding base64 on every edit click.
+	const editBlockDataRef = useRef(
+		new Map<File, { mediaType: string; data: string }>(),
+	);
+	// Wrap hook's remove to also clear edit block data.
+	const handleRemoveAttachment = useCallback(
+		(index: number) => {
+			const removed = attachments[index];
+			if (removed) {
+				editBlockDataRef.current.delete(removed);
+			}
+			hookRemoveAttachment(index);
+		},
+		[attachments, hookRemoveAttachment],
+	);
+
+	// Pre-populate attachments from existing file blocks when
+	// entering edit mode on a message with images.
+	useEffect(() => {
+		if (!editingFileBlocks || editingFileBlocks.length === 0) {
+			// Clear attachments when exiting edit mode.
+			setAttachments([]);
+			setUploadStates(new Map());
+			setPreviewUrls(new Map());
+			editBlockDataRef.current = new Map();
+			return;
+		}
+		// Use minimal placeholder files as map keys. The actual file
+		// data is reconstructed from editBlockDataRef at submit time
+		// to avoid blocking the main thread with base64 decoding.
+		const files = editingFileBlocks.map((block, i) => {
+			const ext = block.mediaType.split("/")[1] ?? "png";
+			return new File([], `attachment-${i}.${ext}`, {
+				type: block.mediaType,
+			});
+		});
+		setAttachments(files);
+		setPreviewUrls(
+			new Map(
+				files.map((f, i) => [
+					f,
+					`data:${editingFileBlocks[i].mediaType};base64,${editingFileBlocks[i].data}`,
+				]),
+			),
+		);
+		editBlockDataRef.current = new Map(
+			files.map((f, i) => [f, editingFileBlocks[i]]),
+		);
+		// Mark edit-mode files as "uploaded" so canSend treats them
+		// as ready. They don't have a fileId because the stored
+		// message has inline data; the actual upload happens at
+		// submit time via editBlockDataRef.
+		setUploadStates(
+			new Map(files.map((f) => [f, { status: "uploaded" as const }])),
+		);
+	}, [editingFileBlocks, setAttachments, setPreviewUrls, setUploadStates]);
+
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
 	return (
 		<AgentChatInput
-			onSend={onSend}
+			onSend={(message) => {
+				void (async () => {
+					try {
+						// Collect file IDs, uploading any that haven't
+						// been uploaded yet (e.g. edit-mode files).
+						// Skip files in error state (e.g. too large).
+						const fileIds: string[] = [];
+						for (const file of attachments) {
+							const state = uploadStates.get(file);
+							if (state?.status === "error") {
+								continue;
+							}
+							if (state?.status === "uploaded" && state.fileId) {
+								fileIds.push(state.fileId);
+							} else {
+								const blockData = editBlockDataRef.current.get(file);
+								let fileToUpload = file;
+								if (blockData) {
+									// Reconstruct from base64 only at submit time.
+									const bytes = Uint8Array.from(atob(blockData.data), (c) =>
+										c.charCodeAt(0),
+									);
+									fileToUpload = new File([bytes], file.name, {
+										type: blockData.mediaType,
+									});
+								}
+								const uploaded = await API.uploadChatFile(fileToUpload);
+								fileIds.push(uploaded.id);
+							}
+						}
+						await onSend(message, fileIds.length > 0 ? fileIds : undefined);
+						resetAttachments();
+						editBlockDataRef.current = new Map();
+					} catch {
+						// Attachments preserved for retry on failure.
+					}
+				})();
+			}}
+			attachments={attachments}
+			onAttach={handleAttach}
+			onRemoveAttachment={handleRemoveAttachment}
+			uploadStates={uploadStates}
+			previewUrls={previewUrls}
 			inputRef={inputRef}
 			initialValue={initialValue}
 			onContentChange={onContentChange}
@@ -295,7 +416,11 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
-	onSend: (message: string, editedMessageID?: number) => Promise<void>;
+	onSend: (
+		message: string,
+		fileIds?: string[],
+		editedMessageID?: number,
+	) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
@@ -321,15 +446,23 @@ export function useConversationEditingState(deps: {
 	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] = useState<
 		string | null
 	>(null);
+	const [editingFileBlocks, setEditingFileBlocks] = useState<
+		Array<{ mediaType: string; data: string }>
+	>([]);
 
 	const handleEditUserMessage = useCallback(
-		(messageId: number, text: string) => {
+		(
+			messageId: number,
+			text: string,
+			fileBlocks?: Array<{ mediaType: string; data: string }>,
+		) => {
 			setDraftBeforeHistoryEdit((prev) =>
 				editingMessageId !== null ? prev : inputValueRef.current,
 			);
 			setEditingMessageId(messageId);
 			setEditorInitialValue(text);
 			inputValueRef.current = text;
+			setEditingFileBlocks(fileBlocks ?? []);
 		},
 		[editingMessageId, inputValueRef],
 	);
@@ -339,6 +472,7 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = draftBeforeHistoryEdit ?? "";
 		setEditingMessageId(null);
 		setDraftBeforeHistoryEdit(null);
+		setEditingFileBlocks([]);
 	}, [draftBeforeHistoryEdit, inputValueRef]);
 
 	// -- Queue editing state --
@@ -371,29 +505,29 @@ export function useConversationEditingState(deps: {
 	// Wraps the parent onSend to clear local input/editing state
 	// and handle queue-edit deletion.
 	const handleSendFromInput = useCallback(
-		(message: string) => {
+		async (message: string, fileIds?: string[]) => {
 			const editedMessageID =
 				editingMessageId !== null ? editingMessageId : undefined;
 			const queueEditID = editingQueuedMessageID;
 
-			void onSend(message, editedMessageID).then(() => {
-				// Clear input and editing state on success.
-				chatInputRef.current?.clear();
-				chatInputRef.current?.focus();
-				inputValueRef.current = "";
-				if (typeof window !== "undefined" && draftStorageKey) {
-					localStorage.removeItem(draftStorageKey);
-				}
-				if (editingMessageId !== null) {
-					setEditingMessageId(null);
-					setDraftBeforeHistoryEdit(null);
-				}
-				if (queueEditID !== null) {
-					setEditingQueuedMessageID(null);
-					setDraftBeforeQueueEdit(null);
-					void onDeleteQueuedMessage(queueEditID);
-				}
-			});
+			await onSend(message, fileIds, editedMessageID);
+			// Clear input and editing state on success.
+			chatInputRef.current?.clear();
+			chatInputRef.current?.focus();
+			inputValueRef.current = "";
+			if (typeof window !== "undefined" && draftStorageKey) {
+				localStorage.removeItem(draftStorageKey);
+			}
+			if (editingMessageId !== null) {
+				setEditingMessageId(null);
+				setDraftBeforeHistoryEdit(null);
+				setEditingFileBlocks([]);
+			}
+			if (queueEditID !== null) {
+				setEditingQueuedMessageID(null);
+				setDraftBeforeQueueEdit(null);
+				void onDeleteQueuedMessage(queueEditID);
+			}
 		},
 		[
 			chatInputRef,
@@ -425,6 +559,7 @@ export function useConversationEditingState(deps: {
 		chatInputRef,
 		editorInitialValue,
 		editingMessageId,
+		editingFileBlocks,
 		handleEditUserMessage,
 		handleCancelHistoryEdit,
 		editingQueuedMessageID,
@@ -658,16 +793,26 @@ const AgentDetail: FC = () => {
 		interruptMutation.isPending;
 	const isInputDisabled = !hasModelOptions || isArchived;
 
-	const handleSend = async (message: string, editedMessageID?: number) => {
-		if (
-			!message.trim() ||
-			isSubmissionPending ||
-			!agentId ||
-			!hasModelOptions
-		) {
+	const handleSend = async (
+		message: string,
+		fileIds?: string[],
+		editedMessageID?: number,
+	) => {
+		const hasContent = message.trim() || (fileIds && fileIds.length > 0);
+		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
 			return;
 		}
-		const content: TypesGen.ChatInputPart[] = [{ type: "text", text: message }];
+		const content: TypesGen.ChatInputPart[] = [];
+		if (message.trim()) {
+			content.push({ type: "text", text: message });
+		}
+
+		// Add pre-uploaded file references.
+		if (fileIds && fileIds.length > 0) {
+			for (const fileId of fileIds) {
+				content.push({ type: "file", file_id: fileId });
+			}
+		}
 		if (editedMessageID !== undefined) {
 			const request: TypesGen.EditChatMessageRequest = { content };
 			clearChatErrorReason(agentId);
@@ -1091,6 +1236,7 @@ const AgentDetail: FC = () => {
 						onCancelQueueEdit={editing.handleCancelQueueEdit}
 						isEditingHistoryMessage={editing.editingMessageId !== null}
 						onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+						editingFileBlocks={editing.editingFileBlocks}
 					/>
 				</div>
 			</div>

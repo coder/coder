@@ -110,7 +110,7 @@ describe("useConversationEditingState", () => {
 		await act(async () => {
 			result.current.handleSendFromInput("hello");
 			await vi.waitFor(() => {
-				expect(onSend).toHaveBeenCalledWith("hello", undefined);
+				expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
 			});
 		});
 

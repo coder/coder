@@ -132,6 +132,18 @@ are queued and delivered when the agent completes its current step, so there is
 no need to wait for a response before providing additional context or changing
 direction.
 
+### Image attachments
+
+Users can attach images to chat messages by pasting from the clipboard, dragging
+files into the input area, or using the attachment button. Supported formats are
+PNG, JPEG, GIF, and WebP up to 10 MB per file. Images are sent to the model as
+multimodal content alongside the text prompt.
+
+This is useful for sharing screenshots of errors, UI mockups, terminal output,
+or other visual context that helps the agent understand the task. Messages can
+contain images alone or combined with text. Image attachments require a model
+that supports vision input.
+
 ## Security benefits of the control plane architecture
 
 Running the agent loop in the control plane rather than inside the developer

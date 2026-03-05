@@ -13,13 +13,28 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ArrowUpIcon, Loader2Icon, Square, XIcon } from "lucide-react";
+import {
+	AlertTriangleIcon,
+	ArrowUpIcon,
+	Loader2Icon,
+	PaperclipIcon,
+	Square,
+	XIcon,
+} from "lucide-react";
+import type React from "react";
 import { memo, type ReactNode, useCallback, useRef, useState } from "react";
 import { cn } from "utils/cn";
+import { ImageLightbox } from "./ImageLightbox";
 import { formatProviderLabel } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
+
+export type UploadState = {
+	status: "uploading" | "uploaded" | "error";
+	fileId?: string;
+	error?: string;
+};
 
 export interface AgentContextUsage {
 	readonly usedTokens?: number;
@@ -76,6 +91,11 @@ interface AgentChatInputProps {
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
 	// Omit entirely to hide the indicator.
 	contextUsage?: AgentContextUsage | null;
+	attachments?: File[];
+	onAttach?: (files: File[]) => void;
+	onRemoveAttachment?: (index: number) => void;
+	uploadStates?: Map<File, UploadState>;
+	previewUrls?: Map<File, string>;
 }
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -201,6 +221,87 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 );
 ContextUsageIndicator.displayName = "ContextUsageIndicator";
 
+/** Renders an image thumbnail from a pre-created preview URL. */
+export const ImageThumbnail = memo<{
+	previewUrl: string;
+	name: string;
+	className?: string;
+}>(({ previewUrl, name, className }) => (
+	<img
+		src={previewUrl}
+		alt={name}
+		className={cn(
+			"h-16 w-16 rounded-md border border-border-default object-cover",
+			className,
+		)}
+	/>
+));
+ImageThumbnail.displayName = "ImageThumbnail";
+
+/** Renders a horizontal strip of attachment thumbnails above the input. */
+export const AttachmentPreview = memo<{
+	attachments: File[];
+	onRemove: (index: number) => void;
+	uploadStates?: Map<File, UploadState>;
+	previewUrls?: Map<File, string>;
+	onPreview?: (url: string) => void;
+}>(({ attachments, onRemove, uploadStates, previewUrls, onPreview }) => {
+	if (attachments.length === 0) return null;
+
+	return (
+		<div className="flex gap-2 overflow-x-auto border-b border-border-default/50 px-3 py-2">
+			{attachments.map((file, index) => {
+				const uploadState = uploadStates?.get(file);
+				const previewUrl = previewUrls?.get(file) ?? "";
+				return (
+					<div
+						// Key combines file metadata with index as a fallback for
+						// duplicate names. Acceptable for a small, append-only list.
+						key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+						className="group relative"
+					>
+						{file.type.startsWith("image/") && previewUrl ? (
+							<button
+								type="button"
+								className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
+								onClick={() => onPreview?.(previewUrl)}
+							>
+								<ImageThumbnail previewUrl={previewUrl} name={file.name} />
+							</button>
+						) : (
+							<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
+								{file.name.split(".").pop()?.toUpperCase() || "FILE"}
+							</div>
+						)}
+						{uploadState?.status === "uploading" && (
+							<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
+								<Loader2Icon className="h-5 w-5 animate-spin text-white" />
+							</div>
+						)}
+						{uploadState?.status === "error" && (
+							<div
+								className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay"
+								title={uploadState.error ?? "Upload failed"}
+							>
+								<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
+							</div>
+						)}
+						<button
+							type="button"
+							onClick={() => onRemove(index)}
+							className="absolute -right-2 -top-2 hidden h-6 w-6 cursor-pointer items-center justify-center rounded-full border border-border-default bg-surface-primary text-content-secondary shadow-sm transition-colors hover:bg-surface-secondary hover:text-content-primary group-hover:flex"
+							aria-label={`Remove ${file.name}`}
+						>
+							<XIcon className="h-3.5 w-3.5" />
+						</button>
+					</div>
+				);
+			})}
+		</div>
+	);
+});
+AttachmentPreview.displayName = "AttachmentPreview";
+
 export const AgentChatInput = memo<AgentChatInputProps>(
 	({
 		onSend,
@@ -230,8 +331,14 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		isEditingHistoryMessage = false,
 		onCancelHistoryEdit,
 		contextUsage,
+		attachments = [],
+		onAttach,
+		onRemoveAttachment,
+		uploadStates,
+		previewUrls,
 	}) => {
 		const internalRef = useRef<ChatMessageInputRef>(null);
+		const [previewImage, setPreviewImage] = useState<string | null>(null);
 
 		// Merge the external inputRef with our internal ref so both
 		// point to the same ChatMessageInputRef instance.
@@ -249,6 +356,57 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				}
 			},
 			[inputRef],
+		);
+
+		const fileInputRef = useRef<HTMLInputElement>(null);
+
+		const handleFileSelect = useCallback(
+			(e: React.ChangeEvent<HTMLInputElement>) => {
+				if (e.target.files && onAttach) {
+					onAttach(Array.from(e.target.files));
+				}
+				// Reset so the same file can be selected again.
+				e.target.value = "";
+			},
+			[onAttach],
+		);
+
+		const handleFilePaste = useCallback(
+			(file: File) => {
+				onAttach?.([file]);
+			},
+			[onAttach],
+		);
+
+		// Drag-and-drop support for image files.
+		const [isDragging, setIsDragging] = useState(false);
+
+		const handleDragOver = useCallback((e: React.DragEvent) => {
+			e.preventDefault();
+			if (e.dataTransfer.types.includes("Files")) {
+				setIsDragging(true);
+			}
+		}, []);
+
+		const handleDragLeave = useCallback((e: React.DragEvent) => {
+			if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+				setIsDragging(false);
+			}
+		}, []);
+
+		const handleDrop = useCallback(
+			(e: React.DragEvent) => {
+				e.preventDefault();
+				setIsDragging(false);
+				if (!onAttach || !e.dataTransfer.files.length) return;
+				const images = Array.from(e.dataTransfer.files).filter((f) =>
+					f.type.startsWith("image/"),
+				);
+				if (images.length > 0) {
+					onAttach(images);
+				}
+			},
+			[onAttach],
 		);
 
 		// Track whether the editor has content so we can gate the
@@ -275,7 +433,18 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 		}
 
-		const canSend = !isDisabled && !isLoading && hasModelOptions && hasContent;
+		const isUploading = attachments.some(
+			(f) => uploadStates?.get(f)?.status === "uploading",
+		);
+		const hasUploadedAttachments = attachments.some(
+			(f) => uploadStates?.get(f)?.status === "uploaded",
+		);
+		const canSend =
+			!isDisabled &&
+			!isLoading &&
+			hasModelOptions &&
+			(hasContent || hasUploadedAttachments) &&
+			!isUploading;
 
 		const handleSubmit = useCallback(() => {
 			const text = internalRef.current?.getValue()?.trim() ?? "";
@@ -284,6 +453,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			// promote the first one instead of submitting.
 			if (
 				!text &&
+				!hasUploadedAttachments &&
 				!isDisabled &&
 				!isLoading &&
 				queuedMessages.length > 0 &&
@@ -293,7 +463,12 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				return;
 			}
 
-			if (!text || isDisabled || isLoading || !hasModelOptions) {
+			if (
+				(!text && !hasUploadedAttachments) ||
+				isDisabled ||
+				isLoading ||
+				!hasModelOptions
+			) {
 				return;
 			}
 
@@ -303,6 +478,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			isDisabled,
 			isLoading,
 			hasModelOptions,
+			hasUploadedAttachments,
 			onSend,
 			queuedMessages,
 			onPromoteQueuedMessage,
@@ -348,8 +524,14 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					/>
 				)}
 				<div
-					className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40"
+					className={cn(
+						"rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+						isDragging && "ring-2 ring-content-link/40",
+					)}
 					onKeyDown={handleKeyDown}
+					onDragOver={onAttach ? handleDragOver : undefined}
+					onDragLeave={onAttach ? handleDragLeave : undefined}
+					onDrop={onAttach ? handleDrop : undefined}
 				>
 					{editingQueuedMessageID !== null && (
 						<div className="flex items-center justify-between border-b border-border-default/70 bg-surface-primary/25 px-3 py-1.5">
@@ -388,8 +570,18 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 							</Button>
 						</div>
 					)}
+					{onRemoveAttachment && (
+						<AttachmentPreview
+							attachments={attachments}
+							onRemove={onRemoveAttachment}
+							uploadStates={uploadStates}
+							previewUrls={previewUrls}
+							onPreview={setPreviewImage}
+						/>
+					)}
 					<ChatMessageInput
 						ref={setRef}
+						onFilePaste={onAttach ? handleFilePaste : undefined}
 						aria-label="Chat message"
 						className="min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
@@ -413,6 +605,29 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								dropdownAlign="center"
 							/>
 							{leftActions}
+							{onAttach && (
+								<>
+									<input
+										ref={fileInputRef}
+										type="file"
+										multiple
+										accept="image/*"
+										onChange={handleFileSelect}
+										className="hidden"
+									/>
+									<Button
+										type="button"
+										variant="subtle"
+										size="icon"
+										className="size-7 shrink-0"
+										onClick={() => fileInputRef.current?.click()}
+										disabled={isDisabled}
+										aria-label="Attach files"
+									>
+										<PaperclipIcon className="h-4 w-4" />
+									</Button>
+								</>
+							)}
 							{inputStatusText && (
 								<span className="hidden text-xs text-content-secondary sm:inline">
 									{inputStatusText}
@@ -467,7 +682,17 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			</div>
 		);
 
-		return content;
+		return (
+			<>
+				{content}
+				{previewImage && (
+					<ImageLightbox
+						src={previewImage}
+						onClose={() => setPreviewImage(null)}
+					/>
+				)}
+			</>
+		);
 	},
 );
 AgentChatInput.displayName = "AgentChatInput";
