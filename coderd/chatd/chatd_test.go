@@ -1372,19 +1372,16 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Wait for the chat to complete and return to waiting status.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid
+	// Wait for the web push notification to be dispatched.
+	// We poll dispatchCount rather than DB status because the
+	// push fires after the status update, creating a small race
+	// window.
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		return mockPush.dispatchCount.Load() >= 1
 	}, testutil.IntervalFast)
 
-	// Verify a web push notification was dispatched exactly once.
 	require.Equal(t, int32(1), mockPush.dispatchCount.Load(),
 		"expected exactly one web push dispatch for a completed chat")
-
 	// Verify the notification was sent to the correct user.
 	mockPush.mu.Lock()
 	capturedMsg := mockPush.lastMessage
