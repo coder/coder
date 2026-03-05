@@ -1047,7 +1047,12 @@ const AgentDetail: FC = () => {
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				onVisualExpandedChange={setDragVisualExpanded}
 				tabContent={{
-					git: <FilesChangedPanel chatId={agentId} />,
+					git: (
+						<FilesChangedPanel
+							chatId={agentId}
+							isExpanded={isRightPanelExpanded}
+						/>
+					),
 				}}
 				tabMeta={{
 					git: <DiffStats diffStatus={diffStatusQuery.data} />,

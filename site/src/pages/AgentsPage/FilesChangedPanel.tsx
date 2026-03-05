@@ -36,6 +36,7 @@ import { cn } from "utils/cn";
 
 interface FilesChangedPanelProps {
 	chatId: string;
+	isExpanded?: boolean;
 }
 
 /**
@@ -226,7 +227,10 @@ const FileTreeNodeView: FC<{
 	);
 };
 
-export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
+export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
+	chatId,
+	isExpanded,
+}) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
@@ -311,7 +315,8 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 	}, []);
 
 	const showTree =
-		containerWidth >= FILE_TREE_THRESHOLD && parsedFiles.length > 0;
+		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
+		parsedFiles.length > 0;
 
 	// ---------------------------------------------------------------
 	// Refs for each file diff wrapper so we can scroll-to and track
