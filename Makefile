@@ -33,6 +33,25 @@ SHELL := bash
 	coderd/database/unique_constraint.go \
 	coderd/database/dbmetrics/querymetrics.go \
 	coderd/database/dbauthz/dbauthz.go \
+	coderd/database/dbmock/dbmock.go \
+	coderd/database/pubsub/psmock/psmock.go \
+	agent/agentcontainers/acmock/acmock.go \
+	coderd/httpmw/loggermw/loggermock/loggermock.go \
+	codersdk/workspacesdk/agentconnmock/agentconnmock.go \
+	tailnet/tailnettest/coordinatormock.go \
+	tailnet/tailnettest/coordinateemock.go \
+	tailnet/tailnettest/workspaceupdatesprovidermock.go \
+	tailnet/tailnettest/subscriptionmock.go \
+	enterprise/aibridged/aibridgedmock/clientmock.go \
+	enterprise/aibridged/aibridgedmock/poolmock.go \
+	tailnet/proto/tailnet.pb.go \
+	agent/proto/agent.pb.go \
+	agent/agentsocket/proto/agentsocket.pb.go \
+	agent/boundarylogproxy/codec/boundary.pb.go \
+	provisionersdk/proto/provisioner.pb.go \
+	provisionerd/proto/provisionerd.pb.go \
+	vpn/vpn.pb.go \
+	enterprise/aibridged/proto/aibridged.pb.go \
 	site/src/api/typesGenerated.ts \
 	site/e2e/provisionerGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
@@ -822,64 +841,94 @@ $(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go
 	touch "$@"
 
 tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		--go-drpc_out=. \
-		--go-drpc_opt=paths=source_relative \
-		./tailnet/proto/tailnet.proto
+	tmpdir=$$(mktemp -d) && \
+		protoc \
+			--go_out=$$tmpdir \
+			--go_opt=paths=source_relative \
+			--go-drpc_out=$$tmpdir \
+			--go-drpc_opt=paths=source_relative \
+			./tailnet/proto/tailnet.proto && \
+		mv "$$tmpdir/tailnet/proto/tailnet.pb.go" tailnet/proto/tailnet.pb.go && \
+		mv "$$tmpdir/tailnet/proto/tailnet_drpc.pb.go" tailnet/proto/tailnet_drpc.pb.go && \
+		rm -rf "$$tmpdir"
 
 agent/proto/agent.pb.go: agent/proto/agent.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		--go-drpc_out=. \
-		--go-drpc_opt=paths=source_relative \
-		./agent/proto/agent.proto
+	tmpdir=$$(mktemp -d) && \
+		protoc \
+			--go_out=$$tmpdir \
+			--go_opt=paths=source_relative \
+			--go-drpc_out=$$tmpdir \
+			--go-drpc_opt=paths=source_relative \
+			./agent/proto/agent.proto && \
+		mv "$$tmpdir/agent/proto/agent.pb.go" agent/proto/agent.pb.go && \
+		mv "$$tmpdir/agent/proto/agent_drpc.pb.go" agent/proto/agent_drpc.pb.go && \
+		rm -rf "$$tmpdir"
 
 agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto agent/proto/agent.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		--go-drpc_out=. \
-		--go-drpc_opt=paths=source_relative \
-		./agent/agentsocket/proto/agentsocket.proto
+	tmpdir=$$(mktemp -d) && \
+		protoc \
+			--go_out=$$tmpdir \
+			--go_opt=paths=source_relative \
+			--go-drpc_out=$$tmpdir \
+			--go-drpc_opt=paths=source_relative \
+			./agent/agentsocket/proto/agentsocket.proto && \
+		mv "$$tmpdir/agent/agentsocket/proto/agentsocket.pb.go" agent/agentsocket/proto/agentsocket.pb.go && \
+		mv "$$tmpdir/agent/agentsocket/proto/agentsocket_drpc.pb.go" agent/agentsocket/proto/agentsocket_drpc.pb.go && \
+		rm -rf "$$tmpdir"
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		--go-drpc_out=. \
-		--go-drpc_opt=paths=source_relative \
-		./provisionersdk/proto/provisioner.proto
+	tmpdir=$$(mktemp -d) && \
+		protoc \
+			--go_out=$$tmpdir \
+			--go_opt=paths=source_relative \
+			--go-drpc_out=$$tmpdir \
+			--go-drpc_opt=paths=source_relative \
+			./provisionersdk/proto/provisioner.proto && \
+		mv "$$tmpdir/provisionersdk/proto/provisioner.pb.go" provisionersdk/proto/provisioner.pb.go && \
+		mv "$$tmpdir/provisionersdk/proto/provisioner_drpc.pb.go" provisionersdk/proto/provisioner_drpc.pb.go && \
+		rm -rf "$$tmpdir"
 
 provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		--go-drpc_out=. \
-		--go-drpc_opt=paths=source_relative \
-		./provisionerd/proto/provisionerd.proto
+	tmpdir=$$(mktemp -d) && \
+		protoc \
+			--go_out=$$tmpdir \
+			--go_opt=paths=source_relative \
+			--go-drpc_out=$$tmpdir \
+			--go-drpc_opt=paths=source_relative \
+			./provisionerd/proto/provisionerd.proto && \
+		mv "$$tmpdir/provisionerd/proto/provisionerd.pb.go" provisionerd/proto/provisionerd.pb.go && \
+		mv "$$tmpdir/provisionerd/proto/provisionerd_drpc.pb.go" provisionerd/proto/provisionerd_drpc.pb.go && \
+		rm -rf "$$tmpdir"
 
 vpn/vpn.pb.go: vpn/vpn.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		./vpn/vpn.proto
+	tmpdir=$$(mktemp -d) && \
+		protoc \
+			--go_out=$$tmpdir \
+			--go_opt=paths=source_relative \
+			./vpn/vpn.proto && \
+		mv "$$tmpdir/vpn/vpn.pb.go" vpn/vpn.pb.go && \
+		rm -rf "$$tmpdir"
 
 agent/boundarylogproxy/codec/boundary.pb.go: agent/boundarylogproxy/codec/boundary.proto agent/proto/agent.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		./agent/boundarylogproxy/codec/boundary.proto
+	tmpdir=$$(mktemp -d) && \
+		protoc \
+			--go_out=$$tmpdir \
+			--go_opt=paths=source_relative \
+			./agent/boundarylogproxy/codec/boundary.proto && \
+		mv "$$tmpdir/agent/boundarylogproxy/codec/boundary.pb.go" agent/boundarylogproxy/codec/boundary.pb.go && \
+		rm -rf "$$tmpdir"
 
 enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged.proto
-	protoc \
-		--go_out=. \
-		--go_opt=paths=source_relative \
-		--go-drpc_out=. \
-		--go-drpc_opt=paths=source_relative \
-		./enterprise/aibridged/proto/aibridged.proto
+	tmpdir=$$(mktemp -d) && \
+		protoc \
+			--go_out=$$tmpdir \
+			--go_opt=paths=source_relative \
+			--go-drpc_out=$$tmpdir \
+			--go-drpc_opt=paths=source_relative \
+			./enterprise/aibridged/proto/aibridged.proto && \
+		mv "$$tmpdir/enterprise/aibridged/proto/aibridged.pb.go" enterprise/aibridged/proto/aibridged.pb.go && \
+		mv "$$tmpdir/enterprise/aibridged/proto/aibridged_drpc.pb.go" enterprise/aibridged/proto/aibridged_drpc.pb.go && \
+		rm -rf "$$tmpdir"
 
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	# Generate to a temp file, format it, then atomically move to
@@ -904,32 +953,32 @@ examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(sh
 	go run ./scripts/examplegen/main.go > "$@.tmp" && mv "$@.tmp" "$@"
 
 coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
-	tempdir=$(shell mktemp -d /tmp/typegen_rbac_object.XXXXXX)
-	go run ./scripts/typegen/main.go rbac object > "$$tempdir/object_gen.go"
-	mv -v "$$tempdir/object_gen.go" coderd/rbac/object_gen.go
-	rmdir -v "$$tempdir"
+	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+		go run ./scripts/typegen/main.go rbac object > "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 	touch "$@"
 
 # NOTE: depends on object_gen.go because `go run` compiles
 # coderd/rbac which includes it.
 coderd/rbac/scopes_constants_gen.go: scripts/typegen/scopenames.gotmpl scripts/typegen/main.go coderd/rbac/policy/policy.go \
 	coderd/rbac/object_gen.go
-	# Generate typed low-level ScopeName constants from RBACPermissions
-	# Write to a temp file first to avoid truncating the package during build
-	# since the generator imports the rbac package.
-	tempfile=$(shell mktemp /tmp/scopes_constants_gen.XXXXXX)
-	go run ./scripts/typegen/main.go rbac scopenames > "$$tempfile"
-	mv -v "$$tempfile" coderd/rbac/scopes_constants_gen.go
+	# Generate typed low-level ScopeName constants from RBACPermissions.
+	# Write to a temp file first to avoid truncating the package during
+	# build since the generator imports the rbac package.
+	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+		go run ./scripts/typegen/main.go rbac scopenames > "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 	touch "$@"
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # `go run` compiles coderd/rbac which includes both.
 codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
 	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go
-	# Do no overwrite codersdk/rbacresources_gen.go directly, as it would make the file empty, breaking
- 	# the `codersdk` package and any parallel build targets.
-	go run scripts/typegen/main.go rbac codersdk > /tmp/rbacresources_gen.go
-	mv /tmp/rbacresources_gen.go codersdk/rbacresources_gen.go
+	# Write to a temp file to avoid truncating the target, which would
+	# break the codersdk package and any parallel build targets.
+	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+		go run scripts/typegen/main.go rbac codersdk > "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 	touch "$@"
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
@@ -937,8 +986,9 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
 codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go \
 	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go
 	# Generate SDK constants for external API key scopes.
-	go run ./scripts/apikeyscopesgen > /tmp/apikey_scopes_gen.go
-	mv /tmp/apikey_scopes_gen.go codersdk/apikey_scopes_gen.go
+	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+		go run ./scripts/apikeyscopesgen > "$$tmpfile" && \
+		mv "$$tmpfile" "$@"
 	touch "$@"
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
@@ -979,7 +1029,7 @@ docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go e
 		CI=true DOCS_DIR="$$tmpdir/docs" go run ./scripts/clidocgen && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpdir/docs/reference/cli/*.md" && \
 		pnpm exec markdown-table-formatter "$$tmpdir/docs/reference/cli/*.md" && \
-		cp "$$tmpdir/docs/reference/cli/"*.md docs/reference/cli/ && \
+		for f in "$$tmpdir/docs/reference/cli/"*.md; do mv "$$f" "docs/reference/cli/$$(basename "$$f")"; done && \
 		rm -rf "$$tmpdir"
 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
@@ -1010,10 +1060,10 @@ coderd/apidoc/.gen: \
 		pnpm exec markdownlint-cli2 --fix "$$tmpdir/reference/api/*.md" && \
 		pnpm exec markdown-table-formatter "$$tmpdir/reference/api/*.md" && \
 		./scripts/biome_format.sh "$$swagtmp/swagger.json" && \
-		cp "$$tmpdir/reference/api/"*.md docs/reference/api/ && \
-		cp "$$tmpdir/manifest.json" docs/manifest.json && \
-		cp "$$swagtmp/docs.go" coderd/apidoc/docs.go && \
-		cp "$$swagtmp/swagger.json" coderd/apidoc/swagger.json && \
+		for f in "$$tmpdir/reference/api/"*.md; do mv "$$f" "docs/reference/api/$$(basename "$$f")"; done && \
+		mv "$$tmpdir/manifest.json" docs/manifest.json && \
+		mv "$$swagtmp/docs.go" coderd/apidoc/docs.go && \
+		mv "$$swagtmp/swagger.json" coderd/apidoc/swagger.json && \
 		rm -rf "$$tmpdir" "$$swagtmp"
 	touch "$@"
 

@@ -22,8 +22,11 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	# The logic below depends on the exact version being correct :(
 	sqlc generate
 
-	tmpfile=$(mktemp "${TMPDIR:-/tmp}/queries.sql.go.XXXXXX")
-	trap 'rm -f "$tmpfile"' EXIT
+	# Work directory for formatting before atomic replacement of
+	# generated files, ensuring the source tree is never left in a
+	# partially written state.
+	workdir=$(mktemp -d .dbgen.XXXXXX)
+	trap 'rm -rf "$workdir"' EXIT
 
 	first=true
 	files=$(find ./queries/ -type f -name "*.sql.go" | LC_ALL=C sort)
@@ -38,32 +41,34 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 
 		# Copy the header from the first file only, ignoring the source comment.
 		if $first; then
-			head -n 6 <"$fi" | grep -v "source" >"$tmpfile"
+			head -n 6 <"$fi" | grep -v "source" >"$workdir/queries.sql.go"
 			first=false
 		fi
 
 		# Append the file past the imports section into queries.sql.go.
-		tail -n "+$cut" <"$fi" >>"$tmpfile"
+		tail -n "+$cut" <"$fi" >>"$workdir/queries.sql.go"
 	done
 
-	# Atomically replace the target file.
-	mv "$tmpfile" queries.sql.go
-
-	# Move the files we want.
-	mv queries/querier.go .
-	mv queries/models.go .
+	# Move sqlc outputs into workdir for formatting.
+	mv queries/querier.go "$workdir/querier.go"
+	mv queries/models.go "$workdir/models.go"
 
 	# Remove temporary go files.
 	rm -f queries/*.go
 
-	# Fix struct/interface names.
-	gofmt -w -r 'Querier -> sqlcQuerier' -- *.go
-	gofmt -w -r 'Queries -> sqlQuerier' -- *.go
+	# Fix struct/interface names in the workdir (not the source tree).
+	gofmt -w -r 'Querier -> sqlcQuerier' -- "$workdir"/*.go
+	gofmt -w -r 'Queries -> sqlQuerier' -- "$workdir"/*.go
 
-	# Ensure correct imports exist. Modules must all be downloaded so we get correct
-	# suggestions.
+	# Ensure correct imports exist. Modules must all be downloaded so we
+	# get correct suggestions.
 	go mod download
-	go tool golang.org/x/tools/cmd/goimports -w queries.sql.go
+	go tool golang.org/x/tools/cmd/goimports -w "$workdir/queries.sql.go"
+
+	# Atomically replace all three target files.
+	mv "$workdir/queries.sql.go" queries.sql.go
+	mv "$workdir/querier.go" querier.go
+	mv "$workdir/models.go" models.go
 
 	go run ../../scripts/dbgen
 	# This will error if a view is broken. This is in it's own package to avoid
