@@ -1145,22 +1145,19 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
-	agentToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionPlan:  echo.PlanComplete,
 		ProvisionApply: echo.ApplyComplete,
-		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	// Start the test workspace agent so the tool can verify agent
-	// connectivity after starting the workspace.
-	_ = agenttest.New(t, client.URL, agentToken)
-
 	// Create a workspace, then stop it so start_workspace has
-	// something to start.
+	// something to start. We intentionally skip starting a test
+	// agent — the echo provisioner creates new agent rows for each
+	// build, so an agent started for build 1 cannot serve build 3.
+	// The tool handles the no-agent case gracefully.
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	workspace = coderdtest.MustTransitionWorkspace(
