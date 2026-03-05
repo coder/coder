@@ -92,6 +92,15 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 		invErr = ptr.Ref(req.InvocationError.Error())
 	}
 
+	var thoughts []*proto.ModelThought
+	for _, thought := range req.ModelThoughts {
+		thoughts = append(thoughts, &proto.ModelThought{
+			Content:   thought.Content,
+			Metadata:  marshalForProto(thought.Metadata),
+			CreatedAt: timestamppb.New(thought.CreatedAt),
+		})
+	}
+
 	_, err = t.client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 		InterceptionId:  req.InterceptionID,
 		MsgId:           req.MsgID,
@@ -103,6 +112,7 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 		InvocationError: invErr,
 		Metadata:        marshalForProto(req.Metadata),
 		CreatedAt:       timestamppb.New(req.CreatedAt),
+		ModelThoughts:   thoughts,
 	})
 	return err
 }
