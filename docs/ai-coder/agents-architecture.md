@@ -1,9 +1,9 @@
 # Architecture
 
-Coder's AI agent in the control plane interacts with workspaces using the exact
-same connection path as a developer's IDE, web terminal, or SSH session. There
-is no special protocol, no sidecar process, and no new ports. If your
-developers can already connect to their workspaces, the agent can too.
+Coder's AI agent in the control plane interacts with workspaces over the same
+Tailnet tunnel that a developer's IDE, web terminal, and SSH session already
+use. There is no sidecar process and no new network paths. If your developers
+can already connect to their workspaces, the agent can too.
 
 ## Architecture at a glance
 
@@ -24,7 +24,7 @@ Three components are involved in every agent interaction:
 ## The same connection your IDE uses
 
 This is the key architectural insight: the agent reaches into a workspace
-using the identical network path that a developer's tools already use.
+over the same Tailnet tunnel that a developer's tools already use.
 
 When a developer opens a web terminal in the Coder dashboard, connects via
 VS Code Remote, or runs `coder ssh`, the traffic follows this path:
@@ -37,18 +37,19 @@ VS Code Remote, or runs `coder ssh`, the traffic follows this path:
    forwarding a port, or serving a file.
 
 When the agent executes a tool call — reading a file, running a command,
-writing code — it follows the exact same path:
+writing code — it follows the same tunnel:
 
 1. The agent loop in the control plane issues a tool call.
 1. The control plane routes the call through its internal Tailnet node.
 1. The call reaches the workspace daemon over the same DERP relay or
    peer-to-peer link.
-1. The workspace daemon handles the request — reading a file, starting
-   a process, or writing content.
+1. The workspace daemon handles the request via its HTTP API — reading a file,
+   starting a process, or writing content.
 
-The workspace cannot distinguish between the two. A `read_file` from the Coder
-agent and an file open from VS Code traverse the same tunnel, authenticate the
-same way, and hit the same workspace daemon API.
+The underlying tunnel is identical. IDE connections use SSH, web terminals use
+a WebSocket protocol, and the agent uses the workspace daemon's HTTP API — but
+all three traverse the same Tailnet connection and rely on the same security
+boundary. No additional ports or network paths are introduced.
 
 ### No inbound ports
 
@@ -86,15 +87,18 @@ to deploy — it is part of the same binary that serves the dashboard and API.
 
 As conversations grow, the agent automatically summarizes older context to stay
 within the model's context window. When token usage exceeds a threshold, the
-agent generates a compressed summary and replaces earlier messages with it. This
-happens transparently and keeps long-running sessions productive.
+agent generates a compressed summary and inserts it as a new message. Earlier
+messages remain in the database and are still visible to users, but are excluded
+from the model's context window. This happens transparently and keeps
+long-running sessions productive.
 
 ### Message queuing
 
 Users can send follow-up messages while the agent is actively working. Messages
 are queued in the database and delivered when the agent completes its current
-step. There is no need to wait for a response before providing additional
-context or redirecting the agent.
+turn — the full sequence of steps until the model stops calling tools. There is
+no need to wait for a response before providing additional context or
+redirecting the agent.
 
 ## Tool execution
 
@@ -115,8 +119,8 @@ approach, discussing architecture) never provision or connect to a workspace.
 
 ### Workspace tools
 
-These tools execute inside the workspace via the workspace daemon API.
-They are the same API endpoints used by the web terminal and IDE integrations.
+These tools execute inside the workspace via the workspace daemon's HTTP API.
+They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 
 | Tool             | What it does                                                       |
 |------------------|--------------------------------------------------------------------|
@@ -225,11 +229,12 @@ plane, not from the workspace's network.
 
 ### Centralized enforcement
 
-Model selection, system prompts, and tool configuration are set by
-administrators in the control plane. These are server-side settings — they are
-not user preferences that developers can override. When an administrator
-restricts a model or modifies the system prompt, the change applies to all
-agent sessions immediately.
+Administrators control which models are available, the system prompt, and tool
+configuration from the control plane. Developers can select from the set of
+admin-enabled models when starting or continuing a chat, but cannot add their
+own providers or override system prompts or tool permissions. When an
+administrator removes a model or modifies the system prompt, the change applies
+to all agent sessions immediately.
 
 ### User identity on every action
 
