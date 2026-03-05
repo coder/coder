@@ -636,11 +636,11 @@ export const useChatStore = (
 						if (changed) {
 							scheduleStreamReset();
 						}
-						updateSidebarChat((chat) => ({
-							...chat,
-							updated_at: message.created_at ?? new Date().toISOString(),
-						}));
-						continue;
+							// Do not update updated_at here. The global
+							// chat-list WebSocket delivers the authoritative
+							// server timestamp; fabricating a client-side
+							// value causes the chat to flicker between time
+							// groups when the two sources race.						continue;
 					}
 					case "queue_update":
 						{
@@ -676,12 +676,10 @@ export const useChatStore = (
 						if (nextStatus !== "error") {
 							clearChatErrorReason(chatID);
 						}
-						updateSidebarChat((chat) => ({
-							...chat,
-							status: nextStatus,
-							updated_at: new Date().toISOString(),
-						}));
-
+							updateSidebarChat((chat) => ({
+								...chat,
+								status: nextStatus,
+							}));
 						continue;
 					}
 					case "error": {
@@ -692,12 +690,10 @@ export const useChatStore = (
 						store.setStreamError(reason);
 						store.clearRetryState();
 						setChatErrorReason(chatID, reason);
-						updateSidebarChat((chat) => ({
-							...chat,
-							status: "error",
-							updated_at: new Date().toISOString(),
-						}));
-						continue;
+							updateSidebarChat((chat) => ({
+								...chat,
+								status: "error",
+							}));						continue;
 					}
 					case "retry": {
 						const retry = streamEvent.retry;
