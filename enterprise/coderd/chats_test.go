@@ -403,10 +403,10 @@ func TestChatStreamRelay(t *testing.T) {
 			DontAddFirstUser: true,
 		})
 
+		//nolint:gocritic // Test uses owner client session token for cookie-based relay auth.
 		sessionToken := firstClient.SessionToken()
 
-		// Configure the second client to authenticate via cookies
-		// only for WebSocket dials, matching browser behavior.
+		// Configure the second client to authenticate via cookies		// only for WebSocket dials, matching browser behavior.
 		// For regular HTTP API calls we still need the header.
 		secondClient.SetSessionToken(sessionToken)
 		secondClient.SessionTokenProvider = cookieOnlySessionTokenProvider{
@@ -573,10 +573,10 @@ func TestChatStreamRelay(t *testing.T) {
 			DontAddFirstUser: true,
 		})
 
+		//nolint:gocritic // Test uses owner client session token for cookie-based relay auth.
 		sessionToken := firstClient.SessionToken()
 
-		// Use cookie-only auth for WebSocket, as browsers do.
-		// With EnableHostPrefix, the browser would have
+		// Use cookie-only auth for WebSocket, as browsers do.		// With EnableHostPrefix, the browser would have
 		// __Host-coder_session_token but the middleware
 		// normalizes it. The relay copies the normalized cookie.
 		secondClient.SetSessionToken(sessionToken)
