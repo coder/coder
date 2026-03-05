@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import type { ChangeTypes, FileDiffMetadata } from "@pierre/diffs";
+import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
@@ -8,11 +8,16 @@ import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
 } from "components/ai-elements/tool/utils";
+import { Button } from "components/Button/Button";
+import { FileIcon } from "components/FileIcon/FileIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import {
+	ChevronRightIcon,
 	Columns2Icon,
 	ExternalLinkIcon,
+	FolderIcon,
+	FolderOpenIcon,
 	GitBranchIcon,
 	GitPullRequestIcon,
 	Rows3Icon,
@@ -78,38 +83,148 @@ function parsePullRequestUrl(url: string): {
 	return null;
 }
 
-/**
- * Returns a color class for the change-type indicator dot.
- */
-function changeTypeColor(type: ChangeTypes): string {
-	switch (type) {
-		case "new":
-			return "bg-green-500";
-		case "deleted":
-			return "bg-red-500";
-		case "change":
-		case "rename-changed":
-			return "bg-yellow-500";
-		case "rename-pure":
-			return "bg-blue-400";
-		default:
-			return "bg-content-secondary";
-	}
+// -------------------------------------------------------------------
+// File tree data model
+// -------------------------------------------------------------------
+
+interface FileTreeNode {
+	name: string;
+	fullPath: string;
+	type: "file" | "directory";
+	children: FileTreeNode[];
+	fileDiff?: FileDiffMetadata;
 }
 
 /**
- * Splits a file path into directory and basename.
+ * Builds a nested tree from a flat list of file diffs. Directory
+ * nodes are created for every intermediate path segment. The
+ * result is sorted with directories first, then alphabetically.
  */
-function splitPath(filePath: string): { dir: string; base: string } {
-	const lastSlash = filePath.lastIndexOf("/");
-	if (lastSlash === -1) {
-		return { dir: "", base: filePath };
+function buildFileTree(files: FileDiffMetadata[]): FileTreeNode[] {
+	const root: FileTreeNode[] = [];
+
+	for (const file of files) {
+		const segments = file.name.split("/");
+		let children = root;
+
+		// Walk / create intermediate directory nodes.
+		for (let i = 0; i < segments.length - 1; i++) {
+			const seg = segments[i];
+			let dir = children.find((n) => n.type === "directory" && n.name === seg);
+			if (!dir) {
+				dir = {
+					name: seg,
+					fullPath: segments.slice(0, i + 1).join("/"),
+					type: "directory",
+					children: [],
+				};
+				children.push(dir);
+			}
+			children = dir.children;
+		}
+
+		// Leaf file node.
+		const fileName = segments[segments.length - 1];
+		children.push({
+			name: fileName,
+			fullPath: file.name,
+			type: "file",
+			children: [],
+			fileDiff: file,
+		});
 	}
-	return {
-		dir: filePath.slice(0, lastSlash + 1),
-		base: filePath.slice(lastSlash + 1),
+
+	const sortNodes = (nodes: FileTreeNode[]): FileTreeNode[] => {
+		for (const node of nodes) {
+			if (node.children.length > 0) {
+				node.children = sortNodes(node.children);
+			}
+		}
+		return nodes.sort((a, b) => {
+			if (a.type !== b.type) {
+				return a.type === "directory" ? -1 : 1;
+			}
+			return a.name.localeCompare(b.name);
+		});
 	};
+
+	return sortNodes(root);
 }
+
+// -------------------------------------------------------------------
+// Tree node renderer
+// -------------------------------------------------------------------
+
+const FileTreeNodeView: FC<{
+	node: FileTreeNode;
+	depth: number;
+	activeFile: string | null;
+	onFileClick: (fullPath: string) => void;
+}> = ({ node, depth, activeFile, onFileClick }) => {
+	const [expanded, setExpanded] = useState(true);
+
+	if (node.type === "directory") {
+		return (
+			<div>
+				<button
+					type="button"
+					onClick={() => setExpanded((v) => !v)}
+					className="flex w-full items-center gap-1 py-0.5 text-left text-xs text-content-secondary hover:bg-surface-secondary cursor-pointer"
+					style={{ paddingLeft: depth * 12 }}
+				>
+					<ChevronRightIcon
+						className={cn(
+							"h-3.5 w-3.5 shrink-0 transition-transform",
+							expanded && "rotate-90",
+						)}
+					/>
+					{expanded ? (
+						<FolderOpenIcon className="h-4 w-4 shrink-0 text-content-tertiary" />
+					) : (
+						<FolderIcon className="h-4 w-4 shrink-0 text-content-tertiary" />
+					)}
+					<span className="truncate">{node.name}</span>
+				</button>
+				{expanded &&
+					node.children.map((child) => (
+						<FileTreeNodeView
+							key={child.fullPath}
+							node={child}
+							depth={depth + 1}
+							activeFile={activeFile}
+							onFileClick={onFileClick}
+						/>
+					))}
+			</div>
+		);
+	}
+
+	const isActive = activeFile === node.fullPath;
+
+	return (
+		<button
+			type="button"
+			onClick={() => onFileClick(node.fullPath)}
+			className={cn(
+				"flex w-full items-center gap-1 py-0.5 text-left cursor-pointer",
+				"hover:bg-surface-secondary",
+				isActive && "bg-surface-secondary",
+			)}
+			style={{ paddingLeft: depth * 12 + 14 }}
+			title={node.fullPath}
+		>
+			<FileIcon fileName={node.name} className="shrink-0" />
+			<span
+				className={cn(
+					"truncate text-xs",
+					isActive ? "text-content-primary" : "text-content-secondary",
+				)}
+			>
+				{node.name}
+			</span>
+		</button>
+	);
+};
 
 export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 	const theme = useTheme();
@@ -169,6 +284,8 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 			return [];
 		}
 	}, [diffContentsQuery.data?.diff, chatId]);
+
+	const fileTree = useMemo(() => buildFileTree(parsedFiles), [parsedFiles]);
 
 	const pullRequestUrl = diffStatusQuery.data?.url;
 	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
@@ -337,35 +454,33 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 					</div>
 				)}
 				{/* Diff style toggle */}
-				<div className="ml-auto flex items-center overflow-hidden rounded-md border border-solid border-border-default">
-					<button
-						type="button"
+				<div className="ml-auto flex items-center gap-1">
+					<Button
+						variant={diffStyle === "unified" ? "outline" : "subtle"}
+						size="lg"
 						onClick={() => handleSetDiffStyle("unified")}
 						className={cn(
-							"flex items-center px-1.5 py-0.5 cursor-pointer",
-							diffStyle === "unified"
-								? "bg-surface-secondary text-content-primary"
-								: "text-content-secondary hover:text-content-primary",
+							"min-w-0 h-6 px-2 py-0",
+							diffStyle === "unified" && "bg-surface-secondary",
 						)}
 						aria-label="Unified diff view"
 					>
-						<Rows3Icon className="h-3.5 w-3.5" />
-					</button>
-					<button
-						type="button"
+						<Rows3Icon className="!p-0 !size-3.5" />
+					</Button>
+					<Button
+						variant={diffStyle === "split" ? "outline" : "subtle"}
+						size="lg"
 						onClick={() => handleSetDiffStyle("split")}
 						className={cn(
-							"flex items-center px-1.5 py-0.5 cursor-pointer",
-							diffStyle === "split"
-								? "bg-surface-secondary text-content-primary"
-								: "text-content-secondary hover:text-content-primary",
+							"min-w-0 h-6 px-2 py-0",
+							diffStyle === "split" && "bg-surface-secondary",
 						)}
 						aria-label="Split diff view"
 					>
-						<Columns2Icon className="h-3.5 w-3.5" />
-					</button>
+						<Columns2Icon className="!p-0 !size-3.5" />
+					</Button>
 				</div>
-			</div>
+			</div>{" "}
 			{/* Diff contents */}
 			{parsedFiles.length === 0 ? (
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">
@@ -381,47 +496,15 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 							scrollBarClassName="w-1"
 						>
 							<nav className="flex flex-col py-1">
-								{parsedFiles.map((f) => {
-									const { dir, base } = splitPath(f.name);
-									const isActive = activeFile === f.name;
-									return (
-										<button
-											key={f.name}
-											type="button"
-											onClick={() => handleFileClick(f.name)}
-											className={cn(
-												"flex items-center gap-1.5 px-2 py-1 text-left",
-												"hover:bg-surface-secondary",
-												isActive && "bg-surface-secondary",
-											)}
-											title={f.name}
-										>
-											<span
-												className={cn(
-													"h-1.5 w-1.5 shrink-0 rounded-full",
-													changeTypeColor(f.type),
-												)}
-											/>
-											<span className="min-w-0 truncate">
-												{dir && (
-													<span className="text-2xs text-content-tertiary">
-														{dir}
-													</span>
-												)}
-												<span
-													className={cn(
-														"text-xs",
-														isActive
-															? "text-content-primary"
-															: "text-content-secondary",
-													)}
-												>
-													{base}
-												</span>
-											</span>
-										</button>
-									);
-								})}
+								{fileTree.map((node) => (
+									<FileTreeNodeView
+										key={node.fullPath}
+										node={node}
+										depth={1}
+										activeFile={activeFile}
+										onFileClick={handleFileClick}
+									/>
+								))}
 							</nav>
 						</ScrollArea>
 					)}
