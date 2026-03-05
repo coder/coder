@@ -1074,12 +1074,12 @@ const DiffStats: FC<{ diffStatus?: ChatDiffStatusResponse }> = ({
 	return (
 		<span className="inline-flex h-full items-center self-stretch overflow-hidden rounded-[calc(theme(borderRadius.md)-1px)] font-mono text-xs font-medium">
 			{additions > 0 && (
-				<span className="flex h-full items-center bg-green-950 px-1.5 text-green-500">
+				<span className="flex h-full items-center bg-green-100 dark:bg-green-950 px-1.5 text-green-700 dark:text-green-500">
 					+{additions}
 				</span>
 			)}
 			{deletions > 0 && (
-				<span className="flex h-full items-center bg-red-950 px-1.5 text-red-400">
+				<span className="flex h-full items-center bg-red-100 dark:bg-red-950 px-1.5 text-red-700 dark:text-red-400">
 					&minus;{deletions}
 				</span>
 			)}
