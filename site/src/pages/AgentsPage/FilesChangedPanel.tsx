@@ -107,7 +107,7 @@ function parsePullRequestUrl(url: string): {
 function changeColor(type?: ChangeTypes): string | undefined {
 	switch (type) {
 		case "new":
-			return "text-green-300";
+			return "text-green-700 dark:text-green-300";
 		case "deleted":
 			return "text-content-destructive";
 		case "rename-pure":
