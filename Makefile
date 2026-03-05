@@ -69,6 +69,17 @@ SHELL := bash
 	codersdk/rbacresources_gen.go \
 	codersdk/apikey_scopes_gen.go
 
+# atomic_write runs a command, captures stdout into a temp file, and
+# atomically replaces $@. An optional second argument is a formatting
+# command that receives the temp file path as its argument.
+# Usage: $(call atomic_write,GENERATE_CMD[,FORMAT_CMD])
+define atomic_write
+	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+		$(1) > "$$tmpfile" && \
+		$(if $(2),$(2) "$$tmpfile" &&) \
+		mv "$$tmpfile" "$@"
+endef
+
 # Don't print the commands in the file unless you specify VERBOSE. This is
 # essentially the same as putting "@" at the start of each line.
 ifndef VERBOSE
@@ -841,103 +852,67 @@ $(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go
 	touch "$@"
 
 tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
-	tmpdir=$$(mktemp -d) && \
-		protoc \
-			--go_out=$$tmpdir \
-			--go_opt=paths=source_relative \
-			--go-drpc_out=$$tmpdir \
-			--go-drpc_opt=paths=source_relative \
-			./tailnet/proto/tailnet.proto && \
-		mv "$$tmpdir/tailnet/proto/tailnet.pb.go" tailnet/proto/tailnet.pb.go && \
-		mv "$$tmpdir/tailnet/proto/tailnet_drpc.pb.go" tailnet/proto/tailnet_drpc.pb.go && \
-		rm -rf "$$tmpdir"
+	./scripts/atomic_protoc.sh \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./tailnet/proto/tailnet.proto
 
 agent/proto/agent.pb.go: agent/proto/agent.proto
-	tmpdir=$$(mktemp -d) && \
-		protoc \
-			--go_out=$$tmpdir \
-			--go_opt=paths=source_relative \
-			--go-drpc_out=$$tmpdir \
-			--go-drpc_opt=paths=source_relative \
-			./agent/proto/agent.proto && \
-		mv "$$tmpdir/agent/proto/agent.pb.go" agent/proto/agent.pb.go && \
-		mv "$$tmpdir/agent/proto/agent_drpc.pb.go" agent/proto/agent_drpc.pb.go && \
-		rm -rf "$$tmpdir"
+	./scripts/atomic_protoc.sh \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./agent/proto/agent.proto
 
 agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto agent/proto/agent.proto
-	tmpdir=$$(mktemp -d) && \
-		protoc \
-			--go_out=$$tmpdir \
-			--go_opt=paths=source_relative \
-			--go-drpc_out=$$tmpdir \
-			--go-drpc_opt=paths=source_relative \
-			./agent/agentsocket/proto/agentsocket.proto && \
-		mv "$$tmpdir/agent/agentsocket/proto/agentsocket.pb.go" agent/agentsocket/proto/agentsocket.pb.go && \
-		mv "$$tmpdir/agent/agentsocket/proto/agentsocket_drpc.pb.go" agent/agentsocket/proto/agentsocket_drpc.pb.go && \
-		rm -rf "$$tmpdir"
+	./scripts/atomic_protoc.sh \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./agent/agentsocket/proto/agentsocket.proto
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
-	tmpdir=$$(mktemp -d) && \
-		protoc \
-			--go_out=$$tmpdir \
-			--go_opt=paths=source_relative \
-			--go-drpc_out=$$tmpdir \
-			--go-drpc_opt=paths=source_relative \
-			./provisionersdk/proto/provisioner.proto && \
-		mv "$$tmpdir/provisionersdk/proto/provisioner.pb.go" provisionersdk/proto/provisioner.pb.go && \
-		mv "$$tmpdir/provisionersdk/proto/provisioner_drpc.pb.go" provisionersdk/proto/provisioner_drpc.pb.go && \
-		rm -rf "$$tmpdir"
+	./scripts/atomic_protoc.sh \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./provisionersdk/proto/provisioner.proto
 
 provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
-	tmpdir=$$(mktemp -d) && \
-		protoc \
-			--go_out=$$tmpdir \
-			--go_opt=paths=source_relative \
-			--go-drpc_out=$$tmpdir \
-			--go-drpc_opt=paths=source_relative \
-			./provisionerd/proto/provisionerd.proto && \
-		mv "$$tmpdir/provisionerd/proto/provisionerd.pb.go" provisionerd/proto/provisionerd.pb.go && \
-		mv "$$tmpdir/provisionerd/proto/provisionerd_drpc.pb.go" provisionerd/proto/provisionerd_drpc.pb.go && \
-		rm -rf "$$tmpdir"
+	./scripts/atomic_protoc.sh \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./provisionerd/proto/provisionerd.proto
 
 vpn/vpn.pb.go: vpn/vpn.proto
-	tmpdir=$$(mktemp -d) && \
-		protoc \
-			--go_out=$$tmpdir \
-			--go_opt=paths=source_relative \
-			./vpn/vpn.proto && \
-		mv "$$tmpdir/vpn/vpn.pb.go" vpn/vpn.pb.go && \
-		rm -rf "$$tmpdir"
+	./scripts/atomic_protoc.sh \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		./vpn/vpn.proto
 
 agent/boundarylogproxy/codec/boundary.pb.go: agent/boundarylogproxy/codec/boundary.proto agent/proto/agent.proto
-	tmpdir=$$(mktemp -d) && \
-		protoc \
-			--go_out=$$tmpdir \
-			--go_opt=paths=source_relative \
-			./agent/boundarylogproxy/codec/boundary.proto && \
-		mv "$$tmpdir/agent/boundarylogproxy/codec/boundary.pb.go" agent/boundarylogproxy/codec/boundary.pb.go && \
-		rm -rf "$$tmpdir"
+	./scripts/atomic_protoc.sh \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		./agent/boundarylogproxy/codec/boundary.proto
 
 enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged.proto
-	tmpdir=$$(mktemp -d) && \
-		protoc \
-			--go_out=$$tmpdir \
-			--go_opt=paths=source_relative \
-			--go-drpc_out=$$tmpdir \
-			--go-drpc_opt=paths=source_relative \
-			./enterprise/aibridged/proto/aibridged.proto && \
-		mv "$$tmpdir/enterprise/aibridged/proto/aibridged.pb.go" enterprise/aibridged/proto/aibridged.pb.go && \
-		mv "$$tmpdir/enterprise/aibridged/proto/aibridged_drpc.pb.go" enterprise/aibridged/proto/aibridged_drpc.pb.go && \
-		rm -rf "$$tmpdir"
+	./scripts/atomic_protoc.sh \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./enterprise/aibridged/proto/aibridged.proto
 
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
-	# Generate to a temp file, format it, then atomically move to
-	# the target so that an interrupt never leaves a partial or
-	# unformatted file in the working tree.
-	tmpfile=$$(mktemp -d)/$(notdir $@) && \
-		go run -C ./scripts/apitypings main.go > "$$tmpfile" && \
-		./scripts/biome_format.sh "$$tmpfile" && \
-		mv "$$tmpfile" "$@"
+	$(call atomic_write,go run -C ./scripts/apitypings main.go,./scripts/biome_format.sh)
 
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	(cd site/ && pnpm run gen:provisioner)
@@ -950,35 +925,28 @@ site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensi
 		mv "$$tmpfile" "$@"
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
-	go run ./scripts/examplegen/main.go > "$@.tmp" && mv "$@.tmp" "$@"
+	$(call atomic_write,go run ./scripts/examplegen/main.go)
 
 coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
-	tmpfile=$$(mktemp -d)/$(notdir $@) && \
-		go run ./scripts/typegen/main.go rbac object > "$$tmpfile" && \
-		mv "$$tmpfile" "$@"
+	$(call atomic_write,go run ./scripts/typegen/main.go rbac object)
 	touch "$@"
 
 # NOTE: depends on object_gen.go because `go run` compiles
 # coderd/rbac which includes it.
 coderd/rbac/scopes_constants_gen.go: scripts/typegen/scopenames.gotmpl scripts/typegen/main.go coderd/rbac/policy/policy.go \
 	coderd/rbac/object_gen.go
-	# Generate typed low-level ScopeName constants from RBACPermissions.
-	# Write to a temp file first to avoid truncating the package during
-	# build since the generator imports the rbac package.
-	tmpfile=$$(mktemp -d)/$(notdir $@) && \
-		go run ./scripts/typegen/main.go rbac scopenames > "$$tmpfile" && \
-		mv "$$tmpfile" "$@"
+	# Write to a temp file first to avoid truncating the package
+	# during build since the generator imports the rbac package.
+	$(call atomic_write,go run ./scripts/typegen/main.go rbac scopenames)
 	touch "$@"
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # `go run` compiles coderd/rbac which includes both.
 codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
 	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go
-	# Write to a temp file to avoid truncating the target, which would
-	# break the codersdk package and any parallel build targets.
-	tmpfile=$$(mktemp -d)/$(notdir $@) && \
-		go run scripts/typegen/main.go rbac codersdk > "$$tmpfile" && \
-		mv "$$tmpfile" "$@"
+	# Write to a temp file to avoid truncating the target, which
+	# would break the codersdk package and any parallel build targets.
+	$(call atomic_write,go run scripts/typegen/main.go rbac codersdk)
 	touch "$@"
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
@@ -986,34 +954,23 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
 codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go \
 	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go
 	# Generate SDK constants for external API key scopes.
-	tmpfile=$$(mktemp -d)/$(notdir $@) && \
-		go run ./scripts/apikeyscopesgen > "$$tmpfile" && \
-		mv "$$tmpfile" "$@"
+	$(call atomic_write,go run ./scripts/apikeyscopesgen)
 	touch "$@"
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # `go run` compiles coderd/rbac which includes both.
 site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
 	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go
-	tmpfile=$$(mktemp -d)/$(notdir $@) && \
-		go run scripts/typegen/main.go rbac typescript > "$$tmpfile" && \
-		./scripts/biome_format.sh "$$tmpfile" && \
-		mv "$$tmpfile" "$@"
+	$(call atomic_write,go run scripts/typegen/main.go rbac typescript,./scripts/biome_format.sh)
 
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go
-	tmpfile=$$(mktemp -d)/$(notdir $@) && \
-		go run scripts/typegen/main.go countries > "$$tmpfile" && \
-		./scripts/biome_format.sh "$$tmpfile" && \
-		mv "$$tmpfile" "$@"
+	$(call atomic_write,go run scripts/typegen/main.go countries,./scripts/biome_format.sh)
 
 site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go
-	tmpfile=$$(mktemp -d)/$(notdir $@) && \
-		go run ./scripts/modeloptionsgen/main.go | tail -n +2 > "$$tmpfile" && \
-		./scripts/biome_format.sh "$$tmpfile" && \
-		mv "$$tmpfile" "$@"
+	$(call atomic_write,go run ./scripts/modeloptionsgen/main.go | tail -n +2,./scripts/biome_format.sh)
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES)
-	go run ./scripts/metricsdocgen/scanner > $@.tmp && mv $@.tmp $@
+	$(call atomic_write,go run ./scripts/metricsdocgen/scanner)
 
 docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics scripts/metricsdocgen/generated_metrics
 	tmpfile=$$(mktemp -d)/$(notdir $@) && cp "$@" "$$tmpfile" && \
