@@ -537,7 +537,7 @@ if ((tag_exists == 0)); then
 	log "  Branch: ${current_branch}"
 	log
 	if confirm "Create tag?" y; then
-		run git tag -a "$new_version" -m "Release $new_version" "$ref"
+		run git tag -s -a "$new_version" -m "Release $new_version" "$ref"
 		success "Tag ${new_version} created."
 	else
 		error "Cannot proceed without a tag. Aborting."
