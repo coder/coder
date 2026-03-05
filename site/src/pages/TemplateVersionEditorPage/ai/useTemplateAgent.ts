@@ -1,4 +1,5 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createMCPClient } from "@ai-sdk/mcp";
 import { createOpenAI } from "@ai-sdk/openai";
 import {
 	createAgentUIStream,
@@ -8,11 +9,12 @@ import {
 	readUIMessageStream,
 	stepCountIs,
 	ToolLoopAgent,
+	type ToolSet,
 	type UIMessage,
 } from "ai";
 import { API } from "api/api";
 import type { AIBridgeProvider, AIModelConfig } from "api/queries/aiBridge";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FileTree } from "utils/filetree";
 import type {
 	BuildOutput,
@@ -84,6 +86,10 @@ const resolveProviderModel = (provider: AIBridgeProvider, modelID: string) => {
 	return openAIProvider(modelID);
 };
 
+type MCPTools = Awaited<
+	ReturnType<Awaited<ReturnType<typeof createMCPClient>>["tools"]>
+>;
+
 const MAX_STEPS = 20;
 
 const SYSTEM_PROMPT = `You are a Terraform template editing assistant for Coder.
@@ -123,6 +129,7 @@ const createTemplateAgent = (
 			options?: PublishRequestOptions,
 		) => Promise<PublishResult>;
 	},
+	externalTools: MCPTools,
 ) => {
 	const providerOptions: NonNullable<
 		ConstructorParameters<typeof ToolLoopAgent>[0]["providerOptions"]
@@ -148,18 +155,20 @@ const createTemplateAgent = (
 		};
 	}
 
+	const localTools = createTemplateAgentTools(
+		getFileTree,
+		setFileTree,
+		hasBuiltInCurrentRunRef,
+		callbacks,
+	);
+
 	return new ToolLoopAgent({
 		model: resolveProviderModel(
 			modelConfig.model.provider,
 			modelConfig.model.id,
 		),
 		instructions: SYSTEM_PROMPT,
-		tools: createTemplateAgentTools(
-			getFileTree,
-			setFileTree,
-			hasBuiltInCurrentRunRef,
-			callbacks,
-		),
+		tools: { ...localTools, ...(externalTools as ToolSet) },
 		stopWhen: stepCountIs(MAX_STEPS),
 		providerOptions,
 	});
@@ -482,6 +491,10 @@ export const useTemplateAgent = ({
 	const messageCounter = useRef(0);
 	const abortRef = useRef<AbortController | null>(null);
 
+	const mcpClientRef =
+		useRef<Awaited<ReturnType<typeof createMCPClient>> | null>(null);
+	const mcpToolsRef = useRef<MCPTools>({});
+
 	// Tracks whether a successful build happened for the current chat
 	// session so publish can skip the dirty-file check after approval
 	// pauses resume the stream.
@@ -507,6 +520,43 @@ export const useTemplateAgent = ({
 		getBuildOutput,
 		onPublishRequested,
 	};
+
+	useEffect(() => {
+		let cancelled = false;
+
+		const initMCP = async () => {
+			try {
+				const client = await createMCPClient({
+					transport: {
+						type: "sse",
+						url: "https://dev.registry.coder.com/mcp",
+					},
+				});
+				if (cancelled) {
+					await client.close();
+					return;
+				}
+
+				mcpClientRef.current = client;
+				mcpToolsRef.current = await client.tools();
+			} catch (error) {
+				// Best-effort integration: keep local tools available if MCP
+				// initialization fails.
+				console.warn("Failed to initialize MCP client:", error);
+			}
+		};
+
+		void initMCP();
+
+		return () => {
+			cancelled = true;
+			if (mcpClientRef.current) {
+				void mcpClientRef.current.close();
+				mcpClientRef.current = null;
+			}
+			mcpToolsRef.current = {};
+		};
+	}, []);
 
 	const setConversationMessages = useCallback((next: UIMessage[]) => {
 		uiMessagesRef.current = next;
@@ -563,6 +613,7 @@ export const useTemplateAgent = ({
 								})
 						: undefined,
 				},
+				mcpToolsRef.current,
 			);
 
 			let stream: Awaited<ReturnType<typeof createAgentUIStream>>;
