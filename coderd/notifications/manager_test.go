@@ -14,7 +14,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -30,7 +29,6 @@ func TestBufferedUpdates(t *testing.T) {
 
 	// setup
 
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
@@ -57,6 +55,7 @@ func TestBufferedUpdates(t *testing.T) {
 	user := dbgen.User(t, store, database.User{})
 
 	// WHEN: notifications are enqueued which should succeed and fail
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true", "i": "0"}, "") // Will succeed.
 	require.NoError(t, err)
 	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"nice": "true", "i": "1"}, "") // Will succeed.
@@ -106,7 +105,6 @@ func TestBuildPayload(t *testing.T) {
 
 	// SETUP
 
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
@@ -146,6 +144,7 @@ func TestBuildPayload(t *testing.T) {
 	require.NoError(t, err)
 
 	// WHEN: a notification is enqueued
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	_, err = enq.Enqueue(ctx, uuid.New(), notifications.TemplateWorkspaceDeleted, map[string]string{
 		"name": "my-workspace",
 	}, "test")
@@ -163,7 +162,6 @@ func TestStopBeforeRun(t *testing.T) {
 
 	// SETUP
 
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
@@ -172,6 +170,7 @@ func TestStopBeforeRun(t *testing.T) {
 	require.NoError(t, err)
 
 	// THEN: validate that the manager can be stopped safely without Run() having been called yet
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	require.Eventually(t, func() bool {
 		assert.NoError(t, mgr.Stop(ctx))
 		return true
@@ -183,7 +182,6 @@ func TestRunStopRace(t *testing.T) {
 
 	// SETUP
 
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitMedium))
 	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 
@@ -194,6 +192,7 @@ func TestRunStopRace(t *testing.T) {
 	// Start Run and Stop after each other (run does "go loop()").
 	// This is to catch a (now fixed) race condition where the manager
 	// would be accessed/stopped while it was being created/starting up.
+	ctx := testutil.Context(t, testutil.WaitMedium)
 	mgr.Run(ctx)
 	err = mgr.Stop(ctx)
 	require.NoError(t, err)
