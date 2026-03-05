@@ -9,13 +9,6 @@ Coder Agents is a chat interface and API for delegating development work and res
 Coder Agents includes its own self-hosted AI coding
 agent that runs the agent loop directly within the Coder control plane.
 
-It is not a wrapper around third-party agent tools like Claude Code
-or Codex.
-
-It is a standalone agent written in Go that implements standard
-agentic patterns — sub-agent delegation, context compaction, file editing, and
-shell execution — and works with any LLM provider you configure.
-
 No specialized software, API keys, or network access is required inside your workspace. The only requirement is network access between the control plane and external LLM providers.
 
 <video autoplay playsinline loop>
@@ -23,7 +16,16 @@ No specialized software, API keys, or network access is required inside your wor
 Your browser does not support the video tag.
 </video>
 
-## Who is Coder Agents for
+## What Coder Agents is and isn't
+
+It is a standalone agent written in Go that implements standard
+agentic patterns — sub-agent delegation, context compaction, file editing, and
+shell execution — and works with any LLM provider you configure.
+
+It is not a wrapper around third-party agent tools like Claude Code
+or Codex.
+
+## Who Coder Agents is for
 
 Coder Agents is designed for organizations that need to self-host their AI
 coding workflows and maintain full control over how agents operate. It is a
@@ -49,7 +51,7 @@ other editor to review, refine, and complete work that the agent produces.
 
 ## How it works
 
-The agent loop runs inside [the control plane](./agents-architecture.md). When a user
+The agent loop runs inside [the control plane](./architecture.md). When a user
 submits a prompt, the control plane:
 
 1. Sends the prompt to the configured LLM provider (Anthropic, OpenAI, Google,
@@ -66,7 +68,7 @@ The workspace itself has no knowledge of AI. It is standard compute
 infrastructure — there are no LLM API keys, no agent harnesses, and no special
 software installed. All intelligence lives in the control plane.
 
-![Architecture diagram showing the control plane in the center, with arrows out to LLM providers and arrows to workspaces](../images/guides/ai-agents/agent-loop.png)
+![Architecture diagram showing the control plane in the center, with arrows out to LLM providers and arrows to workspaces](../../images/guides/ai-agents/agent-loop.png)
 
 <small>The agent loop runs in the control plane. It makes outbound requests to LLM
 providers and connects to workspaces only when tool execution is needed.</small>
@@ -193,7 +195,7 @@ enterprise LLM proxies, self-hosted model endpoints, and internal gateways.
 Administrators can configure multiple providers simultaneously and set a default
 model. Developers select from enabled models when starting a chat.
 
-![Screenshot of the provider/model configuration admin panel](../images/guides/ai-agents/llm-providers.png)
+![Screenshot of the provider/model configuration admin panel](../../images/guides/ai-agents/llm-providers.png)
 
 <small>The model configuration panel in the Coder dashboard.</small>
 
@@ -223,7 +225,7 @@ the workspace.
 ## Comparison to Coder Tasks
 
 Coder Agents is a new approach that differs from
-[Coder Tasks](./tasks.md) in several ways:
+[Coder Tasks](../tasks.md) in several ways:
 
 | Aspect              | Coder Agents                         | Coder Tasks                                                    |
 |---------------------|--------------------------------------|----------------------------------------------------------------|
