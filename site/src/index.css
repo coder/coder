@@ -203,3 +203,11 @@
 		@apply text-xs font-mono font-medium;
 	}
 }
+
+@font-face {
+	font-family: "Seti";
+	src: url("/seti.woff") format("woff");
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
