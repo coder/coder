@@ -767,6 +767,7 @@ func New(options *Options) *API {
 		ProviderAPIKeys:   chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
 		AgentConn:         api.agentProvider.AgentConn,
 		CreateWorkspace:   api.chatCreateWorkspace,
+		StartWorkspace:    api.chatStartWorkspace,
 		Pubsub:            options.Pubsub,
 		WebpushDispatcher: options.WebPushDispatcher,
 	})

@@ -276,6 +276,17 @@ func checkExistingWorkspace(
 		}, true, nil
 
 	case database.ProvisionerJobStatusSucceeded:
+		// If the workspace was stopped, tell the model to use
+		// start_workspace instead of creating a new one.
+		if build.Transition == database.WorkspaceTransitionStop {
+			return map[string]any{
+				"created":        false,
+				"workspace_name": ws.Name,
+				"status":         "stopped",
+				"message":        "workspace is stopped; use start_workspace to start it",
+			}, true, nil
+		}
+
 		// Build succeeded — check if agent is reachable.
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 		if agentsErr == nil && len(agents) > 0 && agentConnFn != nil {
