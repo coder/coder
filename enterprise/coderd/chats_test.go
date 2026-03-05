@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 func TestChatStreamRelay(t *testing.T) {
@@ -360,6 +361,343 @@ func TestChatStreamRelay(t *testing.T) {
 
 		// Send another chunk and verify it flows through the relay.
 		secondChunkText := "tls-relay-part-two"
+		streamingChunks <- chattest.OpenAITextChunks(secondChunkText)[0]
+		waitForStreamTextPart(ctx, t, firstEvents, secondChunkText)
+		waitForStreamTextPart(ctx, t, secondEvents, secondChunkText)
+
+		close(streamingChunks)
+	})
+
+	// This test verifies that the relay works when the subscriber
+	// replica's incoming request authenticates via cookies only,
+	// exactly as a browser WebSocket upgrade does. Browsers cannot
+	// set custom headers (like Coder-Session-Token) on WebSocket
+	// connections, so the relay must forward the Cookie header and
+	// the worker replica must accept it.
+	//
+	// Previous tests used SetSessionToken() which sets the
+	// Coder-Session-Token header, masking this code path.
+	t.Run("RelayCookieOnlyAuth", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		db, pubsub := dbtestutil.NewDB(t)
+		firstClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   pubsub,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureHighAvailability: 1,
+				},
+			},
+		})
+
+		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   pubsub,
+			},
+			DontAddLicense:   true,
+			DontAddFirstUser: true,
+		})
+
+		//nolint:gocritic // Test uses owner client session token for cookie-based relay auth.
+		sessionToken := firstClient.SessionToken()
+
+		// Configure the second client to authenticate via cookies		// only for WebSocket dials, matching browser behavior.
+		// For regular HTTP API calls we still need the header.
+		secondClient.SetSessionToken(sessionToken)
+		secondClient.SessionTokenProvider = cookieOnlySessionTokenProvider{
+			token:     sessionToken,
+			targetURL: secondClient.URL,
+		}
+
+		replicas, err := secondClient.Replicas(ctx)
+		require.NoError(t, err)
+		require.Len(t, replicas, 2)
+		firstReplicaID := replicaIDForClientURL(t, firstClient.URL, replicas)
+		secondReplicaID := replicaIDForClientURL(t, secondClient.URL, replicas)
+
+		streamingChunks := make(chan chattest.OpenAIChunk, 8)
+		chatStreamStarted := make(chan struct{}, 1)
+		openai := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if req.Stream {
+				select {
+				case chatStreamStarted <- struct{}{}:
+				default:
+				}
+				return chattest.OpenAIResponse{StreamingChunks: streamingChunks}
+			}
+			return chattest.OpenAINonStreamingResponse("ok")
+		})
+
+		//nolint:gocritic // Test uses owner client to configure providers.
+		provider, err := firstClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+			APIKey:      "test",
+			BaseURL:     openai,
+		})
+		require.NoError(t, err)
+
+		model, err := firstClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:             provider.Provider,
+			Model:                "gpt-4",
+			DisplayName:          "GPT-4",
+			ContextLimit:         &[]int64{1000}[0],
+			CompressionThreshold: &[]int32{70}[0],
+		})
+		require.NoError(t, err)
+
+		chat, err := firstClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Test cookie-only relay",
+			}},
+			ModelConfigID: &model.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
+
+		var runningChat database.Chat
+		require.Eventually(t, func() bool {
+			current, getErr := db.GetChatByID(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			if current.Status != database.ChatStatusRunning || !current.WorkerID.Valid {
+				return false
+			}
+			runningChat = current
+			return true
+		}, testutil.WaitLong, testutil.IntervalFast)
+
+		var localClient *codersdk.Client
+		var relayClient *codersdk.Client
+		switch runningChat.WorkerID.UUID {
+		case firstReplicaID:
+			localClient = firstClient
+			relayClient = secondClient
+		case secondReplicaID:
+			localClient = secondClient
+			relayClient = firstClient
+		default:
+			require.FailNowf(
+				t,
+				"worker replica was not recognized",
+				"worker %s was not one of %s or %s",
+				runningChat.WorkerID.UUID,
+				firstReplicaID,
+				secondReplicaID,
+			)
+		}
+
+		firstEvents, firstStream, err := localClient.StreamChat(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		defer firstStream.Close()
+
+		select {
+		case <-chatStreamStarted:
+		case <-ctx.Done():
+			require.FailNowf(
+				t,
+				"timed out waiting for OpenAI stream request",
+				"chat stream did not start: %v",
+				ctx.Err(),
+			)
+		}
+
+		firstChunkText := "cookie-relay-part-one"
+		streamingChunks <- chattest.OpenAITextChunks(firstChunkText)[0]
+		firstEvent := waitForStreamTextPart(ctx, t, firstEvents, firstChunkText)
+		require.Equal(t, "assistant", firstEvent.MessagePart.Role)
+
+		// Subscribe from the non-worker replica with cookie-only
+		// auth. This triggers the relay dial. If the relay doesn't
+		// correctly forward cookies, this fails with 401.
+		secondEvents, secondStream, err := relayClient.StreamChat(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		defer secondStream.Close()
+
+		secondSnapshotEvent := waitForStreamTextPart(ctx, t, secondEvents, firstChunkText)
+		require.Equal(t, "assistant", secondSnapshotEvent.MessagePart.Role)
+
+		secondChunkText := "cookie-relay-part-two"
+		streamingChunks <- chattest.OpenAITextChunks(secondChunkText)[0]
+		waitForStreamTextPart(ctx, t, firstEvents, secondChunkText)
+		waitForStreamTextPart(ctx, t, secondEvents, secondChunkText)
+
+		close(streamingChunks)
+	})
+
+	// This test verifies that cookie-only relay auth works when
+	// EnableHostPrefix is true. When the subscriber replica's
+	// HTTPCookies.Middleware normalizes __Host-coder_session_token
+	// to coder_session_token, the relay forwards the bare cookie.
+	// On the worker replica, the same middleware must not strip it.
+	//
+	// The fix ensures relayHeaders also extracts the token value
+	// and sets the Coder-Session-Token header so the worker
+	// replica can authenticate regardless of cookie prefix config.
+	t.Run("RelayCookieOnlyAuthWithHostPrefix", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		db, pubsub := dbtestutil.NewDB(t)
+		hostPrefixValues := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.HTTPCookies.EnableHostPrefix = true
+			dv.HTTPCookies.Secure = true
+		})
+		firstClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:         db,
+				Pubsub:           pubsub,
+				DeploymentValues: hostPrefixValues,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureHighAvailability: 1,
+				},
+			},
+		})
+
+		secondClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:         db,
+				Pubsub:           pubsub,
+				DeploymentValues: hostPrefixValues,
+			},
+			DontAddLicense:   true,
+			DontAddFirstUser: true,
+		})
+
+		//nolint:gocritic // Test uses owner client session token for cookie-based relay auth.
+		sessionToken := firstClient.SessionToken()
+
+		// Use cookie-only auth for WebSocket, as browsers do.		// With EnableHostPrefix, the browser would have
+		// __Host-coder_session_token but the middleware
+		// normalizes it. The relay copies the normalized cookie.
+		secondClient.SetSessionToken(sessionToken)
+		secondClient.SessionTokenProvider = cookieOnlySessionTokenProvider{
+			token:      sessionToken,
+			targetURL:  secondClient.URL,
+			hostPrefix: true,
+		}
+
+		replicas, err := secondClient.Replicas(ctx)
+		require.NoError(t, err)
+		require.Len(t, replicas, 2)
+		firstReplicaID := replicaIDForClientURL(t, firstClient.URL, replicas)
+		secondReplicaID := replicaIDForClientURL(t, secondClient.URL, replicas)
+
+		streamingChunks := make(chan chattest.OpenAIChunk, 8)
+		chatStreamStarted := make(chan struct{}, 1)
+		openai := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if req.Stream {
+				select {
+				case chatStreamStarted <- struct{}{}:
+				default:
+				}
+				return chattest.OpenAIResponse{StreamingChunks: streamingChunks}
+			}
+			return chattest.OpenAINonStreamingResponse("ok")
+		})
+
+		//nolint:gocritic // Test uses owner client to configure providers.
+		provider, err := firstClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+			APIKey:      "test",
+			BaseURL:     openai,
+		})
+		require.NoError(t, err)
+
+		model, err := firstClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:             provider.Provider,
+			Model:                "gpt-4",
+			DisplayName:          "GPT-4",
+			ContextLimit:         &[]int64{1000}[0],
+			CompressionThreshold: &[]int32{70}[0],
+		})
+		require.NoError(t, err)
+
+		chat, err := firstClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Test host-prefix relay",
+			}},
+			ModelConfigID: &model.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
+
+		var runningChat database.Chat
+		require.Eventually(t, func() bool {
+			current, getErr := db.GetChatByID(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			if current.Status != database.ChatStatusRunning || !current.WorkerID.Valid {
+				return false
+			}
+			runningChat = current
+			return true
+		}, testutil.WaitLong, testutil.IntervalFast)
+
+		var localClient *codersdk.Client
+		var relayClient *codersdk.Client
+		switch runningChat.WorkerID.UUID {
+		case firstReplicaID:
+			localClient = firstClient
+			relayClient = secondClient
+		case secondReplicaID:
+			localClient = secondClient
+			relayClient = firstClient
+		default:
+			require.FailNowf(
+				t,
+				"worker replica was not recognized",
+				"worker %s was not one of %s or %s",
+				runningChat.WorkerID.UUID,
+				firstReplicaID,
+				secondReplicaID,
+			)
+		}
+
+		firstEvents, firstStream, err := localClient.StreamChat(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		defer firstStream.Close()
+
+		select {
+		case <-chatStreamStarted:
+		case <-ctx.Done():
+			require.FailNowf(
+				t,
+				"timed out waiting for OpenAI stream request",
+				"chat stream did not start: %v",
+				ctx.Err(),
+			)
+		}
+
+		firstChunkText := "hostprefix-relay-part-one"
+		streamingChunks <- chattest.OpenAITextChunks(firstChunkText)[0]
+		firstEvent := waitForStreamTextPart(ctx, t, firstEvents, firstChunkText)
+		require.Equal(t, "assistant", firstEvent.MessagePart.Role)
+
+		// This subscribe triggers the relay. With the bug, the
+		// worker replica's HTTPCookies.Middleware strips the bare
+		// coder_session_token cookie and there's no fallback
+		// Coder-Session-Token header, causing a 401.
+		secondEvents, secondStream, err := relayClient.StreamChat(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		defer secondStream.Close()
+
+		secondSnapshotEvent := waitForStreamTextPart(ctx, t, secondEvents, firstChunkText)
+		require.Equal(t, "assistant", secondSnapshotEvent.MessagePart.Role)
+
+		secondChunkText := "hostprefix-relay-part-two"
 		streamingChunks <- chattest.OpenAITextChunks(secondChunkText)[0]
 		waitForStreamTextPart(ctx, t, firstEvents, secondChunkText)
 		waitForStreamTextPart(ctx, t, secondEvents, secondChunkText)
@@ -715,4 +1053,41 @@ func findChatModelConfigByID(
 
 	require.FailNowf(t, "missing model config", "model config %s not found", id)
 	return codersdk.ChatModelConfig{}
+}
+
+// cookieOnlySessionTokenProvider authenticates HTTP requests via the
+// Coder-Session-Token header (for regular API calls) but
+// authenticates WebSocket dials via Cookie only, matching how
+// browsers behave (the native WebSocket constructor cannot set
+// custom headers).
+type cookieOnlySessionTokenProvider struct {
+	token     string
+	targetURL *url.URL
+	// hostPrefix, when true, sends the cookie with the
+	// __Host- prefix as browsers do with secure cookies.
+	hostPrefix bool
+}
+
+func (p cookieOnlySessionTokenProvider) AsRequestOption() codersdk.RequestOption {
+	return func(req *http.Request) {
+		req.Header.Set(codersdk.SessionTokenHeader, p.token)
+	}
+}
+
+func (p cookieOnlySessionTokenProvider) GetSessionToken() string {
+	return p.token
+}
+
+func (p cookieOnlySessionTokenProvider) SetDialOption(opts *websocket.DialOptions) {
+	// Browsers send cookies automatically on WebSocket upgrades
+	// but cannot send custom headers. Simulate this by setting
+	// only the Cookie header.
+	if opts.HTTPHeader == nil {
+		opts.HTTPHeader = make(http.Header)
+	}
+	cookieName := codersdk.SessionTokenCookie
+	if p.hostPrefix {
+		cookieName = "__Host-" + cookieName
+	}
+	opts.HTTPHeader.Set("Cookie", cookieName+"="+p.token)
 }

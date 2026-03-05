@@ -315,9 +315,7 @@ jobs:
           # Notifications require DB, we could start a DB instance here but
           # let's just restore for now.
           git checkout -- coderd/notifications/testdata/rendered-templates
-          # no `-j` flag as `make` fails with:
-          # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
-          make --output-sync -B gen
+          make -j --output-sync -B gen
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh

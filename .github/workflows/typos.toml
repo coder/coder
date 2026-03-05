@@ -30,6 +30,9 @@ HELO = "HELO"
 LKE = "LKE"
 byt = "byt"
 typ = "typ"
+# file extensions used in seti icon theme
+styl = "styl"
+edn = "edn"
 Inferrable = "Inferrable"
 
 [files]

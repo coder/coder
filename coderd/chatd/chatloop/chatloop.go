@@ -22,6 +22,12 @@ import (
 
 const (
 	interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
+
+	// maxCompactionRetries limits how many times the post-run
+	// compaction safety net can re-enter the step loop. This
+	// prevents infinite compaction loops when the model keeps
+	// hitting the context limit after summarization.
+	maxCompactionRetries = 3
 )
 
 var ErrInterrupted = xerrors.New("chat interrupted")
@@ -200,160 +206,202 @@ func Run(ctx context.Context, opts RunOptions) error {
 	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(opts.Model)
 
 	messages := opts.Messages
-	alreadyCompacted := false
 	var lastUsage fantasy.Usage
 	var lastProviderMetadata fantasy.ProviderMetadata
 
-	for step := 0; step < opts.MaxSteps; step++ {
-		// Copy messages so that provider-specific caching
-		// mutations don't leak back to the caller's slice.
-		// copy copies Message structs by value, so field
-		// reassignments in addAnthropicPromptCaching only
-		// affect the prepared slice.
-		prepared := make([]fantasy.Message, len(messages))
-		copy(prepared, messages)
-		if applyAnthropicCaching {
-			addAnthropicPromptCaching(prepared)
-		}
+	for compactionAttempt := 0; ; compactionAttempt++ {
+		alreadyCompacted := false
+		// stoppedByModel is true when the inner step loop
+		// exited because the model produced no tool calls
+		// (shouldContinue was false). This distinguishes a
+		// natural stop from hitting MaxSteps.
+		stoppedByModel := false
+		// compactedOnFinalStep tracks whether compaction
+		// occurred on the very step where the model stopped.
+		// Only in that case should we re-enter, because the
+		// agent never had a chance to use the compacted context.
+		compactedOnFinalStep := false
 
-		call := fantasy.Call{
-			Prompt:           prepared,
-			Tools:            tools,
-			MaxOutputTokens:  opts.ModelConfig.MaxOutputTokens,
-			Temperature:      opts.ModelConfig.Temperature,
-			TopP:             opts.ModelConfig.TopP,
-			TopK:             opts.ModelConfig.TopK,
-			PresencePenalty:  opts.ModelConfig.PresencePenalty,
-			FrequencyPenalty: opts.ModelConfig.FrequencyPenalty,
-			ProviderOptions:  opts.ProviderOptions,
-		}
+		for step := 0; step < opts.MaxSteps; step++ {
+			// Copy messages so that provider-specific caching
+			// mutations don't leak back to the caller's slice.
+			// copy copies Message structs by value, so field
+			// reassignments in addAnthropicPromptCaching only
+			// affect the prepared slice.
+			prepared := make([]fantasy.Message, len(messages))
+			copy(prepared, messages)
+			if applyAnthropicCaching {
+				addAnthropicPromptCaching(prepared)
+			}
 
-		var result stepResult
-		err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
-			stream, streamErr := opts.Model.Stream(retryCtx, call)
-			if streamErr != nil {
-				return streamErr
+			call := fantasy.Call{
+				Prompt:           prepared,
+				Tools:            tools,
+				MaxOutputTokens:  opts.ModelConfig.MaxOutputTokens,
+				Temperature:      opts.ModelConfig.Temperature,
+				TopP:             opts.ModelConfig.TopP,
+				TopK:             opts.ModelConfig.TopK,
+				PresencePenalty:  opts.ModelConfig.PresencePenalty,
+				FrequencyPenalty: opts.ModelConfig.FrequencyPenalty,
+				ProviderOptions:  opts.ProviderOptions,
 			}
-			var processErr error
-			result, processErr = processStepStream(retryCtx, stream, publishMessagePart)
-			return processErr
-		}, func(attempt int, retryErr error, delay time.Duration) {
-			// Reset result from the failed attempt so the next
-			// attempt starts clean.
-			result = stepResult{}
-			if opts.OnRetry != nil {
-				opts.OnRetry(attempt, retryErr, delay)
-			}
-		})
-		if err != nil {
-			if errors.Is(err, ErrInterrupted) {
-				persistInterruptedStep(ctx, opts, &result)
-				return ErrInterrupted
-			}
-			return xerrors.Errorf("stream response: %w", err)
-		}
 
-		// Execute tools before persisting so that tool results
-		// are included in the persisted step content. The
-		// persistence layer splits assistant and tool-result
-		// blocks into separate database messages by role.
-		var toolResults []fantasy.ToolResultContent
-		if result.shouldContinue {
-			// Check for context cancellation before starting
-			// tool execution. If the chat was interrupted
-			// between stream completion and here, persist
-			// what we have and bail out.
-			if ctx.Err() != nil {
-				if errors.Is(context.Cause(ctx), ErrInterrupted) {
+			var result stepResult
+			err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+				stream, streamErr := opts.Model.Stream(retryCtx, call)
+				if streamErr != nil {
+					return streamErr
+				}
+				var processErr error
+				result, processErr = processStepStream(retryCtx, stream, publishMessagePart)
+				return processErr
+			}, func(attempt int, retryErr error, delay time.Duration) {
+				// Reset result from the failed attempt so the next
+				// attempt starts clean.
+				result = stepResult{}
+				if opts.OnRetry != nil {
+					opts.OnRetry(attempt, retryErr, delay)
+				}
+			})
+			if err != nil {
+				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
 					return ErrInterrupted
 				}
-				return ctx.Err()
+				return xerrors.Errorf("stream response: %w", err)
 			}
 
-			toolResults = executeTools(ctx, opts.Tools, result.toolCalls, func(tr fantasy.ToolResultContent) {
-				publishMessagePart(
-					fantasy.MessageRoleTool,
-					chatprompt.PartFromContent(tr),
+			// Execute tools before persisting so that tool results
+			// are included in the persisted step content. The
+			// persistence layer splits assistant and tool-result
+			// blocks into separate database messages by role.
+			var toolResults []fantasy.ToolResultContent
+			if result.shouldContinue {
+				// Check for context cancellation before starting
+				// tool execution. If the chat was interrupted
+				// between stream completion and here, persist
+				// what we have and bail out.
+				if ctx.Err() != nil {
+					if errors.Is(context.Cause(ctx), ErrInterrupted) {
+						persistInterruptedStep(ctx, opts, &result)
+						return ErrInterrupted
+					}
+					return ctx.Err()
+				}
+
+				toolResults = executeTools(ctx, opts.Tools, result.toolCalls, func(tr fantasy.ToolResultContent) {
+					publishMessagePart(
+						fantasy.MessageRoleTool,
+						chatprompt.PartFromContent(tr),
+					)
+				})
+				for _, tr := range toolResults {
+					result.content = append(result.content, tr)
+				}
+			}
+
+			// Extract context limit from provider metadata.
+			contextLimit := extractContextLimit(result.providerMetadata)
+			if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
+				contextLimit = sql.NullInt64{
+					Int64: opts.ContextLimitFallback,
+					Valid: true,
+				}
+			}
+
+			// Persist the step — errors propagate directly.
+			if err := opts.PersistStep(ctx, PersistedStep{
+				Content:      result.content,
+				Usage:        result.usage,
+				ContextLimit: contextLimit,
+			}); err != nil {
+				return xerrors.Errorf("persist step: %w", err)
+			}
+
+			lastUsage = result.usage
+			lastProviderMetadata = result.providerMetadata
+
+			// Inline compaction.
+			if opts.Compaction != nil && opts.ReloadMessages != nil {
+				did, compactErr := tryCompact(
+					ctx,
+					opts.Model,
+					opts.Compaction,
+					opts.ContextLimitFallback,
+					result.usage,
+					result.providerMetadata,
+					messages,
 				)
-			})
-			for _, tr := range toolResults {
-				result.content = append(result.content, tr)
+				if compactErr != nil && opts.Compaction.OnError != nil {
+					opts.Compaction.OnError(compactErr)
+				}
+				if did {
+					alreadyCompacted = true
+					compactedOnFinalStep = true
+					reloaded, reloadErr := opts.ReloadMessages(ctx)
+					if reloadErr != nil {
+						return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
+					}
+					messages = reloaded
+				}
 			}
-		}
 
-		// Extract context limit from provider metadata.
-		contextLimit := extractContextLimit(result.providerMetadata)
-		if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
-			contextLimit = sql.NullInt64{
-				Int64: opts.ContextLimitFallback,
-				Valid: true,
+			if !result.shouldContinue {
+				stoppedByModel = true
+				break
 			}
+
+			// The agent is continuing with tool calls, so any
+			// prior compaction has already been consumed.
+			compactedOnFinalStep = false
+
+			// Build messages from the step for the next iteration.
+			// toResponseMessages produces assistant-role content
+			// (text, reasoning, tool calls) and tool-result content.
+			stepMessages := result.toResponseMessages()
+			messages = append(messages, stepMessages...)
 		}
 
-		// Persist the step — errors propagate directly.
-		if err := opts.PersistStep(ctx, PersistedStep{
-			Content:      result.content,
-			Usage:        result.usage,
-			ContextLimit: contextLimit,
-		}); err != nil {
-			return xerrors.Errorf("persist step: %w", err)
-		}
-
-		lastUsage = result.usage
-		lastProviderMetadata = result.providerMetadata
-
-		// Inline compaction.
-		if opts.Compaction != nil && opts.ReloadMessages != nil {
-			did, compactErr := tryCompact(
+		// Post-run compaction safety net: if we never compacted
+		// during the loop, try once at the end.
+		if !alreadyCompacted && opts.Compaction != nil {
+			did, err := tryCompact(
 				ctx,
 				opts.Model,
 				opts.Compaction,
 				opts.ContextLimitFallback,
-				result.usage,
-				result.providerMetadata,
+				lastUsage,
+				lastProviderMetadata,
 				messages,
 			)
-			if compactErr != nil && opts.Compaction.OnError != nil {
-				opts.Compaction.OnError(compactErr)
+			if err != nil {
+				if opts.Compaction.OnError != nil {
+					opts.Compaction.OnError(err)
+				}
 			}
 			if did {
-				alreadyCompacted = true
-				reloaded, reloadErr := opts.ReloadMessages(ctx)
-				if reloadErr != nil {
-					return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
-				}
-				messages = reloaded
+				compactedOnFinalStep = true
 			}
 		}
 
-		if !result.shouldContinue {
-			break
-		}
-
-		// Build messages from the step for the next iteration.
-		// toResponseMessages produces assistant-role content
-		// (text, reasoning, tool calls) and tool-result content.
-		stepMessages := result.toResponseMessages()
-		messages = append(messages, stepMessages...)
-	}
-
-	// Post-run compaction safety net: if we never compacted
-	// during the loop, try once at the end.
-	if !alreadyCompacted && opts.Compaction != nil {
-		if _, err := tryCompact(
-			ctx,
-			opts.Model,
-			opts.Compaction,
-			opts.ContextLimitFallback,
-			lastUsage,
-			lastProviderMetadata,
-			messages,
-		); err != nil {
-			if opts.Compaction.OnError != nil {
-				opts.Compaction.OnError(err)
+		// Re-enter the step loop when compaction fired on the
+		// model's final step. This lets the agent continue
+		// working with fresh summarized context instead of
+		// stopping. When the inner loop continued after inline
+		// compaction (tool-call steps kept going), the agent
+		// already used the compacted context, so no re-entry
+		// is needed. Limit retries to prevent infinite loops.
+		if compactedOnFinalStep && stoppedByModel &&
+			opts.ReloadMessages != nil &&
+			compactionAttempt < maxCompactionRetries {
+			reloaded, reloadErr := opts.ReloadMessages(ctx)
+			if reloadErr != nil {
+				return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
 			}
+			messages = reloaded
+			continue
 		}
+		break
 	}
 
 	return nil

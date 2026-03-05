@@ -190,6 +190,8 @@ export function getFileViewerOptionsMinimal(isDark: boolean) {
 }
 
 export const DIFFS_FONT_STYLE = {
+	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
+	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": "1.5",
 } as React.CSSProperties;

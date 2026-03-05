@@ -175,18 +175,29 @@ AI BRIDGE OPTIONS:
           exporting these records to external SIEM or observability systems.
 
 AI BRIDGE PROXY OPTIONS: 
-      --aibridge-proxy-cert-file string, $CODER_AIBRIDGE_PROXY_CERT_FILE
-          Path to the CA certificate file for AI Bridge Proxy.
-
       --aibridge-proxy-enabled bool, $CODER_AIBRIDGE_PROXY_ENABLED (default: false)
           Enable the AI Bridge MITM Proxy for intercepting and decrypting AI
           provider requests.
 
-      --aibridge-proxy-key-file string, $CODER_AIBRIDGE_PROXY_KEY_FILE
-          Path to the CA private key file for AI Bridge Proxy.
-
       --aibridge-proxy-listen-addr string, $CODER_AIBRIDGE_PROXY_LISTEN_ADDR (default: :8888)
           The address the AI Bridge Proxy will listen on.
+
+      --aibridge-proxy-cert-file string, $CODER_AIBRIDGE_PROXY_CERT_FILE
+          Path to the CA certificate file used to intercept (MITM) HTTPS traffic
+          from AI clients. This CA must be trusted by AI clients for the proxy
+          to decrypt their requests.
+
+      --aibridge-proxy-key-file string, $CODER_AIBRIDGE_PROXY_KEY_FILE
+          Path to the CA private key file used to intercept (MITM) HTTPS traffic
+          from AI clients.
+
+      --aibridge-proxy-tls-cert-file string, $CODER_AIBRIDGE_PROXY_TLS_CERT_FILE
+          Path to the TLS certificate file for the AI Bridge Proxy listener.
+          Must be set together with AI Bridge Proxy TLS Key File.
+
+      --aibridge-proxy-tls-key-file string, $CODER_AIBRIDGE_PROXY_TLS_KEY_FILE
+          Path to the TLS private key file for the AI Bridge Proxy listener.
+          Must be set together with AI Bridge Proxy TLS Certificate File.
 
       --aibridge-proxy-upstream string, $CODER_AIBRIDGE_PROXY_UPSTREAM
           URL of an upstream HTTP proxy to chain tunneled (non-allowlisted)

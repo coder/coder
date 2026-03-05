@@ -165,19 +165,12 @@ func waitForAgentAndRespond(
 		}), nil
 	}
 
-	if agentConnFn != nil {
-		if err := waitForAgent(ctx, agentConnFn, agents[0].ID); err != nil {
-			return toolResponse(map[string]any{
-				"started":        true,
-				"workspace_name": ws.Name,
-				"agent_status":   "not_ready",
-				"agent_error":    err.Error(),
-			}), nil
-		}
-	}
-
-	return toolResponse(map[string]any{
+	result := map[string]any{
 		"started":        true,
 		"workspace_name": ws.Name,
-	}), nil
+	}
+	for k, v := range waitForAgentReady(ctx, db, agents[0].ID, agentConnFn) {
+		result[k] = v
+	}
+	return toolResponse(result), nil
 }

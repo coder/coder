@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/enterprise/audit"
+	"github.com/coder/coder/v2/scripts/atomicwrite"
 )
 
 var (
@@ -150,9 +151,7 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap) ([]
 }
 
 func writeAuditDoc(doc []byte) error {
-	// G306: Expect WriteFile permissions to be 0600 or less
-	/* #nosec G306 */
-	return os.WriteFile(auditDocFile, doc, 0o644)
+	return atomicwrite.File(auditDocFile, doc)
 }
 
 func sortKeys[T any](stringMap map[string]T) []string {

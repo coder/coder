@@ -68,7 +68,7 @@ The workspace itself has no knowledge of AI. It is standard compute
 infrastructure — there are no LLM API keys, no agent harnesses, and no special
 software installed. All intelligence lives in the control plane.
 
-![Architecture diagram showing the control plane in the center, with arrows out to LLM providers and arrows to workspaces](../../images/guides/ai-agents/agent-loop.png)
+<img src="../../images/guides/ai-agents/agent-loop.png" alt="Architecture diagram showing the control plane in the center, with arrows out to LLM providers and arrows to workspaces">
 
 <small>The agent loop runs in the control plane. It makes outbound requests to LLM
 providers and connects to workspaces only when tool execution is needed.</small>
@@ -195,7 +195,7 @@ enterprise LLM proxies, self-hosted model endpoints, and internal gateways.
 Administrators can configure multiple providers simultaneously and set a default
 model. Developers select from enabled models when starting a chat.
 
-![Screenshot of the provider/model configuration admin panel](../../images/guides/ai-agents/llm-providers.png)
+<img src="../../images/guides/ai-agents/llm-providers.png" alt="Screenshot of the provider/model configuration admin panel">
 
 <small>The model configuration panel in the Coder dashboard.</small>
 

@@ -92,17 +92,11 @@ export const ExecuteTool: React.FC<{
 
 					{/* Expand / collapse toggle at the bottom */}
 					{overflows && (
-						<div
-							role="button"
-							tabIndex={0}
+						<button
+							type="button"
 							aria-expanded={expanded}
 							onClick={() => setExpanded((v) => !v)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									setExpanded((v) => !v);
-								}
-							}}
-							className="flex w-full cursor-pointer items-center justify-center py-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
+							className="border-0 bg-transparent m-0 font-[inherit] text-[inherit] flex w-full cursor-pointer items-center justify-center py-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
 							aria-label={expanded ? "Collapse output" : "Expand output"}
 						>
 							<ChevronDownIcon
@@ -111,7 +105,7 @@ export const ExecuteTool: React.FC<{
 									expanded && "rotate-180",
 								)}
 							/>
-						</div>
+						</button>
 					)}
 				</>
 			)}

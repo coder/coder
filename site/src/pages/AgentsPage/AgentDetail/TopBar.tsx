@@ -26,29 +26,7 @@ import {
 import type { FC } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-
-const DiffStatsInline: FC<{
-	status: ChatDiffStatusResponse;
-	onClick: () => void;
-}> = ({ status, onClick }) => {
-	const additions = status.additions ?? 0;
-	const deletions = status.deletions ?? 0;
-
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className="inline-flex shrink-0 cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent p-0 font-mono text-[13px] leading-none tabular-nums transition-opacity hover:opacity-80"
-		>
-			<span className="bg-content-success/10 px-1.5 py-1 text-content-success">
-				+{additions}
-			</span>
-			<span className="bg-content-destructive/10 px-1.5 py-1 text-content-destructive">
-				−{deletions}
-			</span>
-		</button>
-	);
-};
+import { DiffStatsInline } from "../DiffStats";
 
 interface DiffPanelState {
 	hasDiffStatus: boolean;
@@ -141,7 +119,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
-						{diff.hasDiffStatus && diff.diffStatus && (
+						{diff.hasDiffStatus && diff.diffStatus && !diff.showDiffPanel && (
 							<span className="ml-3">
 								<DiffStatsInline
 									status={diff.diffStatus}
@@ -262,8 +240,8 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							<PanelRightOpenIcon className="h-4 w-4" />
 						)}
 					</Button>
-				)}{" "}
-			</div>
+				)}
+			</div>{" "}
 		</div>
 	);
 };

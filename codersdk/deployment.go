@@ -3858,21 +3858,41 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "listen_addr",
 		},
 		{
-			Name:        "AI Bridge Proxy Certificate File",
-			Description: "Path to the CA certificate file for AI Bridge Proxy.",
+			Name:        "AI Bridge Proxy TLS Certificate File",
+			Description: "Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.",
+			Flag:        "aibridge-proxy-tls-cert-file",
+			Env:         "CODER_AIBRIDGE_PROXY_TLS_CERT_FILE",
+			Value:       &c.AI.BridgeProxyConfig.TLSCertFile,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "tls_cert_file",
+		},
+		{
+			Name:        "AI Bridge Proxy TLS Key File",
+			Description: "Path to the TLS private key file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Certificate File.",
+			Flag:        "aibridge-proxy-tls-key-file",
+			Env:         "CODER_AIBRIDGE_PROXY_TLS_KEY_FILE",
+			Value:       &c.AI.BridgeProxyConfig.TLSKeyFile,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "tls_key_file",
+		},
+		{
+			Name:        "AI Bridge Proxy MITM CA Certificate File",
+			Description: "Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.",
 			Flag:        "aibridge-proxy-cert-file",
 			Env:         "CODER_AIBRIDGE_PROXY_CERT_FILE",
-			Value:       &c.AI.BridgeProxyConfig.CertFile,
+			Value:       &c.AI.BridgeProxyConfig.MITMCertFile,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "cert_file",
 		},
 		{
-			Name:        "AI Bridge Proxy Key File",
-			Description: "Path to the CA private key file for AI Bridge Proxy.",
+			Name:        "AI Bridge Proxy MITM CA Key File",
+			Description: "Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI clients.",
 			Flag:        "aibridge-proxy-key-file",
 			Env:         "CODER_AIBRIDGE_PROXY_KEY_FILE",
-			Value:       &c.AI.BridgeProxyConfig.KeyFile,
+			Value:       &c.AI.BridgeProxyConfig.MITMKeyFile,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "key_file",
@@ -4014,8 +4034,10 @@ type AIBridgeBedrockConfig struct {
 type AIBridgeProxyConfig struct {
 	Enabled         serpent.Bool        `json:"enabled" typescript:",notnull"`
 	ListenAddr      serpent.String      `json:"listen_addr" typescript:",notnull"`
-	CertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
-	KeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
+	TLSCertFile     serpent.String      `json:"tls_cert_file" typescript:",notnull"`
+	TLSKeyFile      serpent.String      `json:"tls_key_file" typescript:",notnull"`
+	MITMCertFile    serpent.String      `json:"cert_file" typescript:",notnull"`
+	MITMKeyFile     serpent.String      `json:"key_file" typescript:",notnull"`
 	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
 	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
 	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`

@@ -830,10 +830,21 @@ aibridgeproxy:
   # The address the AI Bridge Proxy will listen on.
   # (default: :8888, type: string)
   listen_addr: :8888
-  # Path to the CA certificate file for AI Bridge Proxy.
+  # Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set
+  # together with AI Bridge Proxy TLS Key File.
+  # (default: <unset>, type: string)
+  tls_cert_file: ""
+  # Path to the TLS private key file for the AI Bridge Proxy listener. Must be set
+  # together with AI Bridge Proxy TLS Certificate File.
+  # (default: <unset>, type: string)
+  tls_key_file: ""
+  # Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI
+  # clients. This CA must be trusted by AI clients for the proxy to decrypt their
+  # requests.
   # (default: <unset>, type: string)
   cert_file: ""
-  # Path to the CA private key file for AI Bridge Proxy.
+  # Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI
+  # clients.
   # (default: <unset>, type: string)
   key_file: ""
   # Comma-separated list of AI provider domains for which HTTPS traffic will be

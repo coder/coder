@@ -1676,6 +1676,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 
 	// Determine the final status and last error to set when we're done.
 	status := database.ChatStatusWaiting
+	wasInterrupted := false
 	lastError := ""
 	remainingQueuedMessages := []database.ChatQueuedMessage{}
 	shouldPublishQueueUpdate := false
@@ -1805,10 +1806,10 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 
 		// Send a web push notification when the agent finishes
 		// processing. We only notify for terminal states (waiting
-		// = success, error = failure) and skip sub-agent chats to
-		// avoid spamming the user with notifications for internal
-		// delegation.
-		if p.webpushDispatcher != nil && p.webpushDispatcher.PublicKey() != "" && !chat.ParentChatID.Valid {
+		// = success, error = failure) and skip sub-agent chats
+		// and user-interrupted chats to avoid unnecessary
+		// notifications.
+		if p.webpushDispatcher != nil && p.webpushDispatcher.PublicKey() != "" && !chat.ParentChatID.Valid && !wasInterrupted {
 			if status == database.ChatStatusWaiting || status == database.ChatStatusError {
 				pushMsg := codersdk.WebpushMessage{
 					Title: chat.Title,
@@ -1836,6 +1837,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
 			logger.Info(ctx, "chat interrupted")
 			status = database.ChatStatusWaiting
+			wasInterrupted = true
 			return
 		}
 		if isShutdownCancellation(ctx, chatCtx, err) {
@@ -2244,6 +2246,23 @@ func (p *Server) runChat(
 			p.publishMessagePart(chat.ID, string(role), part)
 		},
 		Compaction: compactionOptions,
+		ReloadMessages: func(reloadCtx context.Context) ([]fantasy.Message, error) {
+			reloadedMsgs, err := p.db.GetChatMessagesForPromptByChatID(reloadCtx, chat.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("reload chat messages: %w", err)
+			}
+			reloadedPrompt, err := chatprompt.ConvertMessages(reloadedMsgs)
+			if err != nil {
+				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
+			}
+			if chat.ParentChatID.Valid {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, defaultSubagentInstruction)
+			}
+			if instruction := p.resolveInstructions(reloadCtx, chat, getWorkspaceConn); instruction != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			}
+			return reloadedPrompt, nil
+		},
 
 		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
 			logger.Warn(ctx, "retrying LLM stream",

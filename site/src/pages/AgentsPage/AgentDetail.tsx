@@ -64,6 +64,7 @@ import { buildStreamTools } from "./AgentDetail/streamState";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import type { AgentsOutletContext } from "./AgentsPage";
+import { DiffStatBadge } from "./DiffStats";
 import { FilesChangedPanel } from "./FilesChangedPanel";
 import {
 	getModelCatalogStatusMessage,
@@ -975,7 +976,7 @@ const AgentDetail: FC = () => {
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					/>
 					{isArchived && (
-						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-sm text-content-secondary">
+						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
 							<ArchiveIcon className="h-4 w-4 shrink-0" />
 							This agent has been archived and is read-only.
 						</div>
@@ -1047,9 +1048,17 @@ const AgentDetail: FC = () => {
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				onVisualExpandedChange={setDragVisualExpanded}
 				tabContent={{
-					git: <FilesChangedPanel chatId={agentId} />,
+					git: (
+						<FilesChangedPanel
+							chatId={agentId}
+							isExpanded={isRightPanelExpanded}
+						/>
+					),
 				}}
-			/>{" "}
+				tabMeta={{
+					git: <DiffStatBadge diffStatus={diffStatusQuery.data} />,
+				}}
+			/>
 		</div>
 	);
 };

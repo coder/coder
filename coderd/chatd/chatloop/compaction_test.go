@@ -462,4 +462,114 @@ func TestRun_Compaction(t *testing.T) {
 		require.Error(t, compactionErr)
 		require.ErrorContains(t, compactionErr, "generate summary text")
 	})
+
+	t.Run("PostRunCompactionReEntersStepLoop", func(t *testing.T) {
+		t.Parallel()
+
+		// When post-run compaction fires (no mid-loop compaction)
+		// and ReloadMessages is provided, Run should re-enter the
+		// step loop with the reloaded messages so the agent
+		// continues working.
+
+		var mu sync.Mutex
+		var streamCallCount int
+		persistCompactionCalls := 0
+		reloadCalls := 0
+
+		const summaryText = "post-run compacted summary"
+
+		compactedMessages := []fantasy.Message{
+			textMessage(fantasy.MessageRoleSystem, "compacted system"),
+			textMessage(fantasy.MessageRoleUser, "compacted user"),
+		}
+
+		model := &loopTestModel{
+			provider: "fake",
+			streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				mu.Lock()
+				step := streamCallCount
+				streamCallCount++
+				mu.Unlock()
+
+				switch step {
+				case 0:
+					// First turn: text-only response with high usage.
+					// No tool calls, so shouldContinue = false and
+					// the inner step loop breaks. Compaction should
+					// fire, then the outer loop re-enters.
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "initial response"},
+						{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+						{
+							Type:         fantasy.StreamPartTypeFinish,
+							FinishReason: fantasy.FinishReasonStop,
+							Usage: fantasy.Usage{
+								InputTokens: 80,
+								TotalTokens: 85,
+							},
+						},
+					}), nil
+				default:
+					// Second turn (after compaction re-entry):
+					// text-only with low usage — should finish.
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "text-2"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-2", Delta: "continued after compaction"},
+						{Type: fantasy.StreamPartTypeTextEnd, ID: "text-2"},
+						{
+							Type:         fantasy.StreamPartTypeFinish,
+							FinishReason: fantasy.FinishReasonStop,
+							Usage: fantasy.Usage{
+								InputTokens: 20,
+								TotalTokens: 25,
+							},
+						},
+					}), nil
+				}
+			},
+			generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+				return &fantasy.Response{
+					Content: []fantasy.Content{
+						fantasy.TextContent{Text: summaryText},
+					},
+				}, nil
+			},
+		}
+
+		err := Run(context.Background(), RunOptions{
+			Model: model,
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "hello"),
+			},
+			MaxSteps: 5,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			ContextLimitFallback: 100,
+			Compaction: &CompactionOptions{
+				ThresholdPercent: 70,
+				SummaryPrompt:    "summarize now",
+				Persist: func(_ context.Context, _ CompactionResult) error {
+					persistCompactionCalls++
+					return nil
+				},
+			},
+			ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+				reloadCalls++
+				return compactedMessages, nil
+			},
+		})
+		require.NoError(t, err)
+
+		// Compaction fired on the final step of the first pass.
+		// The inline path fires (ReloadMessages is set) and then
+		// the outer loop re-enters. On the second pass the usage
+		// is below threshold so no further compaction occurs.
+		require.GreaterOrEqual(t, persistCompactionCalls, 1)
+		// ReloadMessages was called (inline + re-entry).
+		require.GreaterOrEqual(t, reloadCalls, 1)
+		// Two stream calls: one before compaction, one after re-entry.
+		require.Equal(t, 2, streamCallCount)
+	})
 }

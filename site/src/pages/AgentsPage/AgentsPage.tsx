@@ -15,17 +15,20 @@ import {
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
+import {
+	Combobox,
+	ComboboxContent,
+	ComboboxEmpty,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "components/Combobox/Combobox";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
 import { useAuthenticated } from "hooks";
 import { MonitorIcon, PanelLeftIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -55,6 +58,7 @@ import {
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
+import { useAgentsPWA } from "./useAgentsPWA";
 import { WebPushButton } from "./WebPushButton";
 
 /** @internal Exported for testing. */
@@ -101,6 +105,7 @@ export interface AgentsOutletContext {
 }
 
 const AgentsPage: FC = () => {
+	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { agentId } = useParams();
@@ -698,7 +703,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		useState(initialSystemPrompt);
 	const [systemPromptDraft, setSystemPromptDraft] =
 		useState(initialSystemPrompt);
-	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 50 }));
+	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
 			if (typeof window === "undefined") return null;
@@ -850,38 +855,46 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					inputStatusText={inputStatusText}
 					modelCatalogStatusMessage={modelCatalogStatusMessage}
 					leftActions={
-						<Select
+						<Combobox
 							value={selectedWorkspaceId ?? autoCreateWorkspaceValue}
-							onValueChange={handleWorkspaceChange}
-							disabled={isCreating || workspacesQuery.isLoading}
+							onValueChange={(value) =>
+								handleWorkspaceChange(value ?? autoCreateWorkspaceValue)
+							}
 						>
-							<SelectTrigger className="h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary [&>svg]:transition-colors [&>svg]:hover:text-content-primary focus:ring-0 focus-visible:ring-0">
-								<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary group-hover:text-content-primary" />
-								<SelectValue>
-									{selectedWorkspaceLabel ?? "Workspace"}
-								</SelectValue>
-							</SelectTrigger>
-							<SelectContent
+							<ComboboxTrigger asChild>
+								<button
+									type="button"
+									disabled={isCreating || workspacesQuery.isLoading}
+									className="group flex h-8 items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:bg-transparent hover:text-content-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+								>
+									<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+									<span>{selectedWorkspaceLabel ?? "Workspace"}</span>
+									<ChevronDownIcon className="size-icon-sm text-content-secondary transition-colors group-hover:text-content-primary" />
+								</button>
+							</ComboboxTrigger>
+							<ComboboxContent
 								side="top"
 								align="center"
-								className="[&_[role=option]]:text-xs"
+								className="w-72 [&_[cmdk-item]]:text-xs"
 							>
-								<SelectItem value={autoCreateWorkspaceValue}>
-									Auto-create Workspace
-								</SelectItem>
-								{workspaceOptions.map((workspace) => (
-									<SelectItem key={workspace.id} value={workspace.id}>
-										{workspace.owner_name}/{workspace.name}
-									</SelectItem>
-								))}
-								{workspaceOptions.length === 0 &&
-									!workspacesQuery.isLoading && (
-										<SelectItem value="no-workspaces" disabled>
-											No workspaces found
-										</SelectItem>
-									)}
-							</SelectContent>
-						</Select>
+								<ComboboxInput placeholder="Search workspaces..." />
+								<ComboboxList>
+									<ComboboxItem value={autoCreateWorkspaceValue}>
+										Auto-create Workspace
+									</ComboboxItem>
+									{workspaceOptions.map((workspace) => (
+										<ComboboxItem
+											key={workspace.id}
+											value={workspace.id}
+											keywords={[workspace.owner_name, workspace.name]}
+										>
+											{workspace.owner_name}/{workspace.name}
+										</ComboboxItem>
+									))}
+								</ComboboxList>
+								<ComboboxEmpty>No workspaces found</ComboboxEmpty>
+							</ComboboxContent>
+						</Combobox>
 					}
 				/>
 			</div>

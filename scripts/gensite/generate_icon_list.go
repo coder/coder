@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/coder/coder/v2/scripts/atomicwrite"
 )
 
 func generateIconList(path string) int {
@@ -30,14 +32,6 @@ func generateIconList(path string) int {
 	}
 	icons = icons[:i]
 
-	outputFile, err := os.Create(path)
-	if err != nil {
-		_, _ = fmt.Println("failed to create file")
-		_, _ = fmt.Println("err:", err.Error())
-		return 73 // CANTCREAT
-	}
-	defer outputFile.Close()
-
 	iconsJSON, err := json.Marshal(icons)
 	if err != nil {
 		_, _ = fmt.Println("failed to serialize JSON")
@@ -45,12 +39,9 @@ func generateIconList(path string) int {
 		return 70 // SOFTWARE
 	}
 
-	written, err := outputFile.Write(iconsJSON)
-	if err != nil || written != len(iconsJSON) {
+	if err := atomicwrite.File(path, iconsJSON); err != nil {
 		_, _ = fmt.Println("failed to write JSON")
-		if err != nil {
-			_, _ = fmt.Println("err:", err.Error())
-		}
+		_, _ = fmt.Println("err:", err.Error())
 		return 74 // IOERR
 	}
 
