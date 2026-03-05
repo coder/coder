@@ -38,7 +38,7 @@ site/.swc
 
 # Make target for updating generated/golden files (any dir).
 .gen
-coderd/apidoc/.manifest-staging.json
+/.tmp/
 .gen-golden
 
 # Build

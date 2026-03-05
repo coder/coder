@@ -7,7 +7,8 @@
 
 set -euo pipefail
 
-tmpdir=$(mktemp -d -p .)
+mkdir -p .tmp
+tmpdir=$(mktemp -d -p .tmp)
 trap 'rm -rf "$tmpdir"' EXIT
 
 # Rewrite --go_out=. and --go-drpc_out=. to point at tmpdir.
