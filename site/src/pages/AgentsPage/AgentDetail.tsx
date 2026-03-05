@@ -64,7 +64,6 @@ import { buildStreamTools } from "./AgentDetail/streamState";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import type { AgentsOutletContext } from "./AgentsPage";
-import { DiffRightPanel } from "./DiffRightPanel";
 import { FilesChangedPanel } from "./FilesChangedPanel";
 import {
 	getModelCatalogStatusMessage,
@@ -72,6 +71,7 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import { RightPanel } from "./RightPanel";
 
 const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
 	() => {};
@@ -436,6 +436,14 @@ const AgentDetail: FC = () => {
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const [showDiffPanel, setShowDiffPanel] = useState(false);
+	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
+	// Tracks the live visual expanded state during drag so sibling
+	// content hides/shows in real-time rather than on pointer-up.
+	// Null means "no drag override, use isRightPanelExpanded".
+	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
+		null,
+	);
+	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
@@ -929,11 +937,16 @@ const AgentDetail: FC = () => {
 	return (
 		<div
 			className={cn(
-				"flex min-h-0 min-w-0 flex-1",
-				shouldShowDiffPanel && "flex-col xl:flex-row",
+				"relative flex min-h-0 min-w-0 flex-1",
+				shouldShowDiffPanel && !visualExpanded && "flex-col xl:flex-row",
 			)}
 		>
-			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+			<div
+				className={cn(
+					"relative flex min-h-0 min-w-0 flex-1 flex-col",
+					visualExpanded && "hidden",
+				)}
+			>
 				<div className="relative z-10 shrink-0 overflow-visible">
 					<AgentDetailTopBar
 						chatTitle={chatTitle}
@@ -1024,9 +1037,19 @@ const AgentDetail: FC = () => {
 					/>
 				</div>
 			</div>
-			<DiffRightPanel isOpen={shouldShowDiffPanel}>
-				<FilesChangedPanel chatId={agentId} />
-			</DiffRightPanel>
+			<RightPanel
+				isOpen={shouldShowDiffPanel}
+				isExpanded={isRightPanelExpanded}
+				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+				onClose={() => setShowDiffPanel(false)}
+				chatTitle={chatTitle}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				onVisualExpandedChange={setDragVisualExpanded}
+				tabContent={{
+					git: <FilesChangedPanel chatId={agentId} />,
+				}}
+			/>{" "}
 		</div>
 	);
 };
