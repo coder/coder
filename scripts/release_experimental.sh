@@ -564,7 +564,7 @@ log "    release_notes:   (${#release_notes} chars, written to ${release_notes_f
 log
 if confirm "Trigger release workflow?"; then
 	if ((dry_run)); then
-		echo -e "${YELLOW}DRY RUN, would execute: echo <payload> | gh workflow run release.yaml --json --ref ${new_version}${RESET}" >&2
+		echo -e "${YELLOW}DRY RUN, would execute: echo '${release_json}' | gh workflow run release.yaml --json --ref ${new_version}${RESET}" >&2
 	else
 		echo "$release_json" | gh workflow run release.yaml --json --ref "${new_version}"
 	fi
