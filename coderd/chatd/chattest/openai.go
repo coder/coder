@@ -329,7 +329,47 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 			return
 		case chunk, ok = <-chunks:
 			if !ok {
-				_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
+				// Emit Responses API lifecycle events so
+				// the fantasy client closes open text
+				// blocks and persists the step content.
+				for outputIndex, itemID := range itemIDs {
+					textDone, _ := json.Marshal(map[string]interface{}{
+						"type":          "response.output_text.done",
+						"item_id":       itemID,
+						"output_index":  outputIndex,
+						"content_index": 0,
+					})
+					_, _ = fmt.Fprintf(w, "data: %s\n\n", textDone)
+
+					itemDone, _ := json.Marshal(map[string]interface{}{
+						"type":         "response.output_item.done",
+						"item_id":      itemID,
+						"output_index": outputIndex,
+						"item": map[string]interface{}{
+							"id":   itemID,
+							"type": "message",
+						},
+					})
+					_, _ = fmt.Fprintf(w, "data: %s\n\n", itemDone)
+				}
+				completed, _ := json.Marshal(map[string]interface{}{
+					"type": "response.completed",
+					"response": map[string]interface{}{
+						"status":             "completed",
+						"incomplete_details": map[string]interface{}{"reason": ""},
+						"usage": map[string]interface{}{
+							"input_tokens":  0,
+							"output_tokens": 0,
+							"output_tokens_details": map[string]interface{}{
+								"reasoning_tokens": 0,
+							},
+							"input_tokens_details": map[string]interface{}{
+								"cached_tokens": 0,
+							},
+						},
+					},
+				})
+				_, _ = fmt.Fprintf(w, "data: %s\n\n", completed)
 				flusher.Flush()
 				return
 			}
@@ -344,6 +384,21 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 			if !found {
 				itemID = fmt.Sprintf("msg_%s", uuid.New().String()[:8])
 				itemIDs[outputIndex] = itemID
+
+				// Emit response.output_item.added so the
+				// fantasy client triggers TextStart.
+				itemAdded, _ := json.Marshal(map[string]interface{}{
+					"type":         "response.output_item.added",
+					"output_index": outputIndex,
+					"item": map[string]interface{}{
+						"id":   itemID,
+						"type": "message",
+					},
+				})
+				if _, err := fmt.Fprintf(w, "data: %s\n\n", itemAdded); err != nil {
+					return
+				}
+				flusher.Flush()
 			}
 
 			chunkData := map[string]interface{}{
