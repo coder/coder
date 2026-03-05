@@ -40,7 +40,7 @@ function ensureSetiFontRegistered(): void {
   src: url("/seti.woff") format("woff");
   font-weight: normal;
   font-style: normal;
-  font-display: block;
+  font-display: swap;
 }`;
 	document.head.appendChild(style);
 }
@@ -252,13 +252,14 @@ const getSetiIconForFile = (fileName: string): FileIconGlyph => {
 };
 
 const BASE_ICON_STYLE: React.CSSProperties = {
-	fontFamily: '"Seti"',
-	fontSize: 16,
+	fontFamily:
+		'"Seti", "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+	fontSize: 14,
 	lineHeight: 1,
 	display: "inline-flex",
 	alignItems: "center",
 	justifyContent: "center",
-	width: "1rem",
+	minWidth: "1rem",
 	height: "1rem",
 	userSelect: "none",
 	fontStyle: "normal",
