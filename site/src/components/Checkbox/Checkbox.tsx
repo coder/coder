@@ -15,28 +15,40 @@ export const Checkbox: React.FC<
 	return (
 		<CheckboxPrimitive.Root
 			className={cn(
-				`peer size-[18px] shrink-0 rounded-sm border border-border border-solid
-    	focus-visible:outline-none focus-visible:ring-2
-    	focus-visible:ring-content-link focus-visible:ring-offset-4 focus-visible:ring-offset-surface-primary
-    	disabled:cursor-not-allowed disabled:bg-surface-primary disabled:data-[state=checked]:bg-surface-tertiary
-    	data-[state=unchecked]:bg-surface-primary
-    	data-[state=checked]:bg-surface-invert-primary data-[state=checked]:text-content-invert
-    	hover:enabled:border-border-hover hover:data-[state=checked]:bg-surface-invert-secondary`,
+				"peer size-[18px] shrink-0 rounded-xs border border-border border-solid m-1",
+				"focus-visible:outline-none focus-visible:ring-2 relative",
+				"focus-visible:ring-content-link focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface-primary",
+				"disabled:cursor-not-allowed",
+				"disabled:bg-surface-primary",
+				"disabled:data-[state=checked]:bg-surface-tertiary",
+				"disabled:data-[state=checked]:border-surface-tertiary",
+				"data-[state=unchecked]:bg-surface-primary",
+				"data-[state=checked]:bg-surface-invert-primary",
+				"data-[state=checked]:text-content-invert",
+				"data-[state=checked]:border-surface-invert-primary",
+				"data-[state=indeterminate]:bg-surface-invert-primary",
+				"data-[state=indeterminate]:text-content-invert",
+				"data-[state=indeterminate]:border-surface-invert-primary",
+				"hover:enabled:border-border-hover",
+				"hover:data-[state=checked]:bg-surface-invert-secondary",
+				"hover:data-[state=checked]:border-surface-invert-secondary",
+				"hover:data-[state=indeterminate]:bg-surface-invert-secondary",
+				"hover:data-[state=indeterminate]:border-surface-invert-secondary",
 				className,
 			)}
 			{...props}
 		>
 			<CheckboxPrimitive.Indicator
-				className={cn("flex items-center justify-center text-current relative")}
+				className={cn(
+					"absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-4",
+				)}
 			>
-				<div className="flex">
-					{(props.checked === true || props.defaultChecked === true) && (
-						<Check className="w-4 h-4" strokeWidth={2.5} />
-					)}
-					{props.checked === "indeterminate" && (
-						<Minus className="w-4 h-4" strokeWidth={2.5} />
-					)}
-				</div>
+				{(props.checked === true || props.defaultChecked === true) && (
+					<Check className="size-4" strokeWidth={2.5} />
+				)}
+				{props.checked === "indeterminate" && (
+					<Minus className="size-4" strokeWidth={2.5} />
+				)}
 			</CheckboxPrimitive.Indicator>
 		</CheckboxPrimitive.Root>
 	);

@@ -1,5 +1,4 @@
 import { watchWorkspace } from "api/api";
-import { workspaceSharingSettings } from "api/queries/organizations";
 import { template as templateQueryOptions } from "api/queries/templates";
 import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
 import {
@@ -44,12 +43,6 @@ const WorkspacePage: FC = () => {
 	// Permissions
 	const permissionsQuery = useQuery(workspacePermissions(workspace));
 	const permissions = permissionsQuery.data;
-
-	const sharingSettingsQuery = useQuery({
-		...workspaceSharingSettings(workspace?.organization_id ?? ""),
-		enabled: !!workspace,
-	});
-	const sharingDisabled = sharingSettingsQuery.data?.sharing_disabled ?? false;
 
 	// Watch workspace changes
 	const updateWorkspaceData = useEffectEvent(
@@ -124,7 +117,6 @@ const WorkspacePage: FC = () => {
 			workspace={workspace}
 			template={template}
 			permissions={permissions}
-			sharingDisabled={sharingDisabled}
 		/>
 	);
 };

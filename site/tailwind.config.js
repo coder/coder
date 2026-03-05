@@ -4,12 +4,19 @@ module.exports = {
 		preflight: false,
 	},
 	darkMode: ["selector"],
-	content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+	content: [
+		"./index.html",
+		"./src/**/*.{js,ts,jsx,tsx}",
+		"./node_modules/streamdown/dist/**/*.js",
+		"./node_modules/@streamdown/*/dist/**/*.js",
+	],
 	important: ["#root", "#storybook-root"],
 	theme: {
 		extend: {
 			fontFamily: {
 				sans: `"Geist Variable", system-ui, sans-serif`,
+				// `monospace, monospace` resets the font-size to 16px with the fallback.
+				mono: `"Geist Mono Variable", monospace, monospace`,
 			},
 			size: {
 				"icon-lg": "1.5rem",
@@ -27,6 +34,7 @@ module.exports = {
 				lg: "var(--radius)",
 				md: "calc(var(--radius) - 2px)",
 				sm: "calc(var(--radius) - 4px)",
+				xs: "calc(var(--radius) - 6px)",
 			},
 			colors: {
 				content: {

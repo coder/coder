@@ -1,5 +1,5 @@
-# 1.86.0
-FROM rust:slim@sha256:9663b80a1621253d30b146454f903de48f0af925c967be48c84745537cd35d8b AS rust-utils
+# 1.93.1
+FROM rust:slim@sha256:c0a38f5662afdb298898da1d70b909af4bda4e0acff2dc52aea6360a9b9c6956 AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
 # Use more reliable mirrors for Debian packages
@@ -144,7 +144,6 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	bind9-dnsutils \
 	build-essential \
 	ca-certificates \
-	cargo \
 	cmake \
 	containerd.io \
 	crypto-policies \
@@ -211,6 +210,14 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	apt-get clean && \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
+
+# Install Rust via rustup. Using rustup ensures we get a current stable
+# toolchain.
+ENV RUSTUP_HOME=/usr/local/rustup \
+	CARGO_HOME=/usr/local/cargo
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+	sh -s -- -y --default-toolchain stable --profile minimal
+ENV PATH=$CARGO_HOME/bin:$PATH
 
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.14.5.
 # Installing the same version here to match.
@@ -294,57 +301,57 @@ ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	GOLANGCI_LINT_VERSION=1.64.8 \
 	GRYPE_VERSION=0.61.1 \
 	HELM_VERSION=3.12.0 \
-	KUBE_LINTER_VERSION=0.6.3 \
+	KUBE_LINTER_VERSION=0.8.1 \
 	KUBECTX_VERSION=0.9.4 \
 	STRIPE_VERSION=1.14.5 \
 	TERRAGRUNT_VERSION=0.45.11 \
-	TRIVY_VERSION=0.41.0 \
+	TRIVY_VERSION=0.69.2 \
 	SYFT_VERSION=1.20.0 \
 	COSIGN_VERSION=2.4.3 \
 	BUN_VERSION=1.2.15
 
 # cloud_sql_proxy, for connecting to cloudsql instances
 # the upstream go.mod prevents this from being installed with go install
-RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_proxy "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v${CLOUD_SQL_PROXY_VERSION}/cloud-sql-proxy.linux.amd64" && \
+RUN curl --silent --show-error --location --fail --output /usr/local/bin/cloud_sql_proxy "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v${CLOUD_SQL_PROXY_VERSION}/cloud-sql-proxy.linux.amd64" && \
 	chmod a=rx /usr/local/bin/cloud_sql_proxy && \
 	# dive for scanning image layer utilization metrics in CI
-	curl --silent --show-error --location "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_amd64.tar.gz" | \
+	curl --silent --show-error --location --fail "https://github.com/wagoodman/dive/releases/download/v${DIVE_VERSION}/dive_${DIVE_VERSION}_linux_amd64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- dive && \
 	# docker-credential-gcr is a Docker credential helper for pushing/pulling
 	# images from Google Container Registry and Artifact Registry
-	curl --silent --show-error --location "https://github.com/GoogleCloudPlatform/docker-credential-gcr/releases/download/v${DOCKER_GCR_VERSION}/docker-credential-gcr_linux_amd64-${DOCKER_GCR_VERSION}.tar.gz" | \
+	curl --silent --show-error --location --fail "https://github.com/GoogleCloudPlatform/docker-credential-gcr/releases/download/v${DOCKER_GCR_VERSION}/docker-credential-gcr_linux_amd64-${DOCKER_GCR_VERSION}.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- docker-credential-gcr && \
 	# golangci-lint performs static code analysis for our Go code
-	curl --silent --show-error --location "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" | \
+	curl --silent --show-error --location --fail "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 "golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64/golangci-lint" && \
 	# Anchore Grype for scanning container images for security issues
-	curl --silent --show-error --location "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" | \
+	curl --silent --show-error --location --fail "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- grype && \
 	# Helm is necessary for deploying Coder
-	curl --silent --show-error --location "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | \
+	curl --silent --show-error --location --fail "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 linux-amd64/helm && \
 	# kube-linter for linting Kubernetes objects, including those
 	# that Helm generates from our charts
-	curl --silent --show-error --location "https://github.com/stackrox/kube-linter/releases/download/${KUBE_LINTER_VERSION}/kube-linter-linux" --output /usr/local/bin/kube-linter && \
+	curl --silent --show-error --location --fail "https://github.com/stackrox/kube-linter/releases/download/v${KUBE_LINTER_VERSION}/kube-linter-linux" --output /usr/local/bin/kube-linter && \
 	# kubens and kubectx for managing Kubernetes namespaces and contexts
-	curl --silent --show-error --location "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubectx_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
+	curl --silent --show-error --location --fail "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubectx_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- kubectx && \
-	curl --silent --show-error --location "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubens_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
+	curl --silent --show-error --location --fail "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubens_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- kubens && \
 	# stripe for coder.com billing API
-	curl --silent --show-error --location "https://github.com/stripe/stripe-cli/releases/download/v${STRIPE_VERSION}/stripe_${STRIPE_VERSION}_linux_x86_64.tar.gz" | \
+	curl --silent --show-error --location --fail "https://github.com/stripe/stripe-cli/releases/download/v${STRIPE_VERSION}/stripe_${STRIPE_VERSION}_linux_x86_64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- stripe && \
 	# terragrunt for running Terraform and Terragrunt files
-	curl --silent --show-error --location --output /usr/local/bin/terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64" && \
+	curl --silent --show-error --location --fail --output /usr/local/bin/terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64" && \
 	chmod a=rx /usr/local/bin/terragrunt && \
 	# AquaSec Trivy for scanning container images for security issues
-	curl --silent --show-error --location "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
+	curl --silent --show-error --location --fail "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- trivy && \
 	# Anchore Syft for SBOM generation
-	curl --silent --show-error --location "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
+	curl --silent --show-error --location --fail "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
 	# Sigstore Cosign for artifact signing and attestation
-	curl --silent --show-error --location --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
+	curl --silent --show-error --location --fail --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
 	chmod a=rx /usr/local/bin/cosign && \
 	# Install Bun JavaScript runtime to /usr/local/bin
 	# Ensure unzip is installed right before using it and use multiple mirrors for reliability
@@ -413,6 +420,11 @@ USER coder
 # installed in this docker file, as they'd be mounted over by the persistent
 # home volume.
 ENV PATH="/home/coder/go/bin:${PATH}"
+
+# Override CARGO_HOME so cargo registry/cache writes go to the coder
+# user's home directory instead of the root-owned /usr/local/cargo.
+# The rustup-installed binaries remain on PATH via /usr/local/cargo/bin.
+ENV CARGO_HOME="/home/coder/.cargo"
 
 # This setting prevents Go from using the public checksum database for
 # our module path prefixes. It is required because these are in private

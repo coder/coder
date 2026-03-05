@@ -337,7 +337,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.3.0"
+  version  = "1.3.2"
   agent_id = coder_agent.dev.id
 }
 
@@ -373,19 +373,21 @@ module "personalize" {
 }
 
 module "mux" {
-  count        = data.coder_workspace.me.start_count
-  source       = "registry.coder.com/coder/mux/coder"
-  version      = "1.1.0"
-  agent_id     = coder_agent.dev.id
-  subdomain    = true
-  display_name = "Mux"
-  add-project  = local.repo_dir
+  count           = data.coder_workspace.me.start_count
+  source          = "registry.coder.com/coder/mux/coder"
+  version         = "1.3.1"
+  agent_id        = coder_agent.dev.id
+  subdomain       = true
+  display_name    = "Mux"
+  add_project     = local.repo_dir
+  install_version = "next"
+  package_manager = "bun"
 }
 
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.2"
+  version                 = "1.4.3"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -433,7 +435,7 @@ module "coder-login" {
 module "cursor" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
-  version  = "1.4.0"
+  version  = "1.4.1"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -441,7 +443,7 @@ module "cursor" {
 module "windsurf" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.3.0"
+  version  = "1.3.1"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -473,6 +475,8 @@ resource "coder_agent" "dev" {
     data.coder_parameter.use_ai_bridge.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
+      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
+      OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
     } : {}
   )
   startup_script_behavior = "blocking"
@@ -761,7 +765,6 @@ resource "docker_container" "workspace" {
     "CODER_PROC_OOM_SCORE=10",
     "CODER_PROC_NICE_SCORE=1",
     "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
-    "CODER_AGENT_SOCKET_SERVER_ENABLED=true",
   ]
   host {
     host = "host.docker.internal"

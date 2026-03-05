@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -69,7 +70,7 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "boundary.sock")
-	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath)
+	srv := boundarylogproxy.NewServer(testutil.Logger(t), socketPath, prometheus.NewRegistry())
 
 	err := srv.Start()
 	require.NoError(t, err)

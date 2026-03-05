@@ -349,7 +349,7 @@ func convertLicense(dl database.License, c jwt.MapClaims) codersdk.License {
 }
 
 func convertLicenses(licenses []database.License) ([]codersdk.License, error) {
-	var out []codersdk.License
+	out := make([]codersdk.License, 0, len(licenses))
 	for _, l := range licenses {
 		c, err := decodeClaims(l)
 		if err != nil {

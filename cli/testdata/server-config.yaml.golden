@@ -182,7 +182,8 @@ networking:
   # (default: lax, type: enum[lax\|none])
   sameSiteAuthCookie: lax
   # Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee
-  # they are only set by the right domain.
+  # they are only set by the right domain. This change is disruptive to any
+  # workspaces built before release 2.31, requiring a workspace restart.
   # (default: false, type: bool)
   hostPrefixCookie: false
   # Whether Coder only allows connections to workspaces via the browser.
@@ -563,6 +564,9 @@ supportLinks: []
 # External Authentication providers.
 # (default: <unset>, type: struct[[]codersdk.ExternalAuthConfig])
 externalAuthProviders: []
+# Enable the default GitHub external auth provider managed by Coder.
+# (default: true, type: bool)
+externalAuthGithubDefaultProviderEnable: true
 # Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By
 # default, this will pick the best available wgtunnel server hosted by Coder. e.g.
 # "tunnel.example.com".

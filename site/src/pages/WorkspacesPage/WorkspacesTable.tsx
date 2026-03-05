@@ -135,6 +135,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									}
 								}}
 								aria-label="Select all workspaces"
+								className="my-0"
 							/>
 							Name
 						</div>

@@ -44,7 +44,6 @@ interface WorkspaceProps {
 	template: TypesGen.Template;
 	permissions: WorkspacePermissions;
 	latestVersion?: TypesGen.TemplateVersion;
-	sharingDisabled?: boolean;
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
 	handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -63,7 +62,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 	permissions,
 	isUpdating,
 	isRestarting,
-	sharingDisabled,
 	handleStart,
 	handleStop,
 	handleRestart,
@@ -238,7 +236,6 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						permissions={permissions}
 						isUpdating={isUpdating}
 						isRestarting={isRestarting}
-						sharingDisabled={sharingDisabled}
 						handleStart={handleStart}
 						handleStop={handleStop}
 						handleRestart={handleRestart}
@@ -268,7 +265,7 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 		<HelpTooltip>
 			<HelpTooltipTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
-					<Avatar size="md" fallback={ownerName} src={ownerAvatarUrl} />
+					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
 					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
 			</HelpTooltipTrigger>
@@ -296,7 +293,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 			<HelpTooltipTrigger asChild>
 				<span css={styles.breadcrumbSegment}>
 					<Avatar
-						size="md"
+						size="sm"
 						variant="icon"
 						src={orgIconUrl}
 						fallback={orgName}
