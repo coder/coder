@@ -36,6 +36,7 @@
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "^3.0.46",
+		"@ai-sdk/mcp": "^1.0.25",
 		"@ai-sdk/openai": "^3.0.30",
 		"@emoji-mart/data": "1.2.1",
 		"@emoji-mart/react": "1.1.1",
