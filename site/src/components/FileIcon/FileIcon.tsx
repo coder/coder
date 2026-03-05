@@ -249,7 +249,7 @@ const BASE_ICON_STYLE: React.CSSProperties = {
 	letterSpacing: "normal",
 };
 
-export interface FileIconProps {
+interface FileIconProps {
 	fileName?: string | null;
 	filePath?: string | null;
 	className?: string;
