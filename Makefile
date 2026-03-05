@@ -981,6 +981,7 @@ docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdo
 
 docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
 	tmpdir=$$(mktemp -d -p .) && \
+		tmpdir=$$(realpath "$$tmpdir") && \
 		mkdir -p "$$tmpdir/docs/reference/cli" && \
 		cp docs/manifest.json "$$tmpdir/docs/manifest.json" && \
 		CI=true DOCS_DIR="$$tmpdir/docs" go run ./scripts/clidocgen && \
@@ -1011,6 +1012,7 @@ coderd/apidoc/.gen: \
 	$(wildcard scripts/apidocgen/postprocess/*) \
 	$(wildcard scripts/apidocgen/markdown-template/*)
 	tmpdir=$$(mktemp -d -p .) && swagtmp=$$(mktemp -d -p .) && \
+		tmpdir=$$(realpath "$$tmpdir") && swagtmp=$$(realpath "$$swagtmp") && \
 		mkdir -p "$$tmpdir/reference/api" && \
 		cp docs/manifest.json "$$tmpdir/manifest.json" && \
 		SWAG_OUTPUT_DIR="$$swagtmp" APIDOCGEN_DOCS_DIR="$$tmpdir" ./scripts/apidocgen/generate.sh && \
