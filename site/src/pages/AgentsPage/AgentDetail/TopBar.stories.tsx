@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ChatDiffStatusResponse } from "api/api";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { AgentDetailTopBar } from "./TopBar";
 
 const mockDiffStatus: ChatDiffStatusResponse = {
@@ -124,5 +124,48 @@ export const ArchivedWithUnarchive: Story = {
 		expect(
 			body.queryByText("Archive & Delete Workspace"),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const ArchiveAndDeleteConfirmDialog: Story = {
+	args: {
+		hasWorkspace: true,
+		workspaceName: "admin/my-workspace",
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(
+			canvas.getByRole("button", { name: "Open agent actions" }),
+		);
+		const body = canvasElement.ownerDocument.body;
+		await user.click(
+			await within(body).findByText("Archive & Delete Workspace"),
+		);
+		await expect(
+			await within(body).findByText("Archive agent and delete workspace"),
+		).toBeInTheDocument();
+	},
+};
+
+export const ArchiveAndDeleteConfirmDialogCallsHandler: Story = {
+	args: {
+		hasWorkspace: true,
+		onArchiveAndDeleteWorkspace: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(
+			canvas.getByRole("button", { name: "Open agent actions" }),
+		);
+		const body = canvasElement.ownerDocument.body;
+		await user.click(
+			await within(body).findByText("Archive & Delete Workspace"),
+		);
+		await user.click(within(body).getByTestId("confirm-button"));
+		await waitFor(() => {
+			expect(args.onArchiveAndDeleteWorkspace).toHaveBeenCalledTimes(1);
+		});
 	},
 };
