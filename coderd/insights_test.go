@@ -2495,9 +2495,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 		require.Len(t, resp.StatusCounts, 1)
 		require.NotNil(t, resp.StatusCounts[codersdk.UserStatusActive])
 		require.Len(t, resp.StatusCounts[codersdk.UserStatusActive], 61)
-		for _, count := range resp.StatusCounts[codersdk.UserStatusActive] {
+		// Depending on the current time of day relative to the
+		// timezone/offset, the first user's creation may land on the
+		// last date in the range. All earlier dates must be zero; the
+		// last date may be 0 or 1.
+		counts := resp.StatusCounts[codersdk.UserStatusActive]
+		for _, count := range counts[:len(counts)-1] {
 			require.Zero(t, count.Count)
 		}
+		require.LessOrEqual(t, counts[len(counts)-1].Count, int64(1))
 	}
 	testcases := []testCase{
 		{
