@@ -33,7 +33,7 @@ func TestStartWorkspace(t *testing.T) {
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(t, ctx, db, user.ID)
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
 
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OwnerID:           user.ID,
@@ -66,7 +66,7 @@ func TestStartWorkspace(t *testing.T) {
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(t, ctx, db, user.ID)
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -141,7 +141,7 @@ func TestStartWorkspace(t *testing.T) {
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		user := dbgen.User(t, db, database.User{})
-		modelCfg := seedModelConfig(t, ctx, db, user.ID)
+		modelCfg := seedModelConfig(ctx, t, db, user.ID)
 		org := dbgen.Organization(t, db, database.Organization{})
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
 			UserID:         user.ID,
@@ -230,8 +230,8 @@ func TestStartWorkspace(t *testing.T) {
 
 // seedModelConfig inserts a provider and model config for testing.
 func seedModelConfig(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	db database.Store,
 	userID uuid.UUID,
 ) database.ChatModelConfig {
