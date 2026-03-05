@@ -2239,6 +2239,7 @@ func defaultChatSystemPrompt() string {
 // @Produce json
 // @Tags Chats
 // @Param Content-Type header string true "Content-Type must be an image type (image/png, image/jpeg, image/gif, image/webp)"
+// @Param organization query string true "Organization ID" format(uuid)
 // @Success 201 {object} codersdk.UploadChatFileResponse
 // @Failure 400 {object} codersdk.Response
 // @Failure 401 {object} codersdk.Response
@@ -2254,20 +2255,20 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO(multi-org): This takes the first org, which is correct for
-	// single-org deployments but arbitrary for multi-org. The client
-	// should specify the org, or we should use a default org policy.
-	organizations, err := api.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-		UserID:  apiKey.UserID,
-		Deleted: sql.NullBool{Bool: false, Valid: true},
-	})
-	if err != nil || len(organizations) == 0 {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to determine organization.",
+	orgIDStr := r.URL.Query().Get("organization")
+	if orgIDStr == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing organization query parameter.",
 		})
 		return
 	}
-	orgID := organizations[0].ID
+	orgID, err := uuid.Parse(orgIDStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid organization ID.",
+		})
+		return
+	}
 
 	contentType := r.Header.Get("Content-Type")
 	if contentType == "" {

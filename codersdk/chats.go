@@ -947,8 +947,8 @@ func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (Cha
 }
 
 // UploadChatFile uploads a file for use in chat messages.
-func (c *Client) UploadChatFile(ctx context.Context, contentType string, filename string, rd io.Reader) (UploadChatFileResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/files", rd, func(r *http.Request) {
+func (c *Client) UploadChatFile(ctx context.Context, organizationID uuid.UUID, contentType string, filename string, rd io.Reader) (UploadChatFileResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/files?organization=%s", organizationID), rd, func(r *http.Request) {
 		r.Header.Set("Content-Type", contentType)
 		if filename != "" {
 			r.Header.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))

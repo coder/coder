@@ -22,6 +22,7 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "modules/apps/apps";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
 	useCallback,
@@ -260,6 +261,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 				.filter(isChatMessage),
 		[messagesByID, orderedMessageIDs],
 	);
+	const { organizations } = useDashboard();
 	const latestContextUsage = useMemo(() => {
 		const usage = getLatestContextUsage(messages);
 		if (!usage) {
@@ -277,7 +279,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		setAttachments,
 		setPreviewUrls,
 		setUploadStates,
-	} = useFileAttachments();
+	} = useFileAttachments(organizations[0]?.id);
 	// Holds raw block data for edit-mode files so we can reconstruct
 	// the full File content lazily at submit time instead of eagerly
 	// decoding base64 on every edit click.
@@ -368,7 +370,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 										type: blockData.mediaType,
 									});
 								}
-								const uploaded = await API.uploadChatFile(fileToUpload);
+								const uploaded = await API.uploadChatFile(fileToUpload, organizations[0]?.id ?? "");
 								fileIds.push(uploaded.id);
 							}
 						}

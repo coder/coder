@@ -6,7 +6,7 @@
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/chats/files \
+curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
   -H 'Accept: application/json' \
   -H 'Content-Type: string' \
   -H 'Coder-Session-Token: API_KEY'
@@ -16,9 +16,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/files \
 
 ### Parameters
 
-| Name           | In     | Type   | Required | Description                                                                       |
-|----------------|--------|--------|----------|-----------------------------------------------------------------------------------|
-| `Content-Type` | header | string | true     | Content-Type must be an image type (image/png, image/jpeg, image/gif, image/webp) |
+| Name           | In     | Type         | Required | Description                                                                       |
+|----------------|--------|--------------|----------|-----------------------------------------------------------------------------------|
+| `Content-Type` | header | string       | true     | Content-Type must be an image type (image/png, image/jpeg, image/gif, image/webp) |
+| `organization` | query  | string(uuid) | true     | Organization ID                                                                   |
 
 ### Example responses
 

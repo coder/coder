@@ -506,6 +506,14 @@ const docTemplate = `{
                         "name": "Content-Type",
                         "in": "header",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "query",
+                        "required": true
                     }
                 ],
                 "responses": {

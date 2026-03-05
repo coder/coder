@@ -112,7 +112,7 @@ const AgentsPage: FC = () => {
 	const navigate = useNavigate();
 	const { agentId } = useParams();
 	const { permissions, user } = useAuthenticated();
-	const { appearance } = useDashboard();
+	const { appearance, organizations } = useDashboard();
 	const isAgentsAdmin =
 		permissions.editDeploymentConfig ||
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
@@ -697,6 +697,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	isConfigureAgentsDialogOpen,
 	onConfigureAgentsDialogOpenChange,
 }) => {
+	const { organizations } = useDashboard();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
 		useEmptyStateDraft();
 	const initialSystemPrompt = () => {
@@ -896,7 +897,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments();
+	} = useFileAttachments(organizations[0]?.id);
 
 	const handleSendWithAttachments = useCallback(
 		async (message: string) => {

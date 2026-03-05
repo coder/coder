@@ -22,7 +22,9 @@ interface UseFileAttachmentsReturn {
 	setUploadStates: Dispatch<SetStateAction<Map<File, UploadState>>>;
 }
 
-export function useFileAttachments(): UseFileAttachmentsReturn {
+export function useFileAttachments(
+	organizationId: string | undefined,
+): UseFileAttachmentsReturn {
 	const [attachments, setAttachments] = useState<File[]>([]);
 	const [uploadStates, setUploadStates] = useState(
 		() => new Map<File, UploadState>(),
@@ -38,30 +40,36 @@ export function useFileAttachments(): UseFileAttachmentsReturn {
 		};
 	}, [previewUrls]);
 
-	const startUpload = useCallback((file: File) => {
-		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));
-		void (async () => {
-			try {
-				const result = await API.uploadChatFile(file);
-				setUploadStates((prev) =>
-					new Map(prev).set(file, {
-						status: "uploaded",
-						fileId: result.id,
-					}),
-				);
-			} catch (err: unknown) {
-				const message = getErrorMessage(err, "Upload failed");
-				const detail = getErrorDetail(err);
-				const errorMessage = detail ? `${message} ${detail}` : message;
-				setUploadStates((prev) =>
-					new Map(prev).set(file, {
-						status: "error",
-						error: errorMessage,
-					}),
-				);
-			}
-		})();
-	}, []);
+	const startUpload = useCallback(
+		(file: File) => {
+			if (!organizationId) return;
+			setUploadStates((prev) =>
+				new Map(prev).set(file, { status: "uploading" }),
+			);
+			void (async () => {
+				try {
+					const result = await API.uploadChatFile(file, organizationId);
+					setUploadStates((prev) =>
+						new Map(prev).set(file, {
+							status: "uploaded",
+							fileId: result.id,
+						}),
+					);
+				} catch (err: unknown) {
+					const message = getErrorMessage(err, "Upload failed");
+					const detail = getErrorDetail(err);
+					const errorMessage = detail ? `${message} ${detail}` : message;
+					setUploadStates((prev) =>
+						new Map(prev).set(file, {
+							status: "error",
+							error: errorMessage,
+						}),
+					);
+				}
+			})();
+		},
+		[organizationId],
+	);
 
 	const handleAttach = useCallback(
 		(files: File[]) => {

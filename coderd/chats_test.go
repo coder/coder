@@ -1534,12 +1534,12 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 		_ = createChatModelConfig(t, client)
 
 		// Upload a file.
 		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		uploadResp, err := client.UploadChatFile(ctx, "image/png", "test.png", bytes.NewReader(pngData))
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 
 		// Create a chat with text first.
@@ -1578,12 +1578,12 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 		_ = createChatModelConfig(t, client)
 
 		// Upload a file.
 		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		uploadResp, err := client.UploadChatFile(ctx, "image/png", "test.png", bytes.NewReader(pngData))
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 
 		// Create a chat with text first.
@@ -1625,12 +1625,12 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 		_ = createChatModelConfig(t, client)
 
 		// Upload a file.
 		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		uploadResp, err := client.UploadChatFile(ctx, "image/png", "test.png", bytes.NewReader(pngData))
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(pngData))
 		require.NoError(t, err)
 
 		// Create a new chat with only a file part.
@@ -2376,11 +2376,11 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// Valid PNG header + padding.
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		resp, err := client.UploadChatFile(ctx, "image/png", "test.png", bytes.NewReader(data))
+		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, resp.ID)
 	})
@@ -2389,10 +2389,10 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		data := append([]byte{0xFF, 0xD8, 0xFF, 0xE0}, make([]byte, 64)...)
-		resp, err := client.UploadChatFile(ctx, "image/jpeg", "test.jpg", bytes.NewReader(data))
+		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/jpeg", "test.jpg", bytes.NewReader(data))
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, resp.ID)
 	})
@@ -2401,13 +2401,13 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// WebP: RIFF + 4-byte size + WEBP + padding.
 		data := append([]byte("RIFF"), make([]byte, 4)...)
 		data = append(data, []byte("WEBP")...)
 		data = append(data, make([]byte, 64)...)
-		resp, err := client.UploadChatFile(ctx, "image/webp", "test.webp", bytes.NewReader(data))
+		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/webp", "test.webp", bytes.NewReader(data))
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, resp.ID)
 	})
@@ -2416,9 +2416,9 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		_, err := client.UploadChatFile(ctx, "text/plain", "test.txt", bytes.NewReader([]byte("hello")))
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "test.txt", bytes.NewReader([]byte("hello")))
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
@@ -2426,9 +2426,9 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
-		_, err := client.UploadChatFile(ctx, "image/svg+xml", "test.svg", bytes.NewReader([]byte("<svg></svg>")))
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/svg+xml", "test.svg", bytes.NewReader([]byte("<svg></svg>")))
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
@@ -2436,10 +2436,10 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// Header says PNG but body is plain text.
-		_, err := client.UploadChatFile(ctx, "image/png", "test.png", bytes.NewReader([]byte("hello world")))
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader([]byte("hello world")))
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
@@ -2447,12 +2447,12 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		// 10 MB + 1 byte, with valid PNG header to pass MIME check.
 		data := make([]byte, 10<<20+1)
 		copy(data, []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
-		_, err := client.UploadChatFile(ctx, "image/png", "test.png", bytes.NewReader(data))
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
 		require.Error(t, err)
 	})
 
@@ -2460,11 +2460,11 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		unauthed := codersdk.New(client.URL)
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		_, err := unauthed.UploadChatFile(ctx, "image/png", "test.png", bytes.NewReader(data))
+		_, err := unauthed.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
 }
@@ -2476,10 +2476,10 @@ func TestGetChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		uploaded, err := client.UploadChatFile(ctx, "image/png", "test.png", bytes.NewReader(data))
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
 		require.NoError(t, err)
 
 		got, contentType, err := client.GetChatFile(ctx, uploaded.ID)
@@ -2492,10 +2492,10 @@ func TestGetChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		uploaded, err := client.UploadChatFile(ctx, "image/png", "test.png", bytes.NewReader(data))
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
 		require.NoError(t, err)
 
 		res, err := client.Request(ctx, http.MethodGet,
@@ -2538,7 +2538,7 @@ func TestGetChatFile(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		uploaded, err := client.UploadChatFile(ctx, "image/png", "test.png", bytes.NewReader(data))
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
 		require.NoError(t, err)
 
 		otherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)

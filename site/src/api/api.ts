@@ -2298,9 +2298,10 @@ class ApiMethods {
 
 	uploadChatFile = async (
 		file: File,
+		organizationId: string,
 	): Promise<TypesGen.UploadChatFileResponse> => {
 		const response = await this.axios.post(
-			"/api/experimental/chats/files",
+			`/api/experimental/chats/files?organization=${organizationId}`,
 			file,
 			{
 				headers: {
