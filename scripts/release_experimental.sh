@@ -22,6 +22,11 @@ cdroot
 
 dependencies git gh jq
 
+# Verify GPG signing is configured for signed tags.
+if ! git config --get user.signingkey >/dev/null 2>&1 && ! git config --get gpg.format >/dev/null 2>&1; then
+	error "GPG signing is not configured. Set git config user.signingkey or gpg.format to create signed tags."
+fi
+
 # Bold/color helpers (degrade gracefully if not a terminal).
 if [[ -t 1 ]]; then
 	BOLD='\033[1m'
