@@ -101,18 +101,18 @@ configuration schema, so the available options always match the provider type.
 
 These options apply to all providers:
 
-| Option                   | Description                                                         |
-|--------------------------|---------------------------------------------------------------------|
-| Model Identifier         | The API model string sent to the provider (e.g., `claude-opus-4-6`).|
-| Display Name             | The label shown to developers in the model selector.                |
-| Context Limit            | Maximum tokens in the context window. Used to determine when context compaction triggers. |
-| Compression Threshold    | Percentage (0–100) of context usage at which the agent compresses older messages into a summary. |
-| Max Output Tokens        | Maximum tokens generated per model response.                        |
-| Temperature              | Controls randomness. Lower values produce more deterministic output. |
-| Top P                    | Nucleus sampling threshold.                                         |
-| Top K                    | Limits token selection to the top K candidates.                     |
-| Presence Penalty         | Penalizes tokens that have already appeared in the conversation.    |
-| Frequency Penalty        | Penalizes tokens proportional to how often they have appeared.      |
+| Option                | Description                                                                                      |
+|-----------------------|--------------------------------------------------------------------------------------------------|
+| Model Identifier      | The API model string sent to the provider (e.g., `claude-opus-4-6`).                             |
+| Display Name          | The label shown to developers in the model selector.                                             |
+| Context Limit         | Maximum tokens in the context window. Used to determine when context compaction triggers.        |
+| Compression Threshold | Percentage (0–100) of context usage at which the agent compresses older messages into a summary. |
+| Max Output Tokens     | Maximum tokens generated per model response.                                                     |
+| Temperature           | Controls randomness. Lower values produce more deterministic output.                             |
+| Top P                 | Nucleus sampling threshold.                                                                      |
+| Top K                 | Limits token selection to the top K candidates.                                                  |
+| Presence Penalty      | Penalizes tokens that have already appeared in the conversation.                                 |
+| Frequency Penalty     | Penalizes tokens proportional to how often they have appeared.                                   |
 
 ### Provider-specific options
 
@@ -121,43 +121,43 @@ fields appear dynamically in the admin UI when you select a provider.
 
 #### Anthropic
 
-| Option                      | Description                                      |
-|-----------------------------|--------------------------------------------------|
-| Thinking Budget Tokens      | Maximum tokens allocated for extended thinking.   |
-| Effort                      | Thinking effort level (`low`, `medium`, `high`, `max`). |
+| Option                 | Description                                             |
+|------------------------|---------------------------------------------------------|
+| Thinking Budget Tokens | Maximum tokens allocated for extended thinking.         |
+| Effort                 | Thinking effort level (`low`, `medium`, `high`, `max`). |
 
 #### OpenAI
 
-| Option                | Description                                            |
-|-----------------------|--------------------------------------------------------|
+| Option                | Description                                                           |
+|-----------------------|-----------------------------------------------------------------------|
 | Reasoning Effort      | How much effort the model spends reasoning (`low`, `medium`, `high`). |
-| Max Completion Tokens | Cap on completion tokens for reasoning models.         |
-| Parallel Tool Calls   | Whether the model can call multiple tools at once.     |
+| Max Completion Tokens | Cap on completion tokens for reasoning models.                        |
+| Parallel Tool Calls   | Whether the model can call multiple tools at once.                    |
 
 #### Google
 
-| Option                 | Description                                           |
-|------------------------|-------------------------------------------------------|
-| Thinking Budget        | Maximum tokens for the model's internal reasoning.    |
-| Include Thoughts       | Whether to include thinking traces in the response.   |
-| Safety Settings        | Content safety thresholds by category.                |
+| Option           | Description                                         |
+|------------------|-----------------------------------------------------|
+| Thinking Budget  | Maximum tokens for the model's internal reasoning.  |
+| Include Thoughts | Whether to include thinking traces in the response. |
+| Safety Settings  | Content safety thresholds by category.              |
 
 #### OpenRouter
 
-| Option                   | Description                                         |
-|--------------------------|-----------------------------------------------------|
-| Reasoning Enabled        | Enable extended reasoning mode.                     |
-| Reasoning Effort         | Reasoning effort level (`low`, `medium`, `high`).   |
-| Provider Order           | Preferred provider routing order.                   |
-| Allow Fallbacks          | Whether to fall back to alternative providers.      |
+| Option            | Description                                       |
+|-------------------|---------------------------------------------------|
+| Reasoning Enabled | Enable extended reasoning mode.                   |
+| Reasoning Effort  | Reasoning effort level (`low`, `medium`, `high`). |
+| Provider Order    | Preferred provider routing order.                 |
+| Allow Fallbacks   | Whether to fall back to alternative providers.    |
 
 #### Vercel AI Gateway
 
-| Option                   | Description                                         |
-|--------------------------|-----------------------------------------------------|
-| Reasoning Enabled        | Enable extended reasoning mode.                     |
-| Reasoning Effort         | Reasoning effort level.                             |
-| Provider Options         | Routing preferences for underlying providers.       |
+| Option            | Description                                   |
+|-------------------|-----------------------------------------------|
+| Reasoning Enabled | Enable extended reasoning mode.               |
+| Reasoning Effort  | Reasoning effort level.                       |
+| Provider Options  | Routing preferences for underlying providers. |
 
 > [!NOTE]
 > Azure OpenAI uses the same options as OpenAI. AWS Bedrock uses the same
