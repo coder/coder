@@ -192,15 +192,15 @@ const TemplateVersionEditorPage: FC = () => {
 					}}
 					onPublishVersion={async (data) => {
 						const publishedVersion = await doPublish(data);
-						// Update the route to reflect the published version name.
-						// Using replace: true avoids adding a new history entry
-						// while keeping React Router state in sync with the URL.
+						// Use replaceState instead of navigate to update the URL
+						// without triggering React Router re-rendering. This
+						// preserves the AI agent's chat session across publishes.
 						const templatePath = `${getLink(
 							linkToTemplate(organizationName, templateName),
 						)}/versions/${publishedVersion.name}/edit`;
 						const query = searchParams.toString();
 						const nextPath = query ? `${templatePath}?${query}` : templatePath;
-						navigate(nextPath, { replace: true });
+						window.history.replaceState(null, "", nextPath);
 					}}
 					isAskingPublishParameters={isPublishingDialogOpen}
 					isPublishing={publishVersionMutation.isPending}
