@@ -3022,14 +3022,19 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	runningPrebuilds := coderdenttest.GetRunningPrebuilds(ctx, t, db, 1)
 	require.Len(t, runningPrebuilds, 1)
 
-	// Then: the histogram value for prebuilt workspace creation should be updated
-	prebuildCreationHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+	// Then: the histogram value for prebuilt workspace creation should be updated.
+	// The metric is updated asynchronously after the DB transaction commits,
+	// so we need to poll for it.
+	prebuildCreationLabels := prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templatePrebuild.Name,
 		"preset_name":       presetsPrebuild[0].Name,
 		"type":              "prebuild",
-	})
-	require.NotNil(t, prebuildCreationHistogram)
+	}
+	require.Eventually(t, func() bool {
+		return promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", prebuildCreationLabels) != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	prebuildCreationHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prebuildCreationLabels)
 	require.Equal(t, uint64(1), prebuildCreationHistogram.GetSampleCount())
 
 	// Given: a running prebuilt workspace, ready to be claimed
@@ -3050,13 +3055,18 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	workspace := coderdenttest.MustClaimPrebuild(ctx, t, client, userClient, user.Username, versionPrebuild, presetsPrebuild[0].ID)
 	require.Equal(t, prebuild.ID, workspace.ID)
 
-	// Then: the histogram value for prebuilt workspace claim should be updated
-	prebuildClaimHistogram := promhelp.HistogramValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prometheus.Labels{
+	// Then: the histogram value for prebuilt workspace claim should be updated.
+	// The metric is updated asynchronously after the DB transaction commits,
+	// so we need to poll for it.
+	prebuildClaimLabels := prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templatePrebuild.Name,
 		"preset_name":       presetsPrebuild[0].Name,
-	})
-	require.NotNil(t, prebuildClaimHistogram)
+	}
+	require.Eventually(t, func() bool {
+		return promhelp.MetricValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prebuildClaimLabels) != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	prebuildClaimHistogram := promhelp.HistogramValue(t, reg, "coderd_prebuilt_workspace_claim_duration_seconds", prebuildClaimLabels)
 	require.Equal(t, uint64(1), prebuildClaimHistogram.GetSampleCount())
 
 	// Given: no histogram value for regular workspaces creation
@@ -3077,14 +3087,19 @@ func TestWorkspaceProvisionerdServerMetrics(t *testing.T) {
 	require.NoError(t, err)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, regularWorkspace.LatestBuild.ID)
 
-	// Then: the histogram value for regular workspace creation should be updated
-	regularWorkspaceHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", prometheus.Labels{
+	// Then: the histogram value for regular workspace creation should be updated.
+	// The metric is updated asynchronously after the DB transaction commits,
+	// so we need to poll for it.
+	regularWorkspaceLabels := prometheus.Labels{
 		"organization_name": organizationName.Name,
 		"template_name":     templateNoPrebuild.Name,
 		"preset_name":       presetsNoPrebuild[0].Name,
 		"type":              "regular",
-	})
-	require.NotNil(t, regularWorkspaceHistogram)
+	}
+	require.Eventually(t, func() bool {
+		return promhelp.MetricValue(t, reg, "coderd_workspace_creation_duration_seconds", regularWorkspaceLabels) != nil
+	}, testutil.WaitShort, testutil.IntervalFast)
+	regularWorkspaceHistogram := promhelp.HistogramValue(t, reg, "coderd_workspace_creation_duration_seconds", regularWorkspaceLabels)
 	require.Equal(t, uint64(1), regularWorkspaceHistogram.GetSampleCount())
 }
 
