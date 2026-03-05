@@ -3903,7 +3903,7 @@ type Chat struct {
 	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
 	ParentChatID      uuid.NullUUID  `db:"parent_chat_id" json:"parent_chat_id"`
 	RootChatID        uuid.NullUUID  `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
+	LastModelConfigID uuid.NullUUID  `db:"last_model_config_id" json:"last_model_config_id"`
 	Archived          bool           `db:"archived" json:"archived"`
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
 }

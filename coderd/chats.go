@@ -2088,7 +2088,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OwnerID:           c.OwnerID,
-		LastModelConfigID: c.LastModelConfigID,
+		LastModelConfigID: c.LastModelConfigID.UUID,
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
 		Archived:          c.Archived,

@@ -235,7 +235,7 @@ func (p *Server) createChildSubagentChat(
 	if parent.RootChatID.Valid {
 		rootChatID = parent.RootChatID.UUID
 	}
-	if parent.LastModelConfigID == uuid.Nil {
+	if !parent.LastModelConfigID.Valid || parent.LastModelConfigID.UUID == uuid.Nil {
 		return database.Chat{}, xerrors.New("parent chat model config id is required")
 	}
 
@@ -250,7 +250,7 @@ func (p *Server) createChildSubagentChat(
 			UUID:  rootChatID,
 			Valid: true,
 		},
-		ModelConfigID:      parent.LastModelConfigID,
+		ModelConfigID:      parent.LastModelConfigID.UUID,
 		Title:              title,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: prompt}},
 	})

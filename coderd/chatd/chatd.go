@@ -359,7 +359,7 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
 		}
-		modelConfigID := lockedChat.LastModelConfigID
+		modelConfigID := lockedChat.LastModelConfigID.UUID
 		if opts.ModelConfigID != nil {
 			modelConfigID = *opts.ModelConfigID
 		}
@@ -607,7 +607,7 @@ func (p *Server) PromoteQueued(
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
 		}
-		modelConfigID := lockedChat.LastModelConfigID
+		modelConfigID := lockedChat.LastModelConfigID.UUID
 		if opts.ModelConfigID != nil {
 			modelConfigID = *opts.ModelConfigID
 		}
@@ -1724,7 +1724,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				if popErr == nil {
 					msg, insertErr := tx.InsertChatMessage(cleanupCtx, database.InsertChatMessageParams{
 						ChatID:        chat.ID,
-						ModelConfigID: uuid.NullUUID{UUID: latestChat.LastModelConfigID, Valid: true},
+						ModelConfigID: latestChat.LastModelConfigID,
 						Role:          "user",
 						Content: pqtype.NullRawMessage{
 							RawMessage: nextQueued.Content,
@@ -2439,9 +2439,9 @@ func (p *Server) resolveModelConfig(
 	ctx context.Context,
 	chat database.Chat,
 ) (database.ChatModelConfig, error) {
-	if chat.LastModelConfigID != uuid.Nil {
+	if chat.LastModelConfigID.Valid && chat.LastModelConfigID.UUID != uuid.Nil {
 		modelConfig, err := p.db.GetChatModelConfigByID(
-			ctx, chat.LastModelConfigID,
+			ctx, chat.LastModelConfigID.UUID,
 		)
 		if err == nil {
 			return modelConfig, nil
