@@ -603,28 +603,35 @@ CREATE FUNCTION aggregate_usage_event() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    -- Check for supported event types and throw error for unknown types
-    IF NEW.event_type NOT IN ('dc_managed_agents_v1') THEN
+    -- Check for supported event types and throw error for unknown types.
+    IF NEW.event_type NOT IN ('dc_managed_agents_v1', 'hb_ai_seats_v1') THEN
         RAISE EXCEPTION 'Unhandled usage event type in aggregate_usage_event: %', NEW.event_type;
     END IF;
 
     INSERT INTO usage_events_daily (day, event_type, usage_data)
     VALUES (
-        -- Extract the date from the created_at timestamp, always using UTC for
-        -- consistency
         date_trunc('day', NEW.created_at AT TIME ZONE 'UTC')::date,
         NEW.event_type,
         NEW.event_data
     )
     ON CONFLICT (day, event_type) DO UPDATE SET
         usage_data = CASE
-            -- Handle simple counter events by summing the count
+            -- Handle simple counter events by summing the count.
             WHEN NEW.event_type IN ('dc_managed_agents_v1') THEN
                 jsonb_build_object(
                     'count',
                     COALESCE((usage_events_daily.usage_data->>'count')::bigint, 0) +
                     COALESCE((NEW.event_data->>'count')::bigint, 0)
                 )
+			-- Heartbeat events: keep the max value seen that day
+            WHEN NEW.event_type IN ('hb_ai_seats_v1') THEN
+				jsonb_build_object(
+					'count',
+					GREATEST(
+						COALESCE((usage_events_daily.usage_data->>'count')::bigint, 0),
+						COALESCE((NEW.event_data->>'count')::bigint, 0)
+					)
+				)
         END;
 
     RETURN NEW;
@@ -2577,7 +2584,7 @@ CREATE TABLE usage_events (
     publish_started_at timestamp with time zone,
     published_at timestamp with time zone,
     failure_message text,
-    CONSTRAINT usage_event_type_check CHECK ((event_type = 'dc_managed_agents_v1'::text))
+    CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text])))
 );
 
 COMMENT ON TABLE usage_events IS 'usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.';
@@ -3617,6 +3624,8 @@ CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_pre
 CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree (has_ai_task);
 
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
+
+CREATE INDEX idx_usage_events_ai_seats ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_ai_seats_v1'::text);
 
 CREATE INDEX idx_usage_events_select_for_publishing ON usage_events USING btree (published_at, publish_started_at, created_at);
 

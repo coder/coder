@@ -6822,6 +6822,13 @@ func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg databa
 	return q.db.UpsertWorkspaceAppAuditSession(ctx, arg)
 }
 
+func (q *querier) UsageEventExistsByID(ctx context.Context, id string) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return false, err
+	}
+	return q.db.UsageEventExistsByID(ctx, id)
+}
+
 func (q *querier) ValidateGroupIDs(ctx context.Context, groupIDs []uuid.UUID) (database.ValidateGroupIDsRow, error) {
 	// This check is probably overly restrictive, but the "correct" check isn't
 	// necessarily obvious. It's only used as a verification check for ACLs right
