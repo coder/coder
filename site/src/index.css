@@ -8,7 +8,7 @@
 @tailwind utilities;
 
 @font-face {
-	font-family: "Seti";
+	font-family: "seti";
 	src: url("/seti.woff") format("woff");
 	font-weight: normal;
 	font-style: normal;
@@ -202,12 +202,4 @@
 	.text-xs-mono {
 		@apply text-xs font-mono font-medium;
 	}
-}
-
-@font-face {
-	font-family: "Seti";
-	src: url("/seti.woff") format("woff");
-	font-weight: normal;
-	font-style: normal;
-	font-display: swap;
 }

@@ -38,14 +38,12 @@ const DiffStatsInline: FC<{
 		<button
 			type="button"
 			onClick={onClick}
-			className="inline-flex shrink-0 cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent p-0 font-mono text-[13px] leading-none tabular-nums transition-opacity hover:opacity-80"
+			className="inline-flex shrink-0 cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 font-mono text-xs font-medium leading-none tabular-nums transition-opacity hover:opacity-80 outline-none"
 		>
-			<span className="bg-content-success/10 px-1.5 py-1 text-content-success">
-				+{additions}
-			</span>
-			<span className="bg-content-destructive/10 px-1.5 py-1 text-content-destructive">
-				−{deletions}
-			</span>
+			{additions > 0 && <span className="text-green-500">+{additions}</span>}
+			{deletions > 0 && (
+				<span className="text-red-400">&minus;{deletions}</span>
+			)}
 		</button>
 	);
 };
@@ -141,7 +139,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
-						{diff.hasDiffStatus && diff.diffStatus && (
+						{diff.hasDiffStatus && diff.diffStatus && !diff.showDiffPanel && (
 							<span className="ml-3">
 								<DiffStatsInline
 									status={diff.diffStatus}

@@ -975,7 +975,7 @@ const AgentDetail: FC = () => {
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					/>
 					{isArchived && (
-						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-sm text-content-secondary">
+						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
 							<ArchiveIcon className="h-4 w-4 shrink-0" />
 							This agent has been archived and is read-only.
 						</div>
@@ -1073,20 +1073,15 @@ const DiffStats: FC<{ diffStatus?: ChatDiffStatusResponse }> = ({
 		return null;
 	}
 	return (
-		<span className="inline-flex h-full items-center self-stretch font-mono text-2xs font-medium">
-			{deletions > 0 && (
-				<span
-					className={cn(
-						"flex h-full items-center bg-red-400/15 px-1 text-red-400",
-						additions === 0 && "rounded-r-[calc(theme(borderRadius.md)-1px)]",
-					)}
-				>
-					&minus;{deletions}
+		<span className="inline-flex h-full items-center self-stretch font-mono text-xs font-medium">
+			{additions > 0 && (
+				<span className="flex h-full items-center bg-green-950 px-1.5 text-green-500">
+					+{additions}
 				</span>
 			)}
-			{additions > 0 && (
-				<span className="flex h-full items-center rounded-r-[calc(theme(borderRadius.md)-1px)] bg-green-500/15 px-1 text-green-500">
-					+{additions}
+			{deletions > 0 && (
+				<span className="flex h-full items-center rounded-r-[calc(theme(borderRadius.md)-1px)] bg-red-950 px-1.5 text-red-400">
+					&minus;{deletions}
 				</span>
 			)}
 		</span>

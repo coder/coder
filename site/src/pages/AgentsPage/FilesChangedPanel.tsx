@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import type { FileDiffMetadata } from "@pierre/diffs";
+import type { ChangeTypes, FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
@@ -41,7 +41,7 @@ interface FilesChangedPanelProps {
  * Minimum container width (px) at which the file tree sidebar
  * is shown alongside the diff list.
  */
-const FILE_TREE_THRESHOLD = 800;
+const FILE_TREE_THRESHOLD = 1000;
 
 type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
@@ -60,7 +60,7 @@ function loadDiffStyle(): DiffStyle {
 /**
  * Width of the file tree sidebar in pixels.
  */
-const FILE_TREE_WIDTH = 220;
+const FILE_TREE_WIDTH = 300;
 
 /**
  * Parses a GitHub PR URL into its components.
@@ -85,6 +85,40 @@ function parsePullRequestUrl(url: string): {
 // -------------------------------------------------------------------
 // File tree data model
 // -------------------------------------------------------------------
+
+/** Maps a diff change type to a Tailwind text-color class. */
+function changeColor(type?: ChangeTypes): string | undefined {
+	switch (type) {
+		case "new":
+			return "text-green-300";
+		case "deleted":
+			return "text-content-destructive";
+		case "rename-pure":
+		case "rename-changed":
+			return "text-content-warning";
+		case "change":
+			return "text-content-warning";
+		default:
+			return undefined;
+	}
+}
+
+/** Short letter shown after the filename, matching VS Code style. */
+function changeLabel(type: ChangeTypes): string {
+	switch (type) {
+		case "new":
+			return "A";
+		case "deleted":
+			return "D";
+		case "rename-pure":
+		case "rename-changed":
+			return "R";
+		case "change":
+			return "M";
+		default:
+			return "";
+	}
+}
 
 interface FileTreeNode {
 	name: string;
@@ -192,8 +226,8 @@ const FileTreeNodeView: FC<{
 				<button
 					type="button"
 					onClick={() => setExpanded((v) => !v)}
-					className="flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left text-xs text-content-secondary hover:bg-surface-secondary cursor-pointer"
-					style={{ paddingLeft: 8 + depth * 12 }}
+					className="flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left text-content-secondary hover:bg-surface-secondary cursor-pointer outline-none"
+					style={{ paddingLeft: 4 + depth * 8, fontSize: 13 }}
 				>
 					<ChevronRightIcon
 						className={cn(
@@ -224,23 +258,33 @@ const FileTreeNodeView: FC<{
 			type="button"
 			onClick={() => onFileClick(node.fullPath)}
 			className={cn(
-				"flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left cursor-pointer",
+				"flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left cursor-pointer outline-none border-0 border-r-2 border-solid border-transparent",
 				"hover:bg-surface-secondary",
-				isActive &&
-					"bg-surface-secondary border-0 border-r-2 border-solid border-content-link",
+				isActive && "bg-surface-secondary border-content-link",
 			)}
-			style={{ paddingLeft: 8 + depth * 12 + 15 }}
+			style={{ paddingLeft: 4 + depth * 8 + 12, fontSize: 13 }}
 			title={node.fullPath}
 		>
 			<FileIcon fileName={node.name} className="shrink-0" />
 			<span
 				className={cn(
-					"truncate text-xs",
-					isActive ? "text-content-primary" : "text-content-secondary",
+					"truncate",
+					changeColor(node.fileDiff?.type) ??
+						(isActive ? "text-content-primary" : "text-content-secondary"),
 				)}
 			>
 				{node.name}
 			</span>
+			{node.fileDiff?.type && (
+				<span
+					className={cn(
+						"ml-auto shrink-0 pr-2 text-xs",
+						changeColor(node.fileDiff.type),
+					)}
+				>
+					{changeLabel(node.fileDiff.type)}
+				</span>
+			)}
 		</button>
 	);
 };
@@ -264,7 +308,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 			diffStyle,
 			// Extend the base CSS to make file headers sticky so they
 			// remain visible while scrolling through long diffs.
-			unsafeCSS: `${base.unsafeCSS ?? ""} [data-diffs-header] { position: sticky; top: 0; z-index: 10; background-color: hsl(var(--surface-quaternary)) !important; } @media (prefers-color-scheme: dark) { [data-diffs-header] { background-color: hsl(var(--surface-secondary)) !important; } }`,
+			unsafeCSS: `${base.unsafeCSS ?? ""} [data-diffs-header] { position: sticky; top: 0; z-index: 10; font-size: 13px; border-bottom: 1px solid hsl(var(--border-default)); background-color: hsl(var(--surface-quaternary)) !important; } [data-diffs-header] [data-metadata] { flex-direction: row-reverse; } @media (prefers-color-scheme: dark) { [data-diffs-header] { background-color: hsl(var(--surface-secondary)) !important; } }`,
 		};
 	}, [isDark, diffStyle]);
 
@@ -309,6 +353,27 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 
 	const fileTree = useMemo(() => buildFileTree(parsedFiles), [parsedFiles]);
 
+	// Sort diff blocks in the same order the file tree displays them
+	// (directories first, then alphabetical) so the rendering is
+	// consistent regardless of whether the sidebar is visible.
+	const sortedFiles = useMemo(() => {
+		const order = new Map<string, number>();
+		let idx = 0;
+		const walk = (nodes: FileTreeNode[]) => {
+			for (const node of nodes) {
+				if (node.type === "file") {
+					order.set(node.fullPath, idx++);
+				} else {
+					walk(node.children);
+				}
+			}
+		};
+		walk(fileTree);
+		return [...parsedFiles].sort(
+			(a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0),
+		);
+	}, [fileTree, parsedFiles]);
+
 	const pullRequestUrl = diffStatusQuery.data?.url;
 	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
 
@@ -337,7 +402,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 
 	const showTree =
 		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
-		parsedFiles.length > 0;
+		sortedFiles.length > 0;
 
 	// ---------------------------------------------------------------
 	// Refs for each file diff wrapper so we can scroll-to and track
@@ -355,55 +420,66 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		}
 	}, []);
 
-	// IntersectionObserver to track which file is visible in the
-	// diff scroll area. We observe all file wrapper elements and
-	// pick the first one intersecting. We read parsedFiles.length
-	// inside the effect so the observer re-subscribes when the set
-	// of files changes.
+	// Track which file is at the top of the diff scroll area by
+	// listening to scroll events on the viewport. The active file
+	// is whichever file wrapper's top edge is closest to (but not
+	// below) the container's top — i.e. the one whose sticky
+	// header would be showing.
+	const diffViewportRef = useRef<HTMLElement | null>(null);
+
 	useEffect(() => {
-		if (!showTree || parsedFiles.length === 0) {
+		if (!showTree || sortedFiles.length === 0) {
 			return;
 		}
 
-		const els = Array.from(fileRefs.current.values());
-		if (els.length === 0) {
+		const viewport = diffViewportRef.current;
+		if (!viewport) {
 			return;
 		}
 
-		const observer = new IntersectionObserver(
-			(entries) => {
-				// Find the topmost visible entry by checking
-				// boundingClientRect.top.
-				let best: IntersectionObserverEntry | null = null;
-				for (const entry of entries) {
-					if (!entry.isIntersecting) {
-						continue;
-					}
-					if (
-						!best ||
-						entry.boundingClientRect.top < best.boundingClientRect.top
-					) {
-						best = entry;
-					}
-				}
-				if (best) {
-					// Reverse-lookup the file name from the element.
-					for (const [name, el] of fileRefs.current.entries()) {
-						if (el === best.target) {
-							setActiveFile(name);
-							break;
-						}
-					}
-				}
-			},
-			{ threshold: 0, rootMargin: "-20% 0px -70% 0px" },
-		);
+		const onScroll = () => {
+			const containerTop = viewport.getBoundingClientRect().top;
+			let bestName: string | null = null;
+			let bestDistance = Number.POSITIVE_INFINITY;
 
-		for (const el of els) {
-			observer.observe(el);
-		}
-		return () => observer.disconnect();
-	}, [showTree, parsedFiles]);
+			for (const [name, el] of fileRefs.current.entries()) {
+				const rect = el.getBoundingClientRect();
+				// The file "owns" the scroll position when its top
+				// is at or above the container top and its bottom is
+				// still below it.
+				if (rect.bottom > containerTop && rect.top <= containerTop + 1) {
+					const distance = Math.abs(rect.top - containerTop);
+					if (distance < bestDistance) {
+						bestDistance = distance;
+						bestName = name;
+					}
+				}
+			}
+
+			// If nothing is at the top (e.g. scrolled to the very top
+			// with padding), pick the first file whose top is closest
+			// to the container top.
+			if (!bestName) {
+				for (const [name, el] of fileRefs.current.entries()) {
+					const dist = Math.abs(el.getBoundingClientRect().top - containerTop);
+					if (dist < bestDistance) {
+						bestDistance = dist;
+						bestName = name;
+					}
+				}
+			}
+
+			if (bestName) {
+				setActiveFile(bestName);
+			}
+		};
+
+		// Fire once to set initial state.
+		onScroll();
+
+		viewport.addEventListener("scroll", onScroll, { passive: true });
+		return () => viewport.removeEventListener("scroll", onScroll);
+	}, [showTree, sortedFiles]);
 
 	const handleFileClick = useCallback((name: string) => {
 		const el = fileRefs.current.get(name);
@@ -507,7 +583,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 				</div>
 			</div>{" "}
 			{/* Diff contents */}
-			{parsedFiles.length === 0 ? (
+			{sortedFiles.length === 0 ? (
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">
 					No file changes to display.
 				</div>
@@ -535,13 +611,23 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 					)}
 					{/* Diff list */}
 					<ScrollArea
-						className="min-w-0 flex-1"
+						className={cn(
+							"min-w-0 flex-1",
+							showTree &&
+								"border-0 border-l border-t border-solid border-border-default rounded-tl-md",
+						)}
 						scrollBarClassName="w-1.5"
 						viewportClassName="[&>div]:!block"
+						ref={(node) => {
+							const vp = node?.querySelector<HTMLElement>(
+								"[data-radix-scroll-area-viewport]",
+							);
+							diffViewportRef.current = vp ?? null;
+						}}
 					>
 						{" "}
 						<div className="min-w-0 text-xs">
-							{parsedFiles.map((fileDiff) => (
+							{sortedFiles.map((fileDiff) => (
 								<div
 									key={fileDiff.name}
 									ref={(el) => setFileRef(fileDiff.name, el)}
@@ -549,7 +635,9 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 									<LazyFileDiff fileDiff={fileDiff} options={fileOptions} />
 								</div>
 							))}
-						</div>
+							{/* Spacer so the last file can scroll fully to the top. */}
+							<div className="h-[calc(100vh-100px)]" />
+						</div>{" "}
 					</ScrollArea>
 				</div>
 			)}
@@ -618,7 +706,13 @@ const LazyFileDiff: FC<{
 			<div
 				ref={placeholderRef}
 				style={{ height: estimateDiffHeight(fileDiff) }}
-			/>
+				className="p-4 space-y-2"
+			>
+				<Skeleton className="h-4 w-48" />
+				<Skeleton className="h-3 w-full" />
+				<Skeleton className="h-3 w-full" />
+				<Skeleton className="h-3 w-3/4" />
+			</div>
 		);
 	}
 

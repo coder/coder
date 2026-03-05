@@ -433,15 +433,17 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								<div className="flex min-w-0 items-center gap-1.5">
 									{hasLinkedDiffStatus && hasLineStats && (
 										<span
-											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] font-medium leading-none tabular-nums"
+											className="inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-medium leading-none tabular-nums"
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
-											<span className="text-content-success">+{additions}</span>
-											<span className="text-content-destructive">
-												-{deletions}
-											</span>
+											{additions > 0 && (
+												<span className="text-green-500">+{additions}</span>
+											)}
+											{deletions > 0 && (
+												<span className="text-red-400">&minus;{deletions}</span>
+											)}
 										</span>
-									)}
+									)}{" "}
 									<div
 										className={cn(
 											"min-w-0 overflow-hidden text-[13px] leading-4",
@@ -751,7 +753,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 													);
 												if (groupChats.length === 0) return null;
 												return (
-													<div key={group}>
+													<div
+														key={group}
+														className="[&:not(:first-child)]:mt-3"
+													>
 														<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 															<span>{group}</span>
 														</div>

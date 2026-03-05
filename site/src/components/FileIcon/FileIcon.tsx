@@ -235,14 +235,14 @@ const getSetiIconForFile = (fileName: string): FileIconGlyph => {
 
 const BASE_ICON_STYLE: React.CSSProperties = {
 	fontFamily:
-		'"Seti", "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-	fontSize: 14,
+		'"seti", "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+	fontSize: 22,
 	lineHeight: 1,
 	display: "inline-flex",
 	alignItems: "center",
 	justifyContent: "center",
-	minWidth: "1rem",
-	height: "1rem",
+	minWidth: "1.375rem",
+	height: "1.375rem",
 	userSelect: "none",
 	fontStyle: "normal",
 	fontWeight: "normal",
