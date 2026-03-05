@@ -7,8 +7,18 @@ import (
 	"net/http"
 )
 
-// WorkspaceSharingSettings represents workspace sharing settings for an organization.
+// WorkspaceSharingSettings represents workspace sharing settings affecting an
+// organization.
 type WorkspaceSharingSettings struct {
+	// SharingGloballyDisabled is true if sharing has been disabled for this
+	// organization because of a deployment-wide setting.
+	SharingGloballyDisabled bool `json:"sharing_globally_disabled"`
+	SharingDisabled         bool `json:"sharing_disabled"`
+}
+
+// UpdateWorkspaceSharingSettingsRequest represents workspace sharing settings
+// that can be updated for an organization.
+type UpdateWorkspaceSharingSettingsRequest struct {
 	SharingDisabled bool `json:"sharing_disabled"`
 }
 
@@ -28,7 +38,7 @@ func (c *Client) WorkspaceSharingSettings(ctx context.Context, orgID string) (Wo
 }
 
 // PatchWorkspaceSharingSettings modifies the workspace sharing settings for an organization.
-func (c *Client) PatchWorkspaceSharingSettings(ctx context.Context, orgID string, req WorkspaceSharingSettings) (WorkspaceSharingSettings, error) {
+func (c *Client) PatchWorkspaceSharingSettings(ctx context.Context, orgID string, req UpdateWorkspaceSharingSettingsRequest) (WorkspaceSharingSettings, error) {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/settings/workspace-sharing", orgID), req)
 	if err != nil {
 		return WorkspaceSharingSettings{}, err

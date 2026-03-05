@@ -94,12 +94,8 @@ PACKAGE_OS_ARCHES := linux_amd64 linux_armv7 linux_arm64
 # All architectures we build Docker images for (Linux only).
 DOCKER_ARCHES := amd64 arm64 armv7
 
-# All ${OS}_${ARCH} combos we build the desktop dylib for.
-DYLIB_ARCHES := darwin_amd64 darwin_arm64
-
 # Computed variables based on the above.
 CODER_SLIM_BINARIES      := $(addprefix build/coder-slim_$(VERSION)_,$(OS_ARCHES))
-CODER_DYLIBS             := $(foreach os_arch, $(DYLIB_ARCHES), build/coder-vpn_$(VERSION)_$(os_arch).dylib)
 CODER_FAT_BINARIES       := $(addprefix build/coder_$(VERSION)_,$(OS_ARCHES))
 CODER_ALL_BINARIES       := $(CODER_SLIM_BINARIES) $(CODER_FAT_BINARIES)
 CODER_TAR_GZ_ARCHIVES    := $(foreach os_arch, $(ARCHIVE_TAR_GZ), build/coder_$(VERSION)_$(os_arch).tar.gz)
@@ -261,26 +257,6 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 		fi
 	fi
 
-# This task builds Coder Desktop dylibs
-$(CODER_DYLIBS): go.mod go.sum $(MOST_GO_SRC_FILES)
-	@if [ "$(shell uname)" = "Darwin" ]; then
-		$(get-mode-os-arch-ext)
-		./scripts/build_go.sh \
-			--os "$$os" \
-			--arch "$$arch" \
-			--version "$(VERSION)" \
-			--output "$@" \
-			--dylib
-
-	else
-		echo "ERROR: Can't build dylib on non-Darwin OS" 1>&2
-		exit 1
-	fi
-
-# This task builds both dylibs
-build/coder-dylib: $(CODER_DYLIBS)
-.PHONY: build/coder-dylib
-
 # This task builds all archives. It parses the target name to get the metadata
 # for the build, so it must be specified in this format:
 #     build/coder_${version}_${os}_${arch}.${format}
@@ -427,6 +403,7 @@ SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
+	site/src/api/chatModelOptionsGenerated.json \
 	site/src/theme/icons.json
 
 site/out/index.html: \
@@ -654,6 +631,7 @@ GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
 	agent/agentsocket/proto/agentsocket.pb.go \
+	agent/boundarylogproxy/codec/boundary.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
@@ -709,6 +687,7 @@ gen/mark-fresh:
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		agent/agentsocket/proto/agentsocket.pb.go \
+		agent/boundarylogproxy/codec/boundary.pb.go \
 		vpn/vpn.pb.go \
 		enterprise/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
@@ -719,6 +698,7 @@ gen/mark-fresh:
 		coderd/rbac/scopes_constants_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
+		site/src/api/chatModelOptionsGenerated.json \
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
@@ -813,7 +793,7 @@ agent/proto/agent.pb.go: agent/proto/agent.proto
 		--go-drpc_opt=paths=source_relative \
 		./agent/proto/agent.proto
 
-agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto
+agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto agent/proto/agent.proto
 	protoc \
 		--go_out=. \
 		--go_opt=paths=source_relative \
@@ -842,6 +822,12 @@ vpn/vpn.pb.go: vpn/vpn.proto
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		./vpn/vpn.proto
+
+agent/boundarylogproxy/codec/boundary.pb.go: agent/boundarylogproxy/codec/boundary.proto agent/proto/agent.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		./agent/boundarylogproxy/codec/boundary.proto
 
 enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged.proto
 	protoc \
@@ -908,6 +894,10 @@ site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen
 	go run scripts/typegen/main.go countries > "$@"
 	./scripts/biome_format.sh src/api/countriesGenerated.ts
 	touch "$@"
+
+site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go
+	go run ./scripts/modeloptionsgen/main.go | tail -n +2 > "$@"
+	cd site && pnpm biome format --write src/api/chatModelOptionsGenerated.json
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES)
 	go run ./scripts/metricsdocgen/scanner > $@

@@ -765,7 +765,6 @@ resource "docker_container" "workspace" {
     "CODER_PROC_OOM_SCORE=10",
     "CODER_PROC_NICE_SCORE=1",
     "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
-    "CODER_AGENT_SOCKET_SERVER_ENABLED=true",
   ]
   host {
     host = "host.docker.internal"

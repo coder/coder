@@ -584,6 +584,8 @@ type PatchAppStatus struct {
 	NeedsUserAttention bool `json:"needs_user_attention"`
 }
 
+// PatchAppStatus updates the status of a workspace app.
+// Deprecated: use the DRPCAgentClient.UpdateAppStatus instead
 func (c *Client) PatchAppStatus(ctx context.Context, req PatchAppStatus) error {
 	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/app-status", req)
 	if err != nil {
@@ -646,6 +648,8 @@ type ExternalAuthRequest struct {
 	// Sent by the agent so the control plane can resolve diffs
 	// without SSHing into the workspace.
 	GitRemoteOrigin string
+	// ChatID identifies which chat initiated the git operation.
+	ChatID string
 	// Listen indicates that the request should be long-lived and listen for
 	// a new token to be requested.
 	Listen bool
@@ -666,6 +670,9 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 	}
 	if req.GitRemoteOrigin != "" {
 		q.Set("git_remote_origin", req.GitRemoteOrigin)
+	}
+	if req.ChatID != "" {
+		q.Set("chat_id", req.ChatID)
 	}
 	reqURL := "/api/v2/workspaceagents/me/external-auth?" + q.Encode()
 	res, err := c.SDK.Request(ctx, http.MethodGet, reqURL, nil)

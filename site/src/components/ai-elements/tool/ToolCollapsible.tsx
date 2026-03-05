@@ -24,19 +24,13 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	return (
 		<div className={className}>
 			{hasContent ? (
-				<div
-					role="button"
-					tabIndex={0}
+				<button
+					type="button"
 					aria-expanded={expanded}
 					onClick={() => setExpanded(!expanded)}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" || e.key === " ") {
-							e.preventDefault();
-							setExpanded(!expanded);
-						}
-					}}
 					className={cn(
-						"flex items-center gap-2 cursor-pointer",
+						"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
+						"flex w-full items-center gap-2 cursor-pointer",
 						headerClassName,
 					)}
 				>
@@ -47,7 +41,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 							expanded ? "rotate-0" : "-rotate-90",
 						)}
 					/>
-				</div>
+				</button>
 			) : (
 				<div className={cn("flex items-center gap-2", headerClassName)}>
 					{header}

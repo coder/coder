@@ -57,7 +57,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 	latestVersion,
 	permissions,
 	timings,
-	sharingDisabled,
 	handleStart,
 	handleStop,
 	handleRestart,
@@ -111,7 +110,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 				latestVersion={latestVersion}
 				isUpdating={isUpdating}
 				isRestarting={isRestarting}
-				sharingDisabled={sharingDisabled}
 				handleStart={handleStart}
 				handleStop={handleStop}
 				handleRestart={handleRestart}

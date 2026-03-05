@@ -5,8 +5,14 @@ import type {
 	ChatStatus,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "components/Collapsible/Collapsible";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -15,12 +21,13 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
-import { Input } from "components/Input/Input";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
+	ArchiveRestoreIcon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -28,8 +35,11 @@ import {
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
-	SearchIcon,
+	SquarePenIcon,
+	Trash2Icon,
 } from "lucide-react";
+import { UserDropdownContent } from "modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	createContext,
 	type FC,
@@ -51,6 +61,8 @@ interface AgentsSidebarProps {
 	modelConfigs: readonly ChatModelConfig[];
 	logoUrl?: string;
 	onArchiveAgent: (chatId: string) => void;
+	onUnarchiveAgent: (chatId: string) => void;
+	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onNewAgent: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
@@ -264,6 +276,11 @@ interface ChatTreeContextValue {
 	readonly archivingChatId: string | null;
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
+	readonly onUnarchiveAgent: (chatId: string) => void;
+	readonly onArchiveAndDeleteWorkspace: (
+		chatId: string,
+		workspaceId: string,
+	) => void;
 }
 
 const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
@@ -295,6 +312,8 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		archivingChatId,
 		toggleExpanded,
 		onArchiveAgent,
+		onUnarchiveAgent,
+		onArchiveAndDeleteWorkspace,
 	} = useChatTree();
 	const chatID = chat.id;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
@@ -325,9 +344,17 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	const filesChangedLabel = `${changedFiles} ${
 		changedFiles === 1 ? "file" : "files"
 	}`;
+	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
-	const isExecuting = chat.status === "pending" || chat.status === "running";
+	const isExecuting =
+		chat.status === "pending" ||
+		chat.status === "running" ||
+		(hasChildren &&
+			childIDs.some((id) => {
+				const c = chatById.get(id);
+				return c?.status === "pending" || c?.status === "running";
+			}));
 
 	return (
 		<div className="flex min-w-0 flex-col">
@@ -431,39 +458,63 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 						</>
 					)}
 				</NavLink>
-				<div className="relative mr-1 mt-1 h-6 w-7 shrink-0 text-right">
-					<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity [@media(hover:hover)]:group-hover:opacity-0">
-						{shortRelativeTime(chat.updated_at)}
-					</span>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								className={cn(
-									"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100",
-									isArchivingThisChat && "opacity-100",
-								)}
-								aria-label={`Open actions for ${chat.title}`}
-							>
-								{isArchivingThisChat ? (
-									<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-								) : (
-									<EllipsisIcon className="h-3.5 w-3.5" />
-								)}
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								disabled={isArchiving}
-								onSelect={() => onArchiveAgent(chat.id)}
-							>
-								<ArchiveIcon className="h-3.5 w-3.5" />
-								Archive agent
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+				<div className="mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+					{isArchivingThisChat ? (
+						<Loader2Icon className="h-3.5 w-3.5 animate-spin text-content-secondary" />
+					) : (
+						<>
+							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+								{shortRelativeTime(chat.updated_at)}
+							</span>
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										size="icon"
+										variant="subtle"
+										className="hidden h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex"
+										aria-label={`Open actions for ${chat.title}`}
+									>
+										<EllipsisIcon className="h-3.5 w-3.5" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end">
+									{chat.archived ? (
+										<DropdownMenuItem
+											disabled={isArchiving}
+											onSelect={() => onUnarchiveAgent(chat.id)}
+										>
+											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+											Unarchive agent
+										</DropdownMenuItem>
+									) : (
+										<>
+											{" "}
+											<DropdownMenuItem
+												className="text-content-destructive focus:text-content-destructive"
+												disabled={isArchiving}
+												onSelect={() => onArchiveAgent(chat.id)}
+											>
+												<ArchiveIcon className="h-3.5 w-3.5" />
+												Archive agent
+											</DropdownMenuItem>
+											{workspaceId && (
+												<DropdownMenuItem
+													className="text-content-destructive focus:text-content-destructive"
+													disabled={isArchiving}
+													onSelect={() =>
+														onArchiveAndDeleteWorkspace(chat.id, workspaceId)
+													}
+												>
+													<Trash2Icon className="h-3.5 w-3.5" />
+													Archive & delete workspace
+												</DropdownMenuItem>
+											)}
+										</>
+									)}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</>
+					)}
 				</div>
 			</div>
 
@@ -491,6 +542,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		modelConfigs,
 		logoUrl,
 		onArchiveAgent,
+		onUnarchiveAgent,
+		onArchiveAndDeleteWorkspace,
 		onNewAgent,
 		isCreating,
 		isArchiving = false,
@@ -505,9 +558,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		chatId?: string;
 	}>();
 	const activeChatId = agentId ?? chatId;
-	const [search, setSearch] = useState("");
-	const normalizedSearch = search.trim().toLowerCase();
+	const { user, signOut } = useAuthenticated();
+	const { appearance, buildInfo } = useDashboard();
+	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+	const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
 
 	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
 	const chatById = useMemo(() => {
@@ -520,12 +575,30 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				search: normalizedSearch,
 				tree: chatTree,
 			}),
-		[chats, normalizedSearch, chatTree],
+		[chats, chatTree],
 	);
 	const visibleRootIDs = useMemo(
 		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
 		[chatTree.rootIds, visibleChatIDs],
 	);
+	const activeRootIDs = useMemo(
+		() =>
+			visibleRootIDs.filter((id) => {
+				const chat = chatById.get(id);
+				return chat && !chat.archived;
+			}),
+		[visibleRootIDs, chatById],
+	);
+	const archivedRootIDs = useMemo(
+		() =>
+			visibleRootIDs.filter((id) => {
+				const chat = chatById.get(id);
+				return chat?.archived;
+			}),
+		[visibleRootIDs, chatById],
+	);
+	const effectiveArchivedExpanded =
+		normalizedSearch && archivedRootIDs.length > 0 ? true : isArchivedExpanded;
 
 	// Auto-expand ancestors of the active chat so it's always visible.
 	useEffect(() => {
@@ -569,12 +642,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			archivingChatId,
 			toggleExpanded,
 			onArchiveAgent,
+			onUnarchiveAgent,
+			onArchiveAndDeleteWorkspace,
 		}),
 		[
 			chatTree,
 			chatById,
 			visibleChatIDs,
-			normalizedSearch,
 			expandedById,
 			modelOptions,
 			modelConfigs,
@@ -583,6 +657,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			archivingChatId,
 			toggleExpanded,
 			onArchiveAgent,
+			onUnarchiveAgent,
+			onArchiveAndDeleteWorkspace,
 		],
 	);
 
@@ -590,7 +666,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
 			<div className="hidden border-b border-border-default px-3 pb-3 pt-1.5 md:block md:px-3.5">
 				<div className="mb-2.5 flex items-center justify-between">
-					<NavLink to="/workspaces" className="inline-flex opacity-50">
+					<NavLink to="/workspaces" className="inline-flex">
 						{logoUrl ? (
 							<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
 						) : (
@@ -609,33 +685,17 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</Button>
 					)}
 				</div>
-				<div className="flex flex-col gap-2.5">
-					<div className="relative">
-						<label className="sr-only" htmlFor="agents-sidebar-search">
-							Search agents...
-						</label>
-						<SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-icon-xs -translate-y-1/2 text-content-secondary" />
-						<Input
-							id="agents-sidebar-search"
-							type="search"
-							placeholder="Search agents..."
-							value={search}
-							onChange={(event) => setSearch(event.target.value)}
-							className="h-9 rounded-lg border-border-default bg-surface-primary pl-8 text-[13px] shadow-none"
-						/>
-					</div>
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={onNewAgent}
-						disabled={isCreating}
-						className="w-full justify-center rounded-lg py-4 text-[13px] text-content-secondary hover:bg-surface-tertiary"
-					>
-						New Agent
-					</Button>
-				</div>
+				<Button
+					size="sm"
+					variant="subtle"
+					onClick={onNewAgent}
+					disabled={isCreating}
+					className="-mx-1 w-[calc(100%+0.5rem)] justify-start gap-1.5 rounded-md py-1 pl-1 pr-2 text-sm text-content-secondary hover:bg-surface-tertiary/50 md:-mx-1.5 md:w-[calc(100%+0.75rem)]"
+				>
+					<SquarePenIcon className="!h-[18px] !w-[18px] shrink-0" />
+					New Agent
+				</Button>
 			</div>
-
 			<ScrollArea
 				className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
 				scrollBarClassName="w-1.5"
@@ -673,42 +733,112 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</>
 					) : (
 						<ChatTreeContext.Provider value={chatTreeCtx}>
-							{visibleRootIDs.length === 0 ? (
+							{activeRootIDs.length === 0 && archivedRootIDs.length === 0 ? (
 								<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
 									{normalizedSearch ? "No matching agents" : "No agents yet"}
 								</div>
 							) : (
-								TIME_GROUPS.map((group) => {
-									const groupChats = visibleRootIDs
-										.map((id) => chatById.get(id))
-										.filter(
-											(chat): chat is Chat =>
-												chat !== undefined &&
-												getTimeGroup(chat.updated_at) === group,
-										);
-									if (groupChats.length === 0) return null;
-									return (
-										<div key={group}>
-											<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-												<span>{group}</span>
-											</div>
-											<div className="flex flex-col gap-0.5">
-												{groupChats.map((chat) => (
-													<ChatTreeNode
-														key={chat.id}
-														chat={chat}
-														isChildNode={false}
-													/>
-												))}
-											</div>
+								<div className="divide-y divide-border">
+									{activeRootIDs.length > 0 && (
+										<div className="pb-2">
+											{TIME_GROUPS.map((group) => {
+												const groupChats = activeRootIDs
+													.map((id) => chatById.get(id))
+													.filter(
+														(chat): chat is Chat =>
+															chat !== undefined &&
+															getTimeGroup(chat.updated_at) === group,
+													);
+												if (groupChats.length === 0) return null;
+												return (
+													<div key={group}>
+														<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+															<span>{group}</span>
+														</div>
+														<div className="flex flex-col gap-0.5">
+															{groupChats.map((chat) => (
+																<ChatTreeNode
+																	key={chat.id}
+																	chat={chat}
+																	isChildNode={false}
+																/>
+															))}
+														</div>
+													</div>
+												);
+											})}
 										</div>
-									);
-								})
+									)}
+									{archivedRootIDs.length > 0 && (
+										<Collapsible
+											className="pt-2"
+											open={effectiveArchivedExpanded}
+											onOpenChange={setIsArchivedExpanded}
+										>
+											<CollapsibleTrigger asChild>
+												<div className="mb-1 ml-2.5 flex cursor-pointer items-center justify-between text-xs font-medium text-content-secondary">
+													<span>Archived ({archivedRootIDs.length})</span>
+													{effectiveArchivedExpanded ? (
+														<ChevronDownIcon className="h-3 w-3" />
+													) : (
+														<ChevronRightIcon className="h-3 w-3" />
+													)}
+												</div>
+											</CollapsibleTrigger>
+											<CollapsibleContent>
+												<div className="flex flex-col gap-0.5">
+													{archivedRootIDs.map((id) => {
+														const chat = chatById.get(id);
+														if (!chat) return null;
+														return (
+															<ChatTreeNode
+																key={chat.id}
+																chat={chat}
+																isChildNode={false}
+															/>
+														);
+													})}
+												</div>
+											</CollapsibleContent>
+										</Collapsible>
+									)}
+								</div>
 							)}
 						</ChatTreeContext.Provider>
 					)}
 				</div>
 			</ScrollArea>
+			<div className="hidden border-0 border-t border-solid md:block">
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<button
+							type="button"
+							className="flex w-full items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-2 text-left hover:bg-surface-tertiary/50 transition-colors"
+						>
+							<Avatar
+								fallback={user.username}
+								src={user.avatar_url}
+								size="sm"
+							/>
+							<span className="truncate text-sm text-content-secondary">
+								{user.name || user.username}
+							</span>
+						</button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
+						<UserDropdownContent
+							user={user}
+							buildInfo={buildInfo}
+							supportLinks={
+								appearance.support_links?.filter(
+									(link) => link.location !== "navbar",
+								) ?? []
+							}
+							onSignOut={signOut}
+						/>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</div>{" "}
 		</div>
 	);
 };

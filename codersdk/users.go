@@ -196,12 +196,13 @@ type ValidateUserPasswordResponse struct {
 type TerminalFontName string
 
 var TerminalFontNames = []TerminalFontName{
-	TerminalFontUnknown, TerminalFontIBMPlexMono, TerminalFontFiraCode,
-	TerminalFontSourceCodePro, TerminalFontJetBrainsMono,
+	TerminalFontUnknown, TerminalFontGeistMono, TerminalFontIBMPlexMono,
+	TerminalFontFiraCode, TerminalFontSourceCodePro, TerminalFontJetBrainsMono,
 }
 
 const (
 	TerminalFontUnknown       TerminalFontName = ""
+	TerminalFontGeistMono     TerminalFontName = "geist-mono"
 	TerminalFontIBMPlexMono   TerminalFontName = "ibm-plex-mono"
 	TerminalFontFiraCode      TerminalFontName = "fira-code"
 	TerminalFontSourceCodePro TerminalFontName = "source-code-pro"

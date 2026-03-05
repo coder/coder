@@ -1804,11 +1804,16 @@ const docTemplate = `{
                 "operationId": "get-insights-about-user-status-counts",
                 "parameters": [
                     {
+                        "type": "string",
+                        "description": "IANA timezone name (e.g. America/St_Johns)",
+                        "name": "timezone",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
-                        "description": "Time-zone offset (e.g. -2)",
+                        "description": "Deprecated: Time-zone offset (e.g. -2). Use timezone instead.",
                         "name": "tz_offset",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -4803,7 +4808,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceSharingSettingsRequest"
                         }
                     }
                 }
@@ -5950,7 +5955,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
+                "produces": [
                     "application/json"
                 ],
                 "tags": [
@@ -5992,7 +5997,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
-                "consumes": [
+                "produces": [
                     "application/json"
                 ],
                 "tags": [
@@ -12569,6 +12574,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "listen_addr": {
+                    "type": "string"
+                },
+                "tls_cert_file": {
+                    "type": "string"
+                },
+                "tls_key_file": {
                     "type": "string"
                 },
                 "upstream_proxy": {
@@ -19861,6 +19872,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "",
+                "geist-mono",
                 "ibm-plex-mono",
                 "fira-code",
                 "source-code-pro",
@@ -19868,6 +19880,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "TerminalFontUnknown",
+                "TerminalFontGeistMono",
                 "TerminalFontIBMPlexMono",
                 "TerminalFontFiraCode",
                 "TerminalFontSourceCodePro",
@@ -20273,6 +20286,14 @@ const docTemplate = `{
             "properties": {
                 "name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateWorkspaceSharingSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "sharing_disabled": {
+                    "type": "boolean"
                 }
             }
         },
@@ -22113,6 +22134,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "sharing_disabled": {
+                    "type": "boolean"
+                },
+                "sharing_globally_disabled": {
+                    "description": "SharingGloballyDisabled is true if sharing has been disabled for this\norganization because of a deployment-wide setting.",
                     "type": "boolean"
                 }
             }

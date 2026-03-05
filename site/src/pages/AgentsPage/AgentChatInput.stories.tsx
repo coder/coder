@@ -80,6 +80,13 @@ export const DisabledInput: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+
+		// The editor should be non-editable so users cannot click
+		// into it and type (e.g. archived chats).
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor).toHaveAttribute("contenteditable", "false");
+		});
 	},
 };
 
@@ -123,5 +130,17 @@ export const LoadingDisablesSend: Story = {
 		// The send button should be disabled while a previous send is
 		// in-flight, even though the textarea has content.
 		expect(sendButton).toBeDisabled();
+	},
+};
+
+const longContent = Array.from(
+	{ length: 60 },
+	(_, i) =>
+		`Line ${i + 1}: This is a long line of text used to test overflow and scrollability of the chat input editor.`,
+).join("\n");
+
+export const LongContentScrollable: Story = {
+	args: {
+		initialValue: longContent,
 	},
 };

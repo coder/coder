@@ -171,7 +171,24 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	chats, err := api.Database.GetChatsByOwnerID(ctx, apiKey.UserID)
+	params := database.GetChatsByOwnerIDParams{
+		OwnerID: apiKey.UserID,
+	}
+	if v := r.URL.Query().Get("archived"); v != "" {
+		b, err := strconv.ParseBool(v)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid query parameter.",
+				Validations: []codersdk.ValidationError{
+					{Field: "archived", Detail: "Must be a valid boolean"},
+				},
+			})
+			return
+		}
+		params.Archived = sql.NullBool{Bool: b, Valid: true}
+	}
+
+	chats, err := api.Database.GetChatsByOwnerID(ctx, params)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chats.",
@@ -368,7 +385,10 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	messages, err := api.Database.GetChatMessagesByChatID(ctx, chatID)
+	messages, err := api.Database.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: 0,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat messages.",
@@ -409,12 +429,7 @@ func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var err error
-	if api.chatDaemon != nil {
-		err = api.chatDaemon.ArchiveChat(ctx, chat.ID)
-	} else {
-		err = archiveChatTree(ctx, api.Database, chat.ID)
-	}
+	err := api.Database.ArchiveChatByID(ctx, chat.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to archive chat.",
@@ -452,19 +467,6 @@ func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-func archiveChatTree(ctx context.Context, store database.Store, chatID uuid.UUID) error {
-	children, err := store.ListChildChatsByParentID(ctx, chatID)
-	if err != nil {
-		return xerrors.Errorf("list child chats: %w", err)
-	}
-	for _, child := range children {
-		if err := archiveChatTree(ctx, store, child.ID); err != nil {
-			return err
-		}
-	}
-	return store.ArchiveChatByID(ctx, chatID)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -699,7 +701,20 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		<-senderClosed
 	}()
 
-	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header)
+	var afterMessageID int64
+	if v := r.URL.Query().Get("after_id"); v != "" {
+		var err error
+		afterMessageID, err = strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid after_id parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Chat streaming is not available.",
@@ -1005,12 +1020,12 @@ func shouldRefreshChatDiffStatus(status database.ChatDiffStatus, now time.Time, 
 	return chatDiffStatusIsStale(status, now)
 }
 
-func (api *API) triggerWorkspaceChatDiffStatusRefresh(workspace database.Workspace, gitRef chatGitRef) {
+func (api *API) triggerWorkspaceChatDiffStatusRefresh(workspace database.Workspace, chatID uuid.NullUUID, gitRef chatGitRef) {
 	if workspace.ID == uuid.Nil || workspace.OwnerID == uuid.Nil {
 		return
 	}
 
-	go func(workspaceID, workspaceOwnerID uuid.UUID, gitRef chatGitRef) {
+	go func(workspaceID, workspaceOwnerID uuid.UUID, chatID uuid.NullUUID, gitRef chatGitRef) {
 		ctx := api.ctx
 		if ctx == nil {
 			ctx = context.Background()
@@ -1021,7 +1036,7 @@ func (api *API) triggerWorkspaceChatDiffStatusRefresh(workspace database.Workspa
 		// Always store the git ref so the data is persisted even
 		// before a PR exists. The frontend can show branch info
 		// and the refresh loop can resolve a PR later.
-		api.storeChatGitRef(ctx, workspaceID, workspaceOwnerID, gitRef)
+		api.storeChatGitRef(ctx, workspaceID, workspaceOwnerID, chatID, gitRef)
 
 		for _, delay := range chatDiffRefreshBackoffSchedule {
 			t := api.Clock.NewTimer(delay, "chat_diff_refresh")
@@ -1035,26 +1050,46 @@ func (api *API) triggerWorkspaceChatDiffStatusRefresh(workspace database.Workspa
 			// Refresh and publish status on every iteration.
 			// Stop the loop once a PR is discovered — there's
 			// nothing more to wait for after that.
-			if api.refreshWorkspaceChatDiffStatuses(ctx, workspaceID, workspaceOwnerID) {
+			if api.refreshWorkspaceChatDiffStatuses(ctx, workspaceID, workspaceOwnerID, chatID) {
 				return
 			}
 		}
-	}(workspace.ID, workspace.OwnerID, gitRef)
+	}(workspace.ID, workspace.OwnerID, chatID, gitRef)
 }
 
 // storeChatGitRef persists the git branch and remote origin reported
-// by the workspace agent on all chats associated with the workspace.
-func (api *API) storeChatGitRef(ctx context.Context, workspaceID, workspaceOwnerID uuid.UUID, gitRef chatGitRef) {
-	chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to list chats for git ref storage",
-			slog.F("workspace_id", workspaceID),
-			slog.Error(err),
-		)
-		return
+// by the workspace agent on the chat that initiated the git operation.
+// When chatID is set, only that specific chat is updated; otherwise all
+// chats associated with the workspace are updated (legacy fallback).
+func (api *API) storeChatGitRef(ctx context.Context, workspaceID, workspaceOwnerID uuid.UUID, chatID uuid.NullUUID, gitRef chatGitRef) {
+	var chatsToUpdate []database.Chat
+
+	if chatID.Valid {
+		chat, err := api.Database.GetChatByID(ctx, chatID.UUID)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to get chat for git ref storage",
+				slog.F("chat_id", chatID.UUID),
+				slog.F("workspace_id", workspaceID),
+				slog.Error(err),
+			)
+			return
+		}
+		chatsToUpdate = []database.Chat{chat}
+	} else {
+		chats, err := api.Database.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+			OwnerID: workspaceOwnerID,
+		})
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to list chats for git ref storage",
+				slog.F("workspace_id", workspaceID),
+				slog.Error(err),
+			)
+			return
+		}
+		chatsToUpdate = filterChatsByWorkspaceID(chats, workspaceID)
 	}
 
-	for _, chat := range filterChatsByWorkspaceID(chats, workspaceID) {
+	for _, chat := range chatsToUpdate {
 		_, err := api.Database.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
 			ChatID:          chat.ID,
 			GitBranch:       gitRef.Branch,
@@ -1074,22 +1109,40 @@ func (api *API) storeChatGitRef(ctx context.Context, workspaceID, workspaceOwner
 	}
 }
 
-// refreshWorkspaceChatDiffStatuses refreshes the diff status for all
-// chats associated with the given workspace. It returns true when
-// every chat has a PR URL resolved, signaling that the caller can
-// stop polling.
-func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceID, workspaceOwnerID uuid.UUID) bool {
-	chats, err := api.Database.GetChatsByOwnerID(ctx, workspaceOwnerID)
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to list workspace owner chats for diff refresh",
-			slog.F("workspace_id", workspaceID),
-			slog.F("workspace_owner_id", workspaceOwnerID),
-			slog.Error(err),
-		)
-		return false
-	}
+// refreshWorkspaceChatDiffStatuses refreshes the diff status for chats
+// associated with the given workspace. When chatID is set, only that
+// specific chat is refreshed; otherwise all chats for the workspace
+// are refreshed (legacy fallback). It returns true when every
+// refreshed chat has a PR URL resolved, signaling that the caller
+// can stop polling.
+func (api *API) refreshWorkspaceChatDiffStatuses(ctx context.Context, workspaceID, workspaceOwnerID uuid.UUID, chatID uuid.NullUUID) bool {
+	var filtered []database.Chat
 
-	filtered := filterChatsByWorkspaceID(chats, workspaceID)
+	if chatID.Valid {
+		chat, err := api.Database.GetChatByID(ctx, chatID.UUID)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to get chat for diff refresh",
+				slog.F("chat_id", chatID.UUID),
+				slog.F("workspace_id", workspaceID),
+				slog.Error(err),
+			)
+			return false
+		}
+		filtered = []database.Chat{chat}
+	} else {
+		chats, err := api.Database.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+			OwnerID: workspaceOwnerID,
+		})
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to list workspace owner chats for diff refresh",
+				slog.F("workspace_id", workspaceID),
+				slog.F("workspace_owner_id", workspaceOwnerID),
+				slog.Error(err),
+			)
+			return false
+		}
+		filtered = filterChatsByWorkspaceID(chats, workspaceID)
+	}
 	if len(filtered) == 0 {
 		return false
 	}
@@ -2038,6 +2091,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
+		Archived:          c.Archived,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
 	}

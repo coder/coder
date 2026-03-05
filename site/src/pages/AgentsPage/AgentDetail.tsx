@@ -11,11 +11,17 @@ import {
 	interruptChat,
 	promoteChatQueuedMessage,
 } from "api/queries/chats";
+import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
-import { getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "modules/apps/apps";
+import { ArchiveIcon } from "lucide-react";
+import {
+	getTerminalHref,
+	getVSCodeHref,
+	openAppInNewWindow,
+} from "modules/apps/apps";
 import {
 	type FC,
 	useCallback,
@@ -58,7 +64,6 @@ import { buildStreamTools } from "./AgentDetail/streamState";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import type { AgentsOutletContext } from "./AgentsPage";
-import { DiffRightPanel } from "./DiffRightPanel";
 import { FilesChangedPanel } from "./FilesChangedPanel";
 import {
 	getModelCatalogStatusMessage,
@@ -66,6 +71,7 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import { RightPanel } from "./RightPanel";
 
 const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
 	() => {};
@@ -73,29 +79,18 @@ const noopClearChatErrorReason: AgentsOutletContext["clearChatErrorReason"] =
 	() => {};
 const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
 	() => {};
+const noopRequestArchiveAndDeleteWorkspace: AgentsOutletContext["requestArchiveAndDeleteWorkspace"] =
+	() => {};
+const noopRequestUnarchiveAgent: AgentsOutletContext["requestUnarchiveAgent"] =
+	() => {};
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+/** @internal Exported for testing. */
+export const draftInputStorageKeyPrefix = "agents.draft-input.";
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
 ): message is TypesGen.ChatMessage => Boolean(message);
-
-const toOptimisticMessageParts = (
-	inputParts: readonly TypesGen.ChatInputPart[],
-): readonly TypesGen.ChatMessagePart[] =>
-	inputParts.map((part) => ({
-		type: "text",
-		...(part.text !== undefined ? { text: part.text } : {}),
-	}));
-
-const getOrderedMessagesFromStore = (
-	store: ChatStoreHandle,
-): readonly TypesGen.ChatMessage[] => {
-	const snapshot = store.getSnapshot();
-	return snapshot.orderedMessageIDs
-		.map((messageID) => snapshot.messagesByID.get(messageID))
-		.filter(isChatMessage);
-};
 
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
@@ -290,57 +285,32 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			inputStatusText={inputStatusText}
 			modelCatalogStatusMessage={modelCatalogStatusMessage}
-			sticky
 		/>
 	);
 };
 
-interface AgentDetailConversationProps {
-	store: ChatStoreHandle;
-	chatID: string;
-	persistedErrorReason: string | undefined;
-	compressionThreshold: number | undefined;
-	onDeleteQueuedMessage: (id: number) => Promise<void>;
-	onPromoteQueuedMessage: (id: number) => Promise<void>;
+/** @internal Exported for testing. */
+export function useConversationEditingState(deps: {
+	chatID: string | undefined;
 	onSend: (message: string, editedMessageID?: number) => Promise<void>;
-	onInterrupt: () => void;
-	isInputDisabled: boolean;
-	isSendPending: boolean;
-	isInterruptPending: boolean;
-	hasModelOptions: boolean;
-	selectedModel: string;
-	onModelChange: (modelID: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	modelSelectorPlaceholder: string;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
-	savingMessageId?: number | null;
-}
-
-const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
-	store,
-	chatID,
-	persistedErrorReason,
-	compressionThreshold,
-	onDeleteQueuedMessage,
-	onPromoteQueuedMessage,
-	onSend,
-	onInterrupt,
-	isInputDisabled,
-	isSendPending,
-	isInterruptPending,
-	hasModelOptions,
-	selectedModel,
-	onModelChange,
-	modelOptions,
-	modelSelectorPlaceholder,
-	inputStatusText,
-	modelCatalogStatusMessage,
-	savingMessageId,
-}) => {
+	onDeleteQueuedMessage: (id: number) => Promise<void>;
+}) {
+	const { chatID, onSend, onDeleteQueuedMessage } = deps;
+	const draftStorageKey = chatID
+		? `${draftInputStorageKeyPrefix}${chatID}`
+		: null;
 	const inputValueRef = useRef("");
 	const chatInputRef = useRef<ChatMessageInputRef>(null);
-	const [editorInitialValue, setEditorInitialValue] = useState("");
+	const [editorInitialValue, setEditorInitialValue] = useState(() => {
+		if (typeof window === "undefined" || !draftStorageKey) {
+			return "";
+		}
+		const saved = localStorage.getItem(draftStorageKey);
+		if (saved) {
+			inputValueRef.current = saved;
+		}
+		return saved ?? "";
+	});
 
 	// -- History editing state --
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
@@ -402,74 +372,62 @@ const AgentDetailConversation: FC<AgentDetailConversationProps> = ({
 				editingMessageId !== null ? editingMessageId : undefined;
 			const queueEditID = editingQueuedMessageID;
 
-			// Clear input and editing state optimistically.
-			setEditorInitialValue("");
-			inputValueRef.current = "";
-			if (editingMessageId !== null) {
-				setEditingMessageId(null);
-				setDraftBeforeHistoryEdit(null);
-			}
-			if (queueEditID !== null) {
-				setEditingQueuedMessageID(null);
-				setDraftBeforeQueueEdit(null);
-			}
-
-			void onSend(message, editedMessageID)
-				.then(() => {
-					if (queueEditID !== null) {
-						void onDeleteQueuedMessage(queueEditID);
-					}
-				})
-				.catch(() => {
-					// Restore input so the user can retry.
-					setEditorInitialValue(message);
-					inputValueRef.current = message;
-				});
+			void onSend(message, editedMessageID).then(() => {
+				// Clear input and editing state on success.
+				chatInputRef.current?.clear();
+				chatInputRef.current?.focus();
+				inputValueRef.current = "";
+				if (typeof window !== "undefined" && draftStorageKey) {
+					localStorage.removeItem(draftStorageKey);
+				}
+				if (editingMessageId !== null) {
+					setEditingMessageId(null);
+					setDraftBeforeHistoryEdit(null);
+				}
+				if (queueEditID !== null) {
+					setEditingQueuedMessageID(null);
+					setDraftBeforeQueueEdit(null);
+					void onDeleteQueuedMessage(queueEditID);
+				}
+			});
 		},
-		[editingMessageId, editingQueuedMessageID, onDeleteQueuedMessage, onSend],
+		[
+			editingMessageId,
+			editingQueuedMessageID,
+			onDeleteQueuedMessage,
+			onSend,
+			draftStorageKey,
+		],
 	);
 
-	return (
-		<>
-			<AgentDetailTimeline
-				store={store}
-				chatID={chatID}
-				persistedErrorReason={persistedErrorReason}
-				onEditUserMessage={handleEditUserMessage}
-				editingMessageId={editingMessageId}
-				savingMessageId={savingMessageId}
-			/>
-			<AgentDetailInput
-				store={store}
-				compressionThreshold={compressionThreshold}
-				onSend={handleSendFromInput}
-				onDeleteQueuedMessage={onDeleteQueuedMessage}
-				onPromoteQueuedMessage={onPromoteQueuedMessage}
-				onInterrupt={onInterrupt}
-				isInputDisabled={isInputDisabled}
-				isSendPending={isSendPending}
-				isInterruptPending={isInterruptPending}
-				hasModelOptions={hasModelOptions}
-				selectedModel={selectedModel}
-				onModelChange={onModelChange}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder={modelSelectorPlaceholder}
-				inputStatusText={inputStatusText}
-				modelCatalogStatusMessage={modelCatalogStatusMessage}
-				inputRef={chatInputRef}
-				initialValue={editorInitialValue}
-				onContentChange={(content) => {
-					inputValueRef.current = content;
-				}}
-				editingQueuedMessageID={editingQueuedMessageID}
-				onStartQueueEdit={handleStartQueueEdit}
-				onCancelQueueEdit={handleCancelQueueEdit}
-				isEditingHistoryMessage={editingMessageId !== null}
-				onCancelHistoryEdit={handleCancelHistoryEdit}
-			/>
-		</>
+	const handleContentChange = useCallback(
+		(content: string) => {
+			inputValueRef.current = content;
+			if (typeof window !== "undefined" && draftStorageKey) {
+				if (content) {
+					localStorage.setItem(draftStorageKey, content);
+				} else {
+					localStorage.removeItem(draftStorageKey);
+				}
+			}
+		},
+		[draftStorageKey],
 	);
-};
+
+	return {
+		inputValueRef,
+		chatInputRef,
+		editorInitialValue,
+		editingMessageId,
+		handleEditUserMessage,
+		handleCancelHistoryEdit,
+		editingQueuedMessageID,
+		handleStartQueueEdit,
+		handleCancelQueueEdit,
+		handleSendFromInput,
+		handleContentChange,
+	};
+}
 
 const AgentDetail: FC = () => {
 	const navigate = useNavigate();
@@ -478,6 +436,14 @@ const AgentDetail: FC = () => {
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const [showDiffPanel, setShowDiffPanel] = useState(false);
+	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
+	// Tracks the live visual expanded state during drag so sibling
+	// content hides/shows in real-time rather than on pointer-up.
+	// Null means "no drag override, use isRightPanelExpanded".
+	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
+		null,
+	);
+	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
@@ -488,6 +454,11 @@ const AgentDetail: FC = () => {
 		outletContext?.clearChatErrorReason ?? noopClearChatErrorReason;
 	const requestArchiveAgent =
 		outletContext?.requestArchiveAgent ?? noopRequestArchiveAgent;
+	const requestArchiveAndDeleteWorkspace =
+		outletContext?.requestArchiveAndDeleteWorkspace ??
+		noopRequestArchiveAndDeleteWorkspace;
+	const requestUnarchiveAgent =
+		outletContext?.requestUnarchiveAgent ?? noopRequestUnarchiveAgent;
 	const isSidebarCollapsed = outletContext?.isSidebarCollapsed ?? false;
 	const onToggleSidebarCollapsed =
 		outletContext?.onToggleSidebarCollapsed ?? (() => {});
@@ -509,11 +480,13 @@ const AgentDetail: FC = () => {
 	});
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const hasDiffStatus = Boolean(diffStatusQuery.data?.url);
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const chatData = chatQuery.data;
 	const chatRecord = chatData?.chat;
+	const isArchived = chatRecord?.archived ?? false;
 	const chatMessages = chatData?.messages;
 	const chatQueuedMessages = chatData?.queued_messages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
@@ -637,7 +610,7 @@ const AgentDetail: FC = () => {
 		sendMutation.isPending ||
 		editMutation.isPending ||
 		interruptMutation.isPending;
-	const isInputDisabled = !hasModelOptions;
+	const isInputDisabled = !hasModelOptions || isArchived;
 
 	const handleSend = async (message: string, editedMessageID?: number) => {
 		if (
@@ -657,32 +630,12 @@ const AgentDetail: FC = () => {
 			if (scrollContainerRef.current) {
 				scrollContainerRef.current.scrollTop = 0;
 			}
-			const previousChatStatus = store.getSnapshot().chatStatus;
-			const previousMessages = getOrderedMessagesFromStore(store);
-			const messageIndex = previousMessages.findIndex(
-				(msg) => msg.id === editedMessageID,
-			);
-			if (messageIndex !== -1) {
-				const optimisticEditedMessage: TypesGen.ChatMessage = {
-					...previousMessages[messageIndex],
-					content: toOptimisticMessageParts(request.content),
-				};
-				store.replaceMessages([
-					...previousMessages.slice(0, messageIndex),
-					optimisticEditedMessage,
-				]);
-			}
 			store.clearStreamState();
-			store.setChatStatus("pending");
 			try {
 				await editMutation.mutateAsync({
 					messageId: editedMessageID,
 					req: request,
 				});
-			} catch (error) {
-				store.replaceMessages(previousMessages);
-				store.setChatStatus(previousChatStatus);
-				throw error;
 			} finally {
 				setPendingEditMessageId(null);
 			}
@@ -700,29 +653,16 @@ const AgentDetail: FC = () => {
 			scrollContainerRef.current.scrollTop = 0;
 		}
 
-		// Inject an optimistic user message so the bubble appears in
-		// the timeline immediately, without waiting for the server.
-		const previousMessages = getOrderedMessagesFromStore(store);
-		const previousChatStatus = store.getSnapshot().chatStatus;
-		const optimisticMessage: TypesGen.ChatMessage = {
-			id: -Date.now(),
-			chat_id: agentId,
-			created_at: new Date().toISOString(),
-			role: "user",
-			content: toOptimisticMessageParts(content),
-		};
-		store.upsertDurableMessage(optimisticMessage);
+		// No optimistic rendering — the message will appear in the
+		// timeline when the server confirms via the POST response or
+		// via the SSE stream.
 		store.clearStreamState();
-		store.setChatStatus("pending");
-
-		try {
-			await sendMutation.mutateAsync(request);
-		} catch (error) {
-			// Roll back the optimistic message so the timeline
-			// returns to its previous state.
-			store.replaceMessages(previousMessages);
-			store.setChatStatus(previousChatStatus);
-			throw error;
+		const response = await sendMutation.mutateAsync(request);
+		// When the server accepts the message immediately (not
+		// queued), insert it into the store so it appears in the
+		// timeline without waiting for the SSE stream.
+		if (!response.queued && response.message) {
+			store.upsertDurableMessage(response.message);
 		}
 		if (typeof window !== "undefined") {
 			if (selectedModelConfigID) {
@@ -781,6 +721,12 @@ const AgentDetail: FC = () => {
 		[promoteQueuedMutation, store],
 	);
 
+	const editing = useConversationEditingState({
+		chatID: agentId,
+		onSend: handleSend,
+		onDeleteQueuedMessage: handleDeleteQueuedMessage,
+	});
+
 	const chatTitle = chatQuery.data?.chat?.title;
 
 	// Update the browser tab title when navigating to / between agents.
@@ -802,61 +748,82 @@ const AgentDetail: FC = () => {
 		: null;
 	const canOpenWorkspace = Boolean(workspaceRoute);
 	const canOpenEditors = Boolean(workspace && workspaceAgent);
+	const terminalHref =
+		workspace && workspaceAgent
+			? getTerminalHref({
+					username: workspace.owner_name,
+					workspace: workspace.name,
+					agent: workspaceAgent.name,
+				})
+			: null;
+	const sshCommand =
+		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
+			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
+			: undefined;
 	const shouldShowDiffPanel = hasDiffStatus && showDiffPanel;
 
-	const handleOpenInEditor = async (editor: "cursor" | "vscode") => {
+	const generateKeyMutation = useMutation({
+		mutationFn: () => API.getApiKey(),
+	});
+
+	const handleOpenInEditor = (editor: "cursor" | "vscode") => {
 		if (!workspace || !workspaceAgent) {
 			return;
 		}
 
-		try {
-			const { key } = await API.getApiKey();
-			const vscodeHref = getVSCodeHref("vscode", {
-				owner: workspace.owner_name,
-				workspace: workspace.name,
-				token: key,
-				agent: workspaceAgent.name,
-				folder: workspaceAgent.expanded_directory,
-			});
-
-			if (editor === "cursor") {
-				const cursorApp = workspaceAgent.apps.find((app) => {
-					const name = (app.display_name ?? app.slug).toLowerCase();
-					return app.slug.toLowerCase() === "cursor" || name === "cursor";
+		generateKeyMutation.mutate(undefined, {
+			onSuccess: ({ key }) => {
+				location.href = getVSCodeHref(editor, {
+					owner: workspace.owner_name,
+					workspace: workspace.name,
+					token: key,
+					agent: workspaceAgent.name,
+					folder: workspaceAgent.expanded_directory,
 				});
-				if (cursorApp?.external && cursorApp.url) {
-					const href = cursorApp.url.includes(SESSION_TOKEN_PLACEHOLDER)
-						? cursorApp.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, key)
-						: cursorApp.url;
-					window.location.assign(href);
-					return;
-				}
-				window.location.assign(vscodeHref.replace(/^vscode:/, "cursor:"));
-				return;
-			}
-
-			window.location.assign(vscodeHref);
-		} catch {
-			toast.error(
-				editor === "cursor"
-					? "Failed to open in Cursor."
-					: "Failed to open in VS Code.",
-			);
-		}
+			},
+			onError: () => {
+				toast.error(
+					editor === "cursor"
+						? "Failed to open in Cursor."
+						: "Failed to open in VS Code.",
+				);
+			},
+		});
 	};
 
 	const handleViewWorkspace = () => {
 		if (!workspaceRoute) {
 			return;
 		}
-		navigate(workspaceRoute);
+		window.open(workspaceRoute, "_blank");
+	};
+
+	const handleOpenTerminal = () => {
+		if (!terminalHref) {
+			return;
+		}
+		openAppInNewWindow(terminalHref);
 	};
 
 	const handleArchiveAgentAction = () => {
-		if (!agentId) {
+		if (!agentId || isArchived) {
 			return;
 		}
 		requestArchiveAgent(agentId);
+	};
+
+	const handleArchiveAndDeleteWorkspaceAction = () => {
+		if (!agentId || isArchived || !workspaceId) {
+			return;
+		}
+		requestArchiveAndDeleteWorkspace(agentId, workspaceId);
+	};
+
+	const handleUnarchiveAgentAction = () => {
+		if (!agentId || !isArchived) {
+			return;
+		}
+		requestUnarchiveAgent(agentId);
 	};
 
 	if (chatQuery.isLoading) {
@@ -874,13 +841,18 @@ const AgentDetail: FC = () => {
 						canOpenWorkspace: false,
 						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
+						onOpenTerminal: () => {},
+						sshCommand: undefined,
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
+					onUnarchiveAgent={() => {}}
+					onArchiveAndDeleteWorkspace={() => {}}
+					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
-				<div className="flex h-full flex-col-reverse overflow-hidden">
+				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
 					<div className="px-4">
 						<div className="mx-auto w-full max-w-3xl py-6">
 							<div className="flex flex-col gap-3">
@@ -908,21 +880,22 @@ const AgentDetail: FC = () => {
 								</div>
 							</div>
 						</div>
-						<AgentChatInput
-							onSend={() => {}}
-							initialValue=""
-							isDisabled={isInputDisabled}
-							isLoading={false}
-							selectedModel={selectedModel}
-							onModelChange={setSelectedModel}
-							modelOptions={modelOptions}
-							modelSelectorPlaceholder={modelSelectorPlaceholder}
-							hasModelOptions={hasModelOptions}
-							inputStatusText={inputStatusText}
-							modelCatalogStatusMessage={modelCatalogStatusMessage}
-							sticky
-						/>
 					</div>
+				</div>
+				<div className="shrink-0 px-4">
+					<AgentChatInput
+						onSend={() => {}}
+						initialValue=""
+						isDisabled={isInputDisabled}
+						isLoading={false}
+						selectedModel={selectedModel}
+						onModelChange={setSelectedModel}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						hasModelOptions={hasModelOptions}
+						inputStatusText={inputStatusText}
+						modelCatalogStatusMessage={modelCatalogStatusMessage}
+					/>
 				</div>
 			</div>
 		);
@@ -943,9 +916,14 @@ const AgentDetail: FC = () => {
 						canOpenWorkspace: false,
 						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
+						onOpenTerminal: () => {},
+						sshCommand: undefined,
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
+					onUnarchiveAgent={() => {}}
+					onArchiveAndDeleteWorkspace={() => {}}
+					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
@@ -959,77 +937,119 @@ const AgentDetail: FC = () => {
 	return (
 		<div
 			className={cn(
-				"flex min-h-0 min-w-0 flex-1",
-				shouldShowDiffPanel && "flex-col xl:flex-row",
+				"relative flex min-h-0 min-w-0 flex-1",
+				shouldShowDiffPanel && !visualExpanded && "flex-col xl:flex-row",
 			)}
 		>
-			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-				<AgentDetailTopBar
-					chatTitle={chatTitle}
-					parentChat={parentChat}
-					onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
-					diff={{
-						hasDiffStatus,
-						diffStatus: diffStatusQuery.data,
-						showDiffPanel,
-						onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
-					}}
-					workspace={{
-						canOpenEditors,
-						canOpenWorkspace,
-						onOpenInEditor: (editor) => {
-							void handleOpenInEditor(editor);
-						},
-						onViewWorkspace: handleViewWorkspace,
-					}}
-					onArchiveAgent={handleArchiveAgentAction}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-				/>
-				<div
-					aria-hidden
-					className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-surface-primary"
-					style={{
-						maskImage:
-							"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-						WebkitMaskImage:
-							"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-					}}
-				/>
+			<div
+				className={cn(
+					"relative flex min-h-0 min-w-0 flex-1 flex-col",
+					visualExpanded && "hidden",
+				)}
+			>
+				<div className="relative z-10 shrink-0 overflow-visible">
+					<AgentDetailTopBar
+						chatTitle={chatTitle}
+						parentChat={parentChat}
+						onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
+						diff={{
+							hasDiffStatus,
+							diffStatus: diffStatusQuery.data,
+							showDiffPanel,
+							onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
+						}}
+						workspace={{
+							canOpenEditors,
+							canOpenWorkspace,
+							onOpenInEditor: handleOpenInEditor,
+							onViewWorkspace: handleViewWorkspace,
+							onOpenTerminal: handleOpenTerminal,
+							sshCommand,
+						}}
+						onArchiveAgent={handleArchiveAgentAction}
+						onUnarchiveAgent={handleUnarchiveAgentAction}
+						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
+						hasWorkspace={Boolean(workspaceId)}
+						isArchived={isArchived}
+						isSidebarCollapsed={isSidebarCollapsed}
+						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+					/>
+					{isArchived && (
+						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-sm text-content-secondary">
+							<ArchiveIcon className="h-4 w-4 shrink-0" />
+							This agent has been archived and is read-only.
+						</div>
+					)}
+					<div
+						aria-hidden
+						className="pointer-events-none absolute inset-x-0 top-full z-10 h-6 bg-surface-primary"
+						style={{
+							maskImage:
+								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+							WebkitMaskImage:
+								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+						}}
+					/>
+				</div>
 				<div
 					ref={scrollContainerRef}
-					className="flex h-full flex-col-reverse overflow-y-auto [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+					className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 				>
 					<div className="px-4">
-						<AgentDetailConversation
+						<AgentDetailTimeline
 							store={store}
 							chatID={agentId}
 							persistedErrorReason={
 								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
 							}
-							compressionThreshold={compressionThreshold}
-							onDeleteQueuedMessage={handleDeleteQueuedMessage}
-							onPromoteQueuedMessage={handlePromoteQueuedMessage}
-							onSend={handleSend}
-							onInterrupt={handleInterrupt}
-							isInputDisabled={isInputDisabled}
-							isSendPending={isSubmissionPending}
-							isInterruptPending={interruptMutation.isPending}
-							hasModelOptions={hasModelOptions}
-							selectedModel={selectedModel}
-							onModelChange={setSelectedModel}
-							modelOptions={modelOptions}
-							modelSelectorPlaceholder={modelSelectorPlaceholder}
-							inputStatusText={inputStatusText}
-							modelCatalogStatusMessage={modelCatalogStatusMessage}
+							onEditUserMessage={editing.handleEditUserMessage}
+							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
 						/>
 					</div>
 				</div>
+				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+					<AgentDetailInput
+						store={store}
+						compressionThreshold={compressionThreshold}
+						onSend={editing.handleSendFromInput}
+						onDeleteQueuedMessage={handleDeleteQueuedMessage}
+						onPromoteQueuedMessage={handlePromoteQueuedMessage}
+						onInterrupt={handleInterrupt}
+						isInputDisabled={isInputDisabled}
+						isSendPending={isSubmissionPending}
+						isInterruptPending={interruptMutation.isPending}
+						hasModelOptions={hasModelOptions}
+						selectedModel={selectedModel}
+						onModelChange={setSelectedModel}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						inputStatusText={inputStatusText}
+						modelCatalogStatusMessage={modelCatalogStatusMessage}
+						inputRef={editing.chatInputRef}
+						initialValue={editing.editorInitialValue}
+						onContentChange={editing.handleContentChange}
+						editingQueuedMessageID={editing.editingQueuedMessageID}
+						onStartQueueEdit={editing.handleStartQueueEdit}
+						onCancelQueueEdit={editing.handleCancelQueueEdit}
+						isEditingHistoryMessage={editing.editingMessageId !== null}
+						onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+					/>
+				</div>
 			</div>
-			<DiffRightPanel isOpen={shouldShowDiffPanel}>
-				<FilesChangedPanel chatId={agentId} />
-			</DiffRightPanel>
+			<RightPanel
+				isOpen={shouldShowDiffPanel}
+				isExpanded={isRightPanelExpanded}
+				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+				onClose={() => setShowDiffPanel(false)}
+				chatTitle={chatTitle}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				onVisualExpandedChange={setDragVisualExpanded}
+				tabContent={{
+					git: <FilesChangedPanel chatId={agentId} />,
+				}}
+			/>{" "}
 		</div>
 	);
 };

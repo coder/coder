@@ -13,13 +13,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	ArrowUpIcon,
-	ListPlusIcon,
-	Loader2Icon,
-	Square,
-	XIcon,
-} from "lucide-react";
+import { ArrowUpIcon, Loader2Icon, Square, XIcon } from "lucide-react";
 import { memo, type ReactNode, useCallback, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "./modelOptions";
@@ -82,9 +76,6 @@ interface AgentChatInputProps {
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
 	// Omit entirely to hide the indicator.
 	contextUsage?: AgentContextUsage | null;
-	// When true the entire input sticks to the bottom of the scroll
-	// container (used in the detail page).
-	sticky?: boolean;
 }
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -239,7 +230,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		isEditingHistoryMessage = false,
 		onCancelHistoryEdit,
 		contextUsage,
-		sticky = false,
 	}) => {
 		const internalRef = useRef<ChatMessageInputRef>(null);
 
@@ -296,7 +286,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 
 			onSend(text);
-			internalRef.current?.clear();
 			internalRef.current?.focus();
 		}, [
 			isDisabled,
@@ -322,8 +311,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 		};
 
-		const sendButtonLabel =
-			isStreaming && editingQueuedMessageID === null ? "Queue message" : "Send";
+		const sendButtonLabel = editingQueuedMessageID !== null ? "Save" : "Send";
 
 		const content = (
 			<div className="mx-auto w-full max-w-3xl pb-4">
@@ -396,7 +384,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						initialValue={initialValue}
 						onChange={handleContentChange}
 						onEnter={handleSubmit}
-						disabled={isDisabled}
+						disabled={isDisabled || isLoading}
 						rows={4}
 						autoFocus
 					/>
@@ -435,22 +423,22 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									<span className="sr-only">Stop</span>
 								</Button>
 							)}
-							<Button
-								size="icon"
-								variant="default"
-								className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
-								onClick={handleSubmit}
-								disabled={!canSend}
-							>
-								{isLoading ? (
-									<Loader2Icon className="animate-spin" />
-								) : isStreaming && editingQueuedMessageID === null ? (
-									<ListPlusIcon />
-								) : (
-									<ArrowUpIcon />
-								)}
-								<span className="sr-only">{sendButtonLabel}</span>
-							</Button>
+							{!(isStreaming && editingQueuedMessageID === null) && (
+								<Button
+									size="icon"
+									variant="default"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
+									onClick={handleSubmit}
+									disabled={!canSend}
+								>
+									{isLoading ? (
+										<Loader2Icon className="animate-spin" />
+									) : (
+										<ArrowUpIcon />
+									)}
+									<span className="sr-only">{sendButtonLabel}</span>
+								</Button>
+							)}
 						</div>
 					</div>
 					{inputStatusText && (
@@ -466,12 +454,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				</div>
 			</div>
 		);
-
-		if (sticky) {
-			return (
-				<div className="sticky bottom-0 z-50 bg-surface-primary">{content}</div>
-			);
-		}
 
 		return content;
 	},

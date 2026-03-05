@@ -239,9 +239,9 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
-	// ChatRemotePartsProvider provides cross-replica message_part streaming.
+	// ChatSubscribeFn provides cross-replica subscription merging.
 	// Set by enterprise for HA deployments. Nil in AGPL single-replica.
-	ChatRemotePartsProvider chatd.RemotePartsProvider
+	ChatSubscribeFn chatd.SubscribeFn
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -333,9 +333,10 @@ func New(options *Options) *API {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
 
-	if options.DeploymentValues.DisableOwnerWorkspaceExec {
+	if options.DeploymentValues.DisableOwnerWorkspaceExec || options.DeploymentValues.DisableWorkspaceSharing {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-			NoOwnerWorkspaceExec: true,
+			NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
+			NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
 		})
 	}
 
@@ -759,15 +760,15 @@ func New(options *Options) *API {
 	api.agentProvider = stn
 
 	api.chatDaemon = chatd.New(chatd.Config{
-		Logger:              options.Logger.Named("chats"),
-		Database:            options.Database,
-		ReplicaID:           api.ID,
-		RemotePartsProvider: options.ChatRemotePartsProvider,
-		ProviderAPIKeys:     chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
-		AgentConn:           api.agentProvider.AgentConn,
-		CreateWorkspace:     api.chatCreateWorkspace,
-		Pubsub:              options.Pubsub,
-		WebpushDispatcher:   options.WebPushDispatcher,
+		Logger:            options.Logger.Named("chats"),
+		Database:          options.Database,
+		ReplicaID:         api.ID,
+		SubscribeFn:       options.ChatSubscribeFn,
+		ProviderAPIKeys:   chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+		AgentConn:         api.agentProvider.AgentConn,
+		CreateWorkspace:   api.chatCreateWorkspace,
+		Pubsub:            options.Pubsub,
+		WebpushDispatcher: options.WebPushDispatcher,
 	})
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
@@ -1479,6 +1480,7 @@ func New(options *Options) *API {
 							})
 						})
 						r.Route("/webpush", func(r chi.Router) {
+							r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentWebPush))
 							r.Post("/subscription", api.postUserWebpushSubscription)
 							r.Delete("/subscription", api.deleteUserWebpushSubscription)
 							r.Post("/test", api.postUserPushNotificationTest)
@@ -1792,6 +1794,8 @@ func New(options *Options) *API {
 					r.Patch("/input", api.taskUpdateInput)
 					r.Post("/send", api.taskSend)
 					r.Get("/logs", api.taskLogs)
+					r.Post("/pause", api.pauseTask)
+					r.Post("/resume", api.resumeTask)
 				})
 			})
 		})

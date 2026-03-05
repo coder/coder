@@ -27,6 +27,7 @@ import {
 	useCallback,
 	useEffect,
 	useImperativeHandle,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 } from "react";
@@ -221,6 +222,21 @@ interface ChatMessageInputProps
 	"aria-label"?: string;
 }
 
+// Keeps the Lexical editor's editable state in sync with the
+// disabled prop so that the underlying contentEditable element
+// becomes truly non-interactive when the input is disabled.
+const EditableStatePlugin: FC<{ disabled: boolean }> = memo(
+	function EditableStatePlugin({ disabled }) {
+		const [editor] = useLexicalComposerContext();
+
+		useLayoutEffect(() => {
+			editor.setEditable(!disabled);
+		}, [editor, disabled]);
+
+		return null;
+	},
+);
+
 const ChatMessageInput = memo(
 	({
 		className,
@@ -243,8 +259,9 @@ const ChatMessageInput = memo(
 				},
 				onError: (error: Error) => console.error("Lexical error:", error),
 				nodes: [],
+				editable: !disabled,
 			}),
-			[],
+			[disabled],
 		);
 		const style = useMemo(
 			() => ({
@@ -359,7 +376,7 @@ const ChatMessageInput = memo(
 					<RichTextPlugin
 						contentEditable={
 							<ContentEditable
-								className="outline-none w-full whitespace-pre-wrap [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
+								className="outline-none w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent] [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
 								data-testid="chat-message-input"
 								style={{ minHeight: "inherit" }}
 								aria-label={ariaLabel}
@@ -380,6 +397,7 @@ const ChatMessageInput = memo(
 					<ContentChangePlugin onChange={handleContentChange} />
 					<ValueSyncPlugin initialValue={initialValue} />
 					<InsertTextPlugin onEditorReady={handleEditorReady} />
+					<EditableStatePlugin disabled={!!disabled} />
 					{autoFocus && <AutoFocusPlugin />}
 				</div>
 			</LexicalComposer>

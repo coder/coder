@@ -82,6 +82,8 @@ export interface AIBridgeOpenAIConfig {
 export interface AIBridgeProxyConfig {
 	readonly enabled: boolean;
 	readonly listen_addr: string;
+	readonly tls_cert_file: string;
+	readonly tls_key_file: string;
 	readonly cert_file: string;
 	readonly key_file: string;
 	readonly domain_allowlist: string;
@@ -2838,11 +2840,11 @@ export interface GetInboxNotificationResponse {
 
 // From codersdk/insights.go
 export interface GetUserStatusCountsRequest {
+	readonly timezone: string;
 	/**
-	 * Timezone offset in hours. Use 0 for UTC, and TimezoneOffsetHour(time.Local)
-	 * for the local timezone.
+	 * Deprecated: Use Timezone instead. Offset is ignored when Timezone is provided.
 	 */
-	readonly offset: number;
+	readonly offset?: number;
 }
 
 // From codersdk/insights.go
@@ -3214,6 +3216,14 @@ export interface LinkConfig {
 	readonly target: string;
 	readonly icon: string;
 	readonly location?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ListChatsOptions are optional parameters for ListChats.
+ */
+export interface ListChatsOptions {
+	readonly Archived: boolean | null;
 }
 
 // From codersdk/inboxnotification.go
@@ -5424,6 +5434,20 @@ export interface StatsCollectionConfig {
 	readonly usage_stats: UsageStatsConfig;
 }
 
+// From codersdk/chats.go
+/**
+ * StreamChatOptions are optional parameters for StreamChat.
+ */
+export interface StreamChatOptions {
+	/**
+	 * AfterID limits the initial snapshot to messages created
+	 * after the given ID. This is useful for relay connections
+	 * that only need live message_part events and can skip the
+	 * full message history.
+	 */
+	readonly AfterID: number | null;
+}
+
 // From codersdk/client.go
 /**
  * SubdomainAppSessionTokenCookie is the name of the cookie that stores an
@@ -6137,6 +6161,7 @@ export interface TemplateVersionsByTemplateRequest extends Pagination {
 // From codersdk/users.go
 export type TerminalFontName =
 	| "fira-code"
+	| "geist-mono"
 	| "ibm-plex-mono"
 	| "jetbrains-mono"
 	| "source-code-pro"
@@ -6144,6 +6169,7 @@ export type TerminalFontName =
 
 export const TerminalFontNames: TerminalFontName[] = [
 	"fira-code",
+	"geist-mono",
 	"ibm-plex-mono",
 	"jetbrains-mono",
 	"source-code-pro",
@@ -6511,6 +6537,15 @@ export interface UpdateWorkspaceProxyResponse {
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceRequest {
 	readonly name?: string;
+}
+
+// From codersdk/workspacesharing.go
+/**
+ * UpdateWorkspaceSharingSettingsRequest represents workspace sharing settings
+ * that can be updated for an organization.
+ */
+export interface UpdateWorkspaceSharingSettingsRequest {
+	readonly sharing_disabled: boolean;
 }
 
 // From codersdk/workspaces.go
@@ -7546,9 +7581,15 @@ export const WorkspaceRoles: WorkspaceRole[] = ["admin", "", "use"];
 
 // From codersdk/workspacesharing.go
 /**
- * WorkspaceSharingSettings represents workspace sharing settings for an organization.
+ * WorkspaceSharingSettings represents workspace sharing settings affecting an
+ * organization.
  */
 export interface WorkspaceSharingSettings {
+	/**
+	 * SharingGloballyDisabled is true if sharing has been disabled for this
+	 * organization because of a deployment-wide setting.
+	 */
+	readonly sharing_globally_disabled: boolean;
 	readonly sharing_disabled: boolean;
 }
 

@@ -27,8 +27,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
+	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -60,7 +62,7 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, events, cancel, ok := replicaB.Subscribe(ctx, chat.ID, nil)
+	_, events, cancel, ok := replicaB.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -79,6 +81,160 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 			return false
 		}
 	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues:         deploymentValues,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	_ = agenttest.New(t, client.URL, agentToken)
+
+	// Track tools sent in LLM requests. The first call is for the
+	// root chat which spawns a subagent; the second call is for the
+	// subagent itself.
+	var toolsMu sync.Mutex
+	toolsByCall := make([][]string, 0, 2)
+
+	var callCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("ok")
+		}
+
+		names := make([]string, 0, len(req.Tools))
+		for _, tool := range req.Tools {
+			names = append(names, tool.Function.Name)
+		}
+		toolsMu.Lock()
+		toolsByCall = append(toolsByCall, names)
+		toolsMu.Unlock()
+
+		if callCount.Add(1) == 1 {
+			// Root chat: model calls spawn_agent.
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("spawn_agent", `{"prompt":"do the thing","title":"sub"}`),
+			)
+		}
+		// Subsequent calls (including the subagent): just reply.
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Done.")...,
+		)
+	})
+
+	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider: "openai-compat",
+		APIKey:   "test-api-key",
+		BaseURL:  openAIURL,
+	})
+	require.NoError(t, err)
+
+	contextLimit := int64(4096)
+	isDefault := true
+	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+	})
+	require.NoError(t, err)
+
+	// Create a root chat whose first model call will spawn a subagent.
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Spawn a subagent to do the thing.",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for the root chat AND the subagent to finish.
+	// The root chat finishes first, then the chatd server
+	// picks up and runs the child (subagent) chat.
+	require.Eventually(t, func() bool {
+		got, getErr := client.GetChat(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		if got.Chat.Status != codersdk.ChatStatusWaiting && got.Chat.Status != codersdk.ChatStatusError {
+			return false
+		}
+		// Also ensure the subagent LLM call has been made.
+		toolsMu.Lock()
+		n := len(toolsByCall)
+		toolsMu.Unlock()
+		// Expect at least 3 calls: root-1 (spawn_agent), child-1, root-2.
+		return n >= 3
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// There should be at least two streamed calls: one for the root
+	// chat and one for the subagent child chat.
+	toolsMu.Lock()
+	recorded := append([][]string(nil), toolsByCall...)
+	toolsMu.Unlock()
+
+	require.GreaterOrEqual(t, len(recorded), 2,
+		"expected at least 2 streamed LLM calls (root + subagent)")
+
+	workspaceTools := []string{"list_templates", "read_template", "create_workspace"}
+	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "close_agent"}
+
+	// Identify root and subagent calls. Root chat calls include
+	// spawn_agent; the subagent call does not. Because the root chat
+	// makes multiple LLM calls (before and after spawn_agent), we
+	// find exactly one call that lacks spawn_agent — that's the
+	// subagent.
+	var rootCalls, childCalls [][]string
+	for _, tools := range recorded {
+		hasSpawnAgent := slice.Contains(tools, "spawn_agent")
+		if hasSpawnAgent {
+			rootCalls = append(rootCalls, tools)
+		} else {
+			childCalls = append(childCalls, tools)
+		}
+	}
+
+	require.NotEmpty(t, rootCalls, "expected at least one root chat LLM call")
+	require.NotEmpty(t, childCalls, "expected at least one subagent LLM call")
+
+	// Root chat calls must include workspace and subagent tools.
+	for _, tool := range workspaceTools {
+		require.Contains(t, rootCalls[0], tool,
+			"root chat should have workspace tool %q", tool)
+	}
+	for _, tool := range subagentTools {
+		require.Contains(t, rootCalls[0], tool,
+			"root chat should have subagent tool %q", tool)
+	}
+
+	// Subagent calls must NOT include workspace or subagent tools.
+	for _, tool := range workspaceTools {
+		require.NotContains(t, childCalls[0], tool,
+			"subagent chat should NOT have workspace tool %q", tool)
+	}
+	for _, tool := range subagentTools {
+		require.NotContains(t, childCalls[0], tool,
+			"subagent chat should NOT have subagent tool %q", tool)
+	}
 }
 
 func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
@@ -202,7 +358,10 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queued, 1)
 
-	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 }
@@ -252,7 +411,10 @@ func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, queued, 0)
 
-	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, messages, 2)
 	require.Equal(t, messages[len(messages)-1].ID, result.Message.ID)
@@ -275,7 +437,10 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	initialMessages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	initialMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, initialMessages, 1)
 	editedMessageID := initialMessages[0].ID
@@ -322,7 +487,10 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.Len(t, editedSDK.Content, 1)
 	require.Equal(t, "edited", editedSDK.Content[0].Text)
 
-	messages, err := db.GetChatMessagesByChatID(ctx, chat.ID)
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 	require.Equal(t, editedMessageID, messages[0].ID)
@@ -452,7 +620,7 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
-		PendingChatAcquireInterval: testutil.WaitSuperLong,
+		PendingChatAcquireInterval: testutil.WaitLong,
 		InFlightChatStaleAfter:     staleAfter,
 	})
 	t.Cleanup(func() {
@@ -566,7 +734,7 @@ func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
-		PendingChatAcquireInterval: testutil.WaitSuperLong,
+		PendingChatAcquireInterval: testutil.WaitLong,
 		InFlightChatStaleAfter:     500 * time.Millisecond,
 	})
 	t.Cleanup(func() {
@@ -657,7 +825,7 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil)
+	snapshot, _, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -686,7 +854,7 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil)
+	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
@@ -708,6 +876,87 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	}
 }
 
+func TestSubscribeAfterMessageID(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	// Create a chat — this inserts one initial "user" message.
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "after-id-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "first"}},
+	})
+	require.NoError(t, err)
+
+	// Insert two more messages so we have three total visible
+	// messages (the initial user message plus these two).
+	msg2, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:                "assistant",
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`"second"`), Valid: true},
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:                "user",
+		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`"third"`), Valid: true},
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
+	})
+	require.NoError(t, err)
+
+	// Control: Subscribe with afterMessageID=0 returns ALL messages.
+	allSnapshot, _, cancelAll, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	cancelAll()
+
+	allMessages := filterMessageEvents(allSnapshot)
+	require.Len(t, allMessages, 3, "afterMessageID=0 should return all three messages")
+
+	// Subscribe with afterMessageID set to the second message's ID.
+	// Only the third message (inserted after msg2) should appear.
+	partialSnapshot, _, cancelPartial, ok := replica.Subscribe(ctx, chat.ID, nil, msg2.ID)
+	require.True(t, ok)
+	cancelPartial()
+
+	partialMessages := filterMessageEvents(partialSnapshot)
+	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
+	require.Equal(t, "user", partialMessages[0].Message.Role)
+}
+
+// filterMessageEvents returns only the Message-type events from a
+// snapshot slice, which is useful for ignoring status / queue events.
+func filterMessageEvents(events []codersdk.ChatStreamEvent) []codersdk.ChatStreamEvent {
+	return slice.Filter(events, func(e codersdk.ChatStreamEvent) bool {
+		return e.Type == codersdk.ChatStreamEventTypeMessage
+	})
+}
+
 func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	t.Parallel()
 
@@ -721,11 +970,20 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 
 	agentToken := uuid.NewString()
+	// Add a startup script so the agent spends time in the
+	// "starting" lifecycle state. This lets us verify that
+	// create_workspace waits for scripts to finish.
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionPlan:  echo.PlanComplete,
 		ProvisionApply: echo.ApplyComplete,
-		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken, func(g *proto.GraphComplete) {
+			g.Resources[0].Agents[0].Scripts = []*proto.Script{{
+				DisplayName: "setup",
+				Script:      "sleep 5",
+				RunOnStart:  true,
+			}}
+		}),
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -834,6 +1092,20 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	}
 	require.True(t, foundCreateWorkspaceResult, "expected create_workspace tool result message")
 
+	// Verify that the tool waited for startup scripts to
+	// complete. The agent should be in "ready" state by the
+	// time create_workspace returns its result.
+	workspace, err = client.Workspace(ctx, workspaceID)
+	require.NoError(t, err)
+	var agentLifecycle codersdk.WorkspaceAgentLifecycle
+	for _, res := range workspace.LatestBuild.Resources {
+		for _, agt := range res.Agents {
+			agentLifecycle = agt.LifecycleState
+		}
+	}
+	require.Equal(t, codersdk.WorkspaceAgentLifecycleReady, agentLifecycle,
+		"agent should be ready after create_workspace returns; startup scripts were not awaited")
+
 	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
 	streamedCallsMu.Lock()
 	recordedStreamCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
@@ -875,7 +1147,7 @@ func newTestServer(
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		Pubsub:                     ps,
-		PendingChatAcquireInterval: testutil.WaitSuperLong,
+		PendingChatAcquireInterval: testutil.WaitLong,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
@@ -939,6 +1211,116 @@ func setOpenAIProviderBaseURL(
 	require.NoError(t, err)
 }
 
+func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Set up a mock OpenAI that blocks until the request context is
+	// canceled (i.e. until the chat is interrupted).
+	streamStarted := make(chan struct{})
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunks := make(chan chattest.OpenAIChunk, 1)
+		go func() {
+			defer close(chunks)
+			chunks <- chattest.OpenAITextChunks("partial")[0]
+			select {
+			case <-streamStarted:
+			default:
+				close(streamStarted)
+			}
+			// Block until the chat context is canceled by the interrupt.
+			<-req.Context().Done()
+		}()
+		return chattest.OpenAIResponse{StreamingChunks: chunks}
+	})
+
+	// Mock webpush dispatcher that records calls.
+	mockPush := &mockWebpushDispatcher{}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		WebpushDispatcher:          mockPush,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "interrupt-no-push",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	// Wait for the chat to be picked up and start streaming.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
+	}, testutil.IntervalFast)
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		select {
+		case <-streamStarted:
+			return true
+		default:
+			return false
+		}
+	}, testutil.IntervalFast)
+
+	// Interrupt the chat.
+	updated := server.InterruptChat(ctx, chat)
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+
+	// Wait for the chat to finish processing and return to waiting.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid
+	}, testutil.IntervalFast)
+
+	// Verify no web push notification was dispatched.
+	require.Equal(t, int32(0), mockPush.dispatchCount.Load(),
+		"expected no web push dispatch for an interrupted chat")
+}
+
+// mockWebpushDispatcher implements webpush.Dispatcher and records Dispatch calls.
+type mockWebpushDispatcher struct {
+	dispatchCount atomic.Int32
+}
+
+func (m *mockWebpushDispatcher) Dispatch(_ context.Context, _ uuid.UUID, _ codersdk.WebpushMessage) error {
+	m.dispatchCount.Add(1)
+	return nil
+}
+
+func (*mockWebpushDispatcher) Test(_ context.Context, _ codersdk.WebpushSubscription) error {
+	return nil
+}
+
+func (*mockWebpushDispatcher) PublicKey() string {
+	return "test-vapid-public-key"
+}
+
 func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {
 	t.Parallel()
 
@@ -972,7 +1354,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: 10 * time.Millisecond,
-		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		InFlightChatStaleAfter:     testutil.WaitLong,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, serverA.Close())
@@ -1025,7 +1407,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: 10 * time.Millisecond,
-		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		InFlightChatStaleAfter:     testutil.WaitLong,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, serverB.Close())

@@ -1067,7 +1067,7 @@ Controls the 'SameSite' property is set on browser session cookies.
 | YAML        | <code>networking.hostPrefixCookie</code> |
 | Default     | <code>false</code>                       |
 
-Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain. This change is disruptive to any workspaces built before release 1.31, requiring a workspace restart.
+Recommended to be enabled. Enables `__Host-` prefix for cookies to guarantee they are only set by the right domain. This change is disruptive to any workspaces built before release 2.31, requiring a workspace restart.
 
 ### --terms-of-service-url
 
@@ -1912,6 +1912,26 @@ Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider requ
 
 The address the AI Bridge Proxy will listen on.
 
+### --aibridge-proxy-tls-cert-file
+
+|             |                                                  |
+|-------------|--------------------------------------------------|
+| Type        | <code>string</code>                              |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_TLS_CERT_FILE</code> |
+| YAML        | <code>aibridgeproxy.tls_cert_file</code>         |
+
+Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.
+
+### --aibridge-proxy-tls-key-file
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_TLS_KEY_FILE</code> |
+| YAML        | <code>aibridgeproxy.tls_key_file</code>         |
+
+Path to the TLS private key file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Certificate File.
+
 ### --aibridge-proxy-cert-file
 
 |             |                                              |
@@ -1920,7 +1940,7 @@ The address the AI Bridge Proxy will listen on.
 | Environment | <code>$CODER_AIBRIDGE_PROXY_CERT_FILE</code> |
 | YAML        | <code>aibridgeproxy.cert_file</code>         |
 
-Path to the CA certificate file for AI Bridge Proxy.
+Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.
 
 ### --aibridge-proxy-key-file
 
@@ -1930,7 +1950,7 @@ Path to the CA certificate file for AI Bridge Proxy.
 | Environment | <code>$CODER_AIBRIDGE_PROXY_KEY_FILE</code> |
 | YAML        | <code>aibridgeproxy.key_file</code>         |
 
-Path to the CA private key file for AI Bridge Proxy.
+Path to the CA private key file used to intercept (MITM) HTTPS traffic from AI clients.
 
 ### --aibridge-proxy-upstream
 

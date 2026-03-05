@@ -1,5 +1,6 @@
 -- name: ArchiveChatByID :exec
-UPDATE chats SET archived = true, updated_at = NOW() WHERE id = @id::uuid;
+UPDATE chats SET archived = true, updated_at = NOW()
+WHERE id = @id OR root_chat_id = @id;
 
 -- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
@@ -40,6 +41,7 @@ FROM
     chat_messages
 WHERE
     chat_id = @chat_id::uuid
+    AND id > @after_id::bigint
     AND visibility IN ('user', 'both')
 ORDER BY
     created_at ASC;
@@ -108,7 +110,10 @@ FROM
     chats
 WHERE
     owner_id = @owner_id::uuid
-    AND archived = false
+    AND CASE
+        WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
+        ELSE chats.archived = sqlc.narg('archived') :: boolean
+    END
 ORDER BY
     updated_at DESC;
 

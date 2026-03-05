@@ -410,7 +410,7 @@ func (a *agent) initSocketServer() {
 		agentsocket.WithPath(a.socketPath),
 	)
 	if err != nil {
-		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
+		a.logger.Error(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
 		return
 	}
 
@@ -420,7 +420,12 @@ func (a *agent) initSocketServer() {
 
 // startBoundaryLogProxyServer starts the boundary log proxy socket server.
 func (a *agent) startBoundaryLogProxyServer() {
-	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath)
+	if a.boundaryLogProxySocketPath == "" {
+		a.logger.Warn(a.hardCtx, "boundary log proxy socket path not defined; not starting proxy")
+		return
+	}
+
+	proxy := boundarylogproxy.NewServer(a.logger, a.boundaryLogProxySocketPath, a.prometheusRegistry)
 	if err := proxy.Start(); err != nil {
 		a.logger.Warn(a.hardCtx, "failed to start boundary log proxy", slog.Error(err))
 		return
@@ -1019,6 +1024,13 @@ func (a *agent) run() (retErr error) {
 			a.logger.Debug(a.hardCtx, "error closing drpc connection", slog.Error(cErr))
 		}
 	}()
+
+	// The socket server accepts requests from processes running inside the workspace and forwards
+	// some of the requests to Coderd over the DRPC connection.
+	if a.socketServer != nil {
+		a.socketServer.SetAgentAPI(aAPI)
+		defer a.socketServer.ClearAgentAPI()
+	}
 
 	// A lot of routines need the agent API / tailnet API connection.  We run them in their own
 	// goroutines in parallel, but errors in any routine will cause them all to exit so we can

@@ -1,7 +1,3 @@
-import { css } from "@emotion/css";
-import Autocomplete from "@mui/material/Autocomplete";
-import CircularProgress from "@mui/material/CircularProgress";
-import TextField from "@mui/material/TextField";
 import { getErrorMessage } from "api/errors";
 import { organizationMembers } from "api/queries/organizations";
 import { users, workspaceAvailableUsers } from "api/queries/users";
@@ -10,16 +6,25 @@ import type {
 	OrganizationMemberWithUserData,
 	User,
 } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
-import { useDebouncedFunction } from "hooks/debounce";
+import { Button } from "components/Button/Button";
 import {
-	type ChangeEvent,
-	type ComponentProps,
-	type FC,
-	useState,
-} from "react";
+	Combobox,
+	ComboboxContent,
+	ComboboxEmpty,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "components/Combobox/Combobox";
+import { Label } from "components/Label/Label";
+import { Spinner } from "components/Spinner/Spinner";
+import { useDebouncedFunction, useDebouncedValue } from "hooks/debounce";
+import { type FC, useId, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
+import { cn } from "utils/cn";
 import { prepareQuery } from "utils/filters";
 
 // The common properties between users and org members that we need.
@@ -33,8 +38,6 @@ type CommonAutocompleteProps<T extends SelectedUser> = {
 	className?: string;
 	label?: string;
 	onChange: (user: T | null) => void;
-	required?: boolean;
-	size?: ComponentProps<typeof TextField>["size"];
 	value: T | null;
 };
 
@@ -55,6 +58,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = (props) => {
 		<InnerAutocomplete<User>
 			error={usersQuery.error}
 			isFetching={usersQuery.isFetching}
+			shouldFilter={false}
 			setFilter={setFilter}
 			users={usersQuery.data?.users}
 			{...props}
@@ -82,6 +86,7 @@ export const MemberAutocomplete: FC<MemberAutocompleteProps> = ({
 		<InnerAutocomplete<OrganizationMemberWithUserData>
 			error={membersQuery.error}
 			isFetching={membersQuery.isFetching}
+			shouldFilter={true}
 			setFilter={setFilter}
 			users={membersQuery.data?.members}
 			{...props}
@@ -111,6 +116,7 @@ export const WorkspaceUserAutocomplete: FC<WorkspaceUserAutocompleteProps> = ({
 		<InnerAutocomplete<MinimalUser>
 			error={availableUsersQuery.error}
 			isFetching={availableUsersQuery.isFetching}
+			shouldFilter={false}
 			setFilter={setFilter}
 			users={availableUsersQuery.data}
 			{...props}
@@ -123,6 +129,8 @@ type InnerAutocompleteProps<T extends SelectedUser> =
 		/** The error is null if not loaded or no error. */
 		error: unknown;
 		isFetching: boolean;
+		/** Enable cmdk filtering for non-API-filtered variants. */
+		shouldFilter: boolean;
 		/** Filter is undefined if the autocomplete is closed. */
 		setFilter: (filter: string | undefined) => void;
 		/** Users are undefined if not loaded or errored. */
@@ -132,100 +140,123 @@ type InnerAutocompleteProps<T extends SelectedUser> =
 const InnerAutocomplete = <T extends SelectedUser>({
 	className,
 	error,
-	isFetching,
 	label,
 	onChange,
-	required,
+	shouldFilter,
 	setFilter,
-	size = "small",
+	isFetching,
 	users,
 	value,
 }: InnerAutocompleteProps<T>) => {
-	const [open, setOpen] = useState(false);
+	const DEBOUNCE_MS = 750;
 
-	const { debounced: debouncedInputOnChange } = useDebouncedFunction(
-		(event: ChangeEvent<HTMLInputElement>) => {
-			setFilter(event.target.value ?? "");
-		},
-		750,
-	);
+	const [open, setOpen] = useState(false);
+	const [inputValue, setInputValue] = useState("");
+	const id = useId();
+	const debouncedInputValue = useDebouncedValue(inputValue, DEBOUNCE_MS);
+	const { debounced: debouncedSetFilter, cancelDebounce } =
+		useDebouncedFunction((nextFilter: string) => {
+			setFilter(nextFilter);
+		}, DEBOUNCE_MS);
+
+	const selectedInputValue = value?.email ?? value?.username ?? "";
+	const selectedFilterValue = value?.username ?? "";
+	// Keep spinner only while typing away from the selected value.
+	const isLoadingOptions =
+		selectedInputValue !== inputValue &&
+		((inputValue !== "" && debouncedInputValue !== inputValue) || isFetching);
+
+	const handleOpenChange = (nextOpen: boolean) => {
+		setOpen(nextOpen);
+		cancelDebounce();
+		if (nextOpen) {
+			setInputValue(selectedInputValue);
+			setFilter(selectedFilterValue);
+			return;
+		}
+		setInputValue("");
+		setFilter(undefined);
+	};
 
 	return (
-		<Autocomplete
-			noOptionsText={
-				error
-					? getErrorMessage(error, "Unable to fetch users")
-					: "No users found"
-			}
-			className={className}
-			options={users ?? []}
-			loading={!users && !error}
-			value={value}
-			data-testid="user-autocomplete"
-			open={open}
-			isOptionEqualToValue={(a, b) => a.username === b.username}
-			getOptionLabel={(option) => option.email ?? option.username}
-			onOpen={() => {
-				setOpen(true);
-				setFilter(value?.email ?? value?.username ?? "");
-			}}
-			onClose={() => {
-				setOpen(false);
-				setFilter(undefined);
-			}}
-			onChange={(_, newValue) => {
-				onChange(newValue);
-			}}
-			renderOption={({ key, ...props }, option) => (
-				<li key={key} {...props}>
-					<AvatarData
-						title={option.username}
-						subtitle={option.email}
-						src={option.avatar_url}
+		<div className={cn("flex flex-col gap-2", className)}>
+			{label && <Label htmlFor={id}>{label}</Label>}
+			<Combobox
+				value={value?.username}
+				onValueChange={(newValue) => {
+					if (!newValue) {
+						onChange(null);
+						return;
+					}
+					onChange(users?.find((user) => user.username === newValue) ?? null);
+				}}
+				open={open}
+				onOpenChange={handleOpenChange}
+			>
+				<ComboboxTrigger asChild>
+					<Button variant="outline">
+						<span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+							{value && (
+								<Avatar
+									size="sm"
+									src={value.avatar_url}
+									fallback={value.username}
+								/>
+							)}
+							{value?.email ?? value?.username ?? "Select a user"}
+						</span>
+						<ChevronDownIcon className="p-0.5" />
+					</Button>
+				</ComboboxTrigger>
+				<ComboboxContent
+					className="w-[var(--radix-popover-trigger-width)] p-0"
+					shouldFilter={shouldFilter}
+				>
+					<ComboboxInput
+						placeholder="Username or email"
+						value={inputValue}
+						onValueChange={(nextInputValue) => {
+							setInputValue(nextInputValue);
+							if (nextInputValue === "") {
+								// If we're clearing the input, we don't need
+								// to debounce the filter change.
+								cancelDebounce();
+								setFilter("");
+								return;
+							}
+							debouncedSetFilter(nextInputValue);
+						}}
 					/>
-				</li>
-			)}
-			renderInput={(params) => (
-				<TextField
-					{...params}
-					required={required}
-					fullWidth
-					size={size}
-					label={label}
-					placeholder="Username or email"
-					css={{
-						"&:not(:has(label))": {
-							margin: 0,
-						},
-					}}
-					InputProps={{
-						...params.InputProps,
-						onChange: debouncedInputOnChange,
-						startAdornment: value && (
-							<Avatar
-								size="sm"
-								src={value.avatar_url}
-								fallback={value.username}
-							/>
-						),
-						endAdornment: (
-							<>
-								{isFetching && open && <CircularProgress size={16} />}
-								{params.InputProps.endAdornment}
-							</>
-						),
-						classes: { root },
-					}}
-					InputLabelProps={{
-						shrink: true,
-					}}
-				/>
-			)}
-		/>
+					<ComboboxList className="py-0.5">
+						{!isLoadingOptions &&
+							(users ?? []).map((option) => (
+								<ComboboxItem
+									key={option.username}
+									value={option.username}
+									keywords={[option.username, option.email ?? ""]}
+									className="m-1"
+								>
+									<AvatarData
+										title={option.username}
+										subtitle={option.email}
+										src={option.avatar_url}
+									/>
+								</ComboboxItem>
+							))}
+					</ComboboxList>
+					<ComboboxEmpty>
+						{isLoadingOptions || (!users && !error) ? (
+							<div className="flex items-center justify-center py-2">
+								<Spinner size="sm" loading />
+							</div>
+						) : error ? (
+							getErrorMessage(error, "Unable to fetch users")
+						) : (
+							"No users found"
+						)}
+					</ComboboxEmpty>
+				</ComboboxContent>
+			</Combobox>
+		</div>
 	);
 };
-
-const root = css`
-  padding-left: 14px !important; // Same padding left as input
-  gap: 4px;
-`;

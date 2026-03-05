@@ -1,4 +1,4 @@
-import { watchChats } from "api/api";
+import { API, watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
@@ -10,6 +10,7 @@ import {
 	chats,
 	chatsKey,
 	createChat,
+	unarchiveChat,
 } from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
@@ -27,7 +28,6 @@ import {
 } from "components/Select/Select";
 import { useAuthenticated } from "hooks";
 import { MonitorIcon, PanelLeftIcon } from "lucide-react";
-import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
@@ -44,7 +44,9 @@ import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput } from "./AgentChatInput";
+import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import { AgentsSidebar } from "./AgentsSidebar";
+import { ChimeButton } from "./ChimeButton";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 import {
 	getModelCatalogStatusMessage,
@@ -55,6 +57,7 @@ import {
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { WebPushButton } from "./WebPushButton";
 
+/** @internal Exported for testing. */
 const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
@@ -88,6 +91,11 @@ export interface AgentsOutletContext {
 	setChatErrorReason: (chatId: string, reason: string) => void;
 	clearChatErrorReason: (chatId: string) => void;
 	requestArchiveAgent: (chatId: string) => void;
+	requestUnarchiveAgent: (chatId: string) => void;
+	requestArchiveAndDeleteWorkspace: (
+		chatId: string,
+		workspaceId: string,
+	) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 }
@@ -96,8 +104,8 @@ const AgentsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { agentId } = useParams();
-	const { permissions, user, signOut } = useAuthenticated();
-	const { appearance, buildInfo } = useDashboard();
+	const { permissions, user } = useAuthenticated();
+	const { appearance } = useDashboard();
 	const isAgentsAdmin =
 		permissions.editDeploymentConfig ||
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
@@ -150,8 +158,52 @@ const AgentsPage: FC = () => {
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const createMutation = useMutation(createChat(queryClient));
-	const archiveMutation = useMutation(archiveChat(queryClient));
-	const [archivingChatId, setArchivingChatId] = useState<string | null>(null);
+	const archiveChatBase = archiveChat(queryClient);
+	const archiveAgentMutation = useMutation({
+		...archiveChatBase,
+		onSuccess: (_data, chatId) => {
+			clearChatErrorReason(chatId);
+			toast.success("Agent archived.");
+		},
+		onError: (error, chatId, context) => {
+			archiveChatBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const archiveAndDeleteMutation = useMutation({
+		mutationFn: async ({
+			chatId,
+			workspaceId,
+		}: {
+			chatId: string;
+			workspaceId: string;
+		}) => {
+			await API.archiveChat(chatId);
+			await API.deleteWorkspace(workspaceId);
+			return { chatId, workspaceId };
+		},
+		onSuccess: async ({ chatId }) => {
+			clearChatErrorReason(chatId);
+			await queryClient.invalidateQueries({ queryKey: chatsKey });
+			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+			toast.success("Agent archived.");
+			toast.success("Workspace deletion initiated.");
+		},
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const unarchiveChatBase = unarchiveChat(queryClient);
+	const unarchiveAgentMutation = useMutation({
+		...unarchiveChatBase,
+		onSuccess: () => {
+			toast.success("Agent unarchived.");
+		},
+		onError: (error, chatId, context) => {
+			unarchiveChatBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -214,36 +266,36 @@ const AgentsPage: FC = () => {
 		});
 	}, []);
 	const chatList = chatsQuery.data ?? [];
+	const isArchiving =
+		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
+	const archivingChatId =
+		(archiveAgentMutation.isPending
+			? archiveAgentMutation.variables
+			: undefined) ??
+		(archiveAndDeleteMutation.isPending
+			? archiveAndDeleteMutation.variables?.chatId
+			: undefined);
 	const requestArchiveAgent = useCallback(
-		async (chatId: string) => {
-			if (archiveMutation.isPending) {
-				return;
-			}
-
-			setArchivingChatId(chatId);
-			const nextChatId = (
-				queryClient.getQueryData(chats().queryKey) as
-					| TypesGen.Chat[]
-					| undefined
-			)?.find((chat) => chat.id !== chatId)?.id;
-
-			try {
-				await archiveMutation.mutateAsync(chatId);
-				clearChatErrorReason(chatId);
-				toast.success("Agent archived.");
-
-				if (chatId === agentId) {
-					navigate(nextChatId ? `/agents/${nextChatId}` : "/agents", {
-						replace: true,
-					});
-				}
-			} catch (error) {
-				toast.error(getErrorMessage(error, "Failed to archive agent."));
-			} finally {
-				setArchivingChatId(null);
+		(chatId: string) => {
+			if (!isArchiving) {
+				archiveAgentMutation.mutate(chatId);
 			}
 		},
-		[archiveMutation, queryClient, agentId, navigate, clearChatErrorReason],
+		[isArchiving, archiveAgentMutation],
+	);
+	const requestArchiveAndDeleteWorkspace = useCallback(
+		(chatId: string, workspaceId: string) => {
+			if (!isArchiving) {
+				archiveAndDeleteMutation.mutate({ chatId, workspaceId });
+			}
+		},
+		[isArchiving, archiveAndDeleteMutation],
+	);
+	const requestUnarchiveAgent = useCallback(
+		(chatId: string) => {
+			unarchiveAgentMutation.mutate(chatId);
+		},
+		[unarchiveAgentMutation],
 	);
 	const handleToggleSidebarCollapsed = useCallback(
 		() => setIsSidebarCollapsed((prev) => !prev),
@@ -255,6 +307,8 @@ const AgentsPage: FC = () => {
 			setChatErrorReason,
 			clearChatErrorReason,
 			requestArchiveAgent,
+			requestUnarchiveAgent,
+			requestArchiveAndDeleteWorkspace,
 			isSidebarCollapsed,
 			onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
 		}),
@@ -263,6 +317,8 @@ const AgentsPage: FC = () => {
 			setChatErrorReason,
 			clearChatErrorReason,
 			requestArchiveAgent,
+			requestUnarchiveAgent,
+			requestArchiveAndDeleteWorkspace,
 			isSidebarCollapsed,
 			handleToggleSidebarCollapsed,
 		],
@@ -290,11 +346,20 @@ const AgentsPage: FC = () => {
 	};
 
 	const handleNewAgent = () => {
-		if (typeof window !== "undefined") {
-			localStorage.setItem(emptyInputStorageKey, "");
+		// Only clear the draft when the user is already on the empty
+		// state and explicitly requests a blank slate.  When navigating
+		// back from a conversation the existing draft is preserved.
+		if (typeof window !== "undefined" && !agentId) {
+			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate("/agents");
 	};
+
+	// Track the active chat ID in a ref so the watchChats
+	// WebSocket handler can read it without re-subscribing on
+	// every navigation.
+	const activeChatIDRef = useRef(agentId);
+	activeChatIDRef.current = agentId;
 
 	useEffect(() => {
 		const ws = watchChats();
@@ -318,11 +383,32 @@ const AgentsPage: FC = () => {
 			const chatEvent = sse.data;
 			const updatedChat = chatEvent.chat;
 
+			// Read the previous status from the query cache, which
+			// is synchronously updated by both the per-chat WebSocket
+			// (via updateSidebarChat) and this handler. This avoids
+			// the async-lag of a useEffect-based status map.
+			const currentChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			const prevStatus = currentChats?.find(
+				(c) => c.id === updatedChat.id,
+			)?.status;
+			// Only play the chime for top-level chats, not sub-agents.
+			if (!updatedChat.parent_chat_id) {
+				maybePlayChime(
+					prevStatus,
+					updatedChat.status,
+					updatedChat.id,
+					activeChatIDRef.current,
+				);
+			}
+
 			if (chatEvent.kind === "deleted") {
 				queryClient.setQueryData(
 					chatsKey,
 					(prev: TypesGen.Chat[] | undefined) =>
-						prev?.filter((c) => c.id !== updatedChat.id),
+						prev?.filter(
+							(c) =>
+								c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
+						),
 				);
 				queryClient.removeQueries({
 					queryKey: chatKey(updatedChat.id),
@@ -387,7 +473,9 @@ const AgentsPage: FC = () => {
 				},
 			);
 		});
-		return () => ws.close();
+		return () => {
+			ws.close();
+		};
 	}, [queryClient]);
 
 	useEffect(() => {
@@ -416,9 +504,11 @@ const AgentsPage: FC = () => {
 					modelConfigs={chatModelConfigsQuery.data ?? []}
 					logoUrl={appearance.logo_url}
 					onArchiveAgent={requestArchiveAgent}
+					onUnarchiveAgent={requestUnarchiveAgent}
+					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 					onNewAgent={handleNewAgent}
 					isCreating={createMutation.isPending}
-					isArchiving={archiveMutation.isPending}
+					isArchiving={isArchiving}
 					archivingChatId={archivingChatId}
 					isLoading={chatsQuery.isLoading}
 					loadError={chatsQuery.isError ? chatsQuery.error : undefined}
@@ -440,7 +530,7 @@ const AgentsPage: FC = () => {
 						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
 							<NavLink
 								to="/workspaces"
-								className="inline-flex shrink-0 opacity-50 md:hidden"
+								className="inline-flex shrink-0 md:hidden"
 							>
 								{appearance.logo_url ? (
 									<ExternalImage
@@ -465,7 +555,8 @@ const AgentsPage: FC = () => {
 							)}
 							<div className="flex min-w-0 flex-1 items-center" />
 							<div className="flex items-center gap-2">
-								<WebPushButton />
+								<ChimeButton />
+								<WebPushButton />{" "}
 								{isAgentsAdmin && (
 									<Button
 										variant="subtle"
@@ -476,18 +567,6 @@ const AgentsPage: FC = () => {
 										Admin
 									</Button>
 								)}
-							</div>
-							<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
-								<UserDropdown
-									user={user}
-									buildInfo={buildInfo}
-									supportLinks={
-										appearance.support_links?.filter(
-											(link) => link.location !== "navbar",
-										) ?? []
-									}
-									onSignOut={signOut}
-								/>
 							</div>
 						</div>
 						<AgentsEmptyState
@@ -695,7 +774,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	const handleContentChange = useCallback((content: string) => {
 		inputValueRef.current = content;
 		if (typeof window !== "undefined") {
-			localStorage.setItem(emptyInputStorageKey, content);
+			if (content) {
+				localStorage.setItem(emptyInputStorageKey, content);
+			} else {
+				localStorage.removeItem(emptyInputStorageKey);
+			}
 		}
 	}, []);
 	const handleModelChange = useCallback((value: string) => {
@@ -724,6 +807,10 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 
 	const handleSend = useCallback(
 		(message: string) => {
+			// Clear the draft synchronously before the async
+			// onCreateChat call so that editor change events
+			// firing during the async gap cannot re-persist it.
+			localStorage.removeItem(emptyInputStorageKey);
 			void onCreateChat({
 				message,
 				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
