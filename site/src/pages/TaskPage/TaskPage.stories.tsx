@@ -530,12 +530,6 @@ export const TaskFollowUpShowsResumingProgress: Story = {
 			MockStoppedWorkspace,
 		);
 		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
-		spyOn(API, "sendTaskInput").mockRejectedValue({
-			...mockApiError({
-				message: "Task is paused",
-			}),
-			status: 409,
-		});
 		// Keep resuming stage visible for assertions.
 		spyOn(API, "resumeTask").mockImplementation(() => new Promise(() => {}));
 	},
@@ -551,15 +545,15 @@ export const TaskFollowUpShowsResumingProgress: Story = {
 			await dialog.findByRole("button", { name: /send follow-up/i }),
 		);
 
-		await waitFor(async () => {
+		await waitFor(() => {
 			expect(
 				body.queryByRole("heading", { name: /send follow-up message/i }),
 			).not.toBeInTheDocument();
-			expect(await canvas.findByText("Resuming task...")).toBeInTheDocument();
-			const pendingLabel = await canvas.findByText(/Pending follow-up:/i);
+			expect(canvas.getByText("Resuming task...")).toBeInTheDocument();
+			const pendingLabel = canvas.getByText(/Pending follow-up:/i);
 			expect(pendingLabel.parentElement).toHaveTextContent("Continue task");
 			expect(
-				await canvas.findByText(/clears the pending follow-up message/i),
+				canvas.getByText(/clears the pending follow-up message/i),
 			).toBeInTheDocument();
 		});
 	},
@@ -598,14 +592,14 @@ export const TaskFollowUpRetrySendFailure: Story = {
 			await dialog.findByRole("button", { name: /send follow-up/i }),
 		);
 
-		await waitFor(async () => {
+		await waitFor(() => {
 			expect(
-				await canvas.findByText("Failed to send message"),
+				canvas.getByText("Failed to send message"),
 			).toBeInTheDocument();
-			const pendingLabel = await canvas.findByText(/Pending follow-up:/i);
+			const pendingLabel = canvas.getByText(/Pending follow-up:/i);
 			expect(pendingLabel.parentElement).toHaveTextContent("Please continue");
 			expect(
-				await canvas.findByRole("button", { name: /follow-up/i }),
+				canvas.getByRole("button", { name: /follow-up/i }),
 			).toBeInTheDocument();
 		});
 	},
@@ -631,12 +625,6 @@ export const TaskFollowUpResumeBuildFailure: Story = {
 			};
 		});
 		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
-		spyOn(API, "sendTaskInput").mockRejectedValue({
-			...mockApiError({
-				message: "Task is paused",
-			}),
-			status: 409,
-		});
 		spyOn(API, "resumeTask").mockImplementation(async () => {
 			hasBuildFailed = true;
 			return {
@@ -693,14 +681,14 @@ export const TaskFollowUpNon409SendFailure: Story = {
 			await dialog.findByRole("button", { name: /send follow-up/i }),
 		);
 
-		await waitFor(async () => {
+		await waitFor(() => {
 			expect(
-				await canvas.findByText("Failed to send message"),
+				canvas.getByText("Failed to send message"),
 			).toBeInTheDocument();
-			const pendingLabel = await canvas.findByText(/Pending follow-up:/i);
+			const pendingLabel = canvas.getByText(/Pending follow-up:/i);
 			expect(pendingLabel.parentElement).toHaveTextContent("Continue task");
 			expect(
-				await canvas.findByRole("button", { name: /follow-up/i }),
+				canvas.getByRole("button", { name: /follow-up/i }),
 			).toBeInTheDocument();
 		});
 	},

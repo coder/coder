@@ -166,7 +166,8 @@ const TaskPage = () => {
 
 			if (
 				followUpStage === "resuming" ||
-				followUpStage === "waitingForActive"
+				followUpStage === "waitingForActive" ||
+				followUpStage === "sending"
 			) {
 				return;
 			}
@@ -229,7 +230,7 @@ const TaskPage = () => {
 			return;
 		}
 		void startSendingFollowUp(followUpDraft);
-	}, [followUpDraft, followUpStage, startSendingFollowUp, task]);
+	}, [followUpDraft, followUpStage, startSendingFollowUp, task?.status]);
 
 	if (error) {
 		return (
@@ -728,7 +729,7 @@ const TaskPaused: FC<TaskPausedProps> = ({
 						<Button
 							size="sm"
 							variant="subtle"
-							disabled={isWaitingForStart}
+							disabled={isWaitingForStart || isFollowUpSending}
 							onClick={() => resumeMutation.mutate()}
 						>
 							<Spinner loading={isWaitingForStart} />
