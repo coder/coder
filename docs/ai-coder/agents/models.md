@@ -37,12 +37,12 @@ models, internal gateways, or third-party proxies like LiteLLM.
    useful for enterprise proxies, regional endpoints, or self-hosted models.
 1. Click **Save**.
 
-![Screenshot of the providers list in the admin dialog](../../images/guides/ai-agents/models-providers.png)
+<img src="../../images/guides/ai-agents/models-providers.png" alt="Screenshot of the providers list in the admin dialog">
 
 <small>The providers list shows all supported providers and their configuration
 status.</small>
 
-![Screenshot of the add provider form](../../images/guides/ai-agents/models-add-provider.png)
+<img src="../../images/guides/ai-agents/models-add-provider.png" alt="Screenshot of the add provider form">
 
 <small>Adding a provider requires an API key. The base URL is optional.</small>
 
@@ -75,11 +75,11 @@ generation parameters, and provider-specific options.
 1. Configure any provider-specific options (see below).
 1. Click **Save**.
 
-![Screenshot of the models list in the admin dialog](../../images/guides/ai-agents/models-list.png)
+<img src="../../images/guides/ai-agents/models-list.png" alt="Screenshot of the models list in the admin dialog">
 
 <small>The models list shows all configured models grouped by provider.</small>
 
-![Screenshot of the add model form](../../images/guides/ai-agents/models-add-model.png)
+<img src="../../images/guides/ai-agents/models-add-model.png" alt="Screenshot of the add model form">
 
 <small>Adding a model requires a model identifier, display name, and context
 limit. Provider-specific options appear dynamically based on the selected
