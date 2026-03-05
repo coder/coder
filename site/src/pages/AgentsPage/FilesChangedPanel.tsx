@@ -37,7 +37,7 @@ interface FilesChangedPanelProps {
  * Minimum container width (px) at which the file tree sidebar
  * is shown alongside the diff list.
  */
-const FILE_TREE_THRESHOLD = 700;
+const FILE_TREE_THRESHOLD = 1200;
 
 type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
