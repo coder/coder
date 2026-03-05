@@ -74,7 +74,7 @@ SHELL := bash
 # command that receives the temp file path as its argument.
 # Usage: $(call atomic_write,GENERATE_CMD[,FORMAT_CMD])
 define atomic_write
-	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+	tmpfile=$$(mktemp -d -p $(dir $@))/$(notdir $@) && \
 		$(1) > "$$tmpfile" && \
 		$(if $(2),$(2) "$$tmpfile" &&) \
 		mv "$$tmpfile" "$@"
@@ -919,7 +919,7 @@ site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/prot
 	touch "$@"
 
 site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
-	tmpfile=$$(mktemp -d)/$(notdir $@) && \
+	tmpfile=$$(mktemp -d -p $(dir $@))/$(notdir $@) && \
 		go run ./scripts/gensite/ -icons "$$tmpfile" && \
 		./scripts/biome_format.sh "$$tmpfile" && \
 		mv "$$tmpfile" "$@"
@@ -973,14 +973,14 @@ scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES)
 	$(call atomic_write,go run ./scripts/metricsdocgen/scanner)
 
 docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics scripts/metricsdocgen/generated_metrics
-	tmpfile=$$(mktemp -d)/$(notdir $@) && cp "$@" "$$tmpfile" && \
+	tmpfile=$$(mktemp -d -p $(dir $@))/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		go run scripts/metricsdocgen/main.go --prometheus-doc-file="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@"
 
 docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
-	tmpdir=$$(mktemp -d) && \
+	tmpdir=$$(mktemp -d -p .) && \
 		mkdir -p "$$tmpdir/docs/reference/cli" && \
 		cp docs/manifest.json "$$tmpdir/docs/manifest.json" && \
 		CI=true DOCS_DIR="$$tmpdir/docs" go run ./scripts/clidocgen && \
@@ -990,7 +990,7 @@ docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go e
 		rm -rf "$$tmpdir"
 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
-	tmpfile=$$(mktemp -d)/$(notdir $@) && cp "$@" "$$tmpfile" && \
+	tmpfile=$$(mktemp -d -p $(dir $@))/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		go run scripts/auditdocgen/main.go --audit-doc-file="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
@@ -1010,7 +1010,7 @@ coderd/apidoc/.gen: \
 	scripts/apidocgen/swaginit/main.go \
 	$(wildcard scripts/apidocgen/postprocess/*) \
 	$(wildcard scripts/apidocgen/markdown-template/*)
-	tmpdir=$$(mktemp -d) && swagtmp=$$(mktemp -d) && \
+	tmpdir=$$(mktemp -d -p .) && swagtmp=$$(mktemp -d -p .) && \
 		mkdir -p "$$tmpdir/reference/api" && \
 		cp docs/manifest.json "$$tmpdir/manifest.json" && \
 		SWAG_OUTPUT_DIR="$$swagtmp" APIDOCGEN_DOCS_DIR="$$tmpdir" ./scripts/apidocgen/generate.sh && \
@@ -1018,14 +1018,15 @@ coderd/apidoc/.gen: \
 		pnpm exec markdown-table-formatter "$$tmpdir/reference/api/*.md" && \
 		./scripts/biome_format.sh "$$swagtmp/swagger.json" && \
 		for f in "$$tmpdir/reference/api/"*.md; do mv "$$f" "docs/reference/api/$$(basename "$$f")"; done && \
-		mv "$$tmpdir/manifest.json" docs/manifest.json && \
+		mv "$$tmpdir/manifest.json" coderd/apidoc/.manifest-staging.json && \
 		mv "$$swagtmp/docs.go" coderd/apidoc/docs.go && \
 		mv "$$swagtmp/swagger.json" coderd/apidoc/swagger.json && \
 		rm -rf "$$tmpdir" "$$swagtmp"
 	touch "$@"
 
 docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md
-	tmpfile=$$(mktemp -d)/$(notdir $@) && cp "$@" "$$tmpfile" && \
+	tmpfile=$$(mktemp -d -p $(dir $@))/$(notdir $@) && \
+		cp coderd/apidoc/.manifest-staging.json "$$tmpfile" && \
 		./scripts/biome_format.sh "$$tmpfile" && \
 		mv "$$tmpfile" "$@"
 
