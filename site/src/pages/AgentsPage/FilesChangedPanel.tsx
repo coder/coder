@@ -16,8 +16,6 @@ import {
 	ChevronRightIcon,
 	Columns2Icon,
 	ExternalLinkIcon,
-	FolderIcon,
-	FolderOpenIcon,
 	GitBranchIcon,
 	GitPullRequestIcon,
 	Rows3Icon,
@@ -100,6 +98,8 @@ interface FileTreeNode {
  * Builds a nested tree from a flat list of file diffs. Directory
  * nodes are created for every intermediate path segment. The
  * result is sorted with directories first, then alphabetically.
+ * Single-child directory chains are collapsed so that e.g.
+ * `src/pages/AgentsPage` renders as one row.
  */
 function buildFileTree(files: FileDiffMetadata[]): FileTreeNode[] {
 	const root: FileTreeNode[] = [];
@@ -149,7 +149,29 @@ function buildFileTree(files: FileDiffMetadata[]): FileTreeNode[] {
 		});
 	};
 
-	return sortNodes(root);
+	// Collapse single-child directory chains into one node whose
+	// name uses path separators, e.g. "src/pages/AgentsPage".
+	const collapse = (nodes: FileTreeNode[]): FileTreeNode[] => {
+		for (const node of nodes) {
+			if (node.type === "directory") {
+				node.children = collapse(node.children);
+				// If this directory has exactly one child and it is also
+				// a directory, merge them.
+				while (
+					node.children.length === 1 &&
+					node.children[0].type === "directory"
+				) {
+					const child = node.children[0];
+					node.name = `${node.name}/${child.name}`;
+					node.fullPath = child.fullPath;
+					node.children = child.children;
+				}
+			}
+		}
+		return nodes;
+	};
+
+	return collapse(sortNodes(root));
 }
 
 // -------------------------------------------------------------------
@@ -170,20 +192,15 @@ const FileTreeNodeView: FC<{
 				<button
 					type="button"
 					onClick={() => setExpanded((v) => !v)}
-					className="flex w-full items-center gap-1 py-0.5 text-left text-xs text-content-secondary hover:bg-surface-secondary cursor-pointer"
-					style={{ paddingLeft: depth * 12 }}
+					className="flex w-full items-center gap-1.5 py-1 text-left text-2xs text-content-secondary hover:bg-surface-secondary cursor-pointer"
+					style={{ paddingLeft: 8 + depth * 12 }}
 				>
 					<ChevronRightIcon
 						className={cn(
-							"h-3.5 w-3.5 shrink-0 transition-transform",
+							"size-3 shrink-0 transition-transform",
 							expanded && "rotate-90",
 						)}
 					/>
-					{expanded ? (
-						<FolderOpenIcon className="h-4 w-4 shrink-0 text-content-tertiary" />
-					) : (
-						<FolderIcon className="h-4 w-4 shrink-0 text-content-tertiary" />
-					)}
 					<span className="truncate">{node.name}</span>
 				</button>
 				{expanded &&
@@ -207,17 +224,18 @@ const FileTreeNodeView: FC<{
 			type="button"
 			onClick={() => onFileClick(node.fullPath)}
 			className={cn(
-				"flex w-full items-center gap-1 py-0.5 text-left cursor-pointer",
+				"flex w-full items-center gap-1.5 py-1 text-left cursor-pointer",
 				"hover:bg-surface-secondary",
-				isActive && "bg-surface-secondary",
+				isActive &&
+					"bg-surface-secondary border-0 border-r-2 border-solid border-content-link",
 			)}
-			style={{ paddingLeft: depth * 12 + 14 }}
+			style={{ paddingLeft: 8 + depth * 12 + 15 }}
 			title={node.fullPath}
 		>
 			<FileIcon fileName={node.name} className="shrink-0" />
 			<span
 				className={cn(
-					"truncate text-xs",
+					"truncate text-2xs",
 					isActive ? "text-content-primary" : "text-content-secondary",
 				)}
 			>
@@ -326,7 +344,6 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 	// which file is currently visible.
 	// ---------------------------------------------------------------
 	const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-	const diffScrollRef = useRef<HTMLDivElement>(null);
 	const [activeFile, setActiveFile] = useState<string | null>(null);
 
 	// Keep a ref callback that sets up per-file refs.
@@ -379,7 +396,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 					}
 				}
 			},
-			{ root: diffScrollRef.current, threshold: 0, rootMargin: "0px" },
+			{ threshold: 0, rootMargin: "-20% 0px -70% 0px" },
 		);
 
 		for (const el of els) {
@@ -521,8 +538,8 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 						className="min-w-0 flex-1"
 						scrollBarClassName="w-1.5"
 						viewportClassName="[&>div]:!block"
-						ref={diffScrollRef}
 					>
+						{" "}
 						<div className="min-w-0 text-xs">
 							{parsedFiles.map((fileDiff) => (
 								<div
