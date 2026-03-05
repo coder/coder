@@ -4863,19 +4863,31 @@ func (s *fakeStream) cancel() {
 
 type fakeUsageInserter struct {
 	collectedEvents []usagetypes.Event
+	seenHeartbeats  map[string]struct{}
 }
 
 var _ usage.Inserter = &fakeUsageInserter{}
 
 func newFakeUsageInserter() (*fakeUsageInserter, *atomic.Pointer[usage.Inserter]) {
 	poitr := &atomic.Pointer[usage.Inserter]{}
-	fake := &fakeUsageInserter{}
+	fake := &fakeUsageInserter{
+		seenHeartbeats: make(map[string]struct{}),
+	}
 	var inserter usage.Inserter = fake
 	poitr.Store(&inserter)
 	return fake, poitr
 }
 
 func (f *fakeUsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usagetypes.DiscreteEvent) error {
+	f.collectedEvents = append(f.collectedEvents, event)
+	return nil
+}
+
+func (f *fakeUsageInserter) InsertHeartbeatUsageEvent(_ context.Context, _ database.Store, id string, event usagetypes.HeartbeatEvent) error {
+	if _, seen := f.seenHeartbeats[id]; seen {
+		return nil
+	}
+	f.seenHeartbeats[id] = struct{}{}
 	f.collectedEvents = append(f.collectedEvents, event)
 	return nil
 }

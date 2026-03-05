@@ -32,7 +32,13 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+	goleak.VerifyTestMain(m,
+		append(testutil.GoleakOptions,
+			// The quartz mock timer fire goroutine is cleaned up
+			// by tb.Cleanup, which runs after goleak's check.
+			goleak.IgnoreTopFunction("github.com/coder/quartz.(*Timer).fire.func2"),
+		)...,
+	)
 }
 
 // TestIntegration tests the inserter and publisher by running them with a real
