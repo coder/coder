@@ -5155,6 +5155,7 @@ export interface ResolveAutostartResponse {
 
 // From codersdk/audit.go
 export type ResourceType =
+	| "ai_seat"
 	| "api_key"
 	| "convert_login"
 	| "custom_role"
@@ -5183,6 +5184,7 @@ export type ResourceType =
 	| "workspace_proxy";
 
 export const ResourceTypes: ResourceType[] = [
+	"ai_seat",
 	"api_key",
 	"convert_login",
 	"custom_role",
