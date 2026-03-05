@@ -275,30 +275,13 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		uploadStates,
 		previewUrls,
 		handleAttach,
-		handleRemoveAttachment: hookRemoveAttachment,
+		handleRemoveAttachment,
+		startUpload,
 		resetAttachments,
 		setAttachments,
 		setPreviewUrls,
 		setUploadStates,
 	} = useFileAttachments(organizationId);
-	// Holds raw block data for edit-mode files so we can reconstruct
-	// the full File content lazily at submit time instead of eagerly
-	// decoding base64 on every edit click.
-	const editBlockDataRef = useRef(
-		new Map<File, { mediaType: string; data: string }>(),
-	);
-	// Wrap hook's remove to also clear edit block data.
-	const handleRemoveAttachment = useCallback(
-		(index: number) => {
-			const removed = attachments[index];
-			if (removed) {
-				editBlockDataRef.current.delete(removed);
-			}
-			hookRemoveAttachment(index);
-		},
-		[attachments, hookRemoveAttachment],
-	);
-
 	// Pre-populate attachments from existing file blocks when
 	// entering edit mode on a message with images.
 	useEffect(() => {
@@ -307,15 +290,14 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			setAttachments([]);
 			setUploadStates(new Map());
 			setPreviewUrls(new Map());
-			editBlockDataRef.current = new Map();
 			return;
 		}
-		// Use minimal placeholder files as map keys. The actual file
-		// data is reconstructed from editBlockDataRef at submit time
-		// to avoid blocking the main thread with base64 decoding.
+		// Reconstruct full File objects from base64 so startUpload
+		// can upload them eagerly and store their fileId for reuse.
 		const files = editingFileBlocks.map((block, i) => {
 			const ext = block.mediaType.split("/")[1] ?? "png";
-			return new File([], `attachment-${i}.${ext}`, {
+			const bytes = Uint8Array.from(atob(block.data), (c) => c.charCodeAt(0));
+			return new File([bytes], `attachment-${i}.${ext}`, {
 				type: block.mediaType,
 			});
 		});
@@ -328,17 +310,18 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 				]),
 			),
 		);
-		editBlockDataRef.current = new Map(
-			files.map((f, i) => [f, editingFileBlocks[i]]),
-		);
-		// Mark edit-mode files as "uploaded" so canSend treats them
-		// as ready. They don't have a fileId because the stored
-		// message has inline data; the actual upload happens at
-		// submit time via editBlockDataRef.
-		setUploadStates(
-			new Map(files.map((f) => [f, { status: "uploaded" as const }])),
-		);
-	}, [editingFileBlocks, setAttachments, setPreviewUrls, setUploadStates]);
+		// Upload eagerly so the fileId is available at submit time,
+		// avoiding re-upload of unchanged images.
+		for (const file of files) {
+			startUpload(file);
+		}
+	}, [
+		editingFileBlocks,
+		setAttachments,
+		setPreviewUrls,
+		setUploadStates,
+		startUpload,
+	]);
 
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
@@ -348,8 +331,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			onSend={(message) => {
 				void (async () => {
 					try {
-						// Collect file IDs, uploading any that haven't
-						// been uploaded yet (e.g. edit-mode files).
+						// Collect file IDs from already-uploaded attachments.
 						// Skip files in error state (e.g. too large).
 						const fileIds: string[] = [];
 						for (const file of attachments) {
@@ -359,31 +341,10 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 							}
 							if (state?.status === "uploaded" && state.fileId) {
 								fileIds.push(state.fileId);
-							} else {
-								const blockData = editBlockDataRef.current.get(file);
-								let fileToUpload = file;
-								if (blockData) {
-									// Reconstruct from base64 only at submit time.
-									const bytes = Uint8Array.from(atob(blockData.data), (c) =>
-										c.charCodeAt(0),
-									);
-									fileToUpload = new File([bytes], file.name, {
-										type: blockData.mediaType,
-									});
-								}
-								if (!organizationId) {
-									throw new Error("No organization context");
-								}
-								const uploaded = await API.uploadChatFile(
-									fileToUpload,
-									organizationId,
-								);
-								fileIds.push(uploaded.id);
 							}
 						}
 						await onSend(message, fileIds.length > 0 ? fileIds : undefined);
 						resetAttachments();
-						editBlockDataRef.current = new Map();
 					} catch {
 						// Attachments preserved for retry on failure.
 					}

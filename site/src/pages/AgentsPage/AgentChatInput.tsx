@@ -633,9 +633,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									/>
 									<Button
 										type="button"
-										variant="subtle"
+										variant="outline"
 										size="icon"
-										className="size-7 shrink-0"
+										className="size-7 shrink-0 rounded-full"
 										onClick={() => fileInputRef.current?.click()}
 										disabled={isDisabled}
 										aria-label="Attach files"
