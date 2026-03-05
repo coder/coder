@@ -50,6 +50,8 @@ interface RightPanelProps {
 	isSidebarCollapsed?: boolean;
 	onToggleSidebarCollapsed?: () => void;
 	tabContent: Record<string, ReactNode>;
+	/** Optional extra info per tab (e.g. diff stats). */
+	tabMeta?: Record<string, ReactNode>;
 	/** Fires during drag with the live visual expanded state, and
 	 * null when the drag ends so the parent falls back to the
 	 * committed isExpanded prop. */
@@ -211,6 +213,7 @@ export const RightPanel = ({
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	tabContent,
+	tabMeta,
 	onVisualExpandedChange,
 }: RightPanelProps) => {
 	const [activeTab, setActiveTab] = useState("git");
@@ -297,7 +300,7 @@ export const RightPanel = ({
 			/>{" "}
 			<div className="flex min-h-0 flex-1 flex-col">
 				{/* Tabbed header */}
-				<div className="flex shrink-0 items-center gap-2 px-3 py-1">
+				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1">
 					{/* Left side: sidebar toggle (expanded + collapsed only) + tabs */}
 					<div className="flex items-center">
 						{visualExpanded &&
@@ -320,11 +323,13 @@ export const RightPanel = ({
 								size="lg"
 								onClick={() => setActiveTab(tab.id)}
 								className={cn(
-									"min-w-0 h-6 px-3",
+									"min-w-0 h-6 px-3 gap-3 py-0",
 									activeTab === tab.id && "bg-surface-secondary",
+									tabMeta?.[tab.id] && "pr-0 items-stretch",
 								)}
 							>
 								{tab.label}
+								{tabMeta?.[tab.id]}{" "}
 							</Button>
 						))}
 					</div>{" "}

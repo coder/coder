@@ -30,19 +30,23 @@ interface FilesChangedPanelProps {
 }
 
 /**
- * Extracts a short label like "owner/repo#123" from a GitHub PR URL.
- * Falls back to the raw URL if parsing fails.
+ * Parses a GitHub PR URL into its components.
+ * Returns null if parsing fails.
  */
-function formatPullRequestLabel(url: string): string {
+function parsePullRequestUrl(url: string): {
+	owner: string;
+	repo: string;
+	number: string;
+} | null {
 	try {
 		const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
 		if (match) {
-			return `${match[1]}/${match[2]}#${match[3]}`;
+			return { owner: match[1], repo: match[2], number: match[3] };
 		}
 	} catch {
-		// Fall through to return the raw URL.
+		// Fall through.
 	}
-	return url;
+	return null;
 }
 
 export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
@@ -54,7 +58,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 			...base,
 			// Extend the base CSS to make file headers sticky so they
 			// remain visible while scrolling through long diffs.
-			unsafeCSS: `${base.unsafeCSS ?? ""} [data-diffs-header] { position: sticky; top: 0; z-index: 10; background-color: hsl(var(--surface-primary)) !important; }`,
+			unsafeCSS: `${base.unsafeCSS ?? ""} [data-diffs-header] { position: sticky; top: 0; z-index: 10; background-color: hsl(var(--surface-quaternary)) !important; } @media (prefers-color-scheme: dark) { [data-diffs-header] { background-color: hsl(var(--surface-secondary)) !important; } }`,
 		};
 	}, [isDark]);
 
@@ -98,17 +102,11 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 	}, [diffContentsQuery.data?.diff, chatId]);
 
 	const pullRequestUrl = diffStatusQuery.data?.url;
-	const pullRequestLabel = pullRequestUrl
-		? formatPullRequestLabel(pullRequestUrl)
-		: undefined;
+	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
 
 	if (diffContentsQuery.isLoading || diffStatusQuery.isLoading) {
 		return (
-			<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-solid">
-				<div className="flex items-center gap-2 border-0 border-b border-solid px-4 py-3">
-					<Skeleton className="h-4 w-4 rounded" />
-					<Skeleton className="h-4 w-28" />
-				</div>
+			<div className="flex h-full min-w-0 flex-col overflow-hidden">
 				<div className="space-y-4 p-4">
 					{Array.from({ length: 3 }, (_, i) => (
 						<div key={i} className="space-y-2">
@@ -132,40 +130,43 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 	}
 
 	return (
-		<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-solid">
+		<div className="flex h-full min-w-0 flex-col overflow-hidden">
 			{/* Header */}
-			<div className="flex items-center justify-between gap-3 border-0 border-b border-solid px-4 py-3">
-				<div className="flex min-w-0 items-center gap-2">
-					{pullRequestUrl ? (
-						<>
-							<GitPullRequestIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-							<span className="truncate text-sm font-medium text-content-primary">
-								{pullRequestLabel}
-							</span>
-						</>
-					) : (
-						<>
-							<GitBranchIcon className="h-4 w-4 text-content-secondary" />
-							<span className="text-sm font-medium text-content-primary">
-								Files Changed
-							</span>
-						</>
-					)}
-				</div>
-
-				{pullRequestUrl && (
+			<div className="flex items-center gap-3 px-3 py-2">
+				{pullRequestUrl && parsedPr ? (
 					<a
 						href={pullRequestUrl}
 						target="_blank"
 						rel="noreferrer"
-						className="flex shrink-0 items-center gap-1.5 rounded-md border border-border-default px-2.5 py-1 text-xs text-content-secondary no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary"
+						className="flex min-w-0 items-center gap-1.5 text-xs text-content-secondary no-underline hover:text-content-primary"
 					>
-						View PR
-						<ExternalLinkIcon className="h-3 w-3" />
+						<GitPullRequestIcon className="h-3.5 w-3.5 shrink-0" />
+						<span className="truncate">
+							<span className="text-content-secondary">
+								{parsedPr.owner}/{parsedPr.repo}
+							</span>
+							<span className="text-content-primary">#{parsedPr.number}</span>
+						</span>
+						<ExternalLinkIcon className="h-3 w-3 shrink-0 opacity-50" />
 					</a>
+				) : pullRequestUrl ? (
+					<a
+						href={pullRequestUrl}
+						target="_blank"
+						rel="noreferrer"
+						className="flex min-w-0 items-center gap-1.5 text-xs text-content-secondary no-underline hover:text-content-primary"
+					>
+						<GitPullRequestIcon className="h-3.5 w-3.5 shrink-0" />
+						<span className="truncate">{pullRequestUrl}</span>
+						<ExternalLinkIcon className="h-3 w-3 shrink-0 opacity-50" />
+					</a>
+				) : (
+					<div className="flex items-center gap-1.5 text-xs text-content-secondary">
+						<GitBranchIcon className="h-3.5 w-3.5" />
+						<span>Uncommitted changes</span>
+					</div>
 				)}
 			</div>
-
 			{/* Diff contents */}
 			{parsedFiles.length === 0 ? (
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">

@@ -1049,8 +1049,42 @@ const AgentDetail: FC = () => {
 				tabContent={{
 					git: <FilesChangedPanel chatId={agentId} />,
 				}}
+				tabMeta={{
+					git: <DiffStats diffStatus={diffStatusQuery.data} />,
+				}}
 			/>{" "}
 		</div>
+	);
+};
+
+import type { ChatDiffStatusResponse } from "api/api";
+
+const DiffStats: FC<{ diffStatus?: ChatDiffStatusResponse }> = ({
+	diffStatus,
+}) => {
+	const additions = diffStatus?.additions ?? 0;
+	const deletions = diffStatus?.deletions ?? 0;
+	if (additions === 0 && deletions === 0) {
+		return null;
+	}
+	return (
+		<span className="inline-flex h-full items-center self-stretch font-mono text-2xs font-medium">
+			{deletions > 0 && (
+				<span
+					className={cn(
+						"flex h-full items-center bg-red-400/15 px-1 text-red-400",
+						additions === 0 && "rounded-r-[calc(theme(borderRadius.md)-1px)]",
+					)}
+				>
+					&minus;{deletions}
+				</span>
+			)}
+			{additions > 0 && (
+				<span className="flex h-full items-center rounded-r-[calc(theme(borderRadius.md)-1px)] bg-green-500/15 px-1 text-green-500">
+					+{additions}
+				</span>
+			)}
+		</span>
 	);
 };
 
