@@ -12,6 +12,8 @@ describe("Loader", () => {
 	it("applies custom spinner labels when provided", () => {
 		render(<Loader label="Loading workspace resources" />);
 
-		expect(screen.getByLabelText("Loading workspace resources")).toBeInTheDocument();
+		expect(
+			screen.getByLabelText("Loading workspace resources"),
+		).toBeInTheDocument();
 	});
 });

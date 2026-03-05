@@ -87,9 +87,7 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 					autoComplete="current-password"
 					type="password"
 					aria-invalid={Boolean(passwordField.error)}
-					aria-describedby={
-						passwordField.error ? passwordErrorId : undefined
-					}
+					aria-describedby={passwordField.error ? passwordErrorId : undefined}
 				/>
 				{passwordField.error && (
 					<span

@@ -54,9 +54,14 @@ describe("LoginPage", () => {
 		await waitForLoaderToBeRemoved();
 
 		const emailInput = screen.getByLabelText(new RegExp(Language.emailLabel));
-		const passwordInput = screen.getByLabelText(new RegExp(Language.passwordLabel));
+		const passwordInput = screen.getByLabelText(
+			new RegExp(Language.passwordLabel),
+		);
 		expect(emailInput).not.toHaveAttribute("aria-invalid", "true");
-		expect(emailInput).not.toHaveAttribute("aria-describedby", "signin-email-error");
+		expect(emailInput).not.toHaveAttribute(
+			"aria-describedby",
+			"signin-email-error",
+		);
 		expect(passwordInput).not.toHaveAttribute("aria-invalid", "true");
 		expect(passwordInput).not.toHaveAttribute(
 			"aria-describedby",
@@ -69,7 +74,10 @@ describe("LoginPage", () => {
 		// Then
 		const emailError = await screen.findByText(Language.emailRequired);
 		expect(emailInput).toHaveAttribute("aria-invalid", "true");
-		expect(emailInput).toHaveAttribute("aria-describedby", "signin-email-error");
+		expect(emailInput).toHaveAttribute(
+			"aria-describedby",
+			"signin-email-error",
+		);
 
 		const emailErrorElement = document.getElementById("signin-email-error");
 		expect(emailErrorElement).toBe(emailError);

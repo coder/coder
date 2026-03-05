@@ -8,7 +8,13 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { createEvent, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+	createEvent,
+	fireEvent,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import type { AuditLogsRequest } from "api/typesGenerated";

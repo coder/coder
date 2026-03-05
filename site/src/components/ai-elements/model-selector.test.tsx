@@ -1,8 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import {
-	ModelSelector,
-	type ModelSelectorOption,
-} from "./model-selector";
+import { ModelSelector, type ModelSelectorOption } from "./model-selector";
 
 const mockModelOptions: readonly ModelSelectorOption[] = [
 	{

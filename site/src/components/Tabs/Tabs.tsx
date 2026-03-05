@@ -96,10 +96,7 @@ export const TabsList: FC<TabsListProps> = ({ className, ...props }) => {
 
 	return (
 		<div ref={listRef} className="relative">
-			<div
-				className={cn("flex items-baseline gap-6", className)}
-				{...props}
-			/>
+			<div className={cn("flex items-baseline gap-6", className)} {...props} />
 			<div
 				ref={indicatorRef}
 				className="absolute bottom-0 h-px bg-surface-invert-primary opacity-0 transition-all duration-300 ease-in-out"
