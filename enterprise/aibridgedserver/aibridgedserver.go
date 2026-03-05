@@ -59,6 +59,7 @@ type store interface {
 	InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) (database.AIBridgeTokenUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) (database.AIBridgeUserPrompt, error)
 	InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) (database.AIBridgeToolUsage, error)
+	InsertAIBridgeModelThought(ctx context.Context, arg database.InsertAIBridgeModelThoughtParams) (database.AIBridgeModelThought, error)
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, intcID database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error)
 	GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (database.GetAIBridgeInterceptionLineageByToolCallIDRow, error)
 
@@ -332,8 +333,9 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
 	}
 
+	toolUsageID := uuid.New()
 	_, err = s.store.InsertAIBridgeToolUsage(ctx, database.InsertAIBridgeToolUsageParams{
-		ID:                 uuid.New(),
+		ID:                 toolUsageID,
 		InterceptionID:     intcID,
 		ProviderResponseID: in.GetMsgId(),
 		ProviderToolCallID: sql.NullString{String: in.GetToolCallId(), Valid: in.GetToolCallId() != ""},
@@ -347,6 +349,39 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert tool usage: %w", err)
+	}
+
+	// Insert any model thoughts associated with this tool call.
+	for _, thought := range in.GetModelThoughts() {
+		thoughtMetadata := metadataToMap(thought.GetMetadata())
+
+		if s.structuredLogging {
+			s.logger.Info(ctx, InterceptionLogMarker,
+				slog.F("record_type", "model_thought"),
+				slog.F("interception_id", intcID.String()),
+				slog.F("tool_usage_id", toolUsageID.String()),
+				slog.F("content", thought.GetContent()),
+				slog.F("created_at", thought.GetCreatedAt().AsTime()),
+				slog.F("metadata", thoughtMetadata),
+			)
+		}
+
+		thoughtMetadataJSON, err := json.Marshal(thoughtMetadata)
+		if err != nil {
+			s.logger.Warn(ctx, "failed to marshal aibridge model thought metadata from proto to JSON", slog.F("metadata", thought), slog.Error(err))
+		}
+
+		_, err = s.store.InsertAIBridgeModelThought(ctx, database.InsertAIBridgeModelThoughtParams{
+			ID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			InterceptionID: intcID,
+			ToolUsageID:    toolUsageID,
+			Content:        sql.NullString{String: thought.GetContent(), Valid: thought.GetContent() != ""},
+			Metadata:       thoughtMetadataJSON,
+			CreatedAt:      thought.GetCreatedAt().AsTime(),
+		})
+		if err != nil {
+			s.logger.Warn(ctx, "failed to insert model thought", slog.Error(err))
+		}
 	}
 
 	return &proto.RecordToolUsageResponse{}, nil

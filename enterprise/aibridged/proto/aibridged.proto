@@ -9,7 +9,7 @@ import "google/protobuf/timestamp.proto";
 // Recorder is responsible for persisting AI usage records along with their related interception.
 service Recorder {
   // RecordInterception creates a new interception record to which all other sub-resources
-  // (token, prompt, tool uses) will be related.
+  // (token, prompt, tool uses, model thoughts) will be related.
   rpc RecordInterception(RecordInterceptionRequest) returns (RecordInterceptionResponse);
   rpc RecordInterceptionEnded(RecordInterceptionEndedRequest) returns (RecordInterceptionEndedResponse);
   rpc RecordTokenUsage(RecordTokenUsageRequest) returns (RecordTokenUsageResponse);
@@ -88,8 +88,17 @@ message RecordToolUsageRequest {
   map<string, google.protobuf.Any> metadata = 8;
   google.protobuf.Timestamp created_at = 9;
   string tool_call_id = 10; // The ID of the tool call provided by the AI provider.
+  repeated ModelThought model_thoughts = 11; // Model thinking associated with this tool call.
 }
 message RecordToolUsageResponse {}
+
+// ModelThought represents a model's thinking/reasoning associated with
+// a tool call.
+message ModelThought {
+  string content = 1;
+  map<string, google.protobuf.Any> metadata = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
 
 message GetMCPServerConfigsRequest {
   string user_id = 1; // UUID. // Not used yet, will be necessary for later RBAC purposes.

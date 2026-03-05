@@ -1060,6 +1060,17 @@ COMMENT ON COLUMN aibridge_interceptions.thread_root_id IS 'The root interceptio
 
 COMMENT ON COLUMN aibridge_interceptions.client_session_id IS 'The session ID supplied by the client (optional and not universally supported).';
 
+CREATE TABLE aibridge_model_thoughts (
+    id uuid,
+    interception_id uuid NOT NULL,
+    tool_usage_id uuid NOT NULL,
+    content text,
+    metadata jsonb,
+    created_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE aibridge_model_thoughts IS 'Audit log of model thinking in intercepted requests in AI Bridge';
+
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,
     interception_id uuid NOT NULL,
@@ -3487,6 +3498,8 @@ CREATE INDEX idx_aibridge_interceptions_started_id_desc ON aibridge_interception
 CREATE INDEX idx_aibridge_interceptions_thread_parent_id ON aibridge_interceptions USING btree (thread_parent_id);
 
 CREATE INDEX idx_aibridge_interceptions_thread_root_id ON aibridge_interceptions USING btree (thread_root_id);
+
+CREATE INDEX idx_aibridge_model_thoughts_interception_id ON aibridge_model_thoughts USING btree (interception_id);
 
 CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
 
