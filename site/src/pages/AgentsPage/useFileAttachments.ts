@@ -5,6 +5,7 @@ import {
 	type SetStateAction,
 	useCallback,
 	useEffect,
+	useRef,
 	useState,
 } from "react";
 import type { UploadState } from "./AgentChatInput";
@@ -32,17 +33,27 @@ export function useFileAttachments(
 	const [previewUrls, setPreviewUrls] = useState(() => new Map<File, string>());
 
 	// Revoke blob URLs on unmount to prevent memory leaks.
+	const previewUrlsRef = useRef(previewUrls);
+	previewUrlsRef.current = previewUrls;
 	useEffect(() => {
 		return () => {
-			for (const [, url] of previewUrls) {
+			for (const [, url] of previewUrlsRef.current) {
 				if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 			}
 		};
-	}, [previewUrls]);
+	}, []);
 
 	const startUpload = useCallback(
 		(file: File) => {
-			if (!organizationId) return;
+			if (!organizationId) {
+				setUploadStates((prev) =>
+					new Map(prev).set(file, {
+						status: "error",
+						error: "Unable to upload: no organization context.",
+					}),
+				);
+				return;
+			}
 			setUploadStates((prev) =>
 				new Map(prev).set(file, { status: "uploading" }),
 			);
