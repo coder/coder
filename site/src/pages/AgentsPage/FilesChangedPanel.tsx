@@ -235,7 +235,7 @@ const FileTreeNodeView: FC<{
 			<FileIcon fileName={node.name} className="shrink-0" />
 			<span
 				className={cn(
-					"truncate text-2xs",
+					"truncate text-xs",
 					isActive ? "text-content-primary" : "text-content-secondary",
 				)}
 			>

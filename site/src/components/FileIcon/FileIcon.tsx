@@ -79,6 +79,76 @@ const collectExtensionCandidates = (fileName: string): string[] => {
 	return candidates;
 };
 
+/**
+ * Maps common file extensions to VS Code language identifiers
+ * when the extension alone doesn't match a key in the Seti
+ * theme's `languageIds` map.
+ */
+const extToLanguageId: Record<string, string> = {
+	js: "javascript",
+	jsx: "javascriptreact",
+	mjs: "javascript",
+	cjs: "javascript",
+	py: "python",
+	rb: "ruby",
+	rs: "rust",
+	md: "markdown",
+	mdx: "markdown",
+	yml: "yaml",
+	sh: "shellscript",
+	bash: "shellscript",
+	zsh: "shellscript",
+	fish: "shellscript",
+	ps1: "powershell",
+	cs: "csharp",
+	fs: "fsharp",
+	kt: "kotlin",
+	kts: "kotlin",
+	swift: "swift",
+	pl: "perl",
+	php: "php",
+	ex: "elixir",
+	exs: "elixir",
+	erl: "erlang",
+	hrl: "erlang",
+	hs: "haskell",
+	lua: "lua",
+	vim: "viml",
+	clj: "clojure",
+	cljs: "clojure",
+	cljc: "clojure",
+	jl: "julia",
+	r: "r",
+	ml: "ocaml",
+	mli: "ocaml",
+	nim: "nim",
+	nix: "nix",
+	tf: "terraform",
+	tfvars: "terraform",
+	hcl: "terraform",
+	sql: "sql",
+	gql: "graphql",
+	graphql: "graphql",
+	proto: "proto3",
+	svg: "xml",
+	xml: "xml",
+	html: "html",
+	htm: "html",
+	css: "css",
+	scss: "scss",
+	sass: "sass",
+	less: "less",
+	styl: "stylus",
+	vue: "vue",
+	svelte: "svelte",
+	java: "java",
+	scala: "scala",
+	groovy: "groovy",
+	dart: "dart",
+	elm: "elm",
+	tpx: "typoscript",
+};
+
 const resolveSetiIconId = (fileName: string): string | undefined => {
 	const direct = setiFileNames[fileName];
 	if (direct) {
@@ -134,6 +204,17 @@ const resolveSetiIconId = (fileName: string): string | undefined => {
 			const lowerLanguageIdMatch = setiLanguageIds[lowerCandidate];
 			if (lowerLanguageIdMatch) {
 				return lowerLanguageIdMatch;
+			}
+		}
+	}
+
+	// Try mapping the extension to a known language identifier.
+	for (const candidate of extensionCandidates) {
+		const langId = extToLanguageId[candidate.toLowerCase()];
+		if (langId) {
+			const langMatch = setiLanguageIds[langId];
+			if (langMatch) {
+				return langMatch;
 			}
 		}
 	}
