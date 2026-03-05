@@ -1242,7 +1242,7 @@
           "children": [
             {
               "title": "Architecture",
-              "description": "How the agent in the control plane communicates with workspaces",
+              "description": "How the Coder agent communicates with workspaces",
               "path": "./ai-coder/agents/architecture.md"
             },
             {
