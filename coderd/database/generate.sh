@@ -16,9 +16,14 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	echo generate 1>&2
 
 	# Dump the updated schema (use make to utilize caching).
-	make -C ../.. --no-print-directory coderd/database/dump.sql
+	if [[ "${SKIP_DUMP_SQL:-0}" != 1 ]]; then
+		make -C ../.. --no-print-directory coderd/database/dump.sql
+	fi
 	# The logic below depends on the exact version being correct :(
 	sqlc generate
+
+	tmpfile=$(mktemp "${TMPDIR:-/tmp}/queries.sql.go.XXXXXX")
+	trap 'rm -f "$tmpfile"' EXIT
 
 	first=true
 	files=$(find ./queries/ -type f -name "*.sql.go" | LC_ALL=C sort)
@@ -33,13 +38,16 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 
 		# Copy the header from the first file only, ignoring the source comment.
 		if $first; then
-			head -n 6 <"$fi" | grep -v "source" >queries.sql.go
+			head -n 6 <"$fi" | grep -v "source" >"$tmpfile"
 			first=false
 		fi
 
 		# Append the file past the imports section into queries.sql.go.
-		tail -n "+$cut" <"$fi" >>queries.sql.go
+		tail -n "+$cut" <"$fi" >>"$tmpfile"
 	done
+
+	# Atomically replace the target file.
+	mv "$tmpfile" queries.sql.go
 
 	# Move the files we want.
 	mv queries/querier.go .
