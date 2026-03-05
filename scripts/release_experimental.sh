@@ -45,14 +45,27 @@ success() {
 	echo -e "${GREEN}✓ $*${RESET}" >&2
 }
 
+# confirm "prompt" [default]
+# default: "y" or "n" (shown as uppercase). If empty, no default.
 confirm() {
 	local prompt="$1"
-	local reply
+	local default="${2:-}"
+	local hint reply
+	case "$default" in
+	y) hint="Y/n" ;;
+	n) hint="y/N" ;;
+	*) hint="y/n" ;;
+	esac
 	while true; do
-		read -r -p "$prompt (y/n) " reply
+		read -r -p "$prompt ($hint): " reply
 		case "$reply" in
 		[Yy]) return 0 ;;
 		[Nn]) return 1 ;;
+		"")
+			if [[ "$default" == "y" ]]; then return 0; fi
+			if [[ "$default" == "n" ]]; then return 1; fi
+			echo "Please answer y or n."
+			;;
 		*) echo "Please answer y or n." ;;
 		esac
 	done
@@ -174,7 +187,7 @@ if [[ -n "$remote_head" ]] && [[ "$local_head" != "$remote_head" ]]; then
 	warn "Your local branch is not up to date with origin/${current_branch}."
 	log "  Local:  ${local_head:0:12}"
 	log "  Remote: ${remote_head:0:12}"
-	if ! confirm "Continue anyway?"; then
+	if ! confirm "Continue anyway?" n; then
 		exit 1
 	fi
 	log
@@ -212,7 +225,7 @@ new_patch=$VERSION_PATCH
 # Warn if the version doesn't match the branch.
 if ((new_major != branch_major || new_minor != branch_minor)); then
 	warn "Version ${new_version} does not match branch ${current_branch} (expected v${branch_major}.${branch_minor}.X)."
-	if ! confirm "Continue anyway?"; then
+	if ! confirm "Continue anyway?" n; then
 		exit 1
 	fi
 	log
@@ -226,7 +239,7 @@ log
 
 if git tag -l "$new_version" | grep -q .; then
 	warn "Tag '${new_version}' already exists!"
-	if ! confirm "This will skip tagging. Continue?"; then
+	if ! confirm "This will skip tagging. Continue?" n; then
 		exit 1
 	fi
 	tag_exists=1
@@ -247,7 +260,7 @@ if [[ -n "$prev_version" ]]; then
 	if semver_gt "$prev_version" "$new_version"; then
 		warn "Version DOWNGRADE detected: ${prev_version} → ${new_version}."
 		warn "The new version is lower than the previous tag."
-		if ! confirm "Continue?"; then
+		if ! confirm "Continue?" n; then
 			exit 1
 		fi
 		log
@@ -256,7 +269,7 @@ if [[ -n "$prev_version" ]]; then
 	# Check for duplicate.
 	if semver_eq "$prev_version" "$new_version"; then
 		warn "Version ${new_version} is the SAME as the previous tag ${prev_version}."
-		if ! confirm "Continue?"; then
+		if ! confirm "Continue?" n; then
 			exit 1
 		fi
 		log
@@ -267,7 +280,7 @@ if [[ -n "$prev_version" ]]; then
 		expected_patch=$((old_patch + 1))
 		if ((new_patch > expected_patch)); then
 			warn "Skipping patch version(s): expected v${new_major}.${new_minor}.${expected_patch}, got ${new_version}."
-			if ! confirm "Continue?"; then
+			if ! confirm "Continue?" n; then
 				exit 1
 			fi
 			log
@@ -316,7 +329,7 @@ if [[ -n "$prev_version" ]]; then
 				done <<<"$breaking_prs"
 			fi
 			echo >&2
-			if ! confirm "Continue with patch release despite breaking changes?"; then
+			if ! confirm "Continue with patch release despite breaking changes?" n; then
 				exit 1
 			fi
 			log
@@ -343,7 +356,7 @@ if [[ -n "$open_prs" ]]; then
 		log "  ${pr}"
 	done <<<"$open_prs"
 	echo >&2
-	if ! confirm "Continue without merging these?"; then
+	if ! confirm "Continue without merging these?" n; then
 		exit 1
 	fi
 	log
@@ -467,7 +480,7 @@ log
 # Offer to edit.
 editor="${EDITOR:-${GIT_EDITOR:-}}"
 if [[ -n "$editor" ]]; then
-	if confirm "Edit release notes in ${editor}?"; then
+	if confirm "Edit release notes in ${editor}?" n; then
 		"$editor" "$release_notes_file"
 		release_notes="$(<"$release_notes_file")"
 		log "Release notes updated."
@@ -523,7 +536,7 @@ if ((tag_exists == 0)); then
 	log "  Commit: ${short_ref}"
 	log "  Branch: ${current_branch}"
 	log
-	if confirm "Create tag?"; then
+	if confirm "Create tag?" y; then
 		run git tag -a "$new_version" -m "Release $new_version" "$ref"
 		success "Tag ${new_version} created."
 	else
@@ -540,7 +553,7 @@ fi
 echo -e "${BOLD}Next step: push tag '${new_version}' to origin.${RESET}"
 log "  This will run: git push origin ${new_version}"
 log
-if confirm "Push tag?"; then
+if confirm "Push tag?" y; then
 	run git push origin "$new_version"
 	success "Tag pushed."
 else
@@ -562,7 +575,7 @@ log "  Payload:"
 log "    release_channel: ${channel}"
 log "    release_notes:   (${#release_notes} chars, written to ${release_notes_file})"
 log
-if confirm "Trigger release workflow?"; then
+if confirm "Trigger release workflow?" y; then
 	if ((dry_run)); then
 		echo -e "${YELLOW}DRY RUN, would execute: gh workflow run release.yaml --json --ref ${new_version}${RESET}" >&2
 		echo -e "${YELLOW}  with payload: {release_channel: \"${channel}\", release_notes: <${#release_notes} chars, see ${release_notes_file}>}${RESET}" >&2
