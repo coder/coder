@@ -1,8 +1,5 @@
 # Platform Controls
 
-This page describes how Coder Agents gives platform teams centralized control
-over agent behavior, and the principles behind our approach.
-
 ## Design philosophy
 
 Coder Agents is built on a simple premise: platform teams should have full
@@ -49,7 +46,8 @@ Administrators can set a system prompt that applies to all agent sessions. This
 is useful for establishing organizational conventions — coding standards,
 commit message formats, preferred libraries, or repository-specific context.
 
-The system prompt is enforced server-side. Developers cannot view or override it.
+The system prompt configuration is only accessible to administrators in the
+dashboard. Developers do not see or interact with it.
 
 ### Template routing
 
@@ -84,8 +82,7 @@ rather than relying on anecdotal feedback from individual developers.
 ### Infrastructure-level enforcement
 
 We believe that security-critical behaviors should not depend on the system
-prompt. A system prompt can instruct an agent to "always push to the internal
-GitHub," but there is no guarantee the agent will comply every time.
+prompt. A system prompt can instruct an agent to "always format branch names like... ," but there is no guarantee the agent will comply every time.
 
 For controls that matter — network boundaries, git push targets, allowed
 hostnames — we intend to enforce them at the infrastructure and network layer.
@@ -133,12 +130,7 @@ creates several problems for platform teams:
   which API key to use, or how to configure a system prompt. They should
   describe the work they want done.
 
-Coder Agents addresses these problems by moving agent configuration out of
-developer hands entirely. Platform teams configure once, at the deployment
-level. Developers get a consistent, high-quality experience without needing to
-manage anything.
-
 As models improve and the differences between agent harnesses continue to
-shrink, we believe the leverage shifts toward platform-level controls: which
+shrink, we believe the leverage shifts toward user experience and platform-level controls: which
 models to offer, how to enforce security, and how to use analytics to
 continuously improve the development experience across the organization.
