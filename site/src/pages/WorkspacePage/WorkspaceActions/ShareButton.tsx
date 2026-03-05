@@ -38,6 +38,7 @@ export const ShareButton: FC<ShareButtonProps> = ({
 					<FeatureStageBadge contentType="beta" size="sm" />
 				</div>
 				<WorkspaceSharingForm
+					organizationId={workspace.organization_id}
 					workspaceACL={sharing.workspaceACL}
 					canUpdatePermissions={canUpdatePermissions}
 					isTaskWorkspace={Boolean(workspace.task_id)}

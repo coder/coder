@@ -165,6 +165,10 @@ func (t TaskTable) RBACObject() rbac.Object {
 		InOrg(t.OrganizationID)
 }
 
+func (c Chat) RBACObject() rbac.Object {
+	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String())
+}
+
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
 	case ApiKeyScopeCoderAll:
@@ -310,6 +314,14 @@ func (t Template) RBACObject() rbac.Object {
 }
 
 func (t GetFileTemplatesRow) RBACObject() rbac.Object {
+	return rbac.ResourceTemplate.WithID(t.TemplateID).
+		InOrg(t.TemplateOrganizationID).
+		WithACLUserList(t.UserACL).
+		WithGroupACL(t.GroupACL)
+}
+
+// RBACObject for a workspace build's provisioner state requires Update access of the template.
+func (t GetWorkspaceBuildProvisionerStateByIDRow) RBACObject() rbac.Object {
 	return rbac.ResourceTemplate.WithID(t.TemplateID).
 		InOrg(t.TemplateOrganizationID).
 		WithACLUserList(t.UserACL).

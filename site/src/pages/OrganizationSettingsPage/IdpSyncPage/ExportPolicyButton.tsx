@@ -1,13 +1,14 @@
+import { getErrorDetail } from "api/errors";
 import type {
 	GroupSyncSettings,
 	Organization,
 	RoleSyncSettings,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { saveAs } from "file-saver";
 import { DownloadIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { toast } from "sonner";
 
 interface DownloadPolicyButtonProps {
 	syncSettings: RoleSyncSettings | GroupSyncSettings | undefined;
@@ -40,9 +41,11 @@ export const ExportPolicyButton: FC<DownloadPolicyButtonProps> = ({
 							type: "application/json",
 						});
 						download(file, `${organization.name}_${type}-policy.json`);
-					} catch (e) {
-						console.error(e);
-						displayError("Failed to export policy json");
+					} catch (error) {
+						console.error(error);
+						toast.error("Failed to export policy JSON.", {
+							description: getErrorDetail(error),
+						});
 					} finally {
 						setIsDownloading(false);
 					}

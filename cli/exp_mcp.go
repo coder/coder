@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -17,12 +18,14 @@ import (
 	"golang.org/x/xerrors"
 
 	agentapi "github.com/coder/agentapi-sdk-go"
+	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
 
@@ -131,7 +134,6 @@ func mcpConfigureClaudeCode() *serpent.Command {
 
 		deprecatedCoderMCPClaudeAPIKey string
 	)
-	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "claude-code <project-directory>",
 		Short: "Configure the Claude Code server. You will need to run this command for each project you want to use. Specify the project directory as the first argument.",
@@ -149,13 +151,6 @@ func mcpConfigureClaudeCode() *serpent.Command {
 				binPath = testBinaryName
 			}
 			configureClaudeEnv := map[string]string{}
-			agentClient, err := agentAuth.CreateClient()
-			if err != nil {
-				cliui.Warnf(inv.Stderr, "failed to create agent client: %s", err)
-			} else {
-				configureClaudeEnv[envAgentURL] = agentClient.SDK.URL.String()
-				configureClaudeEnv[envAgentToken] = agentClient.SDK.SessionToken()
-			}
 
 			if deprecatedCoderMCPClaudeAPIKey != "" {
 				cliui.Warnf(inv.Stderr, "CODER_MCP_CLAUDE_API_KEY is deprecated, use CLAUDE_API_KEY instead")
@@ -194,12 +189,11 @@ func mcpConfigureClaudeCode() *serpent.Command {
 			}
 			cliui.Infof(inv.Stderr, "Wrote config to %s", claudeConfigPath)
 
-			// Determine if we should include the reportTaskPrompt
+			// Include the report task prompt when an app status slug is
+			// configured. The agent socket is available at runtime, so we
+			// only check the slug here.
 			var reportTaskPrompt string
-			if agentClient != nil && appStatusSlug != "" {
-				// Only include the report task prompt if both the agent client and app
-				// status slug are defined. Otherwise, reporting a task will fail and
-				// confuse the agent (and by extension, the user).
+			if appStatusSlug != "" {
 				reportTaskPrompt = defaultReportTaskPrompt
 			}
 
@@ -293,7 +287,6 @@ func mcpConfigureClaudeCode() *serpent.Command {
 			},
 		},
 	}
-	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 
@@ -390,7 +383,7 @@ type taskReport struct {
 }
 
 type mcpServer struct {
-	agentClient      *agentsdk.Client
+	socketClient     *agentsocket.Client
 	appStatusSlug    string
 	client           *codersdk.Client
 	aiAgentAPIClient *agentapi.Client
@@ -403,8 +396,8 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 		allowedTools  []string
 		appStatusSlug string
 		aiAgentAPIURL url.URL
+		socketPath    string
 	)
-	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use: "server",
 		Handler: func(inv *serpent.Invocation) error {
@@ -500,22 +493,26 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				cliui.Infof(inv.Stderr, "Authentication : None")
 			}
 
-			// Try to create an agent client for status reporting.  Not validated.
-			agentClient, err := agentAuth.CreateClient()
-			if err == nil {
-				cliui.Infof(inv.Stderr, "Agent URL      : %s", agentClient.SDK.URL.String())
-				srv.agentClient = agentClient
-			}
-			if err != nil || appStatusSlug == "" {
+			// Try to connect to the agent socket for status reporting.
+			if appStatusSlug == "" {
 				cliui.Infof(inv.Stderr, "Task reporter  : Disabled")
-				if err != nil {
-					cliui.Warnf(inv.Stderr, "%s", err)
-				}
-				if appStatusSlug == "" {
-					cliui.Warnf(inv.Stderr, "%s must be set", envAppStatusSlug)
-				}
+				cliui.Warnf(inv.Stderr, "%s must be set", envAppStatusSlug)
 			} else {
-				cliui.Infof(inv.Stderr, "Task reporter  : Enabled")
+				socketClient, err := agentsocket.NewClient(
+					inv.Context(),
+					agentsocket.WithPath(socketPath),
+				)
+				if err != nil {
+					cliui.Infof(inv.Stderr, "Task reporter  : Disabled")
+					cliui.Warnf(inv.Stderr, "Failed to connect to agent socket: %s", err)
+				} else if err := socketClient.Ping(inv.Context()); err != nil {
+					cliui.Infof(inv.Stderr, "Task reporter  : Disabled")
+					cliui.Warnf(inv.Stderr, "Agent socket ping failed: %s", err)
+					_ = socketClient.Close()
+				} else {
+					cliui.Infof(inv.Stderr, "Task reporter  : Enabled")
+					srv.socketClient = socketClient
+				}
 			}
 
 			// Try to create a client for the AI AgentAPI, which is used to get the
@@ -538,12 +535,14 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 			defer srv.queue.Close()
+			if srv.socketClient != nil {
+				defer srv.socketClient.Close()
+			}
 
-			cliui.Infof(inv.Stderr, "Failed to watch screen events")
 			// Start the reporter, watcher, and server.  These are all tied to the
 			// lifetime of the MCP server, which is itself tied to the lifetime of the
 			// AI agent.
-			if srv.agentClient != nil && appStatusSlug != "" {
+			if srv.socketClient != nil && appStatusSlug != "" {
 				srv.startReporter(ctx, inv)
 				if srv.aiAgentAPIClient != nil {
 					srv.startWatcher(ctx, inv)
@@ -581,9 +580,14 @@ func (r *RootCmd) mcpServer() *serpent.Command {
 				Env:         envAIAgentAPIURL,
 				Value:       serpent.URLOf(&aiAgentAPIURL),
 			},
+			{
+				Flag:        "socket-path",
+				Description: "Specify the path for the agent socket.",
+				Env:         "CODER_AGENT_SOCKET_PATH",
+				Value:       serpent.StringOf(&socketPath),
+			},
 		},
 	}
-	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 
@@ -599,12 +603,17 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 				return
 			}
 
-			err := s.agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+			req, err := agentsdk.ProtoFromPatchAppStatus(agentsdk.PatchAppStatus{
 				AppSlug: s.appStatusSlug,
 				Message: item.summary,
 				URI:     item.link,
 				State:   item.state,
 			})
+			if err != nil {
+				cliui.Warnf(inv.Stderr, "Failed to convert task status: %s", err)
+				continue
+			}
+			_, err = s.socketClient.UpdateAppStatus(ctx, req)
 			if err != nil && !errors.Is(err, context.Canceled) {
 				cliui.Warnf(inv.Stderr, "Failed to report task status: %s", err)
 			}
@@ -613,48 +622,51 @@ func (s *mcpServer) startReporter(ctx context.Context, inv *serpent.Invocation) 
 }
 
 func (s *mcpServer) startWatcher(ctx context.Context, inv *serpent.Invocation) {
-	eventsCh, errCh, err := s.aiAgentAPIClient.SubscribeEvents(ctx)
-	if err != nil {
-		cliui.Warnf(inv.Stderr, "Failed to watch screen events: %s", err)
-		return
-	}
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case event := <-eventsCh:
-				switch ev := event.(type) {
-				case agentapi.EventStatusChange:
-					// If the screen is stable, report idle.
-					state := codersdk.WorkspaceAppStatusStateWorking
-					if ev.Status == agentapi.StatusStable {
-						state = codersdk.WorkspaceAppStatusStateIdle
-					}
-					err := s.queue.Push(taskReport{
-						state: state,
-					})
-					if err != nil {
-						cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
+		for retrier := retry.New(time.Second, 30*time.Second); retrier.Wait(ctx); {
+			eventsCh, errCh, err := s.aiAgentAPIClient.SubscribeEvents(ctx)
+			if err == nil {
+				retrier.Reset()
+			loop:
+				for {
+					select {
+					case <-ctx.Done():
 						return
-					}
-				case agentapi.EventMessageUpdate:
-					if ev.Role == agentapi.RoleUser {
-						err := s.queue.Push(taskReport{
-							messageID: &ev.Id,
-							state:     codersdk.WorkspaceAppStatusStateWorking,
-						})
-						if err != nil {
-							cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
-							return
+					case event := <-eventsCh:
+						switch ev := event.(type) {
+						case agentapi.EventStatusChange:
+							state := codersdk.WorkspaceAppStatusStateWorking
+							if ev.Status == agentapi.StatusStable {
+								state = codersdk.WorkspaceAppStatusStateIdle
+							}
+							err := s.queue.Push(taskReport{
+								state: state,
+							})
+							if err != nil {
+								cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
+								return
+							}
+						case agentapi.EventMessageUpdate:
+							if ev.Role == agentapi.RoleUser {
+								err := s.queue.Push(taskReport{
+									messageID: &ev.Id,
+									state:     codersdk.WorkspaceAppStatusStateWorking,
+								})
+								if err != nil {
+									cliui.Warnf(inv.Stderr, "Failed to queue update: %s", err)
+									return
+								}
+							}
 						}
+					case err := <-errCh:
+						if !errors.Is(err, context.Canceled) {
+							cliui.Warnf(inv.Stderr, "Received error from screen event watcher: %s", err)
+						}
+						break loop
 					}
 				}
-			case err := <-errCh:
-				if !errors.Is(err, context.Canceled) {
-					cliui.Warnf(inv.Stderr, "Received error from screen event watcher: %s", err)
-				}
-				return
+			} else {
+				cliui.Warnf(inv.Stderr, "Failed to watch screen events: %s", err)
 			}
 		}
 	}()
@@ -684,21 +696,23 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 		server.WithInstructions(instructions),
 	)
 
-	// If both clients are unauthorized, there are no tools we can enable.
-	if s.client == nil && s.agentClient == nil {
+	// If neither the user client nor the agent socket is available, there
+	// are no tools we can enable.
+	if s.client == nil && s.socketClient == nil {
 		return xerrors.New(notLoggedInMessage)
 	}
 
 	// Add tool dependencies.
 	toolOpts := []func(*toolsdk.Deps){
 		toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			// The agent does not reliably report its status correctly.  If AgentAPI
-			// is enabled, we will always set the status to "working" when we get an
-			// MCP message, and rely on the screen watcher to eventually catch the
-			// idle state.
-			state := codersdk.WorkspaceAppStatusStateWorking
-			if s.aiAgentAPIClient == nil {
-				state = codersdk.WorkspaceAppStatusState(args.State)
+			state := codersdk.WorkspaceAppStatusState(args.State)
+			// The agent does not reliably report idle, so when AgentAPI is
+			// enabled we override idle to working and let the screen watcher
+			// detect the real idle via StatusStable.  Final states (failure,
+			// complete) are trusted from the agent since the screen watcher
+			// cannot produce them.
+			if s.aiAgentAPIClient != nil && state == codersdk.WorkspaceAppStatusStateIdle {
+				state = codersdk.WorkspaceAppStatusStateWorking
 			}
 			return s.queue.Push(taskReport{
 				link:         args.Link,
@@ -729,8 +743,8 @@ func (s *mcpServer) startServer(ctx context.Context, inv *serpent.Invocation, in
 			continue
 		}
 
-		// Skip the coder_report_task tool if there is no agent client or slug.
-		if tool.Tool.Name == "coder_report_task" && (s.agentClient == nil || s.appStatusSlug == "") {
+		// Skip the coder_report_task tool if there is no socket client or slug.
+		if tool.Tool.Name == "coder_report_task" && (s.socketClient == nil || s.appStatusSlug == "") {
 			cliui.Warnf(inv.Stderr, "Tool %q requires the task reporter and will not be available", tool.Tool.Name)
 			continue
 		}

@@ -26,7 +26,9 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogjson"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
@@ -459,6 +461,130 @@ func TestRecordInterception(t *testing.T) {
 				},
 				expectedErr: "start interception",
 			},
+			{
+				name: "ok with parent correlation",
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{3}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: strPtr("call_abc"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+					parentID := uuid.UUID{4}
+					rootID := uuid.UUID{5}
+
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
+						gomock.Any(),
+						"call_abc",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{
+						ThreadParentID: parentID,
+						ThreadRootID:   rootID,
+					}, nil)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{UUID: parentID, Valid: true}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{UUID: rootID, Valid: true}, p.ThreadRootInterceptionID, "thread root interception ID")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
+			},
+			{
+				name: "no lineage",
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{3}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: strPtr("call_abc"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
+						gomock.Any(),
+						"call_abc",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{}, sql.ErrNoRows)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadRootInterceptionID, "thread root interception ID")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
+			},
+			{
+				name: "parent without root", // This should never happen since GetAIBridgeInterceptionLineageByToolCallID always returns both, but still...
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{3}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: strPtr("call_abc"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+					parentID := uuid.UUID{4}
+
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
+						gomock.Any(),
+						"call_abc",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{
+						ThreadParentID: parentID,
+					}, nil)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{UUID: parentID, Valid: true}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadRootInterceptionID, "thread root interception ID not expected")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
+			},
+			{
+				name: "ok no parent found",
+				request: &proto.RecordInterceptionRequest{
+					Id:                    uuid.UUID{5}.String(),
+					ApiKeyId:              uuid.NewString(),
+					InitiatorId:           uuid.NewString(),
+					Provider:              "anthropic",
+					Model:                 "claude-4-opus",
+					StartedAt:             timestamppb.Now(),
+					CorrelatingToolCallId: strPtr("call_orphan"),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					selfID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse self UUID")
+
+					db.EXPECT().GetAIBridgeInterceptionLineageByToolCallID(
+						gomock.Any(),
+						"call_orphan",
+					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{}, sql.ErrNoRows)
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
+						return assert.Equal(t, selfID, p.ID, "ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
+							assert.Equal(t, uuid.NullUUID{}, p.ThreadRootInterceptionID, "thread root interception ID")
+					})).Return(database.AIBridgeInterception{
+						ID: selfID,
+					}, nil)
+				},
+			},
 		},
 	)
 }
@@ -698,6 +824,7 @@ func TestRecordToolUsage(t *testing.T) {
 				request: &proto.RecordToolUsageRequest{
 					InterceptionId:  uuid.NewString(),
 					MsgId:           "msg_123",
+					ToolCallId:      "call_xyz",
 					ServerUrl:       strPtr("https://api.example.com"),
 					Tool:            "read_file",
 					Input:           `{"path": "/etc/hosts"}`,
@@ -726,6 +853,7 @@ func TestRecordToolUsage(t *testing.T) {
 						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID") ||
 							!assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
 							!assert.Equal(t, req.GetMsgId(), p.ProviderResponseID, "provider response ID") ||
+							!assert.Equal(t, sql.NullString{String: "call_xyz", Valid: true}, p.ProviderToolCallID, "provider tool call ID") ||
 							!assert.Equal(t, req.GetTool(), p.Tool, "tool") ||
 							!assert.Equal(t, dbServerURL, p.ServerUrl, "server URL") ||
 							!assert.Equal(t, req.GetInput(), p.Input, "input") ||
@@ -1112,4 +1240,100 @@ func TestStructuredLogging(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestInferredThreadsByToolCalls verifies that a chain of interceptions linked via
+// tool call IDs correctly propagates thread_parent_id and thread_root_id.
+//
+// The chain is: A → B → C
+//   - A is the root (no parent, no root)
+//   - B correlates via a tool call recorded by A (parent=A, root=A)
+//   - C correlates via a tool call recorded by B (parent=B, root=A)
+func TestInferredThreadsByToolCalls(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	user := dbgen.User(t, db, database.User{})
+
+	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
+	require.NoError(t, err)
+
+	aID := uuid.New()
+	bID := uuid.New()
+	cID := uuid.New()
+
+	// Record interception A (root of the chain, no correlation).
+	_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:          aID.String(),
+		ApiKeyId:    uuid.NewString(),
+		InitiatorId: user.ID.String(),
+		Provider:    "anthropic",
+		Model:       "claude-4-opus",
+		StartedAt:   timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// No thread association yet.
+	intcA, err := db.GetAIBridgeInterceptionByID(ctx, aID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{}, intcA.ThreadParentID)
+	require.Equal(t, uuid.NullUUID{}, intcA.ThreadRootID)
+
+	// Record tool usage on A with a known tool call ID.
+	_, err = srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+		InterceptionId: aID.String(),
+		MsgId:          "resp_a",
+		ToolCallId:     "call_a",
+		Tool:           "bash",
+		Input:          "{}",
+		CreatedAt:      timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// Record interception B correlating to A's tool call.
+	_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:                    bID.String(),
+		ApiKeyId:              uuid.NewString(),
+		InitiatorId:           user.ID.String(),
+		Provider:              "anthropic",
+		Model:                 "claude-4-opus",
+		StartedAt:             timestamppb.Now(),
+		CorrelatingToolCallId: strPtr("call_a"),
+	})
+	require.NoError(t, err)
+
+	intcB, err := db.GetAIBridgeInterceptionByID(ctx, bID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcB.ThreadParentID)
+	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcB.ThreadRootID)
+
+	// Record tool usage on B.
+	_, err = srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+		InterceptionId: bID.String(),
+		MsgId:          "resp_b",
+		ToolCallId:     "call_b",
+		Tool:           "bash",
+		Input:          "{}",
+		CreatedAt:      timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	// Record interception C correlating to B's tool call.
+	_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+		Id:                    cID.String(),
+		ApiKeyId:              uuid.NewString(),
+		InitiatorId:           user.ID.String(),
+		Provider:              "anthropic",
+		Model:                 "claude-4-opus",
+		StartedAt:             timestamppb.Now(),
+		CorrelatingToolCallId: strPtr("call_b"),
+	})
+	require.NoError(t, err)
+
+	intcC, err := db.GetAIBridgeInterceptionByID(ctx, cID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: bID, Valid: true}, intcC.ThreadParentID)
+	require.Equal(t, uuid.NullUUID{UUID: aID, Valid: true}, intcC.ThreadRootID)
 }

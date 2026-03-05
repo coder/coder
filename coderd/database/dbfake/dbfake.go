@@ -67,6 +67,8 @@ type WorkspaceBuildBuilder struct {
 
 	jobError     string // Error message for failed jobs
 	jobErrorCode string // Error code for failed jobs
+
+	provisionerState []byte
 }
 
 // BuilderOption is a functional option for customizing job timestamps
@@ -135,6 +137,15 @@ func (b WorkspaceBuildBuilder) Pubsub(ps pubsub.Pubsub) WorkspaceBuildBuilder {
 func (b WorkspaceBuildBuilder) Seed(seed database.WorkspaceBuild) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.seed = seed
+	return b
+}
+
+// ProvisionerState sets the provisioner state for the workspace build.
+// This is stored separately from the seed because ProvisionerState is
+// not part of the WorkspaceBuild view struct.
+func (b WorkspaceBuildBuilder) ProvisionerState(state []byte) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.provisionerState = state
 	return b
 }
 
@@ -361,6 +372,12 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	})
 	require.NoError(b.t, err)
 
+	// Tag the job so AcquireProvisionerJob only matches this
+	// builder's job, preventing cross-test interference when
+	// parallel tests share a database. Same pattern as
+	// dbgen.ProvisionerJob.
+	tags := database.StringMap{jobID.String(): "true", "scope": "organization"}
+
 	job, err := b.db.InsertProvisionerJob(ownerCtx, database.InsertProvisionerJobParams{
 		ID:             jobID,
 		CreatedAt:      takeFirstTime(b.jobCreatedAt, b.ws.CreatedAt, dbtime.Now()),
@@ -372,7 +389,7 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		FileID:         uuid.New(),
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		Input:          payload,
-		Tags:           map[string]string{},
+		Tags:           tags,
 		TraceMetadata:  pqtype.NullRawMessage{},
 		LogsOverflowed: false,
 	})
@@ -384,30 +401,24 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 		// Provisioner jobs are created in 'pending' status
 		b.logger.Debug(context.Background(), "pending the provisioner job")
 	case database.ProvisionerJobStatusRunning:
-		// might need to do this multiple times if we got a template version
-		// import job as well
-		b.logger.Debug(context.Background(), "looping to acquire provisioner job")
+		b.logger.Debug(context.Background(), "acquiring the provisioner job")
 		startedAt := takeFirstTime(b.jobStartedAt, dbtime.Now())
-		for {
-			j, err := b.db.AcquireProvisionerJob(ownerCtx, database.AcquireProvisionerJobParams{
-				OrganizationID: job.OrganizationID,
-				StartedAt: sql.NullTime{
-					Time:  startedAt,
-					Valid: true,
-				},
-				WorkerID: uuid.NullUUID{
-					UUID:  uuid.New(),
-					Valid: true,
-				},
-				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
-				ProvisionerTags: []byte(`{"scope": "organization"}`),
-			})
-			require.NoError(b.t, err, "acquire starting job")
-			if j.ID == job.ID {
-				b.logger.Debug(context.Background(), "acquired provisioner job", slog.F("job_id", job.ID))
-				break
-			}
-		}
+		j, err := b.db.AcquireProvisionerJob(ownerCtx, database.AcquireProvisionerJobParams{
+			OrganizationID: job.OrganizationID,
+			StartedAt: sql.NullTime{
+				Time:  startedAt,
+				Valid: true,
+			},
+			WorkerID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ProvisionerTags: must(json.Marshal(tags)),
+		})
+		require.NoError(b.t, err, "acquire the provisioner job")
+		require.Equal(b.t, job.ID, j.ID, "acquired wrong provisioner job")
+		b.logger.Debug(context.Background(), "acquired provisioner job", slog.F("job_id", job.ID))
 		if !b.jobUpdatedAt.IsZero() {
 			err = b.db.UpdateProvisionerJobByID(ownerCtx, database.UpdateProvisionerJobByIDParams{
 				ID:        job.ID,
@@ -464,6 +475,14 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	}
 
 	resp.Build = dbgen.WorkspaceBuild(b.t, b.db, b.seed)
+	if len(b.provisionerState) > 0 {
+		err = b.db.UpdateWorkspaceBuildProvisionerStateByID(ownerCtx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:               resp.Build.ID,
+			UpdatedAt:        dbtime.Now(),
+			ProvisionerState: b.provisionerState,
+		})
+		require.NoError(b.t, err, "update provisioner state")
+	}
 	b.logger.Debug(context.Background(), "created workspace build",
 		slog.F("build_id", resp.Build.ID),
 		slog.F("workspace_id", resp.Workspace.ID),

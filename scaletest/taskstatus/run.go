@@ -13,8 +13,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/quartz"
@@ -30,7 +30,7 @@ type createExternalWorkspaceResult struct {
 
 type Runner struct {
 	client  client
-	patcher appStatusPatcher
+	updater appStatusUpdater
 	cfg     Config
 
 	logger slog.Logger
@@ -55,7 +55,7 @@ var (
 func NewRunner(coderClient *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
 		client:      newClient(coderClient),
-		patcher:     newAppStatusPatcher(coderClient),
+		updater:     newAppStatusUpdater(coderClient),
 		cfg:         cfg,
 		clock:       quartz.NewReal(),
 		reportTimes: make(map[int]time.Time),
@@ -96,9 +96,17 @@ func (r *Runner) Run(ctx context.Context, name string, logs io.Writer) error {
 	r.workspaceID = result.workspaceID
 	r.logger.Info(ctx, "created external workspace", slog.F("workspace_id", r.workspaceID))
 
-	// Initialize the patcher with the agent token
-	r.patcher.initialize(r.logger, result.agentToken)
-	r.logger.Info(ctx, "initialized app status patcher with agent token")
+	// Establish the dRPC connection using the agent token.
+	if err := r.updater.initialize(ctx, r.logger, result.agentToken); err != nil {
+		r.cfg.Metrics.ReportTaskStatusErrorsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
+		return xerrors.Errorf("initialize app status updater: %w", err)
+	}
+	defer func() {
+		if err := r.updater.close(); err != nil {
+			r.logger.Error(ctx, "failed to close app status updater", slog.Error(err))
+		}
+	}()
+	r.logger.Info(ctx, "initialized app status updater with agent token")
 
 	workspaceUpdatesCtx, cancelWorkspaceUpdates := context.WithCancel(ctx)
 	defer cancelWorkspaceUpdates()
@@ -227,11 +235,11 @@ func (r *Runner) reportTaskStatus(ctx context.Context) error {
 		}
 		r.mu.Unlock()
 
-		err := r.patcher.patchAppStatus(ctx, agentsdk.PatchAppStatus{
-			AppSlug: r.cfg.AppSlug,
+		err := r.updater.updateAppStatus(ctx, &agentproto.UpdateAppStatusRequest{
+			Slug:    r.cfg.AppSlug,
 			Message: statusUpdatePrefix + strconv.Itoa(msgNo),
-			State:   codersdk.WorkspaceAppStatusStateWorking,
-			URI:     "https://example.com/example-status/",
+			State:   agentproto.UpdateAppStatusRequest_WORKING,
+			Uri:     "https://example.com/example-status/",
 		})
 		if err != nil {
 			r.logger.Error(ctx, "failed to report task status", slog.Error(err))

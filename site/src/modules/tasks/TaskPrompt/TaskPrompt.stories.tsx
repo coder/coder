@@ -10,7 +10,7 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "testHelpers/entities";
-import { withAuthProvider, withGlobalSnackbar } from "testHelpers/storybook";
+import { withAuthProvider, withToaster } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import type { Task } from "api/typesGenerated";
@@ -110,7 +110,7 @@ export const SubmitDisabledWhenPromptEmpty: Story = {
 };
 
 export const Submitting: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	beforeEach: () => {
 		spyOn(API, "createTask").mockImplementation(
 			() =>
@@ -139,7 +139,7 @@ export const Submitting: Story = {
 };
 
 export const OnSuccess: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	parameters: {
 		permissions: {
 			updateTemplates: false,
@@ -174,7 +174,7 @@ export const OnSuccess: Story = {
 
 		await step("Displays success message", async () => {
 			const body = within(canvasElement.ownerDocument.body);
-			const successMessage = await body.findByText(/task created/i);
+			const successMessage = await body.findByText(/created successfully/i);
 			expect(successMessage).toBeInTheDocument();
 		});
 
@@ -186,7 +186,7 @@ export const OnSuccess: Story = {
 };
 
 export const ChangeTemplate: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	args: {
 		templates: [
 			{
@@ -250,7 +250,7 @@ export const ChangeTemplate: Story = {
 };
 
 export const SelectTemplateVersion: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersions").mockResolvedValue([
 			{
@@ -299,14 +299,14 @@ export const SelectTemplateVersion: Story = {
 
 		await step("Displays success message", async () => {
 			const body = within(canvasElement.ownerDocument.body);
-			const successMessage = await body.findByText(/task created/i);
+			const successMessage = await body.findByText(/created successfully/i);
 			expect(successMessage).toBeInTheDocument();
 		});
 	},
 };
 
 export const OnError: Story = {
-	decorators: [withGlobalSnackbar],
+	decorators: [withToaster],
 	beforeEach: () => {
 		spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
 		spyOn(API, "getTasks").mockResolvedValue(MockTasks);

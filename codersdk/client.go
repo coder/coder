@@ -368,6 +368,13 @@ func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOpti
 	if opts == nil {
 		opts = &websocket.DialOptions{}
 	}
+	// Propagate the client's HTTP client to the websocket dialer
+	// so that custom TLS configurations (e.g. mesh TLS between
+	// replicas) are used for the handshake request. Without this,
+	// the websocket library falls back to http.DefaultClient.
+	if opts.HTTPClient == nil {
+		opts.HTTPClient = c.HTTPClient
+	}
 	c.SessionTokenProvider.SetDialOption(opts)
 
 	conn, resp, err := websocket.Dial(ctx, u.String(), opts)
@@ -532,6 +539,14 @@ func NewTestError(statusCode int, method string, u string) *Error {
 		statusCode: statusCode,
 		method:     method,
 		url:        u,
+	}
+}
+
+// NewError creates a new Error with the response and status code.
+func NewError(statusCode int, response Response) *Error {
+	return &Error{
+		statusCode: statusCode,
+		Response:   response,
 	}
 }
 

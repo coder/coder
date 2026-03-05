@@ -35,9 +35,9 @@ const meta: Meta<typeof WorkspaceTopbar> = {
 		latestVersion: MockTemplateVersion,
 		permissions: {
 			readWorkspace: true,
-			updateWorkspaceVersion: true,
+			shareWorkspace: true,
 			updateWorkspace: true,
-			deploymentConfig: true,
+			updateWorkspaceVersion: true,
 			deleteFailedWorkspace: true,
 		},
 	},

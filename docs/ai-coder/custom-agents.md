@@ -33,6 +33,27 @@ This will start the MCP server and report activity back to the Coder control pla
 > [!NOTE]
 > See [this version of the Goose module](https://github.com/coder/registry/blob/release/coder/goose/v1.3.0/registry/coder/modules/goose/main.tf) source code for a real-world example of configuring reporting via MCP. Note that in addition to setting up reporting, you'll need to make your template [compatible with Tasks](./tasks.md#option-2-create-or-duplicate-your-own-template), which is not shown in the example.
 
+## Pause and resume
+
+Custom agents can support task pause and resume by enabling state
+persistence on the agentapi module. Set `enable_state_persistence = true`
+so that AgentAPI saves and restores conversation history across pause and
+resume cycles:
+
+```hcl
+module "agentapi" {
+  source                   = "registry.coder.com/coder/agentapi/coder"
+  version                  = ">= 2.2.0"
+  agent_id                 = coder_agent.main.id
+  enable_state_persistence = true
+  # ...
+}
+```
+
+Your template also needs persistent storage and a sufficient graceful
+shutdown timeout. See [Task lifecycle](./tasks-lifecycle.md) for the full
+requirements.
+
 ## Contributing
 
 We welcome contributions for various agents via the [Coder registry](https://registry.coder.com/modules?tag=agent)! See our [contributing guide](https://github.com/coder/registry/blob/main/CONTRIBUTING.md) for more information.
