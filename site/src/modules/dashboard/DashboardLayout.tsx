@@ -24,9 +24,18 @@ export const DashboardLayout: FC = () => {
 			<AnnouncementBanners />
 
 			<div className="flex flex-col min-h-screen justify-between">
+				<a
+					href="#main-content"
+					className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-surface-primary focus:text-content-primary"
+				>
+					Skip to main content
+				</a>
 				<Navbar />
 
-				<div className="relative flex flex-col flex-1 min-h-0 overflow-y-auto">
+				<div
+					id="main-content"
+					className="relative flex flex-col flex-1 min-h-0 overflow-y-auto"
+				>
 					<Suspense fallback={<Loader />}>
 						<Outlet />
 					</Suspense>
