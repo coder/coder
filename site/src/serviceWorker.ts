@@ -29,11 +29,26 @@ self.addEventListener("push", (event) => {
 		self.registration.showNotification(payload.title, {
 			body: payload.body || "",
 			icon: payload.icon || "/favicon.ico",
+			data: payload.data,
 		}),
 	);
 });
 
-// Handle notification click
+// Handle notification click — navigate to the specific chat or agents page.
 self.addEventListener("notificationclick", (event) => {
 	event.notification.close();
+	const targetUrl: string = event.notification.data?.url || "/agents";
+	event.waitUntil(
+		self.clients
+			.matchAll({ type: "window", includeUncontrolled: true })
+			.then((clientList) => {
+				for (const client of clientList) {
+					if (client.url.includes("/agents") && "focus" in client) {
+						client.navigate(targetUrl);
+						return client.focus();
+					}
+				}
+				return self.clients.openWindow(targetUrl);
+			}),
+	);
 });

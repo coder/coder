@@ -263,6 +263,18 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			[onContentChange],
 		);
 
+		// Re-focus the editor after a send completes (isLoading goes
+		// from true → false) so the user can immediately type again.
+		// Uses the "store previous value in state" pattern recommended
+		// by React for responding to prop changes during render.
+		const [prevIsLoading, setPrevIsLoading] = useState(isLoading);
+		if (prevIsLoading !== isLoading) {
+			setPrevIsLoading(isLoading);
+			if (prevIsLoading && !isLoading) {
+				internalRef.current?.focus();
+			}
+		}
+
 		const canSend = !isDisabled && !isLoading && hasModelOptions && hasContent;
 
 		const handleSubmit = useCallback(() => {

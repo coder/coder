@@ -437,11 +437,15 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
 											{additions > 0 && (
-												<span className="text-green-500">+{additions}</span>
+												<span className="text-green-700 dark:text-green-500">
+													+{additions}
+												</span>
 											)}
 											{deletions > 0 && (
-												<span className="text-red-400">&minus;{deletions}</span>
-											)}
+												<span className="text-red-700 dark:text-red-400">
+													&minus;{deletions}
+												</span>
+											)}{" "}
 										</span>
 									)}
 									<div

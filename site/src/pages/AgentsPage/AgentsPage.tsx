@@ -58,6 +58,7 @@ import {
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
+import { useAgentsPWA } from "./useAgentsPWA";
 import { WebPushButton } from "./WebPushButton";
 
 /** @internal Exported for testing. */
@@ -104,6 +105,7 @@ export interface AgentsOutletContext {
 }
 
 const AgentsPage: FC = () => {
+	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { agentId } = useParams();

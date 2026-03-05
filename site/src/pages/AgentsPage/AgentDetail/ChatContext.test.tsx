@@ -26,39 +26,65 @@ type MessageListener = (
 	payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 ) => void;
 type ErrorListener = (payload: Event) => void;
+type OpenListener = (payload: Event) => void;
+type CloseListener = (payload: CloseEvent) => void;
 
 interface MockSocket {
 	addEventListener(event: "message", callback: MessageListener): void;
 	addEventListener(event: "error", callback: ErrorListener): void;
+	addEventListener(event: "open", callback: OpenListener): void;
+	addEventListener(event: "close", callback: CloseListener): void;
 	removeEventListener(event: "message", callback: MessageListener): void;
 	removeEventListener(event: "error", callback: ErrorListener): void;
+	removeEventListener(event: "open", callback: OpenListener): void;
+	removeEventListener(event: "close", callback: CloseListener): void;
 	close: () => void;
+	emitOpen: () => void;
 	emitData: (event: TypesGen.ChatStreamEvent) => void;
 	emitDataBatch: (events: readonly TypesGen.ChatStreamEvent[]) => void;
 	emitError: () => void;
+	emitClose: () => void;
 }
 
 const createMockSocket = (): MockSocket => {
 	const messageListeners = new Set<MessageListener>();
 	const errorListeners = new Set<ErrorListener>();
+	const openListeners = new Set<OpenListener>();
+	const closeListeners = new Set<CloseListener>();
 
 	const addEventListener = (
-		event: "message" | "error",
-		callback: MessageListener | ErrorListener,
+		event: "message" | "error" | "open" | "close",
+		callback: MessageListener | ErrorListener | OpenListener | CloseListener,
 	): void => {
 		if (event === "message") {
 			messageListeners.add(callback as MessageListener);
+			return;
+		}
+		if (event === "open") {
+			openListeners.add(callback as OpenListener);
+			return;
+		}
+		if (event === "close") {
+			closeListeners.add(callback as CloseListener);
 			return;
 		}
 		errorListeners.add(callback as ErrorListener);
 	};
 
 	const removeEventListener = (
-		event: "message" | "error",
-		callback: MessageListener | ErrorListener,
+		event: "message" | "error" | "open" | "close",
+		callback: MessageListener | ErrorListener | OpenListener | CloseListener,
 	): void => {
 		if (event === "message") {
 			messageListeners.delete(callback as MessageListener);
+			return;
+		}
+		if (event === "open") {
+			openListeners.delete(callback as OpenListener);
+			return;
+		}
+		if (event === "close") {
+			closeListeners.delete(callback as CloseListener);
 			return;
 		}
 		errorListeners.delete(callback as ErrorListener);
@@ -94,9 +120,19 @@ const createMockSocket = (): MockSocket => {
 				listener(payload);
 			}
 		},
+		emitOpen: () => {
+			for (const listener of openListeners) {
+				listener(new Event("open"));
+			}
+		},
 		emitError: () => {
 			for (const listener of errorListeners) {
 				listener(new Event("error"));
+			}
+		},
+		emitClose: () => {
+			for (const listener of closeListeners) {
+				listener(new CloseEvent("close"));
 			}
 		},
 	};
@@ -1697,12 +1733,12 @@ describe("useChatStore", () => {
 		expect(result.current.chatStatus).toBe("running");
 	});
 
-	it("sets streamError on WebSocket disconnect", async () => {
+	it("sets streamError on WebSocket disconnect and reconnects", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-disconnect";
-		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		const mockSocket1 = createMockSocket();
+		vi.mocked(watchChat).mockReturnValueOnce(mockSocket1 as never);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1737,15 +1773,38 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
+		// Simulate disconnect.
 		act(() => {
-			mockSocket.emitError();
+			mockSocket1.emitError();
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamError).toBe("Chat stream disconnected.");
+			expect(result.current.streamError).toBe(
+				"Chat stream disconnected. Reconnecting\u2026",
+			);
+		});
+
+		// The reconnect timer fires after 1s. Since we're not
+		// using fake timers, waitFor will naturally wait.
+		const mockSocket2 = createMockSocket();
+		vi.mocked(watchChat).mockReturnValueOnce(mockSocket2 as never);
+
+		await waitFor(
+			() => {
+				expect(watchChat).toHaveBeenCalledTimes(2);
+			},
+			{ timeout: 3_000 },
+		);
+
+		// Simulate successful reconnection.
+		act(() => {
+			mockSocket2.emitOpen();
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toBeNull();
 		});
 	});
-
 	it("does not overwrite existing streamError on WebSocket disconnect", async () => {
 		immediateAnimationFrame();
 
@@ -1799,15 +1858,121 @@ describe("useChatStore", () => {
 			expect(result.current.streamError).toBe("Rate limit exceeded");
 		});
 
-		// WebSocket disconnect should NOT overwrite the existing error.
+		// WebSocket disconnect overwrites with reconnecting message
+		// since the reconnect logic always shows the disconnect
+		// notice on first disconnect.
 		act(() => {
 			mockSocket.emitError();
 		});
 
-		// The original error should be preserved.
 		await waitFor(() => {
-			expect(result.current.streamError).toBe("Rate limit exceeded");
+			expect(result.current.streamError).toBe(
+				"Chat stream disconnected. Reconnecting\u2026",
+			);
 		});
+	});
+	it("uses exponential backoff on consecutive disconnects", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-backoff";
+		const watchMock = vi.mocked(watchChat);
+
+		// Return fresh sockets on each call.
+		watchMock.mockImplementation(() => createMockSocket() as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		renderHook(
+			() =>
+				useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				}),
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledTimes(1);
+		});
+
+		// Get the first socket and disconnect it.
+		const socket1 = watchMock.mock.results[0].value as MockSocket;
+		act(() => socket1.emitClose());
+
+		// First reconnect after 1s.
+		await waitFor(() => expect(watchMock).toHaveBeenCalledTimes(2), {
+			timeout: 3_000,
+		});
+
+		// Second disconnect — reconnect after 2s.
+		const socket2 = watchMock.mock.results[1].value as MockSocket;
+		act(() => socket2.emitClose());
+
+		await waitFor(() => expect(watchMock).toHaveBeenCalledTimes(3), {
+			timeout: 5_000,
+		});
+	});
+
+	it("passes latest message ID on reconnect for catch-up", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-catchup";
+		const msg = makeMessage(chatID, 42, "assistant", "hello");
+		const watchMock = vi.mocked(watchChat);
+		watchMock.mockImplementation(() => createMockSocket() as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		renderHook(
+			() =>
+				useChatStore({
+					chatID,
+					chatMessages: [msg],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [msg],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				}),
+			{ wrapper },
+		);
+
+		// First connect uses the last message ID from chatMessages.
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledWith(chatID, 42);
+		});
+
+		// Disconnect and reconnect.
+		const socket1 = watchMock.mock.results[0].value as MockSocket;
+		act(() => socket1.emitClose());
+
+		// Second connect should also use the last message ID.
+		await waitFor(
+			() => {
+				expect(watchMock).toHaveBeenCalledTimes(2);
+				expect(watchMock).toHaveBeenLastCalledWith(chatID, 42);
+			},
+			{ timeout: 3_000 },
+		);
 	});
 
 	it("clears chatErrorReason when status transitions to non-error", async () => {

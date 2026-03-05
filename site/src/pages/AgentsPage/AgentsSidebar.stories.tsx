@@ -465,6 +465,148 @@ export const DefaultShowsTimestampHidesMenu: Story = {
 	},
 };
 
+export const WithDiffStats: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "diff-both",
+				title: "Agent with additions and deletions",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-both",
+					url: "https://github.com/coder/coder/pull/1",
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				},
+			}),
+			buildChat({
+				id: "diff-add-only",
+				title: "Agent with additions only",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-add-only",
+					url: "https://github.com/coder/coder/pull/2",
+					changes_requested: false,
+					additions: 120,
+					deletions: 0,
+					changed_files: 3,
+				},
+			}),
+			buildChat({
+				id: "diff-del-only",
+				title: "Agent with deletions only",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-del-only",
+					url: "https://github.com/coder/coder/pull/3",
+					changes_requested: false,
+					additions: 0,
+					deletions: 35,
+					changed_files: 2,
+				},
+			}),
+			buildChat({
+				id: "diff-none",
+				title: "Agent with no diff changes",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-none",
+					url: "https://github.com/coder/coder/pull/4",
+					changes_requested: false,
+					additions: 0,
+					deletions: 0,
+					changed_files: 0,
+				},
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("+42")).toBeInTheDocument();
+			expect(canvas.getByText("+120")).toBeInTheDocument();
+		});
+		// The deletions-only agent should show −35.
+		const delOnlyNode = canvas.getByTestId("agents-tree-node-diff-del-only");
+		expect(
+			within(delOnlyNode).getByText("35", { exact: false }),
+		).toBeInTheDocument();
+		// The zero-change agent should NOT render any diff numbers.
+		const noneNode = canvas.getByTestId("agents-tree-node-diff-none");
+		expect(within(noneNode).queryByText("+")).not.toBeInTheDocument();
+	},
+};
+
+export const WithDiffStatsLight: Story = {
+	globals: {
+		theme: "light",
+	},
+	args: {
+		chats: [
+			buildChat({
+				id: "diff-both-light",
+				title: "Agent with additions and deletions",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-both-light",
+					url: "https://github.com/coder/coder/pull/1",
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				},
+			}),
+			buildChat({
+				id: "diff-add-only-light",
+				title: "Agent with additions only",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-add-only-light",
+					url: "https://github.com/coder/coder/pull/2",
+					changes_requested: false,
+					additions: 120,
+					deletions: 0,
+					changed_files: 3,
+				},
+			}),
+			buildChat({
+				id: "diff-del-only-light",
+				title: "Agent with deletions only",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-del-only-light",
+					url: "https://github.com/coder/coder/pull/3",
+					changes_requested: false,
+					additions: 0,
+					deletions: 35,
+					changed_files: 2,
+				},
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("+42")).toBeInTheDocument();
+			expect(canvas.getByText("+120")).toBeInTheDocument();
+		});
+	},
+};
+
 export const ArchivedAgentUnarchiveOption: Story = {
 	args: {
 		chats: [

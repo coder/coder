@@ -353,7 +353,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 				coderConnectHost := fmt.Sprintf("%s.%s.%s.%s",
 					workspaceAgent.Name, workspace.Name, workspace.OwnerName, connInfo.HostnameSuffix)
-				exists, _ := workspacesdk.ExistsViaCoderConnect(ctx, coderConnectHost)
+				// Use trailing dot to indicate FQDN and prevent DNS
+				// search domain expansion, which can add 20-30s of
+				// delay on corporate networks with search domains
+				// configured.
+				exists, _ := workspacesdk.ExistsViaCoderConnect(ctx, coderConnectHost+".")
 				if exists {
 					defer cancel()
 
