@@ -1191,6 +1191,111 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 	return i, err
 }
 
+const getActiveAISeatCount = `-- name: GetActiveAISeatCount :one
+SELECT
+	COUNT(*)
+FROM
+	ai_seat_state ais
+JOIN
+	users u
+ON
+	ais.user_id = u.id
+WHERE
+	u.status = 'active'::user_status
+	AND u.deleted = false
+	AND u.is_system = false
+`
+
+func (q *sqlQuerier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getActiveAISeatCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const listAISeatState = `-- name: ListAISeatState :many
+SELECT
+	ais.user_id, ais.first_used_at, ais.last_used_at, ais.last_event_type, ais.last_event_description, ais.updated_at
+FROM
+	ai_seat_state ais
+JOIN
+	users u
+ON
+	ais.user_id = u.id
+WHERE
+	u.status = 'active'::user_status
+	AND u.deleted = false
+	AND u.is_system = false
+ORDER BY
+	ais.last_used_at DESC
+`
+
+func (q *sqlQuerier) ListAISeatState(ctx context.Context) ([]AiSeatState, error) {
+	rows, err := q.db.QueryContext(ctx, listAISeatState)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AiSeatState
+	for rows.Next() {
+		var i AiSeatState
+		if err := rows.Scan(
+			&i.UserID,
+			&i.FirstUsedAt,
+			&i.LastUsedAt,
+			&i.LastEventType,
+			&i.LastEventDescription,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertAISeatState = `-- name: UpsertAISeatState :exec
+INSERT INTO ai_seat_state (
+	user_id,
+	first_used_at,
+	last_used_at,
+	last_event_type,
+	last_event_description,
+	updated_at
+)
+VALUES
+	($1, $2, $2, $3, $4, $2)
+ON CONFLICT (user_id) DO UPDATE
+SET
+	last_used_at = EXCLUDED.last_used_at,
+	last_event_type = EXCLUDED.last_event_type,
+	last_event_description = EXCLUDED.last_event_description,
+	updated_at = EXCLUDED.updated_at
+`
+
+type UpsertAISeatStateParams struct {
+	UserID               uuid.UUID         `db:"user_id" json:"user_id"`
+	FirstUsedAt          time.Time         `db:"first_used_at" json:"first_used_at"`
+	LastEventType        AiSeatUsageReason `db:"last_event_type" json:"last_event_type"`
+	LastEventDescription string            `db:"last_event_description" json:"last_event_description"`
+}
+
+func (q *sqlQuerier) UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) error {
+	_, err := q.db.ExecContext(ctx, upsertAISeatState,
+		arg.UserID,
+		arg.FirstUsedAt,
+		arg.LastEventType,
+		arg.LastEventDescription,
+	)
+	return err
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys

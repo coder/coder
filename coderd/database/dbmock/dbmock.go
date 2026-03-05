@@ -1477,6 +1477,21 @@ func (mr *MockStoreMockRecorder) GetAPIKeysLastUsedAfter(ctx, lastUsed any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysLastUsedAfter", reflect.TypeOf((*MockStore)(nil).GetAPIKeysLastUsedAfter), ctx, lastUsed)
 }
 
+// GetActiveAISeatCount mocks base method.
+func (m *MockStore) GetActiveAISeatCount(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveAISeatCount", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveAISeatCount indicates an expected call of GetActiveAISeatCount.
+func (mr *MockStoreMockRecorder) GetActiveAISeatCount(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveAISeatCount", reflect.TypeOf((*MockStore)(nil).GetActiveAISeatCount), ctx)
+}
+
 // GetActivePresetPrebuildSchedules mocks base method.
 func (m *MockStore) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
 	m.ctrl.T.Helper()
@@ -6560,6 +6575,21 @@ func (mr *MockStoreMockRecorder) ListAIBridgeUserPromptsByInterceptionIDs(ctx, i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeUserPromptsByInterceptionIDs", reflect.TypeOf((*MockStore)(nil).ListAIBridgeUserPromptsByInterceptionIDs), ctx, interceptionIds)
 }
 
+// ListAISeatState mocks base method.
+func (m *MockStore) ListAISeatState(ctx context.Context) ([]database.AiSeatState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAISeatState", ctx)
+	ret0, _ := ret[0].([]database.AiSeatState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAISeatState indicates an expected call of ListAISeatState.
+func (mr *MockStoreMockRecorder) ListAISeatState(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAISeatState", reflect.TypeOf((*MockStore)(nil).ListAISeatState), ctx)
+}
+
 // ListAuthorizedAIBridgeInterceptions mocks base method.
 func (m *MockStore) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeInterceptionsRow, error) {
 	m.ctrl.T.Helper()
@@ -8329,6 +8359,20 @@ func (m *MockStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg dat
 func (mr *MockStoreMockRecorder) UpdateWorkspacesTTLByTemplateID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspacesTTLByTemplateID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspacesTTLByTemplateID), ctx, arg)
+}
+
+// UpsertAISeatState mocks base method.
+func (m *MockStore) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertAISeatState", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertAISeatState indicates an expected call of UpsertAISeatState.
+func (mr *MockStoreMockRecorder) UpsertAISeatState(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAISeatState", reflect.TypeOf((*MockStore)(nil).UpsertAISeatState), ctx, arg)
 }
 
 // UpsertAnnouncementBanners mocks base method.
