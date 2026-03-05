@@ -458,7 +458,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 						</>
 					)}
 				</NavLink>
-				<div className="mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+				<div className="relative mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
 					{isArchivingThisChat ? (
 						<Loader2Icon className="h-3.5 w-3.5 animate-spin text-content-secondary" />
 					) : (
@@ -471,13 +471,14 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 									<Button
 										size="icon"
 										variant="subtle"
-										className="hidden h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex"
+										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
 										aria-label={`Open actions for ${chat.title}`}
 									>
 										<EllipsisIcon className="h-3.5 w-3.5" />
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">
+									{" "}
 									{chat.archived ? (
 										<DropdownMenuItem
 											disabled={isArchiving}
