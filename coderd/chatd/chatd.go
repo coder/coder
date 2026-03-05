@@ -1808,16 +1808,21 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// notifications.
 		if p.webpushDispatcher != nil && p.webpushDispatcher.PublicKey() != "" && !chat.ParentChatID.Valid && !wasInterrupted {
 			if status == database.ChatStatusWaiting || status == database.ChatStatusError {
+				pushBody := "Agent has finished running."
+				if status == database.ChatStatusWaiting {
+					if summary := p.lastAssistantSummary(cleanupCtx, chat.ID); summary != "" {
+						pushBody = summary
+					}
+				} else {
+					pushBody = "Agent encountered an error."
+					if lastError != "" {
+						pushBody = lastError
+					}
+				}
 				pushMsg := codersdk.WebpushMessage{
 					Title: chat.Title,
-					Body:  "Agent has finished running.",
+					Body:  pushBody,
 					Icon:  "/favicon.ico",
-				}
-				if status == database.ChatStatusError {
-					pushMsg.Body = "Agent encountered an error."
-					if lastError != "" {
-						pushMsg.Body = lastError
-					}
 				}
 				if err := p.webpushDispatcher.Dispatch(cleanupCtx, chat.OwnerID, pushMsg); err != nil {
 					logger.Warn(cleanupCtx, "failed to send chat completion web push",
@@ -2633,6 +2638,63 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 	if len(staleChats) > 0 {
 		p.logger.Info(ctx, "recovered stale chats", slog.F("count", len(staleChats)))
 	}
+}
+
+// lastAssistantSummary fetches the last assistant message for the
+// given chat and returns a short text summary suitable for a push
+// notification body. Returns "" if no usable text is found.
+func (p *Server) lastAssistantSummary(ctx context.Context, chatID uuid.UUID) string {
+	msgs, err := p.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: 0,
+	})
+	if err != nil || len(msgs) == 0 {
+		return ""
+	}
+
+	// Walk backwards to find the last assistant message with text.
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != "assistant" {
+			continue
+		}
+		content, err := chatprompt.ParseContent(msgs[i].Role, msgs[i].Content)
+		if err != nil {
+			return ""
+		}
+		// Collect only text blocks, ignoring tool calls and
+		// reasoning content.
+		var text string
+		for _, block := range content {
+			switch v := block.(type) {
+			case fantasy.TextContent:
+				text += v.Text
+			case *fantasy.TextContent:
+				if v != nil {
+					text += v.Text
+				}
+			}
+		}
+		text = strings.TrimSpace(text)
+		if text == "" {
+			continue
+		}
+		return truncateAtWordBoundary(text, 100)
+	}
+	return ""
+}
+
+// truncateAtWordBoundary shortens s to at most maxLen characters,
+// breaking at the last space before the limit. An ellipsis is
+// appended when the string is truncated.
+func truncateAtWordBoundary(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	truncated := s[:maxLen]
+	if idx := strings.LastIndex(truncated, " "); idx > 0 {
+		truncated = truncated[:idx]
+	}
+	return truncated + "..."
 }
 
 // Close stops the processor and waits for it to finish.
