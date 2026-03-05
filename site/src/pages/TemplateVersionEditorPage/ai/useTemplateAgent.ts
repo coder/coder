@@ -89,6 +89,7 @@ const resolveProviderModel = (provider: AIBridgeProvider, modelID: string) => {
 type MCPTools = Awaited<
 	ReturnType<Awaited<ReturnType<typeof createMCPClient>>["tools"]>
 >;
+type MCPClientInstance = Awaited<ReturnType<typeof createMCPClient>>;
 
 const MAX_STEPS = 20;
 
@@ -491,8 +492,7 @@ export const useTemplateAgent = ({
 	const messageCounter = useRef(0);
 	const abortRef = useRef<AbortController | null>(null);
 
-	const mcpClientRef =
-		useRef<Awaited<ReturnType<typeof createMCPClient>> | null>(null);
+	const mcpClientRef = useRef<MCPClientInstance | null>(null);
 	const mcpToolsRef = useRef<MCPTools>({});
 
 	// Tracks whether a successful build happened for the current chat
