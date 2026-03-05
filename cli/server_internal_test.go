@@ -320,20 +320,20 @@ func TestIsReplicaRelayRequest(t *testing.T) {
 
 	t.Run("WithHeader", func(t *testing.T) {
 		t.Parallel()
-		r, _ := http.NewRequest("GET", "/api/experimental/chats/abc/stream", nil)
+		r, _ := http.NewRequestWithContext(context.Background(), "GET", "/api/experimental/chats/abc/stream", nil)
 		r.Header.Set("X-Coder-Relay-Source-Replica", "some-uuid")
 		require.True(t, isReplicaRelayRequest(r))
 	})
 
 	t.Run("WithoutHeader", func(t *testing.T) {
 		t.Parallel()
-		r, _ := http.NewRequest("GET", "/api/experimental/chats/abc/stream", nil)
+		r, _ := http.NewRequestWithContext(context.Background(), "GET", "/api/experimental/chats/abc/stream", nil)
 		require.False(t, isReplicaRelayRequest(r))
 	})
 
 	t.Run("EmptyHeader", func(t *testing.T) {
 		t.Parallel()
-		r, _ := http.NewRequest("GET", "/api/experimental/chats/abc/stream", nil)
+		r, _ := http.NewRequestWithContext(context.Background(), "GET", "/api/experimental/chats/abc/stream", nil)
 		r.Header.Set("X-Coder-Relay-Source-Replica", "")
 		require.False(t, isReplicaRelayRequest(r))
 	})
