@@ -1256,11 +1256,12 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 	})
 
 	user, model := seedChatDependencies(ctx, t, db)
-		setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
-		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-			OwnerID:            user.ID,
-			Title:              "interrupt-no-push",		ModelConfigID:      model.ID,
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "interrupt-no-push",
+		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
 	require.NoError(t, err)
