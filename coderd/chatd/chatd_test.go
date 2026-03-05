@@ -1187,6 +1187,116 @@ func setOpenAIProviderBaseURL(
 	require.NoError(t, err)
 }
 
+func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Set up a mock OpenAI that blocks until the request context is
+	// canceled (i.e. until the chat is interrupted).
+	streamStarted := make(chan struct{})
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunks := make(chan chattest.OpenAIChunk, 1)
+		go func() {
+			defer close(chunks)
+			chunks <- chattest.OpenAITextChunks("partial")[0]
+			select {
+			case <-streamStarted:
+			default:
+				close(streamStarted)
+			}
+			// Block until the chat context is canceled by the interrupt.
+			<-req.Context().Done()
+		}()
+		return chattest.OpenAIResponse{StreamingChunks: chunks}
+	})
+
+	// Mock webpush dispatcher that records calls.
+	mockPush := &mockWebpushDispatcher{}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		WebpushDispatcher:          mockPush,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "interrupt-no-push",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	// Wait for the chat to be picked up and start streaming.
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-streamStarted:
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// Interrupt the chat.
+	updated := server.InterruptChat(ctx, chat)
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+
+	// Wait for the chat to finish processing and return to waiting.
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// Verify no web push notification was dispatched.
+	require.Equal(t, int32(0), mockPush.dispatchCount.Load(),
+		"expected no web push dispatch for an interrupted chat")
+}
+
+// mockWebpushDispatcher implements webpush.Dispatcher and records Dispatch calls.
+type mockWebpushDispatcher struct {
+	dispatchCount atomic.Int32
+}
+
+func (m *mockWebpushDispatcher) Dispatch(_ context.Context, _ uuid.UUID, _ codersdk.WebpushMessage) error {
+	m.dispatchCount.Add(1)
+	return nil
+}
+
+func (*mockWebpushDispatcher) Test(_ context.Context, _ codersdk.WebpushSubscription) error {
+	return nil
+}
+
+func (*mockWebpushDispatcher) PublicKey() string {
+	return "test-vapid-public-key"
+}
+
 func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {
 	t.Parallel()
 
