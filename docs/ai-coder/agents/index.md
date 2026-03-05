@@ -25,7 +25,7 @@ shell execution — and works with any LLM provider you configure.
 It is not a wrapper around third-party agent tools like Claude Code
 or Codex.
 
-## Who is Coder Agents for
+## Who Coder Agents is for
 
 Coder Agents is designed for organizations that need to self-host their AI
 coding workflows and maintain full control over how agents operate. It is a
