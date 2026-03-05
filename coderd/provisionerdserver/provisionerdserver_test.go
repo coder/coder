@@ -434,7 +434,7 @@ func TestAcquireJob(t *testing.T) {
 				key, err := db.GetAPIKeyByID(ctx, toks[0])
 				require.NoError(t, err)
 				require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
-				require.WithinDuration(t, time.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
+				require.WithinDuration(t, dbtime.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
 
 				wantedMetadata := &sdkproto.Metadata{
 					CoderUrl:                      (&url.URL{}).String(),
