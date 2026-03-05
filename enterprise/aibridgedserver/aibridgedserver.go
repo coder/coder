@@ -186,7 +186,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	}
 
 	reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
-	s.aiSeatTracker.RecordUsage(ctx, initID, reason, in.StartedAt.AsTime())
+	s.aiSeatTracker.RecordUsage(ctx, initID, reason)
 	return &proto.RecordInterceptionResponse{}, nil
 }
 

@@ -4,7 +4,6 @@ package aiseats
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -44,10 +43,10 @@ func ReasonTask(description string) Reason {
 
 // SeatTracker records AI seat consumption state.
 type SeatTracker interface {
-	RecordUsage(ctx context.Context, userID uuid.UUID, reason Reason, at time.Time)
+	RecordUsage(ctx context.Context, userID uuid.UUID, reason Reason)
 }
 
 // Noop is an AGPL seat tracker that does nothing.
 type Noop struct{}
 
-func (Noop) RecordUsage(context.Context, uuid.UUID, Reason, time.Time) {}
+func (Noop) RecordUsage(context.Context, uuid.UUID, Reason) {}

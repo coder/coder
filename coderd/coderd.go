@@ -2165,6 +2165,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		provisionerdserver.Options{
 			OIDCConfig:          api.OIDCConfig,
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
+			AISeatTracker:       api.AISeatTracker,
 			Clock:               api.Clock,
 			HeartbeatFn:         options.heartbeatFn,
 		},

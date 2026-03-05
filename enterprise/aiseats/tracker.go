@@ -64,7 +64,7 @@ func (t *SeatTracker) recordThrottle(userID uuid.UUID, now time.Time, d time.Dur
 	t.retryAfter[userID] = now.Add(d)
 }
 
-func (t *SeatTracker) RecordUsage(ctx context.Context, userID uuid.UUID, reason agplaiseats.Reason, at time.Time) {
+func (t *SeatTracker) RecordUsage(ctx context.Context, userID uuid.UUID, reason agplaiseats.Reason) {
 	now := t.clock.Now()
 	if t.skipRecord(userID, now) {
 		return
@@ -78,7 +78,7 @@ func (t *SeatTracker) RecordUsage(ctx context.Context, userID uuid.UUID, reason 
 
 	err := t.db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
 		UserID:               userID,
-		FirstUsedAt:          at,
+		FirstUsedAt:          now,
 		LastEventType:        eventType,
 		LastEventDescription: description,
 	})

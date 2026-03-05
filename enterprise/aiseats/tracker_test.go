@@ -36,7 +36,7 @@ func TestRecordUsage(t *testing.T) {
 	store := &fakeStore{}
 	tracker := New(store, testutil.Logger(t), clock)
 
-	tracker.RecordUsage(context.Background(), userID, agplaiseats.ReasonAIBridge("used chatgpt"), now)
+	tracker.RecordUsage(context.Background(), userID, agplaiseats.ReasonAIBridge("used chatgpt"))
 	require.Equal(t, 1, store.calls)
 	require.Equal(t, userID, store.lastArg.UserID)
 	require.Equal(t, now, store.lastArg.FirstUsedAt)
@@ -53,12 +53,12 @@ func TestRecordUsageThrottle(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()
 
-	tracker.RecordUsage(ctx, userID, agplaiseats.ReasonTask("from task"), clock.Now())
-	tracker.RecordUsage(ctx, userID, agplaiseats.ReasonTask("from task"), clock.Now())
+	tracker.RecordUsage(ctx, userID, agplaiseats.ReasonTask("from task"))
+	tracker.RecordUsage(ctx, userID, agplaiseats.ReasonTask("from task"))
 	require.Equal(t, 1, store.calls)
 
 	_ = clock.Advance(throttleInterval + time.Second)
-	tracker.RecordUsage(ctx, userID, agplaiseats.ReasonTask("from task"), clock.Now())
+	tracker.RecordUsage(ctx, userID, agplaiseats.ReasonTask("from task"))
 	require.Equal(t, 2, store.calls)
 }
 
@@ -72,14 +72,13 @@ func TestRecordUsageErrors(t *testing.T) {
 		store := &fakeStore{err: errors.New("boom")}
 		tracker := New(store, testutil.Logger(t), clock)
 		userID := uuid.New()
-		now := clock.Now()
 
-		tracker.RecordUsage(context.Background(), userID, agplaiseats.ReasonTask("from task"), now)
-		tracker.RecordUsage(context.Background(), userID, agplaiseats.ReasonTask("from task"), now)
+		tracker.RecordUsage(context.Background(), userID, agplaiseats.ReasonTask("from task"))
+		tracker.RecordUsage(context.Background(), userID, agplaiseats.ReasonTask("from task"))
 		require.Equal(t, 1, store.calls)
 
 		_ = clock.Advance(failedRetryInterval + time.Second)
-		tracker.RecordUsage(context.Background(), userID, agplaiseats.ReasonTask("from task"), clock.Now())
+		tracker.RecordUsage(context.Background(), userID, agplaiseats.ReasonTask("from task"))
 		require.Equal(t, 2, store.calls)
 	})
 
@@ -90,7 +89,7 @@ func TestRecordUsageErrors(t *testing.T) {
 		store := &fakeStore{}
 		tracker := New(store, testutil.Logger(t), clock)
 		var invalid agplaiseats.Reason
-		tracker.RecordUsage(context.Background(), uuid.New(), invalid, clock.Now())
+		tracker.RecordUsage(context.Background(), uuid.New(), invalid)
 		require.Equal(t, 0, store.calls)
 	})
 }
