@@ -1260,7 +1260,7 @@ func (q *sqlQuerier) ListAISeatState(ctx context.Context) ([]AiSeatState, error)
 	return items, nil
 }
 
-const upsertAISeatState = `-- name: UpsertAISeatState :exec
+const upsertAISeatState = `-- name: UpsertAISeatState :one
 INSERT INTO ai_seat_state (
 	user_id,
 	first_used_at,
@@ -1277,6 +1277,8 @@ SET
 	last_event_type = EXCLUDED.last_event_type,
 	last_event_description = EXCLUDED.last_event_description,
 	updated_at = EXCLUDED.updated_at
+RETURNING
+	(xmax = 0)::boolean AS is_new
 `
 
 type UpsertAISeatStateParams struct {
@@ -1286,14 +1288,16 @@ type UpsertAISeatStateParams struct {
 	LastEventDescription string            `db:"last_event_description" json:"last_event_description"`
 }
 
-func (q *sqlQuerier) UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) error {
-	_, err := q.db.ExecContext(ctx, upsertAISeatState,
+func (q *sqlQuerier) UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, upsertAISeatState,
 		arg.UserID,
 		arg.FirstUsedAt,
 		arg.LastEventType,
 		arg.LastEventDescription,
 	)
-	return err
+	var is_new bool
+	err := row.Scan(&is_new)
+	return is_new, err
 }
 
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
