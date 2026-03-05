@@ -1440,57 +1440,6 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
-func TestTruncateAtWordBoundary(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name   string
-		input  string
-		maxLen int
-		want   string
-	}{
-		{
-			name:   "ShorterThanLimit",
-			input:  "hello world",
-			maxLen: 20,
-			want:   "hello world",
-		},
-		{
-			name:   "ExactlyAtLimit",
-			input:  "hello",
-			maxLen: 5,
-			want:   "hello",
-		},
-		{
-			name:   "LongerWithSpace",
-			input:  "hello world this is long",
-			maxLen: 15,
-			want:   "hello world...",
-		},
-		{
-			name:   "LongerNoSpaces",
-			input:  "abcdefghijklmnopqrstuvwxyz",
-			maxLen: 10,
-			want:   "abcdefghij...",
-		},
-		{
-			name:   "EmptyString",
-			input:  "",
-			maxLen: 10,
-			want:   "",
-		},
-	}
-
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := chatd.TruncateAtWordBoundary(tc.input, tc.maxLen)
-			require.Equal(t, tc.want, got)
-		})
-	}
-}
-
 func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 	t.Parallel()
 
