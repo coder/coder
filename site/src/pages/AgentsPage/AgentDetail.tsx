@@ -96,6 +96,7 @@ const isChatMessage = (
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
 	chatID: string;
+	scrollContainerRef: React.RefObject<HTMLDivElement | null>;
 	persistedErrorReason: string | undefined;
 	onEditUserMessage?: (messageId: number, text: string) => void;
 	editingMessageId?: number | null;
@@ -105,6 +106,7 @@ interface AgentDetailTimelineProps {
 const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	store,
 	chatID,
+	scrollContainerRef,
 	persistedErrorReason,
 	onEditUserMessage,
 	editingMessageId,
@@ -136,6 +138,7 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		useMessageWindow({
 			messages,
 			resetKey: chatID,
+			scrollContainerRef,
 		});
 	const parsedMessages = useMemo(
 		() => parseMessagesWithMergedTools(windowedMessages),
@@ -1000,6 +1003,7 @@ const AgentDetail: FC = () => {
 						<AgentDetailTimeline
 							store={store}
 							chatID={agentId}
+							scrollContainerRef={scrollContainerRef}
 							persistedErrorReason={
 								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
 							}
