@@ -5,10 +5,17 @@ import { Link } from "../Link/Link";
 import { Alert, AlertDescription, type AlertProps, AlertTitle } from "./Alert";
 
 type ErrorAlertProps = Readonly<
-	Omit<AlertProps, "severity" | "children"> & { error: unknown }
+	Omit<AlertProps, "severity" | "children"> & {
+		error: unknown;
+		showDebugDetail?: boolean;
+	}
 >;
 
-export const ErrorAlert: FC<ErrorAlertProps> = ({ error, ...alertProps }) => {
+export const ErrorAlert: FC<ErrorAlertProps> = ({
+	error,
+	showDebugDetail = true,
+	...alertProps
+}) => {
 	const message = getErrorMessage(error, "Something went wrong.");
 	const detail = getErrorDetail(error);
 	const status = getErrorStatus(error);
@@ -33,33 +40,34 @@ export const ErrorAlert: FC<ErrorAlertProps> = ({ error, ...alertProps }) => {
 					</Link>
 				)}
 			</AlertDescription>
-			{(shouldDisplayResponseData || shouldDisplayStackTrace) && (
-				<div className="mt-2 min-w-0">
-					{shouldDisplayResponseData && (
-						<details className="max-w-full">
-							<summary>Response data</summary>
-							<div className="mt-2 max-w-full overflow-x-auto">
-								<pre className="m-0 w-max min-w-full">
-									{JSON.stringify(error.response?.data, null, 2)}
-								</pre>
-							</div>
-						</details>
-					)}
-					{/*
-					 * Error.isError() is not reliably available in all browsers
-					 * so we fallback to `instanceof Error`. In future we should use
-					 * it is more reliable.
-					 */}
-					{shouldDisplayStackTrace && (
-						<details className="max-w-full">
-							<summary>Stack Trace</summary>
-							<div className="mt-2 max-w-full overflow-x-auto">
-								<pre className="m-0 w-max min-w-full">{error.stack}</pre>
-							</div>
-						</details>
-					)}
-				</div>
-			)}
+			{(shouldDisplayResponseData || shouldDisplayStackTrace) &&
+				showDebugDetail && (
+					<div className="mt-2 min-w-0">
+						{shouldDisplayResponseData && (
+							<details className="max-w-full">
+								<summary>Response data</summary>
+								<div className="mt-2 max-w-full overflow-x-auto">
+									<pre className="m-0 w-max min-w-full">
+										{JSON.stringify(error.response?.data, null, 2)}
+									</pre>
+								</div>
+							</details>
+						)}
+						{/*
+						 * Error.isError() is not reliably available in all browsers
+						 * so we fallback to `instanceof Error`. In future we should use
+						 * it is more reliable.
+						 */}
+						{shouldDisplayStackTrace && (
+							<details className="max-w-full">
+								<summary>Stack Trace</summary>
+								<div className="mt-2 max-w-full overflow-x-auto">
+									<pre className="m-0 w-max min-w-full">{error.stack}</pre>
+								</div>
+							</details>
+						)}
+					</div>
+				)}
 		</Alert>
 	);
 };
