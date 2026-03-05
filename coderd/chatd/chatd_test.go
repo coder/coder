@@ -1533,21 +1533,14 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Wait for the chat to complete and return to waiting status.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid
-	}, testutil.IntervalFast)
-
 	// Wait for a web push notification to be dispatched. The dispatch
 	// happens asynchronously after the DB status is updated, so we need
 	// to poll rather than assert immediately.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		return mockPush.dispatchCount.Load() == 1
-	}, testutil.IntervalFast,
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		return mockPush.dispatchCount.Load() >= 1
+	}, testutil.IntervalFast)
+
+	require.Equal(t, int32(1), mockPush.dispatchCount.Load(),
 		"expected exactly one web push dispatch for a completed chat")
 
 	// Verify the notification was sent to the correct user.
@@ -1563,6 +1556,75 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 	expectedURL := fmt.Sprintf("/agents/%s", chat.ID)
 	require.Equal(t, expectedURL, capturedMsg.Data["url"],
 		"web push Data should contain the chat navigation URL")
+}
+
+func TestSuccessfulChatSendsWebPushWithTag(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Set up a mock OpenAI that returns a simple streaming response.
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+
+	// Mock webpush dispatcher that captures calls.
+	mockPush := &mockWebpushDispatcher{}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		WebpushDispatcher:          mockPush,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "push-tag-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	// Wait for the web push notification to be dispatched.
+	// We poll dispatchCount rather than DB status because the
+	// push fires after the status update, creating a small race
+	// window.
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		return mockPush.dispatchCount.Load() >= 1
+	}, testutil.IntervalFast)
+
+	require.Equal(t, int32(1), mockPush.dispatchCount.Load(),
+		"expected exactly one web push dispatch for a completed chat")
+
+	// Verify the push notification tag is set to the chat ID for dedup.
+	mockPush.mu.Lock()
+	capturedMsg := mockPush.lastMessage
+	capturedUser := mockPush.lastUserID
+	mockPush.mu.Unlock()
+
+	require.Equal(t, chat.ID.String(), capturedMsg.Tag,
+		"push notification tag should equal the chat ID for deduplication")
+	require.Equal(t, user.ID, capturedUser,
+		"push notification should be dispatched to the chat owner")
+	require.Equal(t, "push-tag-test", capturedMsg.Title,
+		"push notification title should match the chat title")
+	require.Equal(t, "Agent has finished running.", capturedMsg.Body,
+		"push notification body should indicate the agent finished")
 }
 
 func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {
