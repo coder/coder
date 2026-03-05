@@ -16,7 +16,7 @@ Three components are involved in every agent interaction:
    OpenAI-compatible endpoint) performs model inference. It never communicates
    with the workspace directly.
 1. **The workspace** is standard compute infrastructure. It runs shell commands,
-   reads and writes files, and executes processes — exactly what it does when a
+   reads and writes files, and executes processes — exactly what occurs when a
    developer connects via their IDE.
 
 ![Architecture diagram ](../images/guides/ai-agents/agent-loop-detailed.png)
