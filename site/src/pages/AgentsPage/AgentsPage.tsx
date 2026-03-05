@@ -62,7 +62,7 @@ import { useAgentsPWA } from "./useAgentsPWA";
 import { WebPushButton } from "./WebPushButton";
 
 /** @internal Exported for testing. */
-const emptyInputStorageKey = "agents.empty-input";
+export const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 const systemPromptStorageKey = "agents.system-prompt";
@@ -602,6 +602,44 @@ const AgentsPage: FC = () => {
 	);
 };
 
+/**
+ * Hook that manages draft persistence for the empty-state chat input.
+ * Persists the current input to localStorage so the user's draft
+ * survives page reloads, and clears it when a chat is created.
+ *
+ * @internal Exported for testing.
+ */
+export function useCreatePageDraft() {
+	const [initialInputValue] = useState(() => {
+		if (typeof window === "undefined") {
+			return "";
+		}
+		return localStorage.getItem(emptyInputStorageKey) ?? "";
+	});
+	const inputValueRef = useRef(initialInputValue);
+	const sentRef = useRef(false);
+
+	const handleContentChange = useCallback((content: string) => {
+		inputValueRef.current = content;
+		if (typeof window !== "undefined" && !sentRef.current) {
+			if (content) {
+				localStorage.setItem(emptyInputStorageKey, content);
+			} else {
+				localStorage.removeItem(emptyInputStorageKey);
+			}
+		}
+	}, []);
+
+	const markSent = useCallback(() => {
+		// Mark as sent so that editor change events firing during
+		// the async gap cannot re-persist the draft.
+		sentRef.current = true;
+		localStorage.removeItem(emptyInputStorageKey);
+	}, []);
+
+	return { initialInputValue, inputValueRef, handleContentChange, markSent };
+}
+
 interface AgentsEmptyStateProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
@@ -633,13 +671,8 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	isConfigureAgentsDialogOpen,
 	onConfigureAgentsDialogOpenChange,
 }) => {
-	const [initialInputValue] = useState(() => {
-		if (typeof window === "undefined") {
-			return "";
-		}
-		return localStorage.getItem(emptyInputStorageKey) ?? "";
-	});
-	const inputValueRef = useRef(initialInputValue);
+	const { initialInputValue, inputValueRef, handleContentChange, markSent } =
+		useCreatePageDraft();
 	const initialSystemPrompt = () => {
 		if (typeof window === "undefined") {
 			return "";
@@ -782,16 +815,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 	};
 
-	const handleContentChange = useCallback((content: string) => {
-		inputValueRef.current = content;
-		if (typeof window !== "undefined") {
-			if (content) {
-				localStorage.setItem(emptyInputStorageKey, content);
-			} else {
-				localStorage.removeItem(emptyInputStorageKey);
-			}
-		}
-	}, []);
 	const handleModelChange = useCallback((value: string) => {
 		setHasUserSelectedModel(true);
 		setUserSelectedModel(value);
@@ -818,17 +841,14 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 
 	const handleSend = useCallback(
 		(message: string) => {
-			// Clear the draft synchronously before the async
-			// onCreateChat call so that editor change events
-			// firing during the async gap cannot re-persist it.
-			localStorage.removeItem(emptyInputStorageKey);
+			markSent();
 			void onCreateChat({
 				message,
 				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
 				model: selectedModelRef.current || undefined,
 			});
 		},
-		[onCreateChat],
+		[markSent, onCreateChat],
 	);
 
 	const selectedWorkspace = selectedWorkspaceId
