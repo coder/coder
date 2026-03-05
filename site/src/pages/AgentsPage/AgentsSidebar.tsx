@@ -53,6 +53,7 @@ import {
 import { NavLink, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
+import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
 
 interface AgentsSidebarProps {
 	chats: readonly Chat[];
@@ -87,24 +88,6 @@ type ChatTree = {
 	readonly childrenById: ReadonlyMap<string, readonly string[]>;
 	readonly parentById: ReadonlyMap<string, string | undefined>;
 };
-
-const TIME_GROUPS = ["Today", "Yesterday", "This Week", "Older"] as const;
-type TimeGroup = (typeof TIME_GROUPS)[number];
-
-function getTimeGroup(dateStr: string): TimeGroup {
-	const now = new Date();
-	const date = new Date(dateStr);
-	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-	const yesterday = new Date(today);
-	yesterday.setDate(yesterday.getDate() - 1);
-	const weekAgo = new Date(today);
-	weekAgo.setDate(weekAgo.getDate() - 7);
-
-	if (date >= today) return "Today";
-	if (date >= yesterday) return "Yesterday";
-	if (date >= weekAgo) return "This Week";
-	return "Older";
-}
 
 const getStatusConfig = (status: ChatStatus) => {
 	return statusConfig[status] ?? statusConfig.completed;

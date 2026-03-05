@@ -449,7 +449,10 @@ const AgentsPage: FC = () => {
 										...c,
 										status: updatedChat.status,
 										title: updatedChat.title,
-										updated_at: updatedChat.updated_at,
+										updated_at:
+											c.updated_at > updatedChat.updated_at
+												? c.updated_at
+												: updatedChat.updated_at,
 									}
 								: c,
 						);
@@ -472,7 +475,10 @@ const AgentsPage: FC = () => {
 							...previousChat.chat,
 							status: updatedChat.status,
 							title: updatedChat.title,
-							updated_at: updatedChat.updated_at,
+							updated_at:
+								previousChat.chat.updated_at > updatedChat.updated_at
+									? previousChat.chat.updated_at
+									: updatedChat.updated_at,
 						},
 					};
 				},
