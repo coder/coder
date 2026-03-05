@@ -324,9 +324,12 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	// (mid-exit-animation) it loses its Popper anchor and
 	// briefly flashes at the top of the viewport.
 	//
-	// To avoid this we close the menu *without* an exit
-	// animation so Radix Presence unmounts the portal
-	// synchronously, then fire the mutation one frame later.
+	// To prevent this, each destructive onSelect handler calls
+	// event.preventDefault() so Radix does NOT auto-close the
+	// menu.  We then close the menu ourselves (setMenuOpen(false))
+	// and defer the mutation to the next animation frame, giving
+	// React time to unmount the portal before the optimistic
+	// update reshuffles the list.
 	const [menuOpen, setMenuOpen] = useState(false);
 	const pendingAction = useRef<(() => void) | null>(null);
 	const handleMenuOpenChange = useCallback((open: boolean) => {
@@ -493,7 +496,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								onOpenChange={handleMenuOpenChange}
 								modal={false}
 							>
-								{" "}
 								<DropdownMenuTrigger asChild>
 									<Button
 										size="icon"
@@ -504,16 +506,14 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 										<EllipsisIcon className="h-3.5 w-3.5" />
 									</Button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent
-									align="end"
-									className="data-[state=closed]:animate-none"
-								>
-									{" "}
+								<DropdownMenuContent align="end">
 									{chat.archived ? (
 										<DropdownMenuItem
 											disabled={isArchiving}
-											onSelect={() => {
+											onSelect={(e) => {
+												e.preventDefault();
 												pendingAction.current = () => onUnarchiveAgent(chat.id);
+												setMenuOpen(false);
 											}}
 										>
 											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
@@ -521,12 +521,13 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 										</DropdownMenuItem>
 									) : (
 										<>
-											{" "}
 											<DropdownMenuItem
 												className="text-content-destructive focus:text-content-destructive"
 												disabled={isArchiving}
-												onSelect={() => {
+												onSelect={(e) => {
+													e.preventDefault();
 													pendingAction.current = () => onArchiveAgent(chat.id);
+													setMenuOpen(false);
 												}}
 											>
 												<ArchiveIcon className="h-3.5 w-3.5" />
@@ -536,9 +537,11 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 												<DropdownMenuItem
 													className="text-content-destructive focus:text-content-destructive"
 													disabled={isArchiving}
-													onSelect={() => {
+													onSelect={(e) => {
+														e.preventDefault();
 														pendingAction.current = () =>
 															onArchiveAndDeleteWorkspace(chat.id, workspaceId);
+														setMenuOpen(false);
 													}}
 												>
 													<Trash2Icon className="h-3.5 w-3.5" />
@@ -548,10 +551,10 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 										</>
 									)}
 								</DropdownMenuContent>
-							</DropdownMenu>{" "}
+							</DropdownMenu>
 						</>
 					)}
-				</div>
+				</div>{" "}
 			</div>
 
 			{hasChildren && isExpanded && (
