@@ -71,7 +71,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 					severity="warning"
 					prominent
 					actions={
-						<Button variant="subtle" size="sm" asChild>
+						<Button size="sm" asChild>
 							<a
 								target="_blank"
 								rel="noreferrer"
@@ -91,7 +91,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 					severity="warning"
 					prominent
 					actions={
-						<Button variant="subtle" size="sm" asChild>
+						<Button size="sm" asChild>
 							<a
 								target="_blank"
 								rel="noreferrer"
