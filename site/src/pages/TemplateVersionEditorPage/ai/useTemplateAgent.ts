@@ -528,8 +528,8 @@ export const useTemplateAgent = ({
 			try {
 				const client = await createMCPClient({
 					transport: {
-						type: "sse",
-						url: "https://registry.coder.com/mcp",
+						type: "http",
+						url: "https://dev.registry.coder.com/mcp",
 					},
 				});
 				if (cancelled) {
