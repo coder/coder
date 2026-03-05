@@ -112,7 +112,7 @@ const AgentsPage: FC = () => {
 	const navigate = useNavigate();
 	const { agentId } = useParams();
 	const { permissions, user } = useAuthenticated();
-	const { appearance, organizations } = useDashboard();
+	const { appearance } = useDashboard();
 	const isAgentsAdmin =
 		permissions.editDeploymentConfig ||
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");

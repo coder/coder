@@ -370,7 +370,10 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 										type: blockData.mediaType,
 									});
 								}
-								const uploaded = await API.uploadChatFile(fileToUpload, organizations[0]?.id ?? "");
+								const uploaded = await API.uploadChatFile(
+									fileToUpload,
+									organizations[0]?.id ?? "",
+								);
 								fileIds.push(uploaded.id);
 							}
 						}
