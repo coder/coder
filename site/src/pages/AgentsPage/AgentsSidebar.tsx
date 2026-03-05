@@ -433,13 +433,15 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								<div className="flex min-w-0 items-center gap-1.5">
 									{hasLinkedDiffStatus && hasLineStats && (
 										<span
-											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] font-medium leading-none tabular-nums"
+											className="inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-medium leading-none tabular-nums"
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
-											<span className="text-content-success">+{additions}</span>
-											<span className="text-content-destructive">
-												-{deletions}
-											</span>
+											{additions > 0 && (
+												<span className="text-green-500">+{additions}</span>
+											)}
+											{deletions > 0 && (
+												<span className="text-red-400">&minus;{deletions}</span>
+											)}
 										</span>
 									)}
 									<div
@@ -489,7 +491,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 										</DropdownMenuItem>
 									) : (
 										<>
-											{" "}
 											<DropdownMenuItem
 												className="text-content-destructive focus:text-content-destructive"
 												disabled={isArchiving}
@@ -752,7 +753,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 													);
 												if (groupChats.length === 0) return null;
 												return (
-													<div key={group}>
+													<div
+														key={group}
+														className="[&:not(:first-child)]:mt-3"
+													>
 														<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
 															<span>{group}</span>
 														</div>
@@ -814,13 +818,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					<DropdownMenuTrigger asChild>
 						<button
 							type="button"
-							className="flex w-full items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-2 text-left hover:bg-surface-tertiary/50 transition-colors"
+							className="flex w-full items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
 						>
 							<Avatar
 								fallback={user.username}
 								src={user.avatar_url}
 								size="sm"
-							/>
+								className="rounded-full"
+							/>{" "}
 							<span className="truncate text-sm text-content-secondary">
 								{user.name || user.username}
 							</span>
@@ -839,7 +844,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						/>
 					</DropdownMenuContent>
 				</DropdownMenu>
-			</div>{" "}
+			</div>
 		</div>
 	);
 };
