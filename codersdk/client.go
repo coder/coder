@@ -369,6 +369,14 @@ func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOpti
 		opts = &websocket.DialOptions{}
 	}
 	c.SessionTokenProvider.SetDialOption(opts)
+	// Propagate the configured HTTP client so WebSocket dials
+	// use the same transport (e.g. TLS config for inter-replica
+	// mesh communication). Without this, websocket.Dial falls
+	// back to http.DefaultClient which may lack the necessary
+	// TLS certificates or follow unexpected redirects.
+	if opts.HTTPClient == nil {
+		opts.HTTPClient = c.HTTPClient
+	}
 
 	conn, resp, err := websocket.Dial(ctx, u.String(), opts)
 	if resp != nil && resp.Body != nil {
