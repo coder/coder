@@ -6,7 +6,9 @@ import type { WebpushMessage } from "api/typesGenerated";
 
 const mockShowNotification = vi.fn(() => Promise.resolve());
 const mockRegistration = { showNotification: mockShowNotification };
-const mockMatchAll = vi.fn<[], Promise<Array<{ visibilityState: string; url: string }>>>();
+const mockMatchAll = vi.fn<
+	() => Promise<Array<{ visibilityState: string; url: string }>>
+>();
 const mockClients = {
 	matchAll: mockMatchAll,
 	claim: vi.fn(() => Promise.resolve()),
@@ -17,9 +19,11 @@ const mockClients = {
 // invoke them directly in tests.
 const handlers: Record<string, (event: unknown) => void> = {};
 const mockSelf = {
-	addEventListener: vi.fn((event: string, handler: (event: unknown) => void) => {
-		handlers[event] = handler;
-	}),
+	addEventListener: vi.fn(
+		(event: string, handler: (event: unknown) => void) => {
+			handlers[event] = handler;
+		},
+	),
 	skipWaiting: vi.fn(),
 	clients: mockClients,
 	registration: mockRegistration,
