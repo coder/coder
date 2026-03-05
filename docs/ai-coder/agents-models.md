@@ -5,13 +5,9 @@ These are deployment-wide settings — developers do not manage API keys or
 provider configuration. They select from the set of models that an administrator
 has enabled.
 
-This page covers how to add providers, configure models, and understand the
-options available for each.
-
 ## Providers
 
-A provider represents a connection to an LLM service. Each provider has
-a type, an API key, and an optional base URL override.
+Each LLM provider has a type, an API key, and an optional base URL override.
 
 Coder supports the following provider types:
 
@@ -50,20 +46,6 @@ status.</small>
 
 <small>Adding a provider requires an API key. The base URL is optional.</small>
 
-### Provider sources
-
-Each provider in the list has a source that determines how it was configured:
-
-| Source       | Meaning                                                         |
-|--------------|-----------------------------------------------------------------|
-| `database`   | Configured by an administrator through the dashboard or API.    |
-| `env_preset` | Auto-enabled because an environment variable (e.g., `OPENAI_API_KEY`) is set on the control plane. |
-| `supported`  | Known to Coder but not yet configured. Appears in the list so administrators can enable it. |
-
-Providers configured via environment variables appear as read-only in the
-dashboard. To override them, configure the provider through the dashboard
-instead.
-
 ### Provider API keys and security
 
 Provider API keys are stored encrypted in the Coder database. They are never
@@ -77,8 +59,7 @@ on this security model.
 
 ## Models
 
-A model represents a specific LLM that developers can use in their chats. Each
-model belongs to a provider and has its own configuration for context limits,
+Each model belongs to a provider and has its own configuration for context limits,
 generation parameters, and provider-specific options.
 
 ### Add a model
@@ -110,16 +91,10 @@ Click the **star icon** next to a model in the models list to make it the
 default. The default model is pre-selected when developers start a new chat.
 Only one model can be the default at a time.
 
-### Disable a model
-
-Toggle a model's **Enabled** status to hide it from the model selector without
-deleting its configuration. This is useful when rotating models or temporarily
-restricting access to a specific model.
-
 ## Model options
 
 Every model has a set of general options and provider-specific options.
-The admin form generates these fields automatically from the provider's
+The admin UI generates these fields automatically from the provider's
 configuration schema, so the available options always match the provider type.
 
 ### General options
@@ -128,7 +103,7 @@ These options apply to all providers:
 
 | Option                   | Description                                                         |
 |--------------------------|---------------------------------------------------------------------|
-| Model Identifier         | The API model string sent to the provider (e.g., `claude-sonnet-4-20250514`). |
+| Model Identifier         | The API model string sent to the provider (e.g., `claude-opus-4-6`).|
 | Display Name             | The label shown to developers in the model selector.                |
 | Context Limit            | Maximum tokens in the context window. Used to determine when context compaction triggers. |
 | Compression Threshold    | Percentage (0–100) of context usage at which the agent compresses older messages into a summary. |
@@ -142,7 +117,7 @@ These options apply to all providers:
 ### Provider-specific options
 
 Each provider type exposes additional options relevant to its models. These
-fields appear dynamically in the admin form when you select a provider.
+fields appear dynamically in the admin UI when you select a provider.
 
 #### Anthropic
 
@@ -205,25 +180,16 @@ Developers cannot add their own providers, models, or API keys. If no models
 are configured, the chat interface displays a message directing developers to
 contact an administrator.
 
-## System prompt
-
-The **Behavior** tab in the admin dialog lets administrators set a global system
-prompt that applies to all new chats. Use this to provide organization-specific
-instructions, coding standards, or guardrails.
-
-The system prompt is enforced server-side. Developers cannot override it.
-
 ## Using an LLM proxy
 
 Organizations that route LLM traffic through a centralized proxy — such as
-LiteLLM, a corporate API gateway, or an internal load balancer — can point any
-provider's **Base URL** at their proxy endpoint.
+Coder's AI Bridge or third parties like LiteLLM — can point any provider's **Base URL** at their proxy endpoint.
 
-For example, to route all OpenAI traffic through a LiteLLM instance:
+For example, to route all OpenAI traffic through Coder's AI Bridge:
 
 1. Add or edit the **OpenAI** provider.
-1. Set the **Base URL** to your LiteLLM endpoint
-   (e.g., `https://litellm.internal.example.com/v1`).
+1. Set the **Base URL** to your AI Bridge endpoint
+   (e.g., `https://example.coder.com/api/v2/aibridge/openai/v1`).
 1. Enter the API key your proxy expects.
 
 Alternatively, use the **OpenAI Compatible** provider type if your proxy serves
@@ -231,9 +197,3 @@ multiple model families through a single OpenAI-compatible endpoint.
 
 This lets you keep existing proxy-level features like per-user budgets, rate
 limiting, and audit logging while using Coder Agents as the developer interface.
-
-## Next steps
-
-- [Architecture](./agents-architecture.md) — How the agent loop runs in the
-  control plane and connects to workspaces.
-- [Coder Agents](./agents.md) — Overview of the Coder Agents feature.
