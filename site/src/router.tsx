@@ -1,4 +1,5 @@
 import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
+import AISessionsLayout from "pages/AIBridgePage/AISessionsLayout";
 import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 import { lazy, Suspense } from "react";
 import {
@@ -362,6 +363,9 @@ const AIBridgeLayout = lazy(
 const AIBridgeRequestLogsPage = lazy(
 	() => import("./pages/AIBridgePage/RequestLogsPage/RequestLogsPage"),
 );
+const AIBridgeSessionsListPage = lazy(
+	() => import("./pages/AIBridgePage/AISessionListPage/AISessionListPage"),
+);
 
 const GlobalLayout = () => {
 	return (
@@ -593,6 +597,11 @@ export const router = createBrowserRouter(
 					<Route path="/aibridge" element={<AIBridgeLayout />}>
 						<Route index element={<Navigate to="request-logs" replace />} />
 						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
+					</Route>
+
+					{/* these routes will eventually _replace_ the request logs page */}
+					<Route path="/aibridge/sessions" element={<AISessionsLayout />}>
+						<Route index element={<AIBridgeSessionsListPage />} />
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>
