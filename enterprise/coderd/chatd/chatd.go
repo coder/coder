@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -450,8 +451,9 @@ func dialRelay(
 	relayCtx, relayCancel := context.WithCancel(ctx)
 	sdkClient := codersdk.New(baseURL)
 	sdkClient.HTTPClient = cfg.ReplicaHTTPClient
-	sdkClient.SessionTokenProvider = relayHeaderTokenProvider{
-		header: relayHeaders(requestHeader, replicaID),
+	sdkClient.SessionTokenProvider = relayTokenProvider{
+		token:     extractSessionToken(requestHeader),
+		replicaID: replicaID,
 	}
 	sourceEvents, sourceStream, err := sdkClient.StreamChat(relayCtx, chatID, &codersdk.StreamChatOptions{
 		AfterID: ptr.Ref(int64(math.MaxInt64)),
@@ -532,44 +534,57 @@ drainInitial:
 	return snapshot, events, cancelFn, nil
 }
 
-type relayHeaderTokenProvider struct {
-	header http.Header
+// relayTokenProvider authenticates relay requests to the worker
+// replica using the session token extracted from the original
+// browser request. It also stamps each request with the relay
+// source header so the worker can identify it as an inter-replica
+// call.
+type relayTokenProvider struct {
+	token     string
+	replicaID uuid.UUID
 }
 
-func (p relayHeaderTokenProvider) AsRequestOption() codersdk.RequestOption {
+func (p relayTokenProvider) AsRequestOption() codersdk.RequestOption {
 	return func(req *http.Request) {
-		for key, values := range p.header {
-			for _, value := range values {
-				req.Header.Add(key, value)
-			}
-		}
+		req.Header.Set(codersdk.SessionTokenHeader, p.token)
+		req.Header.Set(RelaySourceHeader, p.replicaID.String())
 	}
 }
 
-func (p relayHeaderTokenProvider) SetDialOption(opts *websocket.DialOptions) {
+func (p relayTokenProvider) SetDialOption(opts *websocket.DialOptions) {
 	if opts.HTTPHeader == nil {
 		opts.HTTPHeader = make(http.Header)
 	}
-	for key, values := range p.header {
-		for _, value := range values {
-			opts.HTTPHeader.Add(key, value)
-		}
-	}
+	opts.HTTPHeader.Set(codersdk.SessionTokenHeader, p.token)
+	opts.HTTPHeader.Set(RelaySourceHeader, p.replicaID.String())
 }
 
-func (p relayHeaderTokenProvider) GetSessionToken() string {
-	return p.header.Get(codersdk.SessionTokenHeader)
+func (p relayTokenProvider) GetSessionToken() string {
+	return p.token
 }
 
-func relayHeaders(source http.Header, replicaID uuid.UUID) http.Header {
-	header := make(http.Header)
-	if source != nil {
-		for _, key := range []string{codersdk.SessionTokenHeader, authorizationHeader, cookieHeader} {
-			for _, value := range source.Values(key) {
-				header.Add(key, value)
-			}
+// extractSessionToken returns the session token carried by the
+// given request headers. It mirrors the priority order used by
+// apiKeyMiddleware: cookie, then Coder-Session-Token header, then
+// Authorization: Bearer header.
+func extractSessionToken(header http.Header) string {
+	if header == nil {
+		return ""
+	}
+	// Cookie (browser WebSocket upgrade — most common relay case).
+	if raw := header.Get(cookieHeader); raw != "" {
+		r := &http.Request{Header: http.Header{cookieHeader: {raw}}}
+		if c, err := r.Cookie(codersdk.SessionTokenCookie); err == nil && c.Value != "" {
+			return c.Value
 		}
 	}
-	header.Set(RelaySourceHeader, replicaID.String())
-	return header
+	// Coder-Session-Token header (SDK / CLI callers).
+	if v := header.Get(codersdk.SessionTokenHeader); v != "" {
+		return v
+	}
+	// Authorization: Bearer <token>.
+	if v := header.Get(authorizationHeader); len(v) > 7 && strings.EqualFold(v[:7], "bearer ") {
+		return strings.TrimSpace(v[7:])
+	}
+	return ""
 }
