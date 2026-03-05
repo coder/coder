@@ -465,6 +465,68 @@ export const DefaultShowsTimestampHidesMenu: Story = {
 	},
 };
 
+const yesterdayTimestamp = new Date(
+	Date.now() - 1 * 24 * 60 * 60 * 1000,
+).toISOString();
+const thisWeekTimestamp = new Date(
+	Date.now() - 3 * 24 * 60 * 60 * 1000,
+).toISOString();
+const olderTimestamp = new Date(
+	Date.now() - 14 * 24 * 60 * 60 * 1000,
+).toISOString();
+
+export const MultipleDateGroups: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "today-1",
+				title: "Today's first agent",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "today-2",
+				title: "Today's second agent",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "yesterday-1",
+				title: "Yesterday's agent",
+				updated_at: yesterdayTimestamp,
+			}),
+			buildChat({
+				id: "week-1",
+				title: "This week's agent",
+				updated_at: thisWeekTimestamp,
+			}),
+			buildChat({
+				id: "older-1",
+				title: "Older agent",
+				updated_at: olderTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Today")).toBeInTheDocument();
+			expect(canvas.getByText("Yesterday")).toBeInTheDocument();
+			expect(canvas.getByText("This Week")).toBeInTheDocument();
+			expect(canvas.getByText("Older")).toBeInTheDocument();
+		});
+		expect(canvas.getByText("Today's first agent")).toBeInTheDocument();
+		expect(canvas.getByText("Today's second agent")).toBeInTheDocument();
+		expect(canvas.getByText("Yesterday's agent")).toBeInTheDocument();
+		expect(canvas.getByText("This week's agent")).toBeInTheDocument();
+		expect(canvas.getByText("Older agent")).toBeInTheDocument();
+	},
+};
+
 export const ArchivedAgentUnarchiveOption: Story = {
 	args: {
 		chats: [

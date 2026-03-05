@@ -741,7 +741,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							) : (
 								<div className="divide-y divide-border">
 									{activeRootIDs.length > 0 && (
-										<div className="pb-2">
+										<div className="space-y-2 pb-2">
 											{TIME_GROUPS.map((group) => {
 												const groupChats = activeRootIDs
 													.map((id) => chatById.get(id))
