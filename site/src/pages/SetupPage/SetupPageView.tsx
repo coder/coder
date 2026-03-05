@@ -1,20 +1,25 @@
-import Autocomplete from "@mui/material/Autocomplete";
-import Checkbox from "@mui/material/Checkbox";
-import Link from "@mui/material/Link";
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
 import { countries } from "api/countriesGenerated";
 import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
+import { Autocomplete } from "components/Autocomplete/Autocomplete";
 import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
-import { PasswordField } from "components/PasswordField/PasswordField";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
+import { Link } from "components/Link/Link";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import type { ChangeEvent, FC } from "react";
 import {
@@ -33,8 +38,7 @@ export const Language = {
 	emailRequired: "Please enter an email address.",
 	passwordRequired: "Please enter a password.",
 	create: "Continue with email",
-	githubCreate: "Continue with GitHub",
-	welcomeMessage: <>Welcome to Coder</>,
+	githubCreate: "GitHub",
 	firstNameLabel: "First name",
 	lastNameLabel: "Last name",
 	companyLabel: "Company",
@@ -140,25 +144,26 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 		error,
 	);
 
+	const emailField = getFieldHelpers("email");
+	const passwordField = getFieldHelpers("password");
+	const firstNameField = getFieldHelpers("trial_info.first_name");
+	const lastNameField = getFieldHelpers("trial_info.last_name");
+	const companyNameField = getFieldHelpers("trial_info.company_name");
+	const jobTitleField = getFieldHelpers("trial_info.job_title");
+	const phoneNumberField = getFieldHelpers("trial_info.phone_number");
+	const countryField = getFieldHelpers("trial_info.country");
+	const developersField = getFieldHelpers("trial_info.developers");
+	const selectedCountry =
+		countries.find(
+			(country) => country.name === form.values.trial_info.country,
+		) ?? null;
+
 	return (
 		<SignInLayout>
-			<header css={{ textAlign: "center", marginBottom: 32 }}>
+			<header className="mb-8 text-center">
 				<CoderIcon className="w-12 h-12" />
-				<h1
-					css={{
-						fontWeight: 400,
-						margin: 0,
-						marginTop: 16,
-					}}
-				>
-					Welcome to <strong>Coder</strong>
-				</h1>
-				<div
-					css={(theme) => ({
-						marginTop: 12,
-						color: theme.palette.text.secondary,
-					})}
-				>
+				<h1 className="m-0 mt-4 font-semibold">Welcome to Coder</h1>
+				<div className="mt-3 text-content-secondary">
 					Let&lsquo;s create your first admin user account
 				</div>
 			</header>
@@ -166,7 +171,13 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 				<FormFields>
 					{authMethods?.github.enabled && (
 						<>
-							<Button className="w-full" asChild type="submit" size="lg">
+							<Button
+								className="w-full"
+								asChild
+								type="submit"
+								size="lg"
+								variant="outline"
+							>
 								<a href="/api/v2/users/oauth2/github/callback">
 									<ExternalImage src="/icon/github.svg" />
 									{Language.githubCreate}
@@ -181,63 +192,73 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							</div>
 						</>
 					)}
-					<TextField
-						{...getFieldHelpers("email")}
-						onChange={(event) => {
-							const email = event.target.value;
-							const username = usernameFromEmail(email);
-							form.setFieldValue("username", username);
-							onChangeTrimmed(form)(event as ChangeEvent<HTMLInputElement>);
-						}}
-						autoComplete="email"
-						fullWidth
-						label={Language.emailLabel}
-					/>
-					<PasswordField
-						{...getFieldHelpers("password")}
-						autoComplete="current-password"
-						fullWidth
-						label={Language.passwordLabel}
-					/>
+					<div className="flex flex-col items-start gap-2">
+						<Label htmlFor={emailField.id}>{Language.emailLabel}</Label>
+						<Input
+							id={emailField.id}
+							name={emailField.name}
+							value={emailField.value}
+							onBlur={emailField.onBlur}
+							onChange={(event) => {
+								const email = event.target.value;
+								const username = usernameFromEmail(email);
+								form.setFieldValue("username", username);
+								onChangeTrimmed(form)(event as ChangeEvent<HTMLInputElement>);
+							}}
+							autoComplete="email"
+							type="email"
+							aria-invalid={emailField.error}
+						/>
+						{emailField.error && (
+							<span className="text-xs text-content-destructive text-left">
+								{emailField.helperText}
+							</span>
+						)}
+					</div>
+					<div className="flex flex-col items-start gap-2">
+						<Label htmlFor={passwordField.id}>{Language.passwordLabel}</Label>
+						<Input
+							id={passwordField.id}
+							name={passwordField.name}
+							value={passwordField.value}
+							onChange={passwordField.onChange}
+							onBlur={passwordField.onBlur}
+							autoComplete="current-password"
+							type="password"
+							aria-invalid={passwordField.error}
+						/>
+						{passwordField.error && (
+							<span className="text-xs text-content-destructive text-left">
+								{passwordField.helperText}
+							</span>
+						)}
+					</div>
 					<label
 						htmlFor="trial"
-						css={{
-							display: "flex",
-							cursor: "pointer",
-							alignItems: "flex-start",
-							gap: 4,
-							marginTop: -4,
-							marginBottom: 8,
-						}}
+						className="-mt-1 mb-2 flex cursor-pointer items-start gap-3"
 					>
-						<Checkbox
-							id="trial"
-							name="trial"
-							checked={form.values.trial}
-							onChange={form.handleChange}
-							data-testid="trial"
-							size="small"
-						/>
+						<div>
+							<Checkbox
+								id="trial"
+								name="trial"
+								checked={form.values.trial}
+								onCheckedChange={(checked) => {
+									void form.setFieldValue("trial", Boolean(checked));
+								}}
+								data-testid="trial"
+							/>
+						</div>
 
-						<div css={{ fontSize: 14, paddingTop: 4 }}>
-							<span css={{ display: "block", fontWeight: 600 }}>
-								Start a free trial of Enterprise
-							</span>
-							<span
-								css={(theme) => ({
-									display: "block",
-									fontSize: 13,
-									color: theme.palette.text.secondary,
-									lineHeight: "1.6",
-								})}
-							>
+						<div className="flex flex-col items-start text-sm pt-0.5">
+							<span>Start a free trial of Enterprise</span>
+							<span className="text-content-secondary">
 								Get access to high availability, template RBAC, audit logging,
 								quotas, and more.
 							</span>
 							<Link
 								href="https://coder.com/pricing"
 								target="_blank"
-								css={{ marginTop: 4, display: "inline-block", fontSize: 13 }}
+								className="mt-0.5 p-0 inline-flex items-center"
 							>
 								Read more
 							</Link>
@@ -246,102 +267,155 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 					{form.values.trial && (
 						<>
-							<Stack spacing={1.5} direction="row">
-								<TextField
-									{...getFieldHelpers("trial_info.first_name")}
-									id="trial_info.first_name"
-									name="trial_info.first_name"
-									fullWidth
-									label={Language.firstNameLabel}
-								/>
-								<TextField
-									{...getFieldHelpers("trial_info.last_name")}
-									id="trial_info.last_name"
-									name="trial_info.last_name"
-									fullWidth
-									label={Language.lastNameLabel}
-								/>
-							</Stack>
-							<TextField
-								{...getFieldHelpers("trial_info.company_name")}
-								id="trial_info.company_name"
-								name="trial_info.company_name"
-								fullWidth
-								label={Language.companyLabel}
-							/>
-							<TextField
-								{...getFieldHelpers("trial_info.job_title")}
-								id="trial_info.job_title"
-								name="trial_info.job_title"
-								fullWidth
-								label={Language.jobTitleLabel}
-							/>
-							<TextField
-								{...getFieldHelpers("trial_info.phone_number")}
-								id="trial_info.phone_number"
-								name="trial_info.phone_number"
-								fullWidth
-								label={Language.phoneNumberLabel}
-							/>
-							<Autocomplete
-								autoHighlight
-								options={countries}
-								renderOption={(props, country) => (
-									<li {...props}>{`${country.flag} ${country.name}`}</li>
-								)}
-								getOptionLabel={(option) => option.name}
-								onChange={(_, newValue) =>
-									form.setFieldValue("trial_info.country", newValue?.name)
-								}
-								css={{
-									"&:not(:has(label))": {
-										margin: 0,
-									},
-								}}
-								renderInput={(params) => (
-									<TextField
-										{...params}
-										{...getFieldHelpers("trial_info.country")}
-										id="trial_info.country"
-										name="trial_info.country"
-										label={Language.countryLabel}
-										fullWidth
-										inputProps={{
-											...params.inputProps,
-										}}
-										InputLabelProps={{ shrink: true }}
+							<div className="flex gap-3">
+								<div className="flex-1 flex flex-col items-start gap-2">
+									<Label htmlFor={firstNameField.id}>
+										{Language.firstNameLabel}
+									</Label>
+									<Input
+										id={firstNameField.id}
+										name={firstNameField.name}
+										value={firstNameField.value}
+										onChange={firstNameField.onChange}
+										onBlur={firstNameField.onBlur}
+										aria-invalid={firstNameField.error}
 									/>
+									{firstNameField.error && (
+										<span className="text-xs text-content-destructive text-left">
+											{firstNameField.helperText}
+										</span>
+									)}
+								</div>
+								<div className="flex-1 flex flex-col items-start gap-2">
+									<Label htmlFor={lastNameField.id}>
+										{Language.lastNameLabel}
+									</Label>
+									<Input
+										id={lastNameField.id}
+										name={lastNameField.name}
+										value={lastNameField.value}
+										onChange={lastNameField.onChange}
+										onBlur={lastNameField.onBlur}
+										aria-invalid={lastNameField.error}
+									/>
+									{lastNameField.error && (
+										<span className="text-xs text-content-destructive text-left">
+											{lastNameField.helperText}
+										</span>
+									)}
+								</div>
+							</div>
+							<div className="flex flex-col items-start gap-2">
+								<Label htmlFor={companyNameField.id}>
+									{Language.companyLabel}
+								</Label>
+								<Input
+									id={companyNameField.id}
+									name={companyNameField.name}
+									value={companyNameField.value}
+									onChange={companyNameField.onChange}
+									onBlur={companyNameField.onBlur}
+									aria-invalid={companyNameField.error}
+								/>
+								{companyNameField.error && (
+									<span className="text-xs text-content-destructive text-left">
+										{companyNameField.helperText}
+									</span>
 								)}
-							/>
-							<TextField
-								{...getFieldHelpers("trial_info.developers")}
-								id="trial_info.developers"
-								name="trial_info.developers"
-								fullWidth
-								label={Language.developersLabel}
-								select
-							>
-								{numberOfDevelopersOptions.map((opt) => (
-									<MenuItem key={opt} value={opt}>
-										{opt}
-									</MenuItem>
-								))}
-							</TextField>
-							<div
-								css={(theme) => ({
-									color: theme.palette.text.secondary,
-									fontSize: 11,
-									textAlign: "center",
-									marginTop: -5,
-									lineHeight: 1.5,
-								})}
-							>
+							</div>
+							<div className="flex flex-col items-start gap-2">
+								<Label htmlFor={jobTitleField.id}>
+									{Language.jobTitleLabel}
+								</Label>
+								<Input
+									id={jobTitleField.id}
+									name={jobTitleField.name}
+									value={jobTitleField.value}
+									onChange={jobTitleField.onChange}
+									onBlur={jobTitleField.onBlur}
+									aria-invalid={jobTitleField.error}
+								/>
+								{jobTitleField.error && (
+									<span className="text-xs text-content-destructive text-left">
+										{jobTitleField.helperText}
+									</span>
+								)}
+							</div>
+							<div className="flex flex-col items-start gap-2">
+								<Label htmlFor={phoneNumberField.id}>
+									{Language.phoneNumberLabel}
+								</Label>
+								<Input
+									id={phoneNumberField.id}
+									name={phoneNumberField.name}
+									value={phoneNumberField.value}
+									onChange={phoneNumberField.onChange}
+									onBlur={phoneNumberField.onBlur}
+									aria-invalid={phoneNumberField.error}
+								/>
+								{phoneNumberField.error && (
+									<span className="text-xs text-content-destructive text-left">
+										{phoneNumberField.helperText}
+									</span>
+								)}
+							</div>
+							<div className="flex flex-col items-start gap-2">
+								<Label htmlFor={countryField.id}>{Language.countryLabel}</Label>
+								<Autocomplete
+									id={countryField.id}
+									options={countries}
+									value={selectedCountry}
+									getOptionLabel={(option) => `${option.flag} ${option.name}`}
+									getOptionValue={(option) => option.name}
+									onChange={(newValue) => {
+										void form.setFieldValue(
+											"trial_info.country",
+											newValue?.name ?? "",
+										);
+									}}
+								/>
+								{countryField.error && (
+									<span className="text-xs text-content-destructive text-left">
+										{countryField.helperText}
+									</span>
+								)}
+							</div>
+							<div className="flex flex-col items-start gap-2">
+								<Label htmlFor={developersField.id}>
+									{Language.developersLabel}
+								</Label>
+								<Select
+									value={String(developersField.value ?? "")}
+									onValueChange={(value) => {
+										void form.setFieldValue("trial_info.developers", value);
+									}}
+								>
+									<SelectTrigger id={developersField.id}>
+										<SelectValue placeholder={Language.developersLabel} />
+									</SelectTrigger>
+									<SelectContent>
+										{numberOfDevelopersOptions.map((opt) => (
+											<SelectItem key={opt} value={opt}>
+												{opt}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								{developersField.error && (
+									<span className="text-xs text-content-destructive text-left">
+										{developersField.helperText}
+									</span>
+								)}
+							</div>
+							<div className="-mt-1 text-center text-2xs text-content-secondary">
 								Complete the form to receive your trial license and be contacted
 								about Coder products and solutions. The information you provide
 								will be treated in accordance with the{" "}
 								<Link
 									href="https://coder.com/legal/privacy-policy"
 									target="_blank"
+									className="text-2xs px-0"
+									showExternalIcon={false}
 								>
 									Coder Privacy Policy
 								</Link>
