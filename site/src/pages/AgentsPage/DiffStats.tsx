@@ -12,7 +12,7 @@ interface DiffStatsProps {
  * Renders +N / −N counters for diff additions and deletions.
  * Returns null when both values are zero.
  */
-export const DiffStatNumbers: FC<DiffStatsProps> = ({
+const DiffStatNumbers: FC<DiffStatsProps> = ({
 	additions,
 	deletions,
 	className,
