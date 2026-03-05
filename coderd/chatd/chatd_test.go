@@ -1462,10 +1462,17 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 // mockWebpushDispatcher implements webpush.Dispatcher and records Dispatch calls.
 type mockWebpushDispatcher struct {
 	dispatchCount atomic.Int32
+	mu            sync.Mutex
+	lastMessage   codersdk.WebpushMessage
+	lastUserID    uuid.UUID
 }
 
-func (m *mockWebpushDispatcher) Dispatch(_ context.Context, _ uuid.UUID, _ codersdk.WebpushMessage) error {
+func (m *mockWebpushDispatcher) Dispatch(_ context.Context, userID uuid.UUID, msg codersdk.WebpushMessage) error {
 	m.dispatchCount.Add(1)
+	m.mu.Lock()
+	m.lastMessage = msg
+	m.lastUserID = userID
+	m.mu.Unlock()
 	return nil
 }
 
@@ -1475,6 +1482,78 @@ func (*mockWebpushDispatcher) Test(_ context.Context, _ codersdk.WebpushSubscrip
 
 func (*mockWebpushDispatcher) PublicKey() string {
 	return "test-vapid-public-key"
+}
+
+func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Set up a mock OpenAI that returns a simple successful response.
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	// Mock webpush dispatcher that captures the dispatched message.
+	mockPush := &mockWebpushDispatcher{}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		WebpushDispatcher:          mockPush,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "push-nav-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	// Wait for the chat to complete and return to waiting status.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid
+	}, testutil.IntervalFast)
+
+	// Verify a web push notification was dispatched exactly once.
+	require.Equal(t, int32(1), mockPush.dispatchCount.Load(),
+		"expected exactly one web push dispatch for a completed chat")
+
+	// Verify the notification was sent to the correct user.
+	mockPush.mu.Lock()
+	capturedMsg := mockPush.lastMessage
+	capturedUserID := mockPush.lastUserID
+	mockPush.mu.Unlock()
+
+	require.Equal(t, user.ID, capturedUserID,
+		"web push should be dispatched to the chat owner")
+
+	// Verify the Data field contains the correct navigation URL.
+	expectedURL := fmt.Sprintf("/agents/%s", chat.ID)
+	require.Equal(t, expectedURL, capturedMsg.Data["url"],
+		"web push Data should contain the chat navigation URL")
 }
 
 func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {

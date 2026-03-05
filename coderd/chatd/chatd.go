@@ -1815,6 +1815,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 					Title: chat.Title,
 					Body:  "Agent has finished running.",
 					Icon:  "/favicon.ico",
+					Data:  map[string]string{"url": fmt.Sprintf("/agents/%s", chat.ID)},
 				}
 				if status == database.ChatStatusError {
 					pushMsg.Body = "Agent encountered an error."

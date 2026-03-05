@@ -225,6 +225,7 @@ type WebpushMessage struct {
 	Title   string                 `json:"title"`
 	Body    string                 `json:"body"`
 	Actions []WebpushMessageAction `json:"actions"`
+	Data    map[string]string      `json:"data,omitempty"`
 }
 
 type WebpushSubscription struct {
