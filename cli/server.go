@@ -2376,6 +2376,19 @@ func redirectToAccessURL(handler http.Handler, accessURL *url.URL, tunnel bool, 
 			return
 		}
 
+		// Exception: inter-replica relay.
+		// Enterprise chat streaming relays message_part events
+		// between replicas by dialing the worker replica's
+		// DERP relay address directly. Redirecting these
+		// requests to the access URL breaks the WebSocket
+		// handshake because the redirect strips the Upgrade
+		// headers, causing the load-balanced access URL to
+		// return HTTP 200 (SPA catch-all) instead of 101.
+		if isReplicaRelayRequest(r) {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
 		// Only do this if we aren't tunneling.
 		// If we are tunneling, we want to allow the request to go through
 		// because the tunnel doesn't proxy with TLS.
@@ -2409,6 +2422,14 @@ func isDERPPath(p string) bool {
 		return false
 	}
 	return segments[1] == "derp"
+}
+
+// isReplicaRelayRequest returns true when the request was sent by
+// another coderd replica as part of cross-replica streaming. The
+// enterprise chat relay sets X-Coder-Relay-Source-Replica on every
+// request to identify itself.
+func isReplicaRelayRequest(r *http.Request) bool {
+	return r.Header.Get("X-Coder-Relay-Source-Replica") != ""
 }
 
 // IsLocalhost returns true if the host points to the local machine. Intended to

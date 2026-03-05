@@ -29,7 +29,7 @@ const OrganizationSettingsPage: FC = () => {
 
 	const sharingSettingsQuery = useQuery({
 		...workspaceSharingSettings(organization?.id ?? ""),
-		enabled: !!organization,
+		enabled: Boolean(organization),
 	});
 
 	const patchSharingSettingsMutation = useMutation(
@@ -112,6 +112,9 @@ const OrganizationSettingsPage: FC = () => {
 						);
 					}
 				}}
+				workspaceSharingGloballyDisabled={
+					sharingSettingsQuery.data?.sharing_globally_disabled
+				}
 				workspaceSharingEnabled={
 					!(sharingSettingsQuery.data?.sharing_disabled ?? false)
 				}

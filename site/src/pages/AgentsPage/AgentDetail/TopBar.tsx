@@ -8,9 +8,9 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { useAuthenticated } from "hooks";
 import {
 	ArchiveIcon,
+	ArchiveRestoreIcon,
 	ArrowLeftIcon,
 	ChevronRightIcon,
 	CopyIcon,
@@ -23,45 +23,30 @@ import {
 	TerminalIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { UserDropdown } from "modules/dashboard/Navbar/UserDropdown/UserDropdown";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { WebPushButton } from "../WebPushButton";
 
-interface DiffStatsBadgeProps {
+const DiffStatsInline: FC<{
 	status: ChatDiffStatusResponse;
-	isOpen: boolean;
-	onToggle: () => void;
-}
-
-const DiffStatsBadge: FC<DiffStatsBadgeProps> = ({
-	status,
-	isOpen,
-	onToggle,
-}) => {
+	onClick: () => void;
+}> = ({ status, onClick }) => {
 	const additions = status.additions ?? 0;
 	const deletions = status.deletions ?? 0;
 
 	return (
-		<Button
-			variant="subtle"
-			onClick={onToggle}
-			className="gap-3 px-2 py-1 text-content-secondary hover:text-content-primary"
+		<button
+			type="button"
+			onClick={onClick}
+			className="inline-flex shrink-0 cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent p-0 font-mono text-[13px] leading-none tabular-nums transition-opacity hover:opacity-80"
 		>
-			<span className="font-mono text-sm font-semibold text-content-success">
+			<span className="bg-content-success/10 px-1.5 py-1 text-content-success">
 				+{additions}
 			</span>
-			<span className="font-mono text-sm font-semibold text-content-destructive">
+			<span className="bg-content-destructive/10 px-1.5 py-1 text-content-destructive">
 				−{deletions}
 			</span>
-			{isOpen ? (
-				<PanelRightCloseIcon className="h-4 w-4" />
-			) : (
-				<PanelRightOpenIcon className="h-4 w-4" />
-			)}
-		</Button>
+		</button>
 	);
 };
 
@@ -88,6 +73,7 @@ type AgentDetailTopBarProps = {
 	diff: DiffPanelState;
 	workspace: WorkspaceActions;
 	onArchiveAgent: () => void;
+	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
 	hasWorkspace?: boolean;
 	isArchived?: boolean;
@@ -102,6 +88,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	diff,
 	workspace,
 	onArchiveAgent,
+	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
 	hasWorkspace,
 	isArchived,
@@ -109,8 +96,6 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	onToggleSidebarCollapsed,
 }) => {
 	const navigate = useNavigate();
-	const { user, signOut } = useAuthenticated();
-	const { appearance, buildInfo } = useDashboard();
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
@@ -156,6 +141,14 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
+						{diff.hasDiffStatus && diff.diffStatus && (
+							<span className="ml-3">
+								<DiffStatsInline
+									status={diff.diffStatus}
+									onClick={diff.onToggleFilesChanged}
+								/>
+							</span>
+						)}
 						{isArchived && (
 							<span className="shrink-0 rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary">
 								Archived
@@ -166,13 +159,6 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 			</div>
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
-				{diff.hasDiffStatus && diff.diffStatus && (
-					<DiffStatsBadge
-						status={diff.diffStatus}
-						isOpen={diff.showDiffPanel}
-						onToggle={diff.onToggleFilesChanged}
-					/>
-				)}
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
@@ -235,39 +221,48 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							View Workspace
 						</DropdownMenuItem>
 						<DropdownMenuSeparator />
-						{!isArchived && (
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onSelect={onArchiveAgent}
-							>
-								<ArchiveIcon className="h-3.5 w-3.5" />
-								Archive Agent
+						{isArchived ? (
+							<DropdownMenuItem onSelect={onUnarchiveAgent}>
+								<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+								Unarchive Agent
 							</DropdownMenuItem>
+						) : (
+							<>
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onSelect={onArchiveAgent}
+								>
+									<ArchiveIcon className="h-3.5 w-3.5" />
+									Archive Agent
+								</DropdownMenuItem>
+								{hasWorkspace && (
+									<DropdownMenuItem
+										className="text-content-destructive focus:text-content-destructive"
+										onSelect={onArchiveAndDeleteWorkspace}
+									>
+										<Trash2Icon className="h-3.5 w-3.5" />
+										Archive & Delete Workspace
+									</DropdownMenuItem>
+								)}
+							</>
 						)}
-						{!isArchived && hasWorkspace && (
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onSelect={onArchiveAndDeleteWorkspace}
-							>
-								<Trash2Icon className="h-3.5 w-3.5" />
-								Archive & Delete Workspace
-							</DropdownMenuItem>
-						)}
-					</DropdownMenuContent>{" "}
+					</DropdownMenuContent>
 				</DropdownMenu>
-				<WebPushButton />
-			</div>
-			<div className="flex items-center [&_span]:!rounded-full [&_span]:!size-8 [&_span]:!text-xs">
-				<UserDropdown
-					user={user}
-					buildInfo={buildInfo}
-					supportLinks={
-						appearance.support_links?.filter(
-							(link) => link.location !== "navbar",
-						) ?? []
-					}
-					onSignOut={signOut}
-				/>
+				{diff.hasDiffStatus && diff.diffStatus && (
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={diff.onToggleFilesChanged}
+						className="h-7 w-7 text-content-secondary hover:text-content-primary"
+						aria-label="Toggle files changed"
+					>
+						{diff.showDiffPanel ? (
+							<PanelRightCloseIcon className="h-4 w-4" />
+						) : (
+							<PanelRightOpenIcon className="h-4 w-4" />
+						)}
+					</Button>
+				)}{" "}
 			</div>
 		</div>
 	);

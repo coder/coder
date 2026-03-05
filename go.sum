@@ -317,12 +317,12 @@ github.com/coder/aibridge v1.0.8-0.20260302102807-498272dfef5a h1:yDLoIbclYyICRI
 github.com/coder/aibridge v1.0.8-0.20260302102807-498272dfef5a/go.mod h1:3BTl243k7OhpqtaITARAw647uC2V0YrxGOTQrkscnkk=
 github.com/coder/aisdk-go v0.0.9 h1:Vzo/k2qwVGLTR10ESDeP2Ecek1SdPfZlEjtTfMveiVo=
 github.com/coder/aisdk-go v0.0.9/go.mod h1:KF6/Vkono0FJJOtWtveh5j7yfNrSctVTpwgweYWSp5M=
-github.com/coder/boundary v0.8.3 h1:QOb5WYKieRH/gwyUgofC9FDHSSJHpdw1jTrB5zsHovA=
-github.com/coder/boundary v0.8.3/go.mod h1:7LXg454okcxIQm08GouuvoWjH1uGkHdbEXiPbZgzcQk=
+github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab h1:HrlxyTmMQpOHfSKzRU1vf5TxrmV6vL5OiWq+Dvn5qh0=
+github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab/go.mod h1:BhJhyKW/+zZQzaGZ3vn27if2k0Vx5xLXzq7ZCQx5gPk=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41 h1:SBN/DA63+ZHwuWwPHPYoCZ/KLAjHv5g4h2MS4f2/MTI=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41/go.mod h1:I9ULxr64UaOSUv7hcb3nX4kowodJCVS7vt7VVJk/kW4=
-github.com/coder/clistat v1.2.0 h1:37KJKqiCllJsRvWqTHf3qiLIXX0JB6oqE5oxcqgdLkY=
-github.com/coder/clistat v1.2.0/go.mod h1:m7SC0uj88eEERgvF8Kn6+w6XF21BeSr+15f7GoLAw0A=
+github.com/coder/clistat v1.2.1 h1:P9/10njXMyj5cWzIU5wkRsSy5LVQH49+tcGMsAgWX0w=
+github.com/coder/clistat v1.2.1/go.mod h1:m7SC0uj88eEERgvF8Kn6+w6XF21BeSr+15f7GoLAw0A=
 github.com/coder/flog v1.1.0 h1:kbAes1ai8fIS5OeV+QAnKBQE22ty1jRF/mcAwHpLBa4=
 github.com/coder/flog v1.1.0/go.mod h1:UQlQvrkJBvnRGo69Le8E24Tcl5SJleAAR7gYEHzAmdQ=
 github.com/coder/go-httpstat v0.0.0-20230801153223-321c88088322 h1:m0lPZjlQ7vdVpRBPKfYIFlmgevoTkBxB10wv6l2gOaU=

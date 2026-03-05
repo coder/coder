@@ -1181,6 +1181,23 @@
 					"description": "Connect to agents Coder with a MCP server",
 					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
+				},
+				{
+					"title": "Coder Agents",
+					"description": "Self-hosted agent by Coder",
+					"path": "./ai-coder/agents/index.md",
+					"children": [
+						{
+							"title": "Architecture",
+							"description": "How the agent in the control plane communicates with workspaces",
+							"path": "./ai-coder/agents/architecture.md"
+						},
+						{
+							"title": "Models",
+							"description": "Configure LLM providers and models for Coder Agents",
+							"path": "./ai-coder/agents/models.md"
+						}
+					]
 				}
 			]
 		},

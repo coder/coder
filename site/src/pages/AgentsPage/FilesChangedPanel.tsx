@@ -1,4 +1,5 @@
 import { useTheme } from "@emotion/react";
+import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
@@ -14,7 +15,14 @@ import {
 	GitBranchIcon,
 	GitPullRequestIcon,
 } from "lucide-react";
-import { type FC, useMemo } from "react";
+import {
+	type ComponentProps,
+	type FC,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { useQuery } from "react-query";
 
 interface FilesChangedPanelProps {
@@ -50,6 +58,23 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 		};
 	}, [isDark]);
 
+	// Memoize the per-file options object so every <FileDiff>
+	// receives the same reference and avoids re-highlighting
+	// when the parent re-renders.
+	const fileOptions = useMemo(
+		() => ({
+			...diffOptions,
+			overflow: "wrap" as const,
+			enableLineSelection: true,
+			enableHoverUtility: true,
+			onLineSelected() {
+				// TODO: Make this add context to the input so the
+				// user can type.
+			},
+		}),
+		[diffOptions],
+	);
+
 	const diffStatusQuery = useQuery(chatDiffStatus(chatId));
 	const diffContentsQuery = useQuery({
 		...chatDiffContents(chatId),
@@ -62,12 +87,15 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 			return [];
 		}
 		try {
-			const patches = parsePatchFiles(diff);
+			// The cacheKeyPrefix enables the worker pool's LRU cache
+			// so highlighted ASTs are reused across re-renders instead
+			// of being re-computed on every render cycle.
+			const patches = parsePatchFiles(diff, `chat-${chatId}`);
 			return patches.flatMap((p) => p.files);
 		} catch {
 			return [];
 		}
-	}, [diffContentsQuery.data?.diff]);
+	}, [diffContentsQuery.data?.diff, chatId]);
 
 	const pullRequestUrl = diffStatusQuery.data?.url;
 	const pullRequestLabel = pullRequestUrl
@@ -76,7 +104,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 
 	if (diffContentsQuery.isLoading || diffStatusQuery.isLoading) {
 		return (
-			<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-l border-solid bg-surface-primary">
+			<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-solid">
 				<div className="flex items-center gap-2 border-0 border-b border-solid px-4 py-3">
 					<Skeleton className="h-4 w-4 rounded" />
 					<Skeleton className="h-4 w-28" />
@@ -104,7 +132,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 	}
 
 	return (
-		<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-l border-solid bg-surface-primary">
+		<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-solid">
 			{/* Header */}
 			<div className="flex items-center justify-between gap-3 border-0 border-b border-solid px-4 py-3">
 				<div className="flex min-w-0 items-center gap-2">
@@ -147,24 +175,85 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({ chatId }) => {
 				<ScrollArea className="min-w-0 flex-1" scrollBarClassName="w-1.5">
 					<div className="min-w-0 text-xs">
 						{parsedFiles.map((fileDiff) => (
-							<FileDiff
+							<LazyFileDiff
 								key={fileDiff.name}
 								fileDiff={fileDiff}
-								options={{
-									...diffOptions,
-									overflow: "wrap",
-									enableLineSelection: true,
-									enableHoverUtility: true,
-									onLineSelected() {
-										// TODO: Make this add context to the input so the user can type.
-									},
-								}}
-								style={DIFFS_FONT_STYLE}
+								options={fileOptions}
 							/>
 						))}
 					</div>
 				</ScrollArea>
 			)}
 		</div>
+	);
+};
+
+// -----------------------------------------------------------------------
+// Estimated height per line in the diff viewer (px). Derived from
+// the --diffs-font-size (11px) and --diffs-line-height (1.5)
+// values set via DIFFS_FONT_STYLE, plus 1px for the border/gap.
+// -----------------------------------------------------------------------
+const LINE_HEIGHT_PX = 17.5;
+
+// Height of the file header row rendered by @pierre/diffs.
+const HEADER_HEIGHT_PX = 36;
+
+/**
+ * Estimate the rendered pixel height of a file diff so the
+ * placeholder occupies roughly the same space. This keeps the
+ * scroll position stable as files are lazily mounted.
+ */
+function estimateDiffHeight(fileDiff: FileDiffMetadata): number {
+	return HEADER_HEIGHT_PX + fileDiff.unifiedLineCount * LINE_HEIGHT_PX;
+}
+
+/**
+ * Wraps a single `<FileDiff>` with an IntersectionObserver so the
+ * heavy component (Shadow DOM + shiki highlighting) is only mounted
+ * once the placeholder scrolls into or near the viewport.
+ *
+ * Once mounted the component stays mounted — we never unmount a
+ * FileDiff that the user has already scrolled past, which avoids
+ * layout shifts and repeated highlighting work.
+ */
+const LazyFileDiff: FC<{
+	fileDiff: FileDiffMetadata;
+	options: ComponentProps<typeof FileDiff>["options"];
+}> = ({ fileDiff, options }) => {
+	const placeholderRef = useRef<HTMLDivElement>(null);
+	const [visible, setVisible] = useState(false);
+
+	useEffect(() => {
+		const el = placeholderRef.current;
+		if (!el || visible) {
+			return;
+		}
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.isIntersecting) {
+					setVisible(true);
+					observer.disconnect();
+				}
+			},
+			// Pre-load files that are within one viewport-height of
+			// the visible area so they are ready before the user
+			// scrolls to them.
+			{ rootMargin: "100% 0px" },
+		);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [visible]);
+
+	if (!visible) {
+		return (
+			<div
+				ref={placeholderRef}
+				style={{ height: estimateDiffHeight(fileDiff) }}
+			/>
+		);
+	}
+
+	return (
+		<FileDiff fileDiff={fileDiff} options={options} style={DIFFS_FONT_STYLE} />
 	);
 };

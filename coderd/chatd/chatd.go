@@ -62,7 +62,7 @@ type Server struct {
 	workerID uuid.UUID
 	logger   slog.Logger
 
-	remotePartsProvider RemotePartsProvider
+	subscribeFn SubscribeFn
 
 	agentConnFn       AgentConnFunc
 	createWorkspaceFn chattool.CreateWorkspaceFn
@@ -93,24 +93,41 @@ type cachedInstruction struct {
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
 
-// ReplicaAddressResolver maps a replica ID to its relay address.
-type ReplicaAddressResolver func(context.Context, uuid.UUID) (string, bool)
-
-// RemotePartsProvider returns a snapshot and live stream of message_part
-// events from the replica that is running the chat. Called when the chat
-// is actively running on a different replica. Nil in AGPL single-replica
-// deployments.
-type RemotePartsProvider func(
+// SubscribeFn replaces the default local-only subscription with a
+// multi-replica-aware implementation that merges pubsub notifications,
+// remote relay streams, and local parts into a single event channel.
+// When set, Subscribe delegates the event-merge goroutine to this
+// function instead of using simple local forwarding.
+//
+// Parameters:
+//   - ctx: subscription lifetime context (canceled on unsubscribe).
+//   - params: all state needed to build the merged stream.
+//
+// Returns the merged event channel and a cleanup function.
+// Set by enterprise for HA deployments. Nil in AGPL single-replica.
+type SubscribeFn func(
 	ctx context.Context,
-	chatID uuid.UUID,
-	workerID uuid.UUID,
-	requestHeader http.Header,
-) (
-	snapshot []codersdk.ChatStreamEvent,
-	parts <-chan codersdk.ChatStreamEvent,
-	cancel func(),
-	err error,
-)
+	params SubscribeFnParams,
+) (<-chan codersdk.ChatStreamEvent, func())
+
+// StatusNotification informs the enterprise relay manager of chat
+// status changes so it can open or close relay connections.
+type StatusNotification struct {
+	Status   database.ChatStatus
+	WorkerID uuid.UUID
+}
+
+// SubscribeFnParams carries the state that the enterprise
+// SubscribeFn implementation needs from the OSS Subscribe preamble.
+type SubscribeFnParams struct {
+	ChatID              uuid.UUID
+	Chat                database.Chat
+	WorkerID            uuid.UUID
+	StatusNotifications <-chan StatusNotification
+	RequestHeader       http.Header
+	DB                  database.Store
+	Logger              slog.Logger
+}
 
 type chatStreamState struct {
 	buffer      []codersdk.ChatStreamEvent
@@ -129,6 +146,12 @@ var (
 	ErrEditedMessageNotFound = xerrors.New("edited message not found")
 	// ErrEditedMessageNotUser indicates a non-user message edit attempt.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
+
+	// errChatTakenByOtherWorker is a sentinel used inside the
+	// processChat cleanup transaction to signal that another
+	// worker acquired the chat, so all post-TX side effects
+	// (status publish, pubsub, web push) must be skipped.
+	errChatTakenByOtherWorker = xerrors.New("chat acquired by another worker")
 )
 
 // CreateOptions controls chat creation in the shared chat mutation path.
@@ -719,14 +742,31 @@ func setChatPendingWithStore(
 }
 
 func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
-	updatedChat, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chatID,
-		Status:      database.ChatStatusWaiting,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
-	})
+	var updatedChat database.Chat
+	err := p.db.InTx(func(tx database.Store) error {
+		locked, lockErr := tx.GetChatByIDForUpdate(ctx, chatID)
+		if lockErr != nil {
+			return xerrors.Errorf("lock chat for waiting: %w", lockErr)
+		}
+		// If the chat has already transitioned to pending (e.g.
+		// SendMessage with interrupt behavior), don't overwrite
+		// it — the pending status takes priority so the new
+		// message gets processed.
+		if locked.Status == database.ChatStatusPending {
+			updatedChat = locked
+			return nil
+		}
+		var updateErr error
+		updatedChat, updateErr = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:          chatID,
+			Status:      database.ChatStatusWaiting,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+		})
+		return updateErr
+	}, nil)
 	if err != nil {
 		return database.Chat{}, err
 	}
@@ -807,7 +847,7 @@ type Config struct {
 	Logger                     slog.Logger
 	Database                   database.Store
 	ReplicaID                  uuid.UUID
-	RemotePartsProvider        RemotePartsProvider
+	SubscribeFn                SubscribeFn
 	PendingChatAcquireInterval time.Duration
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
@@ -844,7 +884,7 @@ func New(cfg Config) *Server {
 		db:                         cfg.Database,
 		workerID:                   workerID,
 		logger:                     cfg.Logger.Named("chat-processor"),
-		remotePartsProvider:        cfg.RemotePartsProvider,
+		subscribeFn:                cfg.SubscribeFn,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
 		pubsub:                     cfg.Pubsub,
@@ -954,10 +994,12 @@ func (p *Server) subscribeToStream(chatID uuid.UUID) (
 		p.streamMu.Lock()
 		state, ok := p.chatStreams[chatID]
 		if ok {
-			if subscriber, exists := state.subscribers[id]; exists {
-				delete(state.subscribers, id)
-				close(subscriber)
-			}
+			// Remove the subscriber but do not close the channel.
+			// publishToStream copies subscriber references under
+			// streamMu then sends outside the lock; closing here
+			// races with that send and can panic. The channel
+			// becomes unreachable once removed and will be GC'd.
+			delete(state.subscribers, id)
 			p.cleanupStreamIfIdleLocked(chatID, state)
 		}
 		p.streamMu.Unlock()
@@ -1005,7 +1047,7 @@ func (p *Server) Subscribe(
 	// Subscribe to local stream for message_parts (ephemeral).
 	localSnapshot, localParts, localCancel := p.subscribeToStream(chatID)
 
-	// Build initial snapshot synchronously
+	// Build initial snapshot synchronously.
 	initialSnapshot := make([]codersdk.ChatStreamEvent, 0)
 	// Add local message_parts to snapshot
 	for _, event := range localSnapshot {
@@ -1033,7 +1075,7 @@ func (p *Server) Subscribe(
 		}
 	}
 
-	// Load initial queue
+	// Load initial queue.
 	queued, err := p.db.GetChatQueuedMessages(ctx, chatID)
 	if err == nil && len(queued) > 0 {
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
@@ -1043,24 +1085,8 @@ func (p *Server) Subscribe(
 		})
 	}
 
-	// Get initial chat state to determine if we need a relay
+	// Get initial chat state to determine if we need a relay.
 	chat, err := p.db.GetChatByID(ctx, chatID)
-	var relayCancel func()
-	var relayParts <-chan codersdk.ChatStreamEvent
-	if err == nil && chat.Status == database.ChatStatusRunning && chat.WorkerID.Valid && chat.WorkerID.UUID != p.workerID && p.remotePartsProvider != nil {
-		// Open relay for initial snapshot
-		snapshot, parts, cancel, err := p.remotePartsProvider(ctx, chatID, chat.WorkerID.UUID, requestHeader)
-		if err == nil {
-			relayCancel = cancel
-			relayParts = parts
-			// Add relay message_parts to snapshot
-			for _, event := range snapshot {
-				if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-					initialSnapshot = append(initialSnapshot, event)
-				}
-			}
-		}
-	}
 
 	// Include the current chat status in the snapshot so the
 	// frontend can gate message_part processing correctly from
@@ -1079,119 +1105,38 @@ func (p *Server) Subscribe(
 		initialSnapshot = append([]codersdk.ChatStreamEvent{statusEvent}, initialSnapshot...)
 	}
 
-	// Track the last message ID we've seen for DB queries
-	var lastMessageID int64
+	// Track the last message ID we've seen for DB queries.
+	// Initialize from afterMessageID so that when the caller passes
+	// afterMessageID > 0 but no new messages exist yet, the first
+	// pubsub catch-up doesn't re-fetch already-seen messages.
+	lastMessageID := afterMessageID
 	if len(messages) > 0 {
 		lastMessageID = messages[len(messages)-1].ID
 	}
 
-	// Merge all event sources
+	// Merge all event sources.
 	mergedCtx, mergedCancel := context.WithCancel(ctx)
 	mergedEvents := make(chan codersdk.ChatStreamEvent, 128)
+
 	var allCancels []func()
 	allCancels = append(allCancels, localCancel)
-	if relayCancel != nil {
-		allCancels = append(allCancels, relayCancel)
-	}
 
-	// Channel for async relay establishment.
-	type relayResult struct {
-		parts  <-chan codersdk.ChatStreamEvent
-		cancel func()
-	}
-	relayReadyCh := make(chan relayResult, 1)
-
-	// Reconnect timer state.
-	var reconnectTimer *time.Timer
-	var reconnectCh <-chan time.Time
-
-	// Helper to close relay and stop any pending reconnect timer.
-	closeRelay := func() {
-		if relayCancel != nil {
-			relayCancel()
-			relayCancel = nil
-		}
-		relayParts = nil
-		if reconnectTimer != nil {
-			reconnectTimer.Stop()
-			reconnectTimer = nil
-			reconnectCh = nil
-		}
-	}
-
-	// openRelayAsync dials the remote replica in a background
-	// goroutine and delivers the result on relayReadyCh so the
-	// main select loop is never blocked by network I/O.
-	openRelayAsync := func(workerID uuid.UUID) {
-		if p.remotePartsProvider == nil {
-			return
-		}
-		closeRelay()
-		go func() {
-			snapshot, parts, cancel, err := p.remotePartsProvider(mergedCtx, chatID, workerID, requestHeader)
-			if err != nil {
-				p.logger.Warn(mergedCtx, "failed to open relay for message parts",
-					slog.F("chat_id", chatID),
-					slog.F("worker_id", workerID),
-					slog.Error(err),
-				)
-				return
-			}
-			// Wrap the relay channel so snapshot parts are
-			// delivered through the same channel as live parts.
-			wrappedParts := make(chan codersdk.ChatStreamEvent, 128)
-			go func() {
-				defer close(wrappedParts)
-				for _, event := range snapshot {
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-						select {
-						case wrappedParts <- event:
-						case <-mergedCtx.Done():
-							cancel()
-							return
-						}
-					}
-				}
-				for event := range parts {
-					select {
-					case wrappedParts <- event:
-					case <-mergedCtx.Done():
-						return
-					}
-				}
-			}()
-			select {
-			case relayReadyCh <- relayResult{parts: wrappedParts, cancel: cancel}:
-			case <-mergedCtx.Done():
-				cancel()
-			}
-		}()
-	}
-
-	// scheduleRelayReconnect arms a short timer so the select
-	// loop can re-check chat status and reopen the relay without
-	// spinning in a tight loop.
-	scheduleRelayReconnect := func() {
-		if p.remotePartsProvider == nil {
-			return
-		}
-		if reconnectTimer != nil {
-			reconnectTimer.Stop()
-		}
-		reconnectTimer = time.NewTimer(500 * time.Millisecond)
-		reconnectCh = reconnectTimer.C
-	}
-
-	//nolint:nestif
+	// Subscribe to pubsub for durable events (status, messages,
+	// queue updates, errors). When pubsub is nil (e.g. in-memory
+	// single-instance) we skip this and deliver all local events.
+	var notifications <-chan coderdpubsub.ChatStreamNotifyMessage
+	var errCh <-chan error
 	if p.pubsub != nil {
-		notifications := make(chan coderdpubsub.ChatStreamNotifyMessage, 10)
-		errCh := make(chan error, 1)
+		notifyCh := make(chan coderdpubsub.ChatStreamNotifyMessage, 10)
+		errNotifyCh := make(chan error, 1)
+		notifications = notifyCh
+		errCh = errNotifyCh
 
-		listener := func(_ context.Context, message []byte, err error) {
-			if err != nil {
+		listener := func(_ context.Context, message []byte, listenErr error) {
+			if listenErr != nil {
 				select {
 				case <-mergedCtx.Done():
-				case errCh <- err:
+				case errNotifyCh <- listenErr:
 				}
 				return
 			}
@@ -1199,187 +1144,214 @@ func (p *Server) Subscribe(
 			if unmarshalErr := json.Unmarshal(message, &notify); unmarshalErr != nil {
 				select {
 				case <-mergedCtx.Done():
-				case errCh <- xerrors.Errorf("unmarshal chat stream notify: %w", unmarshalErr):
+				case errNotifyCh <- xerrors.Errorf("unmarshal chat stream notify: %w", unmarshalErr):
 				}
 				return
 			}
 			select {
 			case <-mergedCtx.Done():
-			case notifications <- notify:
+			case notifyCh <- notify:
 			}
 		}
 
-		// Subscribe to pubsub for durable events
-		if pubsubCancel, err := p.pubsub.SubscribeWithErr(
+		if pubsubCancel, pubsubErr := p.pubsub.SubscribeWithErr(
 			coderdpubsub.ChatStreamNotifyChannel(chatID),
 			listener,
-		); err == nil {
+		); pubsubErr == nil {
 			allCancels = append(allCancels, pubsubCancel)
 		} else {
-			p.logger.Warn(mergedCtx, "failed to subscribe to chat stream notifications",
+			p.logger.Warn(ctx, "failed to subscribe to chat stream notifications",
 				slog.F("chat_id", chatID),
-				slog.Error(err),
+				slog.Error(pubsubErr),
 			)
 		}
+	}
 
-		// Handle pubsub notifications in a goroutine
-		go func() {
-			defer close(mergedEvents)
-			defer closeRelay()
+	// When an enterprise SubscribeFn is provided and the chat
+	// lookup succeeded, call it to get relay events (message_parts
+	// from remote replicas). OSS now owns pubsub subscription,
+	// message catch-up, queue updates, and status forwarding;
+	// enterprise only manages relay dialing.
+	var relayEvents <-chan codersdk.ChatStreamEvent
+	var relayCleanup func()
+	var statusNotifications chan StatusNotification
+	if p.subscribeFn != nil && err == nil {
+		statusNotifications = make(chan StatusNotification, 10)
+		var relayEvCh <-chan codersdk.ChatStreamEvent
+		relayEvCh, relayCleanup = p.subscribeFn(mergedCtx, SubscribeFnParams{
+			ChatID:              chatID,
+			Chat:                chat,
+			WorkerID:            p.workerID,
+			StatusNotifications: statusNotifications,
+			RequestHeader:       requestHeader,
+			DB:                  p.db,
+			Logger:              p.logger,
+		})
+		relayEvents = relayEvCh
+	}
 
-			for {
-				relayPartsCh := relayParts
+	hasPubsub := false
+	if p.pubsub != nil {
+		// hasPubsub is only true when we actually subscribed
+		// successfully above (allCancels will contain the pubsub
+		// cancel func in that case).
+		hasPubsub = len(allCancels) > 1
+	}
+
+	//nolint:nestif
+	go func() {
+		defer close(mergedEvents)
+		if statusNotifications != nil {
+			defer close(statusNotifications)
+		}
+		for {
+			select {
+			case <-mergedCtx.Done():
+				return
+			case psErr := <-errCh:
+				p.logger.Error(mergedCtx, "chat stream pubsub error",
+					slog.F("chat_id", chatID),
+					slog.Error(psErr),
+				)
 				select {
+				case mergedEvents <- codersdk.ChatStreamEvent{
+					Type:   codersdk.ChatStreamEventTypeError,
+					ChatID: chatID,
+					Error: &codersdk.ChatStreamError{
+						Message: psErr.Error(),
+					},
+				}:
 				case <-mergedCtx.Done():
-					return
-				case err := <-errCh:
-					p.logger.Error(mergedCtx, "chat stream pubsub error",
-						slog.F("chat_id", chatID),
-						slog.Error(err),
-					)
-					mergedEvents <- codersdk.ChatStreamEvent{
-						Type:   codersdk.ChatStreamEventTypeError,
-						ChatID: chatID,
-						Error: &codersdk.ChatStreamError{
-							Message: err.Error(),
-						},
-					}
-					return
-				case result := <-relayReadyCh:
-					// An async relay dial completed; swap in the
-					// new relay channel.
-					closeRelay()
-					relayParts = result.parts
-					relayCancel = result.cancel
-				case <-reconnectCh:
-					reconnectCh = nil
-					// Re-check whether the chat is still running
-					// on a remote worker before reconnecting.
-					currentChat, chatErr := p.db.GetChatByID(mergedCtx, chatID)
-					if chatErr == nil && currentChat.Status == database.ChatStatusRunning &&
-						currentChat.WorkerID.Valid && currentChat.WorkerID.UUID != p.workerID {
-						openRelayAsync(currentChat.WorkerID.UUID)
-					}
-				case notify := <-notifications:
-					// Handle different notification types
-					if notify.AfterMessageID > 0 {
-						// Read only new messages from DB.
-						messages, err := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
-							ChatID:  chatID,
-							AfterID: lastMessageID,
-						})
-						if err == nil {
-							for _, msg := range messages {
-								sdkMsg := db2sdk.ChatMessage(msg)
-								select {
-								case <-mergedCtx.Done():
-									return
-								case mergedEvents <- codersdk.ChatStreamEvent{
-									Type:    codersdk.ChatStreamEventTypeMessage,
-									ChatID:  chatID,
-									Message: &sdkMsg,
-								}:
-								}
-								lastMessageID = msg.ID
-							}
-						}
-					}
-					if notify.Status != "" {
-						status := database.ChatStatus(notify.Status)
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- codersdk.ChatStreamEvent{
-							Type:   codersdk.ChatStreamEventTypeStatus,
-							ChatID: chatID,
-							Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
-						}:
-						}
-						// Manage relay lifecycle based on status.
-						if status == database.ChatStatusRunning && notify.WorkerID != "" {
-							workerID, err := uuid.Parse(notify.WorkerID)
-							if err == nil && workerID != p.workerID {
-								openRelayAsync(workerID)
-							} else if workerID == p.workerID {
-								closeRelay()
-							}
-						} else {
-							closeRelay()
-						}
-					}
-					if notify.Error != "" {
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- codersdk.ChatStreamEvent{
-							Type:   codersdk.ChatStreamEventTypeError,
-							ChatID: chatID,
-							Error: &codersdk.ChatStreamError{
-								Message: notify.Error,
-							},
-						}:
-						}
-					}
-					if notify.QueueUpdate {
-						queued, err := p.db.GetChatQueuedMessages(mergedCtx, chatID)
-						if err == nil {
+				}
+				return
+			case notify := <-notifications:
+				if notify.AfterMessageID > 0 {
+					newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
+						ChatID:  chatID,
+						AfterID: lastMessageID,
+					})
+					if msgErr != nil {
+						p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
+							slog.F("chat_id", chatID),
+							slog.Error(msgErr),
+						)
+					} else {
+						for _, msg := range newMessages {
+							sdkMsg := db2sdk.ChatMessage(msg)
 							select {
 							case <-mergedCtx.Done():
 								return
 							case mergedEvents <- codersdk.ChatStreamEvent{
-								Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-								ChatID:         chatID,
-								QueuedMessages: db2sdk.ChatQueuedMessages(queued),
+								Type:    codersdk.ChatStreamEventTypeMessage,
+								ChatID:  chatID,
+								Message: &sdkMsg,
 							}:
 							}
-						}
-					}
-				case event, ok := <-localParts:
-					if !ok {
-						// Local parts channel closed, but continue with pubsub
-						continue
-					}
-					// Only forward message_part events from local (durable events come via pubsub)
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- event:
-						}
-					}
-				case event, ok := <-relayPartsCh:
-					if !ok {
-						relayParts = nil
-						// Schedule reconnection instead of giving up.
-						scheduleRelayReconnect()
-						continue
-					}
-					// Only forward message_part events from relay (durable events come via pubsub)
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- event:
+							lastMessageID = msg.ID
 						}
 					}
 				}
-			}
-		}()
-	} else {
-		// No pubsub, just merge local parts.
-		// localSnapshot was already included in initialSnapshot,
-		// so only forward new events here.
-		go func() {
-			defer close(mergedEvents)
-			for event := range localParts {
+				if notify.Status != "" {
+					status := database.ChatStatus(notify.Status)
+					select {
+					case <-mergedCtx.Done():
+						return
+					case mergedEvents <- codersdk.ChatStreamEvent{
+						Type:   codersdk.ChatStreamEventTypeStatus,
+						ChatID: chatID,
+						Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
+					}:
+					}
+					// Notify enterprise relay manager if present.
+					if statusNotifications != nil {
+						workerID := uuid.Nil
+						if notify.WorkerID != "" {
+							if parsed, parseErr := uuid.Parse(notify.WorkerID); parseErr == nil {
+								workerID = parsed
+							}
+						}
+						select {
+						case statusNotifications <- StatusNotification{Status: status, WorkerID: workerID}:
+						case <-mergedCtx.Done():
+							return
+						}
+					}
+				}
+				if notify.Error != "" {
+					select {
+					case <-mergedCtx.Done():
+						return
+					case mergedEvents <- codersdk.ChatStreamEvent{
+						Type:   codersdk.ChatStreamEventTypeError,
+						ChatID: chatID,
+						Error: &codersdk.ChatStreamError{
+							Message: notify.Error,
+						},
+					}:
+					}
+				}
+				if notify.QueueUpdate {
+					queuedMsgs, queueErr := p.db.GetChatQueuedMessages(mergedCtx, chatID)
+					if queueErr != nil {
+						p.logger.Warn(mergedCtx, "failed to get queued messages after pubsub notification",
+							slog.F("chat_id", chatID),
+							slog.Error(queueErr),
+						)
+					} else {
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- codersdk.ChatStreamEvent{
+							Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+							ChatID:         chatID,
+							QueuedMessages: db2sdk.ChatQueuedMessages(queuedMsgs),
+						}:
+						}
+					}
+				}
+			case event, ok := <-localParts:
+				if !ok {
+					localParts = nil
+					// Local parts channel closed. If pubsub is
+					// active we continue with pubsub-driven events.
+					// Otherwise terminate.
+					if !hasPubsub {
+						return
+					}
+					continue
+				}
+				if hasPubsub {
+					// Only forward message_part events from local
+					// (durable events come via pubsub).
+					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- event:
+						}
+					}
+				} else {
+					// No pubsub: forward all event types.
+					select {
+					case <-mergedCtx.Done():
+						return
+					case mergedEvents <- event:
+					}
+				}
+			case event, ok := <-relayEvents:
+				if !ok {
+					relayEvents = nil
+					continue
+				}
 				select {
 				case <-mergedCtx.Done():
 					return
 				case mergedEvents <- event:
 				}
 			}
-		}()
-	}
+		}
+	}()
+
 	cancel := func() {
 		mergedCancel()
 		for _, cancelFn := range allCancels {
@@ -1387,11 +1359,10 @@ func (p *Server) Subscribe(
 				cancelFn()
 			}
 		}
-		if reconnectTimer != nil {
-			reconnectTimer.Stop()
+		if relayCleanup != nil {
+			relayCleanup()
 		}
 	}
-
 	return initialSnapshot, mergedEvents, cancel, true
 }
 
@@ -1733,6 +1704,15 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				return xerrors.Errorf("lock chat for release: %w", lockErr)
 			}
 
+			// If another worker has already acquired this chat,
+			// bail out — we must not overwrite their running
+			// status or publish spurious events.
+			if latestChat.Status == database.ChatStatusRunning &&
+				latestChat.WorkerID.Valid &&
+				latestChat.WorkerID.UUID != p.workerID {
+				return errChatTakenByOtherWorker
+			}
+
 			// If someone else already set the chat to pending (e.g.
 			// the promote endpoint), don't overwrite it — just clear
 			// the worker and let the processor pick it back up.
@@ -1766,11 +1746,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 					} else {
 						status = database.ChatStatusPending
 
-						sdkMsg := db2sdk.ChatMessage(msg)
-						p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
-							Type:    codersdk.ChatStreamEventTypeMessage,
-							Message: &sdkMsg,
-						})
+						p.publishMessage(chat.ID, msg)
 
 						remaining, qErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
 						if qErr == nil {
@@ -1791,6 +1767,12 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			})
 			return updateErr
 		}, nil)
+		if errors.Is(err, errChatTakenByOtherWorker) {
+			// Another worker owns this chat now — skip all
+			// post-TX side effects (status publish, pubsub,
+			// web push) to avoid overwriting their state.
+			return
+		}
 		if err != nil {
 			logger.Error(cleanupCtx, "failed to release chat", slog.Error(err))
 		}
@@ -1908,7 +1890,7 @@ func (p *Server) runChat(
 	chat database.Chat,
 	logger slog.Logger,
 ) error {
-	model, modelConfig, err := p.resolveChatModel(ctx, chat)
+	model, modelConfig, providerKeys, err := p.resolveChatModel(ctx, chat)
 	if err != nil {
 		return err
 	}
@@ -1930,7 +1912,7 @@ func (p *Server) runChat(
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
-		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, logger)
+		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, providerKeys, logger)
 	}()
 
 	prompt, err := chatprompt.ConvertMessages(messages)
@@ -2181,22 +2163,6 @@ func (p *Server) runChat(
 
 	// Here are all the tools we have for the chat.
 	tools := []fantasy.AgentTool{
-		chattool.ListTemplates(chattool.ListTemplatesOptions{
-			DB:      p.db,
-			OwnerID: chat.OwnerID,
-		}),
-		chattool.ReadTemplate(chattool.ReadTemplateOptions{
-			DB:      p.db,
-			OwnerID: chat.OwnerID,
-		}),
-		chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
-			DB:          p.db,
-			OwnerID:     chat.OwnerID,
-			ChatID:      chat.ID,
-			CreateFn:    p.createWorkspaceFn,
-			AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
-			WorkspaceMu: &workspaceMu,
-		}),
 		chattool.ReadFile(chattool.ReadFileOptions{
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
@@ -2220,10 +2186,29 @@ func (p *Server) runChat(
 			GetWorkspaceConn: getWorkspaceConn,
 		}),
 	}
-	// Only root chats (not delegated subagents) get subagent tools.
-	// Child agents must not spawn further subagents — they should
+	// Only root chats (not delegated subagents) get workspace
+	// provisioning and subagent tools. Child agents must not
+	// create workspaces or spawn further subagents — they should
 	// focus on completing their delegated task.
 	if !chat.ParentChatID.Valid {
+		tools = append(tools,
+			chattool.ListTemplates(chattool.ListTemplatesOptions{
+				DB:      p.db,
+				OwnerID: chat.OwnerID,
+			}),
+			chattool.ReadTemplate(chattool.ReadTemplateOptions{
+				DB:      p.db,
+				OwnerID: chat.OwnerID,
+			}),
+			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
+				DB:          p.db,
+				OwnerID:     chat.OwnerID,
+				ChatID:      chat.ID,
+				CreateFn:    p.createWorkspaceFn,
+				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
+				WorkspaceMu: &workspaceMu,
+			}),
+		)
 		tools = append(tools, p.subagentTools(func() database.Chat {
 			return chat
 		})...)
@@ -2248,6 +2233,23 @@ func (p *Server) runChat(
 			p.publishMessagePart(chat.ID, string(role), part)
 		},
 		Compaction: compactionOptions,
+		ReloadMessages: func(reloadCtx context.Context) ([]fantasy.Message, error) {
+			reloadedMsgs, err := p.db.GetChatMessagesForPromptByChatID(reloadCtx, chat.ID)
+			if err != nil {
+				return nil, xerrors.Errorf("reload chat messages: %w", err)
+			}
+			reloadedPrompt, err := chatprompt.ConvertMessages(reloadedMsgs)
+			if err != nil {
+				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
+			}
+			if chat.ParentChatID.Valid {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, defaultSubagentInstruction)
+			}
+			if instruction := p.resolveInstructions(reloadCtx, chat, getWorkspaceConn); instruction != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			}
+			return reloadedPrompt, nil
+		},
 
 		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
 			logger.Warn(ctx, "retrying LLM stream",
@@ -2407,17 +2409,17 @@ func (p *Server) persistChatContextSummary(
 func (p *Server) resolveChatModel(
 	ctx context.Context,
 	chat database.Chat,
-) (fantasy.LanguageModel, database.ChatModelConfig, error) {
+) (fantasy.LanguageModel, database.ChatModelConfig, chatprovider.ProviderAPIKeys, error) {
 	dbConfig, err := p.resolveModelConfig(ctx, chat)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
 			"resolve model config: %w", err,
 		)
 	}
 
 	providers, err := p.db.GetEnabledChatProviders(ctx)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
 			"get enabled chat providers: %w", err,
 		)
 	}
@@ -2439,11 +2441,11 @@ func (p *Server) resolveChatModel(
 		dbConfig.Provider, dbConfig.Model, keys,
 	)
 	if err != nil {
-		return nil, database.ChatModelConfig{}, xerrors.Errorf(
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
 			"create model: %w", err,
 		)
 	}
-	return model, dbConfig, nil
+	return model, dbConfig, keys, nil
 }
 
 // resolveModelConfig looks up the chat's model config by its

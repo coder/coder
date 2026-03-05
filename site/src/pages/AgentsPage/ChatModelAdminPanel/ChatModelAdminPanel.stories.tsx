@@ -621,6 +621,256 @@ export const ModelFormBedrock: Story = {
 	},
 };
 
+export const ModelDeleteConfirmation: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [
+				createModelConfig({
+					id: "model-1",
+					provider: "openai",
+					model: "gpt-4o",
+					display_name: "GPT-4o",
+				}),
+			],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Click the model row to open the edit form.
+		await userEvent.click(await body.findByText("GPT-4o"));
+
+		// The Delete button should be visible in the footer.
+		const deleteButton = await body.findByRole("button", { name: "Delete" });
+		await expect(deleteButton).toBeInTheDocument();
+
+		// Click Delete to show the inline confirmation.
+		await userEvent.click(deleteButton);
+
+		// The confirmation strip should appear — leave it visible
+		// so the Chromatic snapshot captures this state.
+		await expect(
+			await body.findByText(/Are you sure\? This action is irreversible/i),
+		).toBeInTheDocument();
+		await expect(
+			body.getByRole("button", { name: "Delete model" }),
+		).toBeInTheDocument();
+		await expect(
+			body.getByRole("button", { name: "Cancel" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelDeleteCancelled: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [
+				createModelConfig({
+					id: "model-1",
+					provider: "openai",
+					model: "gpt-4o",
+					display_name: "GPT-4o",
+				}),
+			],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to edit form, trigger confirmation, then cancel.
+		await userEvent.click(await body.findByText("GPT-4o"));
+		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
+		await body.findByText(/Are you sure/i);
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+
+		// Normal footer should be restored.
+		await expect(
+			await body.findByRole("button", { name: "Delete" }),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByRole("button", { name: "Save" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const ModelDeleteConfirmed: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [
+				createModelConfig({
+					id: "model-1",
+					provider: "openai",
+					model: "gpt-4o",
+					display_name: "GPT-4o",
+				}),
+			],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to edit form, trigger delete confirmation, then confirm.
+		await userEvent.click(await body.findByText("GPT-4o"));
+		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Delete model" }),
+		);
+
+		// The delete API should have been called.
+		await waitFor(() => {
+			expect(API.deleteChatModelConfig).toHaveBeenCalledTimes(1);
+		});
+		expect(API.deleteChatModelConfig).toHaveBeenCalledWith("model-1");
+	},
+};
+
+export const ProviderDeleteConfirmation: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to the provider detail view.
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+
+		// Click Delete to show the inline confirmation.
+		const deleteButton = await body.findByRole("button", { name: "Delete" });
+		await userEvent.click(deleteButton);
+
+		// The confirmation strip should appear — leave it visible
+		// so the Chromatic snapshot captures this state.
+		await expect(
+			await body.findByText(/Are you sure\? This action is irreversible/i),
+		).toBeInTheDocument();
+		await expect(
+			body.getByRole("button", { name: "Delete provider" }),
+		).toBeInTheDocument();
+		await expect(
+			body.getByRole("button", { name: "Cancel" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const ProviderDeleteCancelled: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to provider detail, trigger confirmation, then cancel.
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
+		await body.findByText(/Are you sure/i);
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+
+		// Normal footer should be restored.
+		await expect(
+			await body.findByRole("button", { name: "Delete" }),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByRole("button", { name: "Save changes" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const ProviderDeleteConfirmed: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to provider detail, trigger delete, then confirm.
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Delete provider" }),
+		);
+
+		// The delete API should have been called.
+		await waitFor(() => {
+			expect(API.deleteChatProviderConfig).toHaveBeenCalledTimes(1);
+		});
+		expect(API.deleteChatProviderConfig).toHaveBeenCalledWith(
+			"provider-openai",
+		);
+	},
+};
+
 export const ValidatesModelConfigFields: Story = {
 	args: { section: "models" as ChatModelAdminSection },
 	beforeEach: () => {

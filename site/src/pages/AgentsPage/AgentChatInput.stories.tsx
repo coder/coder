@@ -80,6 +80,13 @@ export const DisabledInput: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+
+		// The editor should be non-editable so users cannot click
+		// into it and type (e.g. archived chats).
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor).toHaveAttribute("contenteditable", "false");
+		});
 	},
 };
 

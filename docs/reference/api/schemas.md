@@ -9809,6 +9809,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------|--------|----------|--------------|-------------|
 | `name` | string | false    |              |             |
 
+## codersdk.UpdateWorkspaceSharingSettingsRequest
+
+```json
+{
+  "sharing_disabled": true
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+|--------------------|---------|----------|--------------|-------------|
+| `sharing_disabled` | boolean | false    |              |             |
+
 ## codersdk.UpdateWorkspaceTTLRequest
 
 ```json
@@ -12278,15 +12292,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "sharing_disabled": true
+  "sharing_disabled": true,
+  "sharing_globally_disabled": true
 }
 ```
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `sharing_disabled` | boolean | false    |              |             |
+| Name                        | Type    | Required | Restrictions | Description                                                                                                                |
+|-----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| `sharing_disabled`          | boolean | false    |              |                                                                                                                            |
+| `sharing_globally_disabled` | boolean | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting. |
 
 ## codersdk.WorkspaceStatus
 

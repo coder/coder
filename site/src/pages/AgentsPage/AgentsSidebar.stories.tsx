@@ -1,3 +1,5 @@
+import { MockUserOwner } from "testHelpers/entities";
+import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
@@ -30,14 +32,16 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	},
 ];
 
+const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	owner_id: "owner-1",
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
-	created_at: "2026-02-18T00:00:00.000Z",
-	updated_at: "2026-02-18T00:00:00.000Z",
+	created_at: oneWeekAgo,
+	updated_at: oneWeekAgo,
 	archived: false,
 	last_error: null,
 	...overrides,
@@ -54,17 +58,20 @@ const agentsRouting = [
 const meta: Meta<typeof AgentsSidebar> = {
 	title: "pages/AgentsPage/AgentsSidebar",
 	component: AgentsSidebar,
+	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		chatErrorReasons: {},
 		modelOptions: defaultModelOptions,
 		modelConfigs: defaultModelConfigs,
 		onArchiveAgent: fn(),
+		onUnarchiveAgent: fn(),
 		onArchiveAndDeleteWorkspace: fn(),
 		onNewAgent: fn(),
 		isCreating: false,
 	},
 	parameters: {
 		layout: "fullscreen",
+		user: MockUserOwner,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
 			routing: agentsRouting,
@@ -417,5 +424,89 @@ export const NoArchivedSection: Story = {
 			expect(canvas.getByText("Second active agent")).toBeInTheDocument();
 		});
 		expect(canvas.queryByText(/^Archived \(/)).not.toBeInTheDocument();
+	},
+};
+
+export const ArchivingShowsSpinnerOnly: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archiving-chat",
+				title: "Chat being archived",
+				updated_at: todayTimestamp,
+			}),
+		],
+		isArchiving: true,
+		archivingChatId: "archiving-chat",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const DefaultShowsTimestampHidesMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "default-chat",
+				title: "Default state agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const ArchivedAgentUnarchiveOption: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-unarchive",
+				title: "Archived agent with unarchive",
+				archived: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Expand archived section
+		await waitFor(() => {
+			expect(canvas.getByText("Archived (1)")).toBeInTheDocument();
+		});
+		await userEvent.click(canvas.getByText("Archived (1)"));
+		await waitFor(() => {
+			expect(
+				canvas.getByText("Archived agent with unarchive"),
+			).toBeInTheDocument();
+		});
+		// Open the dropdown menu for the archived agent
+		const trigger = canvas.getByLabelText(
+			"Open actions for Archived agent with unarchive",
+		);
+		await userEvent.click(trigger);
+		// Verify "Unarchive agent" is shown instead of "Archive agent"
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Unarchive agent")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
+		expect(
+			body.queryByText("Archive & delete workspace"),
+		).not.toBeInTheDocument();
 	},
 };

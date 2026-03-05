@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
-	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -82,6 +80,160 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 			return false
 		}
 	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues:         deploymentValues,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	_ = agenttest.New(t, client.URL, agentToken)
+
+	// Track tools sent in LLM requests. The first call is for the
+	// root chat which spawns a subagent; the second call is for the
+	// subagent itself.
+	var toolsMu sync.Mutex
+	toolsByCall := make([][]string, 0, 2)
+
+	var callCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("ok")
+		}
+
+		names := make([]string, 0, len(req.Tools))
+		for _, tool := range req.Tools {
+			names = append(names, tool.Function.Name)
+		}
+		toolsMu.Lock()
+		toolsByCall = append(toolsByCall, names)
+		toolsMu.Unlock()
+
+		if callCount.Add(1) == 1 {
+			// Root chat: model calls spawn_agent.
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("spawn_agent", `{"prompt":"do the thing","title":"sub"}`),
+			)
+		}
+		// Subsequent calls (including the subagent): just reply.
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Done.")...,
+		)
+	})
+
+	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider: "openai-compat",
+		APIKey:   "test-api-key",
+		BaseURL:  openAIURL,
+	})
+	require.NoError(t, err)
+
+	contextLimit := int64(4096)
+	isDefault := true
+	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+	})
+	require.NoError(t, err)
+
+	// Create a root chat whose first model call will spawn a subagent.
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Spawn a subagent to do the thing.",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for the root chat AND the subagent to finish.
+	// The root chat finishes first, then the chatd server
+	// picks up and runs the child (subagent) chat.
+	require.Eventually(t, func() bool {
+		got, getErr := client.GetChat(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		if got.Chat.Status != codersdk.ChatStatusWaiting && got.Chat.Status != codersdk.ChatStatusError {
+			return false
+		}
+		// Also ensure the subagent LLM call has been made.
+		toolsMu.Lock()
+		n := len(toolsByCall)
+		toolsMu.Unlock()
+		// Expect at least 3 calls: root-1 (spawn_agent), child-1, root-2.
+		return n >= 3
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	// There should be at least two streamed calls: one for the root
+	// chat and one for the subagent child chat.
+	toolsMu.Lock()
+	recorded := append([][]string(nil), toolsByCall...)
+	toolsMu.Unlock()
+
+	require.GreaterOrEqual(t, len(recorded), 2,
+		"expected at least 2 streamed LLM calls (root + subagent)")
+
+	workspaceTools := []string{"list_templates", "read_template", "create_workspace"}
+	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "close_agent"}
+
+	// Identify root and subagent calls. Root chat calls include
+	// spawn_agent; the subagent call does not. Because the root chat
+	// makes multiple LLM calls (before and after spawn_agent), we
+	// find exactly one call that lacks spawn_agent — that's the
+	// subagent.
+	var rootCalls, childCalls [][]string
+	for _, tools := range recorded {
+		hasSpawnAgent := slice.Contains(tools, "spawn_agent")
+		if hasSpawnAgent {
+			rootCalls = append(rootCalls, tools)
+		} else {
+			childCalls = append(childCalls, tools)
+		}
+	}
+
+	require.NotEmpty(t, rootCalls, "expected at least one root chat LLM call")
+	require.NotEmpty(t, childCalls, "expected at least one subagent LLM call")
+
+	// Root chat calls must include workspace and subagent tools.
+	for _, tool := range workspaceTools {
+		require.Contains(t, rootCalls[0], tool,
+			"root chat should have workspace tool %q", tool)
+	}
+	for _, tool := range subagentTools {
+		require.Contains(t, rootCalls[0], tool,
+			"root chat should have subagent tool %q", tool)
+	}
+
+	// Subagent calls must NOT include workspace or subagent tools.
+	for _, tool := range workspaceTools {
+		require.NotContains(t, childCalls[0], tool,
+			"subagent chat should NOT have workspace tool %q", tool)
+	}
+	for _, tool := range subagentTools {
+		require.NotContains(t, childCalls[0], tool,
+			"subagent chat should NOT have subagent tool %q", tool)
+	}
 }
 
 func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
@@ -979,30 +1131,6 @@ func newTestServer(
 	return server
 }
 
-func newTestServerWithRelay(
-	t *testing.T,
-	db database.Store,
-	ps dbpubsub.Pubsub,
-	replicaID uuid.UUID,
-	provider chatd.RemotePartsProvider,
-) *chatd.Server {
-	t.Helper()
-
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(chatd.Config{
-		Logger:                     logger,
-		Database:                   db,
-		ReplicaID:                  replicaID,
-		Pubsub:                     ps,
-		RemotePartsProvider:        provider,
-		PendingChatAcquireInterval: testutil.WaitSuperLong,
-	})
-	t.Cleanup(func() {
-		require.NoError(t, server.Close())
-	})
-	return server
-}
-
 func seedChatDependencies(
 	ctx context.Context,
 	t *testing.T,
@@ -1057,293 +1185,6 @@ func setOpenAIProviderBaseURL(
 		Enabled:     provider.Enabled,
 	})
 	require.NoError(t, err)
-}
-
-func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	workerID := uuid.New()
-	subscriberID := uuid.New()
-
-	var callCount atomic.Int32
-
-	provider := func(ctx context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
-		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
-	) {
-		call := callCount.Add(1)
-		ch := make(chan codersdk.ChatStreamEvent, 10)
-		if call == 1 {
-			// First relay: send a part then close to simulate a drop.
-			ch <- codersdk.ChatStreamEvent{
-				Type: codersdk.ChatStreamEventTypeMessagePart,
-				MessagePart: &codersdk.ChatStreamMessagePart{
-					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "first-relay"},
-				},
-			}
-			close(ch)
-		} else {
-			// Second relay: send a different part, keep open.
-			ch <- codersdk.ChatStreamEvent{
-				Type: codersdk.ChatStreamEventTypeMessagePart,
-				MessagePart: &codersdk.ChatStreamMessagePart{
-					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "second-relay"},
-				},
-			}
-			// Don't close — keep alive so the subscriber stays connected.
-		}
-		return nil, ch, func() {}, nil
-	}
-
-	subscriber := newTestServerWithRelay(t, db, ps, subscriberID, provider)
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
-
-	// Create a chat and mark it as running on a remote worker.
-	chat, err := subscriber.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "relay-reconnect",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
-	})
-	require.NoError(t, err)
-
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
-
-	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	t.Cleanup(cancel)
-
-	// Should get the first relay part.
-	require.Eventually(t, func() bool {
-		select {
-		case event := <-events:
-			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
-				event.MessagePart != nil &&
-				event.MessagePart.Part.Text == "first-relay" {
-				return true
-			}
-			return false
-		default:
-			return false
-		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
-
-	// After the first relay closes, a reconnection should happen and
-	// deliver the second relay part.
-	require.Eventually(t, func() bool {
-		select {
-		case event := <-events:
-			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
-				event.MessagePart != nil &&
-				event.MessagePart.Part.Text == "second-relay" {
-				return true
-			}
-			return false
-		default:
-			return false
-		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
-
-	require.GreaterOrEqual(t, int(callCount.Load()), 2)
-}
-
-func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	workerID := uuid.New()
-	subscriberID := uuid.New()
-
-	dialStarted := make(chan struct{})
-	dialContinue := make(chan struct{})
-
-	provider := func(ctx context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
-		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
-	) {
-		// Signal that the dial has started, then block until released.
-		select {
-		case <-dialStarted:
-		default:
-			close(dialStarted)
-		}
-		select {
-		case <-dialContinue:
-		case <-ctx.Done():
-			return nil, nil, nil, ctx.Err()
-		}
-		ch := make(chan codersdk.ChatStreamEvent, 10)
-		return nil, ch, func() {}, nil
-	}
-
-	subscriber := newTestServerWithRelay(t, db, ps, subscriberID, provider)
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
-
-	// Create a chat in pending status.
-	chat, err := subscriber.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "relay-async-nonblock",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
-	})
-	require.NoError(t, err)
-
-	// Subscribe before the chat is marked running so the relay opens
-	// via pubsub notification (openRelayAsync path).
-	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	t.Cleanup(cancel)
-
-	// Now mark the chat as running on a remote worker. This publishes
-	// a status notification which triggers openRelayAsync on the
-	// subscriber.
-	notify := coderdpubsub.ChatStreamNotifyMessage{
-		Status:   string(database.ChatStatusRunning),
-		WorkerID: workerID.String(),
-	}
-	payload, err := json.Marshal(notify)
-	require.NoError(t, err)
-	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payload)
-	require.NoError(t, err)
-
-	// Wait for the relay dial to actually start (blocking in the
-	// provider).
-	select {
-	case <-dialStarted:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for relay dial to start")
-	}
-
-	// While the relay is still dialing (provider is blocked), publish
-	// another status change. If openRelayAsync blocked the select loop
-	// this event would never arrive.
-	statusNotify := coderdpubsub.ChatStreamNotifyMessage{
-		Status: string(database.ChatStatusWaiting),
-	}
-	statusPayload, err := json.Marshal(statusNotify)
-	require.NoError(t, err)
-	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), statusPayload)
-	require.NoError(t, err)
-
-	// The waiting status event should arrive promptly despite the
-	// relay still dialing.
-	require.Eventually(t, func() bool {
-		select {
-		case event := <-events:
-			return event.Type == codersdk.ChatStreamEventTypeStatus &&
-				event.Status != nil &&
-				event.Status.Status == codersdk.ChatStatusWaiting
-		default:
-			return false
-		}
-	}, testutil.WaitShort, testutil.IntervalFast)
-
-	// Unblock the relay dial so the test can clean up.
-	close(dialContinue)
-}
-
-func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	workerID := uuid.New()
-	subscriberID := uuid.New()
-
-	provider := func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ http.Header) (
-		[]codersdk.ChatStreamEvent, <-chan codersdk.ChatStreamEvent, func(), error,
-	) {
-		// Return a non-empty snapshot with two parts.
-		snapshot := []codersdk.ChatStreamEvent{
-			{
-				Type: codersdk.ChatStreamEventTypeMessagePart,
-				MessagePart: &codersdk.ChatStreamMessagePart{
-					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "snap-one"},
-				},
-			},
-			{
-				Type: codersdk.ChatStreamEventTypeMessagePart,
-				MessagePart: &codersdk.ChatStreamMessagePart{
-					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "snap-two"},
-				},
-			},
-		}
-		ch := make(chan codersdk.ChatStreamEvent, 10)
-		// Also send a live part after the snapshot.
-		ch <- codersdk.ChatStreamEvent{
-			Type: codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{
-				Role: "assistant",
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "live-part"},
-			},
-		}
-		return snapshot, ch, func() {}, nil
-	}
-
-	subscriber := newTestServerWithRelay(t, db, ps, subscriberID, provider)
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedChatDependencies(ctx, t, db)
-
-	// Create a chat already running on a remote worker.
-	chat, err := subscriber.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		Title:              "relay-snapshot",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
-	})
-	require.NoError(t, err)
-
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
-
-	initialSnapshot, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	t.Cleanup(cancel)
-
-	// The initial snapshot should contain the two relay snapshot parts.
-	var snapshotTexts []string
-	for _, event := range initialSnapshot {
-		if event.Type == codersdk.ChatStreamEventTypeMessagePart && event.MessagePart != nil {
-			snapshotTexts = append(snapshotTexts, event.MessagePart.Part.Text)
-		}
-	}
-	require.Contains(t, snapshotTexts, "snap-one")
-	require.Contains(t, snapshotTexts, "snap-two")
-
-	// The live part should arrive on the events channel.
-	require.Eventually(t, func() bool {
-		select {
-		case event := <-events:
-			if event.Type == codersdk.ChatStreamEventTypeMessagePart &&
-				event.MessagePart != nil &&
-				event.MessagePart.Part.Text == "live-part" {
-				return true
-			}
-			return false
-		default:
-			return false
-		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
 func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {

@@ -64,7 +64,6 @@ import { buildStreamTools } from "./AgentDetail/streamState";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import type { AgentsOutletContext } from "./AgentsPage";
-import { DiffRightPanel } from "./DiffRightPanel";
 import { FilesChangedPanel } from "./FilesChangedPanel";
 import {
 	getModelCatalogStatusMessage,
@@ -72,6 +71,7 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import { RightPanel } from "./RightPanel";
 
 const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
 	() => {};
@@ -81,29 +81,16 @@ const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
 	() => {};
 const noopRequestArchiveAndDeleteWorkspace: AgentsOutletContext["requestArchiveAndDeleteWorkspace"] =
 	() => {};
+const noopRequestUnarchiveAgent: AgentsOutletContext["requestUnarchiveAgent"] =
+	() => {};
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+/** @internal Exported for testing. */
+export const draftInputStorageKeyPrefix = "agents.draft-input.";
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
 ): message is TypesGen.ChatMessage => Boolean(message);
-
-const toOptimisticMessageParts = (
-	inputParts: readonly TypesGen.ChatInputPart[],
-): readonly TypesGen.ChatMessagePart[] =>
-	inputParts.map((part) => ({
-		type: "text",
-		...(part.text !== undefined ? { text: part.text } : {}),
-	}));
-
-const getOrderedMessagesFromStore = (
-	store: ChatStoreHandle,
-): readonly TypesGen.ChatMessage[] => {
-	const snapshot = store.getSnapshot();
-	return snapshot.orderedMessageIDs
-		.map((messageID) => snapshot.messagesByID.get(messageID))
-		.filter(isChatMessage);
-};
 
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
@@ -302,14 +289,28 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	);
 };
 
-function useConversationEditingState(deps: {
+/** @internal Exported for testing. */
+export function useConversationEditingState(deps: {
+	chatID: string | undefined;
 	onSend: (message: string, editedMessageID?: number) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 }) {
-	const { onSend, onDeleteQueuedMessage } = deps;
+	const { chatID, onSend, onDeleteQueuedMessage } = deps;
+	const draftStorageKey = chatID
+		? `${draftInputStorageKeyPrefix}${chatID}`
+		: null;
 	const inputValueRef = useRef("");
 	const chatInputRef = useRef<ChatMessageInputRef>(null);
-	const [editorInitialValue, setEditorInitialValue] = useState("");
+	const [editorInitialValue, setEditorInitialValue] = useState(() => {
+		if (typeof window === "undefined" || !draftStorageKey) {
+			return "";
+		}
+		const saved = localStorage.getItem(draftStorageKey);
+		if (saved) {
+			inputValueRef.current = saved;
+		}
+		return saved ?? "";
+	});
 
 	// -- History editing state --
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
@@ -371,31 +372,46 @@ function useConversationEditingState(deps: {
 				editingMessageId !== null ? editingMessageId : undefined;
 			const queueEditID = editingQueuedMessageID;
 
-			// Clear input and editing state optimistically.
-			setEditorInitialValue("");
-			inputValueRef.current = "";
-			if (editingMessageId !== null) {
-				setEditingMessageId(null);
-				setDraftBeforeHistoryEdit(null);
-			}
-			if (queueEditID !== null) {
-				setEditingQueuedMessageID(null);
-				setDraftBeforeQueueEdit(null);
-			}
-
-			void onSend(message, editedMessageID)
-				.then(() => {
-					if (queueEditID !== null) {
-						void onDeleteQueuedMessage(queueEditID);
-					}
-				})
-				.catch(() => {
-					// Restore input so the user can retry.
-					setEditorInitialValue(message);
-					inputValueRef.current = message;
-				});
+			void onSend(message, editedMessageID).then(() => {
+				// Clear input and editing state on success.
+				chatInputRef.current?.clear();
+				chatInputRef.current?.focus();
+				inputValueRef.current = "";
+				if (typeof window !== "undefined" && draftStorageKey) {
+					localStorage.removeItem(draftStorageKey);
+				}
+				if (editingMessageId !== null) {
+					setEditingMessageId(null);
+					setDraftBeforeHistoryEdit(null);
+				}
+				if (queueEditID !== null) {
+					setEditingQueuedMessageID(null);
+					setDraftBeforeQueueEdit(null);
+					void onDeleteQueuedMessage(queueEditID);
+				}
+			});
 		},
-		[editingMessageId, editingQueuedMessageID, onDeleteQueuedMessage, onSend],
+		[
+			editingMessageId,
+			editingQueuedMessageID,
+			onDeleteQueuedMessage,
+			onSend,
+			draftStorageKey,
+		],
+	);
+
+	const handleContentChange = useCallback(
+		(content: string) => {
+			inputValueRef.current = content;
+			if (typeof window !== "undefined" && draftStorageKey) {
+				if (content) {
+					localStorage.setItem(draftStorageKey, content);
+				} else {
+					localStorage.removeItem(draftStorageKey);
+				}
+			}
+		},
+		[draftStorageKey],
 	);
 
 	return {
@@ -409,6 +425,7 @@ function useConversationEditingState(deps: {
 		handleStartQueueEdit,
 		handleCancelQueueEdit,
 		handleSendFromInput,
+		handleContentChange,
 	};
 }
 
@@ -419,6 +436,14 @@ const AgentDetail: FC = () => {
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const [showDiffPanel, setShowDiffPanel] = useState(false);
+	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
+	// Tracks the live visual expanded state during drag so sibling
+	// content hides/shows in real-time rather than on pointer-up.
+	// Null means "no drag override, use isRightPanelExpanded".
+	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
+		null,
+	);
+	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
@@ -432,6 +457,8 @@ const AgentDetail: FC = () => {
 	const requestArchiveAndDeleteWorkspace =
 		outletContext?.requestArchiveAndDeleteWorkspace ??
 		noopRequestArchiveAndDeleteWorkspace;
+	const requestUnarchiveAgent =
+		outletContext?.requestUnarchiveAgent ?? noopRequestUnarchiveAgent;
 	const isSidebarCollapsed = outletContext?.isSidebarCollapsed ?? false;
 	const onToggleSidebarCollapsed =
 		outletContext?.onToggleSidebarCollapsed ?? (() => {});
@@ -603,32 +630,12 @@ const AgentDetail: FC = () => {
 			if (scrollContainerRef.current) {
 				scrollContainerRef.current.scrollTop = 0;
 			}
-			const previousChatStatus = store.getSnapshot().chatStatus;
-			const previousMessages = getOrderedMessagesFromStore(store);
-			const messageIndex = previousMessages.findIndex(
-				(msg) => msg.id === editedMessageID,
-			);
-			if (messageIndex !== -1) {
-				const optimisticEditedMessage: TypesGen.ChatMessage = {
-					...previousMessages[messageIndex],
-					content: toOptimisticMessageParts(request.content),
-				};
-				store.replaceMessages([
-					...previousMessages.slice(0, messageIndex),
-					optimisticEditedMessage,
-				]);
-			}
 			store.clearStreamState();
-			store.setChatStatus("pending");
 			try {
 				await editMutation.mutateAsync({
 					messageId: editedMessageID,
 					req: request,
 				});
-			} catch (error) {
-				store.replaceMessages(previousMessages);
-				store.setChatStatus(previousChatStatus);
-				throw error;
 			} finally {
 				setPendingEditMessageId(null);
 			}
@@ -646,38 +653,16 @@ const AgentDetail: FC = () => {
 			scrollContainerRef.current.scrollTop = 0;
 		}
 
-		// Inject an optimistic user message so the bubble appears in
-		// the timeline immediately, without waiting for the server.
-		const previousMessages = getOrderedMessagesFromStore(store);
-		const previousChatStatus = store.getSnapshot().chatStatus;
-		const optimisticMessage: TypesGen.ChatMessage = {
-			id: -Date.now(),
-			chat_id: agentId,
-			created_at: new Date().toISOString(),
-			role: "user",
-			content: toOptimisticMessageParts(content),
-		};
-		store.upsertDurableMessage(optimisticMessage);
+		// No optimistic rendering — the message will appear in the
+		// timeline when the server confirms via the POST response or
+		// via the SSE stream.
 		store.clearStreamState();
-		store.setChatStatus("pending");
-
-		try {
-			const response = await sendMutation.mutateAsync(request);
-			if (response.queued) {
-				// The server queued the message instead of processing
-				// it immediately (the agent is already busy). Roll back
-				// the optimistic timeline message so it doesn't appear
-				// as a sent message. The queue_update SSE event will
-				// add it to the queued messages list.
-				store.replaceMessages(previousMessages);
-				store.setChatStatus(previousChatStatus);
-			}
-		} catch (error) {
-			// Roll back the optimistic message so the timeline
-			// returns to its previous state.
-			store.replaceMessages(previousMessages);
-			store.setChatStatus(previousChatStatus);
-			throw error;
+		const response = await sendMutation.mutateAsync(request);
+		// When the server accepts the message immediately (not
+		// queued), insert it into the store so it appears in the
+		// timeline without waiting for the SSE stream.
+		if (!response.queued && response.message) {
+			store.upsertDurableMessage(response.message);
 		}
 		if (typeof window !== "undefined") {
 			if (selectedModelConfigID) {
@@ -737,6 +722,7 @@ const AgentDetail: FC = () => {
 	);
 
 	const editing = useConversationEditingState({
+		chatID: agentId,
 		onSend: handleSend,
 		onDeleteQueuedMessage: handleDeleteQueuedMessage,
 	});
@@ -833,6 +819,13 @@ const AgentDetail: FC = () => {
 		requestArchiveAndDeleteWorkspace(agentId, workspaceId);
 	};
 
+	const handleUnarchiveAgentAction = () => {
+		if (!agentId || !isArchived) {
+			return;
+		}
+		requestUnarchiveAgent(agentId);
+	};
+
 	if (chatQuery.isLoading) {
 		return (
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
@@ -853,6 +846,7 @@ const AgentDetail: FC = () => {
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
+					onUnarchiveAgent={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
 					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
@@ -927,6 +921,7 @@ const AgentDetail: FC = () => {
 					}}
 					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
+					onUnarchiveAgent={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
 					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
@@ -942,11 +937,16 @@ const AgentDetail: FC = () => {
 	return (
 		<div
 			className={cn(
-				"flex min-h-0 min-w-0 flex-1",
-				shouldShowDiffPanel && "flex-col xl:flex-row",
+				"relative flex min-h-0 min-w-0 flex-1",
+				shouldShowDiffPanel && !visualExpanded && "flex-col xl:flex-row",
 			)}
 		>
-			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+			<div
+				className={cn(
+					"relative flex min-h-0 min-w-0 flex-1 flex-col",
+					visualExpanded && "hidden",
+				)}
+			>
 				<div className="relative z-10 shrink-0 overflow-visible">
 					<AgentDetailTopBar
 						chatTitle={chatTitle}
@@ -967,6 +967,7 @@ const AgentDetail: FC = () => {
 							sshCommand,
 						}}
 						onArchiveAgent={handleArchiveAgentAction}
+						onUnarchiveAgent={handleUnarchiveAgentAction}
 						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
 						hasWorkspace={Boolean(workspaceId)}
 						isArchived={isArchived}
@@ -1027,9 +1028,7 @@ const AgentDetail: FC = () => {
 						modelCatalogStatusMessage={modelCatalogStatusMessage}
 						inputRef={editing.chatInputRef}
 						initialValue={editing.editorInitialValue}
-						onContentChange={(content) => {
-							editing.inputValueRef.current = content;
-						}}
+						onContentChange={editing.handleContentChange}
 						editingQueuedMessageID={editing.editingQueuedMessageID}
 						onStartQueueEdit={editing.handleStartQueueEdit}
 						onCancelQueueEdit={editing.handleCancelQueueEdit}
@@ -1038,9 +1037,19 @@ const AgentDetail: FC = () => {
 					/>
 				</div>
 			</div>
-			<DiffRightPanel isOpen={shouldShowDiffPanel}>
-				<FilesChangedPanel chatId={agentId} />
-			</DiffRightPanel>
+			<RightPanel
+				isOpen={shouldShowDiffPanel}
+				isExpanded={isRightPanelExpanded}
+				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+				onClose={() => setShowDiffPanel(false)}
+				chatTitle={chatTitle}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				onVisualExpandedChange={setDragVisualExpanded}
+				tabContent={{
+					git: <FilesChangedPanel chatId={agentId} />,
+				}}
+			/>{" "}
 		</div>
 	);
 };

@@ -1,7 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Input } from "components/Input/Input";
 import {
 	Tooltip,
@@ -62,7 +61,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	);
 	const [apiKeyTouched, setApiKeyTouched] = useState(false);
 	const [baseURLValue, setBaseURLValue] = useState(initialValues.baseURL);
-	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const isAPIKeyEnvManaged = isEnvPreset && !providerConfig;
 	const requiresAPIKey = !providerConfig && !isAPIKeyEnvManaged;
@@ -253,46 +252,62 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					{/* Footer — pushed to bottom */}
 					<div className="mt-auto pt-6">
 						<hr className="mb-4 border-0 border-t border-solid border-border" />
-						<div className="flex items-center justify-between">
-							{providerConfig ? (
-								<Button
-									variant="outline"
-									size="lg"
-									type="button"
-									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
-									disabled={isDisabled}
-									onClick={() => setShowDeleteDialog(true)}
-								>
-									Delete
-								</Button>
-							) : (
-								<div />
-							)}
-							<Button size="lg" type="submit" disabled={!canSave}>
-								{isProviderMutationPending && (
-									<Loader2Icon className="h-4 w-4 animate-spin" />
+						{confirmingDelete && providerConfig ? (
+							<div className="flex items-center gap-3">
+								<p className="m-0 flex-1 text-sm text-content-secondary">
+									Are you sure? This action is irreversible.
+								</p>
+								<div className="flex shrink-0 items-center gap-2">
+									<Button
+										variant="outline"
+										size="lg"
+										type="button"
+										onClick={() => setConfirmingDelete(false)}
+										disabled={isProviderMutationPending}
+									>
+										Cancel
+									</Button>
+									<Button
+										variant="destructive"
+										size="lg"
+										type="button"
+										disabled={isProviderMutationPending}
+										onClick={() => void onDeleteProvider(providerConfig.id)}
+									>
+										{isProviderMutationPending && (
+											<Loader2Icon className="h-4 w-4 animate-spin" />
+										)}
+										Delete provider
+									</Button>
+								</div>
+							</div>
+						) : (
+							<div className="flex items-center justify-between">
+								{providerConfig ? (
+									<Button
+										variant="outline"
+										size="lg"
+										type="button"
+										className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+										disabled={isDisabled}
+										onClick={() => setConfirmingDelete(true)}
+									>
+										Delete
+									</Button>
+								) : (
+									<div />
 								)}
-								{providerConfig ? "Save changes" : "Create provider config"}
-							</Button>
-						</div>
+								<Button size="lg" type="submit" disabled={!canSave}>
+									{isProviderMutationPending && (
+										<Loader2Icon className="h-4 w-4 animate-spin" />
+									)}
+									{providerConfig ? "Save changes" : "Create provider config"}
+								</Button>
+							</div>
+						)}
 					</div>
 				</form>
 			)}
-
-			<DeleteDialog
-				isOpen={showDeleteDialog}
-				onCancel={() => setShowDeleteDialog(false)}
-				onConfirm={() => {
-					if (providerConfig) {
-						void onDeleteProvider(providerConfig.id).finally(() =>
-							setShowDeleteDialog(false),
-						);
-					}
-				}}
-				entity="provider"
-				name={providerState.label}
-				confirmLoading={isProviderMutationPending}
-			/>
 		</div>
 	);
 };

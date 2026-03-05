@@ -64,6 +64,7 @@ type ModelFormProps = {
 	onSelectedProviderChange: (provider: string) => void;
 	modelConfigsUnavailable: boolean;
 	isSaving: boolean;
+	isDeleting: boolean;
 	onCreateModel: (
 		req: TypesGen.CreateChatModelConfigRequest,
 	) => Promise<unknown>;
@@ -72,7 +73,7 @@ type ModelFormProps = {
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
 	onCancel: () => void;
-	onDeleteModel?: () => void;
+	onDeleteModel?: (modelConfigId: string) => Promise<void>;
 };
 
 export const ModelForm: FC<ModelFormProps> = ({
@@ -83,6 +84,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	onSelectedProviderChange,
 	modelConfigsUnavailable,
 	isSaving,
+	isDeleting,
 	onCreateModel,
 	onUpdateModel,
 	onCancel,
@@ -90,6 +92,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 }) => {
 	const isEditing = Boolean(editingModel);
 	const [showAdvanced, setShowAdvanced] = useState(false);
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const canManageModels = Boolean(
 		selectedProviderState?.providerConfig &&
@@ -462,37 +465,68 @@ export const ModelForm: FC<ModelFormProps> = ({
 				{/* Footer — pushed to bottom */}
 				<div className="mt-auto pt-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
-					<div className="flex items-center justify-between">
-						{isEditing && editingModel && onDeleteModel ? (
+					{confirmingDelete && onDeleteModel && editingModel ? (
+						<div className="flex items-center gap-3">
+							<p className="m-0 flex-1 text-sm text-content-secondary">
+								Are you sure? This action is irreversible.
+							</p>
+							<div className="flex shrink-0 items-center gap-2">
+								<Button
+									variant="outline"
+									size="lg"
+									type="button"
+									onClick={() => setConfirmingDelete(false)}
+									disabled={isDeleting}
+								>
+									Cancel
+								</Button>
+								<Button
+									variant="destructive"
+									size="lg"
+									type="button"
+									disabled={isDeleting}
+									onClick={() => void onDeleteModel(editingModel.id)}
+								>
+									{isDeleting && (
+										<Loader2Icon className="h-4 w-4 animate-spin" />
+									)}
+									Delete model
+								</Button>
+							</div>
+						</div>
+					) : (
+						<div className="flex items-center justify-between">
+							{isEditing && editingModel && onDeleteModel ? (
+								<Button
+									variant="outline"
+									size="lg"
+									type="button"
+									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
+									disabled={isSaving}
+									onClick={() => setConfirmingDelete(true)}
+								>
+									Delete
+								</Button>
+							) : (
+								<Button
+									variant="outline"
+									size="lg"
+									type="button"
+									onClick={onCancel}
+								>
+									Cancel
+								</Button>
+							)}{" "}
 							<Button
-								variant="outline"
 								size="lg"
-								type="button"
-								className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
-								disabled={isSaving}
-								onClick={() => onDeleteModel()}
+								type="submit"
+								disabled={isSaving || !form.isValid || hasFieldErrors}
 							>
-								Delete
+								{isSaving && <Loader2Icon className="h-4 w-4 animate-spin" />}
+								{isEditing ? "Save" : "Add model"}{" "}
 							</Button>
-						) : (
-							<Button
-								variant="outline"
-								size="lg"
-								type="button"
-								onClick={onCancel}
-							>
-								Cancel
-							</Button>
-						)}{" "}
-						<Button
-							size="lg"
-							type="submit"
-							disabled={isSaving || !form.isValid || hasFieldErrors}
-						>
-							{isSaving && <Loader2Icon className="h-4 w-4 animate-spin" />}
-							{isEditing ? "Save" : "Add model"}{" "}
-						</Button>
-					</div>
+						</div>
+					)}
 				</div>
 			</form>
 		</div>

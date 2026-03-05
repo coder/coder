@@ -5,6 +5,7 @@ import type {
 	ChatStatus,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
@@ -22,9 +23,11 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
+	ArchiveRestoreIcon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -35,6 +38,8 @@ import {
 	SquarePenIcon,
 	Trash2Icon,
 } from "lucide-react";
+import { UserDropdownContent } from "modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	createContext,
 	type FC,
@@ -56,6 +61,7 @@ interface AgentsSidebarProps {
 	modelConfigs: readonly ChatModelConfig[];
 	logoUrl?: string;
 	onArchiveAgent: (chatId: string) => void;
+	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onNewAgent: () => void;
 	isCreating: boolean;
@@ -270,6 +276,7 @@ interface ChatTreeContextValue {
 	readonly archivingChatId: string | null;
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
+	readonly onUnarchiveAgent: (chatId: string) => void;
 	readonly onArchiveAndDeleteWorkspace: (
 		chatId: string,
 		workspaceId: string,
@@ -305,6 +312,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		archivingChatId,
 		toggleExpanded,
 		onArchiveAgent,
+		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
 	} = useChatTree();
 	const chatID = chat.id;
@@ -450,52 +458,63 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 						</>
 					)}
 				</NavLink>
-				<div className="relative mr-1 mt-1 h-6 w-7 shrink-0 text-right">
-					<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity [@media(hover:hover)]:group-hover:opacity-0">
-						{shortRelativeTime(chat.updated_at)}
-					</span>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								className={cn(
-									"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100",
-									isArchivingThisChat && "opacity-100",
-								)}
-								aria-label={`Open actions for ${chat.title}`}
-							>
-								{isArchivingThisChat ? (
-									<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-								) : (
-									<EllipsisIcon className="h-3.5 w-3.5" />
-								)}
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								disabled={isArchiving}
-								onSelect={() => onArchiveAgent(chat.id)}
-							>
-								<ArchiveIcon className="h-3.5 w-3.5" />
-								Archive agent
-							</DropdownMenuItem>
-							{workspaceId && (
-								<DropdownMenuItem
-									className="text-content-destructive focus:text-content-destructive"
-									disabled={isArchiving}
-									onSelect={() =>
-										onArchiveAndDeleteWorkspace(chat.id, workspaceId)
-									}
-								>
-									{" "}
-									<Trash2Icon className="h-3.5 w-3.5" />
-									Archive & delete workspace
-								</DropdownMenuItem>
-							)}
-						</DropdownMenuContent>{" "}
-					</DropdownMenu>
+				<div className="mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+					{isArchivingThisChat ? (
+						<Loader2Icon className="h-3.5 w-3.5 animate-spin text-content-secondary" />
+					) : (
+						<>
+							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+								{shortRelativeTime(chat.updated_at)}
+							</span>
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										size="icon"
+										variant="subtle"
+										className="hidden h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex"
+										aria-label={`Open actions for ${chat.title}`}
+									>
+										<EllipsisIcon className="h-3.5 w-3.5" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end">
+									{chat.archived ? (
+										<DropdownMenuItem
+											disabled={isArchiving}
+											onSelect={() => onUnarchiveAgent(chat.id)}
+										>
+											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+											Unarchive agent
+										</DropdownMenuItem>
+									) : (
+										<>
+											{" "}
+											<DropdownMenuItem
+												className="text-content-destructive focus:text-content-destructive"
+												disabled={isArchiving}
+												onSelect={() => onArchiveAgent(chat.id)}
+											>
+												<ArchiveIcon className="h-3.5 w-3.5" />
+												Archive agent
+											</DropdownMenuItem>
+											{workspaceId && (
+												<DropdownMenuItem
+													className="text-content-destructive focus:text-content-destructive"
+													disabled={isArchiving}
+													onSelect={() =>
+														onArchiveAndDeleteWorkspace(chat.id, workspaceId)
+													}
+												>
+													<Trash2Icon className="h-3.5 w-3.5" />
+													Archive & delete workspace
+												</DropdownMenuItem>
+											)}
+										</>
+									)}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</>
+					)}
 				</div>
 			</div>
 
@@ -523,6 +542,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		modelConfigs,
 		logoUrl,
 		onArchiveAgent,
+		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
 		onNewAgent,
 		isCreating,
@@ -538,6 +558,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		chatId?: string;
 	}>();
 	const activeChatId = agentId ?? chatId;
+	const { user, signOut } = useAuthenticated();
+	const { appearance, buildInfo } = useDashboard();
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
@@ -620,6 +642,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			archivingChatId,
 			toggleExpanded,
 			onArchiveAgent,
+			onUnarchiveAgent,
 			onArchiveAndDeleteWorkspace,
 		}),
 		[
@@ -634,6 +657,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			archivingChatId,
 			toggleExpanded,
 			onArchiveAgent,
+			onUnarchiveAgent,
 			onArchiveAndDeleteWorkspace,
 		],
 	);
@@ -672,7 +696,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					New Agent
 				</Button>
 			</div>
-
 			<ScrollArea
 				className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
 				scrollBarClassName="w-1.5"
@@ -778,13 +801,44 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 												</div>
 											</CollapsibleContent>
 										</Collapsible>
-									)}{" "}
+									)}
 								</div>
 							)}
 						</ChatTreeContext.Provider>
 					)}
 				</div>
 			</ScrollArea>
+			<div className="hidden border-0 border-t border-solid md:block">
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<button
+							type="button"
+							className="flex w-full items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-2 text-left hover:bg-surface-tertiary/50 transition-colors"
+						>
+							<Avatar
+								fallback={user.username}
+								src={user.avatar_url}
+								size="sm"
+							/>
+							<span className="truncate text-sm text-content-secondary">
+								{user.name || user.username}
+							</span>
+						</button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
+						<UserDropdownContent
+							user={user}
+							buildInfo={buildInfo}
+							supportLinks={
+								appearance.support_links?.filter(
+									(link) => link.location !== "navbar",
+								) ?? []
+							}
+							onSignOut={signOut}
+						/>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</div>{" "}
 		</div>
 	);
 };

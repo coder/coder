@@ -1046,20 +1046,35 @@ func TestRolePermissions(t *testing.T) {
 		},
 	}
 
-	// We expect every permission to be tested above.
-	remainingPermissions := make(map[string]map[policy.Action]bool)
-	for rtype, perms := range policy.RBACPermissions {
-		remainingPermissions[rtype] = make(map[policy.Action]bool)
-		for action := range perms.Actions {
-			remainingPermissions[rtype][action] = true
+	// Build coverage set from test case definitions statically,
+	// so we don't need shared mutable state during execution.
+	// This allows subtests to run in parallel.
+	coveredPermissions := make(map[string]map[policy.Action]bool)
+	for _, c := range testCases {
+		for _, action := range c.Actions {
+			if coveredPermissions[c.Resource.Type] == nil {
+				coveredPermissions[c.Resource.Type] = make(map[policy.Action]bool)
+			}
+			coveredPermissions[c.Resource.Type][action] = true
 		}
 	}
 
-	passed := true
-	// nolint:tparallel,paralleltest
+	// Check coverage: every permission in policy.RBACPermissions must
+	// be covered by at least one test case.
+	for rtype, perms := range policy.RBACPermissions {
+		t.Run(fmt.Sprintf("%s-AllActions", rtype), func(t *testing.T) {
+			t.Parallel()
+			for action := range perms.Actions {
+				assert.True(t, coveredPermissions[rtype][action],
+					"action %q on type %q is not tested", action, rtype)
+			}
+		})
+	}
+
 	for _, c := range testCases {
-		// nolint:tparallel,paralleltest // These share the same remainingPermissions map
 		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
 			remainingSubjs := make(map[string]struct{})
 			for _, subj := range requiredSubjects {
 				remainingSubjs[subj.Name] = struct{}{}
@@ -1067,9 +1082,7 @@ func TestRolePermissions(t *testing.T) {
 
 			for _, action := range c.Actions {
 				err := c.Resource.ValidAction(action)
-				ok := assert.NoError(t, err, "%q is not a valid action for type %q", action, c.Resource.Type)
-				if !ok {
-					passed = passed && assert.NoError(t, err, "%q is not a valid action for type %q", action, c.Resource.Type)
+				if !assert.NoError(t, err, "%q is not a valid action for type %q", action, c.Resource.Type) {
 					continue
 				}
 
@@ -1095,30 +1108,17 @@ func TestRolePermissions(t *testing.T) {
 							actor.Scope = rbac.ScopeAll
 						}
 
-						delete(remainingPermissions[c.Resource.Type], action)
 						err := auth.Authorize(context.Background(), actor, action, c.Resource)
 						if result {
-							passed = passed && assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
+							assert.NoError(t, err, fmt.Sprintf("Should pass: %s", msg))
 						} else {
-							passed = passed && assert.ErrorContains(t, err, "forbidden", fmt.Sprintf("Should fail: %s", msg))
+							assert.ErrorContains(t, err, "forbidden", fmt.Sprintf("Should fail: %s", msg))
 						}
 					}
 				}
 			}
 			require.Empty(t, remainingSubjs, "test should cover all subjects")
 		})
-	}
-
-	// Only run these if the tests on top passed. Otherwise, the error output is too noisy.
-	if passed {
-		for rtype, v := range remainingPermissions {
-			// nolint:tparallel,paralleltest // Making a subtest for easier diagnosing failures.
-			t.Run(fmt.Sprintf("%s-AllActions", rtype), func(t *testing.T) {
-				if len(v) > 0 {
-					assert.Equal(t, map[policy.Action]bool{}, v, "remaining permissions should be empty for type %q", rtype)
-				}
-			})
-		}
 	}
 }
 

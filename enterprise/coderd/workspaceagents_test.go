@@ -93,16 +93,24 @@ func TestReinitializeAgent(t *testing.T) {
 		t.Run(fmt.Sprintf("useDefaultOrg=%t", useDefaultOrg), func(t *testing.T) {
 			t.Parallel()
 
-			tempAgentLog := testutil.CreateTemp(t, "", "testReinitializeAgent")
+			// Create the temp file in os.TempDir() rather than t.TempDir().
+			// On Windows, t.TempDir() includes the test name which
+			// contains "=" (e.g. useDefaultOrg=true). The "=" in the
+			// path breaks both cmd.exe and powershell scripts, causing
+			// the startup script to exit 1 and the agent to never
+			// reach the ready lifecycle state.
+			tempAgentLog := testutil.CreateTemp(t, os.TempDir(), "testReinitializeAgent")
 
-			// Use a cross-platform command to dump environment variables.
-			// On Linux, the agent shell is bash/sh which has `printenv`.
-			// On Windows, the agent shell is powershell or cmd.exe; `cmd /c set`
-			// produces KEY=VALUE output from either and avoids `printenv` which
-			// is unavailable on Windows.
+			// Dump environment variables to a temp file so we can verify
+			// CODER_AGENT_TOKEN appears twice (once per init). On Windows
+			// the agent runs scripts via powershell.exe /c, so we must
+			// use PowerShell-native commands.
 			var startupScript string
 			if runtime.GOOS == "windows" {
-				startupScript = fmt.Sprintf("cmd /c set >> %s & echo --- >> %s", tempAgentLog.Name(), tempAgentLog.Name())
+				startupScript = fmt.Sprintf(
+					`[System.Environment]::GetEnvironmentVariables().GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" } | Add-Content -Path '%s'; '---' | Add-Content -Path '%s'`,
+					tempAgentLog.Name(), tempAgentLog.Name(),
+				)
 			} else {
 				startupScript = fmt.Sprintf("printenv >> %s; echo '---\n' >> %s", tempAgentLog.Name(), tempAgentLog.Name())
 			}
@@ -190,7 +198,7 @@ func TestReinitializeAgent(t *testing.T) {
 			coderdtest.CreateTemplate(t, client, orgID, version.ID)
 
 			// Wait for prebuilds to create a prebuilt workspace
-			ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
 			var prebuildID uuid.UUID
 			require.Eventually(t, func() bool {
 				agentAndBuild, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agentToken)

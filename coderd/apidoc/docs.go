@@ -1804,11 +1804,16 @@ const docTemplate = `{
                 "operationId": "get-insights-about-user-status-counts",
                 "parameters": [
                     {
+                        "type": "string",
+                        "description": "IANA timezone name (e.g. America/St_Johns)",
+                        "name": "timezone",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
-                        "description": "Time-zone offset (e.g. -2)",
+                        "description": "Deprecated: Time-zone offset (e.g. -2). Use timezone instead.",
                         "name": "tz_offset",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -4803,7 +4808,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceSharingSettingsRequest"
                         }
                     }
                 }
@@ -20278,6 +20283,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateWorkspaceSharingSettingsRequest": {
+            "type": "object",
+            "properties": {
+                "sharing_disabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceTTLRequest": {
             "type": "object",
             "properties": {
@@ -22115,6 +22128,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "sharing_disabled": {
+                    "type": "boolean"
+                },
+                "sharing_globally_disabled": {
+                    "description": "SharingGloballyDisabled is true if sharing has been disabled for this\norganization because of a deployment-wide setting.",
                     "type": "boolean"
                 }
             }
