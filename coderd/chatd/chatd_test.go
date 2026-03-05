@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
+	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -619,7 +620,7 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
-		PendingChatAcquireInterval: testutil.WaitSuperLong,
+		PendingChatAcquireInterval: testutil.WaitLong,
 		InFlightChatStaleAfter:     staleAfter,
 	})
 	t.Cleanup(func() {
@@ -733,7 +734,7 @@ func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 		Database:                   db,
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
-		PendingChatAcquireInterval: testutil.WaitSuperLong,
+		PendingChatAcquireInterval: testutil.WaitLong,
 		InFlightChatStaleAfter:     500 * time.Millisecond,
 	})
 	t.Cleanup(func() {
@@ -969,11 +970,20 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	user := coderdtest.CreateFirstUser(t, client)
 
 	agentToken := uuid.NewString()
+	// Add a startup script so the agent spends time in the
+	// "starting" lifecycle state. This lets us verify that
+	// create_workspace waits for scripts to finish.
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionPlan:  echo.PlanComplete,
 		ProvisionApply: echo.ApplyComplete,
-		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken, func(g *proto.GraphComplete) {
+			g.Resources[0].Agents[0].Scripts = []*proto.Script{{
+				DisplayName: "setup",
+				Script:      "sleep 5",
+				RunOnStart:  true,
+			}}
+		}),
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -1082,6 +1092,20 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	}
 	require.True(t, foundCreateWorkspaceResult, "expected create_workspace tool result message")
 
+	// Verify that the tool waited for startup scripts to
+	// complete. The agent should be in "ready" state by the
+	// time create_workspace returns its result.
+	workspace, err = client.Workspace(ctx, workspaceID)
+	require.NoError(t, err)
+	var agentLifecycle codersdk.WorkspaceAgentLifecycle
+	for _, res := range workspace.LatestBuild.Resources {
+		for _, agt := range res.Agents {
+			agentLifecycle = agt.LifecycleState
+		}
+	}
+	require.Equal(t, codersdk.WorkspaceAgentLifecycleReady, agentLifecycle,
+		"agent should be ready after create_workspace returns; startup scripts were not awaited")
+
 	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
 	streamedCallsMu.Lock()
 	recordedStreamCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
@@ -1123,7 +1147,7 @@ func newTestServer(
 		Database:                   db,
 		ReplicaID:                  replicaID,
 		Pubsub:                     ps,
-		PendingChatAcquireInterval: testutil.WaitSuperLong,
+		PendingChatAcquireInterval: testutil.WaitLong,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
@@ -1330,7 +1354,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: 10 * time.Millisecond,
-		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		InFlightChatStaleAfter:     testutil.WaitLong,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, serverA.Close())
@@ -1383,7 +1407,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: 10 * time.Millisecond,
-		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		InFlightChatStaleAfter:     testutil.WaitLong,
 	})
 	t.Cleanup(func() {
 		require.NoError(t, serverB.Close())
