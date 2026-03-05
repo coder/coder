@@ -67,7 +67,7 @@ generation parameters, and provider-specific options.
 1. Open the **Admin** dialog and select the **Models** tab.
 1. Click **Add** and select the provider for the new model.
 1. Enter the **Model Identifier** — the exact model string your provider
-   expects (e.g., `claude-sonnet-4-20250514`, `gpt-4.1`, `gemini-2.5-pro`).
+   expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
 1. Set a **Display Name** so developers see a human-readable label in the model
    selector.
 1. Set the **Context Limit** — the maximum number of tokens in the model's
