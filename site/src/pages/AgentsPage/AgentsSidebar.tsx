@@ -817,13 +817,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					<DropdownMenuTrigger asChild>
 						<button
 							type="button"
-							className="flex w-full items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-2 text-left hover:bg-surface-tertiary/50 transition-colors"
+							className="flex w-full items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
 						>
 							<Avatar
 								fallback={user.username}
 								src={user.avatar_url}
 								size="sm"
-							/>
+								className="rounded-full"
+							/>{" "}
 							<span className="truncate text-sm text-content-secondary">
 								{user.name || user.username}
 							</span>
