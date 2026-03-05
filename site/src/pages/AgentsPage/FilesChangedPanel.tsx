@@ -43,7 +43,7 @@ interface FilesChangedPanelProps {
  * Minimum container width (px) at which the file tree sidebar
  * is shown alongside the diff list.
  */
-const FILE_TREE_THRESHOLD = 1200;
+const FILE_TREE_THRESHOLD = 800;
 
 type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
@@ -299,19 +299,22 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 	// whether to show the file tree sidebar without a prop from the
 	// parent.
 	// ---------------------------------------------------------------
-	const containerRef = useRef<HTMLDivElement>(null);
 	const [containerWidth, setContainerWidth] = useState(0);
-
-	useEffect(() => {
-		const el = containerRef.current;
+	const roRef = useRef<ResizeObserver | null>(null);
+	const containerRef = useCallback((el: HTMLDivElement | null) => {
+		if (roRef.current) {
+			roRef.current.disconnect();
+			roRef.current = null;
+		}
 		if (!el) {
 			return;
 		}
+		setContainerWidth(el.getBoundingClientRect().width);
 		const ro = new ResizeObserver(([entry]) => {
 			setContainerWidth(entry.contentRect.width);
 		});
 		ro.observe(el);
-		return () => ro.disconnect();
+		roRef.current = ro;
 	}, []);
 
 	const showTree =
