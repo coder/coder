@@ -1,7 +1,7 @@
 # Architecture
 
-Coder's AI agent in the control plane interacts with workspaces over the same
-Tailnet tunnel that a developer's IDE, web terminal, and SSH session already
+Coder's AI agent interacts with workspaces over the same
+connection path as a developer's IDE, web terminal, and SSH session already
 use. There is no sidecar process and no new network paths. If your developers
 can already connect to their workspaces, the agent can too.
 
