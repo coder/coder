@@ -675,6 +675,11 @@
 									"path": "./admin/templates/extending-templates/devcontainers.md"
 								},
 								{
+									"title": "Improving Agent Resiliency",
+									"description": "Manage agent child process CPU and OOM priority",
+									"path": "./admin/templates/extending-templates/process-priority.md"
+								},
+								{
 									"title": "Process Logging",
 									"description": "Log workspace processes",
 									"path": "./admin/templates/extending-templates/process-logging.md",
