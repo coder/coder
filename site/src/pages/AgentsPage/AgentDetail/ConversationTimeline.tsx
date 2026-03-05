@@ -234,7 +234,7 @@ const ChatMessageItem = memo<{
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data: string }>,
+		fileBlocks?: Array<{ mediaType: string; data: string; fileId?: string }>,
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -492,7 +492,7 @@ const StickyUserMessage: FC<{
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data: string }>,
+		fileBlocks?: Array<{ mediaType: string; data: string; fileId?: string }>,
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -631,7 +631,11 @@ const StickyUserMessage: FC<{
 		? (
 				messageId: number,
 				text: string,
-				fileBlocks?: Array<{ mediaType: string; data: string }>,
+				fileBlocks?: Array<{
+					mediaType: string;
+					data: string;
+					fileId?: string;
+				}>,
 			) => {
 				onEditUserMessage(messageId, text, fileBlocks);
 				requestAnimationFrame(() => {
@@ -748,7 +752,7 @@ type ConversationTimelineProps = {
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data: string }>,
+		fileBlocks?: Array<{ mediaType: string; data: string; fileId?: string }>,
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;

@@ -1156,9 +1156,7 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 		}
 
 		var rawBlocks []json.RawMessage
-		if role == string(fantasy.MessageRoleAssistant) {
-			_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
-		}
+		_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
 
 		parts := make([]codersdk.ChatMessagePart, 0, len(content))
 		for i, block := range content {
@@ -1166,10 +1164,16 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 			if part.Type == "" {
 				continue
 			}
-			if part.Type == codersdk.ChatMessagePartTypeReasoning {
-				part.Title = ""
-				if i < len(rawBlocks) {
+			if i < len(rawBlocks) {
+				if part.Type == codersdk.ChatMessagePartTypeReasoning {
 					part.Title = reasoningStoredTitle(rawBlocks[i])
+				}
+				if part.Type == codersdk.ChatMessagePartTypeFile {
+					if fid := fileStoredID(rawBlocks[i]); fid != "" {
+						if parsed, err := uuid.Parse(fid); err == nil {
+							part.FileID = parsed
+						}
+					}
 				}
 			}
 			parts = append(parts, part)
@@ -1273,6 +1277,24 @@ func reasoningStoredTitle(raw json.RawMessage) string {
 		return ""
 	}
 	return strings.TrimSpace(envelope.Data.Title)
+}
+
+// fileStoredID extracts the file_id from the data sub-object of a
+// serialized file content block, mirroring reasoningStoredTitle.
+func fileStoredID(raw json.RawMessage) string {
+	var envelope struct {
+		Type string `json:"type"`
+		Data struct {
+			FileID string `json:"file_id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return ""
+	}
+	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeFile)) {
+		return ""
+	}
+	return envelope.Data.FileID
 }
 
 func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {

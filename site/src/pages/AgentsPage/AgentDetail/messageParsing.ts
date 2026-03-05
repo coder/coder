@@ -219,10 +219,11 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				case "file": {
 					const mediaType = asString(typedBlock.media_type);
 					const data = asString(typedBlock.data);
+					const fileId = asString(typedBlock.file_id);
 					if (mediaType && data) {
 						parsed.blocks = [
 							...parsed.blocks,
-							{ type: "file", mediaType, data },
+							{ type: "file", mediaType, data, fileId: fileId || undefined },
 						];
 					}
 					break;

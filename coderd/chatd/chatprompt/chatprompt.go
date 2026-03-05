@@ -7,6 +7,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
@@ -400,9 +401,17 @@ func ExtractToolCalls(parts []fantasy.MessagePart) []fantasy.ToolCallContent {
 }
 
 // MarshalContent encodes message content blocks for persistence.
-func MarshalContent(blocks []fantasy.Content) (pqtype.NullRawMessage, error) {
+// fileIDs optionally maps block indices to chat_files IDs, which
+// are injected into the JSON envelope for file-type blocks so
+// the reference survives round-trips through storage.
+func MarshalContent(blocks []fantasy.Content, fileIDs ...map[int]uuid.UUID) (pqtype.NullRawMessage, error) {
 	if len(blocks) == 0 {
 		return pqtype.NullRawMessage{}, nil
+	}
+
+	var fids map[int]uuid.UUID
+	if len(fileIDs) > 0 {
+		fids = fileIDs[0]
 	}
 
 	encodedBlocks := make([]json.RawMessage, 0, len(blocks))
@@ -415,6 +424,16 @@ func MarshalContent(blocks []fantasy.Content) (pqtype.NullRawMessage, error) {
 				err,
 			)
 		}
+		if fid, ok := fids[i]; ok {
+			encoded, err = injectFileID(encoded, fid)
+			if err != nil {
+				return pqtype.NullRawMessage{}, xerrors.Errorf(
+					"inject file_id into content block %d: %w",
+					i,
+					err,
+				)
+			}
+		}
 		encodedBlocks = append(encodedBlocks, encoded)
 	}
 
@@ -423,6 +442,24 @@ func MarshalContent(blocks []fantasy.Content) (pqtype.NullRawMessage, error) {
 		return pqtype.NullRawMessage{}, xerrors.Errorf("encode content blocks: %w", err)
 	}
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
+}
+
+// injectFileID adds a file_id field into the data sub-object of a
+// serialized content block envelope. This follows the same pattern
+// as the reasoning title injection in marshalContentBlock.
+func injectFileID(encoded json.RawMessage, fileID uuid.UUID) (json.RawMessage, error) {
+	var envelope struct {
+		Type string         `json:"type"`
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(encoded, &envelope); err != nil {
+		return encoded, err
+	}
+	if envelope.Data == nil {
+		envelope.Data = map[string]any{}
+	}
+	envelope.Data["file_id"] = fileID.String()
+	return json.Marshal(envelope)
 }
 
 // MarshalToolResult encodes a single tool result for persistence as

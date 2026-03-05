@@ -40,6 +40,7 @@ export type RenderBlock =
 			type: "file";
 			mediaType: string;
 			data: string; // base64
+			fileId?: string;
 	  };
 
 export type ParsedMessageContent = {

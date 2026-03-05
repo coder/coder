@@ -249,7 +249,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	contentBlocks, contentFileIDs, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
 		return
@@ -284,6 +284,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ModelConfigID:      modelConfigID,
 		SystemPrompt:       defaultChatSystemPrompt(),
 		InitialUserContent: contentBlocks,
+		ContentFileIDs:     contentFileIDs,
 	})
 	if err != nil {
 		if database.IsForeignKeyViolation(
@@ -649,7 +650,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	contentBlocks, contentFileIDs, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -661,10 +662,11 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
-			ChatID:        chatID,
-			Content:       contentBlocks,
-			ModelConfigID: req.ModelConfigID,
-			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			ChatID:         chatID,
+			Content:        contentBlocks,
+			ContentFileIDs: contentFileIDs,
+			ModelConfigID:  req.ModelConfigID,
+			BusyBehavior:   chatd.SendMessageBusyBehaviorQueue,
 		},
 	)
 	if sendErr != nil {
@@ -723,7 +725,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	contentBlocks, contentFileIDs, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -736,6 +738,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		ChatID:          chat.ID,
 		EditedMessageID: messageID,
 		Content:         contentBlocks,
+		ContentFileIDs:  contentFileIDs,
 	})
 	if editErr != nil {
 		switch {
@@ -2394,6 +2397,7 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 
 func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest) (
 	[]fantasy.Content,
+	map[int]uuid.UUID,
 	string,
 	*codersdk.Response,
 ) {
@@ -2405,22 +2409,23 @@ func createChatInputFromParts(
 	db database.Store,
 	parts []codersdk.ChatInputPart,
 	fieldName string,
-) ([]fantasy.Content, string, *codersdk.Response) {
+) ([]fantasy.Content, map[int]uuid.UUID, string, *codersdk.Response) {
 	if len(parts) == 0 {
-		return nil, "", &codersdk.Response{
+		return nil, nil, "", &codersdk.Response{
 			Message: "Content is required.",
 			Detail:  "Content cannot be empty.",
 		}
 	}
 
 	content := make([]fantasy.Content, 0, len(parts))
+	fileIDs := make(map[int]uuid.UUID)
 	textParts := make([]string, 0, len(parts))
 	for i, part := range parts {
 		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
 		case string(codersdk.ChatInputPartTypeText):
 			text := strings.TrimSpace(part.Text)
 			if text == "" {
-				return nil, "", &codersdk.Response{
+				return nil, nil, "", &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].text cannot be empty.", fieldName, i),
 				}
@@ -2429,7 +2434,7 @@ func createChatInputFromParts(
 			textParts = append(textParts, text)
 		case string(codersdk.ChatInputPartTypeFile):
 			if part.FileID == uuid.Nil {
-				return nil, "", &codersdk.Response{
+				return nil, nil, "", &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
 				}
@@ -2437,12 +2442,12 @@ func createChatInputFromParts(
 			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
 			if err != nil {
 				if httpapi.Is404Error(err) {
-					return nil, "", &codersdk.Response{
+					return nil, nil, "", &codersdk.Response{
 						Message: "Invalid input part.",
 						Detail:  fmt.Sprintf("%s[%d].file_id references a file that does not exist.", fieldName, i),
 					}
 				}
-				return nil, "", &codersdk.Response{
+				return nil, nil, "", &codersdk.Response{
 					Message: "Internal error.",
 					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
 				}
@@ -2451,8 +2456,9 @@ func createChatInputFromParts(
 				Data:      chatFile.Data,
 				MediaType: chatFile.Mimetype,
 			})
+			fileIDs[len(content)-1] = part.FileID
 		default:
-			return nil, "", &codersdk.Response{
+			return nil, nil, "", &codersdk.Response{
 				Message: "Invalid input part.",
 				Detail: fmt.Sprintf(
 					"%s[%d].type %q is not supported.",
@@ -2467,13 +2473,13 @@ func createChatInputFromParts(
 	// Allow file-only messages. The titleSource may be empty
 	// when only file parts are provided, callers handle this.
 	if len(content) == 0 {
-		return nil, "", &codersdk.Response{
+		return nil, nil, "", &codersdk.Response{
 			Message: "Content is required.",
 			Detail:  fmt.Sprintf("%s must include at least one text or file part.", fieldName),
 		}
 	}
 	titleSource := strings.TrimSpace(strings.Join(textParts, " "))
-	return content, titleSource, nil
+	return content, fileIDs, titleSource, nil
 }
 
 func chatTitleFromMessage(message string) string {

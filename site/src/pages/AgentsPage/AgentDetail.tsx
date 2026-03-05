@@ -36,7 +36,11 @@ import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
+import {
+	AgentChatInput,
+	type ChatMessageInputRef,
+	type UploadState,
+} from "./AgentChatInput";
 import {
 	selectChatStatus,
 	selectHasStreamState,
@@ -218,7 +222,11 @@ interface AgentDetailInputProps {
 	onCancelHistoryEdit: () => void;
 	// File blocks from the message being edited, converted to
 	// File objects and pre-populated into attachments.
-	editingFileBlocks?: Array<{ mediaType: string; data: string }>;
+	editingFileBlocks?: Array<{
+		mediaType: string;
+		data: string;
+		fileId?: string;
+	}>;
 }
 
 const AgentDetailInput: FC<AgentDetailInputProps> = ({
@@ -292,10 +300,15 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			setPreviewUrls(new Map());
 			return;
 		}
-		// Reconstruct full File objects from base64 so startUpload
-		// can upload them eagerly and store their fileId for reuse.
 		const files = editingFileBlocks.map((block, i) => {
 			const ext = block.mediaType.split("/")[1] ?? "png";
+			// Only decode base64 into File content when we need to
+			// re-upload (no existing fileId).
+			if (block.fileId) {
+				return new File([], `attachment-${i}.${ext}`, {
+					type: block.mediaType,
+				});
+			}
 			const bytes = Uint8Array.from(atob(block.data), (c) => c.charCodeAt(0));
 			return new File([bytes], `attachment-${i}.${ext}`, {
 				type: block.mediaType,
@@ -310,10 +323,23 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 				]),
 			),
 		);
-		// Upload eagerly so the fileId is available at submit time,
-		// avoiding re-upload of unchanged images.
-		for (const file of files) {
-			startUpload(file);
+		// Reuse existing file_ids where available, only upload
+		// files that don't already have a server-side reference.
+		const newUploadStates = new Map<File, UploadState>();
+		for (const [i, file] of files.entries()) {
+			const block = editingFileBlocks[i];
+			if (block.fileId) {
+				newUploadStates.set(file, {
+					status: "uploaded",
+					fileId: block.fileId,
+				});
+			}
+		}
+		setUploadStates(newUploadStates);
+		for (const [i, file] of files.entries()) {
+			if (!editingFileBlocks[i].fileId) {
+				startUpload(file);
+			}
 		}
 	}, [
 		editingFileBlocks,
@@ -417,14 +443,14 @@ export function useConversationEditingState(deps: {
 		string | null
 	>(null);
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
-		Array<{ mediaType: string; data: string }>
+		Array<{ mediaType: string; data: string; fileId?: string }>
 	>([]);
 
 	const handleEditUserMessage = useCallback(
 		(
 			messageId: number,
 			text: string,
-			fileBlocks?: Array<{ mediaType: string; data: string }>,
+			fileBlocks?: Array<{ mediaType: string; data: string; fileId?: string }>,
 		) => {
 			setDraftBeforeHistoryEdit((prev) =>
 				editingMessageId !== null ? prev : inputValueRef.current,

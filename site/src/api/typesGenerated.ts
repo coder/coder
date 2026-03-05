@@ -1162,6 +1162,7 @@ export interface ChatMessagePart {
 	readonly title?: string;
 	readonly media_type?: string;
 	readonly data?: string;
+	readonly file_id?: string;
 }
 
 // From codersdk/chats.go

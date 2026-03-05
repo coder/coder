@@ -165,6 +165,9 @@ type CreateOptions struct {
 	ModelConfigID      uuid.UUID
 	SystemPrompt       string
 	InitialUserContent []fantasy.Content
+	// ContentFileIDs maps content block indices to their chat_files IDs
+	// so the file_id can be preserved in the stored message JSON.
+	ContentFileIDs map[int]uuid.UUID
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -180,10 +183,11 @@ const (
 
 // SendMessageOptions controls user message insertion with busy-state behavior.
 type SendMessageOptions struct {
-	ChatID        uuid.UUID
-	Content       []fantasy.Content
-	ModelConfigID *uuid.UUID
-	BusyBehavior  SendMessageBusyBehavior
+	ChatID         uuid.UUID
+	Content        []fantasy.Content
+	ContentFileIDs map[int]uuid.UUID
+	ModelConfigID  *uuid.UUID
+	BusyBehavior   SendMessageBusyBehavior
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -199,6 +203,7 @@ type EditMessageOptions struct {
 	ChatID          uuid.UUID
 	EditedMessageID int64
 	Content         []fantasy.Content
+	ContentFileIDs  map[int]uuid.UUID
 }
 
 // EditMessageResult contains the updated user message and chat status.
@@ -278,7 +283,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			}
 		}
 
-		userContent, err := chatprompt.MarshalContent(opts.InitialUserContent)
+		userContent, err := chatprompt.MarshalContent(opts.InitialUserContent, opts.ContentFileIDs)
 		if err != nil {
 			return xerrors.Errorf("marshal initial user content: %w", err)
 		}
@@ -345,7 +350,7 @@ func (p *Server) SendMessage(
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
 
-	content, err := chatprompt.MarshalContent(opts.Content)
+	content, err := chatprompt.MarshalContent(opts.Content, opts.ContentFileIDs)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
@@ -448,7 +453,7 @@ func (p *Server) EditMessage(
 		return EditMessageResult{}, xerrors.New("content is required")
 	}
 
-	content, err := chatprompt.MarshalContent(opts.Content)
+	content, err := chatprompt.MarshalContent(opts.Content, opts.ContentFileIDs)
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
