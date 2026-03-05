@@ -932,6 +932,51 @@ func (api *API) chatCreateWorkspace(
 	return workspace, nil
 }
 
+// chatStartWorkspace starts a stopped workspace by creating a new
+// build with the "start" transition. It mirrors chatCreateWorkspace
+// but for the start path.
+func (api *API) chatStartWorkspace(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	workspaceID uuid.UUID,
+	req codersdk.CreateWorkspaceBuildRequest,
+) (codersdk.WorkspaceBuild, error) {
+	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	if err != nil {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
+	}
+	ctx = dbauthz.As(ctx, actor)
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
+	}
+
+	// Build a synthetic API key so postWorkspaceBuildsInternal can
+	// record the correct initiator.
+	syntheticKey := database.APIKey{
+		UserID: ownerID,
+	}
+
+	apiBuild, err := api.postWorkspaceBuildsInternal(
+		ctx,
+		syntheticKey,
+		workspace,
+		req,
+		func(action policy.Action, object rbac.Objecter) bool {
+			// Authorization is handled by dbauthz on the context.
+			authErr := api.HTTPAuth.Authorizer.Authorize(ctx, actor, action, object.RBACObject())
+			return authErr == nil
+		},
+		audit.WorkspaceBuildBaggage{},
+	)
+	if err != nil {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
+	}
+
+	return apiBuild, nil
+}
+
 func chatWorkspaceAuditStatus(err error) int {
 	if responder, ok := httperror.IsResponder(err); ok {
 		status, _ := responder.Response()
