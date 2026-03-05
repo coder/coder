@@ -26,31 +26,7 @@ import {
 import type { FC } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-
-const DiffStatsInline: FC<{
-	status: ChatDiffStatusResponse;
-	onClick: () => void;
-}> = ({ status, onClick }) => {
-	const additions = status.additions ?? 0;
-	const deletions = status.deletions ?? 0;
-
-	if (additions === 0 && deletions === 0) {
-		return null;
-	}
-
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className="inline-flex shrink-0 cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 font-mono text-xs font-medium leading-none tabular-nums transition-opacity hover:opacity-80 outline-none"
-		>
-			{additions > 0 && <span className="text-green-500">+{additions}</span>}
-			{deletions > 0 && (
-				<span className="text-red-400">&minus;{deletions}</span>
-			)}
-		</button>
-	);
-};
+import { DiffStatsInline } from "../DiffStats";
 
 interface DiffPanelState {
 	hasDiffStatus: boolean;

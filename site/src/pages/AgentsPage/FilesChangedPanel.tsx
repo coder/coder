@@ -418,10 +418,6 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		roRef.current = ro;
 	}, []);
 
-	useEffect(() => {
-		return () => roRef.current?.disconnect();
-	}, []);
-
 	const showTree =
 		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
 		sortedFiles.length > 0;
