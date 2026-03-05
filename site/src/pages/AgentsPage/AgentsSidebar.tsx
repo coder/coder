@@ -443,7 +443,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 												<span className="text-red-400">&minus;{deletions}</span>
 											)}
 										</span>
-									)}{" "}
+									)}
 									<div
 										className={cn(
 											"min-w-0 overflow-hidden text-[13px] leading-4",
@@ -490,7 +490,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 										</DropdownMenuItem>
 									) : (
 										<>
-											{" "}
 											<DropdownMenuItem
 												className="text-content-destructive focus:text-content-destructive"
 												disabled={isArchiving}
@@ -843,7 +842,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						/>
 					</DropdownMenuContent>
 				</DropdownMenu>
-			</div>{" "}
+			</div>
 		</div>
 	);
 };

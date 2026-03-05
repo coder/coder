@@ -264,8 +264,8 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							<PanelRightOpenIcon className="h-4 w-4" />
 						)}
 					</Button>
-				)}{" "}
-			</div>
+				)}
+			</div>{" "}
 		</div>
 	);
 };

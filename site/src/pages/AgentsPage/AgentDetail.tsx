@@ -1,3 +1,4 @@
+import type { ChatDiffStatusResponse } from "api/api";
 import { API } from "api/api";
 import {
 	chat,
@@ -1061,8 +1062,6 @@ const AgentDetail: FC = () => {
 		</div>
 	);
 };
-
-import type { ChatDiffStatusResponse } from "api/api";
 
 const DiffStats: FC<{ diffStatus?: ChatDiffStatusResponse }> = ({
 	diffStatus,

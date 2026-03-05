@@ -49,9 +49,9 @@ interface RightPanelProps {
 	chatTitle?: string;
 	isSidebarCollapsed?: boolean;
 	onToggleSidebarCollapsed?: () => void;
-	tabContent: Record<string, ReactNode>;
+	tabContent: Partial<Record<(typeof TABS)[number]["id"], ReactNode>>;
 	/** Optional extra info per tab (e.g. diff stats). */
-	tabMeta?: Record<string, ReactNode>;
+	tabMeta?: Partial<Record<(typeof TABS)[number]["id"], ReactNode>>;
 	/** Fires during drag with the live visual expanded state, and
 	 * null when the drag ends so the parent falls back to the
 	 * committed isExpanded prop. */
@@ -297,7 +297,7 @@ export const RightPanel = ({
 					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link xl:block",
 					visualExpanded && "-left-1",
 				)}
-			/>{" "}
+			/>
 			<div className="flex min-h-0 flex-1 flex-col">
 				{/* Tabbed header */}
 				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1">
@@ -329,11 +329,11 @@ export const RightPanel = ({
 								)}
 							>
 								{tab.label}
-								{tabMeta?.[tab.id]}{" "}
+								{tabMeta?.[tab.id]}
 							</Button>
 						))}
-					</div>{" "}
-					{/* Center: chat title */}
+					</div>
+					{/* Center: chat title */}{" "}
 					<div className="min-w-0 flex-1 text-center">
 						{visualExpanded && chatTitle && (
 							<span className="truncate text-sm text-content-primary">

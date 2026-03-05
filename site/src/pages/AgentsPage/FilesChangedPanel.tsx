@@ -43,6 +43,23 @@ interface FilesChangedPanelProps {
  */
 const FILE_TREE_THRESHOLD = 1000;
 
+/**
+ * Extra CSS injected via the diff viewer's `unsafeCSS` option to make
+ * file headers sticky and adjust metadata layout.
+ */
+const STICKY_HEADER_CSS = [
+	"[data-diffs-header] {",
+	"  position: sticky; top: 0; z-index: 10;",
+	"  font-size: 13px;",
+	"  border-bottom: 1px solid hsl(var(--border-default));",
+	"  background-color: hsl(var(--surface-quaternary)) !important;",
+	"}",
+	"[data-diffs-header] [data-metadata] { flex-direction: row-reverse; }",
+	"@media (prefers-color-scheme: dark) {",
+	"  [data-diffs-header] { background-color: hsl(var(--surface-secondary)) !important; }",
+	"}",
+].join(" ");
+
 type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
 
@@ -228,6 +245,7 @@ const FileTreeNodeView: FC<{
 					onClick={() => setExpanded((v) => !v)}
 					className="flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left text-content-secondary hover:bg-surface-secondary cursor-pointer outline-none"
 					style={{ paddingLeft: 4 + depth * 8, fontSize: 13 }}
+					aria-expanded={expanded}
 				>
 					<ChevronRightIcon
 						className={cn(
@@ -308,7 +326,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 			diffStyle,
 			// Extend the base CSS to make file headers sticky so they
 			// remain visible while scrolling through long diffs.
-			unsafeCSS: `${base.unsafeCSS ?? ""} [data-diffs-header] { position: sticky; top: 0; z-index: 10; font-size: 13px; border-bottom: 1px solid hsl(var(--border-default)); background-color: hsl(var(--surface-quaternary)) !important; } [data-diffs-header] [data-metadata] { flex-direction: row-reverse; } @media (prefers-color-scheme: dark) { [data-diffs-header] { background-color: hsl(var(--surface-secondary)) !important; } }`,
+			unsafeCSS: `${base.unsafeCSS ?? ""} ${STICKY_HEADER_CSS}`,
 		};
 	}, [isDark, diffStyle]);
 
@@ -441,48 +459,57 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 			return;
 		}
 
+		let rafId = 0;
 		const onScroll = () => {
-			const containerTop = viewport.getBoundingClientRect().top;
-			let bestName: string | null = null;
-			let bestDistance = Number.POSITIVE_INFINITY;
+			cancelAnimationFrame(rafId);
+			rafId = requestAnimationFrame(() => {
+				const containerTop = viewport.getBoundingClientRect().top;
+				let bestName: string | null = null;
+				let bestDistance = Number.POSITIVE_INFINITY;
 
-			for (const [name, el] of fileRefs.current.entries()) {
-				const rect = el.getBoundingClientRect();
-				// The file "owns" the scroll position when its top
-				// is at or above the container top and its bottom is
-				// still below it.
-				if (rect.bottom > containerTop && rect.top <= containerTop + 1) {
-					const distance = Math.abs(rect.top - containerTop);
-					if (distance < bestDistance) {
-						bestDistance = distance;
-						bestName = name;
-					}
-				}
-			}
-
-			// If nothing is at the top (e.g. scrolled to the very top
-			// with padding), pick the first file whose top is closest
-			// to the container top.
-			if (!bestName) {
 				for (const [name, el] of fileRefs.current.entries()) {
-					const dist = Math.abs(el.getBoundingClientRect().top - containerTop);
-					if (dist < bestDistance) {
-						bestDistance = dist;
-						bestName = name;
+					const rect = el.getBoundingClientRect();
+					// The file "owns" the scroll position when its top
+					// is at or above the container top and its bottom is
+					// still below it.
+					if (rect.bottom > containerTop && rect.top <= containerTop + 1) {
+						const distance = Math.abs(rect.top - containerTop);
+						if (distance < bestDistance) {
+							bestDistance = distance;
+							bestName = name;
+						}
 					}
 				}
-			}
 
-			if (bestName) {
-				setActiveFile(bestName);
-			}
+				// If nothing is at the top (e.g. scrolled to the very top
+				// with padding), pick the first file whose top is closest
+				// to the container top.
+				if (!bestName) {
+					for (const [name, el] of fileRefs.current.entries()) {
+						const dist = Math.abs(
+							el.getBoundingClientRect().top - containerTop,
+						);
+						if (dist < bestDistance) {
+							bestDistance = dist;
+							bestName = name;
+						}
+					}
+				}
+
+				if (bestName) {
+					setActiveFile(bestName);
+				}
+			});
 		};
 
 		// Fire once to set initial state.
 		onScroll();
 
 		viewport.addEventListener("scroll", onScroll, { passive: true });
-		return () => viewport.removeEventListener("scroll", onScroll);
+		return () => {
+			cancelAnimationFrame(rafId);
+			viewport.removeEventListener("scroll", onScroll);
+		};
 	}, [showTree, sortedFiles.length]);
 
 	const handleFileClick = useCallback((name: string) => {
