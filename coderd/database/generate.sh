@@ -25,8 +25,8 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	# Work directory for formatting before atomic replacement of
 	# generated files, ensuring the source tree is never left in a
 	# partially written state.
-	mkdir -p ../../.tmp
-	workdir=$(mktemp -d ../../.tmp/.dbgen.XXXXXX)
+	mkdir -p ../../_gen
+	workdir=$(mktemp -d ../../_gen/.dbgen.XXXXXX)
 	trap 'rm -rf "$workdir"' EXIT
 
 	first=true

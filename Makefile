@@ -74,7 +74,7 @@ SHELL := bash
 # command that receives the temp file path as its argument.
 # Usage: $(call atomic_write,GENERATE_CMD[,FORMAT_CMD])
 define atomic_write
-	tmpdir=$$(mktemp -d -p .tmp) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		$(1) > "$$tmpfile" && \
 		$(if $(2),$(2) "$$tmpfile" &&) \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
@@ -82,9 +82,9 @@ endef
 
 # Shared temp directory for atomic writes. Lives at the project root
 # so all targets share the same filesystem, and is gitignored.
-# Order-only prerequisite: recipes that need it depend on | .tmp
-.tmp:
-	mkdir -p .tmp
+# Order-only prerequisite: recipes that need it depend on | _gen
+_gen:
+	mkdir -p _gen
 
 # Don't print the commands in the file unless you specify VERBOSE. This is
 # essentially the same as putting "@" at the start of each line.
@@ -917,30 +917,30 @@ enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged
 		--go-drpc_opt=paths=source_relative \
 		./enterprise/aibridged/proto/aibridged.proto
 
-site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') | .tmp
+site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') | _gen
 	$(call atomic_write,go run -C ./scripts/apitypings main.go,./scripts/biome_format.sh)
 
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	(cd site/ && pnpm run gen:provisioner)
 	touch "$@"
 
-site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*) | .tmp
-	tmpdir=$$(mktemp -d -p .tmp) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*) | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		go run ./scripts/gensite/ -icons "$$tmpfile" && \
 		./scripts/biome_format.sh "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
-examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates) | .tmp
+examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates) | _gen
 	$(call atomic_write,go run ./scripts/examplegen/main.go)
 
-coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go | .tmp
+coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go | _gen
 	$(call atomic_write,go run ./scripts/typegen/main.go rbac object)
 	touch "$@"
 
 # NOTE: depends on object_gen.go because `go run` compiles
 # coderd/rbac which includes it.
 coderd/rbac/scopes_constants_gen.go: scripts/typegen/scopenames.gotmpl scripts/typegen/main.go coderd/rbac/policy/policy.go \
-	coderd/rbac/object_gen.go | .tmp
+	coderd/rbac/object_gen.go | _gen
 	# Write to a temp file first to avoid truncating the package
 	# during build since the generator imports the rbac package.
 	$(call atomic_write,go run ./scripts/typegen/main.go rbac scopenames)
@@ -949,7 +949,7 @@ coderd/rbac/scopes_constants_gen.go: scripts/typegen/scopenames.gotmpl scripts/t
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # `go run` compiles coderd/rbac which includes both.
 codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
-	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | .tmp
+	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | _gen
 	# Write to a temp file to avoid truncating the target, which
 	# would break the codersdk package and any parallel build targets.
 	$(call atomic_write,go run scripts/typegen/main.go rbac codersdk)
@@ -958,7 +958,7 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # `go run` compiles coderd/rbac which includes both.
 codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go \
-	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | .tmp
+	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | _gen
 	# Generate SDK constants for external API key scopes.
 	$(call atomic_write,go run ./scripts/apikeyscopesgen)
 	touch "$@"
@@ -966,27 +966,27 @@ codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scope
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # `go run` compiles coderd/rbac which includes both.
 site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
-	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | .tmp
+	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | _gen
 	$(call atomic_write,go run scripts/typegen/main.go rbac typescript,./scripts/biome_format.sh)
 
-site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go | .tmp
+site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go | _gen
 	$(call atomic_write,go run scripts/typegen/main.go countries,./scripts/biome_format.sh)
 
-site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go | .tmp
+site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go | _gen
 	$(call atomic_write,go run ./scripts/modeloptionsgen/main.go | tail -n +2,./scripts/biome_format.sh)
 
-scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES) | .tmp
+scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES) | _gen
 	$(call atomic_write,go run ./scripts/metricsdocgen/scanner)
 
-docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics scripts/metricsdocgen/generated_metrics | .tmp
-	tmpdir=$$(mktemp -d -p .tmp) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
+docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics scripts/metricsdocgen/generated_metrics | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		go run scripts/metricsdocgen/main.go --prometheus-doc-file="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
-docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES) | .tmp
-	tmpdir=$$(mktemp -d -p .tmp) && \
+docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES) | _gen
+	tmpdir=$$(mktemp -d -p _gen) && \
 		tmpdir=$$(realpath "$$tmpdir") && \
 		mkdir -p "$$tmpdir/docs/reference/cli" && \
 		cp docs/manifest.json "$$tmpdir/docs/manifest.json" && \
@@ -996,8 +996,8 @@ docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go e
 		for f in "$$tmpdir/docs/reference/cli/"*.md; do mv "$$f" "docs/reference/cli/$$(basename "$$f")"; done && \
 		rm -rf "$$tmpdir"
 
-docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go | .tmp
-	tmpdir=$$(mktemp -d -p .tmp) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
+docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		go run scripts/auditdocgen/main.go --audit-doc-file="$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
@@ -1016,8 +1016,8 @@ coderd/apidoc/.gen: \
 	scripts/apidocgen/generate.sh \
 	scripts/apidocgen/swaginit/main.go \
 	$(wildcard scripts/apidocgen/postprocess/*) \
-	$(wildcard scripts/apidocgen/markdown-template/*) | .tmp
-	tmpdir=$$(mktemp -d -p .tmp) && swagtmp=$$(mktemp -d -p .tmp) && \
+	$(wildcard scripts/apidocgen/markdown-template/*) | _gen
+	tmpdir=$$(mktemp -d -p _gen) && swagtmp=$$(mktemp -d -p _gen) && \
 		tmpdir=$$(realpath "$$tmpdir") && swagtmp=$$(realpath "$$swagtmp") && \
 		mkdir -p "$$tmpdir/reference/api" && \
 		cp docs/manifest.json "$$tmpdir/manifest.json" && \
@@ -1026,15 +1026,15 @@ coderd/apidoc/.gen: \
 		pnpm exec markdown-table-formatter "$$tmpdir/reference/api/*.md" && \
 		./scripts/biome_format.sh "$$swagtmp/swagger.json" && \
 		for f in "$$tmpdir/reference/api/"*.md; do mv "$$f" "docs/reference/api/$$(basename "$$f")"; done && \
-		mv "$$tmpdir/manifest.json" .tmp/manifest-staging.json && \
+		mv "$$tmpdir/manifest.json" _gen/manifest-staging.json && \
 		mv "$$swagtmp/docs.go" coderd/apidoc/docs.go && \
 		mv "$$swagtmp/swagger.json" coderd/apidoc/swagger.json && \
 		rm -rf "$$tmpdir" "$$swagtmp"
 	touch "$@"
 
-docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md | .tmp
-	tmpdir=$$(mktemp -d -p .tmp) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
-		cp .tmp/manifest-staging.json "$$tmpfile" && \
+docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		cp _gen/manifest-staging.json "$$tmpfile" && \
 		./scripts/biome_format.sh "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
