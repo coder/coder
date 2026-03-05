@@ -9,19 +9,21 @@ Coder Agents is a chat interface and API for delegating development work and res
 Coder Agents includes its own self-hosted AI coding
 agent that runs the agent loop directly within the Coder control plane.
 
-It is not a wrapper around third-party agent tools like Claude Code
-or Codex.
-
-It is a standalone agent written in Go that implements standard
-agentic patterns — sub-agent delegation, context compaction, file editing, and
-shell execution — and works with any LLM provider you configure.
-
 No specialized software, API keys, or network access is required inside your workspace. The only requirement is network access between the control plane and external LLM providers.
 
 <video autoplay playsinline loop>
   <source src="https://github.com/coder/coder/blob/main/docs/images/guides/ai-agents/coder-agents-ui.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
+
+## What Coder Agents is and isn't
+
+It is a standalone agent written in Go that implements standard
+agentic patterns — sub-agent delegation, context compaction, file editing, and
+shell execution — and works with any LLM provider you configure.
+
+It is not a wrapper around third-party agent tools like Claude Code
+or Codex.
 
 ## Who is Coder Agents for
 
