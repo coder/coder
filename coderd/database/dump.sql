@@ -3585,6 +3585,8 @@ CREATE UNIQUE INDEX organizations_single_default_org ON organizations USING btre
 
 CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING btree (job_id, id);
 
+CREATE INDEX idx_provisioner_job_timings_job_id_started_at ON provisioner_job_timings USING btree (job_id, started_at);
+
 CREATE INDEX provisioner_jobs_started_at_idx ON provisioner_jobs USING btree (started_at) WHERE (started_at IS NULL);
 
 CREATE INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx ON provisioner_jobs USING btree (worker_id, organization_id, completed_at DESC);
