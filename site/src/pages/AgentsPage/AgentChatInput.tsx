@@ -14,7 +14,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { ArrowUpIcon, Loader2Icon, Square, XIcon } from "lucide-react";
-import { memo, type ReactNode, useCallback, useRef, useState } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
@@ -262,6 +262,17 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			},
 			[onContentChange],
 		);
+
+		// Re-focus the editor after a send completes (isLoading goes
+		// from true → false) so the user can immediately type again.
+		const prevIsLoadingRef = useRef(isLoading);
+		useEffect(() => {
+			const wasLoading = prevIsLoadingRef.current;
+			prevIsLoadingRef.current = isLoading;
+			if (wasLoading && !isLoading) {
+				internalRef.current?.focus();
+			}
+		}, [isLoading]);
 
 		const canSend = !isDisabled && !isLoading && hasModelOptions && hasContent;
 
