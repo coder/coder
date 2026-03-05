@@ -1036,7 +1036,8 @@ docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/referen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		cp _gen/manifest-staging.json "$$tmpfile" && \
 		./scripts/biome_format.sh "$$tmpfile" && \
-		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir" && \
+		rm -f _gen/manifest-staging.json
 
 coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen
 	touch "$@"
