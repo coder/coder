@@ -44,10 +44,31 @@ func TestShouldRefreshOIDCToken(t *testing.T) {
 			want: true,
 		},
 		{
+			// A token that already expired should always be refreshed.
 			name: "ExpiredWithinAssumedWindow",
 			link: database.UserLink{
 				OAuthRefreshToken: "refresh",
 				OAuthExpiry:       now.Add(-5 * time.Minute),
+			},
+			want: true,
+		},
+		{
+			// Token expiring within the 10-minute buffer should be proactively
+			// refreshed to avoid expiry mid-build.
+			name: "ExpiresWithinBuffer",
+			link: database.UserLink{
+				OAuthRefreshToken: "refresh",
+				OAuthExpiry:       now.Add(5 * time.Minute),
+			},
+			want: true,
+		},
+		{
+			// Token expiring just outside the 10-minute buffer should not
+			// be refreshed yet (boundary condition).
+			name: "ExpiresJustAfterBuffer",
+			link: database.UserLink{
+				OAuthRefreshToken: "refresh",
+				OAuthExpiry:       now.Add(11 * time.Minute),
 			},
 			want: false,
 		},
