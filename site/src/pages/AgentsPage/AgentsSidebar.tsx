@@ -315,7 +315,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
 	} = useChatTree();
-
 	const chatID = chat.id;
 	const childIDs = (chatTree.childrenById.get(chatID) ?? []).filter((childID) =>
 		visibleChatIDs.has(childID),
@@ -467,12 +466,12 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 								{shortRelativeTime(chat.updated_at)}
 							</span>
-							<DropdownMenu modal={false}>
+							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
 									<Button
 										size="icon"
 										variant="subtle"
-										className="hidden h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex"
+										className="hidden h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex data-[state=closed]:inline-flex"
 										aria-label={`Open actions for ${chat.title}`}
 									>
 										<EllipsisIcon className="h-3.5 w-3.5" />
@@ -482,23 +481,18 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 									{chat.archived ? (
 										<DropdownMenuItem
 											disabled={isArchiving}
-											onSelect={(e) => {
-												e.preventDefault();
-												onUnarchiveAgent(chat.id);
-											}}
+											onSelect={() => onUnarchiveAgent(chat.id)}
 										>
 											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
 											Unarchive agent
 										</DropdownMenuItem>
 									) : (
 										<>
+											{" "}
 											<DropdownMenuItem
 												className="text-content-destructive focus:text-content-destructive"
 												disabled={isArchiving}
-												onSelect={(e) => {
-													e.preventDefault();
-													onArchiveAgent(chat.id);
-												}}
+												onSelect={() => onArchiveAgent(chat.id)}
 											>
 												<ArchiveIcon className="h-3.5 w-3.5" />
 												Archive agent
@@ -507,10 +501,9 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 												<DropdownMenuItem
 													className="text-content-destructive focus:text-content-destructive"
 													disabled={isArchiving}
-													onSelect={(e) => {
-														e.preventDefault();
-														onArchiveAndDeleteWorkspace(chat.id, workspaceId);
-													}}
+													onSelect={() =>
+														onArchiveAndDeleteWorkspace(chat.id, workspaceId)
+													}
 												>
 													<Trash2Icon className="h-3.5 w-3.5" />
 													Archive & delete workspace
@@ -519,10 +512,10 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 										</>
 									)}
 								</DropdownMenuContent>
-							</DropdownMenu>{" "}
+							</DropdownMenu>
 						</>
 					)}
-				</div>{" "}
+				</div>
 			</div>
 
 			{hasChildren && isExpanded && (
