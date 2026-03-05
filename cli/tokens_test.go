@@ -188,7 +188,8 @@ func TestTokens(t *testing.T) {
 	require.NoError(t, err)
 	// Validate that token was expired
 	if token, err := client.APIKeyByName(ctx, secondUser.ID.String(), "token-two"); assert.NoError(t, err) {
-		require.True(t, token.ExpiresAt.Before(time.Now()))
+		now := time.Now()
+		require.False(t, token.ExpiresAt.After(now), "token expiresAt should not be in the future, but was %s (now=%s)", token.ExpiresAt, now)
 	}
 
 	// Delete by ID (explicit delete flag)
