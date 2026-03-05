@@ -1,5 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { Input } from "components/Input/Input";
 import {
@@ -190,10 +190,10 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			{isAPIKeyEnvManaged ? (
 				<Alert severity="info">
 					<AlertTitle>API key managed by environment variable</AlertTitle>
-					<AlertDetail>
+					<AlertDescription>
 						This provider key is configured from deployment environment settings
 						and cannot be edited in this UI.
-					</AlertDetail>
+					</AlertDescription>
 				</Alert>
 			) : (
 				<form

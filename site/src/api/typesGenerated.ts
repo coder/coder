@@ -6799,6 +6799,7 @@ export interface WebpushMessage {
 	readonly title: string;
 	readonly body: string;
 	readonly actions: readonly WebpushMessageAction[];
+	readonly data?: Record<string, string>;
 }
 
 // From codersdk/notifications.go

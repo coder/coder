@@ -10,7 +10,7 @@ import {
 	updateChatProviderConfig as updateChatProviderConfigMutation,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
-import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader2Icon } from "lucide-react";
 import { type FC, useMemo, useState } from "react";
@@ -366,7 +366,9 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					<AlertTitle>
 						Chat provider admin API is unavailable on this deployment.
 					</AlertTitle>
-					<AlertDetail>/api/v2/chats/providers is missing.</AlertDetail>
+					<AlertDescription>
+						/api/v2/chats/providers is missing.
+					</AlertDescription>
 				</Alert>
 			)}
 
@@ -375,7 +377,9 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 					<AlertTitle>
 						Chat model admin API is unavailable on this deployment.
 					</AlertTitle>
-					<AlertDetail>/api/v2/chats/model-configs is missing.</AlertDetail>
+					<AlertDescription>
+						/api/v2/chats/model-configs is missing.
+					</AlertDescription>
 				</Alert>
 			)}
 		</div>

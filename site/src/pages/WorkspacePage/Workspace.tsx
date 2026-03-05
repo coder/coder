@@ -1,6 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { WorkspaceAgentStatus } from "api/typesGenerated";
-import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { Link } from "components/Link/Link";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
@@ -186,7 +186,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 						{workspace.latest_build.job.error && (
 							<Alert severity="error" prominent>
 								<AlertTitle>Workspace build failed</AlertTitle>
-								<AlertDetail>{workspace.latest_build.job.error}</AlertDetail>
+								<AlertDescription>
+									{workspace.latest_build.job.error}
+								</AlertDescription>
 							</Alert>
 						)}
 
@@ -292,7 +294,7 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 	return (
 		<Alert severity="warning" prominent>
 			<AlertTitle>{title}</AlertTitle>
-			<AlertDetail>
+			<AlertDescription>
 				<p>
 					Your workspace is running but{" "}
 					{failingAgentCount > 1
@@ -308,7 +310,7 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 						</Link>
 					)}
 				</p>
-			</AlertDetail>
+			</AlertDescription>
 		</Alert>
 	);
 };

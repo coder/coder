@@ -409,7 +409,10 @@ export const ExternalAuthError: Story = {
 		});
 
 		await step("Renders error", async () => {
-			await canvas.findByText(/failed to load external auth/i);
+			const alert = await canvas.findByRole("alert");
+			await within(alert).findByRole("heading", {
+				name: /failed to load external auth/i,
+			});
 		});
 	},
 };

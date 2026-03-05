@@ -66,6 +66,7 @@ type Server struct {
 
 	agentConnFn       AgentConnFunc
 	createWorkspaceFn chattool.CreateWorkspaceFn
+	startWorkspaceFn  chattool.StartWorkspaceFn
 	pubsub            pubsub.Pubsub
 	webpushDispatcher webpush.Dispatcher
 	providerAPIKeys   chatprovider.ProviderAPIKeys
@@ -852,6 +853,7 @@ type Config struct {
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
 	CreateWorkspace            chattool.CreateWorkspaceFn
+	StartWorkspace             chattool.StartWorkspaceFn
 	Pubsub                     pubsub.Pubsub
 	ProviderAPIKeys            chatprovider.ProviderAPIKeys
 	WebpushDispatcher          webpush.Dispatcher
@@ -887,6 +889,7 @@ func New(cfg Config) *Server {
 		subscribeFn:                cfg.SubscribeFn,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
+		startWorkspaceFn:           cfg.StartWorkspace,
 		pubsub:                     cfg.Pubsub,
 		webpushDispatcher:          cfg.WebpushDispatcher,
 		providerAPIKeys:            cfg.ProviderAPIKeys,
@@ -1812,6 +1815,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 					Title: chat.Title,
 					Body:  "Agent has finished running.",
 					Icon:  "/favicon.ico",
+					Data:  map[string]string{"url": fmt.Sprintf("/agents/%s", chat.ID)},
 				}
 				if status == database.ChatStatusError {
 					pushMsg.Body = "Agent encountered an error."
@@ -2207,6 +2211,14 @@ func (p *Server) runChat(
 				OwnerID:     chat.OwnerID,
 				ChatID:      chat.ID,
 				CreateFn:    p.createWorkspaceFn,
+				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
+				WorkspaceMu: &workspaceMu,
+			}),
+			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+				DB:          p.db,
+				OwnerID:     chat.OwnerID,
+				ChatID:      chat.ID,
+				StartFn:     p.startWorkspaceFn,
 				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
 				WorkspaceMu: &workspaceMu,
 			}),
