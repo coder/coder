@@ -3858,6 +3858,26 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "listen_addr",
 		},
 		{
+			Name:        "AI Bridge Proxy TLS Certificate File",
+			Description: "Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Key File.",
+			Flag:        "aibridge-proxy-tls-cert-file",
+			Env:         "CODER_AIBRIDGE_PROXY_TLS_CERT_FILE",
+			Value:       &c.AI.BridgeProxyConfig.TLSCertFile,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "tls_cert_file",
+		},
+		{
+			Name:        "AI Bridge Proxy TLS Key File",
+			Description: "Path to the TLS private key file for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS Certificate File.",
+			Flag:        "aibridge-proxy-tls-key-file",
+			Env:         "CODER_AIBRIDGE_PROXY_TLS_KEY_FILE",
+			Value:       &c.AI.BridgeProxyConfig.TLSKeyFile,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "tls_key_file",
+		},
+		{
 			Name:        "AI Bridge Proxy MITM CA Certificate File",
 			Description: "Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI clients. This CA must be trusted by AI clients for the proxy to decrypt their requests.",
 			Flag:        "aibridge-proxy-cert-file",
@@ -4014,6 +4034,8 @@ type AIBridgeBedrockConfig struct {
 type AIBridgeProxyConfig struct {
 	Enabled         serpent.Bool        `json:"enabled" typescript:",notnull"`
 	ListenAddr      serpent.String      `json:"listen_addr" typescript:",notnull"`
+	TLSCertFile     serpent.String      `json:"tls_cert_file" typescript:",notnull"`
+	TLSKeyFile      serpent.String      `json:"tls_key_file" typescript:",notnull"`
 	MITMCertFile    serpent.String      `json:"cert_file" typescript:",notnull"`
 	MITMKeyFile     serpent.String      `json:"key_file" typescript:",notnull"`
 	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`

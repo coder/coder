@@ -105,8 +105,47 @@ func generateSharedTestMITMCert() (certFile, keyFile string, err error) {
 	return certPath, keyPath, nil
 }
 
+// generateListenerCert generates a self-signed certificate and key for use as a
+// proxy listener TLS certificate. Files are written to t.TempDir() and cleaned
+// up automatically when the test ends.
+func generateListenerCert(t *testing.T) (certFile, keyFile string) {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err, "generate listener key")
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "Test Listener"},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		// The client connects to the proxy via IP address, so the certificate
+		// must include 127.0.0.1 as a Subject Alternative Name for validation to succeed.
+		IPAddresses: []net.IP{net.ParseIP("127.0.0.1")},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
+	require.NoError(t, err, "create listener certificate")
+
+	tmpDir := t.TempDir()
+	certPath := filepath.Join(tmpDir, "listener.crt")
+	keyPath := filepath.Join(tmpDir, "listener.key")
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	require.NoError(t, os.WriteFile(certPath, certPEM, 0o600), "write listener cert file")
+
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	require.NoError(t, os.WriteFile(keyPath, keyPEM, 0o600), "write listener key file")
+
+	return certPath, keyPath
+}
+
 type testProxyConfig struct {
 	listenAddr               string
+	tlsCertFile              string
+	tlsKeyFile               string
 	coderAccessURL           string
 	allowedPorts             []string
 	certStore                *aibridgeproxyd.CertCache
@@ -167,6 +206,13 @@ func withMetrics(metrics *aibridgeproxyd.Metrics) testProxyOption {
 	}
 }
 
+func withListenerTLS(certFile, keyFile string) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.tlsCertFile = certFile
+		cfg.tlsKeyFile = keyFile
+	}
+}
+
 // newTestProxy creates a new AI Bridge Proxy server for testing.
 // It uses the shared MITM certificate and registers cleanup automatically.
 // It waits for the proxy server to be ready before returning.
@@ -190,6 +236,8 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 
 	aibridgeOpts := aibridgeproxyd.Options{
 		ListenAddr:               cfg.listenAddr,
+		TLSCertFile:              cfg.tlsCertFile,
+		TLSKeyFile:               cfg.tlsKeyFile,
 		CoderAccessURL:           cfg.coderAccessURL,
 		MITMCertFile:             mitmCertFile,
 		MITMKeyFile:              mitmKeyFile,
@@ -241,15 +289,21 @@ func getProxyCertPool(t *testing.T) *x509.CertPool {
 	return certPool
 }
 
-// newProxyClient creates an HTTP client configured to use the proxy.
+// newProxyClient creates an HTTP(S) client configured to use the proxy.
 // It adds a Proxy-Authorization header with the provided token for authentication.
-// The certPool parameter specifies which certificates the client should trust.
-// For MITM'd requests, use the proxy's MITM certificate. For tunneled requests, use the target server's cert.
+// The certPool parameter specifies which certificates the client should trust:
+//   - If the proxy listener is TLS, include the listener certificate.
+//   - For MITM'd requests, include the proxy's MITM certificate.
+//   - For tunneled requests, include the target server's certificate.
 func newProxyClient(t *testing.T, srv *aibridgeproxyd.Server, proxyAuth string, certPool *x509.CertPool) *http.Client {
 	t.Helper()
 
-	// Create an HTTP client configured to use the proxy.
-	proxyURL, err := url.Parse("http://" + srv.Addr())
+	// Create an HTTP(S) client configured to use the proxy.
+	scheme := "http"
+	if srv.IsTLSListener() {
+		scheme = "https"
+	}
+	proxyURL, err := url.Parse(scheme + "://" + srv.Addr())
 	require.NoError(t, err)
 
 	transport := &http.Transport{
@@ -362,6 +416,61 @@ func TestNew(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "listen address is required")
+	})
+
+	t.Run("TLSCertWithoutKey", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			TLSCertFile:     "cert.pem",
+			CoderAccessURL:  "http://localhost:3000",
+			MITMCertFile:    mitmCertFile,
+			MITMKeyFile:     mitmKeyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "tls cert file and tls key file must both be set")
+	})
+
+	t.Run("TLSKeyWithoutCert", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			TLSKeyFile:      "key.pem",
+			CoderAccessURL:  "http://localhost:3000",
+			MITMCertFile:    mitmCertFile,
+			MITMKeyFile:     mitmKeyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "tls cert file and tls key file must both be set")
+	})
+
+	t.Run("InvalidListenerTLSFiles", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			TLSCertFile:     "/nonexistent/cert.pem",
+			TLSKeyFile:      "/nonexistent/key.pem",
+			CoderAccessURL:  "http://localhost:3000",
+			MITMCertFile:    mitmCertFile,
+			MITMKeyFile:     mitmKeyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "load listener TLS certificate")
 	})
 
 	t.Run("MissingCoderAccessURL", func(t *testing.T) {
@@ -607,6 +716,26 @@ func TestNew(t *testing.T) {
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			MITMCertFile:    mitmCertFile,
+			MITMKeyFile:     mitmKeyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
+
+	t.Run("SuccessWithListenerTLS", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		listenerCertFile, listenerKeyFile := generateListenerCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			TLSCertFile:     listenerCertFile,
+			TLSKeyFile:      listenerKeyFile,
 			CoderAccessURL:  "http://localhost:3000",
 			MITMCertFile:    mitmCertFile,
 			MITMKeyFile:     mitmKeyFile,
@@ -1246,6 +1375,90 @@ func TestProxy_MITM(t *testing.T) {
 				// Verify tunneled counter was not set.
 				require.False(t, testutil.PromCounterGathered(t, gatheredMetrics, "connect_sessions_total", aibridgeproxyd.RequestTypeTunneled))
 			}
+		})
+	}
+}
+
+// TestListenerTLS verifies that the proxy works correctly when its listener is wrapped in TLS.
+// It tests both tunneled and MITM'd requests through an HTTPS proxy listener.
+func TestListenerTLS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		tunneled     bool
+		expectedBody string
+	}{
+		{
+			name:         "Tunneled",
+			tunneled:     true,
+			expectedBody: "hello from tunneled",
+		},
+		{
+			name:         "MITM",
+			tunneled:     false,
+			expectedBody: "hello from aibridged",
+		},
+	}
+
+	// Shared across subtests since all use the same TLS listener certificate.
+	listenerCertFile, listenerKeyFile := generateListenerCert(t)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Mock aibridged server that receives MITM'd requests.
+			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from aibridged"))
+			}))
+			t.Cleanup(func() { aibridgedServer.Close() })
+
+			// Target server: response is returned directly for tunneled, intercepted for MITM.
+			tunneledServer, targetURL := newTargetServer(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from tunneled"))
+			})
+
+			var proxyOpts []testProxyOption
+			proxyOpts = append(proxyOpts,
+				withListenerTLS(listenerCertFile, listenerKeyFile),
+				withCoderAccessURL(aibridgedServer.URL),
+				withAllowedPorts(targetURL.Port()),
+			)
+			if tt.tunneled {
+				// Use a domain allowlist that excludes the target server so requests are tunneled.
+				proxyOpts = append(proxyOpts, withDomainAllowlist(aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI))
+			}
+
+			srv := newTestProxy(t, proxyOpts...)
+
+			// Cert pool must include two certificates: the listener certificate to connect
+			// to the proxy over TLS, and the MITM or target certificate for the inner
+			// TLS handshake.
+			listenerCertPEM, err := os.ReadFile(listenerCertFile)
+			require.NoError(t, err)
+			var certPool *x509.CertPool
+			if tt.tunneled {
+				certPool = x509.NewCertPool()
+				certPool.AddCert(tunneledServer.Certificate())
+			} else {
+				certPool = getProxyCertPool(t)
+			}
+			certPool.AppendCertsFromPEM(listenerCertPEM)
+
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
+			require.NoError(t, err)
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, tt.expectedBody, string(body))
 		})
 	}
 }

@@ -66,6 +66,7 @@ type Server struct {
 	proxy                    *goproxy.ProxyHttpServer
 	httpServer               *http.Server
 	listener                 net.Listener
+	tlsEnabled               bool
 	coderAccessURL           *url.URL
 	aibridgeProviderFromHost func(host string) string
 	// caCert is the PEM-encoded MITM CA certificate loaded during initialization.
@@ -99,6 +100,10 @@ type requestContext struct {
 type Options struct {
 	// ListenAddr is the address the proxy server will listen on.
 	ListenAddr string
+	// TLSCertFile is the path to the TLS certificate file for the proxy listener.
+	TLSCertFile string
+	// TLSKeyFile is the path to the TLS private key file for the proxy listener.
+	TLSKeyFile string
 	// CoderAccessURL is the URL of the Coder deployment where aibridged is running.
 	// Requests to supported AI providers are forwarded here.
 	CoderAccessURL string
@@ -139,6 +144,12 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	if opts.ListenAddr == "" {
 		return nil, xerrors.New("listen address is required")
+	}
+
+	// Listener TLS requires both cert and key files. When set, the proxy listener
+	// is served over HTTPS, otherwise it defaults to HTTP.
+	if (opts.TLSCertFile != "") != (opts.TLSKeyFile != "") {
+		return nil, xerrors.New("tls cert file and tls key file must both be set")
 	}
 
 	if strings.TrimSpace(opts.CoderAccessURL) == "" {
@@ -272,6 +283,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		ctx:                      ctx,
 		logger:                   logger,
 		proxy:                    proxy,
+		tlsEnabled:               opts.TLSCertFile != "",
 		coderAccessURL:           coderAccessURL,
 		aibridgeProviderFromHost: aibridgeProviderFromHost,
 		caCert:                   certPEM,
@@ -301,11 +313,25 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// Handle responses from aibridged.
 	proxy.OnResponse().DoFunc(srv.handleResponse)
 
-	// Create listener first so we can get the actual address.
-	// This is useful in tests where port 0 is used to avoid conflicts.
+	// Create a plain HTTP listener by default. Port 0 is accepted and resolves
+	// to a random available port, which is useful in tests to avoid conflicts.
 	listener, err := net.Listen("tcp", opts.ListenAddr)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to listen on %s: %w", opts.ListenAddr, err)
+	}
+
+	// Upgrade to HTTPS by wrapping the listener in TLS. The plain listener is
+	// closed explicitly on error to avoid leaking the bound socket.
+	if opts.TLSCertFile != "" {
+		tlsCert, err := tls.LoadX509KeyPair(opts.TLSCertFile, opts.TLSKeyFile)
+		if err != nil {
+			_ = listener.Close()
+			return nil, xerrors.Errorf("load listener TLS certificate: %w", err)
+		}
+		listener = tls.NewListener(listener, &tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			Certificates: []tls.Certificate{tlsCert},
+		})
 	}
 
 	srv.listener = listener
@@ -318,6 +344,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	logger.Info(ctx, "aibridgeproxyd configured",
 		slog.F("listen_addr", listener.Addr().String()),
+		slog.F("tls_listener_enabled", srv.tlsEnabled),
 		slog.F("coder_access_url", coderAccessURL.String()),
 		slog.F("domain_allowlist", mitmHosts),
 		slog.F("upstream_proxy", opts.UpstreamProxy),
@@ -340,6 +367,11 @@ func (s *Server) Addr() string {
 		return ""
 	}
 	return s.listener.Addr().String()
+}
+
+// IsTLSListener reports whether the proxy listener is serving TLS.
+func (s *Server) IsTLSListener() bool {
+	return s.tlsEnabled
 }
 
 // Close gracefully shuts down the proxy server.

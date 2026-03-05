@@ -23,6 +23,8 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (*aibridgeproxyd.Server, error
 
 	srv, err := aibridgeproxyd.New(ctx, logger, aibridgeproxyd.Options{
 		ListenAddr:      coderAPI.DeploymentValues.AI.BridgeProxyConfig.ListenAddr.String(),
+		TLSCertFile:     coderAPI.DeploymentValues.AI.BridgeProxyConfig.TLSCertFile.String(),
+		TLSKeyFile:      coderAPI.DeploymentValues.AI.BridgeProxyConfig.TLSKeyFile.String(),
 		CoderAccessURL:  coderAPI.AccessURL.String(),
 		MITMCertFile:    coderAPI.DeploymentValues.AI.BridgeProxyConfig.MITMCertFile.String(),
 		MITMKeyFile:     coderAPI.DeploymentValues.AI.BridgeProxyConfig.MITMKeyFile.String(),

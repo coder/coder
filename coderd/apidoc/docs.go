@@ -12576,6 +12576,12 @@ const docTemplate = `{
                 "listen_addr": {
                     "type": "string"
                 },
+                "tls_cert_file": {
+                    "type": "string"
+                },
+                "tls_key_file": {
+                    "type": "string"
+                },
                 "upstream_proxy": {
                     "type": "string"
                 },
