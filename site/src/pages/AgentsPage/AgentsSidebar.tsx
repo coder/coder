@@ -471,13 +471,16 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 									<Button
 										size="icon"
 										variant="subtle"
-										className="hidden h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex data-[state=closed]:inline-flex"
+										className="hidden h-6 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:inline-flex data-[state=open]:inline-flex"
 										aria-label={`Open actions for ${chat.title}`}
 									>
 										<EllipsisIcon className="h-3.5 w-3.5" />
 									</Button>
 								</DropdownMenuTrigger>
-								<DropdownMenuContent align="end">
+								<DropdownMenuContent
+									align="end"
+									className="data-[state=closed]:!animate-none"
+								>
 									{chat.archived ? (
 										<DropdownMenuItem
 											disabled={isArchiving}
