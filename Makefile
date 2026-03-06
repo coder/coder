@@ -1230,10 +1230,22 @@ else
 GOTESTSUM_RETRY_FLAGS :=
 endif
 
-# default to 8x8 parallelism to avoid overwhelming our workspaces. Hopefully we can remove these defaults
-# when we get our test suite's resource utilization under control.
-# Use testsmallbatch tag to reduce wireguard memory allocation in tests (from ~18GB to negligible).
-GOTEST_FLAGS := -tags=testsmallbatch -v -p $(or $(TEST_NUM_PARALLEL_PACKAGES),"8") -parallel=$(or $(TEST_NUM_PARALLEL_TESTS),"8")
+# Default to 8x8 parallelism to avoid overwhelming our workspaces.
+# Hopefully we can remove these defaults when we get our test suite's
+# resource utilization under control.
+# Race detection defaults to 4x4 because the detector adds significant
+# CPU overhead. Override via TEST_NUM_PARALLEL_PACKAGES /
+# TEST_NUM_PARALLEL_TESTS.
+TEST_PARALLEL_PACKAGES := $(or $(TEST_NUM_PARALLEL_PACKAGES),8)
+TEST_PARALLEL_TESTS := $(or $(TEST_NUM_PARALLEL_TESTS),8)
+RACE_PARALLEL_PACKAGES := $(or $(TEST_NUM_PARALLEL_PACKAGES),4)
+RACE_PARALLEL_TESTS := $(or $(TEST_NUM_PARALLEL_TESTS),4)
+
+# Use testsmallbatch tag to reduce wireguard memory allocation in tests
+# (from ~18GB to negligible). Recursively expanded so target-specific
+# overrides of TEST_PARALLEL_* take effect (e.g. test-race lowers
+# parallelism).
+GOTEST_FLAGS = -tags=testsmallbatch -v -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
 
 # The most common use is to set TEST_COUNT=1 to avoid Go's test cache.
 ifdef TEST_COUNT
@@ -1258,9 +1270,27 @@ endif
 
 TEST_PACKAGES ?= ./...
 
+# CI calls both test and test-race via .github/actions/test-go-pg/action.yaml.
 test:
-	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="$(TEST_PACKAGES)" -- $(GOTEST_FLAGS)
+	$(GIT_FLAGS) gotestsum --format standard-quiet \
+		$(GOTESTSUM_RETRY_FLAGS) \
+		--packages="$(TEST_PACKAGES)" \
+		-- \
+		$(GOTEST_FLAGS)
 .PHONY: test
+
+test-race: TEST_PARALLEL_PACKAGES := $(RACE_PARALLEL_PACKAGES)
+test-race: TEST_PARALLEL_TESTS := $(RACE_PARALLEL_TESTS)
+test-race:
+	$(GIT_FLAGS) gotestsum --format standard-quiet \
+		--junitfile="gotests.xml" \
+		$(GOTESTSUM_RETRY_FLAGS) \
+		--packages="$(TEST_PACKAGES)" \
+		-- \
+		-race \
+		-timeout 30m \
+		$(GOTEST_FLAGS)
+.PHONY: test-race
 
 test-cli:
 	$(MAKE) test TEST_PACKAGES="./cli..."
@@ -1379,11 +1409,6 @@ test-postgres-docker:
 		sleep 0.5
 	done
 .PHONY: test-postgres-docker
-
-# Make sure to keep this in sync with test-go-race from .github/workflows/ci.yaml.
-test-race:
-	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -tags=testsmallbatch -race -count=1 -parallel 4 -p 4 ./...
-.PHONY: test-race
 
 test-tailnet-integration:
 	env \
