@@ -1383,6 +1383,14 @@ func (m queryMetricsStore) GetInboxNotificationsByUserID(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetLastChatMessageByRole(ctx context.Context, arg database.GetLastChatMessageByRoleParams) (database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLastChatMessageByRole(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetLastChatMessageByRole").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastChatMessageByRole").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetLastUpdateCheck(ctx)

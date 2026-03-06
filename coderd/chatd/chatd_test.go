@@ -712,7 +712,6 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 
 func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 	t.Parallel()
-
 	db, ps := dbtestutil.NewDB(t)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -1476,6 +1475,12 @@ func (m *mockWebpushDispatcher) Dispatch(_ context.Context, userID uuid.UUID, ms
 	return nil
 }
 
+func (m *mockWebpushDispatcher) getLastMessage() codersdk.WebpushMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastMessage
+}
+
 func (*mockWebpushDispatcher) Test(_ context.Context, _ codersdk.WebpushSubscription) error {
 	return nil
 }
@@ -1661,4 +1666,63 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 			!fromDB.WorkerID.Valid &&
 			!fromDB.LastError.Valid
 	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const assistantText = "I have completed the task successfully and all tests are passing now."
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks(assistantText)...)
+	})
+	mockPush := &mockWebpushDispatcher{}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		WebpushDispatcher:          mockPush,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	_, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "summary-push-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "do the thing"}},
+	})
+	require.NoError(t, err)
+
+	// Wait for the web push notification to be dispatched.
+	// We poll dispatchCount rather than DB status because the
+	// push fires after the status update, creating a small race
+	// window.
+	testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		return mockPush.dispatchCount.Load() >= 1
+	}, testutil.IntervalFast)
+
+	require.Equal(t, int32(1), mockPush.dispatchCount.Load(),
+		"expected exactly one web push dispatch")
+
+	msg := mockPush.getLastMessage()
+	require.Contains(t, msg.Body, assistantText,
+		"push body should contain the assistant summary text")
+	require.NotEqual(t, "Agent has finished running.", msg.Body,
+		"push body should use the summary, not the default text")
 }
