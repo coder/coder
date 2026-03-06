@@ -1760,6 +1760,98 @@ func TestPatchChatMessage(t *testing.T) {
 		require.False(t, foundOriginalInChat)
 	})
 
+	t.Run("PreservesFileID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Create a chat with a text + file part.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "before edit with file",
+				},
+				{
+					Type:   codersdk.ChatInputPartTypeFile,
+					FileID: uploadResp.ID,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Find the user message ID.
+		chatWithMessages, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+
+		var userMessageID int64
+		for _, message := range chatWithMessages.Messages {
+			if message.Role == "user" {
+				userMessageID = message.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		// Edit the message: new text, same file_id.
+		edited, err := client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "after edit with file",
+				},
+				{
+					Type:   codersdk.ChatInputPartTypeFile,
+					FileID: uploadResp.ID,
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, userMessageID, edited.ID)
+
+		// Assert the edit response preserves the file_id.
+		var foundText, foundFile bool
+		for _, part := range edited.Content {
+			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "after edit with file" {
+				foundText = true
+			}
+			if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID == uploadResp.ID {
+				foundFile = true
+			}
+		}
+		require.True(t, foundText, "edited message should contain updated text")
+		require.True(t, foundFile, "edited message should preserve file_id")
+
+		// GET the chat and verify the file_id persists.
+		updatedChat, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+
+		var foundTextInChat, foundFileInChat bool
+		for _, message := range updatedChat.Messages {
+			if message.Role != "user" {
+				continue
+			}
+			for _, part := range message.Content {
+				if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "after edit with file" {
+					foundTextInChat = true
+				}
+				if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID == uploadResp.ID {
+					foundFileInChat = true
+				}
+			}
+		}
+		require.True(t, foundTextInChat, "chat should contain edited text")
+		require.True(t, foundFileInChat, "chat should preserve file_id after edit")
+	})
+
 	t.Run("MessageNotFound", func(t *testing.T) {
 		t.Parallel()
 
