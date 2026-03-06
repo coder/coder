@@ -1164,7 +1164,17 @@ func (p *Server) Subscribe(
 		ChatID:  chatID,
 		AfterID: afterMessageID,
 	})
-	if err == nil {
+	if err != nil {
+		p.logger.Error(ctx, "failed to load initial chat messages",
+			slog.Error(err),
+			slog.F("chat_id", chatID),
+		)
+		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeError,
+			ChatID: chatID,
+			Error:  &codersdk.ChatStreamError{Message: "failed to load initial snapshot"},
+		})
+	} else {
 		for _, msg := range messages {
 			sdkMsg := db2sdk.ChatMessage(msg)
 			initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
@@ -1177,7 +1187,17 @@ func (p *Server) Subscribe(
 
 	// Load initial queue.
 	queued, err := p.db.GetChatQueuedMessages(ctx, chatID)
-	if err == nil && len(queued) > 0 {
+	if err != nil {
+		p.logger.Error(ctx, "failed to load initial queued messages",
+			slog.Error(err),
+			slog.F("chat_id", chatID),
+		)
+		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeError,
+			ChatID: chatID,
+			Error:  &codersdk.ChatStreamError{Message: "failed to load initial snapshot"},
+		})
+	} else if len(queued) > 0 {
 		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
 			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 			ChatID:         chatID,
@@ -1186,13 +1206,23 @@ func (p *Server) Subscribe(
 	}
 
 	// Get initial chat state to determine if we need a relay.
-	chat, err := p.db.GetChatByID(ctx, chatID)
+	chat, chatErr := p.db.GetChatByID(ctx, chatID)
 
 	// Include the current chat status in the snapshot so the
 	// frontend can gate message_part processing correctly from
 	// the very first batch, without waiting for a separate REST
 	// query.
-	if err == nil {
+	if chatErr != nil {
+		p.logger.Error(ctx, "failed to load initial chat state",
+			slog.Error(chatErr),
+			slog.F("chat_id", chatID),
+		)
+		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeError,
+			ChatID: chatID,
+			Error:  &codersdk.ChatStreamError{Message: "failed to load initial snapshot"},
+		})
+	} else {
 		statusEvent := codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeStatus,
 			ChatID: chatID,
@@ -1222,7 +1252,7 @@ func (p *Server) Subscribe(
 	var relayEvents <-chan codersdk.ChatStreamEvent
 	var relayCleanup func()
 	var statusNotifications chan StatusNotification
-	if p.subscribeFn != nil && err == nil {
+	if p.subscribeFn != nil && chatErr == nil {
 		statusNotifications = make(chan StatusNotification, 10)
 		var relayEvCh <-chan codersdk.ChatStreamEvent
 		relayEvCh, relayCleanup = p.subscribeFn(mergedCtx, SubscribeFnParams{

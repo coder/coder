@@ -217,6 +217,7 @@ export const createChatStore = (): ChatStore => {
 		const nextMessagesByID = buildMessageMap(safeMessages);
 		const nextOrderedMessageIDs = buildOrderedMessageIDs(safeMessages);
 
+		// Fast-path: skip setState entirely when nothing changed.
 		if (
 			mapsEqualByRef(state.messagesByID, nextMessagesByID) &&
 			arraysEqual(state.orderedMessageIDs, nextOrderedMessageIDs)
@@ -224,34 +225,59 @@ export const createChatStore = (): ChatStore => {
 			return;
 		}
 
-		setState((current) => ({
-			...current,
-			messagesByID: nextMessagesByID,
-			orderedMessageIDs: nextOrderedMessageIDs,
-		}));
+		setState((current) => {
+			// Re-check equality against `current` inside the updater
+			// to avoid overwriting a concurrent state change.
+			if (
+				mapsEqualByRef(current.messagesByID, nextMessagesByID) &&
+				arraysEqual(current.orderedMessageIDs, nextOrderedMessageIDs)
+			) {
+				return current;
+			}
+			return {
+				...current,
+				messagesByID: nextMessagesByID,
+				orderedMessageIDs: nextOrderedMessageIDs,
+			};
+		});
 	};
 
 	const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
+		// Use `state` for the early-return guard so we can return
+		// the result synchronously. The actual mutation below uses
+		// `current` inside the updater to avoid overwriting a
+		// concurrent state change (TOCTOU).
 		const existing = state.messagesByID.get(message.id);
 		const isDuplicate = state.messagesByID.has(message.id);
 		if (existing && chatMessagesEqualByValue(existing, message)) {
 			return { isDuplicate, changed: false };
 		}
 
-		const nextMessagesByID = new Map(state.messagesByID);
-		nextMessagesByID.set(message.id, message);
+		setState((current) => {
+			// Re-check inside the updater: another call may have
+			// already applied this exact message.
+			const curExisting = current.messagesByID.get(message.id);
+			if (curExisting && chatMessagesEqualByValue(curExisting, message)) {
+				return current;
+			}
 
-		const needsReorder =
-			!isDuplicate || nextMessagesByID.size !== state.messagesByID.size;
-		const nextOrderedMessageIDs = needsReorder
-			? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
-			: state.orderedMessageIDs;
+			const nextMessagesByID = new Map(current.messagesByID);
+			nextMessagesByID.set(message.id, message);
 
-		setState((current) => ({
-			...current,
-			messagesByID: nextMessagesByID,
-			orderedMessageIDs: nextOrderedMessageIDs,
-		}));
+			const curIsDuplicate = current.messagesByID.has(message.id);
+			const needsReorder =
+				!curIsDuplicate ||
+				nextMessagesByID.size !== current.messagesByID.size;
+			const nextOrderedMessageIDs = needsReorder
+				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
+				: current.orderedMessageIDs;
+
+			return {
+				...current,
+				messagesByID: nextMessagesByID,
+				orderedMessageIDs: nextOrderedMessageIDs,
+			};
+		});
 		return { isDuplicate, changed: true };
 	};
 
@@ -765,9 +791,13 @@ export const useChatStore = (
 			};
 
 			const handleDisconnect = () => {
-				if (disposed) {
+				// Guard against duplicate calls: browsers fire both
+				// "error" and "close" on a failed WebSocket, so we
+				// only process the first event per socket instance.
+				if (activeSocket !== socket || disposed) {
 					return;
 				}
+				activeSocket = null;
 				// Show the error only on the first disconnect (not
 				// while we are already retrying).
 				if (reconnectAttempt === 0) {

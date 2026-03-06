@@ -120,8 +120,8 @@ export const applyMessagePartToStreamState = (
 			);
 			const toolCallID =
 				asString(part.tool_call_id) ||
-				existingByName?.id ||
-				existingCallByName?.id ||
+				(existingByName && !existingByName.result ? existingByName.id : null) ||
+				(existingCallByName && !nextState.toolResults[existingCallByName.id] ? existingCallByName.id : null) ||
 				`tool-result-${Object.keys(nextState.toolResults).length + 1}-${Date.now()}`;
 			const existing = nextState.toolResults[toolCallID];
 			const nextResult = mergeStreamPayload(
