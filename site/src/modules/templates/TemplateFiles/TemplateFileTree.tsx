@@ -3,7 +3,13 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import { type CSSProperties, type FC, type JSX, useState } from "react";
+import {
+	type CSSProperties,
+	type FC,
+	type JSX,
+	useEffect,
+	useState,
+} from "react";
 import type { FileTree } from "utils/filetree";
 import { getTemplateFileIcon } from "./TemplateFileIcon";
 
@@ -45,15 +51,27 @@ interface TemplateFilesTreeProps {
 	}>;
 }
 
-export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
-	fileTree,
-	activePath,
-	onDelete,
-	onRename,
-	onSelect,
-	Label,
-}) => {
+export const TemplateFileTree: FC<TemplateFilesTreeProps> = (props) => {
+	const { fileTree, activePath, onDelete, onRename, onSelect, Label } = props;
+	const isActivePathControlled = "activePath" in props;
 	const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
+	const [expandedItems, setExpandedItems] = useState<string[]>(() =>
+		activePath ? expandablePaths(activePath) : [],
+	);
+
+	useEffect(() => {
+		if (!activePath) {
+			return;
+		}
+
+		setExpandedItems((currentExpandedItems) =>
+			mergeExpandedItems(currentExpandedItems, expandablePaths(activePath)),
+		);
+	}, [activePath]);
+
+	const selectionProps = isActivePathControlled
+		? { selectedItems: activePath }
+		: { defaultSelectedItems: activePath };
 
 	const buildTreeItems = (
 		label: string,
@@ -186,8 +204,11 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 		<SimpleTreeView
 			slots={{ collapseIcon: ChevronDownIcon, expandIcon: ChevronRightIcon }}
 			aria-label="Files"
-			defaultExpandedItems={activePath ? expandablePaths(activePath) : []}
-			defaultSelectedItems={activePath}
+			expandedItems={expandedItems}
+			onExpandedItemsChange={(_event, itemIds) => {
+				setExpandedItems(itemIds);
+			}}
+			{...selectionProps}
 		>
 			{Object.entries(fileTree)
 				.sort(compareFileTreeEntries)
@@ -239,6 +260,18 @@ export const TemplateFileTree: FC<TemplateFilesTreeProps> = ({
 			</Menu>
 		</SimpleTreeView>
 	);
+};
+
+const mergeExpandedItems = (currentPaths: string[], nextPaths: string[]) => {
+	const mergedPaths = [...currentPaths];
+	for (const nextPath of nextPaths) {
+		if (!mergedPaths.includes(nextPath)) {
+			mergedPaths.push(nextPath);
+		}
+	}
+	return mergedPaths.length === currentPaths.length
+		? currentPaths
+		: mergedPaths;
 };
 
 const expandablePaths = (path: string) => {
