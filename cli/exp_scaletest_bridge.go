@@ -129,7 +129,7 @@ Examples:
 				return xerrors.Errorf("prepare request body: %w", err)
 			}
 
-			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
+			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy(), harness.WithLogWriter(inv.Stderr))
 
 			for i := range concurrentUsers {
 				id := strconv.Itoa(int(i))

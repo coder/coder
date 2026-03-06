@@ -122,6 +122,7 @@ After all runners connect, it waits for the baseline duration before triggering 
 			th := harness.NewTestHarness(
 				timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
 				cleanupStrategy.toStrategy(),
+				harness.WithLogWriter(inv.Stderr),
 			)
 
 			// Create runners

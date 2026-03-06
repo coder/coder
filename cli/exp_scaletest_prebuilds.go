@@ -110,7 +110,7 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 			deletionBarrier := new(sync.WaitGroup)
 			deletionBarrier.Add(int(numTemplates))
 
-			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
+			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy(), harness.WithLogWriter(inv.Stderr))
 
 			tags, err := ParseProvisionerTags(provisionerTags)
 			if err != nil {

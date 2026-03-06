@@ -564,7 +564,7 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 			cliui.Errorf(inv.Stderr, "Found %d scaletest workspaces\n", len(workspaces))
 			if len(workspaces) != 0 {
 				cliui.Infof(inv.Stdout, "Deleting scaletest workspaces...")
-				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
+				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{}, harness.WithLogWriter(inv.Stderr))
 
 				for i, w := range workspaces {
 					const testName = "cleanup-workspace"
@@ -597,7 +597,7 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 			cliui.Errorf(inv.Stderr, "Found %d scaletest users\n", len(users))
 			if len(users) != 0 {
 				cliui.Infof(inv.Stdout, "Deleting scaletest users...")
-				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
+				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{}, harness.WithLogWriter(inv.Stderr))
 
 				for i, u := range users {
 					const testName = "cleanup-users"
@@ -742,7 +742,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
-			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
+			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy(), harness.WithLogWriter(inv.Stderr))
 			for i := 0; i < int(count); i++ {
 				const name = "workspacebuild"
 				id := strconv.Itoa(i)
@@ -1155,7 +1155,7 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 				configs = append(configs, config)
 			}
 
-			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
+			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy(), harness.WithLogWriter(inv.Stderr))
 			for i, config := range configs {
 				name := fmt.Sprintf("workspaceupdates-%dw", config.WorkspaceCount)
 				id := strconv.Itoa(i)
@@ -1355,7 +1355,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 				return xerrors.Errorf("could not parse --output flags")
 			}
 
-			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
+			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy(), harness.WithLogWriter(inv.Stderr))
 			for idx, ws := range workspaces {
 				var (
 					agent codersdk.WorkspaceAgent
@@ -1586,7 +1586,7 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 
 			metrics := dashboard.NewMetrics(reg)
 
-			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
+			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy(), harness.WithLogWriter(inv.Stderr))
 
 			users, err := getScaletestUsers(ctx, client)
 			if err != nil {
@@ -1809,7 +1809,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			setupBarrier := new(sync.WaitGroup)
 			setupBarrier.Add(int(workspaceCount))
 
-			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
+			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy(), harness.WithLogWriter(inv.Stderr))
 			for i := range workspaceCount {
 				id := strconv.Itoa(int(i))
 				config := autostart.Config{

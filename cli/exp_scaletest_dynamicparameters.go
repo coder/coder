@@ -102,7 +102,8 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 			th := harness.NewTestHarness(
 				timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
 				// there is no cleanup since it's just a connection that we sever.
-				nil)
+				nil,
+				harness.WithLogWriter(inv.Stderr))
 
 			for i, part := range partitions {
 				for j := range part.ConcurrentEvaluations {

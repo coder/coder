@@ -192,7 +192,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				triggerTimes,
 			)
 
-			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
+			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy(), harness.WithLogWriter(inv.Stderr))
 
 			for i, config := range configs {
 				id := strconv.Itoa(i)

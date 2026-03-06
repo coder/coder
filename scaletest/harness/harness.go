@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"io"
 	"sync"
 	"time"
 
@@ -17,17 +18,30 @@ type TestHarness struct {
 	runStrategy     ExecutionStrategy
 	cleanupStrategy ExecutionStrategy
 
-	mut     *sync.Mutex
-	runIDs  map[string]struct{}
-	runs    []*TestRun
-	started bool
-	done    chan struct{}
-	elapsed time.Duration
+	mut       *sync.Mutex
+	runIDs    map[string]struct{}
+	runs      []*TestRun
+	started   bool
+	done      chan struct{}
+	elapsed   time.Duration
+	logWriter io.Writer
+}
+
+// TestHarnessOption is a functional option for NewTestHarness.
+type TestHarnessOption func(*TestHarness)
+
+// WithLogWriter sets an additional writer that all test run logs
+// are tee'd to (e.g. os.Stderr). The per-run in-memory buffer is
+// always written to; this writer receives a copy.
+func WithLogWriter(w io.Writer) TestHarnessOption {
+	return func(h *TestHarness) {
+		h.logWriter = w
+	}
 }
 
 // NewTestHarness creates a new TestHarness with the given execution strategies.
-func NewTestHarness(runStrategy, cleanupStrategy ExecutionStrategy) *TestHarness {
-	return &TestHarness{
+func NewTestHarness(runStrategy, cleanupStrategy ExecutionStrategy, opts ...TestHarnessOption) *TestHarness {
+	h := &TestHarness{
 		runStrategy:     runStrategy,
 		cleanupStrategy: cleanupStrategy,
 		mut:             new(sync.Mutex),
@@ -35,6 +49,10 @@ func NewTestHarness(runStrategy, cleanupStrategy ExecutionStrategy) *TestHarness
 		runs:            []*TestRun{},
 		done:            make(chan struct{}),
 	}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
 }
 
 // Run runs the registered tests using the given ExecutionStrategy. The provided

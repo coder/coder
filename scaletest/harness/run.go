@@ -45,6 +45,7 @@ type Collectable interface {
 // This is a convenience method that calls NewTestRun() and h.RegisterRun().
 func (h *TestHarness) AddRun(testName string, id string, runner Runnable) *TestRun {
 	run := NewTestRun(testName, id, runner)
+	run.logWriter = h.logWriter
 	h.RegisterRun(run)
 
 	return run
@@ -69,9 +70,10 @@ func (h *TestHarness) RegisterRun(run *TestRun) {
 
 // TestRun is a single test run and it's accompanying state.
 type TestRun struct {
-	testName string
-	id       string
-	runner   Runnable
+	testName  string
+	id        string
+	runner    Runnable
+	logWriter io.Writer
 
 	logs     *syncBuffer
 	done     chan struct{}
@@ -119,7 +121,11 @@ func (r *TestRun) Run(ctx context.Context) (err error) {
 		}
 	}()
 
-	err = r.runner.Run(ctx, r.id, r.logs)
+	var w io.Writer = r.logs
+	if r.logWriter != nil {
+		w = io.MultiWriter(r.logs, r.logWriter)
+	}
+	err = r.runner.Run(ctx, r.id, w)
 
 	//nolint:revive // we use named returns because we mutate it in a defer
 	return
@@ -145,7 +151,11 @@ func (r *TestRun) Cleanup(ctx context.Context) (err error) {
 		}
 	}()
 
-	err = c.Cleanup(ctx, r.id, r.logs)
+	var w io.Writer = r.logs
+	if r.logWriter != nil {
+		w = io.MultiWriter(r.logs, r.logWriter)
+	}
+	err = c.Cleanup(ctx, r.id, w)
 	//nolint:revive // we use named returns because we mutate it in a defer
 	return
 }
