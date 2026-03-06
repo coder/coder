@@ -35,6 +35,7 @@ export const AIChatPanel: FC<AIChatPanelProps> = ({
 		send,
 		approve,
 		reject,
+		stop,
 		reset,
 	} = agent;
 
@@ -120,7 +121,12 @@ export const AIChatPanel: FC<AIChatPanelProps> = ({
 				</div>
 			)}
 
-			<ChatInput onSend={send} disabled={inputDisabled} />
+			<ChatInput
+				onSend={send}
+				onStop={stop}
+				disabled={inputDisabled}
+				isStreaming={isStreaming}
+			/>
 		</div>
 	);
 };
