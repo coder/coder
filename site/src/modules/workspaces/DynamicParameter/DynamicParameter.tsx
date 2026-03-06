@@ -392,15 +392,18 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			}));
 
 			const optionMap = new Map(
-				parameter.options.map((opt) => [opt.value.value, opt.name]),
+				options.map((opt) => [opt.value, opt]),
 			);
 
 			const selectedOptions: Option[] = parsedValues.values.map((val) => {
-				return {
-					value: val,
-					label: optionMap.get(val) || val,
-					disable: false,
-				};
+				const matched = optionMap.get(val);
+				return (
+					matched ?? {
+						value: val,
+						label: val,
+						disable: false,
+					}
+				);
 			});
 
 			return (
