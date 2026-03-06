@@ -106,92 +106,116 @@ func TestTokenIsRefreshedEarly(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
 		require.Equal(t, 1, tokenRefreshCount)
 	})
+}
 
-	//nolint:tparallel,paralleltest // Sub tests need to run sequentially.
-	t.Run("WithoutCoderd", func(t *testing.T) {
-		t.Parallel()
-		tokenRefreshCount := 0
-		fake := oidctest.NewFakeIDP(t,
-			oidctest.WithServing(),
-			oidctest.WithDefaultExpire(time.Minute*8),
-			oidctest.WithRefresh(func(email string) error {
-				tokenRefreshCount++
-				return nil
-			}),
-		)
-		cfg := fake.OIDCConfig(t, nil)
+//nolint:tparallel,paralleltest // Sub tests need to run sequentially.
+func TestTokenIsRefreshedEarlyWithoutCoderd(t *testing.T) {
+	t.Parallel()
+	tokenRefreshCount := 0
+	fake := oidctest.NewFakeIDP(t,
+		oidctest.WithServing(),
+		oidctest.WithDefaultExpire(time.Minute*8),
+		oidctest.WithRefresh(func(email string) error {
+			tokenRefreshCount++
+			return nil
+		}),
+	)
+	cfg := fake.OIDCConfig(t, nil)
 
-		// Fetch a valid token from the fake OIDC provider
-		token, err := fake.GenerateAuthenticatedToken(jwt.MapClaims{
-			"email":          "user@unauthorized.com",
-			"email_verified": true,
-			"sub":            uuid.NewString(),
+	// Fetch a valid token from the fake OIDC provider
+	token, err := fake.GenerateAuthenticatedToken(jwt.MapClaims{
+		"email":          "user@unauthorized.com",
+		"email_verified": true,
+		"sub":            uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	dbgen.UserLink(t, db, database.UserLink{
+		UserID:            user.ID,
+		LoginType:         database.LoginTypeOIDC,
+		LinkedID:          "foo",
+		OAuthAccessToken:  token.AccessToken,
+		OAuthRefreshToken: token.RefreshToken,
+		// The oauth expiry does not really matter, since each test will manually control
+		// this value.
+		OAuthExpiry: dbtime.Now().Add(time.Hour),
+	})
+
+	setLinkExpiration := func(t *testing.T, exp time.Time) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		links, err := db.GetUserLinksByUserID(ctx, user.ID)
+		require.NoError(t, err)
+		require.Len(t, links, 1)
+		link := links[0]
+
+		_, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			OAuthAccessToken:       link.OAuthAccessToken,
+			OAuthAccessTokenKeyID:  link.OAuthAccessTokenKeyID,
+			OAuthRefreshToken:      link.OAuthRefreshToken,
+			OAuthRefreshTokenKeyID: link.OAuthRefreshTokenKeyID,
+			OAuthExpiry:            exp,
+			Claims:                 link.Claims,
+			UserID:                 link.UserID,
+			LoginType:              link.LoginType,
 		})
 		require.NoError(t, err)
+	}
 
-		db, _ := dbtestutil.NewDB(t)
-		user := dbgen.User(t, db, database.User{})
-		dbgen.UserLink(t, db, database.UserLink{
-			UserID:            user.ID,
-			LoginType:         database.LoginTypeOIDC,
-			LinkedID:          "foo",
-			OAuthAccessToken:  token.AccessToken,
-			OAuthRefreshToken: token.RefreshToken,
-			// The oauth expiry does not really matter, since each test will manually control
-			// this value.
-			OAuthExpiry: dbtime.Now().Add(time.Hour),
-		})
+	for _, c := range []struct {
+		name string
+		// expires is a function to return a more up to date "now".
+		// Because the oauth library is calling `time.Now()`, we cannot use
+		// mocked clocks.
+		expires         func() time.Time
+		refreshExpected bool
+	}{
+		{
+			name:            "ZeroExpiry",
+			expires:         func() time.Time { return time.Time{} },
+			refreshExpected: false,
+		},
+		{
+			name:            "LongExpired",
+			expires:         func() time.Time { return dbtime.Now().Add(-time.Hour) },
+			refreshExpected: true,
+		},
+		{
+			name:            "EdgeExpired",
+			expires:         func() time.Time { return dbtime.Now().Add(-time.Minute * 10) },
+			refreshExpected: true,
+		},
+		{
+			name:            "RecentExpired",
+			expires:         func() time.Time { return dbtime.Now().Add(-time.Second * -1) },
+			refreshExpected: true,
+		},
 
-		setLinkExpiration := func(t *testing.T, exp time.Time) {
+		{
+			name:            "Future",
+			expires:         func() time.Time { return dbtime.Now().Add(time.Hour) },
+			refreshExpected: false,
+		},
+		{
+			name:            "FutureWithinRefreshWindow",
+			expires:         func() time.Time { return dbtime.Now().Add(time.Minute * 8) },
+			refreshExpected: true,
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
-			links, err := db.GetUserLinksByUserID(ctx, user.ID)
-			require.NoError(t, err)
-			require.Len(t, links, 1)
-			link := links[0]
-
-			_, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
-				OAuthAccessToken:       link.OAuthAccessToken,
-				OAuthAccessTokenKeyID:  link.OAuthAccessTokenKeyID,
-				OAuthRefreshToken:      link.OAuthRefreshToken,
-				OAuthRefreshTokenKeyID: link.OAuthRefreshTokenKeyID,
-				OAuthExpiry:            exp,
-				Claims:                 link.Claims,
-				UserID:                 link.UserID,
-				LoginType:              link.LoginType,
-			})
-			require.NoError(t, err)
-		}
-
-		t.Run("Future", func(t *testing.T) {
-			ctx := testutil.Context(t, testutil.WaitShort)
-			// Set the expiration to the future. Not expired
-			setLinkExpiration(t, time.Now().Add(time.Hour))
+			setLinkExpiration(t, c.expires())
 			tokenRefreshCount = 0
 			_, err := provisionerdserver.ObtainOIDCAccessToken(ctx, testutil.Logger(t), db, cfg, user.ID)
 			require.NoError(t, err)
-			require.Equal(t, 0, tokenRefreshCount)
+			if c.refreshExpected {
+				require.Equal(t, 1, tokenRefreshCount)
+			} else {
+				require.Equal(t, 0, tokenRefreshCount)
+			}
 		})
-
-		t.Run("Past", func(t *testing.T) {
-			ctx := testutil.Context(t, testutil.WaitShort)
-			// Set it in the past
-			setLinkExpiration(t, time.Now().Add(-time.Hour))
-			tokenRefreshCount = 0
-			_, err := provisionerdserver.ObtainOIDCAccessToken(ctx, testutil.Logger(t), db, cfg, user.ID)
-			require.NoError(t, err)
-			require.Equal(t, 1, tokenRefreshCount)
-		})
-
-		t.Run("FutureWithinRefreshWindow", func(t *testing.T) {
-			ctx := testutil.Context(t, testutil.WaitShort)
-			// Set it in the future, but within the refresh window
-			setLinkExpiration(t, time.Now().Add(time.Minute*8))
-			tokenRefreshCount = 0
-			_, err := provisionerdserver.ObtainOIDCAccessToken(ctx, testutil.Logger(t), db, cfg, user.ID)
-			require.NoError(t, err)
-			require.Equal(t, 1, tokenRefreshCount)
-		})
-	})
+	}
 }
 
 func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore] {
