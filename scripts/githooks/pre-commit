@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook that mirrors CI required checks locally.
+# Delegates to `make pre-commit` which runs gen, fmt, lint, build,
+# tests, and more in parallel. See the target's comment in Makefile
+# for the full mapping of CI jobs to local targets.
+#
+# Installation (choose one):
+#
+#   ln -sf ../../scripts/githooks/pre-commit .git/hooks/pre-commit
+#
+#   cp scripts/githooks/pre-commit .git/hooks/pre-commit
+#
+#   git config core.hooksPath scripts/githooks
+#
+# Bypass: git commit --no-verify
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+exec make pre-commit
