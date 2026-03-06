@@ -6,9 +6,8 @@ import type { WebpushMessage } from "api/typesGenerated";
 
 const mockShowNotification = vi.fn(() => Promise.resolve());
 const mockRegistration = { showNotification: mockShowNotification };
-const mockMatchAll = vi.fn<
-	() => Promise<Array<{ visibilityState: string; url: string }>>
->();
+const mockMatchAll =
+	vi.fn<() => Promise<Array<{ visibilityState: string; url: string }>>>();
 const mockClients = {
 	matchAll: mockMatchAll,
 	claim: vi.fn(() => Promise.resolve()),
@@ -57,6 +56,7 @@ const testPayload: WebpushMessage = {
 	body: "Something happened",
 	icon: "/icon.png",
 	actions: [],
+	data: { url: "/agents/abc" },
 };
 
 // Import the service worker module. This executes the top-level
@@ -80,10 +80,11 @@ describe("serviceWorker push handler", () => {
 		expect(mockShowNotification).toHaveBeenCalledWith(testPayload.title, {
 			body: testPayload.body,
 			icon: testPayload.icon,
+			data: testPayload.data,
 		});
 	});
 
-	it("suppresses notification when agents page is visible", async () => {
+	it("suppresses notification when viewing the specific chat", async () => {
 		mockMatchAll.mockResolvedValue([
 			{ visibilityState: "visible", url: "https://example.com/agents/abc" },
 		]);
@@ -95,7 +96,48 @@ describe("serviceWorker push handler", () => {
 		expect(mockShowNotification).not.toHaveBeenCalled();
 	});
 
-	it("shows notification when agents page exists but is hidden", async () => {
+	it("shows notification when viewing a different chat", async () => {
+		mockMatchAll.mockResolvedValue([
+			{
+				visibilityState: "visible",
+				url: "https://example.com/agents/other-chat-id",
+			},
+		]);
+
+		const event = makePushEvent(testPayload);
+		handlers.push(event);
+		await event._waitUntilPromise;
+
+		expect(mockShowNotification).toHaveBeenCalledWith(testPayload.title, {
+			body: testPayload.body,
+			icon: testPayload.icon,
+			data: testPayload.data,
+		});
+	});
+
+	it("shows notification when payload has no data url", async () => {
+		mockMatchAll.mockResolvedValue([
+			{ visibilityState: "visible", url: "https://example.com/agents/abc" },
+		]);
+
+		const payload: WebpushMessage = {
+			title: "No Data",
+			body: "test",
+			icon: "/icon.png",
+			actions: [],
+		};
+		const event = makePushEvent(payload);
+		handlers.push(event);
+		await event._waitUntilPromise;
+
+		expect(mockShowNotification).toHaveBeenCalledWith("No Data", {
+			body: "test",
+			icon: "/icon.png",
+			data: undefined,
+		});
+	});
+
+	it("shows notification when specific chat page exists but is hidden", async () => {
 		mockMatchAll.mockResolvedValue([
 			{ visibilityState: "hidden", url: "https://example.com/agents/abc" },
 		]);
@@ -107,6 +149,7 @@ describe("serviceWorker push handler", () => {
 		expect(mockShowNotification).toHaveBeenCalledWith(testPayload.title, {
 			body: testPayload.body,
 			icon: testPayload.icon,
+			data: testPayload.data,
 		});
 	});
 
@@ -122,6 +165,7 @@ describe("serviceWorker push handler", () => {
 		expect(mockShowNotification).toHaveBeenCalledWith(testPayload.title, {
 			body: testPayload.body,
 			icon: testPayload.icon,
+			data: testPayload.data,
 		});
 	});
 
@@ -149,6 +193,7 @@ describe("serviceWorker push handler", () => {
 		expect(mockShowNotification).toHaveBeenCalledWith("No Icon", {
 			body: "",
 			icon: "/favicon.ico",
+			data: undefined,
 		});
 	});
 });
