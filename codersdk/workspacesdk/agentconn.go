@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,10 +42,21 @@ func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
 	}
 }
 
+const (
+	// CoderChatIDHeader is the HTTP header containing the current
+	// chat ID. Set by coderd on agentconn requests originating
+	// from chatd.
+	CoderChatIDHeader = "Coder-Chat-Id"
+	// CoderAncestorChatIDsHeader is the HTTP header containing a
+	// JSON array of ancestor chat UUIDs.
+	CoderAncestorChatIDsHeader = "Coder-Ancestor-Chat-Ids"
+)
+
 // AgentConn represents a connection to a workspace agent.
 // @typescript-ignore AgentConn
 type AgentConn interface {
 	TailnetConn() *tailnet.Conn
+	SetExtraHeaders(h http.Header)
 
 	AwaitReachable(ctx context.Context) bool
 	Close() error
@@ -76,17 +88,26 @@ type AgentConn interface {
 	SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error)
 	Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error)
 	WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error)
+	WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error)
 }
 
 // AgentConn represents a connection to a workspace agent.
 // @typescript-ignore AgentConn
 type agentConn struct {
 	*tailnet.Conn
-	opts AgentConnOptions
+	opts         AgentConnOptions
+	headersMu    sync.RWMutex
+	extraHeaders http.Header
 }
 
 func (c *agentConn) TailnetConn() *tailnet.Conn {
 	return c.Conn
+}
+
+func (c *agentConn) SetExtraHeaders(h http.Header) {
+	c.headersMu.Lock()
+	c.extraHeaders = h
+	c.headersMu.Unlock()
 }
 
 // @typescript-ignore AgentConnOptions
@@ -464,6 +485,49 @@ func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 
 	d := wsjson.NewDecoder[codersdk.WorkspaceAgentListContainersResponse](conn, websocket.MessageText, logger)
 	return d.Chan(), d, nil
+}
+
+// WatchGit opens a bidirectional WebSocket to the agent's git watch
+// endpoint and returns a stream for sending subscribe/refresh messages
+// and receiving change notifications.
+func (c *agentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
+
+	dialOpts := &websocket.DialOptions{
+		HTTPClient:      c.apiClient(),
+		CompressionMode: websocket.CompressionNoContextTakeover,
+	}
+	c.headersMu.RLock()
+	if len(c.extraHeaders) > 0 {
+		dialOpts.HTTPHeader = c.extraHeaders.Clone()
+	}
+	c.headersMu.RUnlock()
+
+	url := fmt.Sprintf("http://%s%s", host, "/api/v0/git/watch")
+	if chatID != uuid.Nil {
+		url += "?chat_id=" + chatID.String()
+	}
+
+	conn, res, err := websocket.Dial(ctx, url, dialOpts)
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	conn.SetReadLimit(1 << 22) // 4MiB
+
+	return wsjson.NewStream[
+		codersdk.WorkspaceAgentGitServerMessage,
+		codersdk.WorkspaceAgentGitClientMessage,
+	](conn, websocket.MessageText, websocket.MessageText, logger), nil
 }
 
 // DeleteDevcontainer deletes the provided devcontainer.
@@ -859,6 +923,15 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 	req, err := http.NewRequestWithContext(ctx, method, url, r)
 	if err != nil {
 		return nil, xerrors.Errorf("new http api request to %q: %w", url, err)
+	}
+
+	c.headersMu.RLock()
+	extraHeaders := c.extraHeaders.Clone()
+	c.headersMu.RUnlock()
+	for key, values := range extraHeaders {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
 	}
 
 	return c.apiClient().Do(req)

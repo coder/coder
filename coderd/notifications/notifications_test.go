@@ -1472,12 +1472,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				// as appearance changes are enterprise features and we do not want to mix those
 				// can't use the api
 				if tc.appName != "" {
-					err = (*db).UpsertApplicationName(dbauthz.AsSystemRestricted(ctx), "Custom Application")
+					err = (*db).UpsertApplicationName(ctx, "Custom Application")
 					require.NoError(t, err)
 				}
 
 				if tc.logoURL != "" {
-					err = (*db).UpsertLogoURL(dbauthz.AsSystemRestricted(ctx), "https://custom.application/logo.png")
+					err = (*db).UpsertLogoURL(ctx, "https://custom.application/logo.png")
 					require.NoError(t, err)
 				}
 

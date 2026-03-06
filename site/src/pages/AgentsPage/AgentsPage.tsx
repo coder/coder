@@ -58,10 +58,11 @@ import {
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
+import { useAgentsPWA } from "./useAgentsPWA";
 import { WebPushButton } from "./WebPushButton";
 
 /** @internal Exported for testing. */
-const emptyInputStorageKey = "agents.empty-input";
+export const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 const systemPromptStorageKey = "agents.system-prompt";
@@ -104,6 +105,7 @@ export interface AgentsOutletContext {
 }
 
 const AgentsPage: FC = () => {
+	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { agentId } = useParams();
@@ -337,7 +339,6 @@ const AgentsPage: FC = () => {
 		});
 
 		if (typeof window !== "undefined") {
-			localStorage.removeItem(emptyInputStorageKey);
 			if (modelConfigID !== nilUUID) {
 				localStorage.setItem(lastModelConfigIDStorageKey, modelConfigID);
 			} else {
@@ -447,7 +448,10 @@ const AgentsPage: FC = () => {
 										...c,
 										status: updatedChat.status,
 										title: updatedChat.title,
-										updated_at: updatedChat.updated_at,
+										updated_at:
+											c.updated_at > updatedChat.updated_at
+												? c.updated_at
+												: updatedChat.updated_at,
 									}
 								: c,
 						);
@@ -470,7 +474,10 @@ const AgentsPage: FC = () => {
 							...previousChat.chat,
 							status: updatedChat.status,
 							title: updatedChat.title,
-							updated_at: updatedChat.updated_at,
+							updated_at:
+								previousChat.chat.updated_at > updatedChat.updated_at
+									? previousChat.chat.updated_at
+									: updatedChat.updated_at,
 						},
 					};
 				},
@@ -594,6 +601,60 @@ const AgentsPage: FC = () => {
 	);
 };
 
+/**
+ * Hook that manages draft persistence for the empty-state chat input.
+ * Persists the current input to localStorage so the user's draft
+ * survives page reloads.
+ *
+ * Once `submitDraft` is called, the stored draft is removed and further
+ * content changes are no longer persisted for the lifetime of the hook.
+ * Call `resetDraft` to re-enable persistence (e.g. on mutation failure).
+ *
+ * @internal Exported for testing.
+ */
+export function useEmptyStateDraft() {
+	const [initialInputValue] = useState(() => {
+		if (typeof window === "undefined") {
+			return "";
+		}
+		return localStorage.getItem(emptyInputStorageKey) ?? "";
+	});
+	const inputValueRef = useRef(initialInputValue);
+	const sentRef = useRef(false);
+
+	const handleContentChange = useCallback((content: string) => {
+		inputValueRef.current = content;
+		if (typeof window !== "undefined" && !sentRef.current) {
+			if (content) {
+				localStorage.setItem(emptyInputStorageKey, content);
+			} else {
+				localStorage.removeItem(emptyInputStorageKey);
+			}
+		}
+	}, []);
+
+	const submitDraft = useCallback(() => {
+		// Mark as sent so that editor change events firing during
+		// the async gap cannot re-persist the draft.
+		sentRef.current = true;
+		localStorage.removeItem(emptyInputStorageKey);
+	}, []);
+
+	const resetDraft = useCallback(() => {
+		sentRef.current = false;
+	}, []);
+
+	const getCurrentContent = useCallback(() => inputValueRef.current, []);
+
+	return {
+		initialInputValue,
+		getCurrentContent,
+		handleContentChange,
+		submitDraft,
+		resetDraft,
+	};
+}
+
 interface AgentsEmptyStateProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
@@ -625,13 +686,8 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	isConfigureAgentsDialogOpen,
 	onConfigureAgentsDialogOpenChange,
 }) => {
-	const [initialInputValue] = useState(() => {
-		if (typeof window === "undefined") {
-			return "";
-		}
-		return localStorage.getItem(emptyInputStorageKey) ?? "";
-	});
-	const inputValueRef = useRef(initialInputValue);
+	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
+		useEmptyStateDraft();
 	const initialSystemPrompt = () => {
 		if (typeof window === "undefined") {
 			return "";
@@ -774,16 +830,6 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		}
 	};
 
-	const handleContentChange = useCallback((content: string) => {
-		inputValueRef.current = content;
-		if (typeof window !== "undefined") {
-			if (content) {
-				localStorage.setItem(emptyInputStorageKey, content);
-			} else {
-				localStorage.removeItem(emptyInputStorageKey);
-			}
-		}
-	}, []);
 	const handleModelChange = useCallback((value: string) => {
 		setHasUserSelectedModel(true);
 		setUserSelectedModel(value);
@@ -810,17 +856,18 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 
 	const handleSend = useCallback(
 		(message: string) => {
-			// Clear the draft synchronously before the async
-			// onCreateChat call so that editor change events
-			// firing during the async gap cannot re-persist it.
-			localStorage.removeItem(emptyInputStorageKey);
+			submitDraft();
 			void onCreateChat({
 				message,
 				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
 				model: selectedModelRef.current || undefined,
+			}).catch(() => {
+				// Re-enable draft persistence so the user can edit
+				// and retry after a failed send attempt.
+				resetDraft();
 			});
 		},
-		[onCreateChat],
+		[submitDraft, resetDraft, onCreateChat],
 	);
 
 	const selectedWorkspace = selectedWorkspaceId

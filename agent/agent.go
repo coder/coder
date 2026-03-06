@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
+	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
@@ -102,6 +103,7 @@ type Options struct {
 	Execer                       agentexec.Execer
 	Devcontainers                bool
 	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
+	GitAPIOptions                []agentgit.Option
 	Clock                        quartz.Clock
 	SocketServerEnabled          bool
 	SocketPath                   string // Path for the agent socket server socket
@@ -217,6 +219,7 @@ func New(options Options) Agent {
 
 		devcontainers:              options.Devcontainers,
 		containerAPIOptions:        options.DevcontainerAPIOptions,
+		gitAPIOptions:              options.GitAPIOptions,
 		socketPath:                 options.SocketPath,
 		socketServerEnabled:        options.SocketServerEnabled,
 		boundaryLogProxySocketPath: options.BoundaryLogProxySocketPath,
@@ -302,8 +305,10 @@ type agent struct {
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
+	gitAPIOptions       []agentgit.Option
 
 	filesAPI   *agentfiles.API
+	gitAPI     *agentgit.API
 	processAPI *agentproc.API
 
 	socketServerEnabled bool
@@ -376,8 +381,11 @@ func (a *agent) init() {
 
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem)
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv)
+	pathStore := agentgit.NewPathStore()
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore)
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore)
+	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
+	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),

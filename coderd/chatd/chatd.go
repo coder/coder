@@ -66,6 +66,7 @@ type Server struct {
 
 	agentConnFn       AgentConnFunc
 	createWorkspaceFn chattool.CreateWorkspaceFn
+	startWorkspaceFn  chattool.StartWorkspaceFn
 	pubsub            pubsub.Pubsub
 	webpushDispatcher webpush.Dispatcher
 	providerAPIKeys   chatprovider.ProviderAPIKeys
@@ -852,6 +853,7 @@ type Config struct {
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
 	CreateWorkspace            chattool.CreateWorkspaceFn
+	StartWorkspace             chattool.StartWorkspaceFn
 	Pubsub                     pubsub.Pubsub
 	ProviderAPIKeys            chatprovider.ProviderAPIKeys
 	WebpushDispatcher          webpush.Dispatcher
@@ -887,6 +889,7 @@ func New(cfg Config) *Server {
 		subscribeFn:                cfg.SubscribeFn,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
+		startWorkspaceFn:           cfg.StartWorkspace,
 		pubsub:                     cfg.Pubsub,
 		webpushDispatcher:          cfg.WebpushDispatcher,
 		providerAPIKeys:            cfg.ProviderAPIKeys,
@@ -1812,6 +1815,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 					Title: chat.Title,
 					Body:  "Agent has finished running.",
 					Icon:  "/favicon.ico",
+					Data:  map[string]string{"url": fmt.Sprintf("/agents/%s", chat.ID)},
+					Tag:   chat.ID.String(),
 				}
 				if status == database.ChatStatusError {
 					pushMsg.Body = "Agent encountered an error."
@@ -2005,6 +2010,23 @@ func (p *Server) runChat(
 			conn = agentConn
 			releaseConn = agentRelease
 			chatStateMu.Unlock()
+
+			// Inject chat identity headers so agent-side
+			// handlers can track which paths this chat edits.
+			var ancestorIDs []string
+			if chatSnapshot.ParentChatID.Valid {
+				ancestorIDs = append(ancestorIDs, chatSnapshot.ParentChatID.UUID.String())
+			}
+			ancestorJSON, err := json.Marshal(ancestorIDs)
+			if err != nil {
+				logger.Warn(ctx, "failed to marshal ancestor chat IDs", slog.Error(err))
+				ancestorJSON = []byte("[]")
+			}
+			agentConn.SetExtraHeaders(http.Header{
+				workspacesdk.CoderChatIDHeader:          {chatSnapshot.ID.String()},
+				workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
+			})
+
 			return agentConn, nil
 		}
 		currentConn := conn
@@ -2207,6 +2229,14 @@ func (p *Server) runChat(
 				OwnerID:     chat.OwnerID,
 				ChatID:      chat.ID,
 				CreateFn:    p.createWorkspaceFn,
+				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
+				WorkspaceMu: &workspaceMu,
+			}),
+			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
+				DB:          p.db,
+				OwnerID:     chat.OwnerID,
+				ChatID:      chat.ID,
+				StartFn:     p.startWorkspaceFn,
 				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
 				WorkspaceMu: &workspaceMu,
 			}),

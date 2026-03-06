@@ -4494,6 +4494,8 @@ type Task struct {
 	CreatedAt                    time.Time                        `db:"created_at" json:"created_at"`
 	DeletedAt                    sql.NullTime                     `db:"deleted_at" json:"deleted_at"`
 	DisplayName                  string                           `db:"display_name" json:"display_name"`
+	WorkspaceGroupACL            WorkspaceACL                     `db:"workspace_group_acl" json:"workspace_group_acl"`
+	WorkspaceUserACL             WorkspaceACL                     `db:"workspace_user_acl" json:"workspace_user_acl"`
 	Status                       TaskStatus                       `db:"status" json:"status"`
 	StatusDebug                  json.RawMessage                  `db:"status_debug" json:"status_debug"`
 	WorkspaceBuildNumber         sql.NullInt32                    `db:"workspace_build_number" json:"workspace_build_number"`

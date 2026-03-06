@@ -24,7 +24,6 @@ import (
 	aibtracing "github.com/coder/aibridge/tracing"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -168,7 +167,7 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create external auth link for the user.
-	authLink, err := db.InsertExternalAuthLink(dbauthz.AsSystemRestricted(ctx), database.InsertExternalAuthLinkParams{
+	authLink, err := db.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
 		ProviderID:        "mock",
 		UserID:            user.ID,
 		CreatedAt:         dbtime.Now(),
