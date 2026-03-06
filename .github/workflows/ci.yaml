@@ -986,6 +986,9 @@ jobs:
         run: |
           make build/coder_docs_"$(./scripts/version.sh)".tgz
 
+      - name: Check for unstaged files
+        run: ./scripts/check_unstaged.sh
+
   required:
     runs-on: ubuntu-latest
     needs:
