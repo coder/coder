@@ -430,7 +430,7 @@ func (p *Server) SendMessage(
 		return result, nil
 	}
 
-	p.publishMessage(opts.ChatID, result.Message)
+	p.publishMessage(opts.ChatID, result.Message, false)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange)
 	return result, nil
@@ -520,7 +520,7 @@ func (p *Server) EditMessage(
 		return EditMessageResult{}, txErr
 	}
 
-	p.publishMessage(opts.ChatID, result.Message)
+	p.publishMessage(opts.ChatID, result.Message, true)
 	p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
 		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 		QueuedMessages: []codersdk.ChatQueuedMessage{},
@@ -550,6 +550,26 @@ func (p *Server) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
 	}
 
 	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDeleted)
+	return nil
+}
+
+// UnarchiveChat unarchives a chat and publishes a created event so sidebar
+// clients are notified that the chat has reappeared.
+func (p *Server) UnarchiveChat(ctx context.Context, chatID uuid.UUID) error {
+	if chatID == uuid.Nil {
+		return xerrors.New("chat_id is required")
+	}
+
+	chat, err := p.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("get chat: %w", err)
+	}
+
+	if err := p.db.UnarchiveChatByID(ctx, chatID); err != nil {
+		return xerrors.Errorf("unarchive chat: %w", err)
+	}
+
+	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated)
 	return nil
 }
 
@@ -699,7 +719,7 @@ func (p *Server) PromoteQueued(
 	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 		QueueUpdate: true,
 	})
-	p.publishMessage(opts.ChatID, promoted)
+	p.publishMessage(opts.ChatID, promoted, false)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
 	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange)
 
@@ -1599,14 +1619,22 @@ func panicFailureReason(recovered any) string {
 	return "chat processing panicked: " + reason
 }
 
-func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) {
+func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage, edited bool) {
 	sdkMessage := db2sdk.ChatMessage(message)
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:    codersdk.ChatStreamEventTypeMessage,
 		Message: &sdkMessage,
 	})
+	afterMessageID := message.ID - 1
+	if edited {
+		// When a message is edited, remote subscribers may have
+		// already advanced past the edited message's ID. Using 0
+		// forces them to re-fetch from the beginning so the edit
+		// is never silently dropped.
+		afterMessageID = 0
+	}
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-		AfterMessageID: message.ID - 1,
+		AfterMessageID: afterMessageID,
 	})
 }
 
@@ -1798,7 +1826,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			// If someone else already set the chat to pending (e.g.
 			// the promote endpoint), don't overwrite it — just clear
 			// the worker and let the processor pick it back up.
-			if latestChat.Status == database.ChatStatusPending && status == database.ChatStatusWaiting {
+			if latestChat.Status == database.ChatStatusPending {
 				status = database.ChatStatusPending
 			} else if status == database.ChatStatusWaiting {
 				// Try to auto-promote the next queued message.
@@ -1860,7 +1888,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 
 		if promotedMessage != nil {
-			p.publishMessage(chat.ID, *promotedMessage)
+			p.publishMessage(chat.ID, *promotedMessage, false)
 		}
 		if shouldPublishQueueUpdate {
 			p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
@@ -2137,66 +2165,77 @@ func (p *Server) runChat(
 			assistantBlocks = append(assistantBlocks, block)
 		}
 
-		if len(assistantBlocks) > 0 {
-			assistantContent, err := chatprompt.MarshalContent(assistantBlocks)
-			if err != nil {
-				return err
+		var insertedMessages []database.ChatMessage
+		err := p.db.InTx(func(tx database.Store) error {
+			if len(assistantBlocks) > 0 {
+				assistantContent, marshalErr := chatprompt.MarshalContent(assistantBlocks)
+				if marshalErr != nil {
+					return marshalErr
+				}
+
+				hasUsage := step.Usage != (fantasy.Usage{})
+				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
+					ChatID:        chat.ID,
+					ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+					Role:          string(fantasy.MessageRoleAssistant),
+					Content:       assistantContent,
+					Visibility:    database.ChatMessageVisibilityBoth,
+					InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
+					OutputTokens:  usageNullInt64(step.Usage.OutputTokens, hasUsage),
+					TotalTokens:   usageNullInt64(step.Usage.TotalTokens, hasUsage),
+					ReasoningTokens: usageNullInt64(
+						step.Usage.ReasoningTokens,
+						hasUsage,
+					),
+					CacheCreationTokens: usageNullInt64(
+						step.Usage.CacheCreationTokens,
+						hasUsage,
+					),
+					CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
+					ContextLimit:    step.ContextLimit,
+					Compressed:      sql.NullBool{},
+				})
+				if insertErr != nil {
+					return xerrors.Errorf("insert assistant message: %w", insertErr)
+				}
+				insertedMessages = append(insertedMessages, assistantMessage)
 			}
 
-			hasUsage := step.Usage != (fantasy.Usage{})
-			assistantMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-				ChatID:        chat.ID,
-				ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-				Role:          string(fantasy.MessageRoleAssistant),
-				Content:       assistantContent,
-				Visibility:    database.ChatMessageVisibilityBoth,
-				InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
-				OutputTokens:  usageNullInt64(step.Usage.OutputTokens, hasUsage),
-				TotalTokens:   usageNullInt64(step.Usage.TotalTokens, hasUsage),
-				ReasoningTokens: usageNullInt64(
-					step.Usage.ReasoningTokens,
-					hasUsage,
-				),
-				CacheCreationTokens: usageNullInt64(
-					step.Usage.CacheCreationTokens,
-					hasUsage,
-				),
-				CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
-				ContextLimit:    step.ContextLimit,
-				Compressed:      sql.NullBool{},
-			})
-			if err != nil {
-				return xerrors.Errorf("insert assistant message: %w", err)
+			for _, tr := range toolResults {
+				resultContent, marshalErr := chatprompt.MarshalToolResultContent(tr)
+				if marshalErr != nil {
+					return marshalErr
+				}
+
+				toolMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
+					ChatID:              chat.ID,
+					ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+					Role:                string(fantasy.MessageRoleTool),
+					Content:             resultContent,
+					Visibility:          database.ChatMessageVisibilityBoth,
+					InputTokens:         sql.NullInt64{},
+					OutputTokens:        sql.NullInt64{},
+					TotalTokens:         sql.NullInt64{},
+					ReasoningTokens:     sql.NullInt64{},
+					CacheCreationTokens: sql.NullInt64{},
+					CacheReadTokens:     sql.NullInt64{},
+					ContextLimit:        sql.NullInt64{},
+					Compressed:          sql.NullBool{},
+				})
+				if insertErr != nil {
+					return xerrors.Errorf("insert tool result: %w", insertErr)
+				}
+				insertedMessages = append(insertedMessages, toolMessage)
 			}
-			p.publishMessage(chat.ID, assistantMessage)
+
+			return nil
+		}, nil)
+		if err != nil {
+			return xerrors.Errorf("persist step transaction: %w", err)
 		}
 
-		for _, tr := range toolResults {
-			resultContent, err := chatprompt.MarshalToolResultContent(tr)
-			if err != nil {
-				return err
-			}
-
-			toolMessage, err := p.db.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-				ChatID:              chat.ID,
-				ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-				Role:                string(fantasy.MessageRoleTool),
-				Content:             resultContent,
-				Visibility:          database.ChatMessageVisibilityBoth,
-				InputTokens:         sql.NullInt64{},
-				OutputTokens:        sql.NullInt64{},
-				TotalTokens:         sql.NullInt64{},
-				ReasoningTokens:     sql.NullInt64{},
-				CacheCreationTokens: sql.NullInt64{},
-				CacheReadTokens:     sql.NullInt64{},
-				ContextLimit:        sql.NullInt64{},
-				Compressed:          sql.NullBool{},
-			})
-			if err != nil {
-				return xerrors.Errorf("insert tool result: %w", err)
-			}
-
-			p.publishMessage(chat.ID, toolMessage)
+		for _, msg := range insertedMessages {
+			p.publishMessage(chat.ID, msg, false)
 		}
 
 		// Clear the stream buffer now that the step is
@@ -2210,7 +2249,6 @@ func (p *Server) runChat(
 
 		return nil
 	}
-
 	// Apply the default MaxOutputTokens if the model config
 	// does not specify one.
 	if callConfig.MaxOutputTokens == nil {
@@ -2529,7 +2567,7 @@ func (p *Server) persistChatContextSummary(
 	// Publish after transaction commits to avoid notifying
 	// subscribers about messages that could be rolled back.
 	for _, msg := range insertedMessages {
-		p.publishMessage(chatID, msg)
+		p.publishMessage(chatID, msg, false)
 	}
 	return nil
 }
@@ -2750,6 +2788,16 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 			locked, lockErr := tx.GetChatByIDForUpdate(ctx, chat.ID)
 			if lockErr != nil {
 				return xerrors.Errorf("lock chat for recovery: %w", lockErr)
+			}
+
+			// Only recover chats that are still running.
+			// Between GetStaleChats and this lock, the chat
+			// may have completed normally.
+			if locked.Status != database.ChatStatusRunning {
+				p.logger.Debug(ctx, "chat status changed since snapshot, skipping recovery",
+					slog.F("chat_id", chat.ID),
+					slog.F("status", locked.Status))
+				return nil
 			}
 
 			// Re-check: only recover if the chat is still stale.

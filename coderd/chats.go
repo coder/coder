@@ -429,7 +429,12 @@ func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := api.Database.ArchiveChatByID(ctx, chat.ID)
+	var err error
+	if api.chatDaemon != nil {
+		err = api.chatDaemon.ArchiveChat(ctx, chat.ID)
+	} else {
+		err = api.Database.ArchiveChatByID(ctx, chat.ID)
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to archive chat.",
@@ -457,7 +462,12 @@ func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := api.Database.UnarchiveChatByID(ctx, chat.ID)
+	var err error
+	if api.chatDaemon != nil {
+		err = api.chatDaemon.UnarchiveChat(ctx, chat.ID)
+	} else {
+		err = api.Database.UnarchiveChatByID(ctx, chat.ID)
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to unarchive chat.",
@@ -817,6 +827,11 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		if updateErr != nil {
 			api.Logger.Error(ctx, "failed to mark chat as waiting",
 				slog.F("chat_id", chatID), slog.Error(updateErr))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to interrupt chat.",
+				Detail:  updateErr.Error(),
+			})
+			return
 		} else {
 			chat = updatedChat
 		}

@@ -367,129 +367,180 @@ const AgentsPage: FC = () => {
 	activeChatIDRef.current = agentId;
 
 	useEffect(() => {
-		const ws = watchChats();
-		ws.addEventListener("open", () => {
-			void queryClient.invalidateQueries({ queryKey: chatsKey });
-		});
-		ws.addEventListener("close", () => {
-			void queryClient.invalidateQueries({ queryKey: chatsKey });
-		});
-		ws.addEventListener("error", () => {
-			void queryClient.invalidateQueries({ queryKey: chatsKey });
-		});
-		ws.addEventListener("message", (event) => {
-			if (event.parseError) {
-				console.warn("Failed to parse chat watch event:", event.parseError);
-				return;
-			}
-			const sse = event.parsedMessage;
-			if (sse?.type !== "data" || !sse.data) {
-				return;
-			}
-			if (!isChatListSSEEvent(sse.data)) {
-				return;
-			}
-			const chatEvent = sse.data;
-			const updatedChat = chatEvent.chat;
+		let disposed = false;
+		let reconnectAttempt = 0;
+		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+		let activeSocket: ReturnType<typeof watchChats> | null = null;
 
-			// Read the previous status from the query cache, which
-			// is synchronously updated by both the per-chat WebSocket
-			// (via updateSidebarChat) and this handler. This avoids
-			// the async-lag of a useEffect-based status map.
-			const currentChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
-			const prevStatus = currentChats?.find(
-				(c) => c.id === updatedChat.id,
-			)?.status;
-			// Only play the chime for top-level chats, not sub-agents.
-			if (!updatedChat.parent_chat_id) {
-				maybePlayChime(
-					prevStatus,
-					updatedChat.status,
-					updatedChat.id,
-					activeChatIDRef.current,
-				);
+		// Schedule a reconnect with capped exponential backoff.
+		const scheduleReconnect = () => {
+			if (disposed) {
+				return;
+			}
+			if (reconnectTimer !== null) {
+				clearTimeout(reconnectTimer);
+			}
+			const delay = Math.min(1000 * 2 ** reconnectAttempt, 10000);
+			reconnectAttempt += 1;
+			reconnectTimer = setTimeout(connect, delay);
+		};
+
+		function connect() {
+			if (disposed) {
+				return;
+			}
+			if (activeSocket) {
+				activeSocket.close();
 			}
 
-			if (chatEvent.kind === "deleted") {
+			const ws = watchChats();
+			activeSocket = ws;
+
+			ws.addEventListener("open", () => {
+				// Connection succeeded — reset backoff.
+				reconnectAttempt = 0;
+				void queryClient.invalidateQueries({ queryKey: chatsKey });
+			});
+
+			const handleDisconnect = () => {
+				// Guard against duplicate calls: browsers fire both
+				// "error" and "close" on a failed WebSocket, so we
+				// only process the first event per socket instance.
+				if (activeSocket !== ws || disposed) {
+					return;
+				}
+				activeSocket = null;
+				void queryClient.invalidateQueries({ queryKey: chatsKey });
+				scheduleReconnect();
+			};
+
+			ws.addEventListener("close", handleDisconnect);
+			ws.addEventListener("error", handleDisconnect);
+
+			ws.addEventListener("message", (event) => {
+				if (event.parseError) {
+					console.warn("Failed to parse chat watch event:", event.parseError);
+					return;
+				}
+				const sse = event.parsedMessage;
+				if (sse?.type !== "data" || !sse.data) {
+					return;
+				}
+				if (!isChatListSSEEvent(sse.data)) {
+					return;
+				}
+				const chatEvent = sse.data;
+				const updatedChat = chatEvent.chat;
+
+				// Read the previous status from the query cache, which
+				// is synchronously updated by both the per-chat WebSocket
+				// (via updateSidebarChat) and this handler. This avoids
+				// the async-lag of a useEffect-based status map.
+				const currentChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+				const prevStatus = currentChats?.find(
+					(c) => c.id === updatedChat.id,
+				)?.status;
+				// Only play the chime for top-level chats, not sub-agents.
+				if (!updatedChat.parent_chat_id) {
+					maybePlayChime(
+						prevStatus,
+						updatedChat.status,
+						updatedChat.id,
+						activeChatIDRef.current,
+					);
+				}
+
+				if (chatEvent.kind === "deleted") {
+					queryClient.setQueryData(
+						chatsKey,
+						(prev: TypesGen.Chat[] | undefined) =>
+							prev?.filter(
+								(c) =>
+									c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
+							),
+					);
+					queryClient.removeQueries({
+						queryKey: chatKey(updatedChat.id),
+						exact: true,
+					});
+					return;
+				}
+
+				if (chatEvent.kind === "diff_status_change") {
+					void Promise.all([
+						queryClient.invalidateQueries({
+							queryKey: chatsKey,
+						}),
+						queryClient.invalidateQueries({
+							queryKey: chatDiffStatusKey(updatedChat.id),
+						}),
+						queryClient.invalidateQueries({
+							queryKey: chatDiffContentsKey(updatedChat.id),
+						}),
+					]);
+					return;
+				}
+
 				queryClient.setQueryData(
 					chatsKey,
-					(prev: TypesGen.Chat[] | undefined) =>
-						prev?.filter(
-							(c) =>
-								c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
-						),
+					(prev: TypesGen.Chat[] | undefined) => {
+						if (!prev) return prev;
+						const exists = prev.some((c) => c.id === updatedChat.id);
+						if (exists) {
+							return prev.map((c) =>
+								c.id === updatedChat.id
+									? {
+											...c,
+											status: updatedChat.status,
+											title: updatedChat.title,
+											updated_at:
+												c.updated_at > updatedChat.updated_at
+													? c.updated_at
+													: updatedChat.updated_at,
+										}
+									: c,
+							);
+						}
+						if (chatEvent.kind === "created") {
+							return [updatedChat, ...prev];
+						}
+						return prev;
+					},
 				);
-				queryClient.removeQueries({
-					queryKey: chatKey(updatedChat.id),
-					exact: true,
-				});
-				return;
-			}
+				queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
+					chatKey(updatedChat.id),
+					(previousChat) => {
+						if (!previousChat) {
+							return previousChat;
+						}
+						return {
+							...previousChat,
+							chat: {
+								...previousChat.chat,
+								status: updatedChat.status,
+								title: updatedChat.title,
+								updated_at:
+									previousChat.chat.updated_at > updatedChat.updated_at
+										? previousChat.chat.updated_at
+										: updatedChat.updated_at,
+							},
+						};
+					},
+				);
+			});
+		}
 
-			if (chatEvent.kind === "diff_status_change") {
-				void Promise.all([
-					queryClient.invalidateQueries({
-						queryKey: chatsKey,
-					}),
-					queryClient.invalidateQueries({
-						queryKey: chatDiffStatusKey(updatedChat.id),
-					}),
-					queryClient.invalidateQueries({
-						queryKey: chatDiffContentsKey(updatedChat.id),
-					}),
-				]);
-				return;
-			}
+		// Kick off the first connection.
+		connect();
 
-			queryClient.setQueryData(
-				chatsKey,
-				(prev: TypesGen.Chat[] | undefined) => {
-					if (!prev) return prev;
-					const exists = prev.some((c) => c.id === updatedChat.id);
-					if (exists) {
-						return prev.map((c) =>
-							c.id === updatedChat.id
-								? {
-										...c,
-										status: updatedChat.status,
-										title: updatedChat.title,
-										updated_at:
-											c.updated_at > updatedChat.updated_at
-												? c.updated_at
-												: updatedChat.updated_at,
-									}
-								: c,
-						);
-					}
-					if (chatEvent.kind === "created") {
-						return [updatedChat, ...prev];
-					}
-					return prev;
-				},
-			);
-			queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
-				chatKey(updatedChat.id),
-				(previousChat) => {
-					if (!previousChat) {
-						return previousChat;
-					}
-					return {
-						...previousChat,
-						chat: {
-							...previousChat.chat,
-							status: updatedChat.status,
-							title: updatedChat.title,
-							updated_at:
-								previousChat.chat.updated_at > updatedChat.updated_at
-									? previousChat.chat.updated_at
-									: updatedChat.updated_at,
-						},
-					};
-				},
-			);
-		});
 		return () => {
-			ws.close();
+			disposed = true;
+			if (reconnectTimer !== null) {
+				clearTimeout(reconnectTimer);
+			}
+			if (activeSocket) {
+				activeSocket.close();
+			}
 		};
 	}, [queryClient]);
 

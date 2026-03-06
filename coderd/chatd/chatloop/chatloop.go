@@ -489,14 +489,14 @@ func processStepStream(
 				active.text += part.Delta
 				active.options = part.ProviderMetadata
 				activeReasoningContent[part.ID] = active
+				setReasoningTitleFromText(part.ID, part.Delta)
+				title := reasoningTitles[part.ID]
+				publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+					Type:  codersdk.ChatMessagePartTypeReasoning,
+					Text:  part.Delta,
+					Title: title,
+				})
 			}
-			setReasoningTitleFromText(part.ID, part.Delta)
-			title := reasoningTitles[part.ID]
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type:  codersdk.ChatMessagePartTypeReasoning,
-				Text:  part.Delta,
-				Title: title,
-			})
 
 		case fantasy.StreamPartTypeReasoningEnd:
 			if active, exists := activeReasoningContent[part.ID]; exists {
@@ -525,7 +525,6 @@ func processStepStream(
 					})
 				}
 			}
-
 		case fantasy.StreamPartTypeToolInputStart:
 			activeToolCalls[part.ID] = &fantasy.ToolCallContent{
 				ToolCallID:       part.ID,
