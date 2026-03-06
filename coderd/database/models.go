@@ -3793,6 +3793,8 @@ type AIBridgeInterception struct {
 	ThreadParentID uuid.NullUUID `db:"thread_parent_id" json:"thread_parent_id"`
 	// The root interception of the thread that this interception belongs to.
 	ThreadRootID uuid.NullUUID `db:"thread_root_id" json:"thread_root_id"`
+	// The session ID supplied by the client (optional and not universally supported).
+	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge
@@ -4494,6 +4496,8 @@ type Task struct {
 	CreatedAt                    time.Time                        `db:"created_at" json:"created_at"`
 	DeletedAt                    sql.NullTime                     `db:"deleted_at" json:"deleted_at"`
 	DisplayName                  string                           `db:"display_name" json:"display_name"`
+	WorkspaceGroupACL            WorkspaceACL                     `db:"workspace_group_acl" json:"workspace_group_acl"`
+	WorkspaceUserACL             WorkspaceACL                     `db:"workspace_user_acl" json:"workspace_user_acl"`
 	Status                       TaskStatus                       `db:"status" json:"status"`
 	StatusDebug                  json.RawMessage                  `db:"status_debug" json:"status_debug"`
 	WorkspaceBuildNumber         sql.NullInt32                    `db:"workspace_build_number" json:"workspace_build_number"`

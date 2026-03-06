@@ -1,12 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { Alert, AlertDetail, AlertTitle } from "./Alert";
+import { Alert, AlertDescription, AlertTitle } from "./Alert";
 
 describe("AlertTitle", () => {
 	it("renders as an h2 heading", () => {
 		render(
 			<Alert>
 				<AlertTitle>Deployment warning</AlertTitle>
-				<AlertDetail>Something needs your attention.</AlertDetail>
+				<AlertDescription>Something needs your attention.</AlertDescription>
 			</Alert>,
 		);
 

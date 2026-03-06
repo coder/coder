@@ -3093,10 +3093,13 @@ func shouldRefreshOIDCToken(link database.UserLink) bool {
 	//
 	// If an OIDC provider issues short-lived tokens less than our defined period,
 	// the token will always be refreshed on every workspace build.
-	assumeExpiredAt := dbtime.Now().Add(-1 * time.Minute * 10)
+	//
+	// By shifting the time forward, we are asking
+	//  "Will this token be valid in 10 minutes"
+	expiryCheckTime := dbtime.Now().Add(time.Minute * 10)
 
 	// Return if the token is assumed to be expired.
-	return link.OAuthExpiry.Before(assumeExpiredAt)
+	return link.OAuthExpiry.Before(expiryCheckTime)
 }
 
 // obtainOIDCAccessToken returns a valid OpenID Connect access token

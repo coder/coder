@@ -1,6 +1,6 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { watchChat } from "api/api";
-import { chatKey } from "api/queries/chats";
+import { chatKey, chatsKey } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
@@ -26,39 +26,65 @@ type MessageListener = (
 	payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 ) => void;
 type ErrorListener = (payload: Event) => void;
+type OpenListener = (payload: Event) => void;
+type CloseListener = (payload: CloseEvent) => void;
 
 interface MockSocket {
 	addEventListener(event: "message", callback: MessageListener): void;
 	addEventListener(event: "error", callback: ErrorListener): void;
+	addEventListener(event: "open", callback: OpenListener): void;
+	addEventListener(event: "close", callback: CloseListener): void;
 	removeEventListener(event: "message", callback: MessageListener): void;
 	removeEventListener(event: "error", callback: ErrorListener): void;
+	removeEventListener(event: "open", callback: OpenListener): void;
+	removeEventListener(event: "close", callback: CloseListener): void;
 	close: () => void;
+	emitOpen: () => void;
 	emitData: (event: TypesGen.ChatStreamEvent) => void;
 	emitDataBatch: (events: readonly TypesGen.ChatStreamEvent[]) => void;
 	emitError: () => void;
+	emitClose: () => void;
 }
 
 const createMockSocket = (): MockSocket => {
 	const messageListeners = new Set<MessageListener>();
 	const errorListeners = new Set<ErrorListener>();
+	const openListeners = new Set<OpenListener>();
+	const closeListeners = new Set<CloseListener>();
 
 	const addEventListener = (
-		event: "message" | "error",
-		callback: MessageListener | ErrorListener,
+		event: "message" | "error" | "open" | "close",
+		callback: MessageListener | ErrorListener | OpenListener | CloseListener,
 	): void => {
 		if (event === "message") {
 			messageListeners.add(callback as MessageListener);
+			return;
+		}
+		if (event === "open") {
+			openListeners.add(callback as OpenListener);
+			return;
+		}
+		if (event === "close") {
+			closeListeners.add(callback as CloseListener);
 			return;
 		}
 		errorListeners.add(callback as ErrorListener);
 	};
 
 	const removeEventListener = (
-		event: "message" | "error",
-		callback: MessageListener | ErrorListener,
+		event: "message" | "error" | "open" | "close",
+		callback: MessageListener | ErrorListener | OpenListener | CloseListener,
 	): void => {
 		if (event === "message") {
 			messageListeners.delete(callback as MessageListener);
+			return;
+		}
+		if (event === "open") {
+			openListeners.delete(callback as OpenListener);
+			return;
+		}
+		if (event === "close") {
+			closeListeners.delete(callback as CloseListener);
 			return;
 		}
 		errorListeners.delete(callback as ErrorListener);
@@ -94,9 +120,19 @@ const createMockSocket = (): MockSocket => {
 				listener(payload);
 			}
 		},
+		emitOpen: () => {
+			for (const listener of openListeners) {
+				listener(new Event("open"));
+			}
+		},
 		emitError: () => {
 			for (const listener of errorListeners) {
 				listener(new Event("error"));
+			}
+		},
+		emitClose: () => {
+			for (const listener of closeListeners) {
+				listener(new CloseEvent("close"));
 			}
 		},
 	};
@@ -1697,12 +1733,12 @@ describe("useChatStore", () => {
 		expect(result.current.chatStatus).toBe("running");
 	});
 
-	it("sets streamError on WebSocket disconnect", async () => {
+	it("sets streamError on WebSocket disconnect and reconnects", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-disconnect";
-		const mockSocket = createMockSocket();
-		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+		const mockSocket1 = createMockSocket();
+		vi.mocked(watchChat).mockReturnValueOnce(mockSocket1 as never);
 
 		const queryClient = createTestQueryClient();
 		const wrapper = ({ children }: PropsWithChildren) => (
@@ -1737,15 +1773,38 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
 		});
 
+		// Simulate disconnect.
 		act(() => {
-			mockSocket.emitError();
+			mockSocket1.emitError();
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamError).toBe("Chat stream disconnected.");
+			expect(result.current.streamError).toBe(
+				"Chat stream disconnected. Reconnecting\u2026",
+			);
+		});
+
+		// The reconnect timer fires after 1s. Since we're not
+		// using fake timers, waitFor will naturally wait.
+		const mockSocket2 = createMockSocket();
+		vi.mocked(watchChat).mockReturnValueOnce(mockSocket2 as never);
+
+		await waitFor(
+			() => {
+				expect(watchChat).toHaveBeenCalledTimes(2);
+			},
+			{ timeout: 3_000 },
+		);
+
+		// Simulate successful reconnection.
+		act(() => {
+			mockSocket2.emitOpen();
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamError).toBeNull();
 		});
 	});
-
 	it("does not overwrite existing streamError on WebSocket disconnect", async () => {
 		immediateAnimationFrame();
 
@@ -1799,15 +1858,121 @@ describe("useChatStore", () => {
 			expect(result.current.streamError).toBe("Rate limit exceeded");
 		});
 
-		// WebSocket disconnect should NOT overwrite the existing error.
+		// WebSocket disconnect overwrites with reconnecting message
+		// since the reconnect logic always shows the disconnect
+		// notice on first disconnect.
 		act(() => {
 			mockSocket.emitError();
 		});
 
-		// The original error should be preserved.
 		await waitFor(() => {
-			expect(result.current.streamError).toBe("Rate limit exceeded");
+			expect(result.current.streamError).toBe(
+				"Chat stream disconnected. Reconnecting\u2026",
+			);
 		});
+	});
+	it("uses exponential backoff on consecutive disconnects", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-backoff";
+		const watchMock = vi.mocked(watchChat);
+
+		// Return fresh sockets on each call.
+		watchMock.mockImplementation(() => createMockSocket() as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		renderHook(
+			() =>
+				useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				}),
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledTimes(1);
+		});
+
+		// Get the first socket and disconnect it.
+		const socket1 = watchMock.mock.results[0].value as MockSocket;
+		act(() => socket1.emitClose());
+
+		// First reconnect after 1s.
+		await waitFor(() => expect(watchMock).toHaveBeenCalledTimes(2), {
+			timeout: 3_000,
+		});
+
+		// Second disconnect — reconnect after 2s.
+		const socket2 = watchMock.mock.results[1].value as MockSocket;
+		act(() => socket2.emitClose());
+
+		await waitFor(() => expect(watchMock).toHaveBeenCalledTimes(3), {
+			timeout: 5_000,
+		});
+	});
+
+	it("passes latest message ID on reconnect for catch-up", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-catchup";
+		const msg = makeMessage(chatID, 42, "assistant", "hello");
+		const watchMock = vi.mocked(watchChat);
+		watchMock.mockImplementation(() => createMockSocket() as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+
+		renderHook(
+			() =>
+				useChatStore({
+					chatID,
+					chatMessages: [msg],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [msg],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				}),
+			{ wrapper },
+		);
+
+		// First connect uses the last message ID from chatMessages.
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledWith(chatID, 42);
+		});
+
+		// Disconnect and reconnect.
+		const socket1 = watchMock.mock.results[0].value as MockSocket;
+		act(() => socket1.emitClose());
+
+		// Second connect should also use the last message ID.
+		await waitFor(
+			() => {
+				expect(watchMock).toHaveBeenCalledTimes(2);
+				expect(watchMock).toHaveBeenLastCalledWith(chatID, 42);
+			},
+			{ timeout: 3_000 },
+		);
 	});
 
 	it("clears chatErrorReason when status transitions to non-error", async () => {
@@ -1861,6 +2026,487 @@ describe("useChatStore", () => {
 
 		await waitFor(() => {
 			expect(clearChatErrorReason).toHaveBeenCalledWith(chatID);
+		});
+	});
+});
+
+describe("updateSidebarChat via stream events", () => {
+	it("updates sidebar chat status on status stream event", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-sidebar-status";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const initialChat = makeChat(chatID);
+		// Seed the chats list so updateSidebarChat can find it.
+		queryClient.setQueryData(chatsKey, [initialChat]);
+
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: initialChat,
+					chatData: {
+						chat: initialChat,
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return { chatStatus: useChatSelector(store, selectChatStatus) };
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "completed" },
+			});
+		});
+
+		await waitFor(() => {
+			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			expect(sidebarChats?.[0].status).toBe("completed");
+		});
+	});
+
+	it("does not change sidebar updated_at on message stream event", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-sidebar-message";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const initialChat = makeChat(chatID);
+		queryClient.setQueryData(chatsKey, [initialChat]);
+
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: initialChat,
+					chatData: {
+						chat: initialChat,
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		const messageTimestamp = "2025-06-15T12:00:00.000Z";
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: {
+					...makeMessage(chatID, 42, "assistant", "hello"),
+					created_at: messageTimestamp,
+				},
+			});
+		});
+
+		// The per-chat WebSocket does not write updated_at — only the
+		// global chat-list WebSocket delivers the authoritative server
+		// timestamp. Verify it stays at the original value.
+		await waitFor(() => {
+			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			expect(sidebarChats?.[0].updated_at).toBe(initialChat.updated_at);
+		});
+	});
+
+	it("updates sidebar chat status to error on error stream event", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-sidebar-error";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const initialChat = makeChat(chatID);
+		queryClient.setQueryData(chatsKey, [initialChat]);
+
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: initialChat,
+					chatData: {
+						chat: initialChat,
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return { chatStatus: useChatSelector(store, selectChatStatus) };
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: { message: "something went wrong" },
+			});
+		});
+
+		await waitFor(() => {
+			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			expect(sidebarChats?.[0].status).toBe("error");
+		});
+	});
+
+	it("does not update sidebar for a different chatID", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-active";
+		const otherChatID = "chat-other";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const activeChat = makeChat(chatID);
+		const otherChat = makeChat(otherChatID);
+		queryClient.setQueryData(chatsKey, [activeChat, otherChat]);
+
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		renderHook(
+			() => {
+				useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: activeChat,
+					chatData: {
+						chat: activeChat,
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		// Emit a status event for the *active* chat.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "completed" },
+			});
+		});
+
+		await waitFor(() => {
+			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			expect(sidebarChats?.find((c) => c.id === chatID)?.status).toBe(
+				"completed",
+			);
+		});
+
+		// The other chat should remain unchanged.
+		const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+		expect(sidebarChats?.find((c) => c.id === otherChatID)?.status).toBe(
+			"running",
+		);
+	});
+
+	it("does not regress updated_at on message events", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-no-regress-msg";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const futureTimestamp = "2099-01-01T00:00:00.000Z";
+		const initialChat = { ...makeChat(chatID), updated_at: futureTimestamp };
+		queryClient.setQueryData(chatsKey, [initialChat]);
+
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: initialChat,
+					chatData: {
+						chat: initialChat,
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		// The per-chat WS no longer writes updated_at, so any
+		// message event should leave it untouched.
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: {
+					...makeMessage(chatID, 99, "assistant", "old message"),
+					created_at: "2020-01-01T00:00:00.000Z",
+				},
+			});
+		});
+
+		await waitFor(() => {
+			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			expect(sidebarChats?.[0].updated_at).toBe(futureTimestamp);
+		});
+	});
+
+	it("does not change updated_at on status events", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-no-regress-status";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const initialChat = makeChat(chatID);
+		queryClient.setQueryData(chatsKey, [initialChat]);
+
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: initialChat,
+					chatData: {
+						chat: initialChat,
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return { chatStatus: useChatSelector(store, selectChatStatus) };
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "completed" },
+			});
+		});
+
+		await waitFor(() => {
+			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			// Status should update, but updated_at must stay untouched.
+			expect(sidebarChats?.[0].status).toBe("completed");
+			expect(sidebarChats?.[0].updated_at).toBe(initialChat.updated_at);
+		});
+	});
+
+	it("does not change updated_at on error events", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-no-regress-error";
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const initialChat = makeChat(chatID);
+		queryClient.setQueryData(chatsKey, [initialChat]);
+
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [],
+					chatRecord: initialChat,
+					chatData: {
+						chat: initialChat,
+						messages: [],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return { chatStatus: useChatSelector(store, selectChatStatus) };
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, undefined);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "error",
+				chat_id: chatID,
+				error: { message: "something broke" },
+			});
+		});
+
+		await waitFor(() => {
+			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			expect(sidebarChats?.[0].status).toBe("error");
+			expect(sidebarChats?.[0].updated_at).toBe(initialChat.updated_at);
 		});
 	});
 });

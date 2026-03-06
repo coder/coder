@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	draftInputStorageKeyPrefix,
@@ -83,6 +84,33 @@ describe("useConversationEditingState", () => {
 		expect(
 			localStorage.getItem(`${draftInputStorageKeyPrefix}undefined`),
 		).toBeNull();
+		unmount();
+	});
+
+	it("calls focus on the input ref after a successful send", async () => {
+		const { result, onSend, unmount } = renderEditing();
+
+		// Attach a mock ChatMessageInputRef to the chatInputRef
+		const mockFocus = vi.fn();
+		const mockClear = vi.fn();
+		const mockInputRef = {
+			focus: mockFocus,
+			clear: mockClear,
+			insertText: vi.fn(),
+			getValue: vi.fn().mockReturnValue(""),
+		};
+		// The hook exposes chatInputRef – assign the mock to it.
+		result.current.chatInputRef.current = mockInputRef;
+
+		await act(async () => {
+			result.current.handleSendFromInput("hello");
+			await vi.waitFor(() => {
+				expect(onSend).toHaveBeenCalledWith("hello", undefined);
+			});
+		});
+
+		expect(mockClear).toHaveBeenCalled();
+		expect(mockFocus).toHaveBeenCalled();
 		unmount();
 	});
 

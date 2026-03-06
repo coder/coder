@@ -14,6 +14,10 @@ import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { StreamState } from "./types";
 
+// Reconnect delay bounds for exponential backoff.
+const RECONNECT_BASE_MS = 1_000;
+const RECONNECT_MAX_MS = 10_000;
+
 const VALID_CHAT_STATUSES: ReadonlySet<string> = new Set<TypesGen.ChatStatus>([
 	"pending",
 	"running",
@@ -550,9 +554,13 @@ export const useChatStore = (
 			return;
 		}
 
-		// Pass the last REST-fetched message ID so the stream
-		// only sends newer messages.
-		const socket = watchChat(chatID, lastMessageIdRef.current);
+		// Capture chatID as a narrowed string for use in closures.
+		const activeChatID = chatID;
+		let disposed = false;
+		let reconnectAttempt = 0;
+		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+		let activeSocket: ReturnType<typeof watchChat> | null = null;
+
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 		) => {
@@ -628,10 +636,11 @@ export const useChatStore = (
 						if (changed) {
 							scheduleStreamReset();
 						}
-						updateSidebarChat((chat) => ({
-							...chat,
-							updated_at: message.created_at ?? new Date().toISOString(),
-						}));
+						// Do not update updated_at here. The global
+						// chat-list WebSocket delivers the authoritative
+						// server timestamp; fabricating a client-side
+						// value causes the chat to flicker between time
+						// groups when the two sources race.
 						continue;
 					}
 					case "queue_update":
@@ -671,9 +680,7 @@ export const useChatStore = (
 						updateSidebarChat((chat) => ({
 							...chat,
 							status: nextStatus,
-							updated_at: new Date().toISOString(),
 						}));
-
 						continue;
 					}
 					case "error": {
@@ -687,7 +694,6 @@ export const useChatStore = (
 						updateSidebarChat((chat) => ({
 							...chat,
 							status: "error",
-							updated_at: new Date().toISOString(),
 						}));
 						continue;
 					}
@@ -708,19 +714,66 @@ export const useChatStore = (
 			flushMessageParts();
 		};
 
-		const handleError = () => {
-			if (!store.getSnapshot().streamError) {
-				store.setStreamError("Chat stream disconnected.");
+		// Schedule a reconnect with capped exponential backoff.
+		// Does nothing if the effect has been cleaned up.
+		const scheduleReconnect = () => {
+			if (disposed) {
+				return;
 			}
+			const delay = Math.min(
+				RECONNECT_BASE_MS * 2 ** reconnectAttempt,
+				RECONNECT_MAX_MS,
+			);
+			reconnectAttempt += 1;
+			reconnectTimer = setTimeout(connect, delay);
 		};
 
-		socket.addEventListener("message", handleMessage);
-		socket.addEventListener("error", handleError);
+		function connect() {
+			if (disposed) {
+				return;
+			}
+
+			// Use the latest known message ID so the server only
+			// sends events the client hasn't seen yet.
+			const socket = watchChat(activeChatID, lastMessageIdRef.current);
+			activeSocket = socket;
+
+			const handleOpen = () => {
+				// Connection succeeded — reset backoff and clear any
+				// previous disconnect error.
+				reconnectAttempt = 0;
+				store.clearStreamError();
+			};
+
+			const handleDisconnect = () => {
+				if (disposed) {
+					return;
+				}
+				// Show the error only on the first disconnect (not
+				// while we are already retrying).
+				if (reconnectAttempt === 0) {
+					store.setStreamError("Chat stream disconnected. Reconnecting…");
+				}
+				scheduleReconnect();
+			};
+
+			socket.addEventListener("open", handleOpen);
+			socket.addEventListener("message", handleMessage);
+			socket.addEventListener("error", handleDisconnect);
+			socket.addEventListener("close", handleDisconnect);
+		}
+
+		// Kick off the first connection.
+		connect();
 
 		return () => {
-			socket.removeEventListener("message", handleMessage);
-			socket.removeEventListener("error", handleError);
-			socket.close();
+			disposed = true;
+			if (reconnectTimer !== null) {
+				clearTimeout(reconnectTimer);
+			}
+			if (activeSocket) {
+				activeSocket.close();
+			}
 			cancelScheduledStreamReset();
 			activeChatIDRef.current = null;
 		};

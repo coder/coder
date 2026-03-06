@@ -13,10 +13,12 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -301,6 +303,13 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Track edited path for git watch.
+	if api.pathStore != nil {
+		if chatID, ancestorIDs, ok := agentgit.ExtractChatContext(r); ok {
+			api.pathStore.AddPaths(append([]uuid.UUID{chatID}, ancestorIDs...), []string{path})
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: fmt.Sprintf("Successfully wrote to %q", path),
 	})
@@ -378,6 +387,17 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 			Message: combinedErr.Error(),
 		})
 		return
+	}
+
+	// Track edited paths for git watch.
+	if api.pathStore != nil {
+		if chatID, ancestorIDs, ok := agentgit.ExtractChatContext(r); ok {
+			filePaths := make([]string, 0, len(req.Files))
+			for _, f := range req.Files {
+				filePaths = append(filePaths, f.Path)
+			}
+			api.pathStore.AddPaths(append([]uuid.UUID{chatID}, ancestorIDs...), filePaths)
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{

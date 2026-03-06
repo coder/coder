@@ -1046,7 +1046,8 @@ CREATE TABLE aibridge_interceptions (
     api_key_id text,
     client character varying(64) DEFAULT 'Unknown'::character varying,
     thread_parent_id uuid,
-    thread_root_id uuid
+    thread_root_id uuid,
+    client_session_id character varying(256)
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1056,6 +1057,8 @@ COMMENT ON COLUMN aibridge_interceptions.initiator_id IS 'Relates to a users rec
 COMMENT ON COLUMN aibridge_interceptions.thread_parent_id IS 'The interception which directly caused this interception to occur, usually through an agentic loop or threaded conversation.';
 
 COMMENT ON COLUMN aibridge_interceptions.thread_root_id IS 'The root interception of the thread that this interception belongs to.';
+
+COMMENT ON COLUMN aibridge_interceptions.client_session_id IS 'The session ID supplied by the client (optional and not universally supported).';
 
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,
@@ -2094,6 +2097,31 @@ CREATE TABLE workspace_builds (
     CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
 );
 
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
 CREATE VIEW tasks_with_status AS
  SELECT tasks.id,
     tasks.organization_id,
@@ -2106,6 +2134,8 @@ CREATE VIEW tasks_with_status AS
     tasks.created_at,
     tasks.deleted_at,
     tasks.display_name,
+    COALESCE(workspaces.group_acl, '{}'::jsonb) AS workspace_group_acl,
+    COALESCE(workspaces.user_acl, '{}'::jsonb) AS workspace_user_acl,
         CASE
             WHEN (tasks.workspace_id IS NULL) THEN 'pending'::task_status
             WHEN (build_status.status <> 'active'::task_status) THEN build_status.status
@@ -2121,7 +2151,8 @@ CREATE VIEW tasks_with_status AS
     task_owner.owner_username,
     task_owner.owner_name,
     task_owner.owner_avatar_url
-   FROM ((((((((tasks
+   FROM (((((((((tasks
+     LEFT JOIN workspaces ON ((workspaces.id = tasks.workspace_id)))
      CROSS JOIN LATERAL ( SELECT vu.username AS owner_username,
             vu.name AS owner_name,
             vu.avatar_url AS owner_avatar_url
@@ -2864,31 +2895,6 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone,
-    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
-    CONSTRAINT user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
-
 CREATE VIEW workspace_latest_builds AS
  SELECT latest_build.id,
     latest_build.workspace_id,
@@ -3446,6 +3452,8 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
+
+CREATE INDEX idx_aibridge_interceptions_client_session_id ON aibridge_interceptions USING btree (client_session_id) WHERE (client_session_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 

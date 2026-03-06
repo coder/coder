@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/openai/openai-go/v3/responses"
 )
 
 // OpenAIHandler handles OpenAI API requests and returns a response.
@@ -306,6 +307,17 @@ func writeChatCompletionsStreaming(w http.ResponseWriter, r *http.Request, chunk
 	}
 }
 
+// writeSSEEvent marshals v as JSON and writes it as an SSE data
+// frame. Returns any write error.
+func writeSSEEvent(w http.ResponseWriter, v interface{}) error {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(w, "data: %s\n\n", data)
+	return err
+}
+
 func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <-chan OpenAIChunk) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -329,7 +341,23 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 			return
 		case chunk, ok = <-chunks:
 			if !ok {
-				_, _ = fmt.Fprintf(w, "data: [DONE]\n\n")
+				// Emit Responses API lifecycle events so
+				// the fantasy client closes open text
+				// blocks and persists the step content.
+				for outputIndex, itemID := range itemIDs {
+					_ = writeSSEEvent(w, responses.ResponseTextDoneEvent{
+						ItemID:      itemID,
+						OutputIndex: int64(outputIndex),
+					})
+					_ = writeSSEEvent(w, responses.ResponseOutputItemDoneEvent{
+						OutputIndex: int64(outputIndex),
+						Item: responses.ResponseOutputItemUnion{
+							ID:   itemID,
+							Type: "message",
+						},
+					})
+				}
+				_ = writeSSEEvent(w, responses.ResponseCompletedEvent{})
 				flusher.Flush()
 				return
 			}
@@ -344,6 +372,19 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 			if !found {
 				itemID = fmt.Sprintf("msg_%s", uuid.New().String()[:8])
 				itemIDs[outputIndex] = itemID
+
+				// Emit response.output_item.added so the
+				// fantasy client triggers TextStart.
+				if err := writeSSEEvent(w, responses.ResponseOutputItemAddedEvent{
+					OutputIndex: int64(outputIndex),
+					Item: responses.ResponseOutputItemUnion{
+						ID:   itemID,
+						Type: "message",
+					},
+				}); err != nil {
+					return
+				}
+				flusher.Flush()
 			}
 
 			chunkData := map[string]interface{}{

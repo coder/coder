@@ -46,6 +46,7 @@ message RecordInterceptionRequest {
   string client = 8;
   string user_agent = 9;
   optional string correlating_tool_call_id = 10;
+  optional string client_session_id = 11;
 }
 
 message RecordInterceptionResponse {}

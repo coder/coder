@@ -155,14 +155,23 @@ func (t Task) TaskTable() TaskTable {
 }
 
 func (t Task) RBACObject() rbac.Object {
-	return t.TaskTable().RBACObject()
-}
-
-func (t TaskTable) RBACObject() rbac.Object {
-	return rbac.ResourceTask.
+	obj := rbac.ResourceTask.
 		WithID(t.ID).
 		WithOwner(t.OwnerID.String()).
 		InOrg(t.OrganizationID)
+
+	if rbac.WorkspaceACLDisabled() {
+		return obj
+	}
+
+	if t.WorkspaceGroupACL != nil {
+		obj = obj.WithGroupACL(t.WorkspaceGroupACL.RBACACL())
+	}
+	if t.WorkspaceUserACL != nil {
+		obj = obj.WithACLUserList(t.WorkspaceUserACL.RBACACL())
+	}
+
+	return obj
 }
 
 func (c Chat) RBACObject() rbac.Object {
