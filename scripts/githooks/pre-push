@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Pre-push hook that runs the full CI suite locally.
-# Runs `make pre-commit` (gen, fmt, lint, typos, build, tests)
+# Runs `make pre-push` (gen, fmt, lint, typos, build, tests)
 # to catch issues before they reach CI.
 #
 # The pre-commit hook already runs the lite checks on each commit.
@@ -18,4 +18,4 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-exec make pre-commit
+exec make pre-push

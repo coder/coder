@@ -690,33 +690,32 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 	build/typos-$(TYPOS_VERSION) --config .github/workflows/typos.toml
 .PHONY: lint/typos
 
-# pre-commit and pre-commit-lite mirror CI "required" jobs locally.
+# pre-commit and pre-push mirror CI "required" jobs locally.
 # See the "required" job's needs list in .github/workflows/ci.yaml.
 #
-# pre-commit-lite runs checks that don't need external services
-# (Docker, Playwright). This is the default for the git hook since
-# test and Docker failures in the local environment would otherwise
-# block all commits.
+# pre-commit runs checks that don't need external services (Docker,
+# Playwright). This is the git pre-commit hook default since test
+# and Docker failures in the local environment would otherwise block
+# all commits.
 #
-# pre-commit runs the full CI suite including tests. Use it before
-# pushing or when you want full confidence:
-#   make pre-commit
+# pre-push runs the full CI suite including tests. This is the git
+# pre-push hook default, catching everything CI would before pushing.
 #
 # Both run targets in parallel via -j and fail if any tracked files
 # have unstaged changes afterward (gen/fmt drift or uncommitted work).
 #
-# CI job                → target       → lite?
+# CI job                → target          → pre-commit?
 # ──────────────────────────────────────────────────────────
-# gen                   → gen            ✓
-# fmt                   → fmt            ✓
-# lint                  → lint           ✓ (includes lint-actions locally)
-# (typos in lint job)   → lint/typos     ✓
-# check-build           → pre-commit/build ✓ (go build, local arch only)
-# test-go-pg            → test-postgres    (needs Docker)
-# test-js               → test-js          (slow)
-# test-e2e              → test-e2e         (needs Playwright)
-# sqlc-vet              → sqlc-vet         (needs Docker)
-# offlinedocs           → offlinedocs/check (slow)
+# gen                   → gen               ✓
+# fmt                   → fmt               ✓
+# lint                  → lint              ✓ (includes lint-actions locally)
+# (typos in lint job)   → lint/typos        ✓
+# check-build           → pre-push/build    ✓ (go build, local arch only)
+# test-go-pg            → test-postgres       (needs Docker)
+# test-js               → test-js             (slow)
+# test-e2e              → test-e2e            (needs Playwright)
+# sqlc-vet              → sqlc-vet            (needs Docker)
+# offlinedocs           → offlinedocs/check   (slow)
 #
 # Omitted from both (reason):
 # test-go-pg-17         → same tests, different PG version
@@ -734,34 +733,34 @@ define check-unstaged
 	fi
 endef
 
-pre-commit-lite:
-	$(MAKE) -j --output-sync=target \
-		gen \
-		fmt \
-		lint \
-		lint/typos \
-		pre-commit/build
-	$(check-unstaged)
-.PHONY: pre-commit-lite
-
 pre-commit:
 	$(MAKE) -j --output-sync=target \
 		gen \
 		fmt \
 		lint \
 		lint/typos \
-		pre-commit/build \
+		pre-push/build
+	$(check-unstaged)
+.PHONY: pre-commit
+
+pre-push:
+	$(MAKE) -j --output-sync=target \
+		gen \
+		fmt \
+		lint \
+		lint/typos \
+		pre-push/build \
 		test-postgres \
 		test-js \
 		test-e2e \
 		sqlc-vet \
 		offlinedocs/check
 	$(check-unstaged)
-.PHONY: pre-commit
+.PHONY: pre-push
 
-pre-commit/build:
+pre-push/build:
 	go build ./...
-.PHONY: pre-commit/build
+.PHONY: pre-push/build
 
 offlinedocs/check: offlinedocs/node_modules/.installed
 	cd offlinedocs/

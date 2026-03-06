@@ -50,8 +50,8 @@ Only pause to ask for confirmation when:
 | **Generate**      | `make gen`               | After database changes           |
 | **Format**        | `make fmt`               | Auto-format code                 |
 | **Clean**         | `make clean`             | Clean build artifacts            |
-| **Pre-commit**    | `make pre-commit-lite`   | Fast CI checks (gen/fmt/lint/build) |
-| **Pre-commit Full** | `make pre-commit`      | All CI checks including tests    |
+| **Pre-commit**    | `make pre-commit`        | Fast CI checks (gen/fmt/lint/build) |
+| **Pre-push**      | `make pre-push`          | All CI checks including tests    |
 
 ### Documentation Commands
 
@@ -110,9 +110,9 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 Before your first commit, ensure the git hooks are installed.
 Two hooks run automatically:
 
-- **pre-commit**: `make pre-commit-lite` (gen, fmt, lint, typos, build).
+- **pre-commit**: `make pre-commit` (gen, fmt, lint, typos, build).
   Fast checks that catch most CI failures.
-- **pre-push**: `make pre-commit` (full CI suite including tests).
+- **pre-push**: `make pre-push` (full CI suite including tests).
   Runs before pushing to catch everything CI would.
 
 Wait for them to complete, do not skip or bypass them.
