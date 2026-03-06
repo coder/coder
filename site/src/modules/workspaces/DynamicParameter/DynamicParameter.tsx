@@ -540,9 +540,9 @@ const MaskableInput: FC<MaskableInputProps> = ({
 					type="button"
 					variant="subtle"
 					size="icon"
-					onMouseDown={() => setShowMaskedInput(true)}
-					onMouseOut={() => setShowMaskedInput(false)}
-					onMouseUp={() => setShowMaskedInput(false)}
+					aria-label={showMaskedInput ? "Hide value" : "Show value"}
+					aria-pressed={showMaskedInput}
+					onClick={() => setShowMaskedInput((value) => !value)}
 					disabled={disabled}
 				>
 					{showMaskedInput ? (
@@ -594,9 +594,9 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 					type="button"
 					variant="subtle"
 					size="icon"
-					onMouseDown={() => setShowMaskedInput(true)}
-					onMouseOut={() => setShowMaskedInput(false)}
-					onMouseUp={() => setShowMaskedInput(false)}
+					aria-label={showMaskedInput ? "Hide value" : "Show value"}
+					aria-pressed={showMaskedInput}
+					onClick={() => setShowMaskedInput((value) => !value)}
 					disabled={disabled}
 				>
 					{showMaskedInput ? (

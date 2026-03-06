@@ -77,6 +77,7 @@ export const AccountForm: FC<AccountFormProps> = ({
 				/>
 				<TextField
 					{...getFieldHelpers("name")}
+					autoComplete="name"
 					fullWidth
 					onBlur={(e) => {
 						e.target.value = e.target.value.trim();
