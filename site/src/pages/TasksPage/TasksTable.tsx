@@ -329,10 +329,12 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem
-								onSelect={() => {
+								onSelect={(e) => {
+									e.stopPropagation();
 									navigate(
 										`/@${task.owner_name}/${task.workspace_name}/settings/sharing`,
 									);
+									console.log("navigating or something");
 								}}
 							>
 								<Share2Icon />
