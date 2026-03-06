@@ -266,7 +266,7 @@ func Test_TaskSend(t *testing.T) {
 		// Then: The command should fail because the task was paused.
 		err := w.Wait()
 		require.Error(t, err)
-		require.ErrorContains(t, err, "was paused while waiting for it to become active")
+		require.ErrorContains(t, err, "was paused while waiting for it to become idle")
 	})
 
 	t.Run("WaitsForWorkingAppState", func(t *testing.T) {
