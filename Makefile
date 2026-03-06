@@ -701,8 +701,11 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 # pre-push runs the full CI suite including tests. This is the git
 # pre-push hook default, catching everything CI would before pushing.
 #
-# Both run targets in parallel via -j and fail if any tracked files
-# have unstaged changes afterward (gen/fmt drift or uncommitted work).
+# Both use two-phase execution: gen+fmt first (writes files), then
+# lint+build (reads files). This avoids races where gen's `go run`
+# creates temporary .go files that lint's find-based checks pick up.
+# Within each phase, targets run in parallel via -j. Both fail if
+# any tracked files have unstaged changes afterward.
 #
 # Both pre-commit and pre-push:
 #   gen, fmt, lint, lint/typos, slim binary (local arch)
@@ -730,9 +733,8 @@ define check-unstaged
 endef
 
 pre-commit:
+	$(MAKE) -j --output-sync=target gen fmt
 	$(MAKE) -j --output-sync=target \
-		gen \
-		fmt \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
@@ -740,9 +742,8 @@ pre-commit:
 .PHONY: pre-commit
 
 pre-push:
+	$(MAKE) -j --output-sync=target gen fmt
 	$(MAKE) -j --output-sync=target \
-		gen \
-		fmt \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT) \
