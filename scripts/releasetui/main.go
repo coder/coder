@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,8 +16,6 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
-	"github.com/google/go-github/v61/github"
-	"golang.org/x/oauth2"
 )
 
 const (
@@ -81,9 +80,7 @@ type ReleaseExecutor interface {
 }
 
 // liveExecutor performs real operations.
-type liveExecutor struct {
-	ghClient *github.Client
-}
+type liveExecutor struct{}
 
 func (e *liveExecutor) GitFetch(_ context.Context, branch string) error {
 	return gitRun("fetch", "--quiet", "--tags", "origin", branch)
@@ -102,21 +99,25 @@ func (e *liveExecutor) PushTag(_ context.Context, tag string) error {
 	return gitRun("push", "origin", tag)
 }
 
-func (e *liveExecutor) TriggerWorkflow(ctx context.Context, ref, channel, releaseNotes string) error {
-	if e.ghClient == nil {
-		return fmt.Errorf("cannot trigger workflow: no GitHub client (set GITHUB_TOKEN or run 'gh auth login')")
+func (e *liveExecutor) TriggerWorkflow(_ context.Context, ref, channel, releaseNotes string) error {
+	payload := map[string]string{
+		"dry_run":         "false",
+		"release_channel": channel,
+		"release_notes":   releaseNotes,
 	}
-	_, err := e.ghClient.Actions.CreateWorkflowDispatchEventByFileName(ctx,
-		owner, repo, "release.yaml",
-		github.CreateWorkflowDispatchEventRequest{
-			Ref: ref,
-			Inputs: map[string]interface{}{
-				"dry_run":         "false",
-				"release_channel": channel,
-				"release_notes":   releaseNotes,
-			},
-		})
-	return err
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshaling workflow payload: %w", err)
+	}
+	cmd := exec.Command("gh", "workflow", "run", "release.yaml",
+		"--repo", owner+"/"+repo,
+		"--ref", ref,
+		"--json",
+	)
+	cmd.Stdin = strings.NewReader(string(payloadJSON))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func (e *liveExecutor) WriteFile(path string, content []byte) error {
@@ -196,26 +197,28 @@ func gitRun(args ...string) error {
 	return cmd.Run()
 }
 
-// newGitHubClient creates an authenticated go-github client. It
-// checks GITHUB_TOKEN, GH_TOKEN, then falls back to `gh auth token`.
-func newGitHubClient(ctx context.Context) (*github.Client, error) {
-	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
-		token = os.Getenv("GH_TOKEN")
-	}
-	if token == "" {
-		out, err := exec.Command("gh", "auth", "token", "--hostname", "github.com").Output()
-		if err != nil {
-			return nil, fmt.Errorf("GitHub auth required: set GITHUB_TOKEN, GH_TOKEN, or run 'gh auth login'")
+// ghOutput runs a gh CLI command and returns trimmed stdout.
+func ghOutput(args ...string) (string, error) {
+	cmd := exec.Command("gh", args...)
+	out, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return "", fmt.Errorf("gh %s: %w\n%s", strings.Join(args, " "), err, exitErr.Stderr)
 		}
-		token = strings.TrimSpace(string(out))
+		return "", fmt.Errorf("gh %s: %w", strings.Join(args, " "), err)
 	}
-	if token == "" {
-		return nil, fmt.Errorf("GitHub auth required: set GITHUB_TOKEN, GH_TOKEN, or run 'gh auth login'")
+	return strings.TrimSpace(string(out)), nil
+}
+
+// checkGHAuth verifies that the gh CLI is installed and
+// authenticated. Returns true if gh is available.
+func checkGHAuth() bool {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return false
 	}
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	tc := oauth2.NewClient(ctx, ts)
-	return github.NewClient(tc), nil
+	err := exec.Command("gh", "auth", "status", "--hostname", "github.com").Run()
+	return err == nil
 }
 
 // confirm asks a yes/no question. Returns nil if the user confirms,
@@ -295,10 +298,10 @@ func main() {
 				fmt.Fprintln(w)
 			}
 
-			// --- GitHub client (optional) ---
-			ghClient, err := newGitHubClient(ctx)
-			if err != nil {
-				warnf(w, "GitHub API unavailable: %v", err)
+			// --- Check gh CLI auth ---
+			ghAvailable := checkGHAuth()
+			if !ghAvailable {
+				warnf(w, "gh CLI is not available or not authenticated.")
 				infof(w, "Continuing without GitHub features (PR checks, label lookups, workflow trigger).")
 				fmt.Fprintln(w)
 			}
@@ -309,10 +312,10 @@ func main() {
 				outputPrefix = "[DRYRUN] "
 				executor = &dryRunExecutor{w: w}
 			} else {
-				executor = &liveExecutor{ghClient: ghClient}
+				executor = &liveExecutor{}
 			}
 
-			return runRelease(ctx, inv, executor, ghClient, gpgConfigured)
+			return runRelease(ctx, inv, executor, ghAvailable, gpgConfigured)
 		},
 	}
 
@@ -441,7 +444,7 @@ func categorizeCommit(title string, labels []string) string {
 }
 
 //nolint:revive // Long function is fine for a sequential release flow.
-func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseExecutor, ghClient *github.Client, gpgConfigured bool) error {
+func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseExecutor, ghAvailable, gpgConfigured bool) error {
 	w := inv.Stderr
 
 	// --- Release landscape ---
@@ -650,15 +653,15 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			}
 
 			// Check PR labels for release/breaking.
-			var breakingPRs []*github.PullRequest
-			if ghClient != nil {
-				breakingPRs, err = listPRsWithLabel(ctx, ghClient, currentBranch, "release/breaking")
+			var breakingPRLabeled []ghPR
+			if ghAvailable {
+				breakingPRLabeled, err = ghListPRsWithLabel(currentBranch, "release/breaking")
 				if err != nil {
 					warnf(w, "Failed to check PR labels: %v", err)
 				}
 			}
 
-			if len(breakingCommits) > 0 || len(breakingPRs) > 0 {
+			if len(breakingCommits) > 0 || len(breakingPRLabeled) > 0 {
 				fmt.Fprintln(w)
 				warnf(w, "BREAKING CHANGES detected in a PATCH release — this violates semver!")
 				fmt.Fprintln(w)
@@ -668,10 +671,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 						fmt.Fprintf(w, "    - %s %s\n", c.SHA, c.Title)
 					}
 				}
-				if len(breakingPRs) > 0 {
+				if len(breakingPRLabeled) > 0 {
 					fmt.Fprintln(w, "  PRs labeled release/breaking:")
-					for _, pr := range breakingPRs {
-						fmt.Fprintf(w, "    - #%d %s\n", pr.GetNumber(), pr.GetTitle())
+					for _, pr := range breakingPRLabeled {
+						fmt.Fprintf(w, "    - #%d %s\n", pr.Number, pr.Title)
 					}
 				}
 				fmt.Fprintln(w)
@@ -687,14 +690,14 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 
 	// --- Check open PRs ---
 	infof(w, "Checking for open PRs against %s...", currentBranch)
-	var openPRs []*github.PullRequest
-	if ghClient != nil {
-		openPRs, err = listOpenPRs(ctx, ghClient, currentBranch)
+	var openPRs []ghPR
+	if ghAvailable {
+		openPRs, err = ghListOpenPRs(currentBranch)
 		if err != nil {
 			warnf(w, "Failed to check open PRs: %v", err)
 		}
 	} else {
-		infof(w, "Skipping (no GitHub client).")
+		infof(w, "Skipping (no gh CLI).")
 	}
 
 	if len(openPRs) > 0 {
@@ -702,7 +705,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		warnf(w, "There are open PRs targeting %s that may need merging first:", currentBranch)
 		fmt.Fprintln(w)
 		for _, pr := range openPRs {
-			fmt.Fprintf(w, "  #%d %s (@%s)\n", pr.GetNumber(), pr.GetTitle(), pr.GetUser().GetLogin())
+			fmt.Fprintf(w, "  #%d %s (@%s)\n", pr.Number, pr.Title, pr.Author)
 		}
 		fmt.Fprintln(w)
 		if err := confirmWithDefault(inv, "Continue without merging these?", cliui.ConfirmNo); err != nil {
@@ -727,10 +730,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return fmt.Errorf("reading commit log: %w", err)
 	}
 
-	// Build PR number → labels map via GitHub API.
+	// Build PR number → labels map via gh CLI.
 	var prLabels map[int][]string
-	if ghClient != nil {
-		prLabels, err = buildPRLabelMap(ctx, ghClient, currentBranch)
+	if ghAvailable {
+		prLabels, err = ghBuildPRLabelMap(currentBranch)
 		if err != nil {
 			warnf(w, "Failed to fetch PR labels: %v", err)
 		}
@@ -916,105 +919,103 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	return nil
 }
 
-// listOpenPRs returns open PRs targeting the given branch.
-func listOpenPRs(ctx context.Context, client *github.Client, branch string) ([]*github.PullRequest, error) {
-	var allPRs []*github.PullRequest
-	opts := &github.PullRequestListOptions{
-		Base:  branch,
-		State: "open",
-		ListOptions: github.ListOptions{
-			PerPage: 100,
-		},
-	}
-	for {
-		prs, resp, err := client.PullRequests.List(ctx, owner, repo, opts)
-		if err != nil {
-			return nil, err
-		}
-		allPRs = append(allPRs, prs...)
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
-	}
-	return allPRs, nil
+// ghPR is a minimal pull request representation parsed from gh CLI
+// JSON output.
+type ghPR struct {
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	Author string `json:"author"`
+	Labels []string
 }
 
-// listPRsWithLabel returns merged PRs targeting the given branch
+// ghListOpenPRs returns open PRs targeting the given branch via
+// the gh CLI.
+func ghListOpenPRs(branch string) ([]ghPR, error) {
+	out, err := ghOutput("pr", "list",
+		"--repo", owner+"/"+repo,
+		"--base", branch,
+		"--state", "open",
+		"--json", "number,title,author",
+		"--jq", `.[] | "\(.number)\t\(.title)\t\(.author.login)"`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if out == "" {
+		return nil, nil
+	}
+	var prs []ghPR
+	for _, line := range strings.Split(out, "\n") {
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) < 3 {
+			continue
+		}
+		num, _ := strconv.Atoi(parts[0])
+		prs = append(prs, ghPR{
+			Number: num,
+			Title:  parts[1],
+			Author: parts[2],
+		})
+	}
+	return prs, nil
+}
+
+// ghListPRsWithLabel returns merged PRs targeting the given branch
 // that have a specific label.
-func listPRsWithLabel(ctx context.Context, client *github.Client, branch, label string) ([]*github.PullRequest, error) {
-	// go-github's PullRequests.List doesn't support label filtering,
-	// so we use the search API.
-	query := fmt.Sprintf("repo:%s/%s base:%s is:pr is:merged label:%s", owner, repo, branch, label)
-	var allPRs []*github.PullRequest
-	opts := &github.SearchOptions{
-		ListOptions: github.ListOptions{PerPage: 100},
+func ghListPRsWithLabel(branch, label string) ([]ghPR, error) {
+	out, err := ghOutput("pr", "list",
+		"--repo", owner+"/"+repo,
+		"--base", branch,
+		"--state", "merged",
+		"--label", label,
+		"--json", "number,title",
+		"--jq", `.[] | "\(.number)\t\(.title)"`,
+	)
+	if err != nil {
+		return nil, err
 	}
-	for {
-		result, resp, err := client.Search.Issues(ctx, query, opts)
-		if err != nil {
-			return nil, err
-		}
-		for _, issue := range result.Issues {
-			// Convert search issue to a minimal PR-like object.
-			allPRs = append(allPRs, &github.PullRequest{
-				Number: issue.Number,
-				Title:  issue.Title,
-			})
-		}
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
+	if out == "" {
+		return nil, nil
 	}
-	return allPRs, nil
+	var prs []ghPR
+	for _, line := range strings.Split(out, "\n") {
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		num, _ := strconv.Atoi(parts[0])
+		prs = append(prs, ghPR{Number: num, Title: parts[1]})
+	}
+	return prs, nil
 }
 
-// buildPRLabelMap returns a map of PR number → label names for
+// ghBuildPRLabelMap returns a map of PR number → label names for
 // merged PRs targeting the given branch.
-func buildPRLabelMap(ctx context.Context, client *github.Client, branch string) (map[int][]string, error) {
+func ghBuildPRLabelMap(branch string) (map[int][]string, error) {
+	out, err := ghOutput("pr", "list",
+		"--repo", owner+"/"+repo,
+		"--base", branch,
+		"--state", "merged",
+		"--limit", "500",
+		"--json", "number,labels",
+		"--jq", `.[] | "\(.number)\t\([.labels[].name] | join(","))"`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if out == "" {
+		return nil, nil
+	}
 	result := make(map[int][]string)
-	opts := &github.PullRequestListOptions{
-		Base:  branch,
-		State: "closed",
-		ListOptions: github.ListOptions{
-			PerPage: 100,
-		},
-		Sort:      "updated",
-		Direction: "desc",
-	}
-
-	// Fetch up to 500 PRs (5 pages) to match the bash script's
-	// --limit 500 behavior.
-	pages := 0
-	for pages < 5 {
-		prs, resp, err := client.PullRequests.List(ctx, owner, repo, opts)
-		if err != nil {
-			return nil, err
+	for _, line := range strings.Split(out, "\n") {
+		parts := strings.SplitN(line, "\t", 2)
+		if len(parts) < 2 || parts[1] == "" {
+			continue
 		}
-		for _, pr := range prs {
-			if !pr.GetMerged() {
-				continue
-			}
-			var labels []string
-			for _, l := range pr.Labels {
-				labels = append(labels, l.GetName())
-			}
-			if len(labels) > 0 {
-				result[pr.GetNumber()] = labels
-			}
-		}
-		pages++
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
+		num, _ := strconv.Atoi(parts[0])
+		labels := strings.Split(parts[1], ",")
+		sort.Strings(labels)
+		result[num] = labels
 	}
-
-	// Sort labels for deterministic output.
-	for k := range result {
-		sort.Strings(result[k])
-	}
-
 	return result, nil
 }
