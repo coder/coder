@@ -992,7 +992,7 @@ const AgentDetail: FC = () => {
 		<div
 			className={cn(
 				"relative flex min-h-0 min-w-0 flex-1",
-				shouldShowSidebar && !visualExpanded && "flex-col xl:flex-row",
+				shouldShowSidebar && !visualExpanded && "flex-row",
 			)}
 		>
 			<div
