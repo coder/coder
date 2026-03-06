@@ -15326,6 +15326,10 @@ const docTemplate = `{
         "codersdk.ExternalAuthConfig": {
             "type": "object",
             "properties": {
+                "api_base_url": {
+                    "description": "APIBaseURL is the base URL for provider REST API calls\n(e.g., \"https://api.github.com\" for GitHub). Derived from\ndefaults when not explicitly configured.",
+                    "type": "string"
+                },
                 "app_install_url": {
                     "type": "string"
                 },
