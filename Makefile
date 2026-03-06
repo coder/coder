@@ -704,23 +704,19 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 # Both run targets in parallel via -j and fail if any tracked files
 # have unstaged changes afterward (gen/fmt drift or uncommitted work).
 #
-# CI job                → target          → pre-commit?
-# ──────────────────────────────────────────────────────────
-# gen                   → gen               ✓
-# fmt                   → fmt               ✓
-# lint                  → lint              ✓ (includes lint-actions locally)
-# (typos in lint job)   → lint/typos        ✓
-# check-build           → slim binary       ✓ (local arch only)
-# (site build)          → site/out/index.html  (pnpm build)
-# test-go-pg            → test-postgres       (needs Docker)
-# test-js               → test-js             (slow)
-# test-e2e              → test-e2e            (needs Playwright)
-# sqlc-vet              → sqlc-vet            (needs Docker)
-# offlinedocs           → offlinedocs/check   (slow)
+# Both pre-commit and pre-push:
+#   gen, fmt, lint, lint/typos, slim binary (local arch)
 #
-# Omitted from both (reason):
-# test-go-pg-17         → same tests, different PG version
-# test-go-race-pg       → very slow, run manually: make test-race
+# pre-push only (need external services or are slow):
+#   site/out/index.html (pnpm build)
+#   test-postgres (needs Docker)
+#   test-js, test-e2e (needs Playwright)
+#   sqlc-vet (needs Docker)
+#   offlinedocs/check
+#
+# Omitted:
+#   test-go-pg-17 (same tests, different PG version)
+#   test-go-race-pg (very slow, run manually: make test-race)
 
 define check-unstaged
 	unstaged="$$(git diff --name-only)"

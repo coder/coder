@@ -37,21 +37,21 @@ Only pause to ask for confirmation when:
 
 ## Essential Commands
 
-| Task              | Command                  | Notes                            |
-|-------------------|--------------------------|----------------------------------|
-| **Development**   | `./scripts/develop.sh`   | ⚠️ Don't use manual build        |
-| **Build**         | `make build`             | Fat binaries (includes server)   |
-| **Build Slim**    | `make build-slim`        | Slim binaries                    |
-| **Test**          | `make test`              | Full test suite                  |
-| **Test Single**   | `make test RUN=TestName` | Faster than full suite           |
-| **Test Postgres** | `make test-postgres`     | Run tests with Postgres database |
-| **Test Race**     | `make test-race`         | Run tests with Go race detector  |
-| **Lint**          | `make lint`              | Always run after changes         |
-| **Generate**      | `make gen`               | After database changes           |
-| **Format**        | `make fmt`               | Auto-format code                 |
-| **Clean**         | `make clean`             | Clean build artifacts            |
+| Task              | Command                  | Notes                               |
+|-------------------|--------------------------|-------------------------------------|
+| **Development**   | `./scripts/develop.sh`   | ⚠️ Don't use manual build            |
+| **Build**         | `make build`             | Fat binaries (includes server)      |
+| **Build Slim**    | `make build-slim`        | Slim binaries                       |
+| **Test**          | `make test`              | Full test suite                     |
+| **Test Single**   | `make test RUN=TestName` | Faster than full suite              |
+| **Test Postgres** | `make test-postgres`     | Run tests with Postgres database    |
+| **Test Race**     | `make test-race`         | Run tests with Go race detector     |
+| **Lint**          | `make lint`              | Always run after changes            |
+| **Generate**      | `make gen`               | After database changes              |
+| **Format**        | `make fmt`               | Auto-format code                    |
+| **Clean**         | `make clean`             | Clean build artifacts               |
 | **Pre-commit**    | `make pre-commit`        | Fast CI checks (gen/fmt/lint/build) |
-| **Pre-push**      | `make pre-push`          | All CI checks including tests    |
+| **Pre-push**      | `make pre-push`          | All CI checks including tests       |
 
 ### Documentation Commands
 
