@@ -494,7 +494,7 @@ func humanizeTitle(title string) string {
 	if m == nil {
 		return title
 	}
-	scope := m[3]  // may be empty
+	scope := m[3] // may be empty
 	rest := m[4]
 	if rest == "" {
 		return title
