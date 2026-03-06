@@ -2233,6 +2233,41 @@ func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFil
 	return i, err
 }
 
+const getChatFilesByIDs = `-- name: GetChatFilesByIDs :many
+SELECT id, owner_id, organization_id, created_at, name, mimetype, data FROM chat_files WHERE id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error) {
+	rows, err := q.db.QueryContext(ctx, getChatFilesByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatFile
+	for rows.Next() {
+		var i ChatFile
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.CreatedAt,
+			&i.Name,
+			&i.Mimetype,
+			&i.Data,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertChatFile = `-- name: InsertChatFile :one
 INSERT INTO chat_files (owner_id, organization_id, name, mimetype, data)
 VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::bytea)
