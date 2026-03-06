@@ -2371,6 +2371,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to save chat file.",
+			Detail:  err.Error(),
 		})
 		return
 	}
