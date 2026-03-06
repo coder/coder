@@ -14,5 +14,6 @@
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
+unset GIT_DIR
 
 exec make pre-commit
