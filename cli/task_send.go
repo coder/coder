@@ -20,7 +20,8 @@ func (r *RootCmd) taskSend() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "send <task> [<input> | --stdin]",
 		Short: "Send input to a task",
-		Long: "Send input to a task. If the task is paused, it will be automatically resumed before input is sent. If the task is initializing, it will wait for the task to become ready.\n" +
+		Long: `Send input to a task. If the task is paused, it will be automatically resumed before input is sent. If the task is initializing, it will wait for the task to become ready.
+` +
 			FormatExamples(Example{
 				Description: "Send direct input to a task",
 				Command:     `coder task send task1 "Please also add unit tests"`,
@@ -151,6 +152,10 @@ func waitForTaskIdle(ctx context.Context, client *codersdk.Client, task codersdk
 				return nil
 			case codersdk.TaskStateWorking:
 				// Still busy, keep polling.
+			default:
+				// If the task enters an unexpected state (e.g. paused
+				// externally), stop waiting and report the problem.
+				return xerrors.Errorf("task entered unexpected app state %q while waiting for it to become idle", task.CurrentState.State)
 			}
 		}
 	}
@@ -166,11 +171,12 @@ func waitForTaskReady(ctx context.Context, inv *serpent.Invocation, client *code
 	// NOTE(DanielleMaywood):
 	// It has been observed that the `TaskStatusError` state has appeared during
 	// a typical healthy startup [^0]. To combat this, we allow a 5 minute grace
-	// period where we allow `TaskStatusError` and `TaskStatusUnknown` to surface.
+	// period where we allow `TaskStatusError` to surface without immediately
+	// failing.
 	//
 	// TODO(DanielleMaywood):
-	// When/If the upstream API handles this scenario better, we should remove the
-	// grace period.
+	// Remove this grace period once the upstream agentapi health check no
+	// longer reports transient error states during normal startup.
 	//
 	// [0]: https://github.com/coder/coder/pull/22203#discussion_r2858002569
 	const errorGracePeriod = 5 * time.Minute
@@ -199,10 +205,14 @@ func waitForTaskReady(ctx context.Context, inv *serpent.Invocation, client *code
 				if time.Now().After(gracePeriodDeadline) {
 					return xerrors.Errorf("task entered %s state while waiting for it to become active", task.Status)
 				}
-			case codersdk.TaskStatusPaused, codersdk.TaskStatusUnknown:
+			case codersdk.TaskStatusPaused:
+				return xerrors.Errorf("task was paused while waiting for it to become active")
+			case codersdk.TaskStatusPending:
+				// Task is still pending, keep polling.
+			case codersdk.TaskStatusUnknown:
 				return xerrors.Errorf("task entered %s state while waiting for it to become active", task.Status)
 			default:
-				return xerrors.Errorf("task entered unknown state (%s) while waiting for it to become active", task.Status)
+				return xerrors.Errorf("task entered unexpected state (%s) while waiting for it to become active", task.Status)
 			}
 		}
 	}
