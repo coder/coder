@@ -382,6 +382,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 		getFileTree,
 		setFileTree: setFileTreeAndDirty,
 		modelConfig: aiModelConfig ?? { model: { id: "", provider: "openai" } },
+		currentFilePath: activePath,
 		onFileEdited: navigateToExistingFile,
 		onFileDeleted: (path) => {
 			if (activePath === path) {
@@ -942,7 +943,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 			<PublishTemplateVersionDialog
 				key={templateVersion.name}
 				publishingError={publishingError}
-				open={isAskingPublishParameters || isPublishing}
+				open={isAskingPublishParameters}
 				onClose={onCancelPublish}
 				onConfirm={onConfirmPublish}
 				isPublishing={isPublishing}
