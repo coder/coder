@@ -2,16 +2,25 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { UIMessage } from "ai";
 import type { FileTree } from "utils/filetree";
 
-const { createAgentUIStreamMock, readUIMessageStreamMock, ToolLoopAgentMock } =
-	vi.hoisted(() => {
-		return {
-			createAgentUIStreamMock: vi.fn(),
-			readUIMessageStreamMock: vi.fn(),
-			ToolLoopAgentMock: vi.fn(function MockToolLoopAgent(this: unknown) {
-				return this;
-			}),
-		};
-	});
+const {
+	createAgentUIStreamMock,
+	createMCPClientMock,
+	mcpClientCloseMock,
+	mcpClientToolsMock,
+	readUIMessageStreamMock,
+	ToolLoopAgentMock,
+} = vi.hoisted(() => {
+	return {
+		createAgentUIStreamMock: vi.fn(),
+		createMCPClientMock: vi.fn(),
+		mcpClientCloseMock: vi.fn(),
+		mcpClientToolsMock: vi.fn(),
+		readUIMessageStreamMock: vi.fn(),
+		ToolLoopAgentMock: vi.fn(function MockToolLoopAgent(this: unknown) {
+			return this;
+		}),
+	};
+});
 
 vi.mock("ai", () => {
 	return {
@@ -35,6 +44,12 @@ vi.mock("ai", () => {
 		isReasoningUIPart: (part: { type?: unknown }) => {
 			return typeof part?.type === "string" && part.type === "reasoning";
 		},
+	};
+});
+
+vi.mock("@ai-sdk/mcp", () => {
+	return {
+		createMCPClient: createMCPClientMock,
 	};
 });
 
@@ -123,8 +138,13 @@ const completedMessage: UIMessage = {
 	parts: [{ type: "text", text: "Done." }],
 };
 
+type RenderTemplateAgentHookOptions = {
+	currentFilePath?: string;
+	enabled?: boolean;
+};
+
 const renderTemplateAgentHook = (
-	options: { currentFilePath?: string } = {},
+	initialOptions: RenderTemplateAgentHookOptions = {},
 ) => {
 	let fileTree: FileTree = { "main.tf": "old" };
 	const getFileTree = () => fileTree;
@@ -132,20 +152,85 @@ const renderTemplateAgentHook = (
 		fileTree = updater(fileTree);
 	};
 
-	return renderHook(() =>
-		useTemplateAgent({
-			getFileTree,
-			setFileTree,
-			modelConfig: {
-				model: {
-					id: "gpt-4o-mini",
-					provider: "openai",
+	return renderHook(
+		(options: RenderTemplateAgentHookOptions) =>
+			useTemplateAgent({
+				getFileTree,
+				setFileTree,
+				modelConfig: {
+					model: {
+						id: "gpt-4o-mini",
+						provider: "openai",
+					},
 				},
-			},
-			...options,
-		}),
+				...options,
+			}),
+		{ initialProps: initialOptions },
 	);
 };
+
+beforeEach(() => {
+	mcpClientCloseMock.mockResolvedValue(undefined);
+	mcpClientToolsMock.mockResolvedValue({});
+	createMCPClientMock.mockResolvedValue({
+		close: mcpClientCloseMock,
+		tools: mcpClientToolsMock,
+	});
+});
+
+describe("useTemplateAgent MCP lifecycle", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("does not initialize MCP while disabled", () => {
+		renderTemplateAgentHook({ enabled: false });
+
+		expect(createMCPClientMock).not.toHaveBeenCalled();
+	});
+
+	it("initializes MCP once when enabled", async () => {
+		renderTemplateAgentHook({ enabled: true });
+
+		await waitFor(() => {
+			expect(createMCPClientMock).toHaveBeenCalledTimes(1);
+		});
+		expect(mcpClientToolsMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("closes MCP and clears external tools when disabled after startup", async () => {
+		mcpClientToolsMock.mockResolvedValue({
+			lookup: { description: "Registry lookup" },
+		});
+		enqueueUIMessageStreams([[completedMessage]]);
+		const { result, rerender } = renderTemplateAgentHook({ enabled: true });
+
+		await waitFor(() => {
+			expect(mcpClientToolsMock).toHaveBeenCalledTimes(1);
+		});
+
+		rerender({ enabled: false });
+
+		await waitFor(() => {
+			expect(mcpClientCloseMock).toHaveBeenCalledTimes(1);
+		});
+
+		act(() => {
+			result.current.send("Check available tools");
+		});
+
+		await waitFor(() => {
+			expect(createAgentUIStreamMock).toHaveBeenCalledTimes(1);
+		});
+		const toolLoopAgentCall = ToolLoopAgentMock.mock.calls.at(-1) as
+			| [{ tools: Record<string, unknown> }]
+			| undefined;
+		const toolLoopAgentOptions = toolLoopAgentCall?.[0];
+		expect(toolLoopAgentOptions?.tools).not.toHaveProperty(
+			"coder_registry_lookup",
+		);
+	});
+});
 
 describe("useTemplateAgent prompt guidance", () => {
 	beforeEach(() => {
