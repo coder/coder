@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
 import { AttachmentPreview, type UploadState } from "./AgentChatInput";
 
 // Tiny 1x1 transparent PNG as data URI for previews.
@@ -82,6 +82,30 @@ export const UploadError: Story = {
 			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
 		};
 	})(),
+};
+
+export const FileTooLarge: Story = {
+	args: (() => {
+		const file = createMockFile("huge-screenshot.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[
+					file,
+					{
+						status: "error",
+						error: "File too large (12.4 MB). Maximum is 10 MB.",
+					},
+				],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+		};
+	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const overlay = canvas.getByLabelText("Upload error");
+		await userEvent.hover(overlay);
+	},
 };
 
 export const NonImageFile: Story = {

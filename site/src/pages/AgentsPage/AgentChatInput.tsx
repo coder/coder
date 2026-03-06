@@ -281,7 +281,11 @@ export const AttachmentPreview = memo<{
 						{uploadState?.status === "error" && (
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
+									<div
+										className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay"
+										role="img"
+										aria-label="Upload error"
+									>
 										<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
 									</div>
 								</TooltipTrigger>
