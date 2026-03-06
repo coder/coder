@@ -910,12 +910,32 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	fmt.Fprintln(w)
 
 	// --- Trigger release workflow ---
+	// Re-read release notes from disk in case the user edited the
+	// file externally between the editor step and now.
+	freshNotes, err := os.ReadFile(releaseNotesFile)
+	if err != nil {
+		return fmt.Errorf("re-reading release notes: %w", err)
+	}
+	releaseNotes = string(freshNotes)
+
+	// Build the exact payload we will send so the user can review it.
+	workflowPayload := map[string]string{
+		"release_channel": channel,
+		"release_notes":   releaseNotes,
+		"dry_run":         "false",
+	}
+	payloadJSON, err := json.MarshalIndent(workflowPayload, "  ", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling payload preview: %w", err)
+	}
+
 	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "Next step: trigger the 'release.yaml' GitHub Actions workflow."))
+	fmt.Fprintf(w, "  Workflow: release.yaml\n")
+	fmt.Fprintf(w, "  Repo:    %s/%s\n", owner, repo)
 	fmt.Fprintf(w, "  Ref:     %s\n", newVersion)
-	fmt.Fprintf(w, "  Channel: %s\n", channel)
-	fmt.Fprintf(w, "  Payload:\n")
-	fmt.Fprintf(w, "    release_channel: %s\n", channel)
-	fmt.Fprintf(w, "    release_notes:   (%d chars, written to %s)\n", len(releaseNotes), releaseNotesFile)
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "  Payload:"))
+	fmt.Fprintf(w, "  %s\n", payloadJSON)
 	fmt.Fprintln(w)
 	if err := confirm(inv, "Trigger release workflow?"); err != nil {
 		infof(w, "Skipped workflow trigger. You can trigger it manually from GitHub Actions.")
