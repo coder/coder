@@ -3896,7 +3896,7 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			},
 			queueSizes:     []int64{1},
 			queuePositions: []int64{1},
-			skipJobIDs: map[int]struct{}{1: {}},
+			skipJobIDs:     map[int]struct{}{1: {}},
 		},
 	}
 
