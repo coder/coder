@@ -367,7 +367,7 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	require.Len(t, messages, 1)
 }
 
-func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
+func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -399,26 +399,31 @@ func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
 		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
 	})
 	require.NoError(t, err)
-	require.False(t, result.Queued)
-	require.Equal(t, database.ChatStatusPending, result.Chat.Status)
-	require.False(t, result.Chat.WorkerID.Valid)
+
+	// The message should be queued, not inserted directly.
+	require.True(t, result.Queued)
+	require.NotNil(t, result.QueuedMessage)
+
+	// The chat should transition to waiting (interrupt signal),
+	// not pending.
+	require.Equal(t, database.ChatStatusWaiting, result.Chat.Status)
 
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, fromDB.Status)
-	require.False(t, fromDB.WorkerID.Valid)
+	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
 
+	// The message should be in the queue, not in chat_messages.
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, queued, 0)
+	require.Len(t, queued, 1)
 
+	// Only the initial user message should be in chat_messages.
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 2)
-	require.Equal(t, messages[len(messages)-1].ID, result.Message.ID)
+	require.Len(t, messages, 1)
 }
 
 func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
