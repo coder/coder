@@ -37,6 +37,7 @@ const meta: Meta<typeof RepoChangesPanel> = {
 		repo: baseRepo,
 		onRefresh: fn(),
 		onCommit: fn(),
+		diffStyle: "unified",
 	},
 };
 export default meta;

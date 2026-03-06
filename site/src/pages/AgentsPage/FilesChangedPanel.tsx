@@ -12,8 +12,7 @@ import { type DiffStyle, DiffViewer } from "./DiffViewer";
 interface FilesChangedPanelProps {
 	chatId: string;
 	isExpanded?: boolean;
-	diffStyle?: DiffStyle;
-	onDiffStyleChange?: (style: DiffStyle) => void;
+	diffStyle: DiffStyle;
 }
 
 /**
@@ -40,7 +39,6 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 	chatId,
 	isExpanded,
 	diffStyle,
-	onDiffStyleChange,
 }) => {
 	const diffStatusQuery = useQuery(chatDiffStatus(chatId));
 	const diffContentsQuery = useQuery({
@@ -111,7 +109,6 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 			isLoading={diffContentsQuery.isLoading || diffStatusQuery.isLoading}
 			error={diffContentsQuery.isError ? diffContentsQuery.error : undefined}
 			diffStyle={diffStyle}
-			onDiffStyleChange={onDiffStyleChange}
 		/>
 	);
 };

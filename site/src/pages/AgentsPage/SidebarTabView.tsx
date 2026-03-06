@@ -307,7 +307,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						chatId={prTab.chatId}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
-						onDiffStyleChange={handleSetDiffStyle}
 					/>
 				) : effectiveTab && repositories.has(effectiveTab) ? (
 					<RepoChangesPanel
@@ -316,7 +315,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						onCommit={() => onCommit(effectiveTab)}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
-						onDiffStyleChange={handleSetDiffStyle}
 					/>
 				) : null}
 			</div>

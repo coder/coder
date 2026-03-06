@@ -23,8 +23,7 @@ interface RepoChangesPanelProps {
 	onRefresh: () => void;
 	onCommit: () => void;
 	isExpanded?: boolean;
-	diffStyle?: DiffStyle;
-	onDiffStyleChange?: (style: DiffStyle) => void;
+	diffStyle: DiffStyle;
 }
 
 function repoParentPath(repoRoot: string): string {
@@ -41,7 +40,6 @@ export const RepoChangesPanel: FC<RepoChangesPanelProps> = ({
 	onCommit,
 	isExpanded,
 	diffStyle,
-	onDiffStyleChange,
 }) => {
 	const [spinning, setSpinning] = useState(false);
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -116,7 +114,6 @@ export const RepoChangesPanel: FC<RepoChangesPanelProps> = ({
 			isExpanded={isExpanded}
 			emptyMessage="No file changes."
 			diffStyle={diffStyle}
-			onDiffStyleChange={onDiffStyleChange}
 		/>
 	);
 };

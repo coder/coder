@@ -41,10 +41,8 @@ interface DiffViewerProps {
 	error?: unknown;
 	/** Empty state message. */
 	emptyMessage?: string;
-	/** Controlled diff style. When provided, overrides internal state. */
-	diffStyle?: DiffStyle;
-	/** Callback when the diff style changes (for controlled mode). */
-	onDiffStyleChange?: (style: DiffStyle) => void;
+	/** Which diff rendering style to use. */
+	diffStyle: DiffStyle;
 }
 
 // -------------------------------------------------------------------
@@ -394,12 +392,10 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	isLoading,
 	error,
 	emptyMessage = "No file changes to display.",
-	diffStyle: controlledDiffStyle,
+	diffStyle,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
-	const [internalDiffStyle] = useState<DiffStyle>(loadDiffStyle);
-	const diffStyle = controlledDiffStyle ?? internalDiffStyle;
 
 	const diffOptions = useMemo(() => {
 		const base = getDiffViewerOptions(isDark);
