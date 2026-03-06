@@ -1612,6 +1612,25 @@ func (p *Server) subscribeChatControl(
 	return controlCancel
 }
 
+// chatFileResolver returns a FileResolver that fetches chat file
+// content from the database by ID.
+func (p *Server) chatFileResolver() chatprompt.FileResolver {
+	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		files, err := p.db.GetChatFilesByIDs(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
+		for _, f := range files {
+			result[f.ID] = chatprompt.FileData{
+				Data:      f.Data,
+				MediaType: f.Mimetype,
+			}
+		}
+		return result, nil
+	}
+}
+
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat request")
@@ -1927,7 +1946,7 @@ func (p *Server) runChat(
 		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, providerKeys, logger)
 	}()
 
-	prompt, err := chatprompt.ConvertMessages(messages)
+	prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver())
 	if err != nil {
 		return xerrors.Errorf("build chat prompt: %w", err)
 	}
@@ -2275,7 +2294,7 @@ func (p *Server) runChat(
 			if err != nil {
 				return nil, xerrors.Errorf("reload chat messages: %w", err)
 			}
-			reloadedPrompt, err := chatprompt.ConvertMessages(reloadedMsgs)
+			reloadedPrompt, err := chatprompt.ConvertMessagesWithFiles(reloadCtx, reloadedMsgs, p.chatFileResolver())
 			if err != nil {
 				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
 			}
