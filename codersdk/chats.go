@@ -802,7 +802,7 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamC
 
 	return events, closeFunc(func() error {
 		streamCancel()
-		return conn.Close(websocket.StatusNormalClosure, "")
+		return nil
 	}), nil
 }
 
