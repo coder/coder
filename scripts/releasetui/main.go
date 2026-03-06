@@ -483,11 +483,25 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
 	m := branchRe.FindStringSubmatch(currentBranch)
 	if m == nil {
-		return fmt.Errorf("you must be on a release branch (release/X.Y), current branch: %q", currentBranch)
+		warnf(w, "Current branch %q is not a release branch (release/X.Y).", currentBranch)
+		branchInput, err := cliui.Prompt(inv, cliui.PromptOptions{
+			Text: "Enter the release branch to use (e.g. release/2.21)",
+			Validate: func(s string) error {
+				if !branchRe.MatchString(s) {
+					return fmt.Errorf("must be in format release/X.Y (e.g. release/2.21)")
+				}
+				return nil
+			},
+		})
+		if err != nil {
+			return err
+		}
+		currentBranch = branchInput
+		m = branchRe.FindStringSubmatch(currentBranch)
 	}
 	branchMajor, _ := strconv.Atoi(m[1])
 	branchMinor, _ := strconv.Atoi(m[2])
-	successf(w, "On release branch: %s", currentBranch)
+	successf(w, "Using release branch: %s", currentBranch)
 
 	// --- Fetch & sync check ---
 	infof(w, "Fetching latest from origin...")
