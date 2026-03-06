@@ -1,166 +1,236 @@
-import { act, render } from "@testing-library/react";
-import type * as TypesGen from "api/typesGenerated";
-import type { FC, RefObject } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderHook, act } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatMessage } from "api/typesGenerated";
 import { useMessageWindow } from "./useMessageWindow";
+
+// ---------------------------------------------------------------------------
+// IntersectionObserver mock
+// ---------------------------------------------------------------------------
+
+type IOCallback = (entries: IntersectionObserverEntry[]) => void;
+
+interface MockIOInstance {
+	callback: IOCallback;
+	options?: IntersectionObserverInit;
+	observe: ReturnType<typeof vi.fn>;
+	disconnect: ReturnType<typeof vi.fn>;
+}
+
+let ioInstances: MockIOInstance[];
+
+beforeEach(() => {
+	ioInstances = [];
+
+	// Must be a regular function so it can be called with `new`.
+	vi.stubGlobal(
+		"IntersectionObserver",
+		function MockIntersectionObserver(
+			this: MockIOInstance,
+			callback: IOCallback,
+			options?: IntersectionObserverInit,
+		) {
+			this.callback = callback;
+			this.options = options;
+			this.observe = vi.fn();
+			this.disconnect = vi.fn();
+			ioInstances.push(this);
+		},
+	);
+});
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-let intersectionCallback: IntersectionObserverCallback;
+function makeMessages(count: number): ChatMessage[] {
+	return Array.from({ length: count }, (_, i) => ({
+		id: i,
+		chat_id: "test-chat",
+		created_at: new Date(i * 1000).toISOString(),
+		role: "user",
+		content: [{ type: "text" as const, text: `message-${i}` }],
+	}));
+}
 
-beforeEach(() => {
-	vi.stubGlobal(
-		"IntersectionObserver",
-		vi.fn(function mockIO(
-			this: unknown,
-			callback: IntersectionObserverCallback,
-		) {
-			intersectionCallback = callback;
-			return {
-				observe: vi.fn(),
-				disconnect: vi.fn(),
-				unobserve: vi.fn(),
-			};
-		}),
+/** Simulate the sentinel element becoming visible. */
+function triggerIntersection() {
+	const instance = ioInstances.at(-1);
+	if (!instance) {
+		throw new Error("No IntersectionObserver instance found");
+	}
+	instance.callback([{ isIntersecting: true } as IntersectionObserverEntry]);
+}
+
+/**
+ * Flush the requestAnimationFrame-based loading gate so the
+ * observer can fire again.
+ */
+function flushLoadingGate() {
+	vi.advanceTimersToNextTimer();
+}
+
+/**
+ * The hook uses a callback ref for the sentinel. In tests we
+ * invoke it manually after mount to simulate React's commit phase.
+ */
+function renderMessageWindow(
+	messages: ChatMessage[],
+	pageSize: number,
+	resetKey?: string,
+) {
+	const sentinel = document.createElement("div");
+
+	const hookResult = renderHook(
+		(props: { messages: ChatMessage[]; pageSize: number; resetKey?: string }) =>
+			useMessageWindow(props),
+		{ initialProps: { messages, pageSize, resetKey } },
 	);
-});
 
-const makeMessage = (id: number): TypesGen.ChatMessage =>
-	({
-		id,
-		chat_id: "chat-1",
-		created_at: `2025-01-01T00:${String(id).padStart(2, "0")}:00.000Z`,
-		role: id % 2 === 0 ? "user" : "assistant",
-		content: [{ type: "text", text: `Message ${id}` }],
-	}) as TypesGen.ChatMessage;
+	// Simulate React calling the callback ref with the sentinel.
+	act(() => {
+		hookResult.result.current.loadMoreSentinelRef(sentinel);
+	});
 
-/** Fires the mocked IntersectionObserver callback as if the sentinel
- *  scrolled into view. */
-const triggerLoadMore = () => {
-	intersectionCallback(
-		[{ isIntersecting: true } as IntersectionObserverEntry],
-		{} as IntersectionObserver,
-	);
-};
-
-// ---------------------------------------------------------------------------
-// Test harness — a real component so refs are assigned during the
-// React render cycle and useEffect fires normally.
-// ---------------------------------------------------------------------------
-
-type HarnessResult = {
-	windowedLength: number;
-	hasMoreMessages: boolean;
-};
-
-let latestResult: HarnessResult = {
-	windowedLength: 0,
-	hasMoreMessages: false,
-};
-
-const Harness: FC<{
-	messages: readonly TypesGen.ChatMessage[];
-	pageSize: number;
-	resetKey?: string;
-	scrollContainerRef?: RefObject<HTMLElement | null>;
-}> = ({ messages, pageSize, resetKey, scrollContainerRef }) => {
-	const { hasMoreMessages, windowedMessages, loadMoreSentinelRef } =
-		useMessageWindow({
-			messages,
-			resetKey,
-			pageSize,
-			scrollContainerRef,
-		});
-
-	latestResult = {
-		windowedLength: windowedMessages.length,
-		hasMoreMessages,
-	};
-
-	return (
-		<div>
-			{hasMoreMessages && (
-				<div ref={loadMoreSentinelRef} data-testid="sentinel" />
-			)}
-			<div data-testid="count">{windowedMessages.length}</div>
-		</div>
-	);
-};
+	return hookResult;
+}
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe("useMessageWindow", () => {
-	describe("windowing", () => {
-		it("returns the last pageSize messages", () => {
-			const messages = Array.from({ length: 100 }, (_, i) =>
-				makeMessage(i + 1),
-			);
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
 
-			render(<Harness messages={messages} pageSize={50} />);
+	afterEach(() => {
+		vi.useRealTimers();
+	});
 
-			expect(latestResult.windowedLength).toBe(50);
-			expect(latestResult.hasMoreMessages).toBe(true);
+	it("shows only pageSize messages from the end on initial render", () => {
+		const pageSize = 5;
+		const messages = makeMessages(20);
+
+		const { result } = renderMessageWindow(messages, pageSize);
+
+		expect(result.current.windowedMessages).toHaveLength(pageSize);
+		expect(result.current.windowedMessages[0]).toBe(
+			messages[messages.length - pageSize],
+		);
+		expect(result.current.windowedMessages[pageSize - 1]).toBe(
+			messages[messages.length - 1],
+		);
+		expect(result.current.hasMoreMessages).toBe(true);
+	});
+
+	it("loads exactly one more page when the sentinel intersects (no cascade)", () => {
+		const pageSize = 5;
+		const messages = makeMessages(20);
+
+		const { result } = renderMessageWindow(messages, pageSize);
+		expect(result.current.windowedMessages).toHaveLength(pageSize);
+
+		// Trigger the IO callback once.
+		act(() => {
+			triggerIntersection();
 		});
 
-		it("returns all messages when count is below pageSize", () => {
-			const messages = Array.from({ length: 10 }, (_, i) => makeMessage(i + 1));
+		// Exactly one additional page.
+		expect(result.current.windowedMessages).toHaveLength(pageSize * 2);
+		expect(result.current.hasMoreMessages).toBe(true);
+	});
 
-			render(<Harness messages={messages} pageSize={50} />);
+	it("blocks rapid-fire IO callbacks until the loading gate clears", () => {
+		const pageSize = 5;
+		const messages = makeMessages(20);
 
-			expect(latestResult.windowedLength).toBe(10);
-			expect(latestResult.hasMoreMessages).toBe(false);
+		const { result } = renderMessageWindow(messages, pageSize);
+
+		// Fire the IO callback three times in a row (simulating the
+		// browser re-evaluating intersection after each React
+		// commit). Only the first should take effect.
+		act(() => {
+			triggerIntersection();
+			triggerIntersection();
+			triggerIntersection();
 		});
 
-		it("loads more messages when the sentinel intersects", () => {
-			const messages = Array.from({ length: 120 }, (_, i) =>
-				makeMessage(i + 1),
-			);
+		expect(result.current.windowedMessages).toHaveLength(pageSize * 2);
 
-			render(<Harness messages={messages} pageSize={50} />);
-			expect(latestResult.windowedLength).toBe(50);
-
-			act(() => {
-				triggerLoadMore();
-			});
-
-			expect(latestResult.windowedLength).toBe(100);
-			expect(latestResult.hasMoreMessages).toBe(true);
+		// Flush the rAF gate — now a second intersection should work.
+		act(() => {
+			flushLoadingGate();
+		});
+		act(() => {
+			triggerIntersection();
 		});
 
-		it("loads more without crashing when no scrollContainerRef", () => {
-			const messages = Array.from({ length: 100 }, (_, i) =>
-				makeMessage(i + 1),
-			);
+		expect(result.current.windowedMessages).toHaveLength(pageSize * 3);
+	});
 
-			render(<Harness messages={messages} pageSize={50} />);
+	it("sets hasMoreMessages to false when all messages are loaded", () => {
+		const pageSize = 5;
+		const messages = makeMessages(12);
 
-			act(() => {
-				triggerLoadMore();
-			});
+		const { result } = renderMessageWindow(messages, pageSize);
 
-			expect(latestResult.windowedLength).toBe(100);
-		});
+		expect(result.current.windowedMessages).toHaveLength(5);
+		expect(result.current.hasMoreMessages).toBe(true);
 
-		it("resets rendered count when resetKey changes", () => {
-			const messages = Array.from({ length: 100 }, (_, i) =>
-				makeMessage(i + 1),
-			);
+		// Page 2.
+		act(() => triggerIntersection());
+		act(() => flushLoadingGate());
+		expect(result.current.windowedMessages).toHaveLength(10);
+		expect(result.current.hasMoreMessages).toBe(true);
 
-			const { rerender } = render(
-				<Harness messages={messages} pageSize={50} resetKey="a" />,
-			);
+		// Page 3 — all 12 messages.
+		act(() => triggerIntersection());
+		expect(result.current.windowedMessages).toHaveLength(12);
+		expect(result.current.hasMoreMessages).toBe(false);
+	});
 
-			act(() => {
-				triggerLoadMore();
-			});
-			expect(latestResult.windowedLength).toBe(100);
+	it("returns all messages when total is less than pageSize", () => {
+		const pageSize = 10;
+		const messages = makeMessages(3);
 
-			rerender(<Harness messages={messages} pageSize={50} resetKey="b" />);
-			expect(latestResult.windowedLength).toBe(50);
-		});
+		const { result } = renderMessageWindow(messages, pageSize);
+
+		expect(result.current.windowedMessages).toHaveLength(3);
+		expect(result.current.windowedMessages).toBe(messages);
+		expect(result.current.hasMoreMessages).toBe(false);
+	});
+
+	it("resets to initial page size when resetKey changes", () => {
+		const pageSize = 5;
+		const messages = makeMessages(20);
+
+		const { result, rerender } = renderMessageWindow(messages, pageSize, "a");
+
+		act(() => triggerIntersection());
+		expect(result.current.windowedMessages).toHaveLength(pageSize * 2);
+
+		rerender({ messages, pageSize, resetKey: "b" });
+		expect(result.current.windowedMessages).toHaveLength(pageSize);
+		expect(result.current.hasMoreMessages).toBe(true);
+	});
+
+	it("does not recreate the IntersectionObserver on every render", () => {
+		const pageSize = 5;
+		const messages = makeMessages(20);
+
+		const { rerender } = renderMessageWindow(messages, pageSize);
+
+		const countAfterMount = ioInstances.length;
+		expect(countAfterMount).toBeGreaterThan(0);
+
+		rerender({ messages, pageSize, resetKey: undefined });
+		rerender({ messages, pageSize, resetKey: undefined });
+		rerender({ messages, pageSize, resetKey: undefined });
+
+		expect(ioInstances.length).toBe(countAfterMount);
 	});
 });

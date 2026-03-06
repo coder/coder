@@ -115,57 +115,6 @@ const baseChatFields = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Generate a long conversation for testing scroll-back pagination.
- * Produces alternating user/assistant messages so the windowing
- * sentinel becomes visible when the user scrolls up.
- */
-const generateLongConversation = (count: number): TypesGen.ChatMessage[] => {
-	const topics = [
-		"Can you explain how the database connection pooling works?",
-		"What's the best way to handle rate limiting in Go?",
-		"How should we structure the error handling middleware?",
-		"Can you review the caching strategy for workspace metadata?",
-		"What changes are needed for the OAuth2 refresh token flow?",
-		"How do we migrate the existing templates to the new format?",
-		"Can you help debug this intermittent test failure?",
-		"What's the recommended approach for WebSocket reconnection?",
-		"How should we handle concurrent template imports?",
-		"Can you walk me through the provisioner daemon lifecycle?",
-	];
-	const responses = [
-		"The connection pool is managed through `pgxpool.Pool`. Each incoming request acquires a connection from the pool, and it's returned when the request handler completes. The pool size is configured via `CODER_PG_CONNECTION_URL` parameters:\n\n```go\nconfig.MaxConns = 20\nconfig.MinConns = 5\nconfig.MaxConnLifetime = 30 * time.Minute\n```\n\nThis ensures we don't exhaust database connections under load while keeping enough warm connections for typical traffic.",
-		"For rate limiting, I recommend a token bucket algorithm with per-user and per-endpoint granularity:\n\n```go\ntype RateLimiter struct {\n    buckets sync.Map\n    rate    rate.Limit\n    burst   int\n}\n\nfunc (rl *RateLimiter) Allow(key string) bool {\n    v, _ := rl.buckets.LoadOrStore(key, rate.NewLimiter(rl.rate, rl.burst))\n    return v.(*rate.Limiter).Allow()\n}\n```\n\nThe key insight is separating read-heavy endpoints (higher limits) from write endpoints (stricter limits).",
-		"The error handling middleware should follow a chain-of-responsibility pattern. Each middleware layer can decide to handle the error or pass it up:\n\n1. **Validation errors** → 400 with structured field errors\n2. **Authentication errors** → 401 with WWW-Authenticate header\n3. **Authorization errors** → 403 with a human-readable message\n4. **Not found** → 404\n5. **Everything else** → 500 with a correlation ID for debugging\n\nThe correlation ID is critical — it links the user-facing error to our internal logs.",
-		"The caching strategy uses a two-tier approach:\n\n- **L1 (in-process)**: An LRU cache with a 5-minute TTL for workspace metadata that rarely changes (template names, owner info)\n- **L2 (Redis)**: A shared cache for cross-instance consistency with a 15-minute TTL\n\nCache invalidation happens through PostgreSQL LISTEN/NOTIFY — when a workspace is updated, all instances receive the notification and evict the stale entry.",
-		"The OAuth2 refresh token flow needs these changes:\n\n1. Store refresh tokens encrypted at rest (AES-256-GCM)\n2. Implement token rotation — each refresh issues a new refresh token\n3. Add a grace period for concurrent refresh attempts\n4. Set absolute lifetime limits (30 days for refresh tokens)\n\nThe tricky part is handling race conditions when multiple tabs try to refresh simultaneously.",
-		"Template migration involves three phases:\n\n**Phase 1**: Add the new schema fields alongside the old ones\n**Phase 2**: Backfill existing templates with computed values\n**Phase 3**: Drop the deprecated columns\n\nEach phase should be a separate migration to allow rollback. The backfill query needs to handle NULL values gracefully.",
-		"Looking at the test failure, it appears to be a timing issue with the workspace build watcher. The test expects the build to complete within 5 seconds, but under CI load it sometimes takes longer.\n\nInstead of increasing the timeout, I'd recommend using a polling approach with exponential backoff. This makes the test both faster on average and more resilient.",
-		"For WebSocket reconnection, use exponential backoff with jitter:\n\n```go\nbackoff := time.Second\nfor attempt := 0; attempt < maxRetries; attempt++ {\n    conn, err := dial(ctx, url)\n    if err == nil {\n        return conn, nil\n    }\n    jitter := time.Duration(rand.Int63n(int64(backoff / 2)))\n    time.Sleep(backoff + jitter)\n    backoff = min(backoff*2, maxBackoff)\n}\n```\n\nAlso maintain a sequence number so the server can replay missed messages on reconnect.",
-		"Concurrent template imports should use a semaphore to limit parallelism:\n\n1. Acquire a slot from the semaphore (max 3 concurrent imports)\n2. Lock the template row with `SELECT FOR UPDATE SKIP LOCKED`\n3. Perform the import\n4. Release the semaphore slot\n\nThe `SKIP LOCKED` ensures we don't block — if another import is in progress for the same template, we return a 409 Conflict.",
-		"The provisioner daemon lifecycle has four states:\n\n1. **Starting** → Registers with coderd, receives a unique ID\n2. **Idle** → Polling for new jobs every 5 seconds\n3. **Busy** → Executing a provisioner job (plan or apply)\n4. **Draining** → Finishing current job, accepting no new ones\n\nThe transition from Busy → Draining happens on SIGTERM. The daemon has 5 minutes to complete before being forcefully stopped.",
-	];
-
-	const messages: TypesGen.ChatMessage[] = [];
-	for (let i = 0; i < count; i++) {
-		const isUser = i % 2 === 0;
-		const topicIdx = Math.floor(i / 2) % topics.length;
-		messages.push({
-			id: i + 1,
-			chat_id: CHAT_ID,
-			created_at: new Date(Date.UTC(2026, 1, 18, 0, i, 0)).toISOString(),
-			role: isUser ? "user" : "assistant",
-			content: [
-				{
-					type: "text",
-					text: isUser ? topics[topicIdx] : responses[topicIdx],
-				},
-			],
-		} as TypesGen.ChatMessage);
-	}
-	return messages;
-};
-
 /** A small sample unified diff for stories that show the diff panel. */
 const sampleDiff = `diff --git a/main.go b/main.go
 index abc1234..def5678 100644
@@ -602,30 +551,5 @@ export const StreamedReasoningCollapsed: Story = {
 
 		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
 		expect(canvas.getByText("Streaming reasoning body")).toBeInTheDocument();
-	},
-};
-
-/**
- * Long conversation (80 messages) to exercise scroll-back pagination.
- * The default pageSize is 50, so scrolling up will trigger the
- * IntersectionObserver sentinel and load older messages. Use this
- * story to manually verify that the viewport does not jump when
- * earlier messages are prepended.
- */
-export const LongConversation: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Long architecture discussion",
-					status: "completed",
-				},
-				messages: generateLongConversation(80),
-				queued_messages: [],
-			},
-			{ diffUrl: undefined },
-		),
 	},
 };

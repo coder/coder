@@ -96,8 +96,8 @@ const isChatMessage = (
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
 	chatID: string;
-	scrollContainerRef: React.RefObject<HTMLDivElement | null>;
 	persistedErrorReason: string | undefined;
+	scrollContainerRef?: React.RefObject<HTMLElement | null>;
 	onEditUserMessage?: (messageId: number, text: string) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -106,8 +106,8 @@ interface AgentDetailTimelineProps {
 const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	store,
 	chatID,
-	scrollContainerRef,
 	persistedErrorReason,
+	scrollContainerRef,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,

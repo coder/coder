@@ -12,7 +12,7 @@ import {
 	type FC,
 	memo,
 	type ReactNode,
-	type RefObject,
+	type Ref,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -643,7 +643,7 @@ const StickyUserMessage: FC<{
 type ConversationTimelineProps = {
 	isEmpty: boolean;
 	hasMoreMessages: boolean;
-	loadMoreSentinelRef: RefObject<HTMLDivElement | null>;
+	loadMoreSentinelRef: Ref<HTMLDivElement | null>;
 	parsedSections: readonly ParsedMessageSection[];
 	hasStreamOutput: boolean;
 	streamState: StreamState | null;
@@ -694,16 +694,18 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 							Loading earlier messages…
 						</div>
 					)}
-					{parsedSections.map((section, sectionIdx) => (
-						<div
-							key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
-							className="-mx-1 px-1"
-							style={{
-								contentVisibility: "auto",
-								containIntrinsicSize: "1px 600px",
-							}}
-						>
-							<div className="flex flex-col gap-3">
+						{parsedSections.map((section, sectionIdx) => (
+							<div
+								key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
+								data-section-anchor={
+									section.userEntry?.message.id ?? `section-${sectionIdx}`
+								}
+								className="-mx-1 px-1"
+								style={{
+									contentVisibility: "auto",
+									containIntrinsicSize: "1px 600px",
+								}}
+							>							<div className="flex flex-col gap-3">
 								{section.entries.map(({ message, parsed }) =>
 									message.role === "user" ? (
 										<StickyUserMessage
