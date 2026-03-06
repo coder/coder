@@ -39,6 +39,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentdesktop"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
@@ -310,6 +311,7 @@ type agent struct {
 	filesAPI   *agentfiles.API
 	gitAPI     *agentgit.API
 	processAPI *agentproc.API
+	desktopAPI *agentdesktop.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -386,7 +388,10 @@ func (a *agent) init() {
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
-
+	desktop := agentdesktop.NewPortableDesktop(
+		a.logger.Named("desktop"), a.execer, a.scriptDataDir,
+	)
+	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -2055,6 +2060,10 @@ func (a *agent) Close() error {
 
 	if err := a.processAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "process API close", slog.Error(err))
+	}
+
+	if err := a.desktopAPI.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "desktop API close", slog.Error(err))
 	}
 
 	if a.boundaryLogProxy != nil {

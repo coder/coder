@@ -278,6 +278,10 @@ CREATE TYPE chat_message_visibility AS ENUM (
     'both'
 );
 
+CREATE TYPE chat_mode AS ENUM (
+    'computer_use'
+);
+
 CREATE TYPE chat_status AS ENUM (
     'waiting',
     'pending',
@@ -1306,7 +1310,8 @@ CREATE TABLE chats (
     root_chat_id uuid,
     last_model_config_id uuid NOT NULL,
     archived boolean DEFAULT false NOT NULL,
-    last_error text
+    last_error text,
+    mode chat_mode
 );
 
 CREATE TABLE connection_logs (

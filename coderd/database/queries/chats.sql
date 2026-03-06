@@ -142,14 +142,16 @@ INSERT INTO chats (
     parent_chat_id,
     root_chat_id,
     last_model_config_id,
-    title
+    title,
+    mode
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
     sqlc.narg('parent_chat_id')::uuid,
     sqlc.narg('root_chat_id')::uuid,
     @last_model_config_id::uuid,
-    @title::text
+    @title::text,
+    sqlc.narg('mode')::chat_mode
 )
 RETURNING
     *;
