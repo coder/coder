@@ -368,6 +368,49 @@ func TestConvertResources(t *testing.T) {
 				Type: "coder_env",
 			}},
 		},
+		// Verifies that when multiple coder_env resources define the
+		// same key, the ordering is deterministic (sorted by Terraform
+		// address). This prevents a race condition where Go map
+		// iteration order could cause non-deterministic env values.
+		"duplicate-env-keys": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:            "dev",
+					OperatingSystem: "linux",
+					Architecture:    "amd64",
+					ExtraEnvs: []*proto.Env{
+						{
+							Name:  "PATH",
+							Value: "/a/bin",
+						},
+						{
+							Name:  "PATH",
+							Value: "/b/bin",
+						},
+						{
+							Name:  "UNIQUE",
+							Value: "unique_value",
+						},
+					},
+					Auth:                     &proto.Agent_Token{},
+					ApiKeyScope:              "all",
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
+				}},
+			}, {
+				Name: "path_a",
+				Type: "coder_env",
+			}, {
+				Name: "path_b",
+				Type: "coder_env",
+			}, {
+				Name: "unique_env",
+				Type: "coder_env",
+			}},
+		},
 		"multiple-agents-multiple-monitors": {
 			resources: []*proto.Resource{{
 				Name: "dev",
