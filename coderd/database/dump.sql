@@ -3508,6 +3508,8 @@ CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
+CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
+
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
 
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);

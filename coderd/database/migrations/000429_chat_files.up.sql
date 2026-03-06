@@ -9,3 +9,4 @@ CREATE TABLE chat_files (
 );
 
 CREATE INDEX idx_chat_files_owner ON chat_files(owner_id);
+CREATE INDEX idx_chat_files_org ON chat_files(organization_id);

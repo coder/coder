@@ -447,7 +447,7 @@ func injectFileID(encoded json.RawMessage, fileID uuid.UUID) (json.RawMessage, e
 		Type string `json:"type"`
 		Data struct {
 			MediaType        string           `json:"media_type"`
-			Data             json.RawMessage  `json:"data"`
+			Data             json.RawMessage  `json:"data,omitempty"`
 			FileID           string           `json:"file_id,omitempty"`
 			ProviderMetadata *json.RawMessage `json:"provider_metadata,omitempty"`
 		} `json:"data"`

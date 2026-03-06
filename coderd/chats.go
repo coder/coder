@@ -2325,6 +2325,14 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	// Read the full body now that we know the type is valid.
 	data, err := io.ReadAll(br)
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "File too large.",
+				Detail:  fmt.Sprintf("Maximum file size is %d bytes.", maxChatFileSize),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to read file from request.",
 			Detail:  err.Error(),
@@ -2338,7 +2346,17 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		if _, params, err := mime.ParseMediaType(cd); err == nil {
 			filename = params["filename"]
 			if len(filename) > maxChatFileName {
-				filename = filename[:maxChatFileName]
+				// Truncate at rune boundary to avoid splitting
+				// multi-byte UTF-8 characters.
+				var truncated []byte
+				for _, r := range filename {
+					encoded := []byte(string(r))
+					if len(truncated)+len(encoded) > maxChatFileName {
+						break
+					}
+					truncated = append(truncated, encoded...)
+				}
+				filename = string(truncated)
 			}
 		}
 	}
@@ -2353,7 +2371,6 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to save chat file.",
-			Detail:  err.Error(),
 		})
 		return
 	}
