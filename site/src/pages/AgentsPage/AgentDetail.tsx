@@ -1100,6 +1100,8 @@ const AgentDetail: FC = () => {
 				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 				onClose={() => setShowSidebarPanel(false)}
 				onVisualExpandedChange={setDragVisualExpanded}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			>
 				<SidebarTabView
 					prTab={

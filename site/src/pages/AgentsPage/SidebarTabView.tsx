@@ -140,7 +140,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				{/* Tab bar – always visible for the expand button. */}
 				<div
 					role="tablist"
-					className="flex shrink-0 items-center gap-1 px-1 py-1.5"
+					className="flex shrink-0 items-center gap-1 px-1 py-1.5 border-0 border-b border-solid border-border-default"
 				>
 					<div className="min-w-0 flex-1 text-center">
 						{isExpanded && chatTitle && (
@@ -171,7 +171,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 			{/* Tab bar */}
 			<div
 				role="tablist"
-				className="flex shrink-0 items-center gap-1 px-1 py-1.5"
+				className="flex shrink-0 items-center gap-1 px-1 py-1.5 border-0 border-b border-solid border-border-default"
 			>
 				{/* Sidebar toggle – only when expanded and sidebar is collapsed */}
 				{isExpanded && isSidebarCollapsed && onToggleSidebarCollapsed && (
