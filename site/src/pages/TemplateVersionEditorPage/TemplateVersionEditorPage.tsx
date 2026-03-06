@@ -161,7 +161,9 @@ const TemplateVersionEditorPage: FC = () => {
 					defaultFileTree={fileTree}
 					onPreview={async (newFileTree) => {
 						if (!tarFile) {
-							return;
+							throw new Error(
+								"Template version file contents are unavailable.",
+							);
 						}
 						const newVersionFile = await generateVersionFiles(
 							tarFile,
@@ -178,6 +180,7 @@ const TemplateVersionEditorPage: FC = () => {
 						});
 
 						onBuildEnds(newVersion);
+						return newVersion;
 					}}
 					onPublish={() => {
 						setIsPublishingDialogOpen(true);
