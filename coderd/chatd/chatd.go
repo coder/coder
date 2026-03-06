@@ -2069,7 +2069,7 @@ func (p *Server) runChat(
 		}
 
 		if len(assistantBlocks) > 0 {
-			assistantContent, err := chatprompt.MarshalContent(assistantBlocks)
+			assistantContent, err := chatprompt.MarshalContent(assistantBlocks, nil)
 			if err != nil {
 				return err
 			}
@@ -2368,7 +2368,7 @@ func (p *Server) persistChatContextSummary(
 			ToolName:   "chat_summarized",
 			Input:      string(args),
 		},
-	})
+	}, nil)
 	if err != nil {
 		return xerrors.Errorf("encode summary tool call: %w", err)
 	}

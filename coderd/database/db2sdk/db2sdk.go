@@ -1165,18 +1165,16 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 				continue
 			}
 			if i < len(rawBlocks) {
-				if part.Type == codersdk.ChatMessagePartTypeReasoning {
+				switch part.Type {
+				case codersdk.ChatMessagePartTypeReasoning:
 					part.Title = reasoningStoredTitle(rawBlocks[i])
-				}
-				if part.Type == codersdk.ChatMessagePartTypeFile {
-					if fid := fileStoredID(rawBlocks[i]); fid != "" {
-						if parsed, err := uuid.Parse(fid); err == nil {
-							part.FileID = uuid.NullUUID{UUID: parsed, Valid: true}
-						}
+				case codersdk.ChatMessagePartTypeFile:
+					if fid, err := fileStoredID(rawBlocks[i]); err == nil {
+						part.FileID = uuid.NullUUID{UUID: fid, Valid: true}
 					}
-					// When a file_id is present, omit inline data from the
-					// response. Clients fetch file content via the dedicated
-					// GET /chats/files/{id} endpoint instead.
+					// When a file_id is present, omit inline data
+					// from the response. Clients fetch content via
+					// the GET /chats/files/{id} endpoint instead.
 					if part.FileID.Valid {
 						part.Data = nil
 					}
@@ -1285,9 +1283,9 @@ func reasoningStoredTitle(raw json.RawMessage) string {
 	return strings.TrimSpace(envelope.Data.Title)
 }
 
-// fileStoredID extracts the file_id from the data sub-object of a
-// serialized file content block, mirroring reasoningStoredTitle.
-func fileStoredID(raw json.RawMessage) string {
+// fileStoredID extracts and parses the file_id from the data
+// sub-object of a serialized file content block.
+func fileStoredID(raw json.RawMessage) (uuid.UUID, error) {
 	var envelope struct {
 		Type string `json:"type"`
 		Data struct {
@@ -1295,12 +1293,12 @@ func fileStoredID(raw json.RawMessage) string {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return ""
+		return uuid.Nil, xerrors.Errorf("unmarshal file content block: %w", err)
 	}
 	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeFile)) {
-		return ""
+		return uuid.Nil, xerrors.Errorf("unexpected content type: %s", envelope.Type)
 	}
-	return envelope.Data.FileID
+	return uuid.Parse(envelope.Data.FileID)
 }
 
 func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {

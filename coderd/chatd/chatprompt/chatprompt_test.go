@@ -52,7 +52,7 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 					ToolName:   "execute",
 					Input:      tc.input,
 				},
-			})
+			}, nil)
 			require.NoError(t, err)
 
 			toolContent, err := chatprompt.MarshalToolResult(

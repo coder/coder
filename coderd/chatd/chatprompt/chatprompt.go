@@ -404,14 +404,9 @@ func ExtractToolCalls(parts []fantasy.MessagePart) []fantasy.ToolCallContent {
 // fileIDs optionally maps block indices to chat_files IDs, which
 // are injected into the JSON envelope for file-type blocks so
 // the reference survives round-trips through storage.
-func MarshalContent(blocks []fantasy.Content, fileIDs ...map[int]uuid.UUID) (pqtype.NullRawMessage, error) {
+func MarshalContent(blocks []fantasy.Content, fileIDs map[int]uuid.UUID) (pqtype.NullRawMessage, error) {
 	if len(blocks) == 0 {
 		return pqtype.NullRawMessage{}, nil
-	}
-
-	var fids map[int]uuid.UUID
-	if len(fileIDs) > 0 {
-		fids = fileIDs[0]
 	}
 
 	encodedBlocks := make([]json.RawMessage, 0, len(blocks))
@@ -424,7 +419,7 @@ func MarshalContent(blocks []fantasy.Content, fileIDs ...map[int]uuid.UUID) (pqt
 				err,
 			)
 		}
-		if fid, ok := fids[i]; ok {
+		if fid, ok := fileIDs[i]; ok {
 			encoded, err = injectFileID(encoded, fid)
 			if err != nil {
 				return pqtype.NullRawMessage{}, xerrors.Errorf(
@@ -449,16 +444,18 @@ func MarshalContent(blocks []fantasy.Content, fileIDs ...map[int]uuid.UUID) (pqt
 // as the reasoning title injection in marshalContentBlock.
 func injectFileID(encoded json.RawMessage, fileID uuid.UUID) (json.RawMessage, error) {
 	var envelope struct {
-		Type string         `json:"type"`
-		Data map[string]any `json:"data"`
+		Type string `json:"type"`
+		Data struct {
+			MediaType        string           `json:"media_type"`
+			Data             json.RawMessage  `json:"data"`
+			FileID           string           `json:"file_id,omitempty"`
+			ProviderMetadata *json.RawMessage `json:"provider_metadata,omitempty"`
+		} `json:"data"`
 	}
 	if err := json.Unmarshal(encoded, &envelope); err != nil {
 		return encoded, err
 	}
-	if envelope.Data == nil {
-		envelope.Data = map[string]any{}
-	}
-	envelope.Data["file_id"] = fileID.String()
+	envelope.Data.FileID = fileID.String()
 	return json.Marshal(envelope)
 }
 
