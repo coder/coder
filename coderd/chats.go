@@ -1,10 +1,12 @@
 package coderd
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -2296,22 +2298,36 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	r.Body = http.MaxBytesReader(rw, r.Body, maxChatFileSize)
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
+	br := bufio.NewReader(r.Body)
+
+	// Peek at the leading bytes to sniff the real content type
+	// before reading the entire body.
+	peek, peekErr := br.Peek(512)
+	if peekErr != nil && !errors.Is(peekErr, io.EOF) && !errors.Is(peekErr, bufio.ErrBufferFull) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to read file from request.",
-			Detail:  err.Error(),
+			Detail:  peekErr.Error(),
 		})
 		return
 	}
 
 	// Verify the actual content matches a safe image type so that
 	// a client cannot spoof Content-Type to serve active content.
-	detected := detectChatFileType(data)
+	detected := detectChatFileType(peek)
 	if allowed, ok := allowedChatFileMIMETypes[detected]; !ok || !allowed {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
 			Detail:  "Allowed types: image/png, image/jpeg, image/gif, image/webp.",
+		})
+		return
+	}
+
+	// Read the full body now that we know the type is valid.
+	data, err := io.ReadAll(br)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to read file from request.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -2371,11 +2387,11 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chatFile, err := api.Database.GetChatFileByID(ctx, fileID)
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chat file.",
 			Detail:  err.Error(),
