@@ -143,14 +143,14 @@ func TestTokenIsRefreshedEarlyWithoutCoderd(t *testing.T) {
 		OAuthExpiry: dbtime.Now().Add(time.Hour),
 	})
 
-	setLinkExpiration := func(t *testing.T, exp time.Time) {
+	setLinkExpiration := func(t *testing.T, exp time.Time) database.UserLink {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		links, err := db.GetUserLinksByUserID(ctx, user.ID)
 		require.NoError(t, err)
 		require.Len(t, links, 1)
 		link := links[0]
 
-		_, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+		newLink, err := db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 			OAuthAccessToken:       link.OAuthAccessToken,
 			OAuthAccessTokenKeyID:  link.OAuthAccessTokenKeyID,
 			OAuthRefreshToken:      link.OAuthRefreshToken,
@@ -161,6 +161,7 @@ func TestTokenIsRefreshedEarlyWithoutCoderd(t *testing.T) {
 			LoginType:              link.LoginType,
 		})
 		require.NoError(t, err)
+		return newLink
 	}
 
 	for _, c := range []struct {
@@ -205,14 +206,24 @@ func TestTokenIsRefreshedEarlyWithoutCoderd(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
-			setLinkExpiration(t, c.expires())
+			oldLink := setLinkExpiration(t, c.expires())
 			tokenRefreshCount = 0
 			_, err := provisionerdserver.ObtainOIDCAccessToken(ctx, testutil.Logger(t), db, cfg, user.ID)
 			require.NoError(t, err)
+			links, err := db.GetUserLinksByUserID(ctx, user.ID)
+			require.NoError(t, err)
+			require.Len(t, links, 1)
+			newLink := links[0]
+
 			if c.refreshExpected {
 				require.Equal(t, 1, tokenRefreshCount)
+
+				require.NotEqual(t, oldLink.OAuthAccessToken, newLink.OAuthAccessToken)
+				require.NotEqual(t, oldLink.OAuthRefreshToken, newLink.OAuthRefreshToken)
 			} else {
 				require.Equal(t, 0, tokenRefreshCount)
+				require.Equal(t, oldLink.OAuthAccessToken, newLink.OAuthAccessToken)
+				require.Equal(t, oldLink.OAuthRefreshToken, newLink.OAuthRefreshToken)
 			}
 		})
 	}
