@@ -7,11 +7,13 @@ import {
 } from "lucide-react";
 import { type FC, useMemo } from "react";
 import { useQuery } from "react-query";
-import { DiffViewer } from "./DiffViewer";
+import { type DiffStyle, DiffViewer } from "./DiffViewer";
 
 interface FilesChangedPanelProps {
 	chatId: string;
 	isExpanded?: boolean;
+	diffStyle?: DiffStyle;
+	onDiffStyleChange?: (style: DiffStyle) => void;
 }
 
 /**
@@ -37,6 +39,8 @@ function parsePullRequestUrl(url: string): {
 export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 	chatId,
 	isExpanded,
+	diffStyle,
+	onDiffStyleChange,
 }) => {
 	const diffStatusQuery = useQuery(chatDiffStatus(chatId));
 	const diffContentsQuery = useQuery({
@@ -106,6 +110,8 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 			isExpanded={isExpanded}
 			isLoading={diffContentsQuery.isLoading || diffStatusQuery.isLoading}
 			error={diffContentsQuery.isError ? diffContentsQuery.error : undefined}
+			diffStyle={diffStyle}
+			onDiffStyleChange={onDiffStyleChange}
 		/>
 	);
 };

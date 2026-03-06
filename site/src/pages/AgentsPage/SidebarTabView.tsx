@@ -2,14 +2,18 @@ import { parsePatchFiles } from "@pierre/diffs";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
+	Columns2Icon,
 	FolderIcon,
 	GitPullRequestIcon,
 	MaximizeIcon,
 	MinimizeIcon,
 	PanelLeftIcon,
+	Rows3Icon,
 } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import { type FC, useCallback, useId, useMemo, useState } from "react";
 import { cn } from "utils/cn";
+import { DiffStatNumbers } from "./DiffStats";
+import { DIFF_STYLE_KEY, type DiffStyle, loadDiffStyle } from "./DiffViewer";
 import { FilesChangedPanel } from "./FilesChangedPanel";
 import { RepoChangesPanel } from "./RepoChangesPanel";
 
@@ -84,6 +88,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	chatTitle,
 	diffStatus,
 }) => {
+	const tabIdPrefix = useId();
 	const repoEntries = Array.from(repositories.entries()).sort(([a], [b]) =>
 		a.localeCompare(b),
 	);
@@ -99,6 +104,12 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 			: null;
 
 	const [activeTab, setActiveTab] = useState<string | null>(defaultTab);
+
+	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
+	const handleSetDiffStyle = useCallback((style: DiffStyle) => {
+		setDiffStyle(style);
+		localStorage.setItem(DIFF_STYLE_KEY, style);
+	}, []);
 
 	// Derive the effective tab inline to avoid a one-frame flash when
 	// activeTab is stale or null but a valid default exists.
@@ -129,7 +140,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				{/* Tab bar – always visible for the expand button. */}
 				<div
 					role="tablist"
-					className="flex shrink-0 items-center gap-1 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+					className="flex shrink-0 items-center gap-1 px-1 py-1.5"
 				>
 					<div className="min-w-0 flex-1 text-center">
 						{isExpanded && chatTitle && (
@@ -143,7 +154,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						size="icon"
 						onClick={onToggleExpanded}
 						aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-						className="h-7 w-7 text-content-secondary hover:text-content-primary"
+						className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary"
 					>
 						{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 					</Button>
@@ -160,7 +171,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 			{/* Tab bar */}
 			<div
 				role="tablist"
-				className="flex shrink-0 items-center gap-1 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+				className="flex shrink-0 items-center gap-1 px-1 py-1.5"
 			>
 				{/* Sidebar toggle – only when expanded and sidebar is collapsed */}
 				{isExpanded && isSidebarCollapsed && onToggleSidebarCollapsed && (
@@ -169,82 +180,70 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						size="icon"
 						onClick={onToggleSidebarCollapsed}
 						aria-label="Expand sidebar"
-						className="mr-1 h-7 w-7 min-w-0 shrink-0"
+						className="mr-1 h-7 w-7 shrink-0"
 					>
 						<PanelLeftIcon />
 					</Button>
 				)}
 
-				{/* Tabs */}
-				{hasPR && prTab && (
-					<button
-						type="button"
-						id="sidebar-tab-pr"
-						role="tab"
-						aria-selected={effectiveTab === "pr"}
-						onClick={() => setActiveTab("pr")}
-						className={cn(
-							"flex shrink-0 items-center gap-1.5 rounded border border-solid border-border-default px-2 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
-							effectiveTab === "pr"
-								? "bg-surface-tertiary text-content-primary"
-								: "bg-transparent text-content-secondary hover:bg-surface-secondary hover:text-content-primary",
-						)}
-					>
-						<GitPullRequestIcon className="h-3.5 w-3.5" />#{prTab.prNumber}
-						{(prDiffAdditions > 0 || prDiffDeletions > 0) && (
-							<span className="ml-1 inline-flex items-center gap-1 font-mono text-[10px] tabular-nums">
-								{prDiffAdditions > 0 && (
-									<span className="text-green-700 dark:text-green-500">
-										+{prDiffAdditions}
-									</span>
-								)}
-								{prDiffDeletions > 0 && (
-									<span className="text-red-700 dark:text-red-400">
-										&minus;{prDiffDeletions}
-									</span>
-								)}
-							</span>
-						)}
-					</button>
-				)}
-				{repoEntries.map(([repoRoot]) => {
-					const stats = repoDiffStats.get(repoRoot);
-					const additions = stats?.additions ?? 0;
-					const deletions = stats?.deletions ?? 0;
-					return (
+				{/* Tabs – scrolls internally so right-side buttons stay visible */}
+				<div className="flex min-w-0 items-center overflow-x-auto rounded-lg bg-surface-secondary p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+					{hasPR && prTab && (
 						<button
 							type="button"
-							id={`sidebar-tab-${repoRoot}`}
+							id={`${tabIdPrefix}-tab-pr`}
 							role="tab"
-							aria-selected={effectiveTab === repoRoot}
-							key={repoRoot}
-							onClick={() => setActiveTab(repoRoot)}
+							aria-selected={effectiveTab === "pr"}
+							onClick={() => setActiveTab("pr")}
 							className={cn(
-								"flex shrink-0 items-center gap-1.5 rounded border border-solid border-border-default px-2 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
-								effectiveTab === repoRoot
-									? "bg-surface-tertiary text-content-primary"
-									: "bg-transparent text-content-secondary hover:bg-surface-secondary hover:text-content-primary",
+								"flex shrink-0 items-center gap-1.5 rounded-md border-0 px-2 py-1 text-xs font-medium transition-colors cursor-pointer outline-none",
+								effectiveTab === "pr"
+									? "bg-surface-primary text-content-primary shadow-sm"
+									: "bg-transparent text-content-secondary hover:text-content-primary",
 							)}
 						>
-							<FolderIcon className="h-3.5 w-3.5" />
-							{repoTabLabel(repoRoot)}
-							{(additions > 0 || deletions > 0) && (
-								<span className="ml-1 inline-flex items-center gap-1 font-mono text-[10px] tabular-nums">
-									{additions > 0 && (
-										<span className="text-green-700 dark:text-green-500">
-											+{additions}
-										</span>
-									)}
-									{deletions > 0 && (
-										<span className="text-red-700 dark:text-red-400">
-											&minus;{deletions}
-										</span>
-									)}
-								</span>
+							<GitPullRequestIcon className="h-3.5 w-3.5" />#{prTab.prNumber}
+							{(prDiffAdditions > 0 || prDiffDeletions > 0) && (
+								<DiffStatNumbers
+									additions={prDiffAdditions}
+									deletions={prDiffDeletions}
+									className="ml-1 text-[10px]"
+								/>
 							)}
 						</button>
-					);
-				})}
+					)}
+					{repoEntries.map(([repoRoot]) => {
+						const stats = repoDiffStats.get(repoRoot);
+						const additions = stats?.additions ?? 0;
+						const deletions = stats?.deletions ?? 0;
+						return (
+							<button
+								type="button"
+								id={`${tabIdPrefix}-tab-${repoRoot}`}
+								role="tab"
+								aria-selected={effectiveTab === repoRoot}
+								key={repoRoot}
+								onClick={() => setActiveTab(repoRoot)}
+								className={cn(
+									"flex shrink-0 items-center gap-1.5 rounded-md border-0 px-2 py-1 text-xs font-medium transition-colors cursor-pointer outline-none",
+									effectiveTab === repoRoot
+										? "bg-surface-primary text-content-primary shadow-sm"
+										: "bg-transparent text-content-secondary hover:text-content-primary",
+								)}
+							>
+								<FolderIcon className="h-3.5 w-3.5" />
+								{repoTabLabel(repoRoot)}
+								{(additions > 0 || deletions > 0) && (
+									<DiffStatNumbers
+										additions={additions}
+										deletions={deletions}
+										className="ml-1 text-[10px]"
+									/>
+								)}
+							</button>
+						);
+					})}
+				</div>
 
 				{/* Center: chat title when expanded */}
 				<div className="min-w-0 flex-1 text-center">
@@ -255,13 +254,41 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					)}
 				</div>
 
+				{/* Diff style toggle */}
+				<div className="flex shrink-0 items-center gap-0.5">
+					<Button
+						variant={diffStyle === "unified" ? "outline" : "subtle"}
+						size="icon"
+						onClick={() => handleSetDiffStyle("unified")}
+						className={cn(
+							"h-7 w-7",
+							diffStyle === "unified" && "bg-surface-secondary",
+						)}
+						aria-label="Unified diff view"
+					>
+						<Rows3Icon className="!size-3.5" />
+					</Button>
+					<Button
+						variant={diffStyle === "split" ? "outline" : "subtle"}
+						size="icon"
+						onClick={() => handleSetDiffStyle("split")}
+						className={cn(
+							"h-7 w-7",
+							diffStyle === "split" && "bg-surface-secondary",
+						)}
+						aria-label="Split diff view"
+					>
+						<Columns2Icon className="!size-3.5" />
+					</Button>
+				</div>
+
 				{/* Right side: expand/contract button */}
 				<Button
 					variant="subtle"
 					size="icon"
 					onClick={onToggleExpanded}
 					aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-					className="h-7 w-7 text-content-secondary hover:text-content-primary"
+					className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary"
 				>
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
@@ -271,18 +298,25 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 			<div
 				role="tabpanel"
 				aria-labelledby={
-					effectiveTab ? `sidebar-tab-${effectiveTab}` : undefined
+					effectiveTab ? `${tabIdPrefix}-tab-${effectiveTab}` : undefined
 				}
 				className="min-h-0 flex-1"
 			>
 				{effectiveTab === "pr" && prTab ? (
-					<FilesChangedPanel chatId={prTab.chatId} isExpanded={isExpanded} />
+					<FilesChangedPanel
+						chatId={prTab.chatId}
+						isExpanded={isExpanded}
+						diffStyle={diffStyle}
+						onDiffStyleChange={handleSetDiffStyle}
+					/>
 				) : effectiveTab && repositories.has(effectiveTab) ? (
 					<RepoChangesPanel
 						repo={repositories.get(effectiveTab)!}
 						onRefresh={onRefresh}
 						onCommit={() => onCommit(effectiveTab)}
 						isExpanded={isExpanded}
+						diffStyle={diffStyle}
+						onDiffStyleChange={handleSetDiffStyle}
 					/>
 				) : null}
 			</div>

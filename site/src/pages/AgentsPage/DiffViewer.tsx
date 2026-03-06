@@ -6,11 +6,10 @@ import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
 } from "components/ai-elements/tool/utils";
-import { Button } from "components/Button/Button";
 import { FileIcon } from "components/FileIcon/FileIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
-import { ChevronRightIcon, Columns2Icon, Rows3Icon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	type FC,
@@ -42,6 +41,10 @@ interface DiffViewerProps {
 	error?: unknown;
 	/** Empty state message. */
 	emptyMessage?: string;
+	/** Controlled diff style. When provided, overrides internal state. */
+	diffStyle?: DiffStyle;
+	/** Callback when the diff style changes (for controlled mode). */
+	onDiffStyleChange?: (style: DiffStyle) => void;
 }
 
 // -------------------------------------------------------------------
@@ -71,10 +74,10 @@ const STICKY_HEADER_CSS = [
 	"}",
 ].join(" ");
 
-type DiffStyle = "unified" | "split";
-const DIFF_STYLE_KEY = "agents.diff-view-style";
+export type DiffStyle = "unified" | "split";
+export const DIFF_STYLE_KEY = "agents.diff-view-style";
 
-function loadDiffStyle(): DiffStyle {
+export function loadDiffStyle(): DiffStyle {
 	if (typeof window === "undefined") {
 		return "unified";
 	}
@@ -391,14 +394,20 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	isLoading,
 	error,
 	emptyMessage = "No file changes to display.",
+	diffStyle: controlledDiffStyle,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
-	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
-	const handleSetDiffStyle = useCallback((style: DiffStyle) => {
-		setDiffStyle(style);
-		localStorage.setItem(DIFF_STYLE_KEY, style);
-	}, []);
+	const [internalDiffStyle] = useState<DiffStyle>(loadDiffStyle);
+	const diffStyle = controlledDiffStyle ?? internalDiffStyle;
+
+	// When the parent changes the diff style via props, sync to
+	// localStorage so the preference persists.
+	useEffect(() => {
+		if (controlledDiffStyle) {
+			localStorage.setItem(DIFF_STYLE_KEY, controlledDiffStyle);
+		}
+	}, [controlledDiffStyle]);
 
 	const diffOptions = useMemo(() => {
 		const base = getDiffViewerOptions(isDark);
@@ -612,36 +621,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			className="flex h-full min-w-0 flex-col overflow-hidden"
 		>
 			{/* Header */}
-			<div className="flex items-center gap-1 px-3 py-2">
-				{headerLeft}
-				{/* Diff style toggle */}
-				<div className="ml-auto flex items-center gap-1">
-					<Button
-						variant={diffStyle === "unified" ? "outline" : "subtle"}
-						size="lg"
-						onClick={() => handleSetDiffStyle("unified")}
-						className={cn(
-							"min-w-0 h-6 px-2 py-0",
-							diffStyle === "unified" && "bg-surface-secondary",
-						)}
-						aria-label="Unified diff view"
-					>
-						<Rows3Icon className="!p-0 !size-3.5" />
-					</Button>
-					<Button
-						variant={diffStyle === "split" ? "outline" : "subtle"}
-						size="lg"
-						onClick={() => handleSetDiffStyle("split")}
-						className={cn(
-							"min-w-0 h-6 px-2 py-0",
-							diffStyle === "split" && "bg-surface-secondary",
-						)}
-						aria-label="Split diff view"
-					>
-						<Columns2Icon className="!p-0 !size-3.5" />
-					</Button>
-				</div>
-			</div>
+			<div className="flex items-center gap-1 px-3 py-2">{headerLeft}</div>
 			{/* Diff contents */}
 			{sortedFiles.length === 0 ? (
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">

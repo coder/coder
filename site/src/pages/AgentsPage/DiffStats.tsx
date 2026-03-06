@@ -13,7 +13,7 @@ interface DiffStatsProps {
  * Always renders both counters so that zero-line changes (e.g.
  * binary files like images) still display "+0 −0".
  */
-const DiffStatNumbers: FC<DiffStatsProps> = ({
+export const DiffStatNumbers: FC<DiffStatsProps> = ({
 	additions,
 	deletions,
 	className,

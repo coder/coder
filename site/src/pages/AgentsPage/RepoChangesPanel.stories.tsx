@@ -53,13 +53,10 @@ export const NoChanges: Story = {
 	},
 };
 
-export const LongRepoName: Story = {
+export const SplitDiffStyle: Story = {
 	args: {
-		repo: {
-			...baseRepo,
-			repo_root:
-				"/home/coder/very-long-repository-name-that-should-be-truncated-in-the-header",
-		},
+		repo: baseRepo,
+		diffStyle: "split",
 	},
 };
 
@@ -69,6 +66,22 @@ export const LongBranchName: Story = {
 			...baseRepo,
 			branch:
 				"feature/TICKET-12345-implement-very-long-branch-name-for-testing-truncation-behavior",
+		},
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ width: 400 }}>
+				<Story />
+			</div>
+		),
+	],
+};
+
+export const DeepRepoPath: Story = {
+	args: {
+		repo: {
+			...baseRepo,
+			repo_root: "/home/coder/workspaces/my-org/services/project",
 		},
 	},
 };
