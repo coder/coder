@@ -83,7 +83,13 @@ func TestRun_Compaction(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.GreaterOrEqual(t, persistCompactionCalls, 1)
+		// Compaction fires twice: once inline when the threshold is
+		// reached on step 0 (the only step, since MaxSteps=1), and
+		// once from the post-run safety net during the re-entry
+		// iteration (where totalSteps already equals MaxSteps so the
+		// inner loop doesn't execute, but lastUsage still exceeds
+		// the threshold).
+		require.Equal(t, 2, persistCompactionCalls)
 		require.Contains(t, persistedCompaction.SystemSummary, summaryText)
 		require.Equal(t, summaryText, persistedCompaction.SummaryReport)
 		require.Equal(t, int64(80), persistedCompaction.ContextTokens)
@@ -163,17 +169,19 @@ func TestRun_Compaction(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		// Each compaction cycle follows the order:
+		// Compaction fires twice (see PersistsWhenThresholdReached
+		// for the full explanation). Each cycle follows the order:
 		// publish_tool_call → generate → persist → publish_tool_result.
-		// Re-entry may repeat the cycle, so verify the first four
-		// entries preserve the expected ordering.
-		require.GreaterOrEqual(t, len(callOrder), 4)
 		require.Equal(t, []string{
 			"publish_tool_call",
 			"generate",
 			"persist",
 			"publish_tool_result",
-		}, callOrder[:4])
+			"publish_tool_call",
+			"generate",
+			"persist",
+			"publish_tool_result",
+		}, callOrder)
 	})
 
 	t.Run("PublishNotCalledBelowThreshold", func(t *testing.T) {
