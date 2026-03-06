@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook that runs CI-equivalent checks locally.
+# Runs `make pre-commit` (gen, fmt, lint, typos, build) which
+# catches most CI failures without needing Docker or Playwright.
+# The full CI suite (including tests) runs via the pre-push hook.
+#
+# Installation (worktree-compatible):
+#
+#   git config core.hooksPath scripts/githooks
+#
+# Bypass: git commit --no-verify
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+unset GIT_DIR
+
+exec make pre-commit
