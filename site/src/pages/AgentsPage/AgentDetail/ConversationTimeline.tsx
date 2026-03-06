@@ -200,7 +200,9 @@ function renderBlockList({
 				}
 				case "file":
 					if (block.mediaType.startsWith("image/")) {
-						const src = `data:${block.mediaType};base64,${block.data}`;
+						const src = block.fileId
+							? `/api/experimental/chats/files/${block.fileId}`
+							: `data:${block.mediaType};base64,${block.data}`;
 						return (
 							<button
 								key={`${keyPrefix}-file-${index}`}
@@ -234,7 +236,7 @@ const ChatMessageItem = memo<{
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data: string; fileId?: string }>,
+		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -338,7 +340,9 @@ const ChatMessageItem = memo<{
 									return (
 										<div className="mt-2 flex flex-wrap gap-2">
 											{imageBlocks.map((block, i) => {
-												const src = `data:${block.mediaType};base64,${block.data}`;
+												const src = block.fileId
+													? `/api/experimental/chats/files/${block.fileId}`
+													: `data:${block.mediaType};base64,${block.data}`;
 												return (
 													<button
 														key={`user-file-${i}`}
@@ -492,7 +496,7 @@ const StickyUserMessage: FC<{
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data: string; fileId?: string }>,
+		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -633,7 +637,7 @@ const StickyUserMessage: FC<{
 				text: string,
 				fileBlocks?: Array<{
 					mediaType: string;
-					data: string;
+					data?: string;
 					fileId?: string;
 				}>,
 			) => {
@@ -752,7 +756,7 @@ type ConversationTimelineProps = {
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data: string; fileId?: string }>,
+		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;

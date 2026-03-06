@@ -235,7 +235,6 @@ describe("parseMessageContent", () => {
 			{
 				type: "file",
 				media_type: "image/png",
-				data: "iVBORw0KGgo=",
 				file_id: "abc-123-def",
 			},
 		]);
@@ -243,7 +242,7 @@ describe("parseMessageContent", () => {
 		expect(result.blocks[0]).toEqual({
 			type: "file",
 			mediaType: "image/png",
-			data: "iVBORw0KGgo=",
+			data: undefined,
 			fileId: "abc-123-def",
 		});
 	});
