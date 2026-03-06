@@ -1140,6 +1140,7 @@ func TestStructuredLogging(t *testing.T) {
 		expectedErr       error
 		setupMocks        func(db *dbmock.MockStore, interceptionID uuid.UUID)
 		recordFn          func(srv *aibridgedserver.Server, ctx context.Context, interceptionID uuid.UUID) error
+		expectedLineIdx   int
 		expectedFields    map[string]any
 	}
 
@@ -1384,10 +1385,11 @@ func TestStructuredLogging(t *testing.T) {
 			// The structured logging test checks for the first log line.
 			// RecordToolUsage logs both tool_usage and model_thought entries.
 			expectedFields: map[string]any{
-				"record_type":     "tool_usage",
+				"record_type":     "model_thought",
 				"interception_id": interceptionID.String(),
-				"tool":            "bash",
+				"content":         "I need to list the files.",
 			},
+			expectedLineIdx: 1, // "tool_usage" is also logged.
 		},
 	}
 
@@ -1421,9 +1423,9 @@ func TestStructuredLogging(t *testing.T) {
 				require.Empty(t, lines)
 			} else {
 				matchedLines := getLogLinesWithMessage(lines, aibridgedserver.InterceptionLogMarker)
-				require.NotEmpty(t, matchedLines, "expected at least one log line with message %q", aibridgedserver.InterceptionLogMarker)
+				require.GreaterOrEqual(t, tc.expectedLineIdx+1, len(matchedLines), "expected at least %d log line with message %q", tc.expectedLineIdx+1, aibridgedserver.InterceptionLogMarker)
 
-				fields := matchedLines[0].Fields
+				fields := matchedLines[tc.expectedLineIdx].Fields
 				for key, expected := range tc.expectedFields {
 					require.Equal(t, expected, fields[key], "field %q mismatch", key)
 				}
