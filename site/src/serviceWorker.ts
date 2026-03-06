@@ -46,6 +46,7 @@ self.addEventListener("push", (event) => {
 					body: payload.body || "",
 					icon: payload.icon || "/favicon.ico",
 					data: payload.data,
+					tag: payload.tag,
 				});
 			}),
 	);
