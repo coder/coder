@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -37,27 +39,27 @@ func parseVersion(s string) (version, bool) {
 		return version{}, false
 	}
 	maj, _ := strconv.Atoi(m[1])
-	min, _ := strconv.Atoi(m[2])
+	mnr, _ := strconv.Atoi(m[2])
 	pat, _ := strconv.Atoi(m[3])
-	return version{Major: maj, Minor: min, Patch: pat}, true
+	return version{Major: maj, Minor: mnr, Patch: pat}, true
 }
 
 func (v version) String() string {
 	return fmt.Sprintf("v%d.%d.%d", v.Major, v.Minor, v.Patch)
 }
 
-func (a version) GT(b version) bool {
-	if a.Major != b.Major {
-		return a.Major > b.Major
+func (v version) GT(b version) bool {
+	if v.Major != b.Major {
+		return v.Major > b.Major
 	}
-	if a.Minor != b.Minor {
-		return a.Minor > b.Minor
+	if v.Minor != b.Minor {
+		return v.Minor > b.Minor
 	}
-	return a.Patch > b.Patch
+	return v.Patch > b.Patch
 }
 
-func (a version) Eq(b version) bool {
-	return a.Major == b.Major && a.Minor == b.Minor && a.Patch == b.Patch
+func (v version) Eq(b version) bool {
+	return v.Major == b.Major && v.Minor == b.Minor && v.Patch == b.Patch
 }
 
 // ReleaseExecutor handles dangerous write/mutating operations
@@ -78,6 +80,7 @@ type ReleaseExecutor interface {
 // liveExecutor performs real operations.
 type liveExecutor struct{}
 
+//nolint:revive // sign flag is part of the ReleaseExecutor interface contract.
 func (e *liveExecutor) CreateTag(_ context.Context, tag, ref, message string, sign bool) error {
 	args := []string{"tag", "-a"}
 	if sign {
@@ -87,11 +90,11 @@ func (e *liveExecutor) CreateTag(_ context.Context, tag, ref, message string, si
 	return gitRun(args...)
 }
 
-func (e *liveExecutor) PushTag(_ context.Context, tag string) error {
+func (*liveExecutor) PushTag(_ context.Context, tag string) error {
 	return gitRun("push", "origin", tag)
 }
 
-func (e *liveExecutor) TriggerWorkflow(_ context.Context, ref, channel, releaseNotes string) error {
+func (*liveExecutor) TriggerWorkflow(_ context.Context, ref, channel, releaseNotes string) error {
 	payload := map[string]string{
 		"dry_run":         "false",
 		"release_channel": channel,
@@ -99,7 +102,7 @@ func (e *liveExecutor) TriggerWorkflow(_ context.Context, ref, channel, releaseN
 	}
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("marshaling workflow payload: %w", err)
+		return xerrors.Errorf("marshaling workflow payload: %w", err)
 	}
 	cmd := exec.Command("gh", "workflow", "run", "release.yaml",
 		"--repo", owner+"/"+repo,
@@ -117,22 +120,23 @@ type dryRunExecutor struct {
 	w io.Writer
 }
 
+//nolint:revive // sign flag is part of the ReleaseExecutor interface contract.
 func (e *dryRunExecutor) CreateTag(_ context.Context, tag, ref, message string, sign bool) error {
 	signFlag := ""
 	if sign {
 		signFlag = "-s "
 	}
-	fmt.Fprintf(e.w, "[DRYRUN] would run: git tag %s-a %s -m %q %s\n", signFlag, tag, message, ref)
+	_, _ = fmt.Fprintf(e.w, "[DRYRUN] would run: git tag %s-a %s -m %q %s\n", signFlag, tag, message, ref)
 	return nil
 }
 
 func (e *dryRunExecutor) PushTag(_ context.Context, tag string) error {
-	fmt.Fprintf(e.w, "[DRYRUN] would run: git push origin %s\n", tag)
+	_, _ = fmt.Fprintf(e.w, "[DRYRUN] would run: git push origin %s\n", tag)
 	return nil
 }
 
 func (e *dryRunExecutor) TriggerWorkflow(_ context.Context, ref, channel, _ string) error {
-	fmt.Fprintf(e.w, "[DRYRUN] would trigger release.yaml workflow (ref=%s, channel=%s)\n", ref, channel)
+	_, _ = fmt.Fprintf(e.w, "[DRYRUN] would trigger release.yaml workflow (ref=%s, channel=%s)\n", ref, channel)
 	return nil
 }
 
@@ -143,9 +147,9 @@ func gitOutput(args ...string) (string, error) {
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			return "", fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, exitErr.Stderr)
+			return "", xerrors.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, exitErr.Stderr)
 		}
-		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+		return "", xerrors.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -166,9 +170,9 @@ func ghOutput(args ...string) (string, error) {
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			return "", fmt.Errorf("gh %s: %w\n%s", strings.Join(args, " "), err, exitErr.Stderr)
+			return "", xerrors.Errorf("gh %s: %w\n%s", strings.Join(args, " "), err, exitErr.Stderr)
 		}
-		return "", fmt.Errorf("gh %s: %w", strings.Join(args, " "), err)
+		return "", xerrors.Errorf("gh %s: %w", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -244,7 +248,7 @@ func main() {
 
 			// --- Check dependencies ---
 			if _, err := exec.LookPath("git"); err != nil {
-				return fmt.Errorf("git is required but not found in PATH")
+				return xerrors.New("git is required but not found in PATH")
 			}
 
 			// --- Check GPG signing ---
@@ -253,11 +257,11 @@ func main() {
 			gpgConfigured := signingKey != "" || gpgFormat != ""
 			if !gpgConfigured {
 				warnf(w, "GPG signing is not configured. Tags will be unsigned — there will be no way to verify who pushed the tag.")
-				fmt.Fprintf(w, "  To fix: set git config user.signingkey or gpg.format\n")
+				_, _ = fmt.Fprintf(w, "  To fix: set git config user.signingkey or gpg.format\n")
 				if err := confirmWithDefault(inv, "Continue without signing?", cliui.ConfirmNo); err != nil {
 					return err
 				}
-				fmt.Fprintln(w)
+				_, _ = fmt.Fprintln(w)
 			}
 
 			// --- Check gh CLI auth ---
@@ -265,7 +269,7 @@ func main() {
 			if !ghAvailable {
 				warnf(w, "gh CLI is not available or not authenticated.")
 				infof(w, "Continuing without GitHub features (PR checks, label lookups, workflow trigger).")
-				fmt.Fprintln(w)
+				_, _ = fmt.Fprintln(w)
 			}
 
 			// --- Wire up executor ---
@@ -581,7 +585,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	infof(w, "Checking current releases...")
 	allTags, err := allSemverTags()
 	if err != nil {
-		return fmt.Errorf("listing tags: %w", err)
+		return xerrors.Errorf("listing tags: %w", err)
 	}
 
 	var latestMainline *version
@@ -618,7 +622,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// --- Branch detection ---
 	currentBranch, err := gitOutput("branch", "--show-current")
 	if err != nil {
-		return fmt.Errorf("detecting branch: %w", err)
+		return xerrors.Errorf("detecting branch: %w", err)
 	}
 
 	branchRe := regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
@@ -629,7 +633,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			Text: "Enter the release branch to use (e.g. release/2.21)",
 			Validate: func(s string) error {
 				if !branchRe.MatchString(s) {
-					return fmt.Errorf("must be in format release/X.Y (e.g. release/2.21)")
+					return xerrors.New("must be in format release/X.Y (e.g. release/2.21)")
 				}
 				return nil
 			},
@@ -647,12 +651,12 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// --- Fetch & sync check ---
 	infof(w, "Fetching latest from origin...")
 	if err := gitRun("fetch", "--quiet", "--tags", "origin", currentBranch); err != nil {
-		return fmt.Errorf("fetching: %w", err)
+		return xerrors.Errorf("fetching: %w", err)
 	}
 
 	localHead, err := gitOutput("rev-parse", "HEAD")
 	if err != nil {
-		return fmt.Errorf("resolving HEAD: %w", err)
+		return xerrors.Errorf("resolving HEAD: %w", err)
 	}
 	remoteHead, _ := gitOutput("rev-parse", "origin/"+currentBranch)
 
@@ -669,7 +673,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// --- Find previous version & suggest next ---
 	mergedTags, err := mergedSemverTags()
 	if err != nil {
-		return fmt.Errorf("listing merged tags: %w", err)
+		return xerrors.Errorf("listing merged tags: %w", err)
 	}
 
 	var prevVersion *version
@@ -696,7 +700,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		Default: suggested.String(),
 		Validate: func(s string) error {
 			if _, ok := parseVersion(s); !ok {
-				return fmt.Errorf("must be in format vMAJOR.MINOR.PATCH (e.g. v2.31.1)")
+				return xerrors.New("must be in format vMAJOR.MINOR.PATCH (e.g. v2.31.1)")
 			}
 			return nil
 		},
@@ -733,7 +737,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 
 	// --- Semver sanity checks ---
-	if prevVersion != nil {
+	if prevVersion != nil { //nolint:nestif // Sequential release checks are inherently nested.
 		// Downgrade check.
 		if prevVersion.GT(newVersion) {
 			warnf(w, "Version DOWNGRADE detected: %s → %s.", prevVersion, newVersion)
@@ -772,7 +776,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			commitRange := prevVersion.String() + "..HEAD"
 			commits, err := commitLog(commitRange)
 			if err != nil {
-				return fmt.Errorf("reading commit log: %w", err)
+				return xerrors.Errorf("reading commit log: %w", err)
 			}
 
 			var breakingCommits []commitEntry
@@ -886,7 +890,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 
 	commits, err := commitLog(commitRange)
 	if err != nil {
-		return fmt.Errorf("reading commit log: %w", err)
+		return xerrors.Errorf("reading commit log: %w", err)
 	}
 
 	// Build merge-commit SHA → metadata map via gh CLI.
@@ -1004,10 +1008,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// Write to file.
 	releaseNotesFile := fmt.Sprintf("build/RELEASE-%s.md", newVersion)
 	if err := os.MkdirAll("build", 0o755); err != nil {
-		return fmt.Errorf("creating build directory: %w", err)
+		return xerrors.Errorf("creating build directory: %w", err)
 	}
-	if err := os.WriteFile(releaseNotesFile, []byte(releaseNotes), 0o644); err != nil {
-		return fmt.Errorf("writing release notes: %w", err)
+	if err := os.WriteFile(releaseNotesFile, []byte(releaseNotes), 0o600); err != nil {
+		return xerrors.Errorf("writing release notes: %w", err)
 	}
 
 	// --- Preview ---
@@ -1032,13 +1036,15 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("editor: %w", err)
+				return xerrors.Errorf("editor: %w", err)
 			}
 			updated, err := os.ReadFile(releaseNotesFile)
 			if err != nil {
-				return fmt.Errorf("reading edited release notes: %w", err)
+				return xerrors.Errorf("reading edited release notes: %w", err)
 			}
-			releaseNotes = string(updated)
+			// The file will be re-read from disk before the
+			// workflow trigger step.
+			_ = string(updated)
 			infof(w, "Release notes updated.")
 		}
 		fmt.Fprintln(w)
@@ -1047,7 +1053,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// --- Tag ---
 	ref, err := gitOutput("rev-parse", "HEAD")
 	if err != nil {
-		return fmt.Errorf("resolving HEAD: %w", err)
+		return xerrors.Errorf("resolving HEAD: %w", err)
 	}
 	shortRef := ref[:12]
 
@@ -1058,10 +1064,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		fmt.Fprintf(w, "  Branch: %s\n", currentBranch)
 		fmt.Fprintln(w)
 		if err := confirm(inv, "Create tag?"); err != nil {
-			return fmt.Errorf("cannot proceed without a tag")
+			return xerrors.New("cannot proceed without a tag")
 		}
 		if err := executor.CreateTag(ctx, newVersion.String(), ref, "Release "+newVersion.String(), gpgConfigured); err != nil {
-			return fmt.Errorf("creating tag: %w", err)
+			return xerrors.Errorf("creating tag: %w", err)
 		}
 		successf(w, "Tag %s created.", newVersion)
 		fmt.Fprintln(w)
@@ -1075,10 +1081,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	fmt.Fprintf(w, "  This will run: git push origin %s\n", newVersion)
 	fmt.Fprintln(w)
 	if err := confirm(inv, "Push tag?"); err != nil {
-		return fmt.Errorf("cannot trigger release without pushing the tag")
+		return xerrors.New("cannot trigger release without pushing the tag")
 	}
 	if err := executor.PushTag(ctx, newVersion.String()); err != nil {
-		return fmt.Errorf("pushing tag: %w", err)
+		return xerrors.Errorf("pushing tag: %w", err)
 	}
 	successf(w, "Tag pushed.")
 	fmt.Fprintln(w)
@@ -1088,7 +1094,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// file externally between the editor step and now.
 	freshNotes, err := os.ReadFile(releaseNotesFile)
 	if err != nil {
-		return fmt.Errorf("re-reading release notes: %w", err)
+		return xerrors.Errorf("re-reading release notes: %w", err)
 	}
 	releaseNotes = string(freshNotes)
 
@@ -1113,7 +1119,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return nil
 	}
 	if err := executor.TriggerWorkflow(ctx, newVersion.String(), channel, releaseNotes); err != nil {
-		return fmt.Errorf("triggering workflow: %w", err)
+		return xerrors.Errorf("triggering workflow: %w", err)
 	}
 	successf(w, "Release workflow triggered!")
 	fmt.Fprintln(w)
@@ -1197,7 +1203,7 @@ func ghListPRsWithLabel(branch, label string) ([]ghPR, error) {
 // date filter based on the oldest commit in the range.
 func ghBuildPRMetadataMap(commits []commitEntry) (map[string]prMetadata, error) {
 	if len(commits) == 0 {
-		return nil, nil
+		return make(map[string]prMetadata), nil
 	}
 	// Find the earliest commit timestamp to scope the PR query.
 	earliest := commits[0].Timestamp
@@ -1220,10 +1226,10 @@ func ghBuildPRMetadataMap(commits []commitEntry) (map[string]prMetadata, error) 
 	if err != nil {
 		return nil, err
 	}
-	if out == "" {
-		return nil, nil
-	}
 	result := make(map[string]prMetadata)
+	if out == "" {
+		return result, nil
+	}
 	for _, line := range strings.Split(out, "\n") {
 		parts := strings.SplitN(line, "\t", 3)
 		if len(parts) < 3 {
