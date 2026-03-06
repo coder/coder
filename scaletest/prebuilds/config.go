@@ -1,6 +1,7 @@
 package prebuilds
 
 import (
+	"io"
 	"sync"
 	"time"
 
@@ -49,7 +50,8 @@ type Config struct {
 	// with 0 prebuilds before resuming prebuilds.
 	DeletionBarrier *sync.WaitGroup `json:"-"`
 
-	Clock quartz.Clock `json:"-"`
+	Clock     quartz.Clock `json:"-"`
+	LogOutput io.Writer    `json:"-"`
 }
 
 func (c Config) Validate() error {
