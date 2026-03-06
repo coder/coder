@@ -235,18 +235,18 @@ export const RightPanel = ({
 					: cn(
 							"relative min-h-0 min-w-0",
 							visualOpen
-								? "flex h-[42dvh] min-h-[260px] max-h-[56dvh] flex-col xl:h-auto xl:max-h-none xl:w-[var(--panel-width)] xl:min-w-[360px] xl:max-w-[70vw] xl:border-0 xl:border-l xl:border-solid xl:border-border-default"
+								? "flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[var(--panel-width)] sm:min-w-[360px] sm:max-w-[70vw]"
 								: "hidden",
 						),
 			)}
 		>
-			{/* Drag handle (xl+ only, on the left edge of the panel) */}
+			{/* Drag handle (sm+, on the left edge of the panel) */}
 			<div
 				onPointerDown={handlePointerDown}
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerUp}
 				className={cn(
-					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link xl:block",
+					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link sm:block",
 					visualExpanded && "-left-1",
 				)}
 			/>
