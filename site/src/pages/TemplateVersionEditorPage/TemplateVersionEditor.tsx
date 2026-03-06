@@ -187,7 +187,7 @@ interface TemplateVersionEditorProps {
 	resources?: WorkspaceResource[];
 	isBuilding: boolean;
 	canPublish: boolean;
-	onPreview: (files: FileTree) => Promise<void>;
+	onPreview: (files: FileTree) => Promise<TemplateVersion>;
 	onPublish: () => void;
 	onConfirmPublish: (data: PublishVersionData) => void;
 	/** Publishes without navigating — used by the AI tool so the
@@ -296,6 +296,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const templateVersionRef = useRef(templateVersion);
 	templateVersionRef.current = templateVersion;
 
+	const requestedBuildVersionRef = useRef<TemplateVersion | undefined>(
+		undefined,
+	);
+
 	const buildLogsRef = useRef(buildLogs);
 	buildLogsRef.current = buildLogs;
 
@@ -338,26 +342,47 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	// Ref: resolver for the in-flight build promise.
 	const buildCompleteResolverRef = useRef<{
 		id: number;
+		expectedVersionId: string;
 		resolve: (result: BuildResult) => void;
 	} | null>(null);
 
 	const triggerBuild = useCallback(async () => {
-		await onPreview(getFileTree());
-	}, [onPreview, getFileTree]);
+		const requestedBuildVersion = await onPreview(getFileTree());
+		if (!requestedBuildVersion) {
+			throw new Error("Preview build did not return a template version.");
+		}
+		requestedBuildVersionRef.current = requestedBuildVersion;
+	}, [getFileTree, onPreview]);
 
 	const waitForBuildComplete = useCallback((): Promise<BuildResult> => {
 		return new Promise<BuildResult>((resolve) => {
+			const requestedBuildVersion = requestedBuildVersionRef.current;
+			if (!requestedBuildVersion) {
+				throw new Error("No template version was recorded for this build.");
+			}
+
 			const currentTemplateVersion = templateVersionRef.current;
-			if (isTerminalBuildStatus(currentTemplateVersion.job.status)) {
+			if (
+				currentTemplateVersion.id === requestedBuildVersion.id &&
+				isTerminalBuildStatus(currentTemplateVersion.job.status)
+			) {
 				resolve(
 					buildResultFromSnapshot(currentTemplateVersion, buildLogsRef.current),
 				);
 				return;
 			}
+			if (isTerminalBuildStatus(requestedBuildVersion.job.status)) {
+				resolve(buildResultFromSnapshot(requestedBuildVersion));
+				return;
+			}
 
 			const id = buildIdRef.current + 1;
 			buildIdRef.current = id;
-			buildCompleteResolverRef.current = { id, resolve };
+			buildCompleteResolverRef.current = {
+				id,
+				expectedVersionId: requestedBuildVersion.id,
+				resolve,
+			};
 		});
 	}, []);
 
@@ -460,10 +485,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 		if (pending.id !== buildIdRef.current) {
 			return;
 		}
-		if (isTerminalBuildStatus(templateVersion.job.status)) {
-			pending.resolve(buildResultFromSnapshot(templateVersion, buildLogs));
-			buildCompleteResolverRef.current = null;
+		if (
+			templateVersion.id !== pending.expectedVersionId ||
+			!isTerminalBuildStatus(templateVersion.job.status)
+		) {
+			return;
 		}
+		pending.resolve(buildResultFromSnapshot(templateVersion, buildLogs));
+		buildCompleteResolverRef.current = null;
 	}, [templateVersion, buildLogs]);
 
 	// Abort any active stream when the page-level component is

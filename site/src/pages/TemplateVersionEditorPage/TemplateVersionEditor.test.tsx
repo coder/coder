@@ -13,6 +13,7 @@ const {
 	capturedUseTemplateAgentOptionsRef: {
 		current: undefined as
 			| {
+					onBuildRequested?: () => Promise<void>;
 					waitForBuildComplete?: () => Promise<{
 						status: "succeeded" | "failed" | "canceled" | "timeout";
 						error?: string;
@@ -136,6 +137,7 @@ vi.mock("./ai/ModelConfigBar", () => ({
 vi.mock("./ai/useTemplateAgent", () => ({
 	useTemplateAgent: (options: unknown) => {
 		capturedUseTemplateAgentOptionsRef.current = options as {
+			onBuildRequested?: () => Promise<void>;
 			waitForBuildComplete?: () => Promise<{
 				status: "succeeded" | "failed" | "canceled" | "timeout";
 				error?: string;
@@ -194,10 +196,15 @@ const defaultBuildLogs: ProvisionerJobLog[] = [
 	},
 ];
 
-const renderTemplateVersionEditor = (
-	templateVersion: TemplateVersion,
-	buildLogs: ProvisionerJobLog[] = defaultBuildLogs,
-) => {
+const renderTemplateVersionEditor = ({
+	templateVersion,
+	buildLogs = defaultBuildLogs,
+	onPreview = vi.fn().mockResolvedValue(templateVersion),
+}: {
+	templateVersion: TemplateVersion;
+	buildLogs?: ProvisionerJobLog[];
+	onPreview?: (files: FileTree) => Promise<TemplateVersion>;
+}) => {
 	useQueryMock.mockImplementation((query: { enabled?: boolean }) => {
 		if (query.enabled === false) {
 			return { data: [] };
@@ -205,7 +212,7 @@ const renderTemplateVersionEditor = (
 		return { data: [] };
 	});
 
-	render(
+	const view = render(
 		<TemplateVersionEditor
 			activePath="main.tf"
 			buildLogs={buildLogs}
@@ -215,7 +222,7 @@ const renderTemplateVersionEditor = (
 			onCancelPublish={vi.fn()}
 			onConfirmPublish={vi.fn()}
 			onCreateWorkspace={vi.fn()}
-			onPreview={vi.fn().mockResolvedValue(undefined)}
+			onPreview={onPreview}
 			onPublish={vi.fn()}
 			onPublishVersion={vi.fn().mockResolvedValue(undefined)}
 			onSubmitMissingVariableValues={vi.fn()}
@@ -231,9 +238,18 @@ const renderTemplateVersionEditor = (
 		/>,
 	);
 
-	const options = capturedUseTemplateAgentOptionsRef.current;
-	expect(options?.waitForBuildComplete).toBeDefined();
-	return options!;
+	const getOptions = () => {
+		const options = capturedUseTemplateAgentOptionsRef.current;
+		expect(options?.onBuildRequested).toBeDefined();
+		expect(options?.waitForBuildComplete).toBeDefined();
+		return options!;
+	};
+
+	return {
+		...view,
+		getOptions,
+		onPreview,
+	};
 };
 
 describe("TemplateVersionEditor waitForBuildComplete", () => {
@@ -244,44 +260,140 @@ describe("TemplateVersionEditor waitForBuildComplete", () => {
 		useQueryMock.mockReset();
 	});
 
-	it("resolves immediately from a succeeded build snapshot", async () => {
-		const options = renderTemplateVersionEditor({
+	it("resolves immediately from the newly requested terminal build snapshot", async () => {
+		const requestedBuildVersion: TemplateVersion = {
+			...MockTemplateVersion,
+			id: "test-template-version-2",
+			name: "test-version-2",
+			job: {
+				...MockTemplateVersion.job,
+				status: "succeeded",
+			},
+		};
+		const { getOptions } = renderTemplateVersionEditor({
+			templateVersion: MockTemplateVersion,
+			onPreview: vi.fn().mockResolvedValue(requestedBuildVersion),
+		});
+		const options = getOptions();
+
+		await options.onBuildRequested?.();
+		await expect(options.waitForBuildComplete?.()).resolves.toEqual({
+			status: "succeeded",
+			error: requestedBuildVersion.job.error,
+			logs: "",
+		});
+	});
+
+	it("does not resolve from a stale previous terminal snapshot", async () => {
+		const previousVersion: TemplateVersion = {
 			...MockTemplateVersion,
 			job: {
 				...MockTemplateVersion.job,
 				status: "succeeded",
 			},
+		};
+		const requestedBuildVersion: TemplateVersion = {
+			...MockTemplateVersion,
+			id: "test-template-version-2",
+			name: "test-version-2",
+			job: {
+				...MockTemplateVersion.job,
+				status: "pending",
+			},
+		};
+		const completedBuildVersion: TemplateVersion = {
+			...requestedBuildVersion,
+			job: {
+				...requestedBuildVersion.job,
+				status: "succeeded",
+			},
+		};
+		const nextBuildLogs: ProvisionerJobLog[] = [
+			{
+				...defaultBuildLogs[0],
+				id: 2,
+				output: "New build completed",
+			},
+		];
+		const onPreview = vi.fn().mockResolvedValue(requestedBuildVersion);
+		const { getOptions, rerender } = renderTemplateVersionEditor({
+			templateVersion: previousVersion,
+			onPreview,
 		});
+		const options = getOptions();
 
-		await expect(options.waitForBuildComplete?.()).resolves.toEqual({
+		await options.onBuildRequested?.();
+		const buildResultPromise = options.waitForBuildComplete?.();
+		expect(buildResultPromise).toBeDefined();
+
+		let didResolve = false;
+		buildResultPromise?.then(() => {
+			didResolve = true;
+		});
+		await Promise.resolve();
+		expect(didResolve).toBe(false);
+
+		rerender(
+			<TemplateVersionEditor
+				activePath="main.tf"
+				buildLogs={nextBuildLogs}
+				canPublish={false}
+				defaultFileTree={defaultFileTree}
+				onActivePathChange={vi.fn()}
+				onCancelPublish={vi.fn()}
+				onConfirmPublish={vi.fn()}
+				onCreateWorkspace={vi.fn()}
+				onPreview={onPreview}
+				onPublish={vi.fn()}
+				onPublishVersion={vi.fn().mockResolvedValue(undefined)}
+				onSubmitMissingVariableValues={vi.fn()}
+				onCancelSubmitMissingVariableValues={vi.fn()}
+				onUpdateProvisionerTags={vi.fn()}
+				isAskingPublishParameters={false}
+				isBuilding={false}
+				isPromptingMissingVariables={false}
+				isPublishing={false}
+				provisionerTags={{}}
+				template={MockTemplate}
+				templateVersion={completedBuildVersion}
+			/>,
+		);
+
+		await expect(buildResultPromise).resolves.toEqual({
 			status: "succeeded",
-			error: MockTemplateVersion.job.error,
-			logs: "[info] plan: Build completed",
+			error: completedBuildVersion.job.error,
+			logs: "[info] plan: New build completed",
 		});
 	});
 
 	it("maps an unknown terminal snapshot to a failed build result", async () => {
-		const options = renderTemplateVersionEditor(
-			{
-				...MockTemplateVersion,
-				job: {
-					...MockTemplateVersion.job,
-					error: undefined,
-					status: "unknown",
-				},
+		const requestedBuildVersion: TemplateVersion = {
+			...MockTemplateVersion,
+			id: "test-template-version-2",
+			name: "test-version-2",
+			job: {
+				...MockTemplateVersion.job,
+				error: undefined,
+				status: "unknown",
 			},
-			[
+		};
+		const { getOptions } = renderTemplateVersionEditor({
+			templateVersion: MockTemplateVersion,
+			buildLogs: [
 				{
 					...defaultBuildLogs[0],
 					output: "Build status was unknown",
 				},
 			],
-		);
+			onPreview: vi.fn().mockResolvedValue(requestedBuildVersion),
+		});
+		const options = getOptions();
 
+		await options.onBuildRequested?.();
 		await expect(options.waitForBuildComplete?.()).resolves.toEqual({
 			status: "failed",
 			error: "Build ended with an unknown status.",
-			logs: "[info] plan: Build status was unknown",
+			logs: "",
 		});
 	});
 });
