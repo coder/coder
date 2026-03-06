@@ -217,6 +217,7 @@ export const createChatStore = (): ChatStore => {
 		const nextMessagesByID = buildMessageMap(safeMessages);
 		const nextOrderedMessageIDs = buildOrderedMessageIDs(safeMessages);
 
+		// Fast-path: skip setState entirely when nothing changed.
 		if (
 			mapsEqualByRef(state.messagesByID, nextMessagesByID) &&
 			arraysEqual(state.orderedMessageIDs, nextOrderedMessageIDs)
@@ -224,35 +225,62 @@ export const createChatStore = (): ChatStore => {
 			return;
 		}
 
-		setState((current) => ({
-			...current,
-			messagesByID: nextMessagesByID,
-			orderedMessageIDs: nextOrderedMessageIDs,
-		}));
+		setState((current) => {
+			// Re-check equality against `current` inside the updater
+			// to avoid overwriting a concurrent state change.
+			if (
+				mapsEqualByRef(current.messagesByID, nextMessagesByID) &&
+				arraysEqual(current.orderedMessageIDs, nextOrderedMessageIDs)
+			) {
+				return current;
+			}
+			return {
+				...current,
+				messagesByID: nextMessagesByID,
+				orderedMessageIDs: nextOrderedMessageIDs,
+			};
+		});
 	};
 
 	const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
+		// Use `state` for the early-return guard so we can return
+		// the result synchronously. The actual mutation below uses
+		// `current` inside the updater to avoid overwriting a
+		// concurrent state change (TOCTOU).
 		const existing = state.messagesByID.get(message.id);
 		const isDuplicate = state.messagesByID.has(message.id);
 		if (existing && chatMessagesEqualByValue(existing, message)) {
 			return { isDuplicate, changed: false };
 		}
 
-		const nextMessagesByID = new Map(state.messagesByID);
-		nextMessagesByID.set(message.id, message);
+		let actuallyChanged = false;
+		setState((current) => {
+			// Re-check inside the updater: another call may have
+			// already applied this exact message.
+			const curExisting = current.messagesByID.get(message.id);
+			if (curExisting && chatMessagesEqualByValue(curExisting, message)) {
+				return current;
+			}
 
-		const needsReorder =
-			!isDuplicate || nextMessagesByID.size !== state.messagesByID.size;
-		const nextOrderedMessageIDs = needsReorder
-			? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
-			: state.orderedMessageIDs;
+			actuallyChanged = true;
 
-		setState((current) => ({
-			...current,
-			messagesByID: nextMessagesByID,
-			orderedMessageIDs: nextOrderedMessageIDs,
-		}));
-		return { isDuplicate, changed: true };
+			const nextMessagesByID = new Map(current.messagesByID);
+			nextMessagesByID.set(message.id, message);
+
+			const curIsDuplicate = current.messagesByID.has(message.id);
+			const needsReorder =
+				!curIsDuplicate || nextMessagesByID.size !== current.messagesByID.size;
+			const nextOrderedMessageIDs = needsReorder
+				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
+				: current.orderedMessageIDs;
+
+			return {
+				...current,
+				messagesByID: nextMessagesByID,
+				orderedMessageIDs: nextOrderedMessageIDs,
+			};
+		});
+		return { isDuplicate, changed: actuallyChanged };
 	};
 
 	const applyMessageParts = (parts: readonly Record<string, unknown>[]) => {
@@ -260,17 +288,19 @@ export const createChatStore = (): ChatStore => {
 			return;
 		}
 
-		let nextStreamState: StreamState | null = state.streamState;
-		for (const part of parts) {
-			nextStreamState = applyMessagePartToStreamState(nextStreamState, part);
-		}
-		if (nextStreamState === state.streamState) {
-			return;
-		}
-		setState((current) => ({
-			...current,
-			streamState: nextStreamState,
-		}));
+		setState((current) => {
+			let nextStreamState: StreamState | null = current.streamState;
+			for (const part of parts) {
+				nextStreamState = applyMessagePartToStreamState(nextStreamState, part);
+			}
+			if (nextStreamState === current.streamState) {
+				return current;
+			}
+			return {
+				...current,
+				streamState: nextStreamState,
+			};
+		});
 	};
 
 	return {
@@ -287,15 +317,17 @@ export const createChatStore = (): ChatStore => {
 		applyMessageParts,
 		setQueuedMessages: (queuedMessages) => {
 			const nextQueuedMessages = queuedMessages ?? [];
-			if (
-				chatQueuedMessagesEqualByID(state.queuedMessages, nextQueuedMessages)
-			) {
-				return;
-			}
-			setState((current) => ({
-				...current,
-				queuedMessages: nextQueuedMessages,
-			}));
+			setState((current) => {
+				if (
+					chatQueuedMessagesEqualByID(
+						current.queuedMessages,
+						nextQueuedMessages,
+					)
+				) {
+					return current;
+				}
+				return { ...current, queuedMessages: nextQueuedMessages };
+			});
 		},
 		setChatStatus: (status) => {
 			if (state.chatStatus === status) {
@@ -355,12 +387,14 @@ export const createChatStore = (): ChatStore => {
 			if (state.subagentStatusOverrides.get(chatID) === status) {
 				return;
 			}
-			const nextOverrides = new Map(state.subagentStatusOverrides);
-			nextOverrides.set(chatID, status);
-			setState((current) => ({
-				...current,
-				subagentStatusOverrides: nextOverrides,
-			}));
+			setState((current) => {
+				if (current.subagentStatusOverrides.get(chatID) === status) {
+					return current;
+				}
+				const nextOverrides = new Map(current.subagentStatusOverrides);
+				nextOverrides.set(chatID, status);
+				return { ...current, subagentStatusOverrides: nextOverrides };
+			});
 		},
 		resetTransientState: () => {
 			if (
@@ -564,6 +598,9 @@ export const useChatStore = (
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 		) => {
+			if (disposed) {
+				return;
+			}
 			if (payload.parseError || !payload.parsedMessage) {
 				store.setStreamError("Failed to parse chat stream update.");
 				return;
@@ -684,6 +721,10 @@ export const useChatStore = (
 						continue;
 					}
 					case "error": {
+						const eventChatID = asString(streamEvent.chat_id);
+						if (eventChatID && eventChatID !== chatID) {
+							continue;
+						}
 						const error = asRecord(streamEvent.error);
 						const reason =
 							asString(error?.message).trim() || "Chat processing failed.";
@@ -698,8 +739,13 @@ export const useChatStore = (
 						continue;
 					}
 					case "retry": {
+						const eventChatID = asString(streamEvent.chat_id);
+						if (eventChatID && eventChatID !== chatID) {
+							continue;
+						}
 						const retry = streamEvent.retry;
 						if (retry) {
+							store.clearStreamState();
 							store.setRetryState({
 								attempt: retry.attempt,
 								error: retry.error,
@@ -720,6 +766,9 @@ export const useChatStore = (
 			if (disposed) {
 				return;
 			}
+			if (reconnectTimer !== null) {
+				clearTimeout(reconnectTimer);
+			}
 			const delay = Math.min(
 				RECONNECT_BASE_MS * 2 ** reconnectAttempt,
 				RECONNECT_MAX_MS,
@@ -731,6 +780,9 @@ export const useChatStore = (
 		function connect() {
 			if (disposed) {
 				return;
+			}
+			if (activeSocket) {
+				activeSocket.close();
 			}
 
 			// Use the latest known message ID so the server only
@@ -746,9 +798,13 @@ export const useChatStore = (
 			};
 
 			const handleDisconnect = () => {
-				if (disposed) {
+				// Guard against duplicate calls: browsers fire both
+				// "error" and "close" on a failed WebSocket, so we
+				// only process the first event per socket instance.
+				if (activeSocket !== socket || disposed) {
 					return;
 				}
+				activeSocket = null;
 				// Show the error only on the first disconnect (not
 				// while we are already retrying).
 				if (reconnectAttempt === 0) {
