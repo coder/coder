@@ -475,7 +475,26 @@ func (r *RootCmd) loginToken() *serpent.Command {
 		Long:       "Print the session token for use in scripts and automation.",
 		Middleware: serpent.RequireNArgs(0),
 		Handler: func(inv *serpent.Invocation) error {
-			tok, err := r.ensureTokenBackend().Read(r.clientURL)
+			if err := r.ensureClientURL(); err != nil {
+				return err
+			}
+			// When using the file storage, a session token is stored for a single
+			// deployment URL that the user is logged in to. They keyring can store
+			// multiple deployment session tokens. Error if the requested URL doesn't
+			// match the stored config URL when using file storage to avoid returning
+			// a token for the wrong deployment.
+			backend := r.ensureTokenBackend()
+			if _, ok := backend.(*sessionstore.File); ok {
+				conf := r.createConfig()
+				storedURL, err := conf.URL().Read()
+				if err == nil {
+					storedURL = strings.TrimSpace(storedURL)
+					if storedURL != r.clientURL.String() {
+						return xerrors.Errorf("the file-based session store only supports one server at a time: requested %s but logged into %s", r.clientURL.String(), storedURL)
+					}
+				}
+			}
+			tok, err := backend.Read(r.clientURL)
 			if err != nil {
 				if xerrors.Is(err, os.ErrNotExist) {
 					return xerrors.New("no session token found - run 'coder login' first")
