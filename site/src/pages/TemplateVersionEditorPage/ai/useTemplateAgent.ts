@@ -92,7 +92,17 @@ type MCPTools = Awaited<
 type MCPClientInstance = Awaited<ReturnType<typeof createMCPClient>>;
 
 const MCP_TOOL_PREFIX = "coder_registry_";
+const MCP_HTTP_PATH = "/mcp/http";
 const MAX_STEPS = 20;
+
+const getMCPTransportURL = (): string => {
+	const browserOrigin = globalThis.location?.origin;
+	if (typeof browserOrigin !== "string" || browserOrigin.length === 0) {
+		throw new Error("Browser origin is unavailable for MCP initialization.");
+	}
+
+	return new URL(MCP_HTTP_PATH, browserOrigin).toString();
+};
 
 const prefixToolNames = (tools: MCPTools): MCPTools =>
 	Object.fromEntries(
@@ -617,7 +627,7 @@ export const useTemplateAgent = ({
 				const client = await createMCPClient({
 					transport: {
 						type: "http",
-						url: "https://dev.registry.coder.com/mcp",
+						url: getMCPTransportURL(),
 					},
 				});
 				if (cancelled) {

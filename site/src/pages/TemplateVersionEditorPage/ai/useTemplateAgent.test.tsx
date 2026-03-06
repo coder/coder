@@ -198,6 +198,32 @@ describe("useTemplateAgent MCP lifecycle", () => {
 		expect(mcpClientToolsMock).toHaveBeenCalledTimes(1);
 	});
 
+	it("uses the current server MCP endpoint when initializing the client", async () => {
+		renderTemplateAgentHook({ enabled: true });
+
+		await waitFor(() => {
+			expect(createMCPClientMock).toHaveBeenCalledTimes(1);
+		});
+
+		const mcpClientOptions = createMCPClientMock.mock.calls[0]?.[0] as
+			| {
+					transport: {
+						type: string;
+						url: string;
+					};
+			  }
+			| undefined;
+		expect(mcpClientOptions).toEqual({
+			transport: {
+				type: "http",
+				url: new URL("/mcp/http", window.location.origin).toString(),
+			},
+		});
+		expect(mcpClientOptions?.transport.url).not.toContain(
+			"dev.registry.coder.com",
+		);
+	});
+
 	it("closes MCP and clears external tools when disabled after startup", async () => {
 		mcpClientToolsMock.mockResolvedValue({
 			lookup: { description: "Registry lookup" },
