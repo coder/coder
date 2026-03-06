@@ -101,10 +101,17 @@ module.exports = {
 					"0%": { left: "0%" },
 					"100%": { left: "100%" },
 				},
+				"zip-right": {
+					"0%": { left: "0%", width: "0%" },
+					"30%": { left: "0%", width: "40%" },
+					"100%": { left: "100%", width: "0%" },
+				},
 			},
 			animation: {
 				loading: "loading 2s ease-in-out infinite alternate",
 				"caret-scan": "caret-scan 3s ease-in-out infinite",
+				"spin-once": "spin 1s cubic-bezier(0.4, 0, 0.2, 1)",
+				"zip-right": "zip-right 1s cubic-bezier(0.4, 0, 0.2, 1)",
 			},
 		},
 	},

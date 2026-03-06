@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
-
+import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatMessageInputRef } from "./AgentChatInput";
 import {
 	draftInputStorageKeyPrefix,
 	useConversationEditingState,
@@ -17,12 +18,16 @@ describe("useConversationEditingState", () => {
 	const renderEditing = (id: string | undefined = chatID) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
 		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef: import("react").RefObject<string> = { current: "" };
 
 		const hook = renderHook(() =>
 			useConversationEditingState({
 				chatID: id,
 				onSend,
 				onDeleteQueuedMessage,
+				chatInputRef,
+				inputValueRef,
 			}),
 		);
 

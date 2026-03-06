@@ -63,9 +63,9 @@ import {
 import { buildStreamTools } from "./AgentDetail/streamState";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
+import { useWorkspaceCreationWatcher } from "./AgentDetail/useWorkspaceCreationWatcher";
 import type { AgentsOutletContext } from "./AgentsPage";
-import { DiffStatBadge } from "./DiffStats";
-import { FilesChangedPanel } from "./FilesChangedPanel";
+
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -73,6 +73,8 @@ import {
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { RightPanel } from "./RightPanel";
+import { SidebarTabView } from "./SidebarTabView";
+import { useGitWatcher } from "./useGitWatcher";
 
 const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
 	() => {};
@@ -295,13 +297,14 @@ export function useConversationEditingState(deps: {
 	chatID: string | undefined;
 	onSend: (message: string, editedMessageID?: number) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
+	inputValueRef: React.RefObject<string>;
 }) {
-	const { chatID, onSend, onDeleteQueuedMessage } = deps;
+	const { chatID, onSend, onDeleteQueuedMessage, chatInputRef, inputValueRef } =
+		deps;
 	const draftStorageKey = chatID
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
-	const inputValueRef = useRef("");
-	const chatInputRef = useRef<ChatMessageInputRef>(null);
 	const [editorInitialValue, setEditorInitialValue] = useState(() => {
 		if (typeof window === "undefined" || !draftStorageKey) {
 			return "";
@@ -328,7 +331,7 @@ export function useConversationEditingState(deps: {
 			setEditorInitialValue(text);
 			inputValueRef.current = text;
 		},
-		[editingMessageId],
+		[editingMessageId, inputValueRef],
 	);
 
 	const handleCancelHistoryEdit = useCallback(() => {
@@ -336,7 +339,7 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = draftBeforeHistoryEdit ?? "";
 		setEditingMessageId(null);
 		setDraftBeforeHistoryEdit(null);
-	}, [draftBeforeHistoryEdit]);
+	}, [draftBeforeHistoryEdit, inputValueRef]);
 
 	// -- Queue editing state --
 	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
@@ -355,7 +358,7 @@ export function useConversationEditingState(deps: {
 			setEditorInitialValue(text);
 			inputValueRef.current = text;
 		},
-		[editingQueuedMessageID],
+		[editingQueuedMessageID, inputValueRef],
 	);
 
 	const handleCancelQueueEdit = useCallback(() => {
@@ -363,7 +366,7 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = draftBeforeQueueEdit ?? "";
 		setEditingQueuedMessageID(null);
 		setDraftBeforeQueueEdit(null);
-	}, [draftBeforeQueueEdit]);
+	}, [draftBeforeQueueEdit, inputValueRef]);
 
 	// Wraps the parent onSend to clear local input/editing state
 	// and handle queue-edit deletion.
@@ -393,11 +396,13 @@ export function useConversationEditingState(deps: {
 			});
 		},
 		[
+			chatInputRef,
 			editingMessageId,
 			editingQueuedMessageID,
 			onDeleteQueuedMessage,
 			onSend,
 			draftStorageKey,
+			inputValueRef,
 		],
 	);
 
@@ -412,7 +417,7 @@ export function useConversationEditingState(deps: {
 				}
 			}
 		},
-		[draftStorageKey],
+		[draftStorageKey, inputValueRef],
 	);
 
 	return {
@@ -436,7 +441,7 @@ const AgentDetail: FC = () => {
 	const outletContext = useOutletContext<AgentsOutletContext | undefined>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
-	const [showDiffPanel, setShowDiffPanel] = useState(false);
+	const [showSidebarPanel, setShowSidebarPanel] = useState(false);
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	// Tracks the live visual expanded state during drag so sibling
 	// content hides/shows in real-time rather than on pointer-up.
@@ -464,6 +469,8 @@ const AgentDetail: FC = () => {
 	const onToggleSidebarCollapsed =
 		outletContext?.onToggleSidebarCollapsed ?? (() => {});
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
+	const inputValueRef = useRef("");
 
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
@@ -498,7 +505,7 @@ const AgentDetail: FC = () => {
 	if (hasDiffStatus !== prevHasDiffStatus) {
 		setPrevHasDiffStatus(hasDiffStatus);
 		if (hasDiffStatus) {
-			setShowDiffPanel(true);
+			setShowSidebarPanel(true);
 		}
 	}
 
@@ -562,6 +569,44 @@ const AgentDetail: FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 	});
+
+	// Git watcher: runs regardless of sidebar visibility.
+	const gitWatcher = useGitWatcher({
+		chatId: agentId,
+	});
+
+	// Detect workspace creation so the sidebar can resolve the
+	// workspace and display agent/git info.
+	useWorkspaceCreationWatcher({
+		store,
+		chatID: agentId,
+	});
+
+	const handleCommit = useCallback((repoRoot: string) => {
+		const commitPrompt = `Commit and push the working changes in ${repoRoot}. If there are unstaged files, commit them too.`;
+		const current = inputValueRef.current;
+		if (current.includes(commitPrompt)) {
+			return;
+		}
+		const prefix = current.trim() ? "\n\n" : "";
+		chatInputRef.current?.insertText(prefix + commitPrompt);
+		chatInputRef.current?.focus();
+	}, []);
+
+	// Auto-open sidebar when git watcher receives its first non-empty
+	// repositories update.
+	const [prevHasGitRepos, setPrevHasGitRepos] = useState(false);
+	const hasGitRepos = gitWatcher.repositories.size > 0;
+	if (hasGitRepos !== prevHasGitRepos) {
+		setPrevHasGitRepos(hasGitRepos);
+		if (hasGitRepos) {
+			setShowSidebarPanel(true);
+		}
+	}
+
+	// Extract PR number from diff status URL.
+	const prMatch = diffStatusQuery.data?.url?.match(/\/pull\/(\d+)/)?.[1];
+	const prNumber = prMatch ? Number(prMatch) : undefined;
 
 	useEffect(() => {
 		setSelectedModel((current) => {
@@ -726,6 +771,8 @@ const AgentDetail: FC = () => {
 		chatID: agentId,
 		onSend: handleSend,
 		onDeleteQueuedMessage: handleDeleteQueuedMessage,
+		chatInputRef,
+		inputValueRef,
 	});
 
 	const chatTitle = chatQuery.data?.chat?.title;
@@ -761,7 +808,7 @@ const AgentDetail: FC = () => {
 		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
-	const shouldShowDiffPanel = hasDiffStatus && showDiffPanel;
+	const shouldShowSidebar = (hasDiffStatus || hasGitRepos) && showSidebarPanel;
 
 	const generateKeyMutation = useMutation({
 		mutationFn: () => API.getApiKey(),
@@ -834,8 +881,11 @@ const AgentDetail: FC = () => {
 					diff={{
 						hasDiffStatus: false,
 						diffStatus: undefined,
-						showDiffPanel: false,
-						onToggleFilesChanged: () => {},
+						hasGitRepos: false,
+						gitRepoCount: 0,
+						gitRepositories: new Map(),
+						showSidebarPanel: false,
+						onToggleSidebar: () => {},
 					}}
 					workspace={{
 						canOpenEditors: false,
@@ -909,8 +959,11 @@ const AgentDetail: FC = () => {
 					diff={{
 						hasDiffStatus: false,
 						diffStatus: undefined,
-						showDiffPanel: false,
-						onToggleFilesChanged: () => {},
+						hasGitRepos: false,
+						gitRepoCount: 0,
+						gitRepositories: new Map(),
+						showSidebarPanel: false,
+						onToggleSidebar: () => {},
 					}}
 					workspace={{
 						canOpenEditors: false,
@@ -939,7 +992,7 @@ const AgentDetail: FC = () => {
 		<div
 			className={cn(
 				"relative flex min-h-0 min-w-0 flex-1",
-				shouldShowDiffPanel && !visualExpanded && "flex-col xl:flex-row",
+				shouldShowSidebar && !visualExpanded && "flex-col xl:flex-row",
 			)}
 		>
 			<div
@@ -956,8 +1009,11 @@ const AgentDetail: FC = () => {
 						diff={{
 							hasDiffStatus,
 							diffStatus: diffStatusQuery.data,
-							showDiffPanel,
-							onToggleFilesChanged: () => setShowDiffPanel((prev) => !prev),
+							hasGitRepos,
+							gitRepoCount: gitWatcher.repositories.size,
+							gitRepositories: gitWatcher.repositories,
+							showSidebarPanel,
+							onToggleSidebar: () => setShowSidebarPanel((prev) => !prev),
 						}}
 						workspace={{
 							canOpenEditors,
@@ -1039,26 +1095,35 @@ const AgentDetail: FC = () => {
 				</div>
 			</div>
 			<RightPanel
-				isOpen={shouldShowDiffPanel}
+				isOpen={shouldShowSidebar}
 				isExpanded={isRightPanelExpanded}
 				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-				onClose={() => setShowDiffPanel(false)}
-				chatTitle={chatTitle}
-				isSidebarCollapsed={isSidebarCollapsed}
-				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				onClose={() => setShowSidebarPanel(false)}
 				onVisualExpandedChange={setDragVisualExpanded}
-				tabContent={{
-					git: (
-						<FilesChangedPanel
-							chatId={agentId}
-							isExpanded={isRightPanelExpanded}
-						/>
-					),
-				}}
-				tabMeta={{
-					git: <DiffStatBadge diffStatus={diffStatusQuery.data} />,
-				}}
-			/>
+			>
+				<SidebarTabView
+					prTab={
+						prNumber && agentId ? { prNumber, chatId: agentId } : undefined
+					}
+					repositories={gitWatcher.repositories}
+					workspace={
+						workspace
+							? {
+									name: workspace.name,
+									ownerName: workspace.owner_name,
+								}
+							: undefined
+					}
+					onRefresh={gitWatcher.refresh}
+					onCommit={handleCommit}
+					isExpanded={visualExpanded}
+					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+					chatTitle={chatTitle}
+					diffStatus={diffStatusQuery.data}
+				/>
+			</RightPanel>
 		</div>
 	);
 };
