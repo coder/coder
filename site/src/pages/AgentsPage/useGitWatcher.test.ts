@@ -168,8 +168,11 @@ describe("useGitWatcher", () => {
 			expect(socket.close).toHaveBeenCalled();
 			expect(result.current.isConnected).toBe(false);
 
-			// Ensure no reconnection attempts happen.
+			// Simulate the browser firing the close event after
+			// socket.close() — the disposedRef guard must prevent
+			// the reconnect handler from scheduling a new attempt.
 			mockWatchChatGit.mockClear();
+			act(() => socket.simulateClose());
 			act(() => vi.advanceTimersByTime(60_000));
 			expect(mockWatchChatGit).not.toHaveBeenCalled();
 		} finally {
@@ -353,9 +356,11 @@ describe("useGitWatcher", () => {
 
 			expect(socket.close).toHaveBeenCalledTimes(1);
 
-			// Verify that no reconnection happens after unmount by closing
-			// the socket and advancing timers.
+			// Simulate the browser firing the close event after
+			// socket.close() — the disposedRef guard must prevent
+			// the reconnect handler from scheduling a new attempt.
 			mockWatchChatGit.mockClear();
+			act(() => socket.simulateClose());
 			act(() => vi.advanceTimersByTime(60_000));
 			expect(mockWatchChatGit).not.toHaveBeenCalled();
 		} finally {
