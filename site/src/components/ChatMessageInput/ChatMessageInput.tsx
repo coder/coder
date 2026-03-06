@@ -32,6 +32,7 @@ import {
 	useRef,
 } from "react";
 import { cn } from "utils/cn";
+import { $createFileReferenceNode, FileReferenceNode } from "./FileReferenceNode";
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
@@ -222,11 +223,48 @@ const InsertTextPlugin: FC<{
 	return null;
 });
 
+/**
+ * Structured data for a file reference extracted from the editor.
+ */
+export interface FileReferenceData {
+	readonly fileName: string;
+	readonly startLine: number;
+	readonly endLine: number;
+	readonly content: string;
+}
+
+/**
+ * A content part extracted from the Lexical editor in document order.
+ * Either a text segment or a file-reference chip.
+ */
+export type EditorContentPart =
+	| { readonly type: "text"; readonly text: string }
+	| {
+			readonly type: "file-reference";
+			readonly reference: FileReferenceData;
+	  };
+
 export interface ChatMessageInputRef {
 	insertText: (text: string) => void;
 	clear: () => void;
 	focus: () => void;
 	getValue: () => string;
+	/**
+	 * Insert a file reference chip in a single Lexical update
+	 * (atomic for undo/redo).
+	 */
+	addFileReference: (ref: FileReferenceData) => void;
+	/**
+	 * Read all file reference chips currently in the editor.
+	 * This is the source of truth — called at send time.
+	 */
+	getFileReferences: () => FileReferenceData[];
+	/**
+	 * Walk the Lexical tree in document order and return interleaved
+	 * text / file-reference parts. Adjacent text nodes within the same
+	 * paragraph are merged, and paragraphs are separated by newlines.
+	 */
+	getContentParts: () => EditorContentPart[];
 }
 
 interface ChatMessageInputProps
@@ -240,6 +278,7 @@ interface ChatMessageInputProps
 	disabled?: boolean;
 	autoFocus?: boolean;
 	"aria-label"?: string;
+	onFileReferenceCountChange?: (count: number) => void;
 }
 
 // Keeps the Lexical editor's editable state in sync with the
@@ -257,6 +296,35 @@ const EditableStatePlugin: FC<{ disabled: boolean }> = memo(
 	},
 );
 
+// Watches for FileReferenceNode mutations and emits the current
+// count of reference chips in the editor.
+const FileReferenceCountPlugin: FC<{
+	onChange?: (count: number) => void;
+}> = memo(function FileReferenceCountPlugin({ onChange }) {
+	const [editor] = useLexicalComposerContext();
+	const onChangeRef = useRef(onChange);
+	onChangeRef.current = onChange;
+
+	useEffect(() => {
+		return editor.registerMutationListener(FileReferenceNode, () => {
+			editor.getEditorState().read(() => {
+				let count = 0;
+				for (const child of $getRoot().getChildren()) {
+					if (child.getType() !== "paragraph") continue;
+					for (const node of (child as ParagraphNode).getChildren()) {
+						if (node instanceof FileReferenceNode) {
+							count++;
+						}
+					}
+				}
+				onChangeRef.current?.(count);
+			});
+		});
+	}, [editor]);
+
+	return null;
+});
+
 const ChatMessageInput = memo(
 	({
 		className,
@@ -268,6 +336,7 @@ const ChatMessageInput = memo(
 		onFilePaste,
 		disabled,
 		autoFocus,
+		onFileReferenceCountChange,
 		"aria-label": ariaLabel,
 		ref,
 		...props
@@ -279,7 +348,7 @@ const ChatMessageInput = memo(
 					paragraph: "m-0",
 				},
 				onError: (error: Error) => console.error("Lexical error:", error),
-				nodes: [],
+				nodes: [FileReferenceNode],
 				editable: !disabled,
 			}),
 			[disabled],
@@ -379,6 +448,96 @@ const ChatMessageInput = memo(
 					});
 					return content;
 				},
+				addFileReference: (ref: FileReferenceData) => {
+					const editor = editorRef.current;
+					if (!editor) return;
+
+					editor.update(() => {
+						const root = $getRoot();
+						let paragraph = root.getFirstChild();
+						if (!paragraph || paragraph.getType() !== "paragraph") {
+							paragraph = $createParagraphNode();
+							root.append(paragraph);
+						}
+						const chipNode = $createFileReferenceNode(
+							ref.fileName,
+							ref.startLine,
+							ref.endLine,
+							ref.content,
+						);
+						(paragraph as ParagraphNode).append(chipNode);
+						chipNode.selectNext();
+					});
+				},
+				getFileReferences: () => {
+					const editor = editorRef.current;
+					if (!editor) return [];
+					const refs: FileReferenceData[] = [];
+					editor.getEditorState().read(() => {
+						for (const child of $getRoot().getChildren()) {
+							if (child.getType() !== "paragraph") continue;
+							for (const node of (child as ParagraphNode).getChildren()) {
+								if (node instanceof FileReferenceNode) {
+									refs.push({
+										fileName: node.__fileName,
+										startLine: node.__startLine,
+										endLine: node.__endLine,
+										content: node.__content,
+									});
+								}
+							}
+						}
+					});
+					return refs;
+				},
+				getContentParts: () => {
+					const editor = editorRef.current;
+					if (!editor) return [];
+					const parts: EditorContentPart[] = [];
+					editor.getEditorState().read(() => {
+						const paragraphs = $getRoot().getChildren();
+						for (let i = 0; i < paragraphs.length; i++) {
+							const para = paragraphs[i];
+							if (para.getType() !== "paragraph") continue;
+							// Separate paragraphs with a newline in the
+							// preceding text part, just like getTextContent().
+							if (i > 0) {
+								const last = parts[parts.length - 1];
+								if (last?.type === "text") {
+									(last as { text: string }).text += "\n";
+								} else {
+									parts.push({ type: "text", text: "\n" });
+								}
+							}
+							for (const node of (
+								para as ParagraphNode
+							).getChildren()) {
+									if (node instanceof FileReferenceNode) {
+										parts.push({
+											type: "file-reference",
+											reference: {
+												fileName: node.__fileName,
+												startLine: node.__startLine,
+												endLine: node.__endLine,
+												content: node.__content,
+											},
+										});								} else {
+									// Text node (or any other inline) —
+									// merge into the last text part.
+									const t = node.getTextContent();
+									if (!t) continue;
+									const last = parts[parts.length - 1];
+									if (last?.type === "text") {
+										(last as { text: string }).text += t;
+									} else {
+										parts.push({ type: "text", text: t });
+									}
+								}
+							}
+						}
+					});
+					return parts;
+				},
 			}),
 			[],
 		);
@@ -397,7 +556,7 @@ const ChatMessageInput = memo(
 					<RichTextPlugin
 						contentEditable={
 							<ContentEditable
-								className="outline-none w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent] [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
+								className="outline-none w-full whitespace-pre-wrap overflow-y-auto max-h-[50vh] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent] [&_p]:leading-normal [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 py-px"
 								data-testid="chat-message-input"
 								style={{ minHeight: "inherit" }}
 								aria-label={ariaLabel}
@@ -420,6 +579,7 @@ const ChatMessageInput = memo(
 					<InsertTextPlugin onEditorReady={handleEditorReady} />
 					<EditableStatePlugin disabled={!!disabled} />
 					{autoFocus && <AutoFocusPlugin />}
+					<FileReferenceCountPlugin onChange={onFileReferenceCountChange} />
 				</div>
 			</LexicalComposer>
 		);
