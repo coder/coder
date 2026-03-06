@@ -11,11 +11,11 @@ import (
 // by AI Bridge before forwarding requests to upstream providers.
 const HeaderCoderAuth = "X-Coder-Token"
 
-// HeaderCoderProviderKey is the header used to pass a per-user provider API
+// HeaderCoderLLMKey is the header used to pass a per-user LLM provider API
 // key (BYOK) to AI Bridge. When present, AI Bridge uses this key for upstream
 // requests instead of the centralized provider key configured on the server.
 // The header is stripped before forwarding requests to upstream providers.
-const HeaderCoderProviderKey = "X-Coder-Provider-Key"
+const HeaderCoderLLMKey = "X-Coder-LLM-Key"
 
 // ExtractAuthToken extracts an authorization token from HTTP headers.
 // It checks X-Coder-Token first (set by AI Proxy), then falls back
