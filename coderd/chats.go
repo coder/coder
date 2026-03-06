@@ -2473,9 +2473,9 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
 				}
 			}
-			// TODO(mafredri): Batch-fetch files with a
-			// GetChatFilesByIDs query to avoid N+1 DB round-trips
-			// when messages contain many file parts.
+			// Validate that the file exists and get its media type.
+			// File data is not loaded here; it's resolved at LLM
+			// dispatch time via chatFileResolver.
 			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
 			if err != nil {
 				if httpapi.Is404Error(err) {
@@ -2490,7 +2490,6 @@ func createChatInputFromParts(
 				}
 			}
 			content = append(content, fantasy.FileContent{
-				Data:      chatFile.Data,
 				MediaType: chatFile.Mimetype,
 			})
 			fileIDs[len(content)-1] = part.FileID
