@@ -1619,6 +1619,18 @@ func TestChatMessageWithFiles(t *testing.T) {
 			require.NotNil(t, resp.Message)
 			require.Equal(t, "user", resp.Message.Role)
 		}
+
+		// Verify file parts omit inline data in the API response.
+		chatWithMessages, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		for _, msg := range chatWithMessages.Messages {
+			for _, part := range msg.Content {
+				if part.Type == codersdk.ChatMessagePartTypeFile {
+					require.NotEqual(t, uuid.Nil, part.FileID)
+					require.Nil(t, part.Data, "file data should not be sent when file_id is present")
+				}
+			}
+		}
 	})
 
 	t.Run("FileOnlyOnCreate", func(t *testing.T) {
@@ -1825,6 +1837,7 @@ func TestPatchChatMessage(t *testing.T) {
 			}
 			if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID == uploadResp.ID {
 				foundFile = true
+				require.Nil(t, part.Data, "file data should not be sent when file_id is present")
 			}
 		}
 		require.True(t, foundText, "edited message should contain updated text")
@@ -1845,6 +1858,7 @@ func TestPatchChatMessage(t *testing.T) {
 				}
 				if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID == uploadResp.ID {
 					foundFileInChat = true
+					require.Nil(t, part.Data, "file data should not be sent when file_id is present")
 				}
 			}
 		}

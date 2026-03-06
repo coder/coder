@@ -1174,6 +1174,12 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 							part.FileID = parsed
 						}
 					}
+					// When a file_id is present, omit inline data from the
+					// response. Clients fetch file content via the dedicated
+					// GET /chats/files/{id} endpoint instead.
+					if part.FileID != uuid.Nil {
+						part.Data = nil
+					}
 				}
 			}
 			parts = append(parts, part)
