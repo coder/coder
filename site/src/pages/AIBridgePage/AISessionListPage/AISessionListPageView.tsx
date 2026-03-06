@@ -22,34 +22,55 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { InfoIcon } from "lucide-react";
-import type { ComponentProps, FC } from "react";
+import type { ComponentProps, FC, PropsWithChildren } from "react";
 import { docs } from "utils/docs";
 import { DATE_FORMAT, formatDateTime } from "utils/time";
-import { RequestLogsFilter } from "../RequestLogsPage/RequestLogsFilter/RequestLogsFilter";
+import { AISessionListFilter } from "./AISessionListFilter/AISessionListFilter";
 import { AISessionListRow } from "./AISessionListRow/AISessionListRow";
 
 export interface AISessionListPageViewProps {
 	isLoading: boolean;
-	isRequestLogsEntitled: boolean;
-	isRequestLogsEnabled: boolean;
+	isAISessionsEntitled: boolean;
+	isAISessionsEnabled: boolean;
 	interceptions?: readonly AIBridgeInterception[];
 	interceptionsQuery: PaginationResult;
-	filterProps: ComponentProps<typeof RequestLogsFilter>;
+	filterProps: ComponentProps<typeof AISessionListFilter>;
 }
+
+const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
+	<TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<div className="flex-shrink-0 flex items-center">{children}</div>
+			</TooltipTrigger>
+			<TooltipContent side="top" align="end" className="max-w-xs">
+				<p className="text-sm">
+					A thread is a multi-part interaction between human and agent involving
+					an initial human prompt and a subsequent agentic loop.
+				</p>
+				<p>
+					<Link href="TODO docs page" target="_blank">
+						View session terminology
+					</Link>
+				</p>
+			</TooltipContent>
+		</Tooltip>
+	</TooltipProvider>
+);
 
 export const AISessionListPageView: FC<AISessionListPageViewProps> = ({
 	isLoading,
-	isRequestLogsEntitled,
-	isRequestLogsEnabled,
+	isAISessionsEntitled,
+	isAISessionsEnabled,
 	interceptions,
 	interceptionsQuery,
 	filterProps,
 }) => {
-	if (!isRequestLogsEntitled) {
+	if (!isAISessionsEntitled) {
 		return <PaywallAIGovernance />;
 	}
 
-	if (!isRequestLogsEnabled) {
+	if (!isAISessionsEnabled) {
 		return (
 			<Alert className="mb-12" severity="warning" prominent>
 				<AlertTitle>
@@ -71,7 +92,7 @@ export const AISessionListPageView: FC<AISessionListPageViewProps> = ({
 
 	return (
 		<>
-			<RequestLogsFilter {...filterProps} />
+			<AISessionListFilter {...filterProps} />
 
 			<PaginationContainer
 				query={interceptionsQuery}
@@ -87,33 +108,9 @@ export const AISessionListPageView: FC<AISessionListPageViewProps> = ({
 							<TableHead>In/Out Tokens</TableHead>
 							<TableHead className="flex items-center gap-1">
 								Threads
-								<div className="min-w-0">
-									<TooltipProvider>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<div className="flex-shrink-0 flex items-center">
-													<InfoIcon className="size-icon-xs" />
-												</div>
-											</TooltipTrigger>
-											<TooltipContent
-												side="top"
-												align="end"
-												className="max-w-xs"
-											>
-												<p className="text-sm">
-													A thread is a multi-part interaction between human and
-													agent involving an initial human prompt and a
-													subsequent agentic loop.
-												</p>
-												<p>
-													<Link href="TODO docs page" target="_blank">
-														View session terminology
-													</Link>
-												</p>
-											</TooltipContent>
-										</Tooltip>
-									</TooltipProvider>
-								</div>
+								<ThreadTooltip>
+									<InfoIcon className="size-icon-xs" />
+								</ThreadTooltip>
 							</TableHead>
 							<TableHead>Timestamp [UTC{utcOffset}]</TableHead>
 						</TableRow>

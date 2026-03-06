@@ -47,22 +47,22 @@ type Story = StoryObj<typeof AISessionListPageView>;
 
 export const Paywall: Story = {
 	args: {
-		isRequestLogsEntitled: false,
-		isRequestLogsEnabled: false,
+		isAISessionsEntitled: false,
+		isAISessionsEnabled: false,
 	},
 };
 
 export const NotEnabled: Story = {
 	args: {
-		isRequestLogsEntitled: true,
-		isRequestLogsEnabled: false,
+		isAISessionsEntitled: true,
+		isAISessionsEnabled: false,
 	},
 };
 
 export const Loaded: Story = {
 	args: {
-		isRequestLogsEntitled: true,
-		isRequestLogsEnabled: true,
+		isAISessionsEntitled: true,
+		isAISessionsEnabled: true,
 		interceptions,
 		filterProps: {
 			...defaultFilterProps,
@@ -73,8 +73,8 @@ export const Loaded: Story = {
 
 export const Empty: Story = {
 	args: {
-		isRequestLogsEntitled: true,
-		isRequestLogsEnabled: true,
+		isAISessionsEntitled: true,
+		isAISessionsEnabled: true,
 		interceptions: [],
 		filterProps: {
 			...defaultFilterProps,
@@ -86,8 +86,8 @@ export const Empty: Story = {
 export const Loading: Story = {
 	args: {
 		isLoading: true,
-		isRequestLogsEntitled: true,
-		isRequestLogsEnabled: true,
+		isAISessionsEntitled: true,
+		isAISessionsEnabled: true,
 		interceptions: [],
 		filterProps: {
 			...defaultFilterProps,

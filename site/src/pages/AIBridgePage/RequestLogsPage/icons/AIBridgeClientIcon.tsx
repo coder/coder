@@ -3,6 +3,32 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CircleQuestionMarkIcon } from "lucide-react";
 import { cn } from "utils/cn";
 
+// This should be kept in sync with the client names in
+// the AI Bridge bridge.go file.
+// https://github.com/coder/aibridge/blob/main/bridge.go#L31-L32
+export type AIBridgeClient =
+	| "Claude Code"
+	| "Codex"
+	| "Kilo Code"
+	| "Roo Code"
+	| "Mux"
+	| "Zed"
+	| "Cursor"
+	| "GitHub Copilot (VS Code)"
+	| "GitHub Copilot (CLI)";
+
+const AIBRIDGE_CLIENTS: AIBridgeClient[] = [
+	"Claude Code",
+	"Codex",
+	"Kilo Code",
+	"Roo Code",
+	"Mux",
+	"Zed",
+	"Cursor",
+	"GitHub Copilot (VS Code)",
+	"GitHub Copilot (CLI)",
+];
+
 export const AIBridgeClientIcon = ({
 	client,
 	className,
@@ -11,9 +37,7 @@ export const AIBridgeClientIcon = ({
 	client: AIBridgeInterception["client"];
 } & React.ComponentProps<"svg">) => {
 	const iconClassName = "flex-shrink-0";
-	// This should be kept in sync with the client names in
-	// the AI Bridge bridge.go file.
-	// https://github.com/coder/aibridge/blob/main/bridge.go#L31-L32
+
 	switch (client) {
 		case "Claude Code":
 			return (

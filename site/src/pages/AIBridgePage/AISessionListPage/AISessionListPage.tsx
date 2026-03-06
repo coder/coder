@@ -8,8 +8,8 @@ import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
-import { useModelFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ModelFilter";
 import { useProviderFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
+import { useClientFilterMenu } from "./AISessionListFilter/ClientFilter";
 import { AISessionListPageView } from "./AISessionListPageView";
 
 const AISessionListPage: FC = () => {
@@ -56,12 +56,12 @@ const AISessionListPage: FC = () => {
 			}),
 	});
 
-	const modelMenu = useModelFilterMenu({
-		value: filter.values.model,
+	const clientMenu = useClientFilterMenu({
+		value: filter.values.client,
 		onChange: (option) =>
 			filter.update({
 				...filter.values,
-				model: option?.value,
+				client: option?.value,
 			}),
 	});
 
@@ -71,8 +71,8 @@ const AISessionListPage: FC = () => {
 
 			<AISessionListPageView
 				isLoading={interceptionsQuery.isLoading}
-				isRequestLogsEntitled={isEntitled}
-				isRequestLogsEnabled={isEnabled}
+				isAISessionsEntitled={isEntitled}
+				isAISessionsEnabled={isEnabled}
 				interceptions={interceptionsQuery.data?.results}
 				interceptionsQuery={interceptionsQuery}
 				filterProps={{
@@ -81,7 +81,7 @@ const AISessionListPage: FC = () => {
 					menus: {
 						user: userMenu,
 						provider: providerMenu,
-						model: modelMenu,
+						client: clientMenu,
 					},
 				}}
 			/>
