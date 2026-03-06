@@ -59,12 +59,12 @@ func (a version) Eq(b version) bool {
 	return a.Major == b.Major && a.Minor == b.Minor && a.Patch == b.Patch
 }
 
-// ReleaseExecutor handles all write/mutating operations. Two
-// implementations exist: liveExecutor (real) and dryRunExecutor
-// (prints what would happen).
+// ReleaseExecutor handles dangerous write/mutating operations
+// that should be skipped in dry-run mode. Only actions that
+// modify the git repo or trigger external side effects belong
+// here. Safe operations (file writes, fetches, editor) are
+// called directly.
 type ReleaseExecutor interface {
-	// GitFetch fetches tags and the given branch from origin.
-	GitFetch(ctx context.Context, branch string) error
 	// CreateTag creates an annotated tag at the given ref. If sign
 	// is true, the tag is GPG-signed.
 	CreateTag(ctx context.Context, tag, ref, message string, sign bool) error
@@ -72,19 +72,10 @@ type ReleaseExecutor interface {
 	PushTag(ctx context.Context, tag string) error
 	// TriggerWorkflow dispatches the release.yaml workflow.
 	TriggerWorkflow(ctx context.Context, ref, channel, releaseNotes string) error
-	// WriteFile writes content to a file path.
-	WriteFile(path string, content []byte) error
-	// OpenEditor opens a file in the user's editor and returns
-	// the updated content after the editor exits.
-	OpenEditor(path, editor string) ([]byte, error)
 }
 
 // liveExecutor performs real operations.
 type liveExecutor struct{}
-
-func (e *liveExecutor) GitFetch(_ context.Context, branch string) error {
-	return gitRun("fetch", "--quiet", "--tags", "origin", branch)
-}
 
 func (e *liveExecutor) CreateTag(_ context.Context, tag, ref, message string, sign bool) error {
 	args := []string{"tag", "-a"}
@@ -120,29 +111,9 @@ func (e *liveExecutor) TriggerWorkflow(_ context.Context, ref, channel, releaseN
 	return cmd.Run()
 }
 
-func (e *liveExecutor) WriteFile(path string, content []byte) error {
-	return os.WriteFile(path, content, 0o644)
-}
-
-func (e *liveExecutor) OpenEditor(path, editor string) ([]byte, error) {
-	cmd := exec.Command(editor, path)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return nil, err
-	}
-	return os.ReadFile(path)
-}
-
 // dryRunExecutor prints what would happen without doing it.
 type dryRunExecutor struct {
 	w io.Writer
-}
-
-func (e *dryRunExecutor) GitFetch(_ context.Context, branch string) error {
-	fmt.Fprintf(e.w, "[DRYRUN] would run: git fetch --quiet --tags origin %s\n", branch)
-	return nil
 }
 
 func (e *dryRunExecutor) CreateTag(_ context.Context, tag, ref, message string, sign bool) error {
@@ -162,16 +133,6 @@ func (e *dryRunExecutor) PushTag(_ context.Context, tag string) error {
 func (e *dryRunExecutor) TriggerWorkflow(_ context.Context, ref, channel, _ string) error {
 	fmt.Fprintf(e.w, "[DRYRUN] would trigger release.yaml workflow (ref=%s, channel=%s)\n", ref, channel)
 	return nil
-}
-
-func (e *dryRunExecutor) WriteFile(path string, content []byte) error {
-	fmt.Fprintf(e.w, "[DRYRUN] would write %d bytes to %s\n", len(content), path)
-	return nil
-}
-
-func (e *dryRunExecutor) OpenEditor(path, editor string) ([]byte, error) {
-	fmt.Fprintf(e.w, "[DRYRUN] would open %s in %s\n", path, editor)
-	return nil, nil
 }
 
 // gitOutput runs a read-only git command and returns trimmed stdout.
@@ -516,7 +477,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 
 	// --- Fetch & sync check ---
 	infof(w, "Fetching latest from origin...")
-	if err := executor.GitFetch(ctx, currentBranch); err != nil {
+	if err := gitRun("fetch", "--quiet", "--tags", "origin", currentBranch); err != nil {
 		return fmt.Errorf("fetching: %w", err)
 	}
 
@@ -797,7 +758,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	if err := os.MkdirAll("build", 0o755); err != nil {
 		return fmt.Errorf("creating build directory: %w", err)
 	}
-	if err := executor.WriteFile(releaseNotesFile, []byte(releaseNotes)); err != nil {
+	if err := os.WriteFile(releaseNotesFile, []byte(releaseNotes), 0o644); err != nil {
 		return fmt.Errorf("writing release notes: %w", err)
 	}
 
@@ -818,14 +779,19 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 	if editor != "" {
 		if err := confirmWithDefault(inv, fmt.Sprintf("Edit release notes in %s?", editor), cliui.ConfirmNo); err == nil {
-			updated, err := executor.OpenEditor(releaseNotesFile, editor)
-			if err != nil {
+			cmd := exec.Command(editor, releaseNotesFile)
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("editor: %w", err)
 			}
-			if updated != nil {
-				releaseNotes = string(updated)
-				infof(w, "Release notes updated.")
+			updated, err := os.ReadFile(releaseNotesFile)
+			if err != nil {
+				return fmt.Errorf("reading edited release notes: %w", err)
 			}
+			releaseNotes = string(updated)
+			infof(w, "Release notes updated.")
 		}
 		fmt.Fprintln(w)
 	}
