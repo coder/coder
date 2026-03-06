@@ -241,6 +241,7 @@ const meta: Meta<typeof FilesChangedPanel> = {
 	component: FilesChangedPanel,
 	args: {
 		chatId: "test-chat",
+		diffStyle: "unified",
 	},
 	decorators: [
 		(Story) => (

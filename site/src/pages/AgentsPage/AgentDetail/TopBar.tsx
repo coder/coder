@@ -231,7 +231,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
-				{diff.hasDiffStatus && diff.diffStatus && (
+				{(diff.hasDiffStatus || diff.hasGitRepos) && (
 					<Button
 						variant="subtle"
 						size="icon"

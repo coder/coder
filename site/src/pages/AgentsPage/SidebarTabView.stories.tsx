@@ -92,3 +92,51 @@ export const EmptyState: Story = {
 		repositories: new Map(),
 	},
 };
+
+export const SplitDiffMode: Story = {
+	args: {
+		prTab: undefined,
+		repositories: new Map([["/home/coder/project", makeRepo("project")]]),
+	},
+};
+
+export const ExpandedWithDiffToggle: Story = {
+	args: {
+		prTab: { prNumber: 42, chatId: "chat-1" },
+		repositories: new Map([["/home/coder/project", makeRepo("project")]]),
+		isExpanded: true,
+		chatTitle: "Fix authentication bug",
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 600, width: 900 }}>
+				<Story />
+			</div>
+		),
+	],
+};
+
+export const WithDiffStats: Story = {
+	args: {
+		prTab: { prNumber: 99, chatId: "chat-3" },
+		repositories: new Map([
+			["/home/coder/frontend", makeRepo("frontend")],
+			["/home/coder/backend", makeRepo("backend", { branch: "feat/api" })],
+		]),
+		diffStatus: { additions: 150, deletions: 42 },
+	},
+};
+
+export const NarrowPanel: Story = {
+	args: {
+		prTab: { prNumber: 42, chatId: "chat-1" },
+		repositories: new Map([["/home/coder/project", makeRepo("project")]]),
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 500, width: 360 }}>
+				<Story />
+			</div>
+		),
+	],
+};

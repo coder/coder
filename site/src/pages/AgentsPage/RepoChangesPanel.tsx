@@ -16,24 +16,22 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
-import { DiffViewer } from "./DiffViewer";
+import { type DiffStyle, DiffViewer } from "./DiffViewer";
 
 interface RepoChangesPanelProps {
 	repo: WorkspaceAgentRepoChanges;
 	onRefresh: () => void;
 	onCommit: () => void;
 	isExpanded?: boolean;
+	diffStyle: DiffStyle;
 }
 
-function splitRepoPath(repoRoot: string): { parent: string; name: string } {
+function repoParentPath(repoRoot: string): string {
 	const lastSlash = repoRoot.lastIndexOf("/");
 	if (lastSlash === -1) {
-		return { parent: "", name: repoRoot };
+		return "";
 	}
-	return {
-		parent: repoRoot.slice(0, lastSlash + 1),
-		name: repoRoot.slice(lastSlash + 1),
-	};
+	return repoRoot.slice(0, lastSlash + 1);
 }
 
 export const RepoChangesPanel: FC<RepoChangesPanelProps> = ({
@@ -41,6 +39,7 @@ export const RepoChangesPanel: FC<RepoChangesPanelProps> = ({
 	onRefresh,
 	onCommit,
 	isExpanded,
+	diffStyle,
 }) => {
 	const [spinning, setSpinning] = useState(false);
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -65,22 +64,21 @@ export const RepoChangesPanel: FC<RepoChangesPanelProps> = ({
 		}
 	}, [repo.unified_diff]);
 
-	const { parent: repoParent, name: repoName } = splitRepoPath(repo.repo_root);
 	const hasChanges = parsedFiles.length > 0;
+	const parentPath = repoParentPath(repo.repo_root);
 
 	return (
 		<DiffViewer
 			headerLeft={
 				<div className="flex w-full min-w-0 items-center gap-1.5">
-					<FolderIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
-					<span className="shrink-0 text-xs font-medium text-content-primary">
-						{repoName}
-					</span>
-					<span className="truncate text-xs text-content-secondary">
-						{repoParent}
-					</span>
+					{parentPath && (
+						<div className="flex h-7 min-w-0 items-center gap-1 rounded-md border border-solid border-border-default px-1.5 text-xs text-content-secondary">
+							<FolderIcon className="h-3 w-3 shrink-0" />
+							<span className="truncate">{parentPath}</span>
+						</div>
+					)}
 					{repo.branch?.trim() && (
-						<div className="hidden items-center gap-1 rounded-md border border-solid border-border-default px-1.5 py-0.5 text-xs text-content-secondary sm:flex">
+						<div className="flex h-7 min-w-0 items-center gap-1 rounded-md border border-solid border-border-default px-1.5 text-xs text-content-secondary">
 							<GitBranchIcon className="h-3 w-3 shrink-0" />
 							<span className="truncate">{repo.branch}</span>
 						</div>
@@ -90,7 +88,7 @@ export const RepoChangesPanel: FC<RepoChangesPanelProps> = ({
 							size="sm"
 							onClick={onCommit}
 							disabled={!hasChanges}
-							className="h-6 gap-1.5 border border-transparent bg-surface-invert-primary px-2 text-xs text-content-invert hover:bg-surface-invert-secondary active:opacity-80"
+							className="h-7 gap-1.5 border border-transparent bg-surface-invert-primary px-2 text-xs text-content-invert hover:bg-surface-invert-secondary active:opacity-80"
 						>
 							<CheckIcon className="h-3 w-3" />
 							Commit
@@ -100,7 +98,7 @@ export const RepoChangesPanel: FC<RepoChangesPanelProps> = ({
 							size="icon"
 							onClick={handleRefresh}
 							aria-label="Refresh"
-							className="h-6 w-6 text-content-secondary hover:text-content-primary"
+							className="h-7 w-7 text-content-secondary hover:text-content-primary"
 						>
 							<RefreshCwIcon
 								className={cn(
@@ -115,6 +113,7 @@ export const RepoChangesPanel: FC<RepoChangesPanelProps> = ({
 			parsedFiles={parsedFiles}
 			isExpanded={isExpanded}
 			emptyMessage="No file changes."
+			diffStyle={diffStyle}
 		/>
 	);
 };
