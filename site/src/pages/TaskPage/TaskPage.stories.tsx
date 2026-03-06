@@ -593,9 +593,7 @@ export const TaskFollowUpRetrySendFailure: Story = {
 		);
 
 		await waitFor(() => {
-			expect(
-				canvas.getByText("Failed to send message"),
-			).toBeInTheDocument();
+			expect(canvas.getByText("Failed to send message")).toBeInTheDocument();
 			const pendingLabel = canvas.getByText(/Pending follow-up:/i);
 			expect(pendingLabel.parentElement).toHaveTextContent("Please continue");
 			expect(
@@ -682,9 +680,7 @@ export const TaskFollowUpNon409SendFailure: Story = {
 		);
 
 		await waitFor(() => {
-			expect(
-				canvas.getByText("Failed to send message"),
-			).toBeInTheDocument();
+			expect(canvas.getByText("Failed to send message")).toBeInTheDocument();
 			const pendingLabel = canvas.getByText(/Pending follow-up:/i);
 			expect(pendingLabel.parentElement).toHaveTextContent("Continue task");
 			expect(

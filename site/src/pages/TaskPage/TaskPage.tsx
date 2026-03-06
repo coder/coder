@@ -641,14 +641,12 @@ const TaskPaused: FC<TaskPausedProps> = ({
 		followUpStage === "resuming" ||
 		followUpStage === "waitingForActive" ||
 		followUpStage === "sending";
-	const followUpStatusLabel =
-		followUpStage === "resuming"
-			? "Resuming task..."
-			: followUpStage === "waitingForActive"
-				? "Waiting for the task to become active..."
-				: followUpStage === "sending"
-					? "Sending follow-up message..."
-					: undefined;
+	const followUpStatusLabels: Record<string, string> = {
+		resuming: "Resuming task...",
+		waitingForActive: "Waiting for the task to become active...",
+		sending: "Sending follow-up message...",
+	};
+	const followUpStatusLabel = followUpStatusLabels[followUpStage];
 
 	return (
 		<>
