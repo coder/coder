@@ -104,12 +104,14 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 
 ### Full workflows available in imported WORKFLOWS.md
 
-### Pre-commit Hook
+### Pre-commit Hook (MANDATORY)
 
-If the pre-commit hook is not already installed, install it:
+Before your first commit, ensure the pre-commit hook is installed.
+It runs `make pre-commit` which mirrors all CI required checks
+locally. Wait for it to complete, do not skip or bypass it.
 
 ```sh
-ln -sf ../../scripts/githooks/pre-commit .git/hooks/pre-commit
+test -f .git/hooks/pre-commit || ln -sf ../../scripts/githooks/pre-commit .git/hooks/pre-commit
 ```
 
 ### Git Workflow
