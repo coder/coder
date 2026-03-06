@@ -11,10 +11,11 @@ This means:
 - **All agent configuration is admin-level.** Providers, models, system prompts,
   and tool permissions are set by platform teams from the control plane. These
   are not user preferences — they are deployment-wide policies.
-- **Developers get zero options to manage.** The only choice a developer makes is
-  which workspace to use. They do not configure providers, enter API keys, or
-  modify system prompts. If no models are configured, the chat interface tells
-  them to contact an administrator.
+- **Developers never need to configure anything.** A developer just describes
+  the work they want done. They do not need to pick a provider, enter an API
+  key, or write a system prompt — the platform team has already set all of
+  that up. The goal is not to restrict developers, but to make configuration
+  unnecessary for a great experience.
 - **Enforcement, not defaults.** Settings configured by administrators are
   enforced server-side. Developers cannot override them. This is a deliberate
   distinction — a setting that a user can change is a preference, not a policy.
@@ -92,10 +93,6 @@ Examples of what this looks like:
   from the control plane, agent workspaces do not need outbound access to LLM
   providers. You can create templates that only permit access to your git
   provider and nothing else.
-- **Git proxy.** We are working on a git proxy server built into the control
-  plane, so that agent workspaces can pull and push to git without needing
-  direct network access to your git provider. This further reduces the network
-  surface of agent workspaces.
 - **Template scoping for agents.** We intend to let administrators restrict
   which templates are available in the agentic interface, separate from what
   developers see when manually creating workspaces. This lets you apply stricter
