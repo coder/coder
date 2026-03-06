@@ -1086,7 +1086,7 @@ COMMENT ON COLUMN aibridge_interceptions.thread_root_id IS 'The root interceptio
 COMMENT ON COLUMN aibridge_interceptions.client_session_id IS 'The session ID supplied by the client (optional and not universally supported).';
 
 CREATE TABLE aibridge_model_thoughts (
-    id uuid,
+    id uuid NOT NULL,
     interception_id uuid NOT NULL,
     tool_usage_id uuid NOT NULL,
     content text,
@@ -3186,6 +3186,9 @@ ALTER TABLE ONLY ai_seat_state
 
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY aibridge_model_thoughts
+    ADD CONSTRAINT aibridge_model_thoughts_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY aibridge_token_usages
     ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
