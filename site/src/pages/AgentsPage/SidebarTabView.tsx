@@ -2,13 +2,23 @@ import { parsePatchFiles } from "@pierre/diffs";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
+	ChevronLeftIcon,
+	ChevronRightIcon,
 	Columns2Icon,
 	MaximizeIcon,
 	MinimizeIcon,
 	PanelLeftIcon,
 	Rows3Icon,
 } from "lucide-react";
-import { type FC, useCallback, useId, useMemo, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { cn } from "utils/cn";
 import { DiffStatNumbers } from "./DiffStats";
 import { DIFF_STYLE_KEY, type DiffStyle, loadDiffStyle } from "./DiffViewer";
@@ -44,6 +54,62 @@ interface SidebarTabViewProps {
 	chatTitle?: string;
 	/** PR diff stats for the PR tab. */
 	diffStatus?: { additions?: number; deletions?: number };
+}
+
+/** How far (px) each chevron click scrolls the tab strip. */
+const TAB_SCROLL_AMOUNT = 120;
+
+/**
+ * Tracks whether the tab scroll container overflows and
+ * exposes scroll helpers for the chevron buttons.
+ */
+function useTabScroll() {
+	const ref = useRef<HTMLDivElement>(null);
+	const [canScrollLeft, setCanScrollLeft] = useState(false);
+	const [canScrollRight, setCanScrollRight] = useState(false);
+
+	const update = useCallback(() => {
+		const el = ref.current;
+		if (!el) return;
+		setCanScrollLeft(el.scrollLeft > 0);
+		setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+	}, []);
+
+	useEffect(() => {
+		const el = ref.current;
+		if (!el) return;
+
+		// Initial check.
+		update();
+
+		// Re-check on scroll.
+		el.addEventListener("scroll", update, { passive: true });
+
+		// Re-check when the container or its children resize.
+		const ro = new ResizeObserver(update);
+		ro.observe(el);
+
+		return () => {
+			el.removeEventListener("scroll", update);
+			ro.disconnect();
+		};
+	}, [update]);
+
+	const scrollLeft = useCallback(() => {
+		ref.current?.scrollBy({
+			left: -TAB_SCROLL_AMOUNT,
+			behavior: "smooth",
+		});
+	}, []);
+
+	const scrollRight = useCallback(() => {
+		ref.current?.scrollBy({
+			left: TAB_SCROLL_AMOUNT,
+			behavior: "smooth",
+		});
+	}, []);
+
+	return { ref, canScrollLeft, canScrollRight, scrollLeft, scrollRight };
 }
 
 function repoTabLabel(repoRoot: string): string {
@@ -132,6 +198,8 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	const prDiffAdditions = diffStatus?.additions ?? 0;
 	const prDiffDeletions = diffStatus?.deletions ?? 0;
 
+	const tabScroll = useTabScroll();
+
 	if (!hasPR && !hasRepos) {
 		return (
 			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
@@ -185,7 +253,20 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				)}
 
 				{/* Tabs – scrolls so right-side buttons stay visible */}
-				<div className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+				{tabScroll.canScrollLeft && (
+					<button
+						type="button"
+						onClick={tabScroll.scrollLeft}
+						aria-label="Scroll tabs left"
+						className="flex shrink-0 items-center justify-center h-6 w-5 text-content-secondary hover:text-content-primary cursor-pointer border-0 bg-transparent p-0"
+					>
+						<ChevronLeftIcon className="size-3.5" />
+					</button>
+				)}
+				<div
+					ref={tabScroll.ref}
+					className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+				>
 					{hasPR && prTab && (
 						<Button
 							id={`${tabIdPrefix}-tab-pr`}
@@ -239,6 +320,16 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						);
 					})}
 				</div>
+				{tabScroll.canScrollRight && (
+					<button
+						type="button"
+						onClick={tabScroll.scrollRight}
+						aria-label="Scroll tabs right"
+						className="flex shrink-0 items-center justify-center h-6 w-5 text-content-secondary hover:text-content-primary cursor-pointer border-0 bg-transparent p-0"
+					>
+						<ChevronRightIcon className="size-3.5" />
+					</button>
+				)}
 
 				{/* Center: chat title when expanded */}
 				<div className="min-w-0 flex-1 text-center">
