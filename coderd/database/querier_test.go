@@ -8841,3 +8841,99 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 		})
 	}
 }
+
+func TestGetWorkspaceBuildMetricsByResourceID(t *testing.T) {
+	t.Parallel()
+
+	// Helper to create the common fixture: org, user, template, workspace,
+	// provisioner job, workspace build, and workspace resource.
+	type fixture struct {
+		db         database.Store
+		resourceID uuid.UUID
+	}
+	setupFixture := func(t *testing.T) fixture {
+		t.Helper()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			CreatedBy:      user.ID,
+		})
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			TemplateID:     tpl.ID,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			JobID:             job.ID,
+			TemplateVersionID: tv.ID,
+			Transition:        database.WorkspaceTransitionStart,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+		return fixture{db: db, resourceID: resource.ID}
+	}
+
+	t.Run("Basic", func(t *testing.T) {
+		t.Parallel()
+		f := setupFixture(t)
+
+		parentReadyAt := dbtime.Now()
+		dbgen.WorkspaceAgent(t, f.db, database.WorkspaceAgent{
+			ResourceID:     f.resourceID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			StartedAt:      sql.NullTime{Time: parentReadyAt.Add(-time.Minute), Valid: true},
+			ReadyAt:        sql.NullTime{Time: parentReadyAt, Valid: true},
+		})
+
+		row, err := f.db.GetWorkspaceBuildMetricsByResourceID(context.Background(), f.resourceID)
+		require.NoError(t, err)
+		require.True(t, row.AllAgentsReady)
+		require.WithinDuration(t, parentReadyAt, row.LastAgentReadyAt, time.Second)
+		require.Equal(t, "success", row.WorstStatus)
+	})
+
+	t.Run("SubAgentExcluded", func(t *testing.T) {
+		t.Parallel()
+		f := setupFixture(t)
+
+		parentReadyAt := dbtime.Now()
+		parentAgent := dbgen.WorkspaceAgent(t, f.db, database.WorkspaceAgent{
+			ResourceID:     f.resourceID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			StartedAt:      sql.NullTime{Time: parentReadyAt.Add(-time.Minute), Valid: true},
+			ReadyAt:        sql.NullTime{Time: parentReadyAt, Valid: true},
+		})
+
+		// Create a sub-agent with a much later ready_at. If the SQL
+		// filter "AND wa.parent_id IS NULL" were removed, this would
+		// inflate LastAgentReadyAt and cause the assertion to fail.
+		subAgentReadyAt := parentReadyAt.Add(time.Hour)
+		subAgent := dbgen.WorkspaceSubAgent(t, f.db, parentAgent, database.WorkspaceAgent{})
+		err := f.db.UpdateWorkspaceAgentLifecycleStateByID(context.Background(), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             subAgent.ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			StartedAt:      sql.NullTime{Time: subAgentReadyAt.Add(-time.Minute), Valid: true},
+			ReadyAt:        sql.NullTime{Time: subAgentReadyAt, Valid: true},
+		})
+		require.NoError(t, err)
+
+		row, err := f.db.GetWorkspaceBuildMetricsByResourceID(context.Background(), f.resourceID)
+		require.NoError(t, err)
+		require.True(t, row.AllAgentsReady)
+		require.WithinDuration(t, parentReadyAt, row.LastAgentReadyAt, time.Second)
+		require.Equal(t, "success", row.WorstStatus)
+	})
+}
