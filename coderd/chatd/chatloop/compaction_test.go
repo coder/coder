@@ -76,9 +76,20 @@ func TestRun_Compaction(t *testing.T) {
 					return nil
 				},
 			},
+			ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+				return []fantasy.Message{
+					textMessage(fantasy.MessageRoleUser, "hello"),
+				}, nil
+			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, 1, persistCompactionCalls)
+		// Compaction fires twice: once inline when the threshold is
+		// reached on step 0 (the only step, since MaxSteps=1), and
+		// once from the post-run safety net during the re-entry
+		// iteration (where totalSteps already equals MaxSteps so the
+		// inner loop doesn't execute, but lastUsage still exceeds
+		// the threshold).
+		require.Equal(t, 2, persistCompactionCalls)
 		require.Contains(t, persistedCompaction.SystemSummary, summaryText)
 		require.Equal(t, summaryText, persistedCompaction.SummaryReport)
 		require.Equal(t, int64(80), persistedCompaction.ContextTokens)
@@ -151,9 +162,21 @@ func TestRun_Compaction(t *testing.T) {
 					return nil
 				},
 			},
+			ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+				return []fantasy.Message{
+					textMessage(fantasy.MessageRoleUser, "hello"),
+				}, nil
+			},
 		})
 		require.NoError(t, err)
+		// Compaction fires twice (see PersistsWhenThresholdReached
+		// for the full explanation). Each cycle follows the order:
+		// publish_tool_call → generate → persist → publish_tool_result.
 		require.Equal(t, []string{
+			"publish_tool_call",
+			"generate",
+			"persist",
+			"publish_tool_result",
 			"publish_tool_call",
 			"generate",
 			"persist",
@@ -456,6 +479,11 @@ func TestRun_Compaction(t *testing.T) {
 				OnError: func(err error) {
 					compactionErr = err
 				},
+			},
+			ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+				return []fantasy.Message{
+					textMessage(fantasy.MessageRoleUser, "hello"),
+				}, nil
 			},
 		})
 		require.NoError(t, err)
