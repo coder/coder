@@ -68,6 +68,7 @@ func TestTokenIsRefreshedEarly(t *testing.T) {
 	t.Parallel()
 
 	t.Run("WithCoderd", func(t *testing.T) {
+		t.Parallel()
 		tokenRefreshCount := 0
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithServing(),
@@ -106,8 +107,9 @@ func TestTokenIsRefreshedEarly(t *testing.T) {
 		require.Equal(t, 1, tokenRefreshCount)
 	})
 
-	//nolint:tparallel // Sub tests need to run sequentially.
+	//nolint:tparallel,paralleltest // Sub tests need to run sequentially.
 	t.Run("WithoutCoderd", func(t *testing.T) {
+		t.Parallel()
 		tokenRefreshCount := 0
 		fake := oidctest.NewFakeIDP(t,
 			oidctest.WithServing(),
