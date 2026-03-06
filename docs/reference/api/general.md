@@ -279,6 +279,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "external_auth": {
       "value": [
         {
+          "api_base_url": "string",
           "app_install_url": "string",
           "app_installations_url": "string",
           "auth_url": "string",

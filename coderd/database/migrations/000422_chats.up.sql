@@ -79,7 +79,9 @@ CREATE TABLE chat_diff_statuses (
     git_remote_origin   TEXT        NOT NULL DEFAULT ''
 );
 
-CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses(stale_at);
+CREATE INDEX idx_chat_diff_statuses_stale_at
+    ON chat_diff_statuses(stale_at ASC)
+    WHERE git_remote_origin != '' AND git_branch != '';
 
 CREATE TABLE chat_providers (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

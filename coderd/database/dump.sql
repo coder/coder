@@ -3493,7 +3493,7 @@ CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
-CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
+CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at) WHERE ((git_remote_origin <> ''::text) AND (git_branch <> ''::text));
 
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
