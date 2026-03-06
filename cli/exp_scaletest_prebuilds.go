@@ -132,7 +132,6 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 					DeletionSetupBarrier:      deletionSetupBarrier,
 					DeletionBarrier:           deletionBarrier,
 					Clock:                     quartz.NewReal(),
-					LogOutput:                 inv.Stderr,
 				}
 				err := cfg.Validate()
 				if err != nil {

@@ -57,9 +57,6 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		}
 	}()
 
-	if r.cfg.LogOutput != nil {
-		logs = io.MultiWriter(logs, r.cfg.LogOutput)
-	}
 	logs = loadtestutil.NewSyncWriter(logs)
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 	r.client.SetLogger(logger)
@@ -305,9 +302,6 @@ func (r *Runner) createTemplateVersion(ctx context.Context, templateID uuid.UUID
 var errTickerDone = xerrors.New("done")
 
 func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
-	if r.cfg.LogOutput != nil {
-		logs = io.MultiWriter(logs, r.cfg.LogOutput)
-	}
 	logs = loadtestutil.NewSyncWriter(logs)
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 
