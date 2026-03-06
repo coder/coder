@@ -127,7 +127,7 @@ const assertValidExternalToolNames = (
 	}
 };
 
-const SYSTEM_PROMPT = `You are a Terraform template editing assistant for Coder.
+const BASE_SYSTEM_PROMPT = `You are a Terraform template editing assistant for Coder.
 You help users modify Coder workspace templates (Terraform HCL files).
 
 Rules:
@@ -148,6 +148,26 @@ Rules:
 - For publishTemplate: omit name to keep the current version name.
   Generate a short changelog message from the changes you made.`;
 
+const getSystemPrompt = (currentFilePath?: string): string => {
+	const currentFileInstructions =
+		currentFilePath !== undefined && currentFilePath.length > 0
+			? `Current editor context:
+- The user is currently viewing "${currentFilePath}".
+- After you use listFiles, read "${currentFilePath}" first for context before making assumptions, answering questions, or proposing edits unless the user is clearly asking about another file.
+- If you choose to work in a different file first, briefly explain why that file is more relevant.`
+			: `Current editor context:
+- The user does not currently have a file open.
+- After you use listFiles, choose the most relevant file to read before making assumptions, answering questions, or proposing edits.`;
+
+	return `${BASE_SYSTEM_PROMPT}
+
+Additional guidance:
+- When you need details about Coder Registry modules, examples, or configuration options, prefer the available coder_registry_ tools instead of guessing or relying on memory.
+- Use coder_registry_ tool results to confirm module inputs, outputs, examples, and supported settings before you recommend changes.
+
+${currentFileInstructions}`;
+};
+
 const createTemplateAgent = (
 	modelConfig: AIModelConfig,
 	getFileTree: () => FileTree,
@@ -164,6 +184,7 @@ const createTemplateAgent = (
 			options?: PublishRequestOptions,
 		) => Promise<PublishResult>;
 	},
+	instructions: string,
 	externalTools: MCPTools,
 ) => {
 	const providerOptions: NonNullable<
@@ -203,7 +224,7 @@ const createTemplateAgent = (
 			modelConfig.model.provider,
 			modelConfig.model.id,
 		),
-		instructions: SYSTEM_PROMPT,
+		instructions,
 		tools: { ...localTools, ...(externalTools as ToolSet) },
 		stopWhen: stepCountIs(MAX_STEPS),
 		providerOptions,
@@ -214,6 +235,8 @@ interface UseTemplateAgentOptions {
 	getFileTree: () => FileTree;
 	setFileTree: (updater: (prev: FileTree) => FileTree) => void;
 	modelConfig: AIModelConfig;
+	/** The file the user is currently viewing, if any. */
+	currentFilePath?: string;
 	/** Called after a file is created or edited so the editor can navigate to it. */
 	onFileEdited?: (path: string) => void;
 	/** Called after a file is deleted so the editor can clear the active path if needed. */
@@ -513,6 +536,7 @@ export const useTemplateAgent = ({
 	getFileTree,
 	setFileTree,
 	modelConfig,
+	currentFilePath,
 	onFileEdited,
 	onFileDeleted,
 	onBuildRequested,
@@ -648,6 +672,7 @@ export const useTemplateAgent = ({
 								})
 						: undefined,
 				},
+				getSystemPrompt(currentFilePath),
 				mcpToolsRef.current,
 			);
 
@@ -707,7 +732,13 @@ export const useTemplateAgent = ({
 			const pending = collectPendingApprovals(nextConversation);
 			finishRun(pending.length > 0 ? "awaiting_approval" : "idle");
 		},
-		[getFileTree, modelConfig, setConversationMessages, setFileTree],
+		[
+			currentFilePath,
+			getFileTree,
+			modelConfig,
+			setConversationMessages,
+			setFileTree,
+		],
 	);
 
 	const send = useCallback(
