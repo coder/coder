@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -936,6 +937,34 @@ func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (Cha
 	}
 	var diff ChatDiffContents
 	return diff, json.NewDecoder(res.Body).Decode(&diff)
+}
+
+// GetChatDiffFileContent proxies a file's raw content from the
+// chat's GitHub repository at a given git ref. It returns the raw
+// bytes and the Content-Type reported by the server.
+func (c *Client) GetChatDiffFileContent(ctx context.Context, chatID uuid.UUID, filePath, ref string) ([]byte, string, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/experimental/chats/%s/diff/file-content", chatID),
+		nil,
+		func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("path", filePath)
+			q.Set("ref", ref)
+			r.URL.RawQuery = q.Encode()
+		},
+	)
+	if err != nil {
+		return nil, "", err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, "", ReadBodyAsError(res)
+	}
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, "", xerrors.Errorf("read file content response: %w", err)
+	}
+	return data, res.Header.Get("Content-Type"), nil
 }
 
 func formatChatStreamResponseError(response Response) string {

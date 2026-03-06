@@ -3024,6 +3024,26 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getChatDiffFileContent = async (
+		chatId: string,
+		path: string,
+		ref: string,
+	): Promise<string> => {
+		const response = await this.axios.get<Blob>(
+			`/api/experimental/chats/${chatId}/diff/file-content`,
+			{
+				params: { path, ref },
+				responseType: "blob",
+			},
+		);
+		// Convert to a self-contained data URL instead of a blob URL.
+		// Blob URLs created via URL.createObjectURL leak memory unless
+		// explicitly revoked, which is hard to coordinate with React
+		// Query's cache lifecycle. Data URLs are garbage-collected
+		// normally when no longer referenced.
+		return await blobToDataURL(response.data);
+	};
+
 	getChatModels = async (): Promise<TypesGen.ChatModelsResponse> => {
 		const response = await this.axios.get<TypesGen.ChatModelsResponse>(
 			"/api/experimental/chats/models",
@@ -3227,3 +3247,26 @@ export class Api extends ApiMethods implements ClientApi {
 }
 
 export const API = new Api();
+
+/**
+ * Convert a Blob to a data URL string. Unlike blob URLs created by
+ * URL.createObjectURL, data URLs are self-contained and
+ * garbage-collected normally when no longer referenced — no manual
+ * revocation step required.
+ */
+function blobToDataURL(blob: Blob): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => {
+			if (typeof reader.result === "string") {
+				resolve(reader.result);
+			} else {
+				reject(new Error("FileReader did not produce a string result"));
+			}
+		};
+		reader.onerror = () => {
+			reject(reader.error ?? new Error("FileReader failed"));
+		};
+		reader.readAsDataURL(blob);
+	});
+}

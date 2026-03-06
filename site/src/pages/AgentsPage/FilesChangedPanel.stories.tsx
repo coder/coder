@@ -426,3 +426,127 @@ export const LargeDiffLight: Story = {
 		});
 	},
 };
+
+/**
+ * Shows a diff containing binary image files (added, deleted, modified)
+ * alongside normal text diffs. Verifies that the ImageDiffView
+ * component renders properly within the panel.
+ */
+export const WithImageDiffs: Story = {
+	beforeEach: () => {
+		const diff = [
+			// Normal text file change.
+			"diff --git a/src/main.ts b/src/main.ts",
+			"index abc1234..def5678 100644",
+			"--- a/src/main.ts",
+			"+++ b/src/main.ts",
+			"@@ -1,3 +1,4 @@",
+			" import { foo } from './foo';",
+			"+import { bar } from './bar';",
+			" ",
+			" console.log(foo);",
+			// Added image.
+			"diff --git a/assets/logo.png b/assets/logo.png",
+			"new file mode 100644",
+			"index 0000000..abcdef1",
+			"Binary files /dev/null and b/assets/logo.png differ",
+			// Deleted image.
+			"diff --git a/images/old-banner.jpg b/images/old-banner.jpg",
+			"deleted file mode 100644",
+			"index abcdef1..0000000",
+			"Binary files a/images/old-banner.jpg and /dev/null differ",
+			// Modified image.
+			"diff --git a/icons/app.svg b/icons/app.svg",
+			"index 1111111..2222222 100644",
+			"Binary files a/icons/app.svg and b/icons/app.svg differ",
+		].join("\n");
+
+		spyOn(API, "getChatDiffStatus").mockResolvedValue({
+			...defaultDiffStatus,
+			url: "https://github.com/coder/coder/pull/999",
+			additions: 1,
+			deletions: 0,
+			changed_files: 4,
+		});
+		spyOn(API, "getChatDiffContents").mockResolvedValue({
+			...defaultDiffContents,
+			diff,
+			branch: "feat/add-images",
+			remote_origin: "https://github.com/coder/coder.git",
+		});
+	},
+};
+
+/**
+ * Same as WithImageDiffs but in light mode. Includes all three
+ * change types (added, deleted, modified) so both themes have
+ * full visual coverage.
+ */
+export const WithImageDiffsLight: Story = {
+	globals: {
+		theme: "light",
+	},
+	beforeEach: () => {
+		const diff = [
+			// Added image.
+			"diff --git a/assets/logo.png b/assets/logo.png",
+			"new file mode 100644",
+			"index 0000000..abcdef1",
+			"Binary files /dev/null and b/assets/logo.png differ",
+			// Deleted image.
+			"diff --git a/images/old-banner.jpg b/images/old-banner.jpg",
+			"deleted file mode 100644",
+			"index abcdef1..0000000",
+			"Binary files a/images/old-banner.jpg and /dev/null differ",
+			// Modified image.
+			"diff --git a/icons/app.svg b/icons/app.svg",
+			"index 1111111..2222222 100644",
+			"Binary files a/icons/app.svg and b/icons/app.svg differ",
+		].join("\n");
+
+		spyOn(API, "getChatDiffStatus").mockResolvedValue({
+			...defaultDiffStatus,
+			url: "https://github.com/coder/coder/pull/999",
+			changed_files: 3,
+		});
+		spyOn(API, "getChatDiffContents").mockResolvedValue({
+			...defaultDiffContents,
+			diff,
+			branch: "feat/add-images",
+			remote_origin: "https://github.com/coder/coder.git",
+		});
+	},
+};
+
+/**
+ * Exercises the NoBranchPlaceholder state by omitting the branch
+ * field from the diff contents response. The added and modified
+ * images should show the "preview unavailable" placeholder.
+ */
+export const WithImageDiffsNoBranch: Story = {
+	beforeEach: () => {
+		const diff = [
+			// Added image — will show placeholder.
+			"diff --git a/assets/logo.png b/assets/logo.png",
+			"new file mode 100644",
+			"index 0000000..abcdef1",
+			"Binary files /dev/null and b/assets/logo.png differ",
+			// Modified image — "After" will show placeholder.
+			"diff --git a/icons/app.svg b/icons/app.svg",
+			"index 1111111..2222222 100644",
+			"Binary files a/icons/app.svg and b/icons/app.svg differ",
+		].join("\n");
+
+		spyOn(API, "getChatDiffStatus").mockResolvedValue({
+			...defaultDiffStatus,
+			url: "https://github.com/coder/coder/pull/999",
+			changed_files: 2,
+		});
+		spyOn(API, "getChatDiffContents").mockResolvedValue({
+			...defaultDiffContents,
+			diff,
+			// No branch field — triggers NoBranchPlaceholder.
+			remote_origin: "https://github.com/coder/coder.git",
+		});
+	},
+};

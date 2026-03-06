@@ -31,6 +31,13 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
+import {
+	type BinaryImageDiff,
+	badgeColor,
+	badgeLetter,
+	ImageDiffView,
+	parseBinaryImageDiffs,
+} from "./ImageDiffView";
 
 interface FilesChangedPanelProps {
 	chatId: string;
@@ -103,38 +110,54 @@ function parsePullRequestUrl(url: string): {
 // File tree data model
 // -------------------------------------------------------------------
 
-/** Maps a diff change type to a Tailwind text-color class. */
+/**
+ * Maps a diff change type to a Tailwind text-color class.
+ * Handles both `ChangeTypes` from @pierre/diffs and
+ * `BinaryImageDiff["changeType"]` values since the shared
+ * `badgeColor` helper covers the common subset.
+ */
 function changeColor(type?: ChangeTypes): string | undefined {
 	switch (type) {
 		case "new":
-			return "text-green-700 dark:text-green-300";
 		case "deleted":
-			return "text-red-700 dark:text-red-300";
+		case "change":
+			return badgeColor(type);
 		case "rename-pure":
 		case "rename-changed":
-			return "text-orange-700 dark:text-orange-300";
-		case "change":
-			return "text-orange-700 dark:text-orange-300";
+			return badgeColor("change");
 		default:
 			return undefined;
 	}
 }
 
-/** Short letter shown after the filename, matching VS Code style. */
+/**
+ * Short letter shown after the filename, matching VS Code style.
+ * Delegates to the shared `badgeLetter` for common change types
+ * and handles rename variants that are specific to text diffs.
+ */
 function changeLabel(type: ChangeTypes): string {
 	switch (type) {
 		case "new":
-			return "A";
 		case "deleted":
-			return "D";
+		case "change":
+			return badgeLetter(type);
 		case "rename-pure":
 		case "rename-changed":
 			return "R";
-		case "change":
-			return "M";
 		default:
 			return "";
 	}
+}
+
+/**
+ * Union type representing either a text file diff (from @pierre/diffs)
+ * or a binary image diff entry. The `isBinaryImage` discriminator
+ * field is used to distinguish between the two at render time.
+ */
+type DiffEntry = FileDiffMetadata | BinaryImageDiff;
+
+function isDiffEntryBinaryImage(entry: DiffEntry): entry is BinaryImageDiff {
+	return "isBinaryImage" in entry && entry.isBinaryImage === true;
 }
 
 interface FileTreeNode {
@@ -143,6 +166,13 @@ interface FileTreeNode {
 	type: "file" | "directory";
 	children: FileTreeNode[];
 	fileDiff?: FileDiffMetadata;
+	imageDiff?: BinaryImageDiff;
+	/**
+	 * Unified change type derived from either `fileDiff.type` or
+	 * `imageDiff.changeType` so tree rendering doesn't need to
+	 * inspect both optional fields.
+	 */
+	unifiedChangeType?: ChangeTypes;
 }
 
 /**
@@ -152,7 +182,7 @@ interface FileTreeNode {
  * Single-child directory chains are collapsed so that e.g.
  * `src/pages/AgentsPage` renders as one row.
  */
-function buildFileTree(files: FileDiffMetadata[]): FileTreeNode[] {
+function buildFileTree(files: DiffEntry[]): FileTreeNode[] {
 	const root: FileTreeNode[] = [];
 
 	for (const file of files) {
@@ -177,12 +207,15 @@ function buildFileTree(files: FileDiffMetadata[]): FileTreeNode[] {
 
 		// Leaf file node.
 		const fileName = segments[segments.length - 1];
+		const isImage = isDiffEntryBinaryImage(file);
 		children.push({
 			name: fileName,
 			fullPath: file.name,
 			type: "file",
 			children: [],
-			fileDiff: file,
+			fileDiff: isImage ? undefined : file,
+			imageDiff: isImage ? file : undefined,
+			unifiedChangeType: isImage ? file.changeType : file.type,
 		});
 	}
 
@@ -287,20 +320,20 @@ const FileTreeNodeView: FC<{
 			<span
 				className={cn(
 					"truncate",
-					changeColor(node.fileDiff?.type) ??
+					changeColor(node.unifiedChangeType) ??
 						(isActive ? "text-content-primary" : "text-content-secondary"),
 				)}
 			>
 				{node.name}
 			</span>
-			{node.fileDiff?.type && (
+			{node.unifiedChangeType && (
 				<span
 					className={cn(
 						"ml-auto shrink-0 pr-2 text-xs",
-						changeColor(node.fileDiff.type),
+						changeColor(node.unifiedChangeType),
 					)}
 				>
-					{changeLabel(node.fileDiff.type)}
+					{changeLabel(node.unifiedChangeType)}
 				</span>
 			)}
 		</button>
@@ -353,7 +386,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		enabled: Boolean(diffStatusQuery.data?.url),
 	});
 
-	const parsedFiles = useMemo(() => {
+	const parsedFiles = useMemo((): DiffEntry[] => {
 		const diff = diffContentsQuery.data?.diff;
 		if (!diff) {
 			return [];
@@ -363,8 +396,19 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 			// so highlighted ASTs are reused across re-renders instead
 			// of being re-computed on every render cycle.
 			const patches = parsePatchFiles(diff, `chat-${chatId}`);
-			return patches.flatMap((p) => p.files);
-		} catch {
+			const textFiles: DiffEntry[] = patches.flatMap((p) => p.files);
+
+			// Extract binary image diffs that parsePatchFiles skips.
+			const imageDiffs: DiffEntry[] = parseBinaryImageDiffs(diff);
+
+			// Deduplicate: if parsePatchFiles already captured a file
+			// (rare for binary, but possible), prefer the text entry.
+			const textNames = new Set(textFiles.map((f) => f.name));
+			const uniqueImages = imageDiffs.filter((img) => !textNames.has(img.name));
+
+			return [...textFiles, ...uniqueImages];
+		} catch (ex) {
+			console.error("[FilesChangedPanel] failed to parse diff:", ex);
 			return [];
 		}
 	}, [diffContentsQuery.data?.diff, chatId]);
@@ -395,6 +439,8 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 	const pullRequestUrl = diffStatusQuery.data?.url;
 	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
 
+	const diffBranch = diffContentsQuery.data?.branch;
+
 	// ---------------------------------------------------------------
 	// Container width measurement via ResizeObserver so we can decide
 	// whether to show the file tree sidebar without a prop from the
@@ -418,9 +464,9 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		roRef.current = ro;
 	}, []);
 
+	const hasFiles = sortedFiles.length > 0;
 	const showTree =
-		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
-		sortedFiles.length > 0;
+		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) && hasFiles;
 
 	// ---------------------------------------------------------------
 	// Refs for each file diff wrapper so we can scroll-to and track
@@ -610,7 +656,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 				</div>
 			</div>
 			{/* Diff contents */}
-			{sortedFiles.length === 0 ? (
+			{!hasFiles ? (
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">
 					No file changes to display.
 				</div>
@@ -653,14 +699,26 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 						}}
 					>
 						<div className="min-w-0 text-xs">
-							{sortedFiles.map((fileDiff) => (
-								<div
-									key={fileDiff.name}
-									ref={(el) => setFileRef(fileDiff.name, el)}
-								>
-									<LazyFileDiff fileDiff={fileDiff} options={fileOptions} />
+							{sortedFiles.map((entry) => (
+								<div key={entry.name} ref={(el) => setFileRef(entry.name, el)}>
+									{isDiffEntryBinaryImage(entry) ? (
+										<ImageDiffView
+											diff={entry}
+											chatId={chatId}
+											branch={diffBranch}
+											// TODO: Pass the actual base branch
+											// from the API response instead of
+											// letting ImageDiffView fall back to
+											// "main". Repos with a different
+											// default branch will show broken
+											// "before" images for modified or
+											// deleted files.
+										/>
+									) : (
+										<LazyFileDiff fileDiff={entry} options={fileOptions} />
+									)}
 								</div>
-							))}
+							))}{" "}
 							{/* Spacer so the last file can scroll fully to the top. */}
 							<div className="h-[calc(100vh-100px)]" />
 						</div>
