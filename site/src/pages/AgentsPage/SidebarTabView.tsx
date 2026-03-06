@@ -109,15 +109,7 @@ function useTabScroll() {
 		});
 	}, []);
 
-	const hasOverflow = canScrollLeft || canScrollRight;
-	return {
-		ref,
-		hasOverflow,
-		canScrollLeft,
-		canScrollRight,
-		scrollLeft,
-		scrollRight,
-	};
+	return { ref, canScrollLeft, canScrollRight, scrollLeft, scrollRight };
 }
 
 function repoTabLabel(repoRoot: string): string {
@@ -259,94 +251,88 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						<PanelLeftIcon />
 					</Button>
 				)}
-				{/* Tabs – scrolls so right-side buttons stay visible */}
-				{tabScroll.hasOverflow && (
-					<button
-						type="button"
-						onClick={tabScroll.scrollLeft}
-						aria-label="Scroll tabs left"
-						aria-hidden={!tabScroll.canScrollLeft}
-						tabIndex={tabScroll.canScrollLeft ? 0 : -1}
-						className={cn(
-							"flex shrink-0 items-center justify-center h-6 w-5 text-content-secondary hover:text-content-primary cursor-pointer border-0 bg-transparent p-0",
-							!tabScroll.canScrollLeft && "invisible",
-						)}
-					>
-						<ChevronLeftIcon className="size-3.5" />
-					</button>
-				)}{" "}
-				<div
-					ref={tabScroll.ref}
-					className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-				>
-					{hasPR && prTab && (
-						<Button
-							id={`${tabIdPrefix}-tab-pr`}
-							role="tab"
-							aria-selected={effectiveTab === "pr"}
-							onClick={() => setActiveTab("pr")}
-							variant={effectiveTab === "pr" ? "outline" : "subtle"}
-							size="lg"
-							className={cn(
-								"min-w-0 h-6 px-3 gap-3 py-0",
-								effectiveTab === "pr" && "bg-surface-secondary",
-							)}
+
+				{/* Scrollable tab strip with overlay chevrons */}
+				<div className="relative flex min-w-0 items-center">
+					{tabScroll.canScrollLeft && (
+						<button
+							type="button"
+							onClick={tabScroll.scrollLeft}
+							aria-label="Scroll tabs left"
+							className="absolute left-0 z-10 flex h-full w-8 cursor-pointer items-center justify-start border-none p-0 pl-1 text-content-primary [background:linear-gradient(to_right,hsl(var(--surface-primary))_50%,transparent)]"
 						>
-							#{prTab.prNumber}
-							{(prDiffAdditions > 0 || prDiffDeletions > 0) && (
-								<DiffStatNumbers
-									additions={prDiffAdditions}
-									deletions={prDiffDeletions}
-									className="text-[10px]"
-								/>
-							)}
-						</Button>
+							<ChevronLeftIcon className="size-3.5" />
+						</button>
 					)}
-					{repoEntries.map(([repoRoot]) => {
-						const stats = repoDiffStats.get(repoRoot);
-						const additions = stats?.additions ?? 0;
-						const deletions = stats?.deletions ?? 0;
-						return (
+					<div
+						ref={tabScroll.ref}
+						className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+					>
+						{hasPR && prTab && (
 							<Button
-								key={repoRoot}
-								id={`${tabIdPrefix}-tab-${repoRoot}`}
+								id={`${tabIdPrefix}-tab-pr`}
 								role="tab"
-								aria-selected={effectiveTab === repoRoot}
-								onClick={() => setActiveTab(repoRoot)}
-								variant={effectiveTab === repoRoot ? "outline" : "subtle"}
+								aria-selected={effectiveTab === "pr"}
+								onClick={() => setActiveTab("pr")}
+								variant={effectiveTab === "pr" ? "outline" : "subtle"}
 								size="lg"
 								className={cn(
 									"min-w-0 h-6 px-3 gap-3 py-0",
-									effectiveTab === repoRoot && "bg-surface-secondary",
+									effectiveTab === "pr" && "bg-surface-secondary",
 								)}
 							>
-								{repoTabLabel(repoRoot)}
-								{(additions > 0 || deletions > 0) && (
+								#{prTab.prNumber}
+								{(prDiffAdditions > 0 || prDiffDeletions > 0) && (
 									<DiffStatNumbers
-										additions={additions}
-										deletions={deletions}
+										additions={prDiffAdditions}
+										deletions={prDiffDeletions}
 										className="text-[10px]"
 									/>
 								)}
 							</Button>
-						);
-					})}
-				</div>
-				{tabScroll.hasOverflow && (
-					<button
-						type="button"
-						onClick={tabScroll.scrollRight}
-						aria-label="Scroll tabs right"
-						aria-hidden={!tabScroll.canScrollRight}
-						tabIndex={tabScroll.canScrollRight ? 0 : -1}
-						className={cn(
-							"flex shrink-0 items-center justify-center h-6 w-5 text-content-secondary hover:text-content-primary cursor-pointer border-0 bg-transparent p-0",
-							!tabScroll.canScrollRight && "invisible",
 						)}
-					>
-						<ChevronRightIcon className="size-3.5" />
-					</button>
-				)}
+						{repoEntries.map(([repoRoot]) => {
+							const stats = repoDiffStats.get(repoRoot);
+							const additions = stats?.additions ?? 0;
+							const deletions = stats?.deletions ?? 0;
+							return (
+								<Button
+									key={repoRoot}
+									id={`${tabIdPrefix}-tab-${repoRoot}`}
+									role="tab"
+									aria-selected={effectiveTab === repoRoot}
+									onClick={() => setActiveTab(repoRoot)}
+									variant={effectiveTab === repoRoot ? "outline" : "subtle"}
+									size="lg"
+									className={cn(
+										"min-w-0 h-6 px-3 gap-3 py-0",
+										effectiveTab === repoRoot && "bg-surface-secondary",
+									)}
+								>
+									{repoTabLabel(repoRoot)}
+									{(additions > 0 || deletions > 0) && (
+										<DiffStatNumbers
+											additions={additions}
+											deletions={deletions}
+											className="text-[10px]"
+										/>
+									)}
+								</Button>
+							);
+						})}
+					</div>
+					{tabScroll.canScrollRight && (
+						<button
+							type="button"
+							onClick={tabScroll.scrollRight}
+							aria-label="Scroll tabs right"
+							className="absolute right-0 z-10 flex h-full w-8 cursor-pointer items-center justify-end border-none p-0 pr-1 text-content-primary [background:linear-gradient(to_left,hsl(var(--surface-primary))_50%,transparent)]"
+						>
+							<ChevronRightIcon className="size-3.5" />
+						</button>
+					)}
+				</div>
+
 				{/* Center: chat title when expanded */}
 				<div className="min-w-0 flex-1 text-center">
 					{isExpanded && chatTitle && (
@@ -355,6 +341,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</span>
 					)}
 				</div>
+
 				{/* Diff style toggle */}
 				<div className="flex shrink-0 items-center gap-1">
 					<Button
@@ -382,6 +369,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						<Columns2Icon className="!p-0 !size-3.5" />
 					</Button>
 				</div>
+
 				{/* Right side: expand/contract button */}
 				<Button
 					variant="subtle"
