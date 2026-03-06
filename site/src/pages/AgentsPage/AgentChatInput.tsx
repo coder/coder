@@ -639,7 +639,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 										type="button"
 										variant="outline"
 										size="icon"
-										className="size-7 shrink-0 rounded-full"
+										className="size-7 shrink-0 rounded-full [&>svg]:p-0"
 										onClick={() => fileInputRef.current?.click()}
 										disabled={isDisabled}
 										aria-label="Attach files"
@@ -652,7 +652,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								<Button
 									size="icon"
 									variant="default"
-									className="size-7 rounded-full transition-colors"
+									className="size-7 rounded-full transition-colors [&>svg]:p-0"
 									onClick={onInterrupt}
 									disabled={isInterruptPending}
 								>
