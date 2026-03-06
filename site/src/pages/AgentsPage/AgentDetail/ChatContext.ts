@@ -670,6 +670,17 @@ export const useChatStore = (
 							continue;
 						}
 						const { changed } = store.upsertDurableMessage(message);
+						// Keep lastMessageIdRef in sync with
+						// stream-delivered messages so reconnections use
+						// the correct after_id and don't re-fetch or
+						// miss events.
+						if (
+							message.id !== undefined &&
+							(lastMessageIdRef.current === undefined ||
+								message.id > lastMessageIdRef.current)
+						) {
+							lastMessageIdRef.current = message.id;
+						}
 						if (changed) {
 							scheduleStreamReset();
 						}
@@ -809,6 +820,13 @@ export const useChatStore = (
 				// while we are already retrying).
 				if (reconnectAttempt === 0) {
 					store.setStreamError("Chat stream disconnected. Reconnecting…");
+				}
+				// Clear "running" status on disconnect so the UI
+				// doesn't show a stale spinner. The reconnected
+				// stream will deliver the authoritative status.
+				const currentStatus = store.getSnapshot().chatStatus;
+				if (currentStatus === "running") {
+					store.setChatStatus(null);
 				}
 				scheduleReconnect();
 			};

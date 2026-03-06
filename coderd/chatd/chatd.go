@@ -1330,10 +1330,14 @@ func (p *Server) Subscribe(
 				}
 				return
 			case notify := <-notifications:
-				if notify.AfterMessageID > 0 {
+				if notify.AfterMessageID > 0 || notify.FullRefresh {
+					afterID := lastMessageID
+					if notify.FullRefresh {
+						afterID = 0
+					}
 					newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
 						ChatID:  chatID,
-						AfterID: lastMessageID,
+						AfterID: afterID,
 					})
 					if msgErr != nil {
 						p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
@@ -1642,7 +1646,7 @@ func (p *Server) publishEditedMessage(chatID uuid.UUID, message database.ChatMes
 		Message: &sdkMessage,
 	})
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-		AfterMessageID: 0,
+		FullRefresh: true,
 	})
 }
 
@@ -2209,6 +2213,19 @@ func (p *Server) runChat(
 
 		var insertedMessages []database.ChatMessage
 		err := p.db.InTx(func(tx database.Store) error {
+			// Verify this worker still owns the chat before
+			// inserting messages. This closes the race where
+			// EditMessage truncates history and clears worker_id
+			// while persistInterruptedStep (which uses an
+			// uncancelable context) is still running.
+			lockedChat, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
+			if lockErr != nil {
+				return xerrors.Errorf("lock chat for persist: %w", lockErr)
+			}
+			if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != p.workerID {
+				return chatloop.ErrInterrupted
+			}
+
 			if len(assistantBlocks) > 0 {
 				assistantContent, marshalErr := chatprompt.MarshalContent(assistantBlocks, nil)
 				if marshalErr != nil {
