@@ -22,9 +22,14 @@ cdroot
 
 dependencies git gh jq
 
-# Verify GPG signing is configured for signed tags.
-if ! git config --get user.signingkey >/dev/null 2>&1 && ! git config --get gpg.format >/dev/null 2>&1; then
-	error "GPG signing is not configured. Set git config user.signingkey or gpg.format to create signed tags."
+# Check GPG signing configuration.
+gpg_configured=0
+if git config --get user.signingkey >/dev/null 2>&1 || git config --get gpg.format >/dev/null 2>&1; then
+	gpg_configured=1
+else
+	warn "GPG signing is not configured. Tags will be unsigned — there will be no way to verify who pushed the tag."
+	log "  To fix: set git config user.signingkey or gpg.format"
+	log
 fi
 
 # Bold/color helpers (degrade gracefully if not a terminal).
@@ -542,7 +547,11 @@ if ((tag_exists == 0)); then
 	log "  Branch: ${current_branch}"
 	log
 	if confirm "Create tag?" y; then
-		run git tag -s -a "$new_version" -m "Release $new_version" "$ref"
+		if ((gpg_configured)); then
+			run git tag -s -a "$new_version" -m "Release $new_version" "$ref"
+		else
+			run git tag -a "$new_version" -m "Release $new_version" "$ref"
+		fi
 		success "Tag ${new_version} created."
 	else
 		error "Cannot proceed without a tag. Aborting."

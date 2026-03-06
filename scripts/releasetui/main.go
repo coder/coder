@@ -66,8 +66,9 @@ func (a version) Eq(b version) bool {
 type ReleaseExecutor interface {
 	// GitFetch fetches tags and the given branch from origin.
 	GitFetch(ctx context.Context, branch string) error
-	// CreateTag creates a signed annotated tag at the given ref.
-	CreateTag(ctx context.Context, tag, ref, message string) error
+	// CreateTag creates an annotated tag at the given ref. If sign
+	// is true, the tag is GPG-signed.
+	CreateTag(ctx context.Context, tag, ref, message string, sign bool) error
 	// PushTag pushes a tag to origin.
 	PushTag(ctx context.Context, tag string) error
 	// TriggerWorkflow dispatches the release.yaml workflow.
@@ -88,8 +89,13 @@ func (e *liveExecutor) GitFetch(_ context.Context, branch string) error {
 	return gitRun("fetch", "--quiet", "--tags", "origin", branch)
 }
 
-func (e *liveExecutor) CreateTag(_ context.Context, tag, ref, message string) error {
-	return gitRun("tag", "-s", "-a", tag, "-m", message, ref)
+func (e *liveExecutor) CreateTag(_ context.Context, tag, ref, message string, sign bool) error {
+	args := []string{"tag", "-a"}
+	if sign {
+		args = append(args, "-s")
+	}
+	args = append(args, tag, "-m", message, ref)
+	return gitRun(args...)
 }
 
 func (e *liveExecutor) PushTag(_ context.Context, tag string) error {
@@ -135,8 +141,12 @@ func (e *dryRunExecutor) GitFetch(_ context.Context, branch string) error {
 	return nil
 }
 
-func (e *dryRunExecutor) CreateTag(_ context.Context, tag, ref, message string) error {
-	fmt.Fprintf(e.w, "DRY RUN: would run: git tag -s -a %s -m %q %s\n", tag, message, ref)
+func (e *dryRunExecutor) CreateTag(_ context.Context, tag, ref, message string, sign bool) error {
+	signFlag := ""
+	if sign {
+		signFlag = "-s "
+	}
+	fmt.Fprintf(e.w, "DRY RUN: would run: git tag %s-a %s -m %q %s\n", signFlag, tag, message, ref)
 	return nil
 }
 
@@ -268,8 +278,11 @@ func main() {
 			// --- Check GPG signing ---
 			signingKey, _ := gitOutput("config", "--get", "user.signingkey")
 			gpgFormat, _ := gitOutput("config", "--get", "gpg.format")
-			if signingKey == "" && gpgFormat == "" {
-				return fmt.Errorf("GPG signing is not configured; set git config user.signingkey or gpg.format to create signed tags")
+			gpgConfigured := signingKey != "" || gpgFormat != ""
+			if !gpgConfigured {
+				warnf(w, "GPG signing is not configured. Tags will be unsigned — there will be no way to verify who pushed the tag.")
+				fmt.Fprintf(w, "  To fix: set git config user.signingkey or gpg.format\n")
+				fmt.Fprintln(w)
 			}
 
 			// --- GitHub client ---
@@ -288,7 +301,7 @@ func main() {
 				executor = &liveExecutor{ghClient: ghClient}
 			}
 
-			return runRelease(ctx, inv, executor, ghClient)
+			return runRelease(ctx, inv, executor, ghClient, gpgConfigured)
 		},
 	}
 
@@ -411,7 +424,7 @@ func categorizeCommit(title string, labels []string) string {
 }
 
 //nolint:revive // Long function is fine for a sequential release flow.
-func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseExecutor, ghClient *github.Client) error {
+func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseExecutor, ghClient *github.Client, gpgConfigured bool) error {
 	w := inv.Stderr
 
 	// --- Release landscape ---
@@ -812,7 +825,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		if err := confirm(inv, "Create tag?"); err != nil {
 			return fmt.Errorf("cannot proceed without a tag")
 		}
-		if err := executor.CreateTag(ctx, newVersion.String(), ref, "Release "+newVersion.String()); err != nil {
+		if err := executor.CreateTag(ctx, newVersion.String(), ref, "Release "+newVersion.String(), gpgConfigured); err != nil {
 			return fmt.Errorf("creating tag: %w", err)
 		}
 		successf(w, "Tag %s created.", newVersion)
