@@ -97,7 +97,6 @@ interface AgentChatInputProps {
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 }
-
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
 	typeof value === "number" && Number.isFinite(value) && value >= 0;
 
@@ -350,6 +349,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		const internalRef = useRef<ChatMessageInputRef>(null);
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+		const [hasFileReferences, setHasFileReferences] = useState(false);
+
 		// Merge the external inputRef with our internal ref so both
 		// point to the same ChatMessageInputRef instance.
 		const setRef = useCallback(
@@ -424,8 +425,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		const [hasContent, setHasContent] = useState(() => !!initialValue?.trim());
 
 		const handleContentChange = useCallback(
-			(content: string) => {
+			(content: string, hasRefs: boolean) => {
 				setHasContent(!!content.trim());
+				setHasFileReferences(hasRefs);
 				onContentChange?.(content);
 			},
 			[onContentChange],
@@ -453,35 +455,32 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			!isDisabled &&
 			!isLoading &&
 			hasModelOptions &&
-			(hasContent || hasUploadedAttachments) &&
+			(hasContent || hasUploadedAttachments || hasFileReferences) &&
 			!isUploading;
-
 		const handleSubmit = useCallback(() => {
 			const text = internalRef.current?.getValue()?.trim() ?? "";
 
 			// If the input is empty and there are queued messages,
 			// promote the first one instead of submitting.
-			if (
-				!text &&
+				if (
+					!text &&
 				!hasUploadedAttachments &&
+				!hasFileReferences &&
 				!isDisabled &&
 				!isLoading &&
 				queuedMessages.length > 0 &&
-				onPromoteQueuedMessage
-			) {
-				void onPromoteQueuedMessage(queuedMessages[0].id);
+				onPromoteQueuedMessage				) {				void onPromoteQueuedMessage(queuedMessages[0].id);
 				return;
 			}
 
-			if (
-				(!text && !hasUploadedAttachments) ||
-				isDisabled ||
-				isLoading ||
-				!hasModelOptions
-			) {
-				return;
-			}
-
+				if (
+					(!text && !hasUploadedAttachments && !hasFileReferences) ||
+					isDisabled ||
+					isLoading ||
+					!hasModelOptions
+				) {
+					return;
+				}
 			onSend(text);
 			internalRef.current?.focus();
 		}, [
@@ -601,7 +600,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						disabled={isDisabled || isLoading}
 						rows={4}
 						autoFocus
-					/>
+					/>{" "}
 					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 						<div className="flex min-w-0 items-center gap-2">
 							<ModelSelector

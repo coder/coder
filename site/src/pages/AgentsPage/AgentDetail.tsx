@@ -70,7 +70,6 @@ import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import { useWorkspaceCreationWatcher } from "./AgentDetail/useWorkspaceCreationWatcher";
 import type { AgentsOutletContext } from "./AgentsPage";
-
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -776,27 +775,57 @@ const AgentDetail: FC = () => {
 		interruptMutation.isPending;
 	const isInputDisabled = !hasModelOptions || isArchived;
 
-	const handleSend = async (
-		message: string,
-		fileIds?: string[],
-		editedMessageID?: number,
-	) => {
-		const hasContent = message.trim() || (fileIds && fileIds.length > 0);
-		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
-			return;
-		}
-		const content: TypesGen.ChatInputPart[] = [];
-		if (message.trim()) {
-			content.push({ type: "text", text: message });
-		}
+		const handleSend = async (
+			message: string,
+			fileIds?: string[],
+			editedMessageID?: number,
+		) => {
+			const chatInputHandle = (
+				editing.chatInputRef as React.RefObject<ChatMessageInputRef | null>
+			)?.current;
 
-		// Add pre-uploaded file references.
-		if (fileIds && fileIds.length > 0) {
-			for (const fileId of fileIds) {
-				content.push({ type: "file", file_id: fileId });
+			// Walk the Lexical tree in document order so file-reference
+			// parts appear at the correct position relative to the
+			// surrounding text the user typed.
+			const editorParts = chatInputHandle?.getContentParts() ?? [];
+			const hasFileReferences = editorParts.some(
+				(p) => p.type === "file-reference",
+			);
+			const hasContent =
+				message.trim() || (fileIds && fileIds.length > 0) || hasFileReferences;
+			if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
+				return;
 			}
-		}
-		if (editedMessageID !== undefined) {
+
+			const content: TypesGen.ChatInputPart[] = [];
+
+			// Emit parts in document order — text segments and
+			// file-reference chips are interleaved as they appear in
+			// the editor.
+			for (const part of editorParts) {
+				if (part.type === "text") {
+					const trimmed = part.text.trim();
+					if (trimmed) {
+						content.push({ type: "text", text: part.text });
+					}
+				} else {
+					const r = part.reference;
+					content.push({
+						type: "file-reference",
+						file_name: r.fileName,
+						start_line: r.startLine,
+						end_line: r.endLine,
+						content: r.content,
+					});
+				}
+			}
+
+			// Add pre-uploaded file references.
+			if (fileIds && fileIds.length > 0) {
+				for (const fileId of fileIds) {
+					content.push({ type: "file", file_id: fileId });
+				}
+			}		if (editedMessageID !== undefined) {
 			const request: TypesGen.EditChatMessageRequest = { content };
 			clearChatErrorReason(agentId);
 			clearStreamError();
@@ -1115,7 +1144,6 @@ const AgentDetail: FC = () => {
 			</div>
 		);
 	}
-
 	return (
 		<div
 			className={cn(
@@ -1253,6 +1281,7 @@ const AgentDetail: FC = () => {
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					chatTitle={chatTitle}
 					diffStatus={diffStatusQuery.data}
+					chatInputRef={editing.chatInputRef}
 				/>
 			</RightPanel>
 		</div>

@@ -263,6 +263,100 @@ describe("parseMessageContent", () => {
 			fileId: undefined,
 		});
 	});
+
+	it("parses a file-reference block into blocks", () => {
+		const result = parseMessageContent([
+			{
+				type: "file-reference",
+				file_name: "src/main.go",
+				start_line: 10,
+				end_line: 15,
+				content: "some added code lines",
+				text: "Consider using a constant here.",
+			},
+		]);
+		expect(result.blocks).toHaveLength(1);
+		expect(result.blocks[0]).toEqual({
+			type: "file-reference",
+			fileName: "src/main.go",
+			startLine: 10,
+			endLine: 15,
+			content: "some added code lines",
+			text: "Consider using a constant here.",
+		});
+	});
+
+	it("falls back to line_number when start_line and end_line are missing", () => {
+		const result = parseMessageContent([
+			{
+				type: "file-reference",
+				file_name: "index.ts",
+				line_number: 42,
+				content: "fallback content",
+				text: "Fallback line.",
+			},
+		]);
+		const ref = result.blocks[0] as { startLine: number; endLine: number };
+		expect(ref.startLine).toBe(42);
+		expect(ref.endLine).toBe(42);
+	});
+
+	it("uses line_number for end_line when only start_line is provided", () => {
+		// When start_line is present it is used directly. end_line is
+		// missing so the fallback chain tries line_number next.
+		const result = parseMessageContent([
+			{
+				type: "file-reference",
+				file_name: "foo.ts",
+				start_line: 5,
+				line_number: 7,
+				content: "partial content",
+				text: "Partial fallback.",
+			},
+		]);
+		const ref = result.blocks[0] as { startLine: number; endLine: number };
+		expect(ref.startLine).toBe(5);
+		expect(ref.endLine).toBe(7);
+	});
+
+	it("defaults lines to 0 when no line fields are provided", () => {
+		const result = parseMessageContent([
+			{
+				type: "file-reference",
+				file_name: "bare.ts",
+				content: "bare content",
+				text: "No line info.",
+			},
+		]);
+		const ref = result.blocks[0] as { startLine: number; endLine: number };
+		expect(ref.startLine).toBe(0);
+		expect(ref.endLine).toBe(0);
+	});
+
+	it("does not affect markdown when file-reference blocks are present", () => {
+		const result = parseMessageContent([
+			{ type: "text", text: "Hello" },
+			{
+				type: "file-reference",
+				file_name: "a.go",
+				start_line: 1,
+				end_line: 2,
+				content: "nit code content",
+				text: "Nit.",
+			},
+		]);
+		expect(result.markdown).toBe("Hello");
+		expect(result.blocks).toHaveLength(2);
+		expect(result.blocks[0]).toEqual({ type: "response", text: "Hello" });
+		expect(result.blocks[1]).toEqual({
+			type: "file-reference",
+			fileName: "a.go",
+			startLine: 1,
+			endLine: 2,
+			content: "nit code content",
+			text: "Nit.",
+		});
+	});
 });
 
 describe("mergeTools", () => {
