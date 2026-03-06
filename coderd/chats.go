@@ -421,6 +421,15 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Watch git changes for a chat.
+// @ID watch-chat-git
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 101
+// @Router /chats/{chat}/git/watch [get]
+//
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
@@ -585,6 +594,9 @@ func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var err error
+	// Use chatDaemon when available so it can notify
+	// active subscribers. Fall back to direct DB for the
+	// simple archive flag — no streaming state is involved.
 	if api.chatDaemon != nil {
 		err = api.chatDaemon.ArchiveChat(ctx, chat.ID)
 	} else {
@@ -618,6 +630,9 @@ func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var err error
+	// Use chatDaemon when available so it can notify
+	// active subscribers. Fall back to direct DB for the
+	// simple unarchive flag — no streaming state is involved.
 	if api.chatDaemon != nil {
 		err = api.chatDaemon.UnarchiveChat(ctx, chat.ID)
 	} else {
@@ -877,10 +892,6 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer func() {
-		<-senderClosed
-	}()
-
 	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
 	if !ok {
 		_ = sendEvent(codersdk.ServerSentEvent{
@@ -890,8 +901,14 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 				Detail:  "Chat stream state is not configured.",
 			},
 		})
+		// Ensure the WebSocket is closed so senderClosed
+		// completes and the handler can return.
+		<-senderClosed
 		return
 	}
+	defer func() {
+		<-senderClosed
+	}()
 	defer cancel()
 
 	sendChatStreamBatch := func(batch []codersdk.ChatStreamEvent) error {

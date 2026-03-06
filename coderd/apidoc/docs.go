@@ -617,6 +617,35 @@ const docTemplate = `{
                 }
             }
         },
+        "/chats/{chat}/git/watch": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Watch git changes for a chat.",
+                "operationId": "watch-chat-git",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
         "/chats/{chat}/unarchive": {
             "post": {
                 "tags": [
