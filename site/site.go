@@ -36,7 +36,10 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -70,6 +73,7 @@ func init() {
 type Options struct {
 	CacheDir          string
 	Database          database.Store
+	Authorizer        rbac.Authorizer
 	SiteFS            fs.FS
 	OAuth2Configs     *httpmw.OAuth2Configs
 	DocsURL           string
@@ -264,6 +268,8 @@ type htmlState struct {
 
 	TasksTabVisible  string
 	AgentsTabVisible string
+	Permissions      string
+	Organizations    string
 }
 
 type csrfState struct {
@@ -394,6 +400,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	var themePreference string
 	var terminalFont string
 	orgIDs := []uuid.UUID{}
+	var userOrgs []database.Organization
 	eg.Go(func() error {
 		var err error
 		user, err = h.opts.Database.GetUserByID(ctx, apiKey.UserID)
@@ -427,6 +434,16 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		}
 		orgIDs = memberIDs[0].OrganizationIDs
 		return err
+	})
+	eg.Go(func() error {
+		orgs, err := h.opts.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+			UserID: apiKey.UserID,
+		})
+		if err == nil {
+			userOrgs = orgs
+		}
+		// Don't fail the entire group if we can't fetch orgs.
+		return nil
 	})
 	err := eg.Wait()
 	if err == nil {
@@ -516,10 +533,57 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 				state.AgentsTabVisible = html.EscapeString(string(data))
 			}
 		})
+		wg.Go(func() {
+			sdkOrgs := slice.List(userOrgs, db2sdk.Organization)
+			data, err := json.Marshal(sdkOrgs)
+			if err == nil {
+				state.Organizations = html.EscapeString(string(data))
+			}
+		})
+		if h.opts.Authorizer != nil {
+			wg.Go(func() {
+				state.Permissions = h.renderPermissions(ctx, *actor)
+			})
+		}
 		wg.Wait()
 	}
 
 	return execTmpl(tmpl, state)
+}
+
+// permissionChecks is the single source of truth for site-wide
+// permission checks, shared with the TypeScript frontend via
+// permissions.json.
+//
+//go:embed permissions.json
+var permissionChecksJSON []byte
+
+var permissionChecks map[string]codersdk.AuthorizationCheck
+
+func init() {
+	if err := json.Unmarshal(permissionChecksJSON, &permissionChecks); err != nil {
+		panic("failed to parse permissions.json: " + err.Error())
+	}
+}
+
+// renderPermissions checks all the site-wide permissions for the
+// given actor and returns an HTML-escaped JSON string suitable for
+// embedding in a meta tag.
+func (h *Handler) renderPermissions(ctx context.Context, actor rbac.Subject) string {
+	response := make(codersdk.AuthorizationResponse)
+	for k, v := range permissionChecks {
+		obj := rbac.Object{
+			Type:        string(v.Object.ResourceType),
+			AnyOrgOwner: v.Object.AnyOrgOwner,
+		}
+		err := h.opts.Authorizer.Authorize(ctx, actor, policy.Action(v.Action), obj)
+		response[k] = err == nil
+	}
+	data, err := json.Marshal(response)
+	if err != nil {
+		return ""
+	}
+	return html.EscapeString(string(data))
 }
 
 // noopResponseWriter is a response writer that does nothing.
