@@ -1535,7 +1535,7 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 		if dbErr != nil {
 			return false
 		}
-		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid
+		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid && mockPush.dispatchCount.Load() == 1
 	}, testutil.IntervalFast)
 
 	// Verify a web push notification was dispatched exactly once.

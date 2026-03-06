@@ -73,15 +73,10 @@ type RunOptions struct {
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
 	// number, error, and backoff delay so callers can publish status
-	// events to connected clients.
+	// events to connected clients. Callers should also clear any
+	// buffered stream state from the failed attempt in this callback
+	// to avoid sending duplicated content.
 	OnRetry chatretry.OnRetryFn
-
-	// OnRetryReset is called during a retry reset so the
-	// caller can clear any buffered stream state from the
-	// failed attempt. Without this, partially streamed
-	// message parts from the failed attempt remain in the
-	// buffer and clients see duplicated content.
-	OnRetryReset func()
 
 	OnInterruptedPersistError func(error)
 }
@@ -217,6 +212,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 	var lastProviderMetadata fantasy.ProviderMetadata
 
 	totalSteps := 0
+	// When totalSteps reaches MaxSteps the inner loop exits immediately
+	// (its condition is false), stoppedByModel stays false, and the
+	// post-loop guard breaks the outer compaction loop.
 	for compactionAttempt := 0; ; compactionAttempt++ {
 		alreadyCompacted := false
 		// stoppedByModel is true when the inner step loop
@@ -268,9 +266,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// Reset result from the failed attempt so the next
 				// attempt starts clean.
 				result = stepResult{}
-				if opts.OnRetryReset != nil {
-					opts.OnRetryReset()
-				}
 				if opts.OnRetry != nil {
 					opts.OnRetry(attempt, retryErr, delay)
 				}

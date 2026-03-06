@@ -632,10 +632,12 @@ func (p *Server) DeleteQueued(
 			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 			QueuedMessages: db2sdk.ChatQueuedMessages(queuedMessages),
 		})
-		p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-			QueueUpdate: true,
-		})
 	}
+	// Always notify subscribers so they can re-fetch, even if we
+	// failed to load the updated queue payload above.
+	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		QueueUpdate: true,
+	})
 	return nil
 }
 
@@ -2143,6 +2145,21 @@ func (p *Server) runChat(
 		if conn == nil {
 			conn = agentConn
 			releaseConn = agentRelease
+
+			var ancestorIDs []string
+			if chatSnapshot.ParentChatID.Valid {
+				ancestorIDs = append(ancestorIDs, chatSnapshot.ParentChatID.UUID.String())
+			}
+			ancestorJSON, err := json.Marshal(ancestorIDs)
+			if err != nil {
+				logger.Warn(ctx, "failed to marshal ancestor chat IDs", slog.Error(err))
+				ancestorJSON = []byte("[]")
+			}
+			agentConn.SetExtraHeaders(http.Header{
+				workspacesdk.CoderChatIDHeader:          {chatSnapshot.ID.String()},
+				workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
+			})
+
 			chatStateMu.Unlock()
 			return agentConn, nil
 		}
@@ -2190,40 +2207,41 @@ func (p *Server) runChat(
 			assistantBlocks = append(assistantBlocks, block)
 		}
 
-			var insertedMessages []database.ChatMessage
-			err := p.db.InTx(func(tx database.Store) error {
-				if len(assistantBlocks) > 0 {
-					assistantContent, marshalErr := chatprompt.MarshalContent(assistantBlocks, nil)
-					if marshalErr != nil {
-						return marshalErr
-					}
+		var insertedMessages []database.ChatMessage
+		err := p.db.InTx(func(tx database.Store) error {
+			if len(assistantBlocks) > 0 {
+				assistantContent, marshalErr := chatprompt.MarshalContent(assistantBlocks, nil)
+				if marshalErr != nil {
+					return marshalErr
+				}
 
-					hasUsage := step.Usage != (fantasy.Usage{})
-					assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-						ChatID:        chat.ID,
-						ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-						Role:          string(fantasy.MessageRoleAssistant),
-						Content:       assistantContent,
-						Visibility:    database.ChatMessageVisibilityBoth,
-						InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
-						OutputTokens:  usageNullInt64(step.Usage.OutputTokens, hasUsage),
-						TotalTokens:   usageNullInt64(step.Usage.TotalTokens, hasUsage),
-						ReasoningTokens: usageNullInt64(
-							step.Usage.ReasoningTokens,
-							hasUsage,
-						),
-						CacheCreationTokens: usageNullInt64(
-							step.Usage.CacheCreationTokens,
-							hasUsage,
-						),
-						CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
-						ContextLimit:    step.ContextLimit,
-						Compressed:      sql.NullBool{},
-					})
-					if insertErr != nil {
-						return xerrors.Errorf("insert assistant message: %w", insertErr)
-					}
-					insertedMessages = append(insertedMessages, assistantMessage)			}
+				hasUsage := step.Usage != (fantasy.Usage{})
+				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
+					ChatID:        chat.ID,
+					ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+					Role:          string(fantasy.MessageRoleAssistant),
+					Content:       assistantContent,
+					Visibility:    database.ChatMessageVisibilityBoth,
+					InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
+					OutputTokens:  usageNullInt64(step.Usage.OutputTokens, hasUsage),
+					TotalTokens:   usageNullInt64(step.Usage.TotalTokens, hasUsage),
+					ReasoningTokens: usageNullInt64(
+						step.Usage.ReasoningTokens,
+						hasUsage,
+					),
+					CacheCreationTokens: usageNullInt64(
+						step.Usage.CacheCreationTokens,
+						hasUsage,
+					),
+					CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
+					ContextLimit:    step.ContextLimit,
+					Compressed:      sql.NullBool{},
+				})
+				if insertErr != nil {
+					return xerrors.Errorf("insert assistant message: %w", insertErr)
+				}
+				insertedMessages = append(insertedMessages, assistantMessage)
+			}
 
 			for _, tr := range toolResults {
 				resultContent, marshalErr := chatprompt.MarshalToolResultContent(tr)
@@ -2419,15 +2437,13 @@ func (p *Server) runChat(
 			return reloadedPrompt, nil
 		},
 
-		OnRetryReset: func() {
+		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
 			p.streamMu.Lock()
 			if state, ok := p.chatStreams[chat.ID]; ok {
 				state.buffer = nil
 			}
 			p.streamMu.Unlock()
-		},
 
-		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
 			logger.Warn(ctx, "retrying LLM stream",
 				slog.F("attempt", attempt),
 				slog.F("delay", delay.String()),
