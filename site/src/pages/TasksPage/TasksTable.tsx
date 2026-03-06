@@ -10,6 +10,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -26,7 +27,12 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks";
-import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
+import {
+	EllipsisVertical,
+	RotateCcwIcon,
+	Share2Icon,
+	TrashIcon,
+} from "lucide-react";
 import { TaskActionButton } from "modules/tasks/TaskActionButton";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
@@ -310,6 +316,41 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 							</DropdownMenuContent>
 						</DropdownMenu>
 					</div>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="icon-lg"
+								variant="subtle"
+								onClick={(e) => e.stopPropagation()}
+							>
+								<EllipsisVertical aria-hidden="true" />
+								<span className="sr-only">Open task actions</span>
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								onSelect={() => {
+									navigate(
+										`/@${task.owner_name}/${task.workspace_name}/settings/sharing`,
+									);
+								}}
+							>
+								<Share2Icon />
+								Share
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onClick={(e) => {
+									e.stopPropagation();
+									setIsDeleteDialogOpen(true);
+								}}
+							>
+								<TrashIcon />
+								Delete&hellip;
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</TableCell>
 			</TableRow>
 
