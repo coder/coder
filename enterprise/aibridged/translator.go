@@ -27,11 +27,12 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
 		Id:                    req.ID,
 		ApiKeyId:              t.apiKeyID,
-		Client:                req.Client,
 		InitiatorId:           req.InitiatorID,
 		Provider:              req.Provider,
 		Model:                 req.Model,
 		UserAgent:             req.UserAgent,
+		Client:                req.Client,
+		ClientSessionId:       req.ClientSessionID,
 		Metadata:              marshalForProto(req.Metadata),
 		StartedAt:             timestamppb.New(req.StartedAt),
 		CorrelatingToolCallId: req.CorrelatingToolCallID,
