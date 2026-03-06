@@ -2469,7 +2469,16 @@ func (q *querier) GetChatFileByID(ctx context.Context, id uuid.UUID) (database.C
 }
 
 func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ChatFile, error) {
-	panic("not implemented")
+	files, err := q.db.GetChatFilesByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		if err := q.authorizeContext(ctx, policy.ActionRead, f); err != nil {
+			return nil, err
+		}
+	}
+	return files, nil
 }
 
 func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
