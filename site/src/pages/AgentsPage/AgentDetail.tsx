@@ -22,6 +22,7 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "modules/apps/apps";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
 	useCallback,
@@ -35,7 +36,11 @@ import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
+import {
+	AgentChatInput,
+	type ChatMessageInputRef,
+	type UploadState,
+} from "./AgentChatInput";
 import {
 	selectChatStatus,
 	selectHasStreamState,
@@ -74,6 +79,7 @@ import {
 } from "./modelOptions";
 import { RightPanel } from "./RightPanel";
 import { SidebarTabView } from "./SidebarTabView";
+import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
 
 const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
@@ -99,7 +105,11 @@ interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
 	chatID: string;
 	persistedErrorReason: string | undefined;
-	onEditUserMessage?: (messageId: number, text: string) => void;
+	onEditUserMessage?: (
+		messageId: number,
+		text: string,
+		fileBlocks?: Array<{ mediaType: string; data?: string }>,
+	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 }
@@ -186,7 +196,7 @@ const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 interface AgentDetailInputProps {
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
-	onSend: (message: string) => void;
+	onSend: (message: string, fileIds?: string[]) => void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -210,6 +220,13 @@ interface AgentDetailInputProps {
 	onCancelQueueEdit: () => void;
 	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
+	// File blocks from the message being edited, converted to
+	// File objects and pre-populated into attachments.
+	editingFileBlocks?: Array<{
+		mediaType: string;
+		data?: string;
+		fileId?: string;
+	}>;
 }
 
 const AgentDetailInput: FC<AgentDetailInputProps> = ({
@@ -237,6 +254,7 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage,
 	onCancelHistoryEdit,
+	editingFileBlocks,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -251,6 +269,8 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 				.filter(isChatMessage),
 		[messagesByID, orderedMessageIDs],
 	);
+	const { organizations } = useDashboard();
+	const organizationId = organizations[0]?.id;
 	const latestContextUsage = useMemo(() => {
 		const usage = getLatestContextUsage(messages);
 		if (!usage) {
@@ -258,12 +278,96 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		}
 		return { ...usage, compressionThreshold };
 	}, [messages, compressionThreshold]);
+	const {
+		attachments,
+		uploadStates,
+		previewUrls,
+		handleAttach,
+		handleRemoveAttachment,
+		resetAttachments,
+		setAttachments,
+		setPreviewUrls,
+		setUploadStates,
+	} = useFileAttachments(organizationId);
+	// Pre-populate attachments from existing file blocks when
+	// entering edit mode on a message with images.
+	useEffect(() => {
+		if (!editingFileBlocks || editingFileBlocks.length === 0) {
+			// Clear attachments when exiting edit mode.
+			setAttachments([]);
+			setUploadStates(new Map());
+			setPreviewUrls(new Map());
+			return;
+		}
+		const files = editingFileBlocks.map((block, i) => {
+			const ext = block.mediaType.split("/")[1] ?? "png";
+			// Empty File used as a Map key only, its content is never
+			// read because the existing fileId is reused at send time.
+			return new File([], `attachment-${i}.${ext}`, {
+				type: block.mediaType,
+			});
+		});
+		setAttachments(files);
+		setPreviewUrls(
+			new Map(
+				files.map((f, i) => [
+					f,
+					`/api/experimental/chats/files/${editingFileBlocks[i].fileId}`,
+				]),
+			),
+		);
+		const newUploadStates = new Map<File, UploadState>();
+		for (const [i, file] of files.entries()) {
+			const block = editingFileBlocks[i];
+			if (block.fileId) {
+				newUploadStates.set(file, {
+					status: "uploaded",
+					fileId: block.fileId,
+				});
+			}
+		}
+		setUploadStates(newUploadStates);
+	}, [editingFileBlocks, setAttachments, setPreviewUrls, setUploadStates]);
+
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
 	return (
 		<AgentChatInput
-			onSend={onSend}
+			onSend={(message) => {
+				void (async () => {
+					try {
+						// Collect file IDs from already-uploaded attachments.
+						// Skip files in error state (e.g. too large).
+						const fileIds: string[] = [];
+						let skippedErrors = 0;
+						for (const file of attachments) {
+							const state = uploadStates.get(file);
+							if (state?.status === "error") {
+								skippedErrors++;
+								continue;
+							}
+							if (state?.status === "uploaded" && state.fileId) {
+								fileIds.push(state.fileId);
+							}
+						}
+						if (skippedErrors > 0) {
+							toast.warning(
+								`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+							);
+						}
+						await onSend(message, fileIds.length > 0 ? fileIds : undefined);
+						resetAttachments();
+					} catch {
+						// Attachments preserved for retry on failure.
+					}
+				})();
+			}}
+			attachments={attachments}
+			onAttach={handleAttach}
+			onRemoveAttachment={handleRemoveAttachment}
+			uploadStates={uploadStates}
+			previewUrls={previewUrls}
 			inputRef={inputRef}
 			initialValue={initialValue}
 			onContentChange={onContentChange}
@@ -295,7 +399,11 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
-	onSend: (message: string, editedMessageID?: number) => Promise<void>;
+	onSend: (
+		message: string,
+		fileIds?: string[],
+		editedMessageID?: number,
+	) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
@@ -321,15 +429,23 @@ export function useConversationEditingState(deps: {
 	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] = useState<
 		string | null
 	>(null);
+	const [editingFileBlocks, setEditingFileBlocks] = useState<
+		Array<{ mediaType: string; data?: string; fileId?: string }>
+	>([]);
 
 	const handleEditUserMessage = useCallback(
-		(messageId: number, text: string) => {
+		(
+			messageId: number,
+			text: string,
+			fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+		) => {
 			setDraftBeforeHistoryEdit((prev) =>
 				editingMessageId !== null ? prev : inputValueRef.current,
 			);
 			setEditingMessageId(messageId);
 			setEditorInitialValue(text);
 			inputValueRef.current = text;
+			setEditingFileBlocks(fileBlocks ?? []);
 		},
 		[editingMessageId, inputValueRef],
 	);
@@ -339,6 +455,7 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = draftBeforeHistoryEdit ?? "";
 		setEditingMessageId(null);
 		setDraftBeforeHistoryEdit(null);
+		setEditingFileBlocks([]);
 	}, [draftBeforeHistoryEdit, inputValueRef]);
 
 	// -- Queue editing state --
@@ -371,29 +488,29 @@ export function useConversationEditingState(deps: {
 	// Wraps the parent onSend to clear local input/editing state
 	// and handle queue-edit deletion.
 	const handleSendFromInput = useCallback(
-		(message: string) => {
+		async (message: string, fileIds?: string[]) => {
 			const editedMessageID =
 				editingMessageId !== null ? editingMessageId : undefined;
 			const queueEditID = editingQueuedMessageID;
 
-			void onSend(message, editedMessageID).then(() => {
-				// Clear input and editing state on success.
-				chatInputRef.current?.clear();
-				chatInputRef.current?.focus();
-				inputValueRef.current = "";
-				if (typeof window !== "undefined" && draftStorageKey) {
-					localStorage.removeItem(draftStorageKey);
-				}
-				if (editingMessageId !== null) {
-					setEditingMessageId(null);
-					setDraftBeforeHistoryEdit(null);
-				}
-				if (queueEditID !== null) {
-					setEditingQueuedMessageID(null);
-					setDraftBeforeQueueEdit(null);
-					void onDeleteQueuedMessage(queueEditID);
-				}
-			});
+			await onSend(message, fileIds, editedMessageID);
+			// Clear input and editing state on success.
+			chatInputRef.current?.clear();
+			chatInputRef.current?.focus();
+			inputValueRef.current = "";
+			if (typeof window !== "undefined" && draftStorageKey) {
+				localStorage.removeItem(draftStorageKey);
+			}
+			if (editingMessageId !== null) {
+				setEditingMessageId(null);
+				setDraftBeforeHistoryEdit(null);
+				setEditingFileBlocks([]);
+			}
+			if (queueEditID !== null) {
+				setEditingQueuedMessageID(null);
+				setDraftBeforeQueueEdit(null);
+				void onDeleteQueuedMessage(queueEditID);
+			}
 		},
 		[
 			chatInputRef,
@@ -425,6 +542,7 @@ export function useConversationEditingState(deps: {
 		chatInputRef,
 		editorInitialValue,
 		editingMessageId,
+		editingFileBlocks,
 		handleEditUserMessage,
 		handleCancelHistoryEdit,
 		editingQueuedMessageID,
@@ -658,16 +776,26 @@ const AgentDetail: FC = () => {
 		interruptMutation.isPending;
 	const isInputDisabled = !hasModelOptions || isArchived;
 
-	const handleSend = async (message: string, editedMessageID?: number) => {
-		if (
-			!message.trim() ||
-			isSubmissionPending ||
-			!agentId ||
-			!hasModelOptions
-		) {
+	const handleSend = async (
+		message: string,
+		fileIds?: string[],
+		editedMessageID?: number,
+	) => {
+		const hasContent = message.trim() || (fileIds && fileIds.length > 0);
+		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
 			return;
 		}
-		const content: TypesGen.ChatInputPart[] = [{ type: "text", text: message }];
+		const content: TypesGen.ChatInputPart[] = [];
+		if (message.trim()) {
+			content.push({ type: "text", text: message });
+		}
+
+		// Add pre-uploaded file references.
+		if (fileIds && fileIds.length > 0) {
+			for (const fileId of fileIds) {
+				content.push({ type: "file", file_id: fileId });
+			}
+		}
 		if (editedMessageID !== undefined) {
 			const request: TypesGen.EditChatMessageRequest = { content };
 			clearChatErrorReason(agentId);
@@ -1091,6 +1219,7 @@ const AgentDetail: FC = () => {
 						onCancelQueueEdit={editing.handleCancelQueueEdit}
 						isEditingHistoryMessage={editing.editingMessageId !== null}
 						onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+						editingFileBlocks={editing.editingFileBlocks}
 					/>
 				</div>
 			</div>

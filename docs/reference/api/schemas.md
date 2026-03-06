@@ -9847,6 +9847,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |----------|---------|----------|--------------|-------------|
 | `ttl_ms` | integer | false    |              |             |
 
+## codersdk.UploadChatFileResponse
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name | Type   | Required | Restrictions | Description |
+|------|--------|----------|--------------|-------------|
+| `id` | string | false    |              |             |
+
 ## codersdk.UploadResponse
 
 ```json

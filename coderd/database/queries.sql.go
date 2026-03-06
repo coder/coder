@@ -2214,6 +2214,103 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const getChatFileByID = `-- name: GetChatFileByID :one
+SELECT id, owner_id, organization_id, created_at, name, mimetype, data FROM chat_files WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFile, error) {
+	row := q.db.QueryRowContext(ctx, getChatFileByID, id)
+	var i ChatFile
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.CreatedAt,
+		&i.Name,
+		&i.Mimetype,
+		&i.Data,
+	)
+	return i, err
+}
+
+const getChatFilesByIDs = `-- name: GetChatFilesByIDs :many
+SELECT id, owner_id, organization_id, created_at, name, mimetype, data FROM chat_files WHERE id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error) {
+	rows, err := q.db.QueryContext(ctx, getChatFilesByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatFile
+	for rows.Next() {
+		var i ChatFile
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.CreatedAt,
+			&i.Name,
+			&i.Mimetype,
+			&i.Data,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatFile = `-- name: InsertChatFile :one
+INSERT INTO chat_files (owner_id, organization_id, name, mimetype, data)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::bytea)
+RETURNING id, owner_id, organization_id, created_at, name, mimetype
+`
+
+type InsertChatFileParams struct {
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Mimetype       string    `db:"mimetype" json:"mimetype"`
+	Data           []byte    `db:"data" json:"data"`
+}
+
+type InsertChatFileRow struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	Name           string    `db:"name" json:"name"`
+	Mimetype       string    `db:"mimetype" json:"mimetype"`
+}
+
+func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error) {
+	row := q.db.QueryRowContext(ctx, insertChatFile,
+		arg.OwnerID,
+		arg.OrganizationID,
+		arg.Name,
+		arg.Mimetype,
+		arg.Data,
+	)
+	var i InsertChatFileRow
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.CreatedAt,
+		&i.Name,
+		&i.Mimetype,
+	)
+	return i, err
+}
+
 const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
 UPDATE
     chat_model_configs

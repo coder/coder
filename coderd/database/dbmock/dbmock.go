@@ -1837,6 +1837,36 @@ func (mr *MockStoreMockRecorder) GetChatDiffStatusesByChatIDs(ctx, chatIds any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatDiffStatusesByChatIDs", reflect.TypeOf((*MockStore)(nil).GetChatDiffStatusesByChatIDs), ctx, chatIds)
 }
 
+// GetChatFileByID mocks base method.
+func (m *MockStore) GetChatFileByID(ctx context.Context, id uuid.UUID) (database.ChatFile, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatFileByID", ctx, id)
+	ret0, _ := ret[0].(database.ChatFile)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatFileByID indicates an expected call of GetChatFileByID.
+func (mr *MockStoreMockRecorder) GetChatFileByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFileByID", reflect.TypeOf((*MockStore)(nil).GetChatFileByID), ctx, id)
+}
+
+// GetChatFilesByIDs mocks base method.
+func (m *MockStore) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ChatFile, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatFilesByIDs", ctx, ids)
+	ret0, _ := ret[0].([]database.ChatFile)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatFilesByIDs indicates an expected call of GetChatFilesByIDs.
+func (mr *MockStoreMockRecorder) GetChatFilesByIDs(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatFilesByIDs", reflect.TypeOf((*MockStore)(nil).GetChatFilesByIDs), ctx, ids)
+}
+
 // GetChatMessageByID mocks base method.
 func (m *MockStore) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	m.ctrl.T.Helper()
@@ -5509,6 +5539,21 @@ func (m *MockStore) InsertChat(ctx context.Context, arg database.InsertChatParam
 func (mr *MockStoreMockRecorder) InsertChat(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChat", reflect.TypeOf((*MockStore)(nil).InsertChat), ctx, arg)
+}
+
+// InsertChatFile mocks base method.
+func (m *MockStore) InsertChatFile(ctx context.Context, arg database.InsertChatFileParams) (database.InsertChatFileRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertChatFile", ctx, arg)
+	ret0, _ := ret[0].(database.InsertChatFileRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertChatFile indicates an expected call of InsertChatFile.
+func (mr *MockStoreMockRecorder) InsertChatFile(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertChatFile", reflect.TypeOf((*MockStore)(nil).InsertChatFile), ctx, arg)
 }
 
 // InsertChatMessage mocks base method.

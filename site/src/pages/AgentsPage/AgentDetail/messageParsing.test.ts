@@ -229,6 +229,40 @@ describe("parseMessageContent", () => {
 		expect(result.toolCalls).toHaveLength(1);
 		expect(result.toolCalls[0].name).toBe("test");
 	});
+
+	it("extracts fileId from a file block with file_id", () => {
+		const result = parseMessageContent([
+			{
+				type: "file",
+				media_type: "image/png",
+				file_id: "abc-123-def",
+			},
+		]);
+		expect(result.blocks).toHaveLength(1);
+		expect(result.blocks[0]).toEqual({
+			type: "file",
+			mediaType: "image/png",
+			data: undefined,
+			fileId: "abc-123-def",
+		});
+	});
+
+	it("parses a file block without file_id (backward compat)", () => {
+		const result = parseMessageContent([
+			{
+				type: "file",
+				media_type: "image/png",
+				data: "iVBORw0KGgo=",
+			},
+		]);
+		expect(result.blocks).toHaveLength(1);
+		expect(result.blocks[0]).toEqual({
+			type: "file",
+			mediaType: "image/png",
+			data: "iVBORw0KGgo=",
+			fileId: undefined,
+		});
+	});
 });
 
 describe("mergeTools", () => {

@@ -165,6 +165,9 @@ type CreateOptions struct {
 	ModelConfigID      uuid.UUID
 	SystemPrompt       string
 	InitialUserContent []fantasy.Content
+	// ContentFileIDs maps content block indices to their chat_files IDs
+	// so the file_id can be preserved in the stored message JSON.
+	ContentFileIDs map[int]uuid.UUID
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -180,10 +183,11 @@ const (
 
 // SendMessageOptions controls user message insertion with busy-state behavior.
 type SendMessageOptions struct {
-	ChatID        uuid.UUID
-	Content       []fantasy.Content
-	ModelConfigID *uuid.UUID
-	BusyBehavior  SendMessageBusyBehavior
+	ChatID         uuid.UUID
+	Content        []fantasy.Content
+	ContentFileIDs map[int]uuid.UUID
+	ModelConfigID  *uuid.UUID
+	BusyBehavior   SendMessageBusyBehavior
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -199,6 +203,7 @@ type EditMessageOptions struct {
 	ChatID          uuid.UUID
 	EditedMessageID int64
 	Content         []fantasy.Content
+	ContentFileIDs  map[int]uuid.UUID
 }
 
 // EditMessageResult contains the updated user message and chat status.
@@ -278,7 +283,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			}
 		}
 
-		userContent, err := chatprompt.MarshalContent(opts.InitialUserContent)
+		userContent, err := chatprompt.MarshalContent(opts.InitialUserContent, opts.ContentFileIDs)
 		if err != nil {
 			return xerrors.Errorf("marshal initial user content: %w", err)
 		}
@@ -345,7 +350,7 @@ func (p *Server) SendMessage(
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
 
-	content, err := chatprompt.MarshalContent(opts.Content)
+	content, err := chatprompt.MarshalContent(opts.Content, opts.ContentFileIDs)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
@@ -448,7 +453,7 @@ func (p *Server) EditMessage(
 		return EditMessageResult{}, xerrors.New("content is required")
 	}
 
-	content, err := chatprompt.MarshalContent(opts.Content)
+	content, err := chatprompt.MarshalContent(opts.Content, opts.ContentFileIDs)
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
@@ -1607,6 +1612,25 @@ func (p *Server) subscribeChatControl(
 	return controlCancel
 }
 
+// chatFileResolver returns a FileResolver that fetches chat file
+// content from the database by ID.
+func (p *Server) chatFileResolver() chatprompt.FileResolver {
+	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		files, err := p.db.GetChatFilesByIDs(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
+		for _, f := range files {
+			result[f.ID] = chatprompt.FileData{
+				Data:      f.Data,
+				MediaType: f.Mimetype,
+			}
+		}
+		return result, nil
+	}
+}
+
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat request")
@@ -1922,7 +1946,7 @@ func (p *Server) runChat(
 		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, providerKeys, logger)
 	}()
 
-	prompt, err := chatprompt.ConvertMessages(messages)
+	prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver())
 	if err != nil {
 		return xerrors.Errorf("build chat prompt: %w", err)
 	}
@@ -2064,7 +2088,7 @@ func (p *Server) runChat(
 		}
 
 		if len(assistantBlocks) > 0 {
-			assistantContent, err := chatprompt.MarshalContent(assistantBlocks)
+			assistantContent, err := chatprompt.MarshalContent(assistantBlocks, nil)
 			if err != nil {
 				return err
 			}
@@ -2270,7 +2294,7 @@ func (p *Server) runChat(
 			if err != nil {
 				return nil, xerrors.Errorf("reload chat messages: %w", err)
 			}
-			reloadedPrompt, err := chatprompt.ConvertMessages(reloadedMsgs)
+			reloadedPrompt, err := chatprompt.ConvertMessagesWithFiles(reloadCtx, reloadedMsgs, p.chatFileResolver())
 			if err != nil {
 				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
 			}
@@ -2363,7 +2387,7 @@ func (p *Server) persistChatContextSummary(
 			ToolName:   "chat_summarized",
 			Input:      string(args),
 		},
-	})
+	}, nil)
 	if err != nil {
 		return xerrors.Errorf("encode summary tool call: %w", err)
 	}

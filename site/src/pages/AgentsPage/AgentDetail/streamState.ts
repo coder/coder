@@ -150,6 +150,26 @@ export const applyMessagePartToStreamState = (
 				},
 			};
 		}
+		case "file": {
+			const mediaType = asString(part.media_type);
+			const data = asString(part.data);
+			const fileId = asString(part.file_id);
+			if (!mediaType || (!data && !fileId)) {
+				return prev;
+			}
+			return {
+				...nextState,
+				blocks: [
+					...nextState.blocks,
+					{
+						type: "file",
+						mediaType,
+						data: data || undefined,
+						fileId: fileId || undefined,
+					},
+				],
+			};
+		}
 		default:
 			return prev;
 	}

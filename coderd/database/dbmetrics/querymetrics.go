@@ -1007,6 +1007,22 @@ func (m queryMetricsStore) GetChatDiffStatusesByChatIDs(ctx context.Context, cha
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatFileByID(ctx context.Context, id uuid.UUID) (database.ChatFile, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatFileByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatFileByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFileByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ChatFile, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatFilesByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetChatFilesByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatFilesByIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMessageByID(ctx, id)
@@ -2940,6 +2956,14 @@ func (m queryMetricsStore) InsertChat(ctx context.Context, arg database.InsertCh
 	r0, r1 := m.s.InsertChat(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertChat").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChat").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertChatFile(ctx context.Context, arg database.InsertChatFileParams) (database.InsertChatFileRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatFile(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatFile").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatFile").Inc()
 	return r0, r1
 }
 

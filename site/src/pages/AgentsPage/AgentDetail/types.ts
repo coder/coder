@@ -35,6 +35,12 @@ export type RenderBlock =
 	| {
 			type: "tool";
 			id: string;
+	  }
+	| {
+			type: "file";
+			mediaType: string;
+			data?: string; // base64, absent when file_id is available
+			fileId?: string;
 	  };
 
 export type ParsedMessageContent = {

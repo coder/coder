@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -96,6 +97,7 @@ type ChatMessagePart struct {
 	Title       string              `json:"title,omitempty"`
 	MediaType   string              `json:"media_type,omitempty"`
 	Data        []byte              `json:"data,omitempty"`
+	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
 }
 
 // ChatInputPartType represents an input part type for user chat input.
@@ -103,12 +105,14 @@ type ChatInputPartType string
 
 const (
 	ChatInputPartTypeText ChatInputPartType = "text"
+	ChatInputPartTypeFile ChatInputPartType = "file"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
 type ChatInputPart struct {
-	Type ChatInputPartType `json:"type"`
-	Text string            `json:"text,omitempty"`
+	Type   ChatInputPartType `json:"type"`
+	Text   string            `json:"text,omitempty"`
+	FileID uuid.UUID         `json:"file_id,omitempty" format:"uuid"`
 }
 
 // CreateChatRequest is the request to create a new chat.
@@ -139,6 +143,11 @@ type CreateChatMessageResponse struct {
 	Message       *ChatMessage       `json:"message,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
+}
+
+// UploadChatFileResponse is the response from uploading a chat file.
+type UploadChatFileResponse struct {
+	ID uuid.UUID `json:"id" format:"uuid"`
 }
 
 // ChatWithMessages is a chat along with its messages.
@@ -936,6 +945,42 @@ func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (Cha
 	}
 	var diff ChatDiffContents
 	return diff, json.NewDecoder(res.Body).Decode(&diff)
+}
+
+// UploadChatFile uploads a file for use in chat messages.
+func (c *Client) UploadChatFile(ctx context.Context, organizationID uuid.UUID, contentType string, filename string, rd io.Reader) (UploadChatFileResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/files?organization=%s", organizationID), rd, func(r *http.Request) {
+		r.Header.Set("Content-Type", contentType)
+		if filename != "" {
+			r.Header.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
+		}
+	})
+	if err != nil {
+		return UploadChatFileResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return UploadChatFileResponse{}, ReadBodyAsError(res)
+	}
+	var resp UploadChatFileResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatFile retrieves a previously uploaded chat file by ID.
+func (c *Client) GetChatFile(ctx context.Context, fileID uuid.UUID) ([]byte, string, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/files/%s", fileID), nil)
+	if err != nil {
+		return nil, "", err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, "", ReadBodyAsError(res)
+	}
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, "", err
+	}
+	return data, res.Header.Get("Content-Type"), nil
 }
 
 func formatChatStreamResponseError(response Response) string {
