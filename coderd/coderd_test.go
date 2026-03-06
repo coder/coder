@@ -390,3 +390,29 @@ func TestCSRFExempt(t *testing.T) {
 		require.NotContains(t, string(data), "CSRF")
 	})
 }
+
+func TestDERPMetrics(t *testing.T) {
+	t.Parallel()
+
+	_, _, api := coderdtest.NewWithAPI(t, nil)
+
+	require.NotNil(t, api.Options.DERPServer, "DERP server should be configured")
+	require.NotNil(t, api.Options.PrometheusRegistry, "Prometheus registry should be configured")
+
+	// The registry is created internally by coderd. Gather from it
+	// to verify DERP metrics were registered during startup.
+	metrics, err := api.Options.PrometheusRegistry.Gather()
+	require.NoError(t, err)
+
+	names := make(map[string]struct{})
+	for _, m := range metrics {
+		names[m.GetName()] = struct{}{}
+	}
+
+	assert.Contains(t, names, "coder_derp_server_connections",
+		"expected coder_derp_server_connections to be registered")
+	assert.Contains(t, names, "coder_derp_server_bytes_received_total",
+		"expected coder_derp_server_bytes_received_total to be registered")
+	assert.Contains(t, names, "coder_derp_server_packets_dropped_reason_total",
+		"expected coder_derp_server_packets_dropped_reason_total to be registered")
+}
