@@ -5,6 +5,7 @@ import {
 	useFilterMenu,
 } from "components/Filter/menu";
 import { SelectFilter } from "components/Filter/SelectFilter";
+import { AIBridgeClientIcon } from "../icons/AIBridgeClientIcon";
 
 export const useClientFilterMenu = ({
 	value,
@@ -22,6 +23,9 @@ export const useClientFilterMenu = ({
 
 			if (firstClient) {
 				return {
+					startIcon: (
+						<AIBridgeClientIcon client={firstClient} className="size-icon-sm" />
+					),
 					label: firstClient,
 					value: firstClient,
 				};
@@ -35,6 +39,9 @@ export const useClientFilterMenu = ({
 				limit: 25,
 			});
 			return clientsRes.map((client) => ({
+				startIcon: (
+					<AIBridgeClientIcon client={client} className="size-icon-sm" />
+				),
 				label: client,
 				value: client,
 			}));
