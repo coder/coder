@@ -490,6 +490,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.16.5
 	github.com/mark3labs/mcp-go v0.38.0
+	github.com/openai/openai-go/v3 v3.15.0
 	github.com/sergi/go-diff v1.4.0
 	gonum.org/v1/gonum v0.17.0
 )
@@ -574,7 +575,6 @@ require (
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/openai/openai-go v1.12.0 // indirect
 	github.com/openai/openai-go/v2 v2.7.1 // indirect
-	github.com/openai/openai-go/v3 v3.15.0 // indirect
 	github.com/package-url/packageurl-go v0.1.3 // indirect
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
