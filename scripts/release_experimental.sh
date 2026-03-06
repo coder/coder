@@ -29,6 +29,9 @@ if git config --get user.signingkey >/dev/null 2>&1 || git config --get gpg.form
 else
 	warn "GPG signing is not configured. Tags will be unsigned — there will be no way to verify who pushed the tag."
 	log "  To fix: set git config user.signingkey or gpg.format"
+	if ! confirm "Continue without signing?" n; then
+		exit 1
+	fi
 	log
 fi
 
