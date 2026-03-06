@@ -115,6 +115,7 @@ export const TableHead: React.FC<React.ComponentPropsWithRef<"th">> = ({
 				"[&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
 				className,
 			)}
+			scope={props.scope ?? "col"}
 			{...props}
 		/>
 	);
