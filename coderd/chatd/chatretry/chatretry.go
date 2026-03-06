@@ -8,6 +8,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -18,6 +20,12 @@ const (
 	// MaxDelay is the upper bound for the exponential backoff
 	// duration. Matches the cap used in coder/mux.
 	MaxDelay = 60 * time.Second
+
+	// MaxAttempts is the upper bound on retry attempts before
+	// giving up. With a 60s max backoff this allows roughly
+	// 25 minutes of retries, which is reasonable for transient
+	// LLM provider issues.
+	MaxAttempts = 25
 )
 
 // nonRetryablePatterns are substrings that indicate a permanent error
@@ -131,9 +139,8 @@ type RetryFn func(ctx context.Context) error
 type OnRetryFn func(attempt int, err error, delay time.Duration)
 
 // Retry calls fn repeatedly until it succeeds, returns a
-// non-retryable error, or ctx is canceled. There is no max attempt
-// limit — retries continue indefinitely with exponential backoff
-// (capped at 60s), matching the behavior of coder/mux.
+// non-retryable error, ctx is canceled, or MaxAttempts is reached.
+// Retries use exponential backoff capped at MaxDelay.
 //
 // The onRetry callback (if non-nil) is called before each retry
 // attempt, giving the caller a chance to reset state, log, or
@@ -156,10 +163,15 @@ func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
 			return ctx.Err()
 		}
 
-		delay := Delay(attempt)
+		attempt++
+		if attempt >= MaxAttempts {
+			return xerrors.Errorf("max retry attempts (%d) exceeded: %w", MaxAttempts, err)
+		}
+
+		delay := Delay(attempt - 1)
 
 		if onRetry != nil {
-			onRetry(attempt+1, err, delay)
+			onRetry(attempt, err, delay)
 		}
 
 		timer := time.NewTimer(delay)
@@ -169,7 +181,5 @@ func Retry(ctx context.Context, fn RetryFn, onRetry OnRetryFn) error {
 			return ctx.Err()
 		case <-timer.C:
 		}
-
-		attempt++
 	}
 }

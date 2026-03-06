@@ -378,6 +378,10 @@ const AgentsPage: FC = () => {
 			void queryClient.invalidateQueries({ queryKey: chatsKey });
 		});
 		ws.addEventListener("message", (event) => {
+			if (event.parseError) {
+				console.warn("Failed to parse chat watch event:", event.parseError);
+				return;
+			}
 			const sse = event.parsedMessage;
 			if (sse?.type !== "data" || !sse.data) {
 				return;

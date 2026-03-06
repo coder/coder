@@ -76,6 +76,13 @@ type RunOptions struct {
 	// events to connected clients.
 	OnRetry chatretry.OnRetryFn
 
+	// OnRetryReset is called during a retry reset so the
+	// caller can clear any buffered stream state from the
+	// failed attempt. Without this, partially streamed
+	// message parts from the failed attempt remain in the
+	// buffer and clients see duplicated content.
+	OnRetryReset func()
+
 	OnInterruptedPersistError func(error)
 }
 
@@ -209,6 +216,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 	var lastUsage fantasy.Usage
 	var lastProviderMetadata fantasy.ProviderMetadata
 
+	totalSteps := 0
 	for compactionAttempt := 0; ; compactionAttempt++ {
 		alreadyCompacted := false
 		// stoppedByModel is true when the inner step loop
@@ -222,7 +230,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 		// agent never had a chance to use the compacted context.
 		compactedOnFinalStep := false
 
-		for step := 0; step < opts.MaxSteps; step++ {
+		for step := 0; totalSteps < opts.MaxSteps; step++ {
+			totalSteps++
 			// Copy messages so that provider-specific caching
 			// mutations don't leak back to the caller's slice.
 			// copy copies Message structs by value, so field
@@ -259,6 +268,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// Reset result from the failed attempt so the next
 				// attempt starts clean.
 				result = stepResult{}
+				if opts.OnRetryReset != nil {
+					opts.OnRetryReset()
+				}
 				if opts.OnRetry != nil {
 					opts.OnRetry(attempt, retryErr, delay)
 				}
@@ -452,11 +464,11 @@ func processStepStream(
 		case fantasy.StreamPartTypeTextDelta:
 			if _, exists := activeTextContent[part.ID]; exists {
 				activeTextContent[part.ID] += part.Delta
+				publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+					Type: codersdk.ChatMessagePartTypeText,
+					Text: part.Delta,
+				})
 			}
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeText,
-				Text: part.Delta,
-			})
 
 		case fantasy.StreamPartTypeTextEnd:
 			if text, exists := activeTextContent[part.ID]; exists {
@@ -529,14 +541,14 @@ func processStepStream(
 		case fantasy.StreamPartTypeToolInputDelta:
 			if toolCall, exists := activeToolCalls[part.ID]; exists {
 				toolCall.Input += part.Delta
+				toolName := toolNames[part.ID]
+				publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+					Type:       codersdk.ChatMessagePartTypeToolCall,
+					ToolCallID: part.ID,
+					ToolName:   toolName,
+					ArgsDelta:  part.Delta,
+				})
 			}
-			toolName := toolNames[part.ID]
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: part.ID,
-				ToolName:   toolName,
-				ArgsDelta:  part.Delta,
-			})
 
 		case fantasy.StreamPartTypeToolInputEnd:
 			// No callback needed; the full tool call arrives in

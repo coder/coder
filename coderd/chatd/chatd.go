@@ -43,6 +43,10 @@ const (
 	instructionCacheTTL          = 5 * time.Minute
 	chatHeartbeatInterval        = 30 * time.Second
 	maxChatSteps                 = 1200
+	// maxStreamBufferSize caps the number of events buffered
+	// per chat during a single LLM step. When exceeded the
+	// oldest event is evicted so memory stays bounded.
+	maxStreamBufferSize = 10000
 
 	// staleRecoveryIntervalDivisor determines how often the stale
 	// recovery loop runs relative to the stale threshold. A value
@@ -559,31 +563,50 @@ func (p *Server) DeleteQueued(
 		return xerrors.New("chat_id is required")
 	}
 
-	err := p.db.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
-		ID:     queuedMessageID,
-		ChatID: chatID,
-	})
-	if err != nil {
-		return xerrors.Errorf("delete queued message: %w", err)
-	}
+	var queuedMessages []database.ChatQueuedMessage
 
-	queuedMessages, err := p.db.GetChatQueuedMessages(ctx, chatID)
-	if err != nil {
-		p.logger.Warn(ctx, "failed to load queued messages after delete",
-			slog.F("chat_id", chatID),
-			slog.F("queued_message_id", queuedMessageID),
-			slog.Error(err),
-		)
+	txErr := p.db.InTx(func(tx database.Store) error {
+		// Lock the chat row to prevent processChat from
+		// auto-promoting a message the user intended to delete.
+		if _, err := tx.GetChatByIDForUpdate(ctx, chatID); err != nil {
+			return xerrors.Errorf("lock chat: %w", err)
+		}
+
+		err := tx.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
+			ID:     queuedMessageID,
+			ChatID: chatID,
+		})
+		if err != nil {
+			return xerrors.Errorf("delete queued message: %w", err)
+		}
+
+		var err2 error
+		queuedMessages, err2 = tx.GetChatQueuedMessages(ctx, chatID)
+		if err2 != nil {
+			p.logger.Warn(ctx, "failed to load queued messages after delete",
+				slog.F("chat_id", chatID),
+				slog.F("queued_message_id", queuedMessageID),
+				slog.Error(err2),
+			)
+			// Non-fatal: the delete succeeded, so we still commit.
+			return nil
+		}
+
 		return nil
+	}, nil)
+	if txErr != nil {
+		return txErr
 	}
 
-	p.publishEvent(chatID, codersdk.ChatStreamEvent{
-		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-		QueuedMessages: db2sdk.ChatQueuedMessages(queuedMessages),
-	})
-	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-		QueueUpdate: true,
-	})
+	if queuedMessages != nil {
+		p.publishEvent(chatID, codersdk.ChatStreamEvent{
+			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+			QueuedMessages: db2sdk.ChatQueuedMessages(queuedMessages),
+		})
+		p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+			QueueUpdate: true,
+		})
+	}
 	return nil
 }
 
@@ -959,8 +982,14 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 	state := p.streamStateLocked(chatID)
 	if event.Type == codersdk.ChatStreamEventTypeMessagePart {
 		if !state.buffering {
+			p.cleanupStreamIfIdleLocked(chatID, state)
 			p.streamMu.Unlock()
 			return
+		}
+		if len(state.buffer) >= maxStreamBufferSize {
+			p.logger.Warn(context.Background(), "chat stream buffer full, dropping oldest event",
+				slog.F("chat_id", chatID), slog.F("buffer_size", len(state.buffer)))
+			state.buffer = state.buffer[1:]
 		}
 		state.buffer = append(state.buffer, event)
 	}
@@ -978,6 +1007,15 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 				slog.F("chat_id", chatID), slog.F("type", event.Type))
 		}
 	}
+
+	// Clean up the stream entry if it was created by
+	// streamStateLocked but has no subscribers and is not
+	// actively buffering (e.g. publish with no watchers).
+	p.streamMu.Lock()
+	if cur, ok := p.chatStreams[chatID]; ok {
+		p.cleanupStreamIfIdleLocked(chatID, cur)
+	}
+	p.streamMu.Unlock()
 }
 
 func (p *Server) subscribeToStream(chatID uuid.UUID) (
@@ -1050,7 +1088,66 @@ func (p *Server) Subscribe(
 	// Subscribe to local stream for message_parts (ephemeral).
 	localSnapshot, localParts, localCancel := p.subscribeToStream(chatID)
 
-	// Build initial snapshot synchronously.
+	// Merge all event sources.
+	mergedCtx, mergedCancel := context.WithCancel(ctx)
+	mergedEvents := make(chan codersdk.ChatStreamEvent, 128)
+
+	var allCancels []func()
+	allCancels = append(allCancels, localCancel)
+
+	// Subscribe to pubsub for durable events (status, messages,
+	// queue updates, errors). When pubsub is nil (e.g. in-memory
+	// single-instance) we skip this and deliver all local events.
+	//
+	// This MUST happen before the DB queries below so that any
+	// notification published between the query and the subscription
+	// is not lost (subscribe-first-then-query pattern).
+	var notifications <-chan coderdpubsub.ChatStreamNotifyMessage
+	var errCh <-chan error
+	if p.pubsub != nil {
+		notifyCh := make(chan coderdpubsub.ChatStreamNotifyMessage, 10)
+		errNotifyCh := make(chan error, 1)
+		notifications = notifyCh
+		errCh = errNotifyCh
+
+		listener := func(_ context.Context, message []byte, listenErr error) {
+			if listenErr != nil {
+				select {
+				case <-mergedCtx.Done():
+				case errNotifyCh <- listenErr:
+				}
+				return
+			}
+			var notify coderdpubsub.ChatStreamNotifyMessage
+			if unmarshalErr := json.Unmarshal(message, &notify); unmarshalErr != nil {
+				select {
+				case <-mergedCtx.Done():
+				case errNotifyCh <- xerrors.Errorf("unmarshal chat stream notify: %w", unmarshalErr):
+				}
+				return
+			}
+			select {
+			case <-mergedCtx.Done():
+			case notifyCh <- notify:
+			}
+		}
+
+		if pubsubCancel, pubsubErr := p.pubsub.SubscribeWithErr(
+			coderdpubsub.ChatStreamNotifyChannel(chatID),
+			listener,
+		); pubsubErr == nil {
+			allCancels = append(allCancels, pubsubCancel)
+		} else {
+			p.logger.Warn(ctx, "failed to subscribe to chat stream notifications",
+				slog.F("chat_id", chatID),
+				slog.Error(pubsubErr),
+			)
+		}
+	}
+
+	// Build initial snapshot synchronously. The pubsub subscription
+	// is already active so no notifications can be lost during this
+	// window.
 	initialSnapshot := make([]codersdk.ChatStreamEvent, 0)
 	// Add local message_parts to snapshot
 	for _, event := range localSnapshot {
@@ -1115,59 +1212,6 @@ func (p *Server) Subscribe(
 	lastMessageID := afterMessageID
 	if len(messages) > 0 {
 		lastMessageID = messages[len(messages)-1].ID
-	}
-
-	// Merge all event sources.
-	mergedCtx, mergedCancel := context.WithCancel(ctx)
-	mergedEvents := make(chan codersdk.ChatStreamEvent, 128)
-
-	var allCancels []func()
-	allCancels = append(allCancels, localCancel)
-
-	// Subscribe to pubsub for durable events (status, messages,
-	// queue updates, errors). When pubsub is nil (e.g. in-memory
-	// single-instance) we skip this and deliver all local events.
-	var notifications <-chan coderdpubsub.ChatStreamNotifyMessage
-	var errCh <-chan error
-	if p.pubsub != nil {
-		notifyCh := make(chan coderdpubsub.ChatStreamNotifyMessage, 10)
-		errNotifyCh := make(chan error, 1)
-		notifications = notifyCh
-		errCh = errNotifyCh
-
-		listener := func(_ context.Context, message []byte, listenErr error) {
-			if listenErr != nil {
-				select {
-				case <-mergedCtx.Done():
-				case errNotifyCh <- listenErr:
-				}
-				return
-			}
-			var notify coderdpubsub.ChatStreamNotifyMessage
-			if unmarshalErr := json.Unmarshal(message, &notify); unmarshalErr != nil {
-				select {
-				case <-mergedCtx.Done():
-				case errNotifyCh <- xerrors.Errorf("unmarshal chat stream notify: %w", unmarshalErr):
-				}
-				return
-			}
-			select {
-			case <-mergedCtx.Done():
-			case notifyCh <- notify:
-			}
-		}
-
-		if pubsubCancel, pubsubErr := p.pubsub.SubscribeWithErr(
-			coderdpubsub.ChatStreamNotifyChannel(chatID),
-			listener,
-		); pubsubErr == nil {
-			allCancels = append(allCancels, pubsubCancel)
-		} else {
-			p.logger.Warn(ctx, "failed to subscribe to chat stream notifications",
-				slog.F("chat_id", chatID),
-				slog.Error(pubsubErr),
-			)
-		}
 	}
 
 	// When an enterprise SubscribeFn is provided and the chat
@@ -1680,6 +1724,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	lastError := ""
 	remainingQueuedMessages := []database.ChatQueuedMessage{}
 	shouldPublishQueueUpdate := false
+	var promotedMessage *database.ChatMessage
 
 	defer func() {
 		// Use a context that is not canceled by Close() so we can
@@ -1749,8 +1794,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 							slog.F("queued_message_id", nextQueued.ID), slog.Error(insertErr))
 					} else {
 						status = database.ChatStatusPending
-
-						p.publishMessage(chat.ID, msg)
+						promotedMessage = &msg
 
 						remaining, qErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
 						if qErr == nil {
@@ -1779,8 +1823,13 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 		if err != nil {
 			logger.Error(cleanupCtx, "failed to release chat", slog.Error(err))
+			return
 		}
-		if err == nil && shouldPublishQueueUpdate {
+
+		if promotedMessage != nil {
+			p.publishMessage(chat.ID, *promotedMessage)
+		}
+		if shouldPublishQueueUpdate {
 			p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
 				Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 				QueuedMessages: db2sdk.ChatQueuedMessages(remainingQueuedMessages),
@@ -2028,6 +2077,16 @@ func (p *Server) runChat(
 	modelConfigContextLimit := modelConfig.ContextLimit
 
 	persistStep := func(persistCtx context.Context, step chatloop.PersistedStep) error {
+		// If the chat context has been canceled (e.g. by an
+		// EditMessage call), bail out before inserting any
+		// messages. This closes the race window between
+		// EditMessage committing its transaction (which deletes
+		// messages after the edit point) and the cancellation
+		// propagating to the processing loop.
+		if persistCtx.Err() != nil {
+			return chatloop.ErrInterrupted
+		}
+
 		// Split the step content into assistant blocks and tool
 		// result blocks so they can be stored as separate messages
 		// with the appropriate roles.
@@ -2263,6 +2322,14 @@ func (p *Server) runChat(
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
 			}
 			return reloadedPrompt, nil
+		},
+
+		OnRetryReset: func() {
+			p.streamMu.Lock()
+			if state, ok := p.chatStreams[chat.ID]; ok {
+				state.buffer = nil
+			}
+			p.streamMu.Unlock()
 		},
 
 		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
@@ -2624,26 +2691,53 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 		return
 	}
 
+	recovered := 0
 	for _, chat := range staleChats {
 		p.logger.Info(ctx, "recovering stale chat", slog.F("chat_id", chat.ID))
 
-		// Reset to pending so any replica can pick it up.
-		_, err := p.db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-			ID:          chat.ID,
-			Status:      database.ChatStatusPending,
-			WorkerID:    uuid.NullUUID{},
-			StartedAt:   sql.NullTime{},
-			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
-		})
+		// Use a transaction with FOR UPDATE to avoid a TOCTOU race:
+		// between GetStaleChats (a bare SELECT) and here, the chat's
+		// heartbeat may have been refreshed. We re-check freshness
+		// under the row lock before resetting.
+		err := p.db.InTx(func(tx database.Store) error {
+			locked, lockErr := tx.GetChatByIDForUpdate(ctx, chat.ID)
+			if lockErr != nil {
+				return xerrors.Errorf("lock chat for recovery: %w", lockErr)
+			}
+
+			// Re-check: only recover if the chat is still stale.
+			// A valid heartbeat that is at or after the stale
+			// threshold means the chat was refreshed after our
+			// initial snapshot — skip it.
+			if locked.HeartbeatAt.Valid && !locked.HeartbeatAt.Time.Before(staleAfter) {
+				p.logger.Debug(ctx, "chat heartbeat refreshed since snapshot, skipping recovery",
+					slog.F("chat_id", chat.ID))
+				return nil
+			}
+
+			// Reset to pending so any replica can pick it up.
+			_, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+				ID:          chat.ID,
+				Status:      database.ChatStatusPending,
+				WorkerID:    uuid.NullUUID{},
+				StartedAt:   sql.NullTime{},
+				HeartbeatAt: sql.NullTime{},
+				LastError:   sql.NullString{},
+			})
+			if updateErr != nil {
+				return updateErr
+			}
+			recovered++
+			return nil
+		}, nil)
 		if err != nil {
 			p.logger.Error(ctx, "failed to recover stale chat",
 				slog.F("chat_id", chat.ID), slog.Error(err))
 		}
 	}
 
-	if len(staleChats) > 0 {
-		p.logger.Info(ctx, "recovered stale chats", slog.F("count", len(staleChats)))
+	if recovered > 0 {
+		p.logger.Info(ctx, "recovered stale chats", slog.F("count", recovered))
 	}
 }
 

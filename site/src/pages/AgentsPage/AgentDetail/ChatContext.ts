@@ -260,17 +260,19 @@ export const createChatStore = (): ChatStore => {
 			return;
 		}
 
-		let nextStreamState: StreamState | null = state.streamState;
-		for (const part of parts) {
-			nextStreamState = applyMessagePartToStreamState(nextStreamState, part);
-		}
-		if (nextStreamState === state.streamState) {
-			return;
-		}
-		setState((current) => ({
-			...current,
-			streamState: nextStreamState,
-		}));
+		setState((current) => {
+			let nextStreamState: StreamState | null = current.streamState;
+			for (const part of parts) {
+				nextStreamState = applyMessagePartToStreamState(nextStreamState, part);
+			}
+			if (nextStreamState === current.streamState) {
+				return current;
+			}
+			return {
+				...current,
+				streamState: nextStreamState,
+			};
+		});
 	};
 
 	return {
@@ -564,6 +566,9 @@ export const useChatStore = (
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 		) => {
+			if (disposed) {
+				return;
+			}
 			if (payload.parseError || !payload.parsedMessage) {
 				store.setStreamError("Failed to parse chat stream update.");
 				return;
@@ -684,6 +689,10 @@ export const useChatStore = (
 						continue;
 					}
 					case "error": {
+						const eventChatID = asString(streamEvent.chat_id);
+						if (eventChatID && eventChatID !== chatID) {
+							continue;
+						}
 						const error = asRecord(streamEvent.error);
 						const reason =
 							asString(error?.message).trim() || "Chat processing failed.";
@@ -698,6 +707,10 @@ export const useChatStore = (
 						continue;
 					}
 					case "retry": {
+						const eventChatID = asString(streamEvent.chat_id);
+						if (eventChatID && eventChatID !== chatID) {
+							continue;
+						}
 						const retry = streamEvent.retry;
 						if (retry) {
 							store.setRetryState({
@@ -720,6 +733,9 @@ export const useChatStore = (
 			if (disposed) {
 				return;
 			}
+			if (reconnectTimer !== null) {
+				clearTimeout(reconnectTimer);
+			}
 			const delay = Math.min(
 				RECONNECT_BASE_MS * 2 ** reconnectAttempt,
 				RECONNECT_MAX_MS,
@@ -731,6 +747,9 @@ export const useChatStore = (
 		function connect() {
 			if (disposed) {
 				return;
+			}
+			if (activeSocket) {
+				activeSocket.close();
 			}
 
 			// Use the latest known message ID so the server only

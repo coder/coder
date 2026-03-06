@@ -73,10 +73,11 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	require.Eventually(t, func() bool {
 		select {
 		case event := <-events:
-			if event.Type != codersdk.ChatStreamEventTypeStatus || event.Status == nil {
-				return false
+			if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
+				return event.Status.Status == codersdk.ChatStatusWaiting
 			}
-			return event.Status.Status == codersdk.ChatStatusWaiting
+			t.Logf("skipping unexpected event: type=%s", event.Type)
+			return false
 		default:
 			return false
 		}
@@ -865,15 +866,15 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	// events — the snapshot already contained everything. Before
 	// the fix, localSnapshot was replayed into the channel,
 	// causing duplicates.
-	select {
-	case event, ok := <-events:
-		if ok {
-			t.Fatalf("unexpected event from channel (would be a duplicate): type=%s", event.Type)
+	require.Never(t, func() bool {
+		select {
+		case <-events:
+			return true
+		default:
+			return false
 		}
-		// Channel closed without events is fine.
-	case <-time.After(200 * time.Millisecond):
-		// No events — correct behavior.
-	}
+	}, 200*time.Millisecond, testutil.IntervalFast,
+		"expected no duplicate events after snapshot")
 }
 
 func TestSubscribeAfterMessageID(t *testing.T) {
