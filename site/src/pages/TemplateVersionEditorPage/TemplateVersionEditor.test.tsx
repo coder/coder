@@ -5,11 +5,21 @@ import type { ReactNode } from "react";
 import type { FileTree } from "utils/filetree";
 
 const {
+	capturedPublishDialogPropsRef,
 	capturedUseTemplateAgentOptionsRef,
 	templateAgentResetBuildStateMock,
 	templateAgentStopMock,
 	useQueryMock,
 } = vi.hoisted(() => ({
+	capturedPublishDialogPropsRef: {
+		current: undefined as
+			| {
+					defaultName: string;
+					isPublishing: boolean;
+					open: boolean;
+			  }
+			| undefined,
+	},
 	capturedUseTemplateAgentOptionsRef: {
 		current: undefined as
 			| {
@@ -173,7 +183,14 @@ vi.mock("./ProvisionerTagsPopover", () => ({
 	ProvisionerTagsPopover: () => <div />,
 }));
 vi.mock("./PublishTemplateVersionDialog", () => ({
-	PublishTemplateVersionDialog: () => <div />,
+	PublishTemplateVersionDialog: (props: {
+		defaultName: string;
+		isPublishing: boolean;
+		open: boolean;
+	}) => {
+		capturedPublishDialogPropsRef.current = props;
+		return <div />;
+	},
 }));
 vi.mock("./TemplateVersionStatusBadge", () => ({
 	TemplateVersionStatusBadge: () => <div />,
@@ -199,10 +216,14 @@ const defaultBuildLogs: ProvisionerJobLog[] = [
 const renderTemplateVersionEditor = ({
 	templateVersion,
 	buildLogs = defaultBuildLogs,
+	isAskingPublishParameters = false,
+	isPublishing = false,
 	onPreview = vi.fn().mockResolvedValue(templateVersion),
 }: {
 	templateVersion: TemplateVersion;
 	buildLogs?: ProvisionerJobLog[];
+	isAskingPublishParameters?: boolean;
+	isPublishing?: boolean;
 	onPreview?: (files: FileTree) => Promise<TemplateVersion>;
 }) => {
 	useQueryMock.mockImplementation((query: { enabled?: boolean }) => {
@@ -228,10 +249,10 @@ const renderTemplateVersionEditor = ({
 			onSubmitMissingVariableValues={vi.fn()}
 			onCancelSubmitMissingVariableValues={vi.fn()}
 			onUpdateProvisionerTags={vi.fn()}
-			isAskingPublishParameters={false}
+			isAskingPublishParameters={isAskingPublishParameters}
 			isBuilding={false}
 			isPromptingMissingVariables={false}
-			isPublishing={false}
+			isPublishing={isPublishing}
 			provisionerTags={{}}
 			template={MockTemplate}
 			templateVersion={templateVersion}
@@ -251,6 +272,27 @@ const renderTemplateVersionEditor = ({
 		onPreview,
 	};
 };
+
+describe("TemplateVersionEditor publish dialog", () => {
+	beforeEach(() => {
+		capturedPublishDialogPropsRef.current = undefined;
+	});
+
+	it("does not open the manual publish dialog just because publishing is pending", () => {
+		renderTemplateVersionEditor({
+			templateVersion: MockTemplateVersion,
+			isPublishing: true,
+		});
+
+		expect(capturedPublishDialogPropsRef.current).toEqual(
+			expect.objectContaining({
+				defaultName: MockTemplateVersion.name,
+				isPublishing: true,
+				open: false,
+			}),
+		);
+	});
+});
 
 describe("TemplateVersionEditor waitForBuildComplete", () => {
 	beforeEach(() => {
