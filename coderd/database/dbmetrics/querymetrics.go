@@ -3727,6 +3727,14 @@ func (m queryMetricsStore) UpdateChatByID(ctx context.Context, arg database.Upda
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateChatHasActiveRepos(ctx context.Context, arg database.UpdateChatHasActiveReposParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateChatHasActiveRepos(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatHasActiveRepos").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatHasActiveRepos").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateChatHeartbeat(ctx context.Context, arg database.UpdateChatHeartbeatParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatHeartbeat(ctx, arg)

@@ -730,6 +730,7 @@ type sqlcQuerier interface {
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
+	UpdateChatHasActiveRepos(ctx context.Context, arg UpdateChatHasActiveReposParams) error
 	// Bumps the heartbeat timestamp for a running chat so that other
 	// replicas know the worker is still alive.
 	UpdateChatHeartbeat(ctx context.Context, arg UpdateChatHeartbeatParams) (int64, error)

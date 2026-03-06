@@ -43,6 +43,7 @@ type Chat struct {
 	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
 	Archived          bool            `json:"archived"`
+	HasActiveRepos    bool            `json:"has_active_repos"`
 }
 
 // ChatMessage represents a single message in a chat.

@@ -1066,6 +1066,7 @@ export interface Chat {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
+	readonly has_active_repos: boolean;
 }
 
 // From codersdk/chats.go

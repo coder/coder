@@ -1,4 +1,4 @@
-import { API } from "api/api";
+import { API, type ChatDiffStatusResponse } from "api/api";
 import {
 	chat,
 	chatDiffStatus,
@@ -441,7 +441,16 @@ const AgentDetail: FC = () => {
 	const outletContext = useOutletContext<AgentsOutletContext | undefined>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
-	const [showSidebarPanel, setShowSidebarPanel] = useState(false);
+	// The parent passes the Chat record from the sidebar list so
+	// we know on the very first frame whether a diff panel exists.
+	// This avoids the layout shift that would occur if we started
+	// with the panel closed and opened it after a network
+	// round-trip.
+	const activeChatSummary = outletContext?.activeChatSummary;
+	const initialHasDiff = Boolean(activeChatSummary?.diff_status?.url);
+	const initialHasRepos = Boolean(activeChatSummary?.has_active_repos);
+	const initialShowSidebar = initialHasDiff || initialHasRepos;
+	const [showSidebarPanel, setShowSidebarPanel] = useState(initialShowSidebar);
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	// Tracks the live visual expanded state during drag so sibling
 	// content hides/shows in real-time rather than on pointer-up.
@@ -485,6 +494,12 @@ const AgentDetail: FC = () => {
 	const diffStatusQuery = useQuery({
 		...chatDiffStatus(agentId ?? ""),
 		enabled: Boolean(agentId),
+		// Seed from the Chat record the parent already fetched for
+		// the sidebar so hasDiffStatus is true on the first frame.
+		// The fresh query still runs in the background.
+		placeholderData: activeChatSummary?.diff_status as
+			| ChatDiffStatusResponse
+			| undefined,
 	});
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
@@ -808,7 +823,18 @@ const AgentDetail: FC = () => {
 		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
-	const shouldShowSidebar = (hasDiffStatus || hasGitRepos) && showSidebarPanel;
+	// During initial load, trust the pre-seeded showSidebarPanel
+	// so the panel doesn't flash away while async data is still
+	// arriving. Once either live data source has reported in, we
+	// switch to gating on them so the panel auto-hides if all
+	// repos/diffs genuinely disappear later.
+	const hasReceivedLiveData = useRef(false);
+	if (hasDiffStatus || hasGitRepos) {
+		hasReceivedLiveData.current = true;
+	}
+	const shouldShowSidebar = hasReceivedLiveData.current
+		? (hasDiffStatus || hasGitRepos) && showSidebarPanel
+		: showSidebarPanel;
 
 	const generateKeyMutation = useMutation({
 		mutationFn: () => API.getApiKey(),
@@ -875,16 +901,20 @@ const AgentDetail: FC = () => {
 	};
 
 	if (chatQuery.isLoading) {
-		return (
-			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+		// Chat content skeleton — the same bubble / line pattern
+		// used regardless of whether the diff panel is shown.
+		const chatSkeleton = (
+			<div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
 				<AgentDetailTopBar
 					diff={{
-						hasDiffStatus: false,
-						diffStatus: undefined,
-						hasGitRepos: false,
+						hasDiffStatus: initialHasDiff,
+						diffStatus: activeChatSummary?.diff_status as
+							| ChatDiffStatusResponse
+							| undefined,
+						hasGitRepos: initialHasRepos,
 						gitRepoCount: 0,
 						gitRepositories: new Map(),
-						showSidebarPanel: false,
+						showSidebarPanel: initialShowSidebar,
 						onToggleSidebar: () => {},
 					}}
 					workspace={{
@@ -950,6 +980,39 @@ const AgentDetail: FC = () => {
 				</div>
 			</div>
 		);
+
+		// When the parent tells us a diff exists, render the skeleton
+		// with the right panel already open so the layout matches
+		// what the loaded view will look like.
+		if (initialShowSidebar) {
+			return (
+				<div className="relative flex min-h-0 min-w-0 flex-1 flex-col xl:flex-row">
+					{chatSkeleton}
+					<RightPanel
+						isOpen
+						isExpanded={false}
+						onToggleExpanded={() => {}}
+						onClose={() => {}}
+					>
+						{/* Diff panel skeleton matching DiffViewer's loading state */}
+						<div className="flex h-full min-w-0 flex-col overflow-hidden">
+							<div className="space-y-4 p-4">
+								{Array.from({ length: 3 }, (_, i) => (
+									<div key={i} className="space-y-2">
+										<Skeleton className="h-4 w-48" />
+										<Skeleton className="h-3 w-full" />
+										<Skeleton className="h-3 w-full" />
+										<Skeleton className="h-3 w-3/4" />
+									</div>
+								))}
+							</div>
+						</div>
+					</RightPanel>
+				</div>
+			);
+		}
+
+		return chatSkeleton;
 	}
 
 	if (!chatQuery.data || !agentId) {
