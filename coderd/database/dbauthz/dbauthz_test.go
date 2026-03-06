@@ -5542,6 +5542,20 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(params, emptyPreparedAuthorized{}).Asserts()
 	}))
 
+	s.Run("ListAIBridgeClients", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.ListAIBridgeClientsParams{}
+		db.EXPECT().ListAuthorizedAIBridgeClients(gomock.Any(), params, gomock.Any()).Return([]string{}, nil).AnyTimes()
+		// No asserts here because SQLFilter.
+		check.Args(params).Asserts()
+	}))
+
+	s.Run("ListAuthorizedAIBridgeClients", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.ListAIBridgeClientsParams{}
+		db.EXPECT().ListAuthorizedAIBridgeClients(gomock.Any(), params, gomock.Any()).Return([]string{}, nil).AnyTimes()
+		// No asserts here because SQLFilter.
+		check.Args(params, emptyPreparedAuthorized{}).Asserts()
+	}))
+
 	s.Run("ListAIBridgeSessions", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		params := database.ListAIBridgeSessionsParams{}
 		db.EXPECT().ListAuthorizedAIBridgeSessions(gomock.Any(), params, gomock.Any()).Return([]database.ListAIBridgeSessionsRow{}, nil).AnyTimes()

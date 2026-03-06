@@ -3019,6 +3019,13 @@ class ApiMethods {
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
+
+	getAIBridgeClients = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/clients", options);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";
