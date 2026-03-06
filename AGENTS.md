@@ -105,21 +105,20 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 
 ### Full workflows available in imported WORKFLOWS.md
 
-### Pre-commit Hook (MANDATORY)
+### Git Hooks (MANDATORY)
 
-Before your first commit, ensure the pre-commit hook is installed.
-It runs `make pre-commit-lite` (gen, fmt, lint, typos, build) which
-catches most CI failures without needing Docker or Playwright.
-Wait for it to complete, do not skip or bypass it.
+Before your first commit, ensure the git hooks are installed.
+Two hooks run automatically:
+
+- **pre-commit**: `make pre-commit-lite` (gen, fmt, lint, typos, build).
+  Fast checks that catch most CI failures.
+- **pre-push**: `make pre-commit` (full CI suite including tests).
+  Runs before pushing to catch everything CI would.
+
+Wait for them to complete, do not skip or bypass them.
 
 ```sh
 git config core.hooksPath scripts/githooks
-```
-
-For the full CI suite including tests, run manually before pushing:
-
-```sh
-make pre-commit
 ```
 
 ### Git Workflow
