@@ -1070,7 +1070,12 @@
 									"title": "Setup",
 									"description": "How to set up and configure AI Bridge",
 									"path": "./ai-coder/ai-bridge/setup.md"
-								},
+							},
+							{
+								"title": "API Key Management",
+								"description": "Centralized key and bring-your-own-key (BYOK) approaches for managing provider credentials",
+								"path": "./ai-coder/ai-bridge/key-management.md"
+							}
 								{
 									"title": "Client Configuration",
 									"description": "How to configure your AI coding tools to use AI Bridge",
