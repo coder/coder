@@ -3409,12 +3409,7 @@ func (q *querier) GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (databa
 		return database.TaskSnapshot{}, err
 	}
 
-	obj := rbac.ResourceTask.
-		WithID(task.ID).
-		WithOwner(task.OwnerID.String()).
-		InOrg(task.OrganizationID)
-
-	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, task.RBACObject()); err != nil {
 		return database.TaskSnapshot{}, err
 	}
 
@@ -6635,12 +6630,7 @@ func (q *querier) UpsertTaskSnapshot(ctx context.Context, arg database.UpsertTas
 		return err
 	}
 
-	obj := rbac.ResourceTask.
-		WithID(task.ID).
-		WithOwner(task.OwnerID.String()).
-		InOrg(task.OrganizationID)
-
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, task.RBACObject()); err != nil {
 		return err
 	}
 
