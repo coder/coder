@@ -1,4 +1,4 @@
-import { API } from "api/api";
+import { API, watchWorkspace } from "api/api";
 import {
 	chat,
 	chatDiffStatus,
@@ -12,7 +12,7 @@ import {
 	promoteChatQueuedMessage,
 } from "api/queries/chats";
 import { deploymentSSHConfig } from "api/queries/deployment";
-import { workspaceById } from "api/queries/workspaces";
+import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -482,6 +482,27 @@ const AgentDetail: FC = () => {
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
 	});
+
+	// Subscribe to live workspace updates so that agent status changes
+	// (e.g. connected/disconnected) are reflected without a page refresh.
+	useEffect(() => {
+		if (!workspaceId) {
+			return;
+		}
+		const socket = watchWorkspace(workspaceId);
+		socket.addEventListener("message", (event) => {
+			if (event.parseError) {
+				return;
+			}
+			if (event.parsedMessage.type === "data") {
+				queryClient.setQueryData(
+					workspaceByIdKey(workspaceId),
+					event.parsedMessage.data as TypesGen.Workspace,
+				);
+			}
+		});
+		return () => socket.close();
+	}, [workspaceId, queryClient]);
 	const diffStatusQuery = useQuery({
 		...chatDiffStatus(agentId ?? ""),
 		enabled: Boolean(agentId),
