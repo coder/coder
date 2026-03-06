@@ -436,7 +436,8 @@ const AgentsPage: FC = () => {
 				// is synchronously updated by both the per-chat WebSocket
 				// (via updateSidebarChat) and this handler. This avoids
 				// the async-lag of a useEffect-based status map.
-				const currentChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+				const currentChats =
+					queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
 				const prevStatus = currentChats?.find(
 					(c) => c.id === updatedChat.id,
 				)?.status;

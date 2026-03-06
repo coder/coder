@@ -188,7 +188,7 @@ func NewMultiReplicaSubscribeFn(
 					goto drained
 				}
 			}
-			drained:
+		drained:
 			expectedWorkerID = uuid.Nil
 			if relayCancel != nil {
 				relayCancel()

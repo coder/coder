@@ -242,50 +242,49 @@ export const createChatStore = (): ChatStore => {
 		});
 	};
 
-		const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
-			// Use `state` for the early-return guard so we can return
-			// the result synchronously. The actual mutation below uses
-			// `current` inside the updater to avoid overwriting a
-			// concurrent state change (TOCTOU).
-			const existing = state.messagesByID.get(message.id);
-			const isDuplicate = state.messagesByID.has(message.id);
-			if (existing && chatMessagesEqualByValue(existing, message)) {
-				return { isDuplicate, changed: false };
+	const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
+		// Use `state` for the early-return guard so we can return
+		// the result synchronously. The actual mutation below uses
+		// `current` inside the updater to avoid overwriting a
+		// concurrent state change (TOCTOU).
+		const existing = state.messagesByID.get(message.id);
+		const isDuplicate = state.messagesByID.has(message.id);
+		if (existing && chatMessagesEqualByValue(existing, message)) {
+			return { isDuplicate, changed: false };
+		}
+
+		let actuallyChanged = false;
+		setState((current) => {
+			// Re-check inside the updater: another call may have
+			// already applied this exact message.
+			const curExisting = current.messagesByID.get(message.id);
+			if (curExisting && chatMessagesEqualByValue(curExisting, message)) {
+				return current;
 			}
 
-			let actuallyChanged = false;
-			setState((current) => {
-				// Re-check inside the updater: another call may have
-				// already applied this exact message.
-				const curExisting = current.messagesByID.get(message.id);
-				if (curExisting && chatMessagesEqualByValue(curExisting, message)) {
-					return current;
-				}
+			actuallyChanged = true;
 
-				actuallyChanged = true;
+			const nextMessagesByID = new Map(current.messagesByID);
+			nextMessagesByID.set(message.id, message);
 
-				const nextMessagesByID = new Map(current.messagesByID);
-				nextMessagesByID.set(message.id, message);
+			const curIsDuplicate = current.messagesByID.has(message.id);
+			const needsReorder =
+				!curIsDuplicate || nextMessagesByID.size !== current.messagesByID.size;
+			const nextOrderedMessageIDs = needsReorder
+				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
+				: current.orderedMessageIDs;
 
-				const curIsDuplicate = current.messagesByID.has(message.id);
-				const needsReorder =
-					!curIsDuplicate ||
-					nextMessagesByID.size !== current.messagesByID.size;
-				const nextOrderedMessageIDs = needsReorder
-					? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
-					: current.orderedMessageIDs;
+			return {
+				...current,
+				messagesByID: nextMessagesByID,
+				orderedMessageIDs: nextOrderedMessageIDs,
+			};
+		});
+		return { isDuplicate, changed: actuallyChanged };
+	};
 
-				return {
-					...current,
-					messagesByID: nextMessagesByID,
-					orderedMessageIDs: nextOrderedMessageIDs,
-				};
-			});
-			return { isDuplicate, changed: actuallyChanged };
-		};
-
-		const applyMessageParts = (parts: readonly Record<string, unknown>[]) => {
-			if (parts.length === 0) {
+	const applyMessageParts = (parts: readonly Record<string, unknown>[]) => {
+		if (parts.length === 0) {
 			return;
 		}
 
@@ -320,7 +319,10 @@ export const createChatStore = (): ChatStore => {
 			const nextQueuedMessages = queuedMessages ?? [];
 			setState((current) => {
 				if (
-					chatQueuedMessagesEqualByID(current.queuedMessages, nextQueuedMessages)
+					chatQueuedMessagesEqualByID(
+						current.queuedMessages,
+						nextQueuedMessages,
+					)
 				) {
 					return current;
 				}
@@ -414,7 +416,8 @@ export const createChatStore = (): ChatStore => {
 	};
 };
 
-interface UseChatStoreOptions {	chatID: string | undefined;
+interface UseChatStoreOptions {
+	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
 	chatData: TypesGen.ChatWithMessages | undefined;
@@ -735,22 +738,22 @@ export const useChatStore = (
 						}));
 						continue;
 					}
-						case "retry": {
-							const eventChatID = asString(streamEvent.chat_id);
-							if (eventChatID && eventChatID !== chatID) {
-								continue;
-							}
-							const retry = streamEvent.retry;
-							if (retry) {
-								store.clearStreamState();
-								store.setRetryState({
-									attempt: retry.attempt,
-									error: retry.error,
-								});
-							}
+					case "retry": {
+						const eventChatID = asString(streamEvent.chat_id);
+						if (eventChatID && eventChatID !== chatID) {
 							continue;
 						}
-						default:
+						const retry = streamEvent.retry;
+						if (retry) {
+							store.clearStreamState();
+							store.setRetryState({
+								attempt: retry.attempt,
+								error: retry.error,
+							});
+						}
+						continue;
+					}
+					default:
 						continue;
 				}
 			}
