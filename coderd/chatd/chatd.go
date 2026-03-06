@@ -108,12 +108,14 @@ type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.Ag
 //   - ctx: subscription lifetime context (canceled on unsubscribe).
 //   - params: all state needed to build the merged stream.
 //
-// Returns the merged event channel and a cleanup function.
+// Returns the merged event channel. Cleanup is driven by ctx
+// cancellation — the merge goroutine tears down all relay state
+// in its defer when ctx is done.
 // Set by enterprise for HA deployments. Nil in AGPL single-replica.
 type SubscribeFn func(
 	ctx context.Context,
 	params SubscribeFnParams,
-) (<-chan codersdk.ChatStreamEvent, func())
+) <-chan codersdk.ChatStreamEvent
 
 // StatusNotification informs the enterprise relay manager of chat
 // status changes so it can open or close relay connections.
@@ -1272,24 +1274,20 @@ func (p *Server) Subscribe(
 	// from remote replicas). OSS now owns pubsub subscription,
 	// message catch-up, queue updates, and status forwarding;
 	// enterprise only manages relay dialing.
-	var relayEvents <-chan codersdk.ChatStreamEvent
-	var relayCleanup func()
-	var statusNotifications chan StatusNotification
-	if p.subscribeFn != nil && chatErr == nil {
-		statusNotifications = make(chan StatusNotification, 10)
-		var relayEvCh <-chan codersdk.ChatStreamEvent
-		relayEvCh, relayCleanup = p.subscribeFn(mergedCtx, SubscribeFnParams{
-			ChatID:              chatID,
-			Chat:                chat,
-			WorkerID:            p.workerID,
-			StatusNotifications: statusNotifications,
-			RequestHeader:       requestHeader,
-			DB:                  p.db,
-			Logger:              p.logger,
-		})
-		relayEvents = relayEvCh
-	}
-
+		var relayEvents <-chan codersdk.ChatStreamEvent
+		var statusNotifications chan StatusNotification
+		if p.subscribeFn != nil && chatErr == nil {
+			statusNotifications = make(chan StatusNotification, 10)
+			relayEvents = p.subscribeFn(mergedCtx, SubscribeFnParams{
+				ChatID:              chatID,
+				Chat:                chat,
+				WorkerID:            p.workerID,
+				StatusNotifications: statusNotifications,
+				RequestHeader:       requestHeader,
+				DB:                  p.db,
+				Logger:              p.logger,
+			})
+		}
 	hasPubsub := false
 	if p.pubsub != nil {
 		// hasPubsub is only true when we actually subscribed
@@ -1452,20 +1450,16 @@ func (p *Server) Subscribe(
 		}
 	}()
 
-	cancel := func() {
-		mergedCancel()
-		for _, cancelFn := range allCancels {
-			if cancelFn != nil {
-				cancelFn()
+		cancel := func() {
+			mergedCancel()
+			for _, cancelFn := range allCancels {
+				if cancelFn != nil {
+					cancelFn()
+				}
 			}
 		}
-		if relayCleanup != nil {
-			relayCleanup()
-		}
+		return initialSnapshot, mergedEvents, cancel, true
 	}
-	return initialSnapshot, mergedEvents, cancel, true
-}
-
 func (p *Server) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
 	if event.ChatID == uuid.Nil {
 		event.ChatID = chatID

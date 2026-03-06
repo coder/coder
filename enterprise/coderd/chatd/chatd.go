@@ -111,7 +111,7 @@ func (c MultiReplicaSubscribeConfig) clock() quartz.Clock {
 func NewMultiReplicaSubscribeFn(
 	cfg MultiReplicaSubscribeConfig,
 ) osschatd.SubscribeFn {
-	return func(ctx context.Context, params osschatd.SubscribeFnParams) (<-chan codersdk.ChatStreamEvent, func()) {
+	return func(ctx context.Context, params osschatd.SubscribeFnParams) <-chan codersdk.ChatStreamEvent {
 		chatID := params.ChatID
 		requestHeader := params.RequestHeader
 		logger := params.Logger
@@ -401,13 +401,11 @@ func NewMultiReplicaSubscribeFn(
 			}
 		}()
 
-		// The cancel function tears down the relay state
-		// indirectly: the merge goroutine owns all relay state
-		// (reconnectTimer, relayCancel, dialCancel, etc.) and
-		// cleans it up via its defer closeRelay() when ctx is
-		// canceled.
-		cancel := func() {}
-		return mergedEvents, cancel
+		// Cleanup is driven by ctx cancellation: the merge
+		// goroutine owns all relay state (reconnectTimer,
+		// relayCancel, dialCancel, etc.) and tears it down
+		// via defer closeRelay() when ctx is done.
+		return mergedEvents
 	}
 }
 
