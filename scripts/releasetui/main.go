@@ -374,6 +374,81 @@ func commitLog(commitRange string) ([]commitEntry, error) {
 	return entries, nil
 }
 
+// prMetadata holds labels and author for a merged PR.
+type prMetadata struct {
+	Labels []string
+	Author string
+}
+
+// humanizedAreas maps conventional commit scopes to human-readable area
+// names. Order matters: more specific prefixes must come first so that
+// the first partial match wins.
+var humanizedAreas = []struct {
+	Prefix string
+	Area   string
+}{
+	{"agent/agentssh", "Agent SSH"},
+	{"coderd/database", "Database"},
+	{"enterprise/audit", "Auditing"},
+	{"enterprise/cli", "CLI"},
+	{"enterprise/coderd", "Server"},
+	{"enterprise/dbcrypt", "Database"},
+	{"enterprise/derpmesh", "Networking"},
+	{"enterprise/provisionerd", "Provisioner"},
+	{"enterprise/tailnet", "Networking"},
+	{"enterprise/wsproxy", "Workspace Proxy"},
+	{"agent", "Agent"},
+	{"cli", "CLI"},
+	{"coderd", "Server"},
+	{"codersdk", "SDK"},
+	{"docs", "Documentation"},
+	{"enterprise", "Enterprise"},
+	{"examples", "Examples"},
+	{"helm", "Helm"},
+	{"install.sh", "Installer"},
+	{"provisionersdk", "SDK"},
+	{"provisionerd", "Provisioner"},
+	{"provisioner", "Provisioner"},
+	{"pty", "CLI"},
+	{"scaletest", "Scale Testing"},
+	{"site", "Dashboard"},
+	{"support", "Support"},
+	{"tailnet", "Networking"},
+}
+
+// conventionalPrefixRe extracts the prefix and optional scope from a
+// conventional commit title.
+var conventionalPrefixRe = regexp.MustCompile(`^([a-z]+)(\((.+)\))?[!]?:\s*(.*)$`)
+
+// humanizeTitle converts a conventional commit title to a
+// human-readable form, e.g. "feat(site): add bar" → "Dashboard: Add bar".
+func humanizeTitle(title string) string {
+	m := conventionalPrefixRe.FindStringSubmatch(title)
+	if m == nil {
+		return title
+	}
+	scope := m[3]  // may be empty
+	rest := m[4]
+	if rest == "" {
+		return title
+	}
+	// Capitalize the first letter of the rest.
+	rest = strings.ToUpper(rest[:1]) + rest[1:]
+
+	if scope == "" {
+		return rest
+	}
+
+	// Look up scope in humanizedAreas (first partial match wins).
+	for _, ha := range humanizedAreas {
+		if strings.HasPrefix(scope, ha.Prefix) {
+			return ha.Area + ": " + rest
+		}
+	}
+	// Scope not found in map — return as-is.
+	return title
+}
+
 // breakingCommitRe matches conventional commit "!:" breaking changes.
 var breakingCommitRe = regexp.MustCompile(`^[a-zA-Z]+(\(.+\))?!:`)
 
@@ -386,6 +461,9 @@ func categorizeCommit(title string, labels []string) string {
 		}
 		if l == "security" {
 			return "security"
+		}
+		if l == "release/experimental" {
+			return "experimental"
 		}
 	}
 	if breakingCommitRe.MatchString(title) {
@@ -738,16 +816,16 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return fmt.Errorf("reading commit log: %w", err)
 	}
 
-	// Build PR number → labels map via gh CLI.
-	var prLabels map[int][]string
+	// Build PR number → metadata map via gh CLI.
+	var prMeta map[int]prMetadata
 	if ghAvailable {
-		prLabels, err = ghBuildPRLabelMap(currentBranch)
+		prMeta, err = ghBuildPRMetadataMap(currentBranch)
 		if err != nil {
-			warnf(w, "Failed to fetch PR labels: %v", err)
+			warnf(w, "Failed to fetch PR metadata: %v", err)
 		}
 	}
-	if prLabels == nil {
-		prLabels = make(map[int][]string)
+	if prMeta == nil {
+		prMeta = make(map[int]prMetadata)
 	}
 
 	type section struct {
@@ -768,13 +846,32 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		{"chore", "Chores"},
 		{"revert", "Reverts"},
 		{"other", "Other changes"},
+		{"experimental", "Experimental changes"},
 	}
 	sectionCommits := make(map[string][]string)
 
 	for _, c := range commits {
-		labels := prLabels[c.PRNum]
-		cat := categorizeCommit(c.Title, labels)
-		entry := fmt.Sprintf("- %s (%s)", c.Title, c.SHA)
+		meta := prMeta[c.PRNum]
+		// Skip dependabot commits.
+		if meta.Author == "dependabot" || meta.Author == "app/dependabot" {
+			continue
+		}
+		cat := categorizeCommit(c.Title, meta.Labels)
+		humanTitle := humanizeTitle(c.Title)
+		// Strip trailing PR ref from humanized title if present,
+		// so we can rebuild it with the SHA appended.
+		humanTitle = prNumRe.ReplaceAllString(humanTitle, "")
+		humanTitle = strings.TrimSpace(humanTitle)
+		// Build entry: - Title (#PR, SHA) (@author)
+		var entry string
+		if c.PRNum > 0 {
+			entry = fmt.Sprintf("- %s (#%d, %s)", humanTitle, c.PRNum, c.SHA)
+		} else {
+			entry = fmt.Sprintf("- %s (%s)", humanTitle, c.SHA)
+		}
+		if meta.Author != "" {
+			entry += fmt.Sprintf(" (@%s)", meta.Author)
+		}
 		sectionCommits[cat] = append(sectionCommits[cat], entry)
 	}
 
@@ -797,6 +894,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	for _, s := range sections {
 		if entries, ok := sectionCommits[s.Key]; ok && len(entries) > 0 {
 			fmt.Fprintf(&notes, "\n### %s\n\n", s.Title)
+			if s.Key == "experimental" {
+				fmt.Fprintln(&notes, "These changes are feature-flagged and can be enabled with the `--experiments` server flag. They may change or be removed in future releases.")
+				fmt.Fprintln(&notes)
+			}
 			for _, e := range entries {
 				fmt.Fprintln(&notes, e)
 			}
@@ -1022,16 +1123,16 @@ func ghListPRsWithLabel(branch, label string) ([]ghPR, error) {
 	return prs, nil
 }
 
-// ghBuildPRLabelMap returns a map of PR number → label names for
-// merged PRs targeting the given branch.
-func ghBuildPRLabelMap(branch string) (map[int][]string, error) {
+// ghBuildPRMetadataMap returns a map of PR number → metadata (labels
+// and author) for merged PRs targeting the given branch.
+func ghBuildPRMetadataMap(branch string) (map[int]prMetadata, error) {
 	out, err := ghOutput("pr", "list",
 		"--repo", owner+"/"+repo,
 		"--base", branch,
 		"--state", "merged",
 		"--limit", "500",
-		"--json", "number,labels",
-		"--jq", `.[] | "\(.number)\t\([.labels[].name] | join(","))"`,
+		"--json", "number,labels,author",
+		"--jq", `.[] | "\(.number)\t\(.author.login)\t\([.labels[].name] | join(","))"`,
 	)
 	if err != nil {
 		return nil, err
@@ -1039,16 +1140,23 @@ func ghBuildPRLabelMap(branch string) (map[int][]string, error) {
 	if out == "" {
 		return nil, nil
 	}
-	result := make(map[int][]string)
+	result := make(map[int]prMetadata)
 	for _, line := range strings.Split(out, "\n") {
-		parts := strings.SplitN(line, "\t", 2)
-		if len(parts) < 2 || parts[1] == "" {
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) < 3 {
 			continue
 		}
 		num, _ := strconv.Atoi(parts[0])
-		labels := strings.Split(parts[1], ",")
-		sort.Strings(labels)
-		result[num] = labels
+		author := parts[1]
+		var labels []string
+		if parts[2] != "" {
+			labels = strings.Split(parts[2], ",")
+			sort.Strings(labels)
+		}
+		result[num] = prMetadata{
+			Labels: labels,
+			Author: author,
+		}
 	}
 	return result, nil
 }
