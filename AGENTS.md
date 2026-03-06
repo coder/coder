@@ -50,6 +50,7 @@ Only pause to ask for confirmation when:
 | **Generate**      | `make gen`               | After database changes           |
 | **Format**        | `make fmt`               | Auto-format code                 |
 | **Clean**         | `make clean`             | Clean build artifacts            |
+| **Pre-commit**    | `make pre-commit`        | All CI checks locally            |
 
 ### Documentation Commands
 
@@ -102,6 +103,14 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 ## Quick Reference
 
 ### Full workflows available in imported WORKFLOWS.md
+
+### Pre-commit Hook
+
+If the pre-commit hook is not already installed, install it:
+
+```sh
+ln -sf ../../scripts/githooks/pre-commit .git/hooks/pre-commit
+```
 
 ### Git Workflow
 
