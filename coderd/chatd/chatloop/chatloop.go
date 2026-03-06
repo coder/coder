@@ -463,11 +463,11 @@ func processStepStream(
 		case fantasy.StreamPartTypeTextDelta:
 			if _, exists := activeTextContent[part.ID]; exists {
 				activeTextContent[part.ID] += part.Delta
-				publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-					Type: codersdk.ChatMessagePartTypeText,
-					Text: part.Delta,
-				})
 			}
+			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: part.Delta,
+			})
 
 		case fantasy.StreamPartTypeTextEnd:
 			if text, exists := activeTextContent[part.ID]; exists {
@@ -489,14 +489,14 @@ func processStepStream(
 				active.text += part.Delta
 				active.options = part.ProviderMetadata
 				activeReasoningContent[part.ID] = active
-				setReasoningTitleFromText(part.ID, part.Delta)
-				title := reasoningTitles[part.ID]
-				publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-					Type:  codersdk.ChatMessagePartTypeReasoning,
-					Text:  part.Delta,
-					Title: title,
-				})
 			}
+			setReasoningTitleFromText(part.ID, part.Delta)
+			title := reasoningTitles[part.ID]
+			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+				Type:  codersdk.ChatMessagePartTypeReasoning,
+				Text:  part.Delta,
+				Title: title,
+			})
 
 		case fantasy.StreamPartTypeReasoningEnd:
 			if active, exists := activeReasoningContent[part.ID]; exists {
@@ -539,14 +539,14 @@ func processStepStream(
 		case fantasy.StreamPartTypeToolInputDelta:
 			if toolCall, exists := activeToolCalls[part.ID]; exists {
 				toolCall.Input += part.Delta
-				toolName := toolNames[part.ID]
-				publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-					Type:       codersdk.ChatMessagePartTypeToolCall,
-					ToolCallID: part.ID,
-					ToolName:   toolName,
-					ArgsDelta:  part.Delta,
-				})
 			}
+			toolName := toolNames[part.ID]
+			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: part.ID,
+				ToolName:   toolName,
+				ArgsDelta:  part.Delta,
+			})
 
 		case fantasy.StreamPartTypeToolInputEnd:
 			// No callback needed; the full tool call arrives in
