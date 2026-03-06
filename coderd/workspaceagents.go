@@ -1942,9 +1942,9 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 
 	// Persist git refs as soon as the agent requests external auth so branch
 	// context is retained even if the flow requires an out-of-band login.
-	if gitRef.Branch != "" || gitRef.RemoteOrigin != "" {
-		//nolint:gocritic // System context required to persist chat git refs.
-		api.storeChatGitRef(dbauthz.AsSystemRestricted(ctx), workspace.ID, workspace.OwnerID, chatID, gitRef)
+	if gitRef.Branch != "" && gitRef.RemoteOrigin != "" {
+		//nolint:gocritic // System context needed for cross-user chat lookup.
+		api.chatDiffWorker.MarkStale(dbauthz.AsSystemRestricted(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
 	}
 
 	var previousToken *database.ExternalAuthLink
@@ -2018,11 +2018,10 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	api.triggerWorkspaceChatDiffStatusRefresh(workspace, chatID, gitRef)
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, previous *database.ExternalAuthLink, externalAuthConfig *externalauth.Config, workspace database.Workspace, chatID uuid.NullUUID, gitRef chatGitRef) {
+func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.ResponseWriter, previous *database.ExternalAuthLink, externalAuthConfig *externalauth.Config, workspace database.Workspace, _ uuid.NullUUID, gitRef chatGitRef) {
 	// Since we're ticking frequently and this sign-in operation is rare,
 	// we are OK with polling to avoid the complexity of pubsub.
 	ticker, done := api.NewTicker(time.Second)
@@ -2092,7 +2091,8 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 			})
 			return
 		}
-		api.triggerWorkspaceChatDiffStatusRefresh(workspace, chatID, gitRef)
+		//nolint:gocritic // System context needed for cross-user chat lookup.
+		api.chatDiffWorker.MarkStale(dbauthz.AsSystemRestricted(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
 		return
 	}

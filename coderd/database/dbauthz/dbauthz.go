@@ -1540,6 +1540,10 @@ func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.Acquir
 }
 
 func (q *querier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+	// This is a system-level batch operation used by the gitsync
+	// background worker. Per-object authorization is impractical
+	// for a SKIP LOCKED acquisition query; callers must use
+	// AsChatd or AsSystemRestricted context.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
@@ -1585,6 +1589,9 @@ func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg databas
 }
 
 func (q *querier) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
+	// This is a system-level operation used by the gitsync
+	// background worker to reschedule failed refreshes. Same
+	// authorization pattern as AcquireStaleChatDiffStatuses.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return err
 	}
