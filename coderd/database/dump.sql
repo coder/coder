@@ -1047,7 +1047,7 @@ CREATE TABLE aibridge_interceptions (
     client character varying(64) DEFAULT 'Unknown'::character varying,
     thread_parent_id uuid,
     thread_root_id uuid,
-    client_session_id text
+    client_session_id character varying(256)
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -3453,7 +3453,7 @@ CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
-CREATE INDEX idx_aibridge_interceptions_client_session_id ON aibridge_interceptions USING btree ("left"(client_session_id, 100)) WHERE (client_session_id IS NOT NULL);
+CREATE INDEX idx_aibridge_interceptions_client_session_id ON aibridge_interceptions USING btree (client_session_id) WHERE (client_session_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 
