@@ -9,6 +9,8 @@ import {
 import { mergeStreamPayload } from "./streamingJson";
 import type { MergedTool, RenderBlock, StreamState } from "./types";
 
+let nextFallbackID = 0;
+
 export const createEmptyStreamState = (): StreamState => ({
 	blocks: [],
 	toolCalls: {},
@@ -85,8 +87,8 @@ export const applyMessagePartToStreamState = (
 			);
 			const toolCallID =
 				asString(part.tool_call_id) ||
-				existingByName?.id ||
-				`tool-call-${Object.keys(nextState.toolCalls).length + 1}`;
+				(existingByName && !existingByName.args ? existingByName.id : null) ||
+				`tool-call-${Object.keys(nextState.toolCalls).length + 1}-${++nextFallbackID}`;
 			const existing = nextState.toolCalls[toolCallID];
 			const nextArgs = mergeStreamPayload(
 				existing?.args,
@@ -120,9 +122,11 @@ export const applyMessagePartToStreamState = (
 			);
 			const toolCallID =
 				asString(part.tool_call_id) ||
-				existingByName?.id ||
-				existingCallByName?.id ||
-				`tool-result-${Object.keys(nextState.toolResults).length + 1}`;
+				(existingByName && !existingByName.result ? existingByName.id : null) ||
+				(existingCallByName && !nextState.toolResults[existingCallByName.id]
+					? existingCallByName.id
+					: null) ||
+				`tool-result-${Object.keys(nextState.toolResults).length + 1}-${++nextFallbackID}`;
 			const existing = nextState.toolResults[toolCallID];
 			const nextResult = mergeStreamPayload(
 				existing?.result,
