@@ -3,8 +3,6 @@ import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	Columns2Icon,
-	FolderIcon,
-	GitPullRequestIcon,
 	MaximizeIcon,
 	MinimizeIcon,
 	PanelLeftIcon,
@@ -136,11 +134,11 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 
 	if (!hasPR && !hasRepos) {
 		return (
-			<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-l border-solid bg-surface-primary">
+			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 				{/* Tab bar – always visible for the expand button. */}
 				<div
 					role="tablist"
-					className="flex shrink-0 items-center gap-1 px-1 py-1.5 border-0 border-b border-solid border-border-default"
+					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1"
 				>
 					<div className="min-w-0 flex-1 text-center">
 						{isExpanded && chatTitle && (
@@ -167,11 +165,11 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	}
 
 	return (
-		<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-l border-solid bg-surface-primary">
+		<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 			{/* Tab bar */}
 			<div
 				role="tablist"
-				className="flex shrink-0 items-center gap-1 px-1 py-1.5 border-0 border-b border-solid border-border-default"
+				className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1"
 			>
 				{/* Sidebar toggle – only when expanded and sidebar is collapsed */}
 				{isExpanded && isSidebarCollapsed && onToggleSidebarCollapsed && (
@@ -186,61 +184,58 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					</Button>
 				)}
 
-				{/* Tabs – scrolls internally so right-side buttons stay visible */}
-				<div className="flex min-w-0 items-center overflow-x-auto rounded-lg bg-surface-secondary p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+				{/* Tabs – scrolls so right-side buttons stay visible */}
+				<div className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 					{hasPR && prTab && (
-						<button
-							type="button"
+						<Button
 							id={`${tabIdPrefix}-tab-pr`}
 							role="tab"
 							aria-selected={effectiveTab === "pr"}
 							onClick={() => setActiveTab("pr")}
+							variant={effectiveTab === "pr" ? "outline" : "subtle"}
+							size="lg"
 							className={cn(
-								"flex shrink-0 items-center gap-1.5 rounded-md border-0 px-2 py-1 text-xs font-medium transition-colors cursor-pointer outline-none",
-								effectiveTab === "pr"
-									? "bg-surface-primary text-content-primary shadow-sm"
-									: "bg-transparent text-content-secondary hover:text-content-primary",
+								"min-w-0 h-6 px-3 gap-3 py-0",
+								effectiveTab === "pr" && "bg-surface-secondary",
 							)}
 						>
-							<GitPullRequestIcon className="h-3.5 w-3.5" />#{prTab.prNumber}
+							#{prTab.prNumber}
 							{(prDiffAdditions > 0 || prDiffDeletions > 0) && (
 								<DiffStatNumbers
 									additions={prDiffAdditions}
 									deletions={prDiffDeletions}
-									className="ml-1 text-[10px]"
+									className="text-[10px]"
 								/>
 							)}
-						</button>
+						</Button>
 					)}
 					{repoEntries.map(([repoRoot]) => {
 						const stats = repoDiffStats.get(repoRoot);
 						const additions = stats?.additions ?? 0;
 						const deletions = stats?.deletions ?? 0;
 						return (
-							<button
-								type="button"
+							<Button
+								key={repoRoot}
 								id={`${tabIdPrefix}-tab-${repoRoot}`}
 								role="tab"
 								aria-selected={effectiveTab === repoRoot}
-								key={repoRoot}
 								onClick={() => setActiveTab(repoRoot)}
+								variant={effectiveTab === repoRoot ? "outline" : "subtle"}
+								size="lg"
 								className={cn(
-									"flex shrink-0 items-center gap-1.5 rounded-md border-0 px-2 py-1 text-xs font-medium transition-colors cursor-pointer outline-none",
-									effectiveTab === repoRoot
-										? "bg-surface-primary text-content-primary shadow-sm"
-										: "bg-transparent text-content-secondary hover:text-content-primary",
+									"min-w-0 h-6 px-3 gap-3 py-0",
+									effectiveTab === repoRoot && "bg-surface-secondary",
 								)}
 							>
-								<FolderIcon className="h-3.5 w-3.5" />
 								{repoTabLabel(repoRoot)}
 								{(additions > 0 || deletions > 0) && (
 									<DiffStatNumbers
 										additions={additions}
 										deletions={deletions}
-										className="ml-1 text-[10px]"
+										className="text-[10px]"
 									/>
 								)}
-							</button>
+							</Button>
 						);
 					})}
 				</div>
