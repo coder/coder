@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import {
 	type FC,
+	type RefObject,
 	useCallback,
 	useEffect,
 	useId,
@@ -21,6 +22,7 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import type { ChatMessageInputRef } from "./AgentChatInput";
 import { DiffStatBadge } from "./DiffStats";
 import { DIFF_STYLE_KEY, type DiffStyle, loadDiffStyle } from "./DiffViewer";
 import { FilesChangedPanel } from "./FilesChangedPanel";
@@ -57,6 +59,8 @@ interface SidebarTabViewProps {
 	diffStatus?: { additions?: number; deletions?: number };
 	/** Callback to close the panel (used on mobile). */
 	onClose?: () => void;
+	/** Ref to the chat input, forwarded to FilesChangedPanel. */
+	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 }
 
 /** How far (px) each chevron click scrolls the tab strip. */
@@ -155,6 +159,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	chatTitle,
 	diffStatus,
 	onClose,
+	chatInputRef,
 }) => {
 	const tabIdPrefix = useId();
 	const repoEntries = Array.from(repositories.entries()).sort(([a], [b]) =>
@@ -410,7 +415,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					<FilesChangedPanel
 						chatId={prTab.chatId}
 						isExpanded={isExpanded}
-						diffStyle={diffStyle}
+						chatInputRef={chatInputRef}
 					/>
 				) : effectiveTab && repositories.has(effectiveTab) ? (
 					<RepoChangesPanel

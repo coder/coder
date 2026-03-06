@@ -2518,6 +2518,25 @@ func createChatInputFromParts(
 				MediaType: chatFile.Mimetype,
 			})
 			fileIDs[len(content)-1] = part.FileID
+		case string(codersdk.ChatInputPartTypeFileReference):
+			if part.FileName == "" {
+				return nil, nil, "", &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_name cannot be empty for file-reference.", fieldName, i),
+				}
+			}
+			lineRange := fmt.Sprintf("%d", part.StartLine)
+			if part.StartLine != part.EndLine {
+				lineRange = fmt.Sprintf("%d-%d", part.StartLine, part.EndLine)
+			}
+			var sb strings.Builder
+			_, _ = fmt.Fprintf(&sb, "[file-reference] %s:%s", part.FileName, lineRange)
+			if strings.TrimSpace(part.Content) != "" {
+				_, _ = fmt.Fprintf(&sb, "\n```%s\n%s\n```", part.FileName, strings.TrimSpace(part.Content))
+			}
+			text := sb.String()
+			content = append(content, fantasy.TextContent{Text: text})
+			textParts = append(textParts, text)
 		default:
 			return nil, nil, "", &codersdk.Response{
 				Message: "Invalid input part.",
