@@ -372,7 +372,7 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		}
 
 		_, err = s.store.InsertAIBridgeModelThought(ctx, database.InsertAIBridgeModelThoughtParams{
-			ID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			ID:             uuid.New(),
 			InterceptionID: intcID,
 			ToolUsageID:    toolUsageID,
 			Content:        sql.NullString{String: thought.GetContent(), Valid: thought.GetContent() != ""},
@@ -380,7 +380,11 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 			CreatedAt:      thought.GetCreatedAt().AsTime(),
 		})
 		if err != nil {
-			s.logger.Warn(ctx, "failed to insert model thought", slog.Error(err))
+			s.logger.Warn(ctx, "failed to insert model thought",
+				slog.Error(err),
+				slog.F("interception_id", intcID.String()),
+				slog.F("tool_usage_id", toolUsageID.String()),
+			)
 		}
 	}
 
