@@ -1,5 +1,5 @@
 import { Button } from "components/Button/Button";
-import { SendIcon } from "lucide-react";
+import { SendIcon, SquareIcon } from "lucide-react";
 import {
 	type FC,
 	type KeyboardEvent,
@@ -12,13 +12,17 @@ import { cn } from "utils/cn";
 
 interface ChatInputProps {
 	onSend: (text: string) => void;
+	onStop?: () => void;
 	disabled?: boolean;
+	isStreaming?: boolean;
 	placeholder?: string;
 }
 
 export const ChatInput: FC<ChatInputProps> = ({
 	onSend,
+	onStop,
 	disabled = false,
+	isStreaming = false,
 	placeholder = "Ask about this template...",
 }) => {
 	const [value, setValue] = useState("");
@@ -32,6 +36,7 @@ export const ChatInput: FC<ChatInputProps> = ({
 		textarea.style.height = "auto";
 		textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
 	}, []);
+	const isStopMode = isStreaming && onStop !== undefined;
 
 	const handleSend = useCallback(() => {
 		if (disabled) {
@@ -50,6 +55,10 @@ export const ChatInput: FC<ChatInputProps> = ({
 			textarea.style.height = "auto";
 		}
 	}, [disabled, onSend, value]);
+
+	const handleStop = useCallback(() => {
+		onStop?.();
+	}, [onStop]);
 
 	const onKeyDown = useCallback(
 		(event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -97,11 +106,11 @@ export const ChatInput: FC<ChatInputProps> = ({
 				variant="outline"
 				size="icon"
 				className="h-10 w-10 shrink-0"
-				onClick={handleSend}
-				disabled={disabled || value.trim().length === 0}
-				aria-label="Send message"
+				onClick={isStopMode ? handleStop : handleSend}
+				disabled={!isStopMode && (disabled || value.trim().length === 0)}
+				aria-label={isStopMode ? "Stop response" : "Send message"}
 			>
-				<SendIcon />
+				{isStopMode ? <SquareIcon /> : <SendIcon />}
 			</Button>
 		</div>
 	);
