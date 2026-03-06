@@ -7,7 +7,7 @@ import type { WebpushMessage } from "api/typesGenerated";
 const mockShowNotification = vi.fn(() => Promise.resolve());
 const mockRegistration = { showNotification: mockShowNotification };
 const mockMatchAll =
-	vi.fn<() => Promise<Array<{ visibilityState: string; url: string }>>>();
+	vi.fn<() => Promise<Array<{ visibilityState: string; url: string; focused: boolean }>>>();
 const mockClients = {
 	matchAll: mockMatchAll,
 	claim: vi.fn(() => Promise.resolve()),
@@ -81,12 +81,13 @@ describe("serviceWorker push handler", () => {
 			body: testPayload.body,
 			icon: testPayload.icon,
 			data: testPayload.data,
+			tag: undefined,
 		});
 	});
 
 	it("suppresses notification when viewing the specific chat", async () => {
 		mockMatchAll.mockResolvedValue([
-			{ visibilityState: "visible", url: "https://example.com/agents/abc" },
+			{ visibilityState: "visible", url: "https://example.com/agents/abc", focused: true },
 		]);
 
 		const event = makePushEvent(testPayload);
@@ -101,6 +102,7 @@ describe("serviceWorker push handler", () => {
 			{
 				visibilityState: "visible",
 				url: "https://example.com/agents/other-chat-id",
+				focused: true,
 			},
 		]);
 
@@ -112,12 +114,13 @@ describe("serviceWorker push handler", () => {
 			body: testPayload.body,
 			icon: testPayload.icon,
 			data: testPayload.data,
+			tag: undefined,
 		});
 	});
 
 	it("shows notification when payload has no data url", async () => {
 		mockMatchAll.mockResolvedValue([
-			{ visibilityState: "visible", url: "https://example.com/agents/abc" },
+			{ visibilityState: "visible", url: "https://example.com/agents/abc", focused: true },
 		]);
 
 		const payload: WebpushMessage = {
@@ -134,12 +137,13 @@ describe("serviceWorker push handler", () => {
 			body: "test",
 			icon: "/icon.png",
 			data: undefined,
+			tag: undefined,
 		});
 	});
 
 	it("shows notification when specific chat page exists but is hidden", async () => {
 		mockMatchAll.mockResolvedValue([
-			{ visibilityState: "hidden", url: "https://example.com/agents/abc" },
+			{ visibilityState: "hidden", url: "https://example.com/agents/abc", focused: false },
 		]);
 
 		const event = makePushEvent(testPayload);
@@ -150,12 +154,30 @@ describe("serviceWorker push handler", () => {
 			body: testPayload.body,
 			icon: testPayload.icon,
 			data: testPayload.data,
+			tag: undefined,
+		});
+	});
+
+	it("shows notification when viewing the specific chat but browser is not focused", async () => {
+		mockMatchAll.mockResolvedValue([
+			{ visibilityState: "visible", url: "https://example.com/agents/abc", focused: false },
+		]);
+
+		const event = makePushEvent(testPayload);
+		handlers.push(event);
+		await event._waitUntilPromise;
+
+		expect(mockShowNotification).toHaveBeenCalledWith(testPayload.title, {
+			body: testPayload.body,
+			icon: testPayload.icon,
+			data: testPayload.data,
+			tag: undefined,
 		});
 	});
 
 	it("shows notification when visible window is not on agents page", async () => {
 		mockMatchAll.mockResolvedValue([
-			{ visibilityState: "visible", url: "https://example.com/settings" },
+			{ visibilityState: "visible", url: "https://example.com/settings", focused: true },
 		]);
 
 		const event = makePushEvent(testPayload);
@@ -166,6 +188,7 @@ describe("serviceWorker push handler", () => {
 			body: testPayload.body,
 			icon: testPayload.icon,
 			data: testPayload.data,
+			tag: undefined,
 		});
 	});
 
@@ -194,6 +217,7 @@ describe("serviceWorker push handler", () => {
 			body: "",
 			icon: "/favicon.ico",
 			data: undefined,
+			tag: undefined,
 		});
 	});
 });

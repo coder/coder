@@ -30,12 +30,14 @@ self.addEventListener("push", (event) => {
 			.matchAll({ type: "window", includeUncontrolled: true })
 			.then((clientList) => {
 				// Only suppress if the user is actively viewing the
-				// specific chat that triggered this notification.
+				// specific chat that triggered this notification and
+				// the browser window is focused.
 				const chatURL = payload.data?.url;
 				if (chatURL) {
 					const isVisible = clientList.some(
 						(client) =>
 							client.visibilityState === "visible" &&
+							(client as WindowClient).focused &&
 							client.url.includes(chatURL),
 					);
 					if (isVisible) {
