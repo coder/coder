@@ -330,71 +330,71 @@ func Run(ctx context.Context, opts RunOptions) error {
 				return xerrors.Errorf("persist step: %w", err)
 			}
 
-				lastUsage = result.usage
-				lastProviderMetadata = result.providerMetadata
+			lastUsage = result.usage
+			lastProviderMetadata = result.providerMetadata
 
-				// Append the step's response messages so that both
-				// inline and post-loop compaction see the full
-				// conversation including the latest assistant reply.
-				stepMessages := result.toResponseMessages()
-				messages = append(messages, stepMessages...)
+			// Append the step's response messages so that both
+			// inline and post-loop compaction see the full
+			// conversation including the latest assistant reply.
+			stepMessages := result.toResponseMessages()
+			messages = append(messages, stepMessages...)
 
-				// Inline compaction.
-				if opts.Compaction != nil && opts.ReloadMessages != nil {
-					did, compactErr := tryCompact(
-						ctx,
-						opts.Model,
-						opts.Compaction,
-						opts.ContextLimitFallback,
-						result.usage,
-						result.providerMetadata,
-						messages,
-					)
-					if compactErr != nil && opts.Compaction.OnError != nil {
-						opts.Compaction.OnError(compactErr)
-					}
-					if did {
-						alreadyCompacted = true
-						compactedOnFinalStep = true
-						reloaded, reloadErr := opts.ReloadMessages(ctx)
-						if reloadErr != nil {
-							return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
-						}
-						messages = reloaded
-					}
-				}
-
-				if !result.shouldContinue {
-					stoppedByModel = true
-					break
-				}
-
-				// The agent is continuing with tool calls, so any
-				// prior compaction has already been consumed.
-				compactedOnFinalStep = false
-			}
-
-			// Post-run compaction safety net: if we never compacted
-			// during the loop, try once at the end.
-			if !alreadyCompacted && opts.Compaction != nil {
-				did, err := tryCompact(
+			// Inline compaction.
+			if opts.Compaction != nil && opts.ReloadMessages != nil {
+				did, compactErr := tryCompact(
 					ctx,
 					opts.Model,
 					opts.Compaction,
 					opts.ContextLimitFallback,
-					lastUsage,
-					lastProviderMetadata,
+					result.usage,
+					result.providerMetadata,
 					messages,
 				)
-				if err != nil {
-					if opts.Compaction.OnError != nil {
-						opts.Compaction.OnError(err)
-					}
+				if compactErr != nil && opts.Compaction.OnError != nil {
+					opts.Compaction.OnError(compactErr)
 				}
 				if did {
+					alreadyCompacted = true
 					compactedOnFinalStep = true
+					reloaded, reloadErr := opts.ReloadMessages(ctx)
+					if reloadErr != nil {
+						return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
+					}
+					messages = reloaded
 				}
 			}
+
+			if !result.shouldContinue {
+				stoppedByModel = true
+				break
+			}
+
+			// The agent is continuing with tool calls, so any
+			// prior compaction has already been consumed.
+			compactedOnFinalStep = false
+		}
+
+		// Post-run compaction safety net: if we never compacted
+		// during the loop, try once at the end.
+		if !alreadyCompacted && opts.Compaction != nil && opts.ReloadMessages != nil {
+			did, err := tryCompact(
+				ctx,
+				opts.Model,
+				opts.Compaction,
+				opts.ContextLimitFallback,
+				lastUsage,
+				lastProviderMetadata,
+				messages,
+			)
+			if err != nil {
+				if opts.Compaction.OnError != nil {
+					opts.Compaction.OnError(err)
+				}
+			}
+			if did {
+				compactedOnFinalStep = true
+			}
+		}
 		// Re-enter the step loop when compaction fired on the
 		// model's final step. This lets the agent continue
 		// working with fresh summarized context instead of

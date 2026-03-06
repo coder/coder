@@ -564,6 +564,7 @@ func (p *Server) DeleteQueued(
 	}
 
 	var queuedMessages []database.ChatQueuedMessage
+	var queueLoadedOK bool
 
 	txErr := p.db.InTx(func(tx database.Store) error {
 		// Lock the chat row to prevent processChat from
@@ -591,6 +592,7 @@ func (p *Server) DeleteQueued(
 			// Non-fatal: the delete succeeded, so we still commit.
 			return nil
 		}
+		queueLoadedOK = true
 
 		return nil
 	}, nil)
@@ -598,7 +600,7 @@ func (p *Server) DeleteQueued(
 		return txErr
 	}
 
-	if queuedMessages != nil {
+	if queueLoadedOK {
 		p.publishEvent(chatID, codersdk.ChatStreamEvent{
 			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 			QueuedMessages: db2sdk.ChatQueuedMessages(queuedMessages),
@@ -699,6 +701,7 @@ func (p *Server) PromoteQueued(
 	})
 	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
+	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange)
 
 	return result, nil
 }
@@ -2406,28 +2409,6 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("encode system summary: %w", err)
 	}
 
-	_, err = p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:        chatID,
-		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:          string(fantasy.MessageRoleSystem),
-		Content: pqtype.NullRawMessage{
-			RawMessage: systemContent,
-			Valid:      len(systemContent) > 0,
-		},
-		Visibility:          database.ChatMessageVisibilityModel,
-		Compressed:          sql.NullBool{Bool: true, Valid: true},
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-	})
-	if err != nil {
-		return xerrors.Errorf("insert hidden summary message: %w", err)
-	}
-
 	args, err := json.Marshal(map[string]any{
 		"source":            "automatic",
 		"threshold_percent": result.ThresholdPercent,
@@ -2447,29 +2428,7 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("encode summary tool call: %w", err)
 	}
 
-	assistantMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:        chatID,
-		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:          string(fantasy.MessageRoleAssistant),
-		Content:       assistantContent,
-		Visibility:    database.ChatMessageVisibilityUser,
-		Compressed: sql.NullBool{
-			Bool:  true,
-			Valid: true,
-		},
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-	})
-	if err != nil {
-		return xerrors.Errorf("insert summary tool call message: %w", err)
-	}
-
-	summaryResult, marshalErr := json.Marshal(map[string]any{
+	summaryResult, err := json.Marshal(map[string]any{
 		"summary":              result.SummaryReport,
 		"source":               "automatic",
 		"threshold_percent":    result.ThresholdPercent,
@@ -2477,8 +2436,8 @@ func (p *Server) persistChatContextSummary(
 		"context_tokens":       result.ContextTokens,
 		"context_limit_tokens": result.ContextLimit,
 	})
-	if marshalErr != nil {
-		return xerrors.Errorf("encode summary result payload: %w", marshalErr)
+	if err != nil {
+		return xerrors.Errorf("encode summary result payload: %w", err)
 	}
 	toolResult, err := chatprompt.MarshalToolResult(
 		toolCallID,
@@ -2490,30 +2449,88 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("encode summary tool result: %w", err)
 	}
 
-	toolMessage, err := p.db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:        chatID,
-		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:          string(fantasy.MessageRoleTool),
-		Content:       toolResult,
-		Visibility:    database.ChatMessageVisibilityBoth,
-		Compressed: sql.NullBool{
-			Bool:  true,
-			Valid: true,
-		},
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-	})
-	if err != nil {
-		return xerrors.Errorf("insert summary tool result message: %w", err)
+	var insertedMessages []database.ChatMessage
+
+	txErr := p.db.InTx(func(tx database.Store) error {
+		_, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:        chatID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:          string(fantasy.MessageRoleSystem),
+			Content: pqtype.NullRawMessage{
+				RawMessage: systemContent,
+				Valid:      len(systemContent) > 0,
+			},
+			Visibility:          database.ChatMessageVisibilityModel,
+			Compressed:          sql.NullBool{Bool: true, Valid: true},
+			InputTokens:         sql.NullInt64{},
+			OutputTokens:        sql.NullInt64{},
+			TotalTokens:         sql.NullInt64{},
+			ReasoningTokens:     sql.NullInt64{},
+			CacheCreationTokens: sql.NullInt64{},
+			CacheReadTokens:     sql.NullInt64{},
+			ContextLimit:        sql.NullInt64{},
+		})
+		if txErr != nil {
+			return xerrors.Errorf("insert hidden summary message: %w", txErr)
+		}
+
+		assistantMessage, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:        chatID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:          string(fantasy.MessageRoleAssistant),
+			Content:       assistantContent,
+			Visibility:    database.ChatMessageVisibilityUser,
+			Compressed: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+			InputTokens:         sql.NullInt64{},
+			OutputTokens:        sql.NullInt64{},
+			TotalTokens:         sql.NullInt64{},
+			ReasoningTokens:     sql.NullInt64{},
+			CacheCreationTokens: sql.NullInt64{},
+			CacheReadTokens:     sql.NullInt64{},
+			ContextLimit:        sql.NullInt64{},
+		})
+		if txErr != nil {
+			return xerrors.Errorf("insert summary tool call message: %w", txErr)
+		}
+		insertedMessages = append(insertedMessages, assistantMessage)
+
+		toolMessage, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:        chatID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:          string(fantasy.MessageRoleTool),
+			Content:       toolResult,
+			Visibility:    database.ChatMessageVisibilityBoth,
+			Compressed: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+			InputTokens:         sql.NullInt64{},
+			OutputTokens:        sql.NullInt64{},
+			TotalTokens:         sql.NullInt64{},
+			ReasoningTokens:     sql.NullInt64{},
+			CacheCreationTokens: sql.NullInt64{},
+			CacheReadTokens:     sql.NullInt64{},
+			ContextLimit:        sql.NullInt64{},
+		})
+		if txErr != nil {
+			return xerrors.Errorf("insert summary tool result message: %w", txErr)
+		}
+		insertedMessages = append(insertedMessages, toolMessage)
+
+		return nil
+	}, nil)
+	if txErr != nil {
+		return txErr
 	}
 
-	p.publishMessage(chatID, assistantMessage)
-	p.publishMessage(chatID, toolMessage)
+	// Publish after transaction commits to avoid notifying
+	// subscribers about messages that could be rolled back.
+	for _, msg := range insertedMessages {
+		p.publishMessage(chatID, msg)
+	}
 	return nil
 }
 

@@ -242,47 +242,50 @@ export const createChatStore = (): ChatStore => {
 		});
 	};
 
-	const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
-		// Use `state` for the early-return guard so we can return
-		// the result synchronously. The actual mutation below uses
-		// `current` inside the updater to avoid overwriting a
-		// concurrent state change (TOCTOU).
-		const existing = state.messagesByID.get(message.id);
-		const isDuplicate = state.messagesByID.has(message.id);
-		if (existing && chatMessagesEqualByValue(existing, message)) {
-			return { isDuplicate, changed: false };
-		}
-
-		setState((current) => {
-			// Re-check inside the updater: another call may have
-			// already applied this exact message.
-			const curExisting = current.messagesByID.get(message.id);
-			if (curExisting && chatMessagesEqualByValue(curExisting, message)) {
-				return current;
+		const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
+			// Use `state` for the early-return guard so we can return
+			// the result synchronously. The actual mutation below uses
+			// `current` inside the updater to avoid overwriting a
+			// concurrent state change (TOCTOU).
+			const existing = state.messagesByID.get(message.id);
+			const isDuplicate = state.messagesByID.has(message.id);
+			if (existing && chatMessagesEqualByValue(existing, message)) {
+				return { isDuplicate, changed: false };
 			}
 
-			const nextMessagesByID = new Map(current.messagesByID);
-			nextMessagesByID.set(message.id, message);
+			let actuallyChanged = false;
+			setState((current) => {
+				// Re-check inside the updater: another call may have
+				// already applied this exact message.
+				const curExisting = current.messagesByID.get(message.id);
+				if (curExisting && chatMessagesEqualByValue(curExisting, message)) {
+					return current;
+				}
 
-			const curIsDuplicate = current.messagesByID.has(message.id);
-			const needsReorder =
-				!curIsDuplicate ||
-				nextMessagesByID.size !== current.messagesByID.size;
-			const nextOrderedMessageIDs = needsReorder
-				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
-				: current.orderedMessageIDs;
+				actuallyChanged = true;
 
-			return {
-				...current,
-				messagesByID: nextMessagesByID,
-				orderedMessageIDs: nextOrderedMessageIDs,
-			};
-		});
-		return { isDuplicate, changed: true };
-	};
+				const nextMessagesByID = new Map(current.messagesByID);
+				nextMessagesByID.set(message.id, message);
 
-	const applyMessageParts = (parts: readonly Record<string, unknown>[]) => {
-		if (parts.length === 0) {
+				const curIsDuplicate = current.messagesByID.has(message.id);
+				const needsReorder =
+					!curIsDuplicate ||
+					nextMessagesByID.size !== current.messagesByID.size;
+				const nextOrderedMessageIDs = needsReorder
+					? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
+					: current.orderedMessageIDs;
+
+				return {
+					...current,
+					messagesByID: nextMessagesByID,
+					orderedMessageIDs: nextOrderedMessageIDs,
+				};
+			});
+			return { isDuplicate, changed: actuallyChanged };
+		};
+
+		const applyMessageParts = (parts: readonly Record<string, unknown>[]) => {
+			if (parts.length === 0) {
 			return;
 		}
 
@@ -315,15 +318,14 @@ export const createChatStore = (): ChatStore => {
 		applyMessageParts,
 		setQueuedMessages: (queuedMessages) => {
 			const nextQueuedMessages = queuedMessages ?? [];
-			if (
-				chatQueuedMessagesEqualByID(state.queuedMessages, nextQueuedMessages)
-			) {
-				return;
-			}
-			setState((current) => ({
-				...current,
-				queuedMessages: nextQueuedMessages,
-			}));
+			setState((current) => {
+				if (
+					chatQueuedMessagesEqualByID(current.queuedMessages, nextQueuedMessages)
+				) {
+					return current;
+				}
+				return { ...current, queuedMessages: nextQueuedMessages };
+			});
 		},
 		setChatStatus: (status) => {
 			if (state.chatStatus === status) {
@@ -383,12 +385,14 @@ export const createChatStore = (): ChatStore => {
 			if (state.subagentStatusOverrides.get(chatID) === status) {
 				return;
 			}
-			const nextOverrides = new Map(state.subagentStatusOverrides);
-			nextOverrides.set(chatID, status);
-			setState((current) => ({
-				...current,
-				subagentStatusOverrides: nextOverrides,
-			}));
+			setState((current) => {
+				if (current.subagentStatusOverrides.get(chatID) === status) {
+					return current;
+				}
+				const nextOverrides = new Map(current.subagentStatusOverrides);
+				nextOverrides.set(chatID, status);
+				return { ...current, subagentStatusOverrides: nextOverrides };
+			});
 		},
 		resetTransientState: () => {
 			if (
@@ -410,8 +414,7 @@ export const createChatStore = (): ChatStore => {
 	};
 };
 
-interface UseChatStoreOptions {
-	chatID: string | undefined;
+interface UseChatStoreOptions {	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
 	chatData: TypesGen.ChatWithMessages | undefined;
@@ -732,21 +735,22 @@ export const useChatStore = (
 						}));
 						continue;
 					}
-					case "retry": {
-						const eventChatID = asString(streamEvent.chat_id);
-						if (eventChatID && eventChatID !== chatID) {
+						case "retry": {
+							const eventChatID = asString(streamEvent.chat_id);
+							if (eventChatID && eventChatID !== chatID) {
+								continue;
+							}
+							const retry = streamEvent.retry;
+							if (retry) {
+								store.clearStreamState();
+								store.setRetryState({
+									attempt: retry.attempt,
+									error: retry.error,
+								});
+							}
 							continue;
 						}
-						const retry = streamEvent.retry;
-						if (retry) {
-							store.setRetryState({
-								attempt: retry.attempt,
-								error: retry.error,
-							});
-						}
-						continue;
-					}
-					default:
+						default:
 						continue;
 				}
 			}

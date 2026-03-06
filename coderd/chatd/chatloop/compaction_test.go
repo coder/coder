@@ -76,9 +76,14 @@ func TestRun_Compaction(t *testing.T) {
 					return nil
 				},
 			},
+			ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+				return []fantasy.Message{
+					textMessage(fantasy.MessageRoleUser, "hello"),
+				}, nil
+			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, 1, persistCompactionCalls)
+		require.GreaterOrEqual(t, persistCompactionCalls, 1)
 		require.Contains(t, persistedCompaction.SystemSummary, summaryText)
 		require.Equal(t, summaryText, persistedCompaction.SummaryReport)
 		require.Equal(t, int64(80), persistedCompaction.ContextTokens)
@@ -151,14 +156,24 @@ func TestRun_Compaction(t *testing.T) {
 					return nil
 				},
 			},
+			ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+				return []fantasy.Message{
+					textMessage(fantasy.MessageRoleUser, "hello"),
+				}, nil
+			},
 		})
 		require.NoError(t, err)
+		// Each compaction cycle follows the order:
+		// publish_tool_call → generate → persist → publish_tool_result.
+		// Re-entry may repeat the cycle, so verify the first four
+		// entries preserve the expected ordering.
+		require.GreaterOrEqual(t, len(callOrder), 4)
 		require.Equal(t, []string{
 			"publish_tool_call",
 			"generate",
 			"persist",
 			"publish_tool_result",
-		}, callOrder)
+		}, callOrder[:4])
 	})
 
 	t.Run("PublishNotCalledBelowThreshold", func(t *testing.T) {
@@ -456,6 +471,11 @@ func TestRun_Compaction(t *testing.T) {
 				OnError: func(err error) {
 					compactionErr = err
 				},
+			},
+			ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+				return []fantasy.Message{
+					textMessage(fantasy.MessageRoleUser, "hello"),
+				}, nil
 			},
 		})
 		require.NoError(t, err)
