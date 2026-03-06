@@ -381,6 +381,7 @@ const ChatMessageInput = memo(
 								style={{ minHeight: "inherit" }}
 								aria-label={ariaLabel}
 								aria-disabled={disabled}
+								enterKeyHint="send"
 							/>
 						}
 						placeholder={
