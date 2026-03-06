@@ -117,7 +117,15 @@ const deniedResultMessage: UIMessage = {
 	],
 };
 
-const renderTemplateAgentHook = () => {
+const completedMessage: UIMessage = {
+	id: "assistant-complete",
+	role: "assistant",
+	parts: [{ type: "text", text: "Done." }],
+};
+
+const renderTemplateAgentHook = (
+	options: { currentFilePath?: string } = {},
+) => {
 	let fileTree: FileTree = { "main.tf": "old" };
 	const getFileTree = () => fileTree;
 	const setFileTree = (updater: (prev: FileTree) => FileTree) => {
@@ -134,9 +142,55 @@ const renderTemplateAgentHook = () => {
 					provider: "openai",
 				},
 			},
+			...options,
 		}),
 	);
 };
+
+describe("useTemplateAgent prompt guidance", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("tells the agent to reuse prior file reads across follow-up turns", async () => {
+		enqueueUIMessageStreams([[completedMessage]]);
+		const { result } = renderTemplateAgentHook({ currentFilePath: "main.tf" });
+
+		act(() => {
+			result.current.send("Update the template");
+		});
+
+		await waitFor(() => {
+			expect(result.current.status).toBe("idle");
+		});
+
+		const firstAgentCall = ToolLoopAgentMock.mock.calls.at(0) as
+			| [{ instructions: string }]
+			| undefined;
+		const instructions = (firstAgentCall?.[0]?.instructions ?? "").replace(
+			/\s+/g,
+			" ",
+		);
+		expect(instructions).toContain(
+			"Use listFiles early in the conversation to learn the template structure",
+		);
+		expect(instructions).toContain(
+			"Reuse prior readFile/listFiles results when nothing indicates the template changed",
+		);
+		expect(instructions).toContain(
+			"After a successful editFile call, treat that edit and its inputs as the latest known state of the file",
+		);
+		expect(instructions).toContain(
+			"If editFile fails because oldContent was not found, matched multiple locations",
+		);
+		expect(instructions).toContain(
+			'If you have not already inspected "main.tf" in this conversation, read it',
+		);
+		expect(instructions).toContain(
+			'If you already inspected "main.tf" and nothing indicates it changed, reuse that content',
+		);
+	});
+});
 
 describe("useTemplateAgent approvals", () => {
 	beforeEach(() => {
