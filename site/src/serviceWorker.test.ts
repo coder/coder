@@ -7,7 +7,11 @@ import type { WebpushMessage } from "api/typesGenerated";
 const mockShowNotification = vi.fn(() => Promise.resolve());
 const mockRegistration = { showNotification: mockShowNotification };
 const mockMatchAll =
-	vi.fn<() => Promise<Array<{ visibilityState: string; url: string; focused: boolean }>>>();
+	vi.fn<
+		() => Promise<
+			Array<{ visibilityState: string; url: string; focused: boolean }>
+		>
+	>();
 const mockClients = {
 	matchAll: mockMatchAll,
 	claim: vi.fn(() => Promise.resolve()),
@@ -87,7 +91,11 @@ describe("serviceWorker push handler", () => {
 
 	it("suppresses notification when viewing the specific chat", async () => {
 		mockMatchAll.mockResolvedValue([
-			{ visibilityState: "visible", url: "https://example.com/agents/abc", focused: true },
+			{
+				visibilityState: "visible",
+				url: "https://example.com/agents/abc",
+				focused: true,
+			},
 		]);
 
 		const event = makePushEvent(testPayload);
@@ -120,7 +128,11 @@ describe("serviceWorker push handler", () => {
 
 	it("shows notification when payload has no data url", async () => {
 		mockMatchAll.mockResolvedValue([
-			{ visibilityState: "visible", url: "https://example.com/agents/abc", focused: true },
+			{
+				visibilityState: "visible",
+				url: "https://example.com/agents/abc",
+				focused: true,
+			},
 		]);
 
 		const payload: WebpushMessage = {
@@ -143,7 +155,11 @@ describe("serviceWorker push handler", () => {
 
 	it("shows notification when specific chat page exists but is hidden", async () => {
 		mockMatchAll.mockResolvedValue([
-			{ visibilityState: "hidden", url: "https://example.com/agents/abc", focused: false },
+			{
+				visibilityState: "hidden",
+				url: "https://example.com/agents/abc",
+				focused: false,
+			},
 		]);
 
 		const event = makePushEvent(testPayload);
@@ -160,7 +176,11 @@ describe("serviceWorker push handler", () => {
 
 	it("shows notification when viewing the specific chat but browser is not focused", async () => {
 		mockMatchAll.mockResolvedValue([
-			{ visibilityState: "visible", url: "https://example.com/agents/abc", focused: false },
+			{
+				visibilityState: "visible",
+				url: "https://example.com/agents/abc",
+				focused: false,
+			},
 		]);
 
 		const event = makePushEvent(testPayload);
@@ -177,7 +197,11 @@ describe("serviceWorker push handler", () => {
 
 	it("shows notification when visible window is not on agents page", async () => {
 		mockMatchAll.mockResolvedValue([
-			{ visibilityState: "visible", url: "https://example.com/settings", focused: true },
+			{
+				visibilityState: "visible",
+				url: "https://example.com/settings",
+				focused: true,
+			},
 		]);
 
 		const event = makePushEvent(testPayload);
