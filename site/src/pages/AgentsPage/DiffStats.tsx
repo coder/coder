@@ -13,7 +13,7 @@ interface DiffStatsProps {
  * Always renders both counters so that zero-line changes (e.g.
  * binary files like images) still display "+0 −0".
  */
-export const DiffStatNumbers: FC<DiffStatsProps> = ({
+const DiffStatNumbers: FC<DiffStatsProps> = ({
 	additions,
 	deletions,
 	className,
@@ -27,6 +27,33 @@ export const DiffStatNumbers: FC<DiffStatsProps> = ({
 		>
 			<span className="text-green-700 dark:text-green-500">+{additions}</span>
 			<span className="text-red-700 dark:text-red-400">&minus;{deletions}</span>
+		</span>
+	);
+};
+
+/**
+ * Pill-styled diff stats badge with coloured backgrounds,
+ * used inside the Git tab header.
+ */
+export const DiffStatBadge: FC<{ additions: number; deletions: number }> = ({
+	additions,
+	deletions,
+}) => {
+	if (additions === 0 && deletions === 0) {
+		return null;
+	}
+	return (
+		<span className="inline-flex h-full items-center self-stretch overflow-hidden rounded-[calc(theme(borderRadius.md)-1px)] font-mono text-xs font-medium">
+			{additions > 0 && (
+				<span className="flex h-full items-center bg-green-100 dark:bg-green-950 px-1.5 text-green-700 dark:text-green-500">
+					+{additions}
+				</span>
+			)}
+			{deletions > 0 && (
+				<span className="flex h-full items-center bg-red-100 dark:bg-red-950 px-1.5 text-red-700 dark:text-red-400">
+					&minus;{deletions}
+				</span>
+			)}
 		</span>
 	);
 };
