@@ -178,23 +178,29 @@ export function createTemplateAgentTools(
 				}
 				// Start waiting for build completion only after the build request
 				// succeeds so failed requests do not leave pending waiters/timers.
-				const buildPromise = Promise.race([
-					callbacks.waitForBuildComplete(),
-					new Promise<BuildResult>((resolve) =>
-						setTimeout(
-							() =>
-								resolve({
-									status: "timeout",
-									error: "Build timed out after 3 minutes.",
-									logs: "",
-								}),
-							180_000,
-						),
-					),
-				]);
-				const result = await buildPromise;
-				hasBuiltInCurrentRunRef.current = result.status === "succeeded";
-				return result;
+				let timeoutID: ReturnType<typeof setTimeout> | undefined;
+				try {
+					const result = await Promise.race([
+						callbacks.waitForBuildComplete(),
+						new Promise<BuildResult>((resolve) => {
+							timeoutID = setTimeout(
+								() =>
+									resolve({
+										status: "timeout",
+										error: "Build timed out after 3 minutes.",
+										logs: "",
+									}),
+								180_000,
+							);
+						}),
+					]);
+					hasBuiltInCurrentRunRef.current = result.status === "succeeded";
+					return result;
+				} finally {
+					if (timeoutID !== undefined) {
+						clearTimeout(timeoutID);
+					}
+				}
 			},
 		}),
 

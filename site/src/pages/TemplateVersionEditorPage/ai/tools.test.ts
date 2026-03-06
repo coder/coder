@@ -36,6 +36,14 @@ const executeBuild = (tools: ToolSet) =>
 const executeGetBuildLogs = (tools: ToolSet) =>
 	tools.getBuildLogs.execute!({}, toolContext);
 
+const createDeferred = <T>() => {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((resolvePromise) => {
+		resolve = resolvePromise;
+	});
+	return { promise, resolve };
+};
+
 describe("buildTemplate tool", () => {
 	it("returns error when onBuildRequested callback is not provided", async () => {
 		const tools = makeTools({ waitForBuildComplete: vi.fn() });
@@ -77,6 +85,40 @@ describe("buildTemplate tool", () => {
 		expect(result).toEqual(buildResult);
 	});
 
+	it.each<BuildResult>([
+		{ status: "succeeded", logs: "[info] Plan: done" },
+		{
+			status: "failed",
+			error: "missing provider",
+			logs: "[error] missing provider",
+		},
+	])(
+		"clears the timeout when the build resolves with $status",
+		async (buildResult) => {
+			vi.useFakeTimers();
+			try {
+				const deferred = createDeferred<BuildResult>();
+				const tools = makeTools({
+					onBuildRequested: vi.fn().mockResolvedValue(undefined),
+					waitForBuildComplete: vi.fn().mockReturnValue(deferred.promise),
+				});
+
+				const resultPromise = executeBuild(tools);
+				await Promise.resolve();
+
+				expect(vi.getTimerCount()).toBe(1);
+
+				deferred.resolve(buildResult);
+				const result = await resultPromise;
+
+				expect(result).toEqual(buildResult);
+				expect(vi.getTimerCount()).toBe(0);
+			} finally {
+				vi.useRealTimers();
+			}
+		},
+	);
+
 	it("returns timeout when build exceeds time limit", async () => {
 		vi.useFakeTimers();
 		try {
@@ -87,10 +129,15 @@ describe("buildTemplate tool", () => {
 			});
 
 			const resultPromise = executeBuild(tools);
+			await Promise.resolve();
+
+			expect(vi.getTimerCount()).toBe(1);
+
 			await vi.advanceTimersByTimeAsync(180_000);
 			const result = await resultPromise;
 
 			expect(result).toMatchObject({ status: "timeout" });
+			expect(vi.getTimerCount()).toBe(0);
 		} finally {
 			vi.useRealTimers();
 		}
