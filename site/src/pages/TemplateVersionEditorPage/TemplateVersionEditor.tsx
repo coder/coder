@@ -145,6 +145,40 @@ const selectDefaultAIModel = (
 	return models[0];
 };
 
+const formatBuildLogs = (buildLogs?: ProvisionerJobLog[]): string =>
+	(buildLogs ?? [])
+		.map((log) => `[${log.log_level}] ${log.stage}: ${log.output}`)
+		.join("\n");
+
+const isTerminalBuildStatus = (
+	status: TemplateVersion["job"]["status"],
+): status is "succeeded" | "failed" | "canceled" | "unknown" =>
+	status === "succeeded" ||
+	status === "failed" ||
+	status === "canceled" ||
+	status === "unknown";
+
+const buildResultFromSnapshot = (
+	templateVersion: TemplateVersion,
+	buildLogs?: ProvisionerJobLog[],
+): BuildResult => {
+	const { status } = templateVersion.job;
+	if (!isTerminalBuildStatus(status)) {
+		throw new Error(
+			`Cannot resolve build result from non-terminal status: ${String(status)}.`,
+		);
+	}
+
+	return {
+		status: status === "unknown" ? "failed" : status,
+		error:
+			status === "unknown"
+				? (templateVersion.job.error ?? "Build ended with an unknown status.")
+				: templateVersion.job.error,
+		logs: formatBuildLogs(buildLogs),
+	};
+};
+
 interface TemplateVersionEditorProps {
 	template: Template;
 	templateVersion: TemplateVersion;
@@ -313,6 +347,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
 	const waitForBuildComplete = useCallback((): Promise<BuildResult> => {
 		return new Promise<BuildResult>((resolve) => {
+			const currentTemplateVersion = templateVersionRef.current;
+			if (isTerminalBuildStatus(currentTemplateVersion.job.status)) {
+				resolve(
+					buildResultFromSnapshot(currentTemplateVersion, buildLogsRef.current),
+				);
+				return;
+			}
+
 			const id = buildIdRef.current + 1;
 			buildIdRef.current = id;
 			buildCompleteResolverRef.current = { id, resolve };
@@ -325,10 +367,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 		if (!status) {
 			return undefined;
 		}
-		const logText = (buildLogsRef.current ?? [])
-			.map((l) => `[${l.log_level}] ${l.stage}: ${l.output}`)
-			.join("\n");
-		return { status, error: currentTemplateVersion.job.error, logs: logText };
+		return {
+			status,
+			error: currentTemplateVersion.job.error,
+			logs: formatBuildLogs(buildLogsRef.current),
+		};
 	}, []);
 
 	const handlePublish = useCallback(
@@ -382,6 +425,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 		getFileTree,
 		setFileTree: setFileTreeAndDirty,
 		modelConfig: aiModelConfig ?? { model: { id: "", provider: "openai" } },
+		enabled: aiAvailable && aiPanelOpen,
 		currentFilePath: activePath,
 		onFileEdited: navigateToExistingFile,
 		onFileDeleted: (path) => {
@@ -416,28 +460,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 		if (pending.id !== buildIdRef.current) {
 			return;
 		}
-		const status = templateVersion.job.status;
-		if (
-			status === "succeeded" ||
-			status === "failed" ||
-			status === "canceled" ||
-			status === "unknown"
-		) {
-			const logText = (buildLogs ?? [])
-				.map((l) => `[${l.log_level}] ${l.stage}: ${l.output}`)
-				.join("\n");
-			pending.resolve({
-				status: status === "unknown" ? "failed" : status,
-				error:
-					status === "unknown"
-						? (templateVersion.job.error ??
-							"Build ended with an unknown status.")
-						: templateVersion.job.error,
-				logs: logText,
-			});
+		if (isTerminalBuildStatus(templateVersion.job.status)) {
+			pending.resolve(buildResultFromSnapshot(templateVersion, buildLogs));
 			buildCompleteResolverRef.current = null;
 		}
-	}, [templateVersion.job.status, templateVersion.job.error, buildLogs]);
+	}, [templateVersion, buildLogs]);
 
 	// Abort any active stream when the page-level component is
 	// unmounted so we don't leave orphaned network requests.

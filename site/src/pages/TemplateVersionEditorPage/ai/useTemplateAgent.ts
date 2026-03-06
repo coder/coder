@@ -256,6 +256,8 @@ interface UseTemplateAgentOptions {
 	getFileTree: () => FileTree;
 	setFileTree: (updater: (prev: FileTree) => FileTree) => void;
 	modelConfig: AIModelConfig;
+	/** Whether the assistant should initialize external integrations. */
+	enabled?: boolean;
 	/** The file the user is currently viewing, if any. */
 	currentFilePath?: string;
 	/** Called after a file is created or edited so the editor can navigate to it. */
@@ -557,6 +559,7 @@ export const useTemplateAgent = ({
 	getFileTree,
 	setFileTree,
 	modelConfig,
+	enabled = true,
 	currentFilePath,
 	onFileEdited,
 	onFileDeleted,
@@ -602,6 +605,11 @@ export const useTemplateAgent = ({
 	};
 
 	useEffect(() => {
+		if (!enabled) {
+			mcpToolsRef.current = {};
+			return;
+		}
+
 		let cancelled = false;
 
 		const initMCP = async () => {
@@ -636,7 +644,7 @@ export const useTemplateAgent = ({
 			}
 			mcpToolsRef.current = {};
 		};
-	}, []);
+	}, [enabled]);
 
 	const setConversationMessages = useCallback((next: UIMessage[]) => {
 		uiMessagesRef.current = next;
