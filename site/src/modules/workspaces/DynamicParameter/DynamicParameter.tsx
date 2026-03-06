@@ -391,9 +391,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				disable: false,
 			}));
 
-			const optionMap = new Map(
-				options.map((opt) => [opt.value, opt]),
-			);
+			const optionMap = new Map(options.map((opt) => [opt.value, opt]));
 
 			const selectedOptions: Option[] = parsedValues.values.map((val) => {
 				const matched = optionMap.get(val);
