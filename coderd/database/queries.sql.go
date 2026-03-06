@@ -3347,6 +3347,101 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 	return items, nil
 }
 
+const getChatStats = `-- name: GetChatStats :one
+WITH filtered_chats AS (
+	SELECT
+		c.id, c.owner_id, c.status, c.parent_chat_id
+	FROM
+		chats c
+	WHERE
+		c.created_at >= $1::timestamptz
+		AND c.created_at < $2::timestamptz
+),
+chat_counts AS (
+	SELECT
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL)::bigint AS total_chats,
+		COUNT(DISTINCT fc.owner_id) FILTER (WHERE fc.parent_chat_id IS NULL)::bigint AS active_users,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NOT NULL)::bigint AS total_sub_chats,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'waiting')::bigint AS status_waiting,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'pending')::bigint AS status_pending,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'running')::bigint AS status_running,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'paused')::bigint AS status_paused,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'completed')::bigint AS status_completed,
+		COUNT(*) FILTER (WHERE fc.parent_chat_id IS NULL AND fc.status = 'error')::bigint AS status_error
+	FROM
+		filtered_chats fc
+),
+message_counts AS (
+	SELECT
+		COUNT(*)::bigint AS total_messages,
+		COUNT(*) FILTER (WHERE cm.role = 'user')::bigint AS total_user_messages,
+		COUNT(*) FILTER (WHERE cm.role = 'assistant')::bigint AS total_assistant_messages,
+		COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+		COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
+		COALESCE(SUM(cm.reasoning_tokens), 0)::bigint AS total_reasoning_tokens,
+		COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+		COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+	FROM
+		chat_messages cm
+	JOIN
+		filtered_chats fc ON cm.chat_id = fc.id
+)
+SELECT
+	cc.total_chats, cc.active_users, cc.total_sub_chats, cc.status_waiting, cc.status_pending, cc.status_running, cc.status_paused, cc.status_completed, cc.status_error, mc.total_messages, mc.total_user_messages, mc.total_assistant_messages, mc.total_input_tokens, mc.total_output_tokens, mc.total_reasoning_tokens, mc.total_cache_read_tokens, mc.total_cache_creation_tokens
+FROM
+	chat_counts cc, message_counts mc
+`
+
+type GetChatStatsParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+type GetChatStatsRow struct {
+	TotalChats               int64 `db:"total_chats" json:"total_chats"`
+	ActiveUsers              int64 `db:"active_users" json:"active_users"`
+	TotalSubChats            int64 `db:"total_sub_chats" json:"total_sub_chats"`
+	StatusWaiting            int64 `db:"status_waiting" json:"status_waiting"`
+	StatusPending            int64 `db:"status_pending" json:"status_pending"`
+	StatusRunning            int64 `db:"status_running" json:"status_running"`
+	StatusPaused             int64 `db:"status_paused" json:"status_paused"`
+	StatusCompleted          int64 `db:"status_completed" json:"status_completed"`
+	StatusError              int64 `db:"status_error" json:"status_error"`
+	TotalMessages            int64 `db:"total_messages" json:"total_messages"`
+	TotalUserMessages        int64 `db:"total_user_messages" json:"total_user_messages"`
+	TotalAssistantMessages   int64 `db:"total_assistant_messages" json:"total_assistant_messages"`
+	TotalInputTokens         int64 `db:"total_input_tokens" json:"total_input_tokens"`
+	TotalOutputTokens        int64 `db:"total_output_tokens" json:"total_output_tokens"`
+	TotalReasoningTokens     int64 `db:"total_reasoning_tokens" json:"total_reasoning_tokens"`
+	TotalCacheReadTokens     int64 `db:"total_cache_read_tokens" json:"total_cache_read_tokens"`
+	TotalCacheCreationTokens int64 `db:"total_cache_creation_tokens" json:"total_cache_creation_tokens"`
+}
+
+func (q *sqlQuerier) GetChatStats(ctx context.Context, arg GetChatStatsParams) (GetChatStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatStats, arg.StartTime, arg.EndTime)
+	var i GetChatStatsRow
+	err := row.Scan(
+		&i.TotalChats,
+		&i.ActiveUsers,
+		&i.TotalSubChats,
+		&i.StatusWaiting,
+		&i.StatusPending,
+		&i.StatusRunning,
+		&i.StatusPaused,
+		&i.StatusCompleted,
+		&i.StatusError,
+		&i.TotalMessages,
+		&i.TotalUserMessages,
+		&i.TotalAssistantMessages,
+		&i.TotalInputTokens,
+		&i.TotalOutputTokens,
+		&i.TotalReasoningTokens,
+		&i.TotalCacheReadTokens,
+		&i.TotalCacheCreationTokens,
+	)
+	return i, err
+}
+
 const getChatsByOwnerID = `-- name: GetChatsByOwnerID :many
 SELECT
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error

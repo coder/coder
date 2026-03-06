@@ -1112,6 +1112,7 @@ func New(options *Options) *API {
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
+			r.Get("/stats", api.chatStats)
 			r.Get("/watch", api.watchChats)
 			r.Route("/providers", func(r chi.Router) {
 				r.Get("/", api.listChatProviders)

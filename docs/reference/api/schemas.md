@@ -1553,6 +1553,77 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
+## codersdk.ChatStatsResponse
+
+```json
+{
+  "active_users": 0,
+  "by_status": {
+    "completed": 0,
+    "error": 0,
+    "paused": 0,
+    "pending": 0,
+    "running": 0,
+    "waiting": 0
+  },
+  "end_time": "2019-08-24T14:15:22Z",
+  "start_time": "2019-08-24T14:15:22Z",
+  "total_assistant_messages": 0,
+  "total_cache_creation_tokens": 0,
+  "total_cache_read_tokens": 0,
+  "total_chats": 0,
+  "total_input_tokens": 0,
+  "total_messages": 0,
+  "total_output_tokens": 0,
+  "total_reasoning_tokens": 0,
+  "total_sub_chats": 0,
+  "total_user_messages": 0
+}
+```
+
+### Properties
+
+| Name                          | Type                                                   | Required | Restrictions | Description |
+|-------------------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `active_users`                | integer                                                | false    |              |             |
+| `by_status`                   | [codersdk.ChatStatusCounts](#codersdkchatstatuscounts) | false    |              |             |
+| `end_time`                    | string                                                 | false    |              |             |
+| `start_time`                  | string                                                 | false    |              |             |
+| `total_assistant_messages`    | integer                                                | false    |              |             |
+| `total_cache_creation_tokens` | integer                                                | false    |              |             |
+| `total_cache_read_tokens`     | integer                                                | false    |              |             |
+| `total_chats`                 | integer                                                | false    |              |             |
+| `total_input_tokens`          | integer                                                | false    |              |             |
+| `total_messages`              | integer                                                | false    |              |             |
+| `total_output_tokens`         | integer                                                | false    |              |             |
+| `total_reasoning_tokens`      | integer                                                | false    |              |             |
+| `total_sub_chats`             | integer                                                | false    |              |             |
+| `total_user_messages`         | integer                                                | false    |              |             |
+
+## codersdk.ChatStatusCounts
+
+```json
+{
+  "completed": 0,
+  "error": 0,
+  "paused": 0,
+  "pending": 0,
+  "running": 0,
+  "waiting": 0
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description |
+|-------------|---------|----------|--------------|-------------|
+| `completed` | integer | false    |              |             |
+| `error`     | integer | false    |              |             |
+| `paused`    | integer | false    |              |             |
+| `pending`   | integer | false    |              |             |
+| `running`   | integer | false    |              |             |
+| `waiting`   | integer | false    |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json

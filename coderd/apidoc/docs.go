@@ -481,6 +481,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/chats/stats": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat stats",
+                "operationId": "get-chat-stats",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start time (RFC 3339, inclusive)",
+                        "name": "start_time",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "End time (RFC 3339, exclusive)",
+                        "name": "end_time",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatStatsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/chats/{chat}/archive": {
             "post": {
                 "tags": [
@@ -13777,6 +13818,78 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatStatsResponse": {
+            "type": "object",
+            "properties": {
+                "active_users": {
+                    "type": "integer"
+                },
+                "by_status": {
+                    "$ref": "#/definitions/codersdk.ChatStatusCounts"
+                },
+                "end_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "start_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "total_assistant_messages": {
+                    "type": "integer"
+                },
+                "total_cache_creation_tokens": {
+                    "type": "integer"
+                },
+                "total_cache_read_tokens": {
+                    "type": "integer"
+                },
+                "total_chats": {
+                    "type": "integer"
+                },
+                "total_input_tokens": {
+                    "type": "integer"
+                },
+                "total_messages": {
+                    "type": "integer"
+                },
+                "total_output_tokens": {
+                    "type": "integer"
+                },
+                "total_reasoning_tokens": {
+                    "type": "integer"
+                },
+                "total_sub_chats": {
+                    "type": "integer"
+                },
+                "total_user_messages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatStatusCounts": {
+            "type": "object",
+            "properties": {
+                "completed": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "integer"
+                },
+                "paused": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "running": {
+                    "type": "integer"
+                },
+                "waiting": {
+                    "type": "integer"
                 }
             }
         },

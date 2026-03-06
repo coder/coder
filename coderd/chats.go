@@ -2418,6 +2418,87 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 	return result
 }
 
+// chatStats returns deployment-level chat usage statistics for a time range.
+//
+// @Summary Get chat stats
+// @ID get-chat-stats
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param start_time query string true "Start time (RFC 3339, inclusive)"
+// @Param end_time query string true "End time (RFC 3339, exclusive)"
+// @Success 200 {object} codersdk.ChatStatsResponse
+// @Router /chats/stats [get]
+func (api *API) chatStats(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	p := httpapi.NewQueryParamParser().
+		RequiredNotEmpty("start_time").
+		RequiredNotEmpty("end_time")
+	vals := r.URL.Query()
+	startTime := p.Time3339Nano(vals, time.Time{}, "start_time")
+	endTime := p.Time3339Nano(vals, time.Time{}, "end_time")
+	p.ErrorExcessParams(vals)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	if !endTime.After(startTime) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameter has invalid value.",
+			Validations: []codersdk.ValidationError{
+				{Field: "end_time", Detail: "end_time must be after start_time"},
+			},
+		})
+		return
+	}
+
+	row, err := api.Database.GetChatStats(ctx, database.GetChatStatsParams{
+		StartTime: startTime,
+		EndTime:   endTime,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat stats.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatStatsResponse{
+		StartTime:                startTime,
+		EndTime:                  endTime,
+		TotalChats:               row.TotalChats,
+		ActiveUsers:              row.ActiveUsers,
+		TotalSubChats:            row.TotalSubChats,
+		TotalMessages:            row.TotalMessages,
+		TotalUserMessages:        row.TotalUserMessages,
+		TotalAssistantMessages:   row.TotalAssistantMessages,
+		TotalInputTokens:         row.TotalInputTokens,
+		TotalOutputTokens:        row.TotalOutputTokens,
+		TotalReasoningTokens:     row.TotalReasoningTokens,
+		TotalCacheReadTokens:     row.TotalCacheReadTokens,
+		TotalCacheCreationTokens: row.TotalCacheCreationTokens,
+		ByStatus: codersdk.ChatStatusCounts{
+			Waiting:   row.StatusWaiting,
+			Pending:   row.StatusPending,
+			Running:   row.StatusRunning,
+			Paused:    row.StatusPaused,
+			Completed: row.StatusCompleted,
+			Error:     row.StatusError,
+		},
+	})
+}
+
 func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	//nolint:gocritic // System context required to read enabled chat providers.
