@@ -491,7 +491,6 @@ require (
 	github.com/go-git/go-git/v5 v5.17.0
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/openai/openai-go/v3 v3.15.0
-	github.com/sergi/go-diff v1.4.0
 	gonum.org/v1/gonum v0.17.0
 )
 
@@ -541,10 +540,8 @@ require (
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
-	github.com/cyphar/filepath-securejoin v0.5.1 // indirect
 	github.com/daixiang0/gci v0.13.7 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/esiqveland/notify v0.13.3 // indirect
@@ -565,7 +562,6 @@ require (
 	github.com/kaptinlin/jsonpointer v0.4.10 // indirect
 	github.com/kaptinlin/jsonschema v0.6.10 // indirect
 	github.com/kaptinlin/messageformat-go v0.4.10 // indirect
-	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/landlock-lsm/go-landlock v0.0.0-20251103212306-430f8e5cd97c // indirect
 	github.com/mattn/go-shellwords v1.0.12 // indirect
@@ -576,7 +572,6 @@ require (
 	github.com/openai/openai-go v1.12.0 // indirect
 	github.com/openai/openai-go/v2 v2.7.1 // indirect
 	github.com/package-url/packageurl-go v0.1.3 // indirect
-	github.com/pjbgf/sha1cd v0.3.2 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rhysd/actionlint v1.7.10 // indirect
@@ -584,7 +579,6 @@ require (
 	github.com/samber/lo v1.51.0 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0 // indirect
-	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/sony/gobreaker/v2 v2.3.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
@@ -594,7 +588,6 @@ require (
 	github.com/urfave/cli/v2 v2.27.5 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.28 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
-	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
