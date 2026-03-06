@@ -24,7 +24,7 @@ describe("AccountForm", () => {
 					initialValues={mockInitialValues}
 					isLoading={false}
 					onSubmit={() => {
-						return;
+						vi.fn();
 					}}
 				/>,
 			);
@@ -54,7 +54,7 @@ describe("AccountForm", () => {
 				initialValues={mockInitialValues}
 				isLoading={false}
 				onSubmit={() => {
-					return;
+					vi.fn();
 				}}
 			/>,
 		);
@@ -79,7 +79,7 @@ describe("AccountForm", () => {
 					initialValues={mockInitialValues}
 					isLoading={false}
 					onSubmit={() => {
-						return;
+						vi.fn();
 					}}
 				/>,
 			);
