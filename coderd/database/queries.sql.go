@@ -23676,6 +23676,7 @@ func (q *sqlQuerier) GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx context.Co
 
 const getWorkspaceBuildMetricsByResourceID = `-- name: GetWorkspaceBuildMetricsByResourceID :one
 SELECT
+    wb.job_id,
     wb.created_at,
     wb.transition,
     t.name AS template_name,
@@ -23696,12 +23697,13 @@ JOIN workspaces w ON wb.workspace_id = w.id
 JOIN templates t ON w.template_id = t.id
 JOIN organizations o ON t.organization_id = o.id
 JOIN workspace_resources wr ON wr.job_id = wb.job_id
-JOIN workspace_agents wa ON wa.resource_id = wr.id
+JOIN workspace_agents wa ON wa.resource_id = wr.id AND wa.parent_id IS NULL
 WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
-GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id
+GROUP BY wb.job_id, wb.created_at, wb.transition, t.name, o.name, w.owner_id
 `
 
 type GetWorkspaceBuildMetricsByResourceIDRow struct {
+	JobID            uuid.UUID           `db:"job_id" json:"job_id"`
 	CreatedAt        time.Time           `db:"created_at" json:"created_at"`
 	Transition       WorkspaceTransition `db:"transition" json:"transition"`
 	TemplateName     string              `db:"template_name" json:"template_name"`
@@ -23718,6 +23720,7 @@ func (q *sqlQuerier) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, i
 	row := q.db.QueryRowContext(ctx, getWorkspaceBuildMetricsByResourceID, id)
 	var i GetWorkspaceBuildMetricsByResourceIDRow
 	err := row.Scan(
+		&i.JobID,
 		&i.CreatedAt,
 		&i.Transition,
 		&i.TemplateName,

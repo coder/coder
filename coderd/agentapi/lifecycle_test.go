@@ -118,6 +118,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			},
 		}).Return(nil)
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			JobID:            uuid.New(),
 			CreatedAt:        buildCreatedAt,
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
@@ -184,6 +185,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			},
 		}).Return(nil)
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentCreated.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			JobID:            uuid.New(),
 			CreatedAt:        buildCreatedAt,
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
@@ -255,6 +257,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			},
 		})
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentCreated.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			JobID:            uuid.New(),
 			CreatedAt:        buildCreatedAt,
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
@@ -368,6 +371,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			// The first ready state triggers the build duration metric query.
 			if state == agentproto.Lifecycle_READY || state == agentproto.Lifecycle_START_TIMEOUT || state == agentproto.Lifecycle_START_ERROR {
 				dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agent.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+					JobID:            uuid.New(),
 					CreatedAt:        someTime,
 					Transition:       database.WorkspaceTransitionStart,
 					TemplateName:     "test-template",
@@ -438,6 +442,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
 		// Return AllAgentsReady = false to simulate multi-agent case where not all are ready.
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			JobID:            uuid.New(),
 			CreatedAt:        someTime,
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
@@ -489,6 +494,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			JobID:            uuid.New(),
 			CreatedAt:        buildCreatedAt,
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
@@ -542,6 +548,7 @@ func TestUpdateLifecycle(t *testing.T) {
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), gomock.Any()).Return(nil)
 		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), agentStarting.ResourceID).Return(database.GetWorkspaceBuildMetricsByResourceIDRow{
+			JobID:            uuid.New(),
 			CreatedAt:        buildCreatedAt,
 			Transition:       database.WorkspaceTransitionStart,
 			TemplateName:     "test-template",
