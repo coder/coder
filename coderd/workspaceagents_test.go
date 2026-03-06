@@ -3041,13 +3041,13 @@ func TestUserTailnetTelemetry(t *testing.T) {
 			telemetryConnection := snapshot.UserTailnetConnections[0]
 			require.Equal(t, memberUser.ID.String(), telemetryConnection.UserID)
 			require.GreaterOrEqual(t, telemetryConnection.ConnectedAt, predialTime)
-			require.LessOrEqual(t, telemetryConnection.ConnectedAt, time.Now())
+			require.LessOrEqual(t, telemetryConnection.ConnectedAt, dbtime.Now())
 			require.NotEmpty(t, telemetryConnection.PeerID)
 			requireEqualOrBothNil(t, telemetryConnection.DeviceID, tc.expected.DeviceID)
 			requireEqualOrBothNil(t, telemetryConnection.DeviceOS, tc.expected.DeviceOS)
 			requireEqualOrBothNil(t, telemetryConnection.CoderDesktopVersion, tc.expected.CoderDesktopVersion)
 
-			beforeDisconnectTime := time.Now()
+			beforeDisconnectTime := dbtime.Now()
 			err = wsConn.Close(websocket.StatusNormalClosure, "done")
 			require.NoError(t, err)
 
@@ -3060,7 +3060,7 @@ func TestUserTailnetTelemetry(t *testing.T) {
 			require.Equal(t, telemetryConnection.PeerID, telemetryDisconnection.PeerID)
 			require.NotNil(t, telemetryDisconnection.DisconnectedAt)
 			require.GreaterOrEqual(t, *telemetryDisconnection.DisconnectedAt, beforeDisconnectTime)
-			require.LessOrEqual(t, *telemetryDisconnection.DisconnectedAt, time.Now())
+			require.LessOrEqual(t, *telemetryDisconnection.DisconnectedAt, dbtime.Now())
 			requireEqualOrBothNil(t, telemetryConnection.DeviceID, tc.expected.DeviceID)
 			requireEqualOrBothNil(t, telemetryConnection.DeviceOS, tc.expected.DeviceOS)
 			requireEqualOrBothNil(t, telemetryConnection.CoderDesktopVersion, tc.expected.CoderDesktopVersion)

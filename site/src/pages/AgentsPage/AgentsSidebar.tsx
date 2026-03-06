@@ -53,6 +53,7 @@ import {
 import { NavLink, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
+import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
 
 interface AgentsSidebarProps {
 	chats: readonly Chat[];
@@ -87,24 +88,6 @@ type ChatTree = {
 	readonly childrenById: ReadonlyMap<string, readonly string[]>;
 	readonly parentById: ReadonlyMap<string, string | undefined>;
 };
-
-const TIME_GROUPS = ["Today", "Yesterday", "This Week", "Older"] as const;
-type TimeGroup = (typeof TIME_GROUPS)[number];
-
-function getTimeGroup(dateStr: string): TimeGroup {
-	const now = new Date();
-	const date = new Date(dateStr);
-	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-	const yesterday = new Date(today);
-	yesterday.setDate(yesterday.getDate() - 1);
-	const weekAgo = new Date(today);
-	weekAgo.setDate(weekAgo.getDate() - 7);
-
-	if (date >= today) return "Today";
-	if (date >= yesterday) return "Yesterday";
-	if (date >= weekAgo) return "This Week";
-	return "Older";
-}
 
 const getStatusConfig = (status: ChatStatus) => {
 	return statusConfig[status] ?? statusConfig.completed;
@@ -340,7 +323,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
 	const deletions = diffStatus?.deletions ?? 0;
-	const hasLineStats = additions > 0 || deletions > 0;
+	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
 	const filesChangedLabel = `${changedFiles} ${
 		changedFiles === 1 ? "file" : "files"
 	}`;
@@ -436,18 +419,14 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 											className="inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-medium leading-none tabular-nums"
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
-											{additions > 0 && (
-												<span className="text-green-700 dark:text-green-500">
-													+{additions}
-												</span>
-											)}
-											{deletions > 0 && (
-												<span className="text-red-700 dark:text-red-400">
-													&minus;{deletions}
-												</span>
-											)}{" "}
+											<span className="text-green-700 dark:text-green-500">
+												+{additions}
+											</span>
+											<span className="text-red-700 dark:text-red-400">
+												&minus;{deletions}
+											</span>{" "}
 										</span>
-									)}
+									)}{" "}
 									<div
 										className={cn(
 											"min-w-0 overflow-hidden text-[13px] leading-4",

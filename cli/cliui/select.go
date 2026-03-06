@@ -123,6 +123,10 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 		initialModel.height = defaultSelectModelHeight
 	}
 
+	if idx := slices.Index(opts.Options, opts.Default); idx >= 0 {
+		initialModel.cursor = idx
+	}
+
 	initialModel.search.Prompt = ""
 	initialModel.search.Focus()
 
