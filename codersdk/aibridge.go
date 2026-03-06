@@ -131,3 +131,17 @@ func (c *Client) AIBridgeListInterceptions(ctx context.Context, filter AIBridgeL
 	var resp AIBridgeListInterceptionsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
+
+// AIBridgeListClients returns AI Bridge clients.
+func (c *Client) AIBridgeListClients(ctx context.Context, filter Pagination) ([]string, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/clients", nil, filter.asRequestOption())
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []string
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}

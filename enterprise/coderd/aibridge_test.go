@@ -665,6 +665,139 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	})
 }
 
+func TestAIBridgeListClients(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				// No aibridge feature
+				Features: license.Features{},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err := client.AIBridgeListClients(ctx, codersdk.Pagination{})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Equal(t, "AI Bridge is a Premium feature. Contact sales!", sdkErr.Message)
+	})
+
+	t.Run("EmptyDB", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // Owner role is irrelevant here.
+		res, err := client.AIBridgeListClients(ctx, codersdk.Pagination{})
+		require.NoError(t, err)
+		require.Empty(t, res)
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+
+		// Insert interceptions with different clients.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now,
+			Client:      sql.NullString{String: "Cursor", Valid: true},
+		}, &endedAt)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now.Add(-time.Hour),
+			Client:      sql.NullString{String: "Claude Code", Valid: true},
+		}, &endedAt)
+		// Null client should become "Unknown".
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now.Add(-2 * time.Hour),
+		}, &endedAt)
+		// Duplicate client should be deduplicated.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now.Add(-3 * time.Hour),
+			Client:      sql.NullString{String: "Cursor", Valid: true},
+		}, &endedAt)
+
+		res, err := client.AIBridgeListClients(ctx, codersdk.Pagination{})
+		require.NoError(t, err)
+		// Should be 3 unique clients: Claude Code, Cursor, Unknown (sorted ASC).
+		require.Equal(t, []string{"Claude Code", "Cursor", "Unknown"}, res)
+	})
+
+	t.Run("InflightInterceptionsExcluded", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+
+		// Completed interception.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now,
+			Client:      sql.NullString{String: "Cursor", Valid: true},
+		}, &endedAt)
+		// Inflight interception (no ended_at) should be excluded.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now.Add(-time.Hour),
+			Client:      sql.NullString{String: "Claude Code", Valid: true},
+		}, nil)
+
+		res, err := client.AIBridgeListClients(ctx, codersdk.Pagination{})
+		require.NoError(t, err)
+		require.Equal(t, []string{"Cursor"}, res)
+	})
+}
+
 func TestAIBridgeRouting(t *testing.T) {
 	t.Parallel()
 
