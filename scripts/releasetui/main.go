@@ -313,7 +313,13 @@ func main() {
 		if errors.Is(err, cliui.ErrCanceled) {
 			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		// Unwrap serpent's "running command ..." wrapper to
+		// keep output clean.
+		var runErr *serpent.RunCommandError
+		if errors.As(err, &runErr) {
+			err = runErr.Err
+		}
+		pretty.Fprintf(os.Stderr, cliui.DefaultStyles.Error, "Error: %s\n", err)
 		os.Exit(1)
 	}
 }
