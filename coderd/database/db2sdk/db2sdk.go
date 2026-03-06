@@ -1169,7 +1169,7 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 				case codersdk.ChatMessagePartTypeReasoning:
 					part.Title = reasoningStoredTitle(rawBlocks[i])
 				case codersdk.ChatMessagePartTypeFile:
-					if fid, err := fileStoredID(rawBlocks[i]); err == nil {
+					if fid, err := chatprompt.ExtractFileID(rawBlocks[i]); err == nil {
 						part.FileID = uuid.NullUUID{UUID: fid, Valid: true}
 					}
 					// When a file_id is present, omit inline data
@@ -1281,24 +1281,6 @@ func reasoningStoredTitle(raw json.RawMessage) string {
 		return ""
 	}
 	return strings.TrimSpace(envelope.Data.Title)
-}
-
-// fileStoredID extracts and parses the file_id from the data
-// sub-object of a serialized file content block.
-func fileStoredID(raw json.RawMessage) (uuid.UUID, error) {
-	var envelope struct {
-		Type string `json:"type"`
-		Data struct {
-			FileID string `json:"file_id"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return uuid.Nil, xerrors.Errorf("unmarshal file content block: %w", err)
-	}
-	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeFile)) {
-		return uuid.Nil, xerrors.Errorf("unexpected content type: %s", envelope.Type)
-	}
-	return uuid.Parse(envelope.Data.FileID)
 }
 
 func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
