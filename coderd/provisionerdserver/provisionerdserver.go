@@ -3096,10 +3096,10 @@ func shouldRefreshOIDCToken(link database.UserLink) bool {
 	//
 	// By shifting the time forward, we are asking
 	//  "Will this token be valid in 10 minutes"
-	assumeExpiredAt := dbtime.Now().Add(time.Minute * 10)
+	expiryCheckTime := dbtime.Now().Add(time.Minute * 10)
 
 	// Return if the token is assumed to be expired.
-	return link.OAuthExpiry.Before(assumeExpiredAt)
+	return link.OAuthExpiry.Before(expiryCheckTime)
 }
 
 // obtainOIDCAccessToken returns a valid OpenID Connect access token
