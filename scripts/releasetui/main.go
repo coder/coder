@@ -137,7 +137,7 @@ type dryRunExecutor struct {
 }
 
 func (e *dryRunExecutor) GitFetch(_ context.Context, branch string) error {
-	fmt.Fprintf(e.w, "DRY RUN: would run: git fetch --quiet --tags origin %s\n", branch)
+	fmt.Fprintf(e.w, "[DRYRUN] would run: git fetch --quiet --tags origin %s\n", branch)
 	return nil
 }
 
@@ -146,27 +146,27 @@ func (e *dryRunExecutor) CreateTag(_ context.Context, tag, ref, message string, 
 	if sign {
 		signFlag = "-s "
 	}
-	fmt.Fprintf(e.w, "DRY RUN: would run: git tag %s-a %s -m %q %s\n", signFlag, tag, message, ref)
+	fmt.Fprintf(e.w, "[DRYRUN] would run: git tag %s-a %s -m %q %s\n", signFlag, tag, message, ref)
 	return nil
 }
 
 func (e *dryRunExecutor) PushTag(_ context.Context, tag string) error {
-	fmt.Fprintf(e.w, "DRY RUN: would run: git push origin %s\n", tag)
+	fmt.Fprintf(e.w, "[DRYRUN] would run: git push origin %s\n", tag)
 	return nil
 }
 
 func (e *dryRunExecutor) TriggerWorkflow(_ context.Context, ref, channel, _ string) error {
-	fmt.Fprintf(e.w, "DRY RUN: would trigger release.yaml workflow (ref=%s, channel=%s)\n", ref, channel)
+	fmt.Fprintf(e.w, "[DRYRUN] would trigger release.yaml workflow (ref=%s, channel=%s)\n", ref, channel)
 	return nil
 }
 
 func (e *dryRunExecutor) WriteFile(path string, content []byte) error {
-	fmt.Fprintf(e.w, "DRY RUN: would write %d bytes to %s\n", len(content), path)
+	fmt.Fprintf(e.w, "[DRYRUN] would write %d bytes to %s\n", len(content), path)
 	return nil
 }
 
 func (e *dryRunExecutor) OpenEditor(path, editor string) ([]byte, error) {
-	fmt.Fprintf(e.w, "DRY RUN: would open %s in %s\n", path, editor)
+	fmt.Fprintf(e.w, "[DRYRUN] would open %s in %s\n", path, editor)
 	return nil, nil
 }
 
@@ -237,19 +237,23 @@ func confirmWithDefault(inv *serpent.Invocation, msg, def string) error {
 	return err
 }
 
+// outputPrefix is prepended to every message line. Set to
+// "[DRYRUN] " when running in dry-run mode.
+var outputPrefix string
+
 // warnf prints a yellow warning to stderr.
 func warnf(w io.Writer, format string, args ...any) {
-	pretty.Fprintf(w, cliui.DefaultStyles.Warn, "⚠️  WARNING: "+format+"\n", args...)
+	pretty.Fprintf(w, cliui.DefaultStyles.Warn, outputPrefix+"⚠️  WARNING: "+format+"\n", args...)
 }
 
 // infof prints a cyan info message to stderr.
 func infof(w io.Writer, format string, args ...any) {
-	pretty.Fprintf(w, cliui.DefaultStyles.DateTimeStamp, format+"\n", args...)
+	pretty.Fprintf(w, cliui.DefaultStyles.DateTimeStamp, outputPrefix+format+"\n", args...)
 }
 
 // successf prints a green success message to stderr.
 func successf(w io.Writer, format string, args ...any) {
-	pretty.Fprintf(w, cliui.DefaultStyles.Keyword, "✓ "+format+"\n", args...)
+	pretty.Fprintf(w, cliui.DefaultStyles.Keyword, outputPrefix+"✓ "+format+"\n", args...)
 }
 
 func main() {
@@ -297,9 +301,8 @@ func main() {
 			// --- Wire up executor ---
 			var executor ReleaseExecutor
 			if dryRun {
+				outputPrefix = "[DRYRUN] "
 				executor = &dryRunExecutor{w: w}
-				warnf(w, "DRY RUN — write actions will be printed instead of executed.")
-				fmt.Fprintln(w)
 			} else {
 				executor = &liveExecutor{ghClient: ghClient}
 			}
