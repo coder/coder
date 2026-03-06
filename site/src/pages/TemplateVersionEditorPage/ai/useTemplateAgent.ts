@@ -91,7 +91,41 @@ type MCPTools = Awaited<
 >;
 type MCPClientInstance = Awaited<ReturnType<typeof createMCPClient>>;
 
+const MCP_TOOL_PREFIX = "coder_registry_";
 const MAX_STEPS = 20;
+
+const prefixToolNames = (tools: MCPTools): MCPTools =>
+	Object.fromEntries(
+		Object.entries(tools).map(([toolName, tool]) => [
+			`${MCP_TOOL_PREFIX}${toolName}`,
+			tool,
+		]),
+	) as MCPTools;
+
+const assertValidExternalToolNames = (
+	localTools: Record<string, unknown>,
+	externalTools: MCPTools,
+): void => {
+	const invalidPrefixedNames = Object.keys(externalTools).filter(
+		(toolName) =>
+			!toolName.startsWith(MCP_TOOL_PREFIX) ||
+			toolName.startsWith(`${MCP_TOOL_PREFIX}${MCP_TOOL_PREFIX}`),
+	);
+	if (invalidPrefixedNames.length > 0) {
+		throw new Error(
+			`MCP tool names must be prefixed exactly once with "${MCP_TOOL_PREFIX}": ${invalidPrefixedNames.sort().join(", ")}.`,
+		);
+	}
+
+	const collidingNames = Object.keys(externalTools).filter((toolName) =>
+		Object.hasOwn(localTools, toolName),
+	);
+	if (collidingNames.length > 0) {
+		throw new Error(
+			`Prefixed MCP tool names collide with local tool names: ${collidingNames.sort().join(", ")}.`,
+		);
+	}
+};
 
 const SYSTEM_PROMPT = `You are a Terraform template editing assistant for Coder.
 You help users modify Coder workspace templates (Terraform HCL files).
@@ -162,6 +196,7 @@ const createTemplateAgent = (
 		hasBuiltInCurrentRunRef,
 		callbacks,
 	);
+	assertValidExternalToolNames(localTools, externalTools);
 
 	return new ToolLoopAgent({
 		model: resolveProviderModel(
@@ -538,7 +573,7 @@ export const useTemplateAgent = ({
 				}
 
 				mcpClientRef.current = client;
-				mcpToolsRef.current = await client.tools();
+				mcpToolsRef.current = prefixToolNames(await client.tools());
 			} catch (error) {
 				// Best-effort integration: keep local tools available if MCP
 				// initialization fails.
