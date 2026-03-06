@@ -430,7 +430,7 @@ func (p *Server) SendMessage(
 		return result, nil
 	}
 
-	p.publishMessage(opts.ChatID, result.Message, false)
+	p.publishMessage(opts.ChatID, result.Message)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange)
 	return result, nil
@@ -520,7 +520,7 @@ func (p *Server) EditMessage(
 		return EditMessageResult{}, txErr
 	}
 
-	p.publishMessage(opts.ChatID, result.Message, true)
+	p.publishEditedMessage(opts.ChatID, result.Message)
 	p.publishEvent(opts.ChatID, codersdk.ChatStreamEvent{
 		Type:           codersdk.ChatStreamEventTypeQueueUpdate,
 		QueuedMessages: []codersdk.ChatQueuedMessage{},
@@ -719,7 +719,7 @@ func (p *Server) PromoteQueued(
 	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 		QueueUpdate: true,
 	})
-	p.publishMessage(opts.ChatID, promoted, false)
+	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
 	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange)
 
@@ -1619,22 +1619,28 @@ func panicFailureReason(recovered any) string {
 	return "chat processing panicked: " + reason
 }
 
-func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage, edited bool) {
+func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) {
 	sdkMessage := db2sdk.ChatMessage(message)
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:    codersdk.ChatStreamEventTypeMessage,
 		Message: &sdkMessage,
 	})
-	afterMessageID := message.ID - 1
-	if edited {
-		// When a message is edited, remote subscribers may have
-		// already advanced past the edited message's ID. Using 0
-		// forces them to re-fetch from the beginning so the edit
-		// is never silently dropped.
-		afterMessageID = 0
-	}
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-		AfterMessageID: afterMessageID,
+		AfterMessageID: message.ID - 1,
+	})
+}
+
+// publishEditedMessage is like publishMessage but uses
+// AfterMessageID=0 so remote subscribers re-fetch from the
+// beginning, ensuring the edit is never silently dropped.
+func (p *Server) publishEditedMessage(chatID uuid.UUID, message database.ChatMessage) {
+	sdkMessage := db2sdk.ChatMessage(message)
+	p.publishEvent(chatID, codersdk.ChatStreamEvent{
+		Type:    codersdk.ChatStreamEventTypeMessage,
+		Message: &sdkMessage,
+	})
+	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		AfterMessageID: 0,
 	})
 }
 
@@ -1888,7 +1894,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 
 		if promotedMessage != nil {
-			p.publishMessage(chat.ID, *promotedMessage, false)
+			p.publishMessage(chat.ID, *promotedMessage)
 		}
 		if shouldPublishQueueUpdate {
 			p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
@@ -2235,7 +2241,7 @@ func (p *Server) runChat(
 		}
 
 		for _, msg := range insertedMessages {
-			p.publishMessage(chat.ID, msg, false)
+			p.publishMessage(chat.ID, msg)
 		}
 
 		// Clear the stream buffer now that the step is
@@ -2567,7 +2573,7 @@ func (p *Server) persistChatContextSummary(
 	// Publish after transaction commits to avoid notifying
 	// subscribers about messages that could be rolled back.
 	for _, msg := range insertedMessages {
-		p.publishMessage(chatID, msg, false)
+		p.publishMessage(chatID, msg)
 	}
 	return nil
 }

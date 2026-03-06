@@ -832,9 +832,8 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 				Detail:  updateErr.Error(),
 			})
 			return
-		} else {
-			chat = updatedChat
 		}
+		chat = updatedChat
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
