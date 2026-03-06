@@ -1098,7 +1098,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		"release_notes":   releaseNotes,
 		"dry_run":         "false",
 	}
-	payloadJSON, err := json.MarshalIndent(workflowPayload, "  ", "  ")
+	payloadJSON, err := json.MarshalIndent(workflowPayload, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshaling payload preview: %w", err)
 	}
@@ -1109,7 +1109,9 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	fmt.Fprintf(w, "  Ref:     %s\n", newVersion)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "  Payload:"))
-	fmt.Fprintf(w, "  %s\n", payloadJSON)
+	for _, line := range strings.Split(string(payloadJSON), "\n") {
+		fmt.Fprintf(w, "    %s\n", line)
+	}
 	fmt.Fprintln(w)
 	if err := confirm(inv, "Trigger release workflow?"); err != nil {
 		infof(w, "Skipped workflow trigger. You can trigger it manually from GitHub Actions.")
