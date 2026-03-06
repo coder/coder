@@ -97,7 +97,7 @@ type ChatMessagePart struct {
 	Title       string              `json:"title,omitempty"`
 	MediaType   string              `json:"media_type,omitempty"`
 	Data        []byte              `json:"data,omitempty"`
-	FileID      uuid.UUID           `json:"file_id,omitempty" format:"uuid"`
+	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
 }
 
 // ChatInputPartType represents an input part type for user chat input.

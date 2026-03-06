@@ -1626,7 +1626,8 @@ func TestChatMessageWithFiles(t *testing.T) {
 		for _, msg := range chatWithMessages.Messages {
 			for _, part := range msg.Content {
 				if part.Type == codersdk.ChatMessagePartTypeFile {
-					require.NotEqual(t, uuid.Nil, part.FileID)
+					require.True(t, part.FileID.Valid, "file part should have a valid file_id")
+					require.Equal(t, uploadResp.ID, part.FileID.UUID)
 					require.Nil(t, part.Data, "file data should not be sent when file_id is present")
 				}
 			}
@@ -1835,7 +1836,7 @@ func TestPatchChatMessage(t *testing.T) {
 			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "after edit with file" {
 				foundText = true
 			}
-			if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID == uploadResp.ID {
+			if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid && part.FileID.UUID == uploadResp.ID {
 				foundFile = true
 				require.Nil(t, part.Data, "file data should not be sent when file_id is present")
 			}
@@ -1856,7 +1857,7 @@ func TestPatchChatMessage(t *testing.T) {
 				if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "after edit with file" {
 					foundTextInChat = true
 				}
-				if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID == uploadResp.ID {
+				if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid && part.FileID.UUID == uploadResp.ID {
 					foundFileInChat = true
 					require.Nil(t, part.Data, "file data should not be sent when file_id is present")
 				}
