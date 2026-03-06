@@ -245,6 +245,7 @@ func ConvertMessagesWithFiles(
 		prompt,
 		toolNameByCallID,
 	)
+	prompt = reorderTrailingAssistantMessage(prompt)
 	return prompt, nil
 }
 
@@ -813,6 +814,56 @@ func ReasoningTitleFromFirstLine(text string) string {
 	}
 
 	return compactReasoningSummaryTitle(title)
+}
+
+// reorderTrailingAssistantMessage fixes a race condition in the
+// interrupt flow where the partial assistant response is persisted
+// after the new user message (because persistInterruptedStep runs
+// with context.WithoutCancel after the user message was already
+// inserted). The DB orders by (created_at, id), so the assistant
+// message ends up last. The Anthropic API rejects a trailing
+// assistant message as unsupported prefill on many models. This
+// function moves such a trailing assistant message before the
+// preceding user message so the prompt ends with a user turn.
+func reorderTrailingAssistantMessage(prompt []fantasy.Message) []fantasy.Message {
+	if len(prompt) < 2 {
+		return prompt
+	}
+	last := prompt[len(prompt)-1]
+	if last.Role != fantasy.MessageRoleAssistant {
+		return prompt
+	}
+	// Only reorder when the assistant message has no tool calls.
+	// Messages with tool calls will have synthetic tool results
+	// injected by injectMissingToolResults, which produces a
+	// trailing tool (user) message instead.
+	if len(ExtractToolCalls(last.Content)) > 0 {
+		return prompt
+	}
+	// Find the last user message before this assistant message.
+	userIdx := -1
+	for i := len(prompt) - 2; i >= 0; i-- {
+		if prompt[i].Role == fantasy.MessageRoleUser {
+			userIdx = i
+			break
+		}
+		// Stop at system messages — don't reorder across the
+		// system/conversation boundary.
+		if prompt[i].Role == fantasy.MessageRoleSystem {
+			break
+		}
+	}
+	if userIdx < 0 {
+		return prompt
+	}
+	// Move the trailing assistant message to just before the user
+	// message at userIdx, so the conversation ends with the user
+	// turn.
+	reordered := make([]fantasy.Message, 0, len(prompt))
+	reordered = append(reordered, prompt[:userIdx]...)
+	reordered = append(reordered, last)
+	reordered = append(reordered, prompt[userIdx:len(prompt)-1]...)
+	return reordered
 }
 
 func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {

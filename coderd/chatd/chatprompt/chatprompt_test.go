@@ -222,6 +222,125 @@ func TestInjectFileID_StripsInlineData(t *testing.T) {
 	require.Nil(t, envelope.Data.Data, "inline data should be stripped")
 }
 
+// TestConvertMessages_TrailingAssistantTextOnly verifies that when an
+// interrupted agent persists a text-only assistant message after the
+// user's interrupt message (a race inherent to the interrupt flow),
+// the resulting prompt does not end with an assistant message. The
+// Anthropic API interprets a trailing assistant message as "prefill"
+// and rejects it on models that do not support that feature.
+func TestConvertMessages_TrailingAssistantTextOnly(t *testing.T) {
+	t.Parallel()
+
+	// Simulate the DB order after interrupt: the user message was
+	// inserted at T1, then the partial assistant text was persisted
+	// at T2 (T2 > T1), so the assistant message is last.
+	assistantContent, err := chatprompt.MarshalContent([]fantasy.Content{
+		fantasy.TextContent{Text: "partial response before interrupt"},
+	}, nil)
+	require.NoError(t, err)
+
+	userContent, err := json.Marshal([]json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "text",
+			"data": map[string]any{"text": "initial request"},
+		}),
+	})
+	require.NoError(t, err)
+
+	interruptContent, err := json.Marshal([]json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "text",
+			"data": map[string]any{"text": "new instruction after interrupt"},
+		}),
+	})
+	require.NoError(t, err)
+
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+		{
+			Role:       string(fantasy.MessageRoleUser),
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: userContent, Valid: true},
+		},
+		// The interrupt user message was inserted before the partial
+		// assistant response was persisted.
+		{
+			Role:       string(fantasy.MessageRoleUser),
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: interruptContent, Valid: true},
+		},
+		// Partial assistant text persisted after the interrupt.
+		{
+			Role:       string(fantasy.MessageRoleAssistant),
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    assistantContent,
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, prompt)
+
+	lastMsg := prompt[len(prompt)-1]
+	require.NotEqual(t, fantasy.MessageRoleAssistant, lastMsg.Role,
+		"prompt must not end with an assistant message; "+
+			"Anthropic rejects this as unsupported prefill")
+
+	// The reordered prompt should place the assistant message
+	// before the interrupt user message.
+	require.Len(t, prompt, 3)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[1].Role)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[2].Role)
+}
+
+// TestConvertMessages_TrailingAssistantWithToolCalls verifies that
+// a trailing assistant message containing tool calls is NOT
+// reordered. The existing injectMissingToolResults logic already
+// appends synthetic tool-result messages (role=tool) after such
+// assistant messages, so the prompt naturally ends with a
+// tool/user turn.
+func TestConvertMessages_TrailingAssistantWithToolCalls(t *testing.T) {
+	t.Parallel()
+
+	assistantContent, err := chatprompt.MarshalContent([]fantasy.Content{
+		fantasy.TextContent{Text: "let me check that"},
+		fantasy.ToolCallContent{
+			ToolCallID: "toolu_interrupted",
+			ToolName:   "read_file",
+			Input:      `{"path":"main.go"}`,
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	userContent, err := json.Marshal([]json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "text",
+			"data": map[string]any{"text": "do something"},
+		}),
+	})
+	require.NoError(t, err)
+
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+		{
+			Role:       string(fantasy.MessageRoleUser),
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: userContent, Valid: true},
+		},
+		{
+			Role:       string(fantasy.MessageRoleAssistant),
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    assistantContent,
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, prompt)
+
+	// injectMissingToolResults should have added a synthetic tool
+	// result, so the last message should be a tool message.
+	lastMsg := prompt[len(prompt)-1]
+	require.Equal(t, fantasy.MessageRoleTool, lastMsg.Role,
+		"trailing assistant with tool calls should get synthetic "+
+			"tool results appended by injectMissingToolResults")
+}
+
 func mustJSON(t *testing.T, v any) json.RawMessage {
 	t.Helper()
 	data, err := json.Marshal(v)
