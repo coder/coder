@@ -23,9 +23,7 @@ describe("AccountForm", () => {
 					email={MockUserMember.email}
 					initialValues={mockInitialValues}
 					isLoading={false}
-					onSubmit={() => {
-						vi.fn();
-					}}
+					onSubmit={vi.fn()}
 				/>,
 			);
 
@@ -53,9 +51,7 @@ describe("AccountForm", () => {
 				email={MockUserMember.email}
 				initialValues={mockInitialValues}
 				isLoading={false}
-				onSubmit={() => {
-					vi.fn();
-				}}
+				onSubmit={vi.fn()}
 			/>,
 		);
 
@@ -78,9 +74,7 @@ describe("AccountForm", () => {
 					email={MockUserMember.email}
 					initialValues={mockInitialValues}
 					isLoading={false}
-					onSubmit={() => {
-						vi.fn();
-					}}
+					onSubmit={vi.fn()}
 				/>,
 			);
 
