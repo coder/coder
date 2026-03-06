@@ -7,9 +7,11 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -17,15 +19,17 @@ import (
 
 // API exposes process-related operations through the agent.
 type API struct {
-	logger  slog.Logger
-	manager *manager
+	logger    slog.Logger
+	manager   *manager
+	pathStore *agentgit.PathStore
 }
 
 // NewAPI creates a new process API handler.
-func NewAPI(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error)) *API {
+func NewAPI(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error), pathStore *agentgit.PathStore) *API {
 	return &API{
-		logger:  logger,
-		manager: newManager(logger, execer, updateEnv),
+		logger:    logger,
+		manager:   newManager(logger, execer, updateEnv),
+		pathStore: pathStore,
 	}
 }
 
@@ -72,6 +76,23 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	// Notify git watchers after the process finishes so that
+	// file changes made by the command are visible in the scan.
+	// If a workdir is provided, track it as a path as well.
+	if api.pathStore != nil {
+		if chatID, ancestorIDs, ok := agentgit.ExtractChatContext(r); ok {
+			allIDs := append([]uuid.UUID{chatID}, ancestorIDs...)
+			go func() {
+				<-proc.done
+				if req.WorkDir != "" {
+					api.pathStore.AddPaths(allIDs, []string{req.WorkDir})
+				} else {
+					api.pathStore.Notify(allIDs)
+				}
+			}()
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.StartProcessResponse{

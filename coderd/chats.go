@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/fantasy"
@@ -35,6 +36,8 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
 
 const (
@@ -411,6 +414,162 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		Messages:       convertChatMessages(messages),
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
 	})
+}
+
+// @Summary Watch git changes for a chat.
+// @ID watch-chat-git
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 101
+// @Router /chats/{chat}/git/watch [get]
+//
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		chat   = httpmw.ChatParam(r)
+		logger = api.Logger.Named("chat_git_watcher").With(slog.F("chat_id", chat.ID))
+	)
+
+	if !chat.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat has no workspace to watch.",
+		})
+		return
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agents.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(agents) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat workspace has no agents.",
+		})
+		return
+	}
+
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		agents[0],
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, it must be in the %q state.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
+
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error dialing workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	agentStream, err := agentConn.WatchGit(ctx, logger, chat.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error watching agent's git state.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer agentStream.Close(websocket.StatusGoingAway)
+
+	clientConn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionNoContextTakeover,
+	})
+	if err != nil {
+		logger.Error(ctx, "failed to accept websocket", slog.Error(err))
+		return
+	}
+
+	clientStream := wsjson.NewStream[
+		codersdk.WorkspaceAgentGitClientMessage,
+		codersdk.WorkspaceAgentGitServerMessage,
+	](clientConn, websocket.MessageText, websocket.MessageText, logger)
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	go httpapi.HeartbeatClose(ctx, logger, cancel, clientConn)
+
+	// Proxy agent → client.
+	agentCh := agentStream.Chan()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-api.ctx.Done():
+				return
+			case <-ctx.Done():
+				return
+			case msg, ok := <-agentCh:
+				if !ok {
+					cancel()
+					return
+				}
+				if err := clientStream.Send(msg); err != nil {
+					logger.Debug(ctx, "failed to forward agent message to client", slog.Error(err))
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+
+	// Proxy client → agent.
+	clientCh := clientStream.Chan()
+proxyLoop:
+	for {
+		select {
+		case <-api.ctx.Done():
+			break proxyLoop
+		case <-ctx.Done():
+			break proxyLoop
+		case msg, ok := <-clientCh:
+			if !ok {
+				break proxyLoop
+			}
+			if err := agentStream.Send(msg); err != nil {
+				logger.Debug(ctx, "failed to forward client message to agent", slog.Error(err))
+				break proxyLoop
+			}
+		}
+	}
+
+	cancel()
+	wg.Wait()
+	_ = clientStream.Close(websocket.StatusGoingAway)
 }
 
 // @Summary Archive a chat

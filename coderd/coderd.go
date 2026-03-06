@@ -1132,6 +1132,7 @@ func New(options *Options) *API {
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)
+				r.Get("/git/watch", api.watchChatGit)
 				r.Post("/archive", api.archiveChat)
 				r.Post("/unarchive", api.unarchiveChat)
 				r.Post("/messages", api.postChatMessages)
