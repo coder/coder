@@ -3799,7 +3799,7 @@ type AIBridgeInterception struct {
 
 // Audit log of model thinking in intercepted requests in AI Bridge
 type AIBridgeModelThought struct {
-	ID             uuid.NullUUID         `db:"id" json:"id"`
+	ID             uuid.UUID             `db:"id" json:"id"`
 	InterceptionID uuid.UUID             `db:"interception_id" json:"interception_id"`
 	ToolUsageID    uuid.UUID             `db:"tool_usage_id" json:"tool_usage_id"`
 	Content        sql.NullString        `db:"content" json:"content"`

@@ -8,6 +8,7 @@ type UniqueConstraint string
 const (
 	UniqueAgentStatsPkey                                      UniqueConstraint = "agent_stats_pkey"                                                // ALTER TABLE ONLY workspace_agent_stats ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 	UniqueAibridgeInterceptionsPkey                           UniqueConstraint = "aibridge_interceptions_pkey"                                     // ALTER TABLE ONLY aibridge_interceptions ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
+	UniqueAibridgeModelThoughtsPkey                           UniqueConstraint = "aibridge_model_thoughts_pkey"                                    // ALTER TABLE ONLY aibridge_model_thoughts ADD CONSTRAINT aibridge_model_thoughts_pkey PRIMARY KEY (id);
 	UniqueAibridgeTokenUsagesPkey                             UniqueConstraint = "aibridge_token_usages_pkey"                                      // ALTER TABLE ONLY aibridge_token_usages ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
 	UniqueAibridgeToolUsagesPkey                              UniqueConstraint = "aibridge_tool_usages_pkey"                                       // ALTER TABLE ONLY aibridge_tool_usages ADD CONSTRAINT aibridge_tool_usages_pkey PRIMARY KEY (id);
 	UniqueAibridgeUserPromptsPkey                             UniqueConstraint = "aibridge_user_prompts_pkey"                                      // ALTER TABLE ONLY aibridge_user_prompts ADD CONSTRAINT aibridge_user_prompts_pkey PRIMARY KEY (id);

@@ -1015,7 +1015,7 @@ func TestRecordToolUsage(t *testing.T) {
 					}, nil)
 
 					db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeModelThoughtParams) bool {
-						if !assert.True(t, p.ID.Valid, "ID valid") ||
+						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID not nil") ||
 							!assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
 							!assert.Equal(t, toolUsageID, p.ToolUsageID, "tool usage ID") ||
 							!assert.Equal(t, sql.NullString{String: "I should list the files.", Valid: true}, p.Content, "content") ||
@@ -1024,7 +1024,7 @@ func TestRecordToolUsage(t *testing.T) {
 						}
 						return true
 					})).Return(database.AIBridgeModelThought{
-						ID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},
+						ID:             uuid.New(),
 						InterceptionID: interceptionID,
 						ToolUsageID:    toolUsageID,
 						Content:        sql.NullString{String: "I should list the files.", Valid: true},
@@ -1357,7 +1357,7 @@ func TestStructuredLogging(t *testing.T) {
 					Tool:           "bash",
 				}, nil)
 				db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Any()).Return(database.AIBridgeModelThought{
-					ID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},
+					ID:             uuid.New(),
 					InterceptionID: intcID,
 				}, nil)
 			},
