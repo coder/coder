@@ -492,25 +492,32 @@ const AgentsPage: FC = () => {
 					return;
 				}
 
+				// Scope field updates by event kind so that
+				// status_change events (which may carry a stale title
+				// snapshot from before async title generation
+				// finished) don't clobber a title_change that already
+				// landed.
+				const isTitleEvent = chatEvent.kind === "title_change";
+				const isStatusEvent = chatEvent.kind === "status_change";
+
 				queryClient.setQueryData(
 					chatsKey,
 					(prev: TypesGen.Chat[] | undefined) => {
 						if (!prev) return prev;
 						const exists = prev.some((c) => c.id === updatedChat.id);
 						if (exists) {
-							return prev.map((c) =>
-								c.id === updatedChat.id
-									? {
-											...c,
-											status: updatedChat.status,
-											title: updatedChat.title,
-											updated_at:
-												c.updated_at > updatedChat.updated_at
-													? c.updated_at
-													: updatedChat.updated_at,
-										}
-									: c,
-							);
+							return prev.map((c) => {
+								if (c.id !== updatedChat.id) return c;
+								return {
+									...c,
+									...(isStatusEvent && { status: updatedChat.status }),
+									...(isTitleEvent && { title: updatedChat.title }),
+									updated_at:
+										c.updated_at > updatedChat.updated_at
+											? c.updated_at
+											: updatedChat.updated_at,
+								};
+							});
 						}
 						if (chatEvent.kind === "created") {
 							return [updatedChat, ...prev];
@@ -528,8 +535,8 @@ const AgentsPage: FC = () => {
 							...previousChat,
 							chat: {
 								...previousChat.chat,
-								status: updatedChat.status,
-								title: updatedChat.title,
+								...(isStatusEvent && { status: updatedChat.status }),
+								...(isTitleEvent && { title: updatedChat.title }),
 								updated_at:
 									previousChat.chat.updated_at > updatedChat.updated_at
 										? previousChat.chat.updated_at
