@@ -50,7 +50,8 @@ Only pause to ask for confirmation when:
 | **Generate**      | `make gen`               | After database changes           |
 | **Format**        | `make fmt`               | Auto-format code                 |
 | **Clean**         | `make clean`             | Clean build artifacts            |
-| **Pre-commit**    | `make pre-commit`        | All CI checks locally            |
+| **Pre-commit**    | `make pre-commit-lite`   | Fast CI checks (gen/fmt/lint/build) |
+| **Pre-commit Full** | `make pre-commit`      | All CI checks including tests    |
 
 ### Documentation Commands
 
@@ -107,11 +108,18 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 ### Pre-commit Hook (MANDATORY)
 
 Before your first commit, ensure the pre-commit hook is installed.
-It runs `make pre-commit` which mirrors all CI required checks
-locally. Wait for it to complete, do not skip or bypass it.
+It runs `make pre-commit-lite` (gen, fmt, lint, typos, build) which
+catches most CI failures without needing Docker or Playwright.
+Wait for it to complete, do not skip or bypass it.
 
 ```sh
-test -f .git/hooks/pre-commit || ln -sf ../../scripts/githooks/pre-commit .git/hooks/pre-commit
+git config core.hooksPath scripts/githooks
+```
+
+For the full CI suite including tests, run manually before pushing:
+
+```sh
+make pre-commit
 ```
 
 ### Git Workflow

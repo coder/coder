@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
 #
-# Pre-commit hook that mirrors CI required checks locally.
-# Delegates to `make pre-commit` which runs gen, fmt, lint, build,
-# tests, and more in parallel. See the target's comment in Makefile
-# for the full mapping of CI jobs to local targets.
+# Pre-commit hook that runs CI-equivalent checks locally.
+# Runs `make pre-commit-lite` (gen, fmt, lint, typos, build) which
+# catches most CI failures without needing Docker or Playwright.
 #
-# Installation (choose one):
+# For the full CI suite including tests, run manually:
+#   make pre-commit
 #
-#   ln -sf ../../scripts/githooks/pre-commit .git/hooks/pre-commit
-#
-#   cp scripts/githooks/pre-commit .git/hooks/pre-commit
+# Installation (worktree-compatible):
 #
 #   git config core.hooksPath scripts/githooks
 #
@@ -19,4 +17,4 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-exec make pre-commit
+exec make pre-commit-lite

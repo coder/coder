@@ -690,30 +690,60 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 	build/typos-$(TYPOS_VERSION) --config .github/workflows/typos.toml
 .PHONY: lint/typos
 
-# pre-commit mirrors every CI "required" job that can run locally.
+# pre-commit and pre-commit-lite mirror CI "required" jobs locally.
 # See the "required" job's needs list in .github/workflows/ci.yaml.
 #
-# Everything runs in parallel via -j. Make deduplicates shared
-# prerequisites (node_modules, test-postgres-docker, etc.).
-# After all checks pass, fails if any tracked files have unstaged
-# changes (gen/fmt produced drift, or uncommitted work).
+# pre-commit-lite runs checks that don't need external services
+# (Docker, Playwright). This is the default for the git hook since
+# test and Docker failures in the local environment would otherwise
+# block all commits.
 #
-# CI job                → local target
+# pre-commit runs the full CI suite including tests. Use it before
+# pushing or when you want full confidence:
+#   make pre-commit
+#
+# Both run targets in parallel via -j and fail if any tracked files
+# have unstaged changes afterward (gen/fmt drift or uncommitted work).
+#
+# CI job                → target       → lite?
 # ──────────────────────────────────────────────────────────
-# gen                   → gen
-# fmt                   → fmt
-# lint                  → lint (includes lint-actions locally)
-# (typos in lint job)   → lint/typos
-# check-build           → pre-commit/build (go build, local arch only)
-# test-go-pg            → test-postgres (needs Docker)
-# test-js               → test-js
-# test-e2e              → test-e2e (needs Playwright)
-# sqlc-vet              → sqlc-vet (needs Docker)
-# offlinedocs           → offlinedocs/check
+# gen                   → gen            ✓
+# fmt                   → fmt            ✓
+# lint                  → lint           ✓ (includes lint-actions locally)
+# (typos in lint job)   → lint/typos     ✓
+# check-build           → pre-commit/build ✓ (go build, local arch only)
+# test-go-pg            → test-postgres    (needs Docker)
+# test-js               → test-js          (slow)
+# test-e2e              → test-e2e         (needs Playwright)
+# sqlc-vet              → sqlc-vet         (needs Docker)
+# offlinedocs           → offlinedocs/check (slow)
 #
-# Omitted (reason):
+# Omitted from both (reason):
 # test-go-pg-17         → same tests, different PG version
 # test-go-race-pg       → very slow, run manually: make test-race
+
+define check-unstaged
+	unstaged="$$(git diff --name-only)"
+	if [[ -n $$unstaged ]]; then
+		echo "Unstaged changes in tracked files:"
+		echo "$$unstaged"
+		echo
+		echo "Review each change (git diff), verify correctness, then stage:"
+		echo "  git add -u && git commit"
+		exit 1
+	fi
+endef
+
+pre-commit-lite:
+	$(MAKE) -j --output-sync=target \
+		gen \
+		fmt \
+		lint \
+		lint/typos \
+		pre-commit/build
+	$(check-unstaged)
+.PHONY: pre-commit-lite
+
 pre-commit:
 	$(MAKE) -j --output-sync=target \
 		gen \
@@ -726,15 +756,7 @@ pre-commit:
 		test-e2e \
 		sqlc-vet \
 		offlinedocs/check
-	unstaged="$$(git diff --name-only)"
-	if [[ -n $$unstaged ]]; then
-		echo "Unstaged changes in tracked files:"
-		echo "$$unstaged"
-		echo
-		echo "Review each change (git diff), verify correctness, then stage:"
-		echo "  git add -u && git commit"
-		exit 1
-	fi
+	$(check-unstaged)
 .PHONY: pre-commit
 
 pre-commit/build:
