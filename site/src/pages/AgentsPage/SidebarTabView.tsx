@@ -255,30 +255,30 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				</div>
 
 				{/* Diff style toggle */}
-				<div className="flex shrink-0 items-center gap-0.5">
+				<div className="flex shrink-0 items-center gap-1">
 					<Button
 						variant={diffStyle === "unified" ? "outline" : "subtle"}
-						size="icon"
+						size="lg"
 						onClick={() => handleSetDiffStyle("unified")}
 						className={cn(
-							"h-7 w-7",
+							"min-w-0 h-6 px-2 py-0",
 							diffStyle === "unified" && "bg-surface-secondary",
 						)}
 						aria-label="Unified diff view"
 					>
-						<Rows3Icon className="!size-3.5" />
+						<Rows3Icon className="!p-0 !size-3.5" />
 					</Button>
 					<Button
 						variant={diffStyle === "split" ? "outline" : "subtle"}
-						size="icon"
+						size="lg"
 						onClick={() => handleSetDiffStyle("split")}
 						className={cn(
-							"h-7 w-7",
+							"min-w-0 h-6 px-2 py-0",
 							diffStyle === "split" && "bg-surface-secondary",
 						)}
 						aria-label="Split diff view"
 					>
-						<Columns2Icon className="!size-3.5" />
+						<Columns2Icon className="!p-0 !size-3.5" />
 					</Button>
 				</div>
 
