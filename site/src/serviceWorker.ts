@@ -37,7 +37,7 @@ self.addEventListener("push", (event) => {
 					const isVisible = clientList.some(
 						(client) =>
 							client.visibilityState === "visible" &&
-							(client as WindowClient).focused &&
+							client.focused &&
 							client.url.includes(chatURL),
 					);
 					if (isVisible) {
