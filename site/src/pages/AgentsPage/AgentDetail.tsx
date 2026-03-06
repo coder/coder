@@ -360,14 +360,21 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 						// Collect file IDs from already-uploaded attachments.
 						// Skip files in error state (e.g. too large).
 						const fileIds: string[] = [];
+						let skippedErrors = 0;
 						for (const file of attachments) {
 							const state = uploadStates.get(file);
 							if (state?.status === "error") {
+								skippedErrors++;
 								continue;
 							}
 							if (state?.status === "uploaded" && state.fileId) {
 								fileIds.push(state.fileId);
 							}
+						}
+						if (skippedErrors > 0) {
+							toast.warning(
+								`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+							);
 						}
 						await onSend(message, fileIds.length > 0 ? fileIds : undefined);
 						resetAttachments();

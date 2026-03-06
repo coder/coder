@@ -902,11 +902,21 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	const handleSendWithAttachments = useCallback(
 		async (message: string) => {
 			const fileIds: string[] = [];
+			let skippedErrors = 0;
 			for (const file of attachments) {
 				const state = uploadStates.get(file);
+				if (state?.status === "error") {
+					skippedErrors++;
+					continue;
+				}
 				if (state?.status === "uploaded" && state.fileId) {
 					fileIds.push(state.fileId);
 				}
+			}
+			if (skippedErrors > 0) {
+				toast.warning(
+					`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+				);
 			}
 			try {
 				await handleSend(message, fileIds.length > 0 ? fileIds : undefined);
