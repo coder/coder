@@ -336,42 +336,108 @@ func mergedSemverTags() ([]version, error) {
 
 // commitEntry represents a single non-merge commit.
 type commitEntry struct {
-	SHA   string
-	Title string
-	PRNum int // 0 if no PR number found
+	SHA       string
+	FullSHA   string
+	Title     string
+	PRNum     int // 0 if no PR number found
+	Timestamp int64
 }
 
 var prNumRe = regexp.MustCompile(`\(#(\d+)\)`)
 
-// commitLog returns non-merge commits in the given range.
+// cherryPickPRRe matches cherry-pick bot titles like
+// "chore: foo bar (cherry-pick #42) (#43)".
+var cherryPickPRRe = regexp.MustCompile(`\(cherry-pick #(\d+)\)\s*\(#\d+\)$`)
+
+// commitLog returns non-merge commits in the given range, filtering
+// out left-side commits (already in the base) and deduplicating
+// cherry-picks using git's --cherry-mark.
 func commitLog(commitRange string) ([]commitEntry, error) {
-	out, err := gitOutput("log", "--no-merges", "--pretty=format:%h %s", commitRange)
+	// Use --left-right --cherry-mark to identify equivalent
+	// (cherry-picked) commits and left-side-only commits.
+	out, err := gitOutput("log", "--no-merges", "--left-right", "--cherry-mark",
+		"--pretty=format:%m %ct %h %H %s", commitRange)
 	if err != nil {
 		return nil, err
 	}
 	if out == "" {
 		return nil, nil
 	}
+
+	// Collect cherry-pick equivalent commits (marked with '=') so
+	// we can skip duplicates. We keep only the right-side version.
+	seen := make(map[string]bool)
+
 	var entries []commitEntry
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
-		spaceIdx := strings.IndexByte(line, ' ')
-		if spaceIdx < 0 {
+		// Format: %m %ct %h %H %s
+		// mark timestamp shortSHA fullSHA title...
+		parts := strings.SplitN(line, " ", 5)
+		if len(parts) < 5 {
 			continue
 		}
+		mark := parts[0]
+		ts, _ := strconv.ParseInt(parts[1], 10, 64)
+		shortSHA := parts[2]
+		fullSHA := parts[3]
+		title := parts[4]
+
+		// Skip left-side commits (already in the old version).
+		if mark == "<" {
+			continue
+		}
+		// Skip cherry-pick equivalents that we've already seen
+		// (marked '=' by --cherry-mark).
+		if mark == "=" {
+			if seen[title] {
+				continue
+			}
+			seen[title] = true
+		}
+
+		// Normalize cherry-pick bot titles:
+		// "chore: foo (cherry-pick #42) (#43)" → "chore: foo (#42)"
+		if m := cherryPickPRRe.FindStringSubmatch(title); m != nil {
+			title = title[:cherryPickPRRe.FindStringIndex(title)[0]] + "(#" + m[1] + ")"
+		}
+
 		e := commitEntry{
-			SHA:   line[:spaceIdx],
-			Title: line[spaceIdx+1:],
+			SHA:       shortSHA,
+			FullSHA:   fullSHA,
+			Title:     title,
+			Timestamp: ts,
 		}
 		if m := prNumRe.FindStringSubmatch(e.Title); m != nil {
 			e.PRNum, _ = strconv.Atoi(m[1])
 		}
 		entries = append(entries, e)
 	}
+
+	// Sort by conventional commit prefix, then by timestamp
+	// (matching the bash script's sort -k3,3 -k1,1n).
+	sort.SliceStable(entries, func(i, j int) bool {
+		pi := commitSortPrefix(entries[i].Title)
+		pj := commitSortPrefix(entries[j].Title)
+		if pi != pj {
+			return pi < pj
+		}
+		return entries[i].Timestamp < entries[j].Timestamp
+	})
+
 	return entries, nil
+}
+
+// commitSortPrefix extracts the first word of a title for sorting.
+func commitSortPrefix(title string) string {
+	idx := strings.IndexAny(title, " (:")
+	if idx < 0 {
+		return title
+	}
+	return title[:idx]
 }
 
 // prMetadata holds labels and author for a merged PR.
@@ -416,9 +482,10 @@ var humanizedAreas = []struct {
 	{"tailnet", "Networking"},
 }
 
-// conventionalPrefixRe extracts the prefix and optional scope from a
-// conventional commit title.
-var conventionalPrefixRe = regexp.MustCompile(`^([a-z]+)(\((.+)\))?[!]?:\s*(.*)$`)
+// conventionalPrefixRe extracts prefix, scope, and rest from a
+// conventional commit title. Does NOT match breaking "!" suffix —
+// those titles are left as-is (matching bash behavior).
+var conventionalPrefixRe = regexp.MustCompile(`^([a-z]+)(\((.+)\))?:\s*(.*)$`)
 
 // humanizeTitle converts a conventional commit title to a
 // human-readable form, e.g. "feat(site): add bar" → "Dashboard: Add bar".
@@ -453,8 +520,15 @@ func humanizeTitle(title string) string {
 var breakingCommitRe = regexp.MustCompile(`^[a-zA-Z]+(\(.+\))?!:`)
 
 // categorizeCommit determines the release note section for a commit.
+// The priority order matches the bash script: breaking title first,
+// then labels (breaking, security, experimental), then prefix.
 func categorizeCommit(title string, labels []string) string {
-	// Label-based categorization takes priority.
+	// Check breaking title first (matches bash behavior).
+	if breakingCommitRe.MatchString(title) {
+		return "breaking"
+	}
+
+	// Label-based categorization.
 	for _, l := range labels {
 		if l == "release/breaking" {
 			return "breaking"
@@ -465,9 +539,6 @@ func categorizeCommit(title string, labels []string) string {
 		if l == "release/experimental" {
 			return "experimental"
 		}
-	}
-	if breakingCommitRe.MatchString(title) {
-		return "breaking"
 	}
 
 	// Extract the conventional commit prefix (e.g. "feat", "fix(scope)").
@@ -481,6 +552,8 @@ func categorizeCommit(title string, labels []string) string {
 			return "fix"
 		case "docs":
 			return "docs"
+		case "style":
+			return "other"
 		case "refactor":
 			return "refactor"
 		case "perf":
@@ -816,16 +889,16 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return fmt.Errorf("reading commit log: %w", err)
 	}
 
-	// Build PR number → metadata map via gh CLI.
-	var prMeta map[int]prMetadata
+	// Build merge-commit SHA → metadata map via gh CLI.
+	var prMeta map[string]prMetadata
 	if ghAvailable {
-		prMeta, err = ghBuildPRMetadataMap(currentBranch)
+		prMeta, err = ghBuildPRMetadataMap(commits)
 		if err != nil {
 			warnf(w, "Failed to fetch PR metadata: %v", err)
 		}
 	}
 	if prMeta == nil {
-		prMeta = make(map[int]prMetadata)
+		prMeta = make(map[string]prMetadata)
 	}
 
 	type section struct {
@@ -851,7 +924,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	sectionCommits := make(map[string][]string)
 
 	for _, c := range commits {
-		meta := prMeta[c.PRNum]
+		meta := prMeta[c.FullSHA]
 		// Skip dependabot commits.
 		if meta.Author == "dependabot" || meta.Author == "app/dependabot" {
 			continue
@@ -1123,16 +1196,31 @@ func ghListPRsWithLabel(branch, label string) ([]ghPR, error) {
 	return prs, nil
 }
 
-// ghBuildPRMetadataMap returns a map of PR number → metadata (labels
-// and author) for merged PRs targeting the given branch.
-func ghBuildPRMetadataMap(branch string) (map[int]prMetadata, error) {
+// ghBuildPRMetadataMap returns a map of full merge-commit SHA →
+// metadata (labels and author) for merged PRs targeting main. This
+// matches the bash script's approach of querying --base main with a
+// date filter based on the oldest commit in the range.
+func ghBuildPRMetadataMap(commits []commitEntry) (map[string]prMetadata, error) {
+	if len(commits) == 0 {
+		return nil, nil
+	}
+	// Find the earliest commit timestamp to scope the PR query.
+	earliest := commits[0].Timestamp
+	for _, c := range commits[1:] {
+		if c.Timestamp < earliest {
+			earliest = c.Timestamp
+		}
+	}
+	lookbackDate := time.Unix(earliest, 0).Format("2006-01-02")
+
 	out, err := ghOutput("pr", "list",
 		"--repo", owner+"/"+repo,
-		"--base", branch,
+		"--base", "main",
 		"--state", "merged",
-		"--limit", "500",
-		"--json", "number,labels,author",
-		"--jq", `.[] | "\(.number)\t\(.author.login)\t\([.labels[].name] | join(","))"`,
+		"--limit", "10000",
+		"--search", "merged:>="+lookbackDate,
+		"--json", "mergeCommit,labels,author",
+		"--jq", `.[] | "\(.mergeCommit.oid)\t\(.author.login)\t\([.labels[].name] | join(","))"`,
 	)
 	if err != nil {
 		return nil, err
@@ -1140,20 +1228,20 @@ func ghBuildPRMetadataMap(branch string) (map[int]prMetadata, error) {
 	if out == "" {
 		return nil, nil
 	}
-	result := make(map[int]prMetadata)
+	result := make(map[string]prMetadata)
 	for _, line := range strings.Split(out, "\n") {
 		parts := strings.SplitN(line, "\t", 3)
 		if len(parts) < 3 {
 			continue
 		}
-		num, _ := strconv.Atoi(parts[0])
+		sha := parts[0]
 		author := parts[1]
 		var labels []string
 		if parts[2] != "" {
 			labels = strings.Split(parts[2], ",")
 			sort.Strings(labels)
 		}
-		result[num] = prMetadata{
+		result[sha] = prMetadata{
 			Labels: labels,
 			Author: author,
 		}
