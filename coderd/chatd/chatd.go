@@ -1274,20 +1274,20 @@ func (p *Server) Subscribe(
 	// from remote replicas). OSS now owns pubsub subscription,
 	// message catch-up, queue updates, and status forwarding;
 	// enterprise only manages relay dialing.
-		var relayEvents <-chan codersdk.ChatStreamEvent
-		var statusNotifications chan StatusNotification
-		if p.subscribeFn != nil && chatErr == nil {
-			statusNotifications = make(chan StatusNotification, 10)
-			relayEvents = p.subscribeFn(mergedCtx, SubscribeFnParams{
-				ChatID:              chatID,
-				Chat:                chat,
-				WorkerID:            p.workerID,
-				StatusNotifications: statusNotifications,
-				RequestHeader:       requestHeader,
-				DB:                  p.db,
-				Logger:              p.logger,
-			})
-		}
+	var relayEvents <-chan codersdk.ChatStreamEvent
+	var statusNotifications chan StatusNotification
+	if p.subscribeFn != nil && chatErr == nil {
+		statusNotifications = make(chan StatusNotification, 10)
+		relayEvents = p.subscribeFn(mergedCtx, SubscribeFnParams{
+			ChatID:              chatID,
+			Chat:                chat,
+			WorkerID:            p.workerID,
+			StatusNotifications: statusNotifications,
+			RequestHeader:       requestHeader,
+			DB:                  p.db,
+			Logger:              p.logger,
+		})
+	}
 	hasPubsub := false
 	if p.pubsub != nil {
 		// hasPubsub is only true when we actually subscribed
@@ -1450,16 +1450,17 @@ func (p *Server) Subscribe(
 		}
 	}()
 
-		cancel := func() {
-			mergedCancel()
-			for _, cancelFn := range allCancels {
-				if cancelFn != nil {
-					cancelFn()
-				}
+	cancel := func() {
+		mergedCancel()
+		for _, cancelFn := range allCancels {
+			if cancelFn != nil {
+				cancelFn()
 			}
 		}
-		return initialSnapshot, mergedEvents, cancel, true
 	}
+	return initialSnapshot, mergedEvents, cancel, true
+}
+
 func (p *Server) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
 	if event.ChatID == uuid.Nil {
 		event.ChatID = chatID
