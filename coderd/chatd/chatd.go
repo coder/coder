@@ -182,8 +182,10 @@ type SendMessageBusyBehavior string
 const (
 	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
 	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
-	// SendMessageBusyBehaviorInterrupt inserts the message immediately and
-	// transitions the chat to pending, which interrupts the active run.
+	// SendMessageBusyBehaviorInterrupt queues the message and
+	// interrupts the active run. The queued message is
+	// auto-promoted after the interrupted assistant response is
+	// persisted, ensuring correct message ordering.
 	SendMessageBusyBehaviorInterrupt SendMessageBusyBehavior = "interrupt"
 )
 
@@ -376,8 +378,15 @@ func (p *Server) SendMessage(
 			modelConfigID = *opts.ModelConfigID
 		}
 
-		if busyBehavior == SendMessageBusyBehaviorQueue &&
-			shouldQueueUserMessage(lockedChat.Status) {
+		// Both queue and interrupt behaviors queue messages
+		// when the chat is busy. Interrupt additionally
+		// signals the running loop to stop so the queued
+		// message is promoted sooner. Crucially, this
+		// guarantees the interrupted assistant response is
+		// persisted (with a lower id/created_at) before the
+		// user message is promoted into chat_messages,
+		// preserving correct conversation order.
+		if shouldQueueUserMessage(lockedChat.Status) {
 			existingQueued, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
 			if err != nil {
 				return xerrors.Errorf("get queued messages: %w", err)
@@ -434,6 +443,29 @@ func (p *Server) SendMessage(
 		p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 			QueueUpdate: true,
 		})
+
+		// For interrupt behavior, signal the running loop to
+		// stop. setChatWaiting publishes a status notification
+		// that the worker's control subscriber detects, causing
+		// it to cancel with ErrInterrupted. The deferred cleanup
+		// in processChat then auto-promotes the queued message
+		// after persisting the partial assistant response.
+		if busyBehavior == SendMessageBusyBehaviorInterrupt {
+			updatedChat, err := p.setChatWaiting(ctx, opts.ChatID)
+			if err != nil {
+				// The message is already queued so the chat is
+				// not in a broken state — the user can still
+				// wait for the current run to finish. Log the
+				// error but don't fail the request.
+				p.logger.Error(ctx, "failed to interrupt chat for queued message",
+					slog.F("chat_id", opts.ChatID),
+					slog.Error(err),
+				)
+			} else {
+				result.Chat = updatedChat
+			}
+		}
+
 		return result, nil
 	}
 
