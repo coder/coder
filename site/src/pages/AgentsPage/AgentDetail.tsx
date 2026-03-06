@@ -302,9 +302,9 @@ const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		}
 		const files = editingFileBlocks.map((block, i) => {
 			const ext = block.mediaType.split("/")[1] ?? "png";
-			// Only decode base64 into File content when we need to
-			// re-upload (no existing fileId).
 			if (block.fileId) {
+				// Empty File used as a Map key only, its content is never
+				// read because the existing fileId is reused at send time.
 				return new File([], `attachment-${i}.${ext}`, {
 					type: block.mediaType,
 				});

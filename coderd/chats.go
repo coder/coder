@@ -2439,6 +2439,9 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
 				}
 			}
+			// TODO(mafredri): Batch-fetch files with a
+			// GetChatFilesByIDs query to avoid N+1 DB round-trips
+			// when messages contain many file parts.
 			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
 			if err != nil {
 				if httpapi.Is404Error(err) {
