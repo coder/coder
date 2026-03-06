@@ -734,6 +734,7 @@ endef
 
 pre-commit:
 	$(MAKE) -j --output-sync=target gen fmt
+	$(check-unstaged)
 	$(MAKE) -j --output-sync=target \
 		lint \
 		lint/typos \
@@ -743,6 +744,7 @@ pre-commit:
 
 pre-push:
 	$(MAKE) -j --output-sync=target gen fmt
+	$(check-unstaged)
 	$(MAKE) -j --output-sync=target \
 		lint \
 		lint/typos \
