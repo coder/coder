@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/pretty"
@@ -390,18 +391,35 @@ func categorizeCommit(title string, labels []string) string {
 	if breakingCommitRe.MatchString(title) {
 		return "breaking"
 	}
-	switch {
-	case strings.HasPrefix(title, "feat"):
-		return "feat"
-	case strings.HasPrefix(title, "fix"):
-		return "fix"
-	case strings.HasPrefix(title, "docs"):
-		return "docs"
-	case strings.HasPrefix(title, "refactor"):
-		return "refactor"
-	default:
-		return "other"
+
+	// Extract the conventional commit prefix (e.g. "feat", "fix(scope)").
+	prefixRe := regexp.MustCompile(`^([a-z]+)(\(.+\))?[!]?:`)
+	m := prefixRe.FindStringSubmatch(title)
+	if m != nil {
+		switch m[1] {
+		case "feat":
+			return "feat"
+		case "fix":
+			return "fix"
+		case "docs":
+			return "docs"
+		case "refactor":
+			return "refactor"
+		case "perf":
+			return "perf"
+		case "test":
+			return "test"
+		case "build":
+			return "build"
+		case "ci":
+			return "ci"
+		case "chore":
+			return "chore"
+		case "revert":
+			return "revert"
+		}
 	}
+	return "other"
 }
 
 //nolint:revive // Long function is fine for a sequential release flow.
@@ -678,6 +696,35 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 	fmt.Fprintln(w)
 
+	// --- Channel selection ---
+	// This is done before release notes generation because the
+	// notes format differs between mainline and stable channels.
+	channelDefault := cliui.ConfirmNo
+	channelHint := ""
+	if newVersion.Minor == stableMinor {
+		channelDefault = cliui.ConfirmYes
+		channelHint = " (this looks like a stable release)"
+	}
+
+	channel := "mainline"
+	_, err = cliui.Prompt(inv, cliui.PromptOptions{
+		Text:      fmt.Sprintf("Mark this as the latest stable release on GitHub?%s", channelHint),
+		Default:   channelDefault,
+		IsConfirm: true,
+	})
+	if err == nil {
+		channel = "stable"
+	} else if !errors.Is(err, cliui.ErrCanceled) {
+		return err
+	}
+
+	if channel == "stable" {
+		infof(w, "Channel: stable (will be marked as GitHub Latest).")
+	} else {
+		infof(w, "Channel: mainline (will be marked as prerelease).")
+	}
+	fmt.Fprintln(w)
+
 	// --- Generate release notes ---
 	infof(w, "Generating release notes...")
 
@@ -708,13 +755,19 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		Title string
 	}
 	sections := []section{
-		{"breaking", "⚠️ BREAKING CHANGES"},
-		{"security", "🔒 Security"},
-		{"feat", "✨ Features"},
-		{"fix", "🐛 Bug Fixes"},
-		{"docs", "📖 Documentation"},
-		{"refactor", "♻️ Refactor"},
-		{"other", "📦 Other Changes"},
+		{"breaking", "BREAKING CHANGES"},
+		{"security", "SECURITY"},
+		{"feat", "Features"},
+		{"fix", "Bug fixes"},
+		{"docs", "Documentation"},
+		{"refactor", "Code refactoring"},
+		{"perf", "Performance improvements"},
+		{"test", "Tests"},
+		{"build", "Builds"},
+		{"ci", "Continuous integration"},
+		{"chore", "Chores"},
+		{"revert", "Reverts"},
+		{"other", "Other changes"},
 	}
 	sectionCommits := make(map[string][]string)
 
@@ -725,21 +778,28 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		sectionCommits[cat] = append(sectionCommits[cat], entry)
 	}
 
-	// Build release notes markdown.
+	// Build release notes markdown matching the format from
+	// scripts/release/generate_release_notes.sh.
 	var notes strings.Builder
-	fmt.Fprintf(&notes, "## %s\n\n", newVersion)
-	if prevVersion != nil {
-		fmt.Fprintf(&notes, "Compare: https://github.com/%s/%s/compare/%s...%s\n\n", owner, repo, prevVersion, newVersion)
+
+	// Stable since header or mainline blurb.
+	if channel == "stable" {
+		fmt.Fprintf(&notes, "> ## Stable (since %s)\n\n", time.Now().Format("January 02, 2006"))
+	}
+	fmt.Fprintln(&notes, "## Changelog")
+	if channel == "mainline" {
+		fmt.Fprintln(&notes)
+		fmt.Fprintln(&notes, "> [!NOTE]")
+		fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
 	}
 
 	hasContent := false
 	for _, s := range sections {
 		if entries, ok := sectionCommits[s.Key]; ok && len(entries) > 0 {
-			fmt.Fprintf(&notes, "### %s\n\n", s.Title)
+			fmt.Fprintf(&notes, "\n### %s\n\n", s.Title)
 			for _, e := range entries {
 				fmt.Fprintln(&notes, e)
 			}
-			fmt.Fprintln(&notes)
 			hasContent = true
 		}
 	}
@@ -748,8 +808,22 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		if prevVersion != nil {
 			prevStr = prevVersion.String()
 		}
-		fmt.Fprintf(&notes, "_No changes since %s._\n", prevStr)
+		fmt.Fprintf(&notes, "\n_No changes since %s._\n", prevStr)
 	}
+
+	// Compare link.
+	if prevVersion != nil {
+		fmt.Fprintf(&notes, "\nCompare: [`%s...%s`](https://github.com/%s/%s/compare/%s...%s)\n",
+			prevVersion, newVersion, owner, repo, prevVersion, newVersion)
+	}
+
+	// Container image.
+	imageTag := fmt.Sprintf("ghcr.io/coder/coder:%s", strings.TrimPrefix(newVersion.String(), "v"))
+	fmt.Fprintf(&notes, "\n## Container image\n\n- `docker pull %s`\n", imageTag)
+
+	// Install/upgrade links.
+	fmt.Fprintln(&notes, "\n## Install/upgrade")
+	fmt.Fprintln(&notes, "\nRefer to our docs to [install](https://coder.com/docs/install) or [upgrade](https://coder.com/docs/install/upgrade) Coder, or use a release asset below.")
 
 	releaseNotes := notes.String()
 
@@ -795,33 +869,6 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		}
 		fmt.Fprintln(w)
 	}
-
-	// --- Channel selection ---
-	channelDefault := cliui.ConfirmNo
-	channelHint := ""
-	if newVersion.Minor == stableMinor {
-		channelDefault = cliui.ConfirmYes
-		channelHint = " (this looks like a stable release)"
-	}
-
-	channel := "mainline"
-	_, err = cliui.Prompt(inv, cliui.PromptOptions{
-		Text:      fmt.Sprintf("Mark this as the latest stable release on GitHub?%s", channelHint),
-		Default:   channelDefault,
-		IsConfirm: true,
-	})
-	if err == nil {
-		channel = "stable"
-	} else if !errors.Is(err, cliui.ErrCanceled) {
-		return err
-	}
-
-	if channel == "stable" {
-		infof(w, "Channel: stable (will be marked as GitHub Latest).")
-	} else {
-		infof(w, "Channel: mainline (will be marked as prerelease).")
-	}
-	fmt.Fprintln(w)
 
 	// --- Tag ---
 	ref, err := gitOutput("rev-parse", "HEAD")
