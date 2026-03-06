@@ -401,14 +401,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	const [internalDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 	const diffStyle = controlledDiffStyle ?? internalDiffStyle;
 
-	// When the parent changes the diff style via props, sync to
-	// localStorage so the preference persists.
-	useEffect(() => {
-		if (controlledDiffStyle) {
-			localStorage.setItem(DIFF_STYLE_KEY, controlledDiffStyle);
-		}
-	}, [controlledDiffStyle]);
-
 	const diffOptions = useMemo(() => {
 		const base = getDiffViewerOptions(isDark);
 		return {
