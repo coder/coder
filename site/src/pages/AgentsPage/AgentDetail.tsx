@@ -570,9 +570,12 @@ const AgentDetail: FC = () => {
 		clearChatErrorReason,
 	});
 
-	// Git watcher: runs regardless of sidebar visibility.
+	// Git watcher: runs regardless of sidebar visibility, but only
+	// connects when the workspace agent is in the "connected" state
+	// to avoid an infinite reconnect loop against a missing agent.
 	const gitWatcher = useGitWatcher({
 		chatId: agentId,
+		agentStatus: workspaceAgent?.status,
 	});
 
 	// Detect workspace creation so the sidebar can resolve the
