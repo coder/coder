@@ -1092,24 +1092,17 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 	releaseNotes = string(freshNotes)
 
-	// Build the exact payload we will send so the user can review it.
-	workflowPayload := map[string]string{
-		"release_channel": channel,
-		"release_notes":   releaseNotes,
-		"dry_run":         "false",
-	}
-	payloadJSON, err := json.MarshalIndent(workflowPayload, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshaling payload preview: %w", err)
-	}
-
 	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "Next step: trigger the 'release.yaml' GitHub Actions workflow."))
 	fmt.Fprintf(w, "  Workflow: release.yaml\n")
 	fmt.Fprintf(w, "  Repo:    %s/%s\n", owner, repo)
 	fmt.Fprintf(w, "  Ref:     %s\n", newVersion)
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "  Payload:"))
-	for _, line := range strings.Split(string(payloadJSON), "\n") {
+	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "  Payload fields:"))
+	fmt.Fprintf(w, "    release_channel: %s\n", channel)
+	fmt.Fprintf(w, "    dry_run:         false\n")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(), "  release_notes:"))
+	for _, line := range strings.Split(releaseNotes, "\n") {
 		fmt.Fprintf(w, "    %s\n", line)
 	}
 	fmt.Fprintln(w)
