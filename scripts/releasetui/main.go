@@ -103,6 +103,9 @@ func (e *liveExecutor) PushTag(_ context.Context, tag string) error {
 }
 
 func (e *liveExecutor) TriggerWorkflow(ctx context.Context, ref, channel, releaseNotes string) error {
+	if e.ghClient == nil {
+		return fmt.Errorf("cannot trigger workflow: no GitHub client (set GITHUB_TOKEN or run 'gh auth login')")
+	}
 	_, err := e.ghClient.Actions.CreateWorkflowDispatchEventByFileName(ctx,
 		owner, repo, "release.yaml",
 		github.CreateWorkflowDispatchEventRequest{
@@ -292,10 +295,12 @@ func main() {
 				fmt.Fprintln(w)
 			}
 
-			// --- GitHub client ---
+			// --- GitHub client (optional) ---
 			ghClient, err := newGitHubClient(ctx)
 			if err != nil {
-				return err
+				warnf(w, "GitHub API unavailable: %v", err)
+				infof(w, "Continuing without GitHub features (PR checks, label lookups, workflow trigger).")
+				fmt.Fprintln(w)
 			}
 
 			// --- Wire up executor ---
@@ -645,9 +650,12 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			}
 
 			// Check PR labels for release/breaking.
-			breakingPRs, err := listPRsWithLabel(ctx, ghClient, currentBranch, "release/breaking")
-			if err != nil {
-				warnf(w, "Failed to check PR labels: %v", err)
+			var breakingPRs []*github.PullRequest
+			if ghClient != nil {
+				breakingPRs, err = listPRsWithLabel(ctx, ghClient, currentBranch, "release/breaking")
+				if err != nil {
+					warnf(w, "Failed to check PR labels: %v", err)
+				}
 			}
 
 			if len(breakingCommits) > 0 || len(breakingPRs) > 0 {
@@ -679,9 +687,14 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 
 	// --- Check open PRs ---
 	infof(w, "Checking for open PRs against %s...", currentBranch)
-	openPRs, err := listOpenPRs(ctx, ghClient, currentBranch)
-	if err != nil {
-		warnf(w, "Failed to check open PRs: %v", err)
+	var openPRs []*github.PullRequest
+	if ghClient != nil {
+		openPRs, err = listOpenPRs(ctx, ghClient, currentBranch)
+		if err != nil {
+			warnf(w, "Failed to check open PRs: %v", err)
+		}
+	} else {
+		infof(w, "Skipping (no GitHub client).")
 	}
 
 	if len(openPRs) > 0 {
@@ -715,9 +728,15 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 
 	// Build PR number → labels map via GitHub API.
-	prLabels, err := buildPRLabelMap(ctx, ghClient, currentBranch)
-	if err != nil {
-		warnf(w, "Failed to fetch PR labels: %v", err)
+	var prLabels map[int][]string
+	if ghClient != nil {
+		prLabels, err = buildPRLabelMap(ctx, ghClient, currentBranch)
+		if err != nil {
+			warnf(w, "Failed to fetch PR labels: %v", err)
+		}
+	}
+	if prLabels == nil {
+		prLabels = make(map[int][]string)
 	}
 
 	type section struct {
