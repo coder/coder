@@ -39,7 +39,7 @@ Only pause to ask for confirmation when:
 
 | Task              | Command                  | Notes                               |
 |-------------------|--------------------------|-------------------------------------|
-| **Development**   | `./scripts/develop.sh`   | ⚠️ Don't use manual build            |
+| **Development**   | `./scripts/develop.sh`   | ⚠️ Don't use manual build           |
 | **Build**         | `make build`             | Fat binaries (includes server)      |
 | **Build Slim**    | `make build-slim`        | Slim binaries                       |
 | **Test**          | `make test`              | Full test suite                     |

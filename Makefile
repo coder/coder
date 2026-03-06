@@ -716,7 +716,6 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 #
 # Omitted:
 #   test-go-pg-17 (same tests, different PG version)
-#   test-go-race-pg (very slow, run manually: make test-race)
 
 define check-unstaged
 	unstaged="$$(git diff --name-only)"
@@ -751,6 +750,7 @@ pre-push:
 		test-postgres \
 		test-js \
 		test-e2e \
+		test-race \
 		sqlc-vet \
 		offlinedocs/check
 	$(check-unstaged)
