@@ -133,6 +133,8 @@ func waitForTaskIdle(ctx context.Context, inv *serpent.Invocation, client *coder
 		}
 	}
 
+	cliui.Infof(inv.Stdout, "Waiting for task to become idle...")
+
 	// NOTE(DanielleMaywood):
 	// It has been observed that the `TaskStatusError` state has
 	// appeared during a typical healthy startup [^0]. To combat
@@ -147,6 +149,15 @@ func waitForTaskIdle(ctx context.Context, inv *serpent.Invocation, client *coder
 	// [0]: https://github.com/coder/coder/pull/22203#discussion_r2858002569
 	const errorGracePeriod = 5 * time.Minute
 	gracePeriodDeadline := time.Now().Add(errorGracePeriod)
+
+	// NOTE(DanielleMaywood):
+	// On resume the MCP may not report an initial app status,
+	// leaving CurrentState nil indefinitely. To avoid hanging
+	// forever we treat Active with nil CurrentState as idle
+	// after a grace period, giving the MCP time to report
+	// during normal startup.
+	const nilStateGracePeriod = 30 * time.Second
+	var nilStateDeadline time.Time
 
 	// TODO(DanielleMaywood):
 	// When we have a streaming Task API, this should be converted
@@ -171,8 +182,20 @@ func waitForTaskIdle(ctx context.Context, inv *serpent.Invocation, client *coder
 			case codersdk.TaskStatusActive:
 				// Task is active; check app state.
 				if task.CurrentState == nil {
+					// The MCP may not have reported state yet.
+					// Start a grace period on first observation
+					// and treat as idle once it expires.
+					if nilStateDeadline.IsZero() {
+						nilStateDeadline = time.Now().Add(nilStateGracePeriod)
+					}
+					if time.Now().After(nilStateDeadline) {
+						return nil
+					}
 					continue
 				}
+				// Reset nil-state deadline since we got a real
+				// state report.
+				nilStateDeadline = time.Time{}
 				switch task.CurrentState.State {
 				case codersdk.TaskStateIdle,
 					codersdk.TaskStateComplete,
