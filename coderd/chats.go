@@ -593,7 +593,15 @@ func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := api.Database.ArchiveChatByID(ctx, chat.ID)
+	var err error
+	// Use chatDaemon when available so it can notify
+	// active subscribers. Fall back to direct DB for the
+	// simple archive flag — no streaming state is involved.
+	if api.chatDaemon != nil {
+		err = api.chatDaemon.ArchiveChat(ctx, chat.ID)
+	} else {
+		err = api.Database.ArchiveChatByID(ctx, chat.ID)
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to archive chat.",
@@ -621,7 +629,15 @@ func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := api.Database.UnarchiveChatByID(ctx, chat.ID)
+	var err error
+	// Use chatDaemon when available so it can notify
+	// active subscribers. Fall back to direct DB for the
+	// simple unarchive flag — no streaming state is involved.
+	if api.chatDaemon != nil {
+		err = api.chatDaemon.UnarchiveChat(ctx, chat.ID)
+	} else {
+		err = api.Database.UnarchiveChatByID(ctx, chat.ID)
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to unarchive chat.",
@@ -855,18 +871,6 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sendEvent, senderClosed, err := httpapi.OneWayWebSocketEventSender(api.Logger)(rw, r)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to open chat stream.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	defer func() {
-		<-senderClosed
-	}()
-
 	var afterMessageID int64
 	if v := r.URL.Query().Get("after_id"); v != "" {
 		var err error
@@ -880,14 +884,31 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
-	if !ok {
+	sendEvent, senderClosed, err := httpapi.OneWayWebSocketEventSender(api.Logger)(rw, r)
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Chat streaming is not available.",
-			Detail:  "Chat stream state is not configured.",
+			Message: "Failed to open chat stream.",
+			Detail:  err.Error(),
 		})
 		return
 	}
+	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
+	if !ok {
+		_ = sendEvent(codersdk.ServerSentEvent{
+			Type: codersdk.ServerSentEventTypeError,
+			Data: codersdk.Response{
+				Message: "Chat streaming is not available.",
+				Detail:  "Chat stream state is not configured.",
+			},
+		})
+		// Ensure the WebSocket is closed so senderClosed
+		// completes and the handler can return.
+		<-senderClosed
+		return
+	}
+	defer func() {
+		<-senderClosed
+	}()
 	defer cancel()
 
 	sendChatStreamBatch := func(batch []codersdk.ChatStreamEvent) error {
@@ -980,9 +1001,13 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		if updateErr != nil {
 			api.Logger.Error(ctx, "failed to mark chat as waiting",
 				slog.F("chat_id", chatID), slog.Error(updateErr))
-		} else {
-			chat = updatedChat
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to interrupt chat.",
+				Detail:  updateErr.Error(),
+			})
+			return
 		}
+		chat = updatedChat
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
