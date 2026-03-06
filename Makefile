@@ -723,12 +723,18 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 define check-unstaged
 	unstaged="$$(git diff --name-only)"
 	if [[ -n $$unstaged ]]; then
-		echo "Unstaged changes in tracked files:"
+		echo "ERROR: unstaged changes in tracked files:"
 		echo "$$unstaged"
 		echo
 		echo "Review each change (git diff), verify correctness, then stage:"
 		echo "  git add -u && git commit"
 		exit 1
+	fi
+	untracked=$$(git ls-files --other --exclude-standard)
+	if [[ -n $$untracked ]]; then
+		echo "WARNING: untracked files (not in this commit, won't be in CI):"
+		echo "$$untracked"
+		echo
 	fi
 endef
 
