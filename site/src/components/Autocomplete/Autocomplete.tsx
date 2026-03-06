@@ -172,20 +172,14 @@ export function Autocomplete<TOption>({
 					<span className="flex items-center shrink-0">
 						{loading && <Spinner size="sm" loading className="mr-1" />}
 						{showClearButton && (
-							<span
-								role="button"
-								tabIndex={0}
+							<button
+								type="button"
 								onClick={handleClear}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" || e.key === " ") {
-										handleClear(e);
-									}
-								}}
-								className="flex items-center justify-center size-5 rounded hover:bg-surface-secondary transition-colors"
+								className="flex items-center justify-center size-5 rounded appearance-none bg-transparent border-0 p-0 cursor-pointer hover:bg-surface-secondary transition-colors"
 								aria-label="Clear selection"
 							>
 								<X className="size-4 text-content-secondary hover:text-content-primary" />
-							</span>
+							</button>
 						)}
 						<span className="flex items-center justify-center size-5">
 							<ChevronDownIcon

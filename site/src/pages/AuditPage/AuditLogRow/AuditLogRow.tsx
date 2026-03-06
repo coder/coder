@@ -74,17 +74,10 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 		>
 			<TableCell className="!p-0 border-0 border-b text-base">
 				<Collapsible open={isDiffOpen} onOpenChange={setIsDiffOpen}>
-					<div
-						className="flex flex-row items-center gap-4 py-4 px-8"
-						tabIndex={0}
-						role="button"
+					<button
+						type="button"
+						className="flex flex-row items-center gap-4 py-4 px-8 appearance-none bg-transparent border-0 text-inherit font-inherit text-left w-full cursor-pointer"
 						onClick={toggle}
-						onKeyDown={(event) => {
-							if (event.key === "Enter" || event.key === " ") {
-								event.preventDefault();
-								toggle();
-							}
-						}}
 					>
 						<div className="flex flex-row items-center gap-4 flex-1">
 							<div className="flex flex-row items-center gap-4 w-full">
@@ -244,7 +237,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						) : (
 							<div className="ml-6" />
 						)}
-					</div>
+					</button>
 
 					{shouldDisplayDiff && (
 						<CollapsibleContent>
