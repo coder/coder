@@ -339,7 +339,6 @@ const AgentsPage: FC = () => {
 		});
 
 		if (typeof window !== "undefined") {
-			localStorage.removeItem(emptyInputStorageKey);
 			if (modelConfigID !== nilUUID) {
 				localStorage.setItem(lastModelConfigIDStorageKey, modelConfigID);
 			} else {
@@ -605,11 +604,15 @@ const AgentsPage: FC = () => {
 /**
  * Hook that manages draft persistence for the empty-state chat input.
  * Persists the current input to localStorage so the user's draft
- * survives page reloads, and clears it when a chat is created.
+ * survives page reloads.
+ *
+ * Once `submitDraft` is called, the stored draft is removed and further
+ * content changes are no longer persisted for the lifetime of the hook.
+ * Call `resetDraft` to re-enable persistence (e.g. on mutation failure).
  *
  * @internal Exported for testing.
  */
-export function useCreatePageDraft() {
+export function useEmptyStateDraft() {
 	const [initialInputValue] = useState(() => {
 		if (typeof window === "undefined") {
 			return "";
@@ -630,14 +633,26 @@ export function useCreatePageDraft() {
 		}
 	}, []);
 
-	const markSent = useCallback(() => {
+	const submitDraft = useCallback(() => {
 		// Mark as sent so that editor change events firing during
 		// the async gap cannot re-persist the draft.
 		sentRef.current = true;
 		localStorage.removeItem(emptyInputStorageKey);
 	}, []);
 
-	return { initialInputValue, inputValueRef, handleContentChange, markSent };
+	const resetDraft = useCallback(() => {
+		sentRef.current = false;
+	}, []);
+
+	const getCurrentContent = useCallback(() => inputValueRef.current, []);
+
+	return {
+		initialInputValue,
+		getCurrentContent,
+		handleContentChange,
+		submitDraft,
+		resetDraft,
+	};
 }
 
 interface AgentsEmptyStateProps {
@@ -671,8 +686,8 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	isConfigureAgentsDialogOpen,
 	onConfigureAgentsDialogOpenChange,
 }) => {
-	const { initialInputValue, inputValueRef, handleContentChange, markSent } =
-		useCreatePageDraft();
+	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
+		useEmptyStateDraft();
 	const initialSystemPrompt = () => {
 		if (typeof window === "undefined") {
 			return "";
@@ -841,14 +856,18 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 
 	const handleSend = useCallback(
 		(message: string) => {
-			markSent();
+			submitDraft();
 			void onCreateChat({
 				message,
 				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
 				model: selectedModelRef.current || undefined,
+			}).catch(() => {
+				// Re-enable draft persistence so the user can edit
+				// and retry after a failed send attempt.
+				resetDraft();
 			});
 		},
-		[markSent, onCreateChat],
+		[submitDraft, resetDraft, onCreateChat],
 	);
 
 	const selectedWorkspace = selectedWorkspaceId
