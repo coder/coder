@@ -1,4 +1,4 @@
--- name: UpsertAISeatState :exec
+-- name: UpsertAISeatState :one
 INSERT INTO ai_seat_state (
 	user_id,
 	first_used_at,
@@ -15,7 +15,8 @@ SET
 	last_event_type = EXCLUDED.last_event_type,
 	last_event_description = EXCLUDED.last_event_description,
 	updated_at = EXCLUDED.updated_at
-;
+RETURNING
+	(xmax = 0)::boolean AS is_new;
 
 -- name: GetActiveAISeatCount :one
 SELECT
