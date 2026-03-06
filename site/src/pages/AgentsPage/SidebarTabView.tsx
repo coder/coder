@@ -109,7 +109,15 @@ function useTabScroll() {
 		});
 	}, []);
 
-	return { ref, canScrollLeft, canScrollRight, scrollLeft, scrollRight };
+	const hasOverflow = canScrollLeft || canScrollRight;
+	return {
+		ref,
+		hasOverflow,
+		canScrollLeft,
+		canScrollRight,
+		scrollLeft,
+		scrollRight,
+	};
 }
 
 function repoTabLabel(repoRoot: string): string {
@@ -251,18 +259,22 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						<PanelLeftIcon />
 					</Button>
 				)}
-
 				{/* Tabs – scrolls so right-side buttons stay visible */}
-				{tabScroll.canScrollLeft && (
+				{tabScroll.hasOverflow && (
 					<button
 						type="button"
 						onClick={tabScroll.scrollLeft}
 						aria-label="Scroll tabs left"
-						className="flex shrink-0 items-center justify-center h-6 w-5 text-content-secondary hover:text-content-primary cursor-pointer border-0 bg-transparent p-0"
+						aria-hidden={!tabScroll.canScrollLeft}
+						tabIndex={tabScroll.canScrollLeft ? 0 : -1}
+						className={cn(
+							"flex shrink-0 items-center justify-center h-6 w-5 text-content-secondary hover:text-content-primary cursor-pointer border-0 bg-transparent p-0",
+							!tabScroll.canScrollLeft && "invisible",
+						)}
 					>
 						<ChevronLeftIcon className="size-3.5" />
 					</button>
-				)}
+				)}{" "}
 				<div
 					ref={tabScroll.ref}
 					className="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -320,17 +332,21 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						);
 					})}
 				</div>
-				{tabScroll.canScrollRight && (
+				{tabScroll.hasOverflow && (
 					<button
 						type="button"
 						onClick={tabScroll.scrollRight}
 						aria-label="Scroll tabs right"
-						className="flex shrink-0 items-center justify-center h-6 w-5 text-content-secondary hover:text-content-primary cursor-pointer border-0 bg-transparent p-0"
+						aria-hidden={!tabScroll.canScrollRight}
+						tabIndex={tabScroll.canScrollRight ? 0 : -1}
+						className={cn(
+							"flex shrink-0 items-center justify-center h-6 w-5 text-content-secondary hover:text-content-primary cursor-pointer border-0 bg-transparent p-0",
+							!tabScroll.canScrollRight && "invisible",
+						)}
 					>
 						<ChevronRightIcon className="size-3.5" />
 					</button>
 				)}
-
 				{/* Center: chat title when expanded */}
 				<div className="min-w-0 flex-1 text-center">
 					{isExpanded && chatTitle && (
@@ -339,7 +355,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</span>
 					)}
 				</div>
-
 				{/* Diff style toggle */}
 				<div className="flex shrink-0 items-center gap-1">
 					<Button
@@ -367,7 +382,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						<Columns2Icon className="!p-0 !size-3.5" />
 					</Button>
 				</div>
-
 				{/* Right side: expand/contract button */}
 				<Button
 					variant="subtle"
