@@ -710,7 +710,8 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 # fmt                   → fmt               ✓
 # lint                  → lint              ✓ (includes lint-actions locally)
 # (typos in lint job)   → lint/typos        ✓
-# check-build           → pre-push/build    ✓ (go build, local arch only)
+# check-build           → slim binary       ✓ (local arch only)
+# (site build)          → site/out/index.html  (pnpm build)
 # test-go-pg            → test-postgres       (needs Docker)
 # test-js               → test-js             (slow)
 # test-e2e              → test-e2e            (needs Playwright)
@@ -739,7 +740,7 @@ pre-commit:
 		fmt \
 		lint \
 		lint/typos \
-		pre-push/build
+		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	$(check-unstaged)
 .PHONY: pre-commit
 
@@ -749,7 +750,8 @@ pre-push:
 		fmt \
 		lint \
 		lint/typos \
-		pre-push/build \
+		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT) \
+		site/out/index.html \
 		test-postgres \
 		test-js \
 		test-e2e \
@@ -757,10 +759,6 @@ pre-push:
 		offlinedocs/check
 	$(check-unstaged)
 .PHONY: pre-push
-
-pre-push/build:
-	go build ./...
-.PHONY: pre-push/build
 
 offlinedocs/check: offlinedocs/node_modules/.installed
 	cd offlinedocs/
