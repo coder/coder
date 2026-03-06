@@ -1133,6 +1133,7 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)
 				r.Get("/git/watch", api.watchChatGit)
+				r.Get("/desktop", api.watchChatDesktop)
 				r.Post("/archive", api.archiveChat)
 				r.Post("/unarchive", api.unarchiveChat)
 				r.Post("/messages", api.postChatMessages)

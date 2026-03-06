@@ -142,6 +142,21 @@ func (mr *MockAgentConnMockRecorder) DeleteDevcontainer(ctx, devcontainerID any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDevcontainer", reflect.TypeOf((*MockAgentConn)(nil).DeleteDevcontainer), ctx, devcontainerID)
 }
 
+// Desktop mocks base method.
+func (m *MockAgentConn) Desktop(ctx context.Context) (net.Conn, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Desktop", ctx)
+	ret0, _ := ret[0].(net.Conn)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Desktop indicates an expected call of Desktop.
+func (mr *MockAgentConnMockRecorder) Desktop(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Desktop", reflect.TypeOf((*MockAgentConn)(nil).Desktop), ctx)
+}
+
 // DialContext mocks base method.
 func (m *MockAgentConn) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	m.ctrl.T.Helper()
