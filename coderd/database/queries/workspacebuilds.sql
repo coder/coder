@@ -248,6 +248,7 @@ WHERE id = @id::uuid;
 -- Returns build metadata for e2e workspace build duration metrics.
 -- Also checks if all agents are ready and returns the worst status.
 SELECT
+    wb.job_id,
     wb.created_at,
     wb.transition,
     t.name AS template_name,
@@ -268,9 +269,9 @@ JOIN workspaces w ON wb.workspace_id = w.id
 JOIN templates t ON w.template_id = t.id
 JOIN organizations o ON t.organization_id = o.id
 JOIN workspace_resources wr ON wr.job_id = wb.job_id
-JOIN workspace_agents wa ON wa.resource_id = wr.id
+JOIN workspace_agents wa ON wa.resource_id = wr.id AND wa.parent_id IS NULL
 WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
-GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id;
+GROUP BY wb.job_id, wb.created_at, wb.transition, t.name, o.name, w.owner_id;
 
 -- name: GetWorkspaceBuildProvisionerStateByID :one
 -- Fetches the provisioner state of a workspace build, joined through to the
