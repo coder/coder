@@ -133,16 +133,21 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, msg codersdk
 	}
 
 	err = eg.Wait()
-	if err != nil {
-		return xerrors.Errorf("send webpush notifications: %w", err)
-	}
 
+	// Always clean up stale subscriptions, even if some sends failed.
+	// Otherwise, a delivery error in one subscription would prevent
+	// cleanup of expired (410 Gone) subscriptions, causing them to
+	// accumulate in the database and be retried on every dispatch.
 	if len(cleanupSubscriptions) > 0 {
 		// nolint:gocritic // These are known to be invalid subscriptions.
-		err = n.store.DeleteWebpushSubscriptions(dbauthz.AsNotifier(ctx), cleanupSubscriptions)
-		if err != nil {
-			n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(err))
+		delErr := n.store.DeleteWebpushSubscriptions(dbauthz.AsNotifier(ctx), cleanupSubscriptions)
+		if delErr != nil {
+			n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(delErr))
 		}
+	}
+
+	if err != nil {
+		return xerrors.Errorf("send webpush notifications: %w", err)
 	}
 
 	return nil
