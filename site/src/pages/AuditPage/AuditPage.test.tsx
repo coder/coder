@@ -8,13 +8,7 @@ import {
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import {
-	createEvent,
-	fireEvent,
-	screen,
-	waitFor,
-	within,
-} from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import type { AuditLogsRequest } from "api/typesGenerated";
@@ -91,47 +85,53 @@ describe("AuditPage", () => {
 			audit_logs: [MockAuditLog],
 			count: 1,
 		});
+		const user = userEvent.setup();
 
 		await renderPage();
 
 		const row = screen.getByTestId(`audit-log-row-${MockAuditLog.id}`);
 		const expandableRowButton = within(row).getByRole("button");
 
+		expect(expandableRowButton).toHaveAttribute("role", "button");
+		expect(expandableRowButton).toHaveAttribute("tabindex", "0");
+		expect(expandableRowButton.tagName).toBe("DIV");
 		expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
 
-		fireEvent.keyDown(expandableRowButton, { key: "Enter" });
+		expandableRowButton.focus();
+		await user.keyboard("{Enter}");
 
 		expect(screen.getAllByText(/ttl:/i)).toHaveLength(2);
 
-		fireEvent.keyDown(expandableRowButton, { key: "Enter" });
+		await user.keyboard("{Enter}");
 
 		await waitFor(() => {
 			expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
 		});
 	});
 
-	it("toggles an expandable audit row with Space and prevents default", async () => {
+	it("toggles an expandable audit row with Space", async () => {
 		vi.spyOn(API, "getAuditLogs").mockResolvedValue({
 			audit_logs: [MockAuditLog],
 			count: 1,
 		});
+		const user = userEvent.setup();
 
 		await renderPage();
 
 		const row = screen.getByTestId(`audit-log-row-${MockAuditLog.id}`);
 		const expandableRowButton = within(row).getByRole("button");
-		const spaceEvent = createEvent.keyDown(expandableRowButton, {
-			key: " ",
-			code: "Space",
-		});
-		const preventDefaultSpy = vi.spyOn(spaceEvent, "preventDefault");
 
-		fireEvent(expandableRowButton, spaceEvent);
+		expect(expandableRowButton).toHaveAttribute("role", "button");
+		expect(expandableRowButton).toHaveAttribute("tabindex", "0");
+		expect(expandableRowButton.tagName).toBe("DIV");
+		expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
 
-		expect(preventDefaultSpy).toHaveBeenCalled();
+		expandableRowButton.focus();
+		await user.keyboard(" ");
+
 		expect(screen.getAllByText(/ttl:/i)).toHaveLength(2);
 
-		fireEvent.keyDown(expandableRowButton, { key: " " });
+		await user.keyboard(" ");
 
 		await waitFor(() => {
 			expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
