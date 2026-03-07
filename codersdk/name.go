@@ -48,8 +48,9 @@ func NameValid(str string) error {
 	if len(str) < 1 {
 		return xerrors.New("must be >= 1 character")
 	}
-	// Avoid conflicts with routes like /templates/new and /groups/create.
-	if str == "new" || str == "create" {
+	// Avoid conflicts with routes like /templates/new, /groups/create,
+	// and the @me user alias used in workspace app routing.
+	if str == "new" || str == "create" || str == "me" {
 		return xerrors.Errorf("cannot use %q as a name", str)
 	}
 	matched := UsernameValidRegex.MatchString(str)
@@ -107,8 +108,9 @@ func GroupNameValid(str string) error {
 	if len(str) > limit {
 		return xerrors.New(fmt.Sprintf("must be <= %d characters", limit))
 	}
-	// Avoid conflicts with routes like /groups/new and /groups/create.
-	if str == "new" || str == "create" {
+	// Avoid conflicts with routes like /groups/new, /groups/create,
+	// and the @me user alias.
+	if str == "new" || str == "create" || str == "me" {
 		return xerrors.Errorf("cannot use %q as a name", str)
 	}
 	matched := UsernameValidRegex.MatchString(str)
