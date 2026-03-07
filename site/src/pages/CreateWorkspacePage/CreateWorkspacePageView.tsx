@@ -62,7 +62,7 @@ interface CreateWorkspacePageViewProps {
 	disabledParams?: string[];
 	error: unknown;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
-	externalAuthPollingState: ExternalAuthPollingState;
+	getExternalAuthPollingState: (id: string) => ExternalAuthPollingState;
 	hasAllRequiredExternalAuth: boolean;
 	mode: CreateWorkspaceMode;
 	parameters: PreviewParameter[];
@@ -78,7 +78,7 @@ interface CreateWorkspacePageViewProps {
 	) => void;
 	resetMutation: () => void;
 	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
-	startPollingExternalAuth: () => void;
+	startPollingExternalAuth: (id: string) => void;
 	owner: TypesGen.MinimalUser;
 	setOwner: (user: TypesGen.MinimalUser) => void;
 }
@@ -93,7 +93,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	disabledParams,
 	error,
 	externalAuth,
-	externalAuthPollingState,
+	getExternalAuthPollingState,
 	hasAllRequiredExternalAuth,
 	mode,
 	parameters,
@@ -538,9 +538,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										key={auth.id}
 										error={error}
 										auth={auth}
-										isLoading={externalAuthPollingState === "polling"}
-										onStartPolling={startPollingExternalAuth}
-										displayRetry={externalAuthPollingState === "abandoned"}
+										isLoading={getExternalAuthPollingState(auth.id) === "polling"}
+										onStartPolling={() => startPollingExternalAuth(auth.id)}
+										displayRetry={getExternalAuthPollingState(auth.id) === "abandoned"}
 									/>
 								))}
 							</div>
