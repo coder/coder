@@ -58,6 +58,9 @@ func TestUsernameValid(t *testing.T) {
 		{"123456789012345678901234567890123", false},
 		{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false},
 		{"123456789012345678901234567890123123456789012345678901234567890123", false},
+
+		// Reserved names
+		{"me", false},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.Username, func(t *testing.T) {
@@ -183,11 +186,14 @@ func TestFrom(t *testing.T) {
 		{"kyle+wow@kwc.io", "kylewow"},
 		{"kyle+testing", "kyletesting"},
 		{"kyle-testing", "kyle-testing"},
-		{"much.”more unusual”@example.com", "muchmoreunusual"},
+		{"much.\"more unusual\"@example.com", "muchmoreunusual"},
+
+		// Reserved names get a random username generated.
+		{"me", ""},
 
 		// Cases where an invalid string is provided, and the result is a random name.
 		{"123456789012345678901234567890123", ""},
-		{"very.unusual.”@”.unusual.com@example.com", ""},
+		{"very.unusual.\"@\".unusual.com@example.com", ""},
 		{"___@ok.com", ""},
 		{" something with spaces ", ""},
 		{"--test--", ""},
@@ -267,6 +273,7 @@ func TestGroupNameValid(t *testing.T) {
 		{"my-group", true},
 		{"create", false},
 		{"new", false},
+		{"me", false},
 		{"Lord Voldemort Team", false},
 		{random255String, true},
 		{random256String, false},
