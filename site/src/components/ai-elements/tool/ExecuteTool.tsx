@@ -4,6 +4,7 @@ import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	CheckIcon,
 	ChevronDownIcon,
+	ChevronRightIcon,
 	CircleAlertIcon,
 	ExternalLinkIcon,
 	LoaderIcon,
@@ -19,8 +20,10 @@ import {
 
 /**
  * Specialized rendering for `execute` tool calls. Shows the command
- * in a terminal-style block with a copy button. Output is shown in a
- * collapsed preview (~3 lines) with an expand chevron at the bottom.
+ * in a terminal-style block with a copy button. The output section
+ * is collapsed by default — only the `$ command` header is visible.
+ * Clicking the header toggles output visibility. When a command is
+ * still running the output auto-expands so users see live progress.
  */
 export const ExecuteTool: React.FC<{
 	command: string;
@@ -28,13 +31,13 @@ export const ExecuteTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 }> = ({ command, output, status, isError }) => {
+	const isRunning = status === "running";
 	const [expanded, setExpanded] = useState(false);
 	const outputRef = useRef<HTMLPreElement | null>(null);
 	const hasOutput = output.length > 0;
-	const isRunning = status === "running";
 
 	// Check whether the output overflows the collapsed height so we
-	// know if we need to show the expand toggle at all.
+	// know if we need to show the inner expand toggle at all.
 	const [overflows, setOverflows] = useState(false);
 	const measureRef = (node: HTMLPreElement | null) => {
 		outputRef.current = node;
@@ -43,18 +46,34 @@ export const ExecuteTool: React.FC<{
 		}
 	};
 
+	// Inner expand/collapse controls the long-output overflow inside
+	// the output section (separate from the outer expanded state).
+	const [innerExpanded, setInnerExpanded] = useState(false);
+
 	return (
 		<div className="group/exec w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
-			{/* Header: $ command + copy button */}
+			{/* Header: chevron + $ command + copy button */}
 			<div className="flex w-full items-center justify-between gap-2 px-2.5 py-0.5">
-				<div className="flex min-w-0 flex-1 items-center gap-2">
+				<button
+					type="button"
+					aria-expanded={expanded}
+					aria-label={expanded ? "Collapse command output" : "Expand command output"}
+					onClick={() => setExpanded((v) => !v)}
+					className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit]"
+				>
+					<ChevronRightIcon
+						className={cn(
+							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
+							expanded && "rotate-90",
+						)}
+					/>
 					<span className="shrink-0 font-mono text-xs text-content-secondary">
 						$
 					</span>
-					<code className="min-w-0 flex-1 truncate font-mono text-xs text-content-primary">
+					<code className="min-w-0 flex-1 truncate text-left font-mono text-xs text-content-secondary">
 						{command}
 					</code>
-				</div>
+				</button>
 				<div className="flex shrink-0 items-center gap-1">
 					{isRunning && (
 						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
@@ -65,19 +84,19 @@ export const ExecuteTool: React.FC<{
 				</div>
 			</div>
 
-			{/* Output preview / expanded */}
-			{hasOutput && (
+			{/* Output section — only visible when expanded */}
+			{expanded && hasOutput && (
 				<>
 					<div className="h-px" style={BORDER_BG_STYLE} />
 					<ScrollArea
 						className="text-2xs"
-						viewportClassName={expanded ? "max-h-96" : ""}
+						viewportClassName={innerExpanded ? "max-h-96" : ""}
 						scrollBarClassName="w-1.5"
 					>
 						<pre
 							ref={measureRef}
 							style={
-								expanded
+								innerExpanded
 									? undefined
 									: { maxHeight: COLLAPSED_OUTPUT_HEIGHT, overflow: "hidden" }
 							}
@@ -90,19 +109,19 @@ export const ExecuteTool: React.FC<{
 						</pre>
 					</ScrollArea>
 
-					{/* Expand / collapse toggle at the bottom */}
+					{/* Inner expand / collapse toggle for long output */}
 					{overflows && (
 						<button
 							type="button"
-							aria-expanded={expanded}
-							onClick={() => setExpanded((v) => !v)}
+							aria-expanded={innerExpanded}
+							onClick={() => setInnerExpanded((v) => !v)}
 							className="border-0 bg-transparent m-0 font-[inherit] text-[inherit] flex w-full cursor-pointer items-center justify-center py-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
-							aria-label={expanded ? "Collapse output" : "Expand output"}
+							aria-label={innerExpanded ? "Collapse output" : "Expand output"}
 						>
 							<ChevronDownIcon
 								className={cn(
 									"h-3 w-3 transition-transform",
-									expanded && "rotate-180",
+									innerExpanded && "rotate-180",
 								)}
 							/>
 						</button>
