@@ -82,6 +82,7 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 			Message: "Internal error fetching DAUs.",
 			Detail:  err.Error(),
 		})
+		return
 	}
 
 	resp := codersdk.DAUsResponse{
