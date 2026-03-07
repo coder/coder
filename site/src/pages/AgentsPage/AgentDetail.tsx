@@ -622,7 +622,7 @@ const AgentDetail: FC = () => {
 	const [prevHasDiffStatus, setPrevHasDiffStatus] = useState(false);
 	if (hasDiffStatus !== prevHasDiffStatus) {
 		setPrevHasDiffStatus(hasDiffStatus);
-		if (hasDiffStatus) {
+		if (hasDiffStatus && !window.matchMedia("(max-width: 767px)").matches) {
 			setShowSidebarPanel(true);
 		}
 	}
@@ -717,7 +717,7 @@ const AgentDetail: FC = () => {
 	const hasGitRepos = gitWatcher.repositories.size > 0;
 	if (hasGitRepos !== prevHasGitRepos) {
 		setPrevHasGitRepos(hasGitRepos);
-		if (hasGitRepos) {
+		if (hasGitRepos && !window.matchMedia("(max-width: 767px)").matches) {
 			setShowSidebarPanel(true);
 		}
 	}
@@ -725,7 +725,6 @@ const AgentDetail: FC = () => {
 	// Extract PR number from diff status URL.
 	const prMatch = diffStatusQuery.data?.url?.match(/\/pull\/(\d+)/)?.[1];
 	const prNumber = prMatch ? Number(prMatch) : undefined;
-
 	useEffect(() => {
 		setSelectedModel((current) => {
 			if (current && modelOptions.some((model) => model.id === current)) {
@@ -1127,6 +1126,7 @@ const AgentDetail: FC = () => {
 				className={cn(
 					"relative flex min-h-0 min-w-0 flex-1 flex-col",
 					visualExpanded && "hidden",
+					shouldShowSidebar && "max-md:hidden",
 				)}
 			>
 				<div className="relative z-10 shrink-0 overflow-visible">
@@ -1247,6 +1247,7 @@ const AgentDetail: FC = () => {
 					}
 					onRefresh={gitWatcher.refresh}
 					onCommit={handleCommit}
+					onClose={() => setShowSidebarPanel(false)}
 					isExpanded={visualExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 					isSidebarCollapsed={isSidebarCollapsed}
