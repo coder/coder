@@ -3797,6 +3797,16 @@ type AIBridgeInterception struct {
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
+// Audit log of model thinking in intercepted requests in AI Bridge
+type AIBridgeModelThought struct {
+	ID             uuid.UUID             `db:"id" json:"id"`
+	InterceptionID uuid.UUID             `db:"interception_id" json:"interception_id"`
+	ToolUsageID    uuid.UUID             `db:"tool_usage_id" json:"tool_usage_id"`
+	Content        sql.NullString        `db:"content" json:"content"`
+	Metadata       pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt      time.Time             `db:"created_at" json:"created_at"`
+}
+
 // Audit log of tokens used by intercepted requests in AI Bridge
 type AIBridgeTokenUsage struct {
 	ID             uuid.UUID `db:"id" json:"id"`
