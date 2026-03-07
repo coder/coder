@@ -9,6 +9,7 @@ import {
 	MinimizeIcon,
 	PanelLeftIcon,
 	Rows3Icon,
+	XIcon,
 } from "lucide-react";
 import {
 	type FC,
@@ -54,6 +55,8 @@ interface SidebarTabViewProps {
 	chatTitle?: string;
 	/** PR diff stats for the PR tab. */
 	diffStatus?: { additions?: number; deletions?: number };
+	/** Callback to close the panel (used on mobile). */
+	onClose?: () => void;
 }
 
 /** How far (px) each chevron click scrolls the tab strip. */
@@ -151,6 +154,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	onToggleSidebarCollapsed,
 	chatTitle,
 	diffStatus,
+	onClose,
 }) => {
 	const tabIdPrefix = useId();
 	const repoEntries = Array.from(repositories.entries()).sort(([a], [b]) =>
@@ -216,12 +220,23 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							</span>
 						)}
 					</div>
+					{onClose && (
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={onClose}
+							aria-label="Close panel"
+							className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:hidden"
+						>
+							<XIcon />
+						</Button>
+					)}
 					<Button
 						variant="subtle"
 						size="icon"
 						onClick={onToggleExpanded}
 						aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-						className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary"
+						className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:inline-flex"
 					>
 						{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 					</Button>
@@ -252,7 +267,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						<PanelLeftIcon />
 					</Button>
 				)}
-
 				{/* Scrollable tab strip with overlay chevrons */}
 				<div className="relative min-w-0 flex-1">
 					{tabScroll.canScrollLeft && (
@@ -327,7 +341,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</button>
 					)}
 				</div>
-
 				{/* Center: chat title when expanded */}
 				<div className="min-w-0 shrink-0 text-center">
 					{isExpanded && chatTitle && (
@@ -336,7 +349,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</span>
 					)}
 				</div>
-
 				{/* Diff style toggle */}
 				<div className="flex shrink-0 items-center gap-1">
 					<Button
@@ -364,19 +376,28 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						<Columns2Icon className="!p-0 !size-3.5" />
 					</Button>
 				</div>
-
-				{/* Right side: expand/contract button */}
+				{/* Right side: close (mobile) / expand (desktop) */}
+				{onClose && (
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={onClose}
+						aria-label="Close panel"
+						className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:hidden"
+					>
+						<XIcon />
+					</Button>
+				)}
 				<Button
 					variant="subtle"
 					size="icon"
 					onClick={onToggleExpanded}
 					aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-					className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary"
+					className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:inline-flex"
 				>
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
-
 			{/* Tab content */}
 			<div
 				role="tabpanel"
