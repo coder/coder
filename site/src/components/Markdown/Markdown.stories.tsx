@@ -95,3 +95,21 @@ export const GFMAlerts: Story = {
 		`,
 	},
 };
+
+export const GFMAlertsWithInlineMarkdown: Story = {
+	args: {
+		children: `
+> [!IMPORTANT]
+> Larger **instances** cost more. Choose based on your workload.
+
+> [!TIP]
+> Dotfiles are not applied by default. [Learn more about dotfiles](https://example.com).
+
+> [!WARNING]
+> Do **not** run commands without checking the [documentation](https://example.com) first.
+
+> [!NOTE]
+> This is a _simple_ note with **bold** and *italic* text.
+		`,
+	},
+};
