@@ -1,13 +1,14 @@
-import type { FC, HTMLAttributes, ReactNode } from "react";
+import type { FC, HTMLAttributes } from "react";
 import { cn } from "utils/cn";
 
 export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
+	icon?: React.ReactNode;
 	/** Text Message to display, placed inside Typography component */
 	message: string;
 	/** Longer optional description to display below the message */
-	description?: string | ReactNode;
-	cta?: ReactNode;
-	image?: ReactNode;
+	description?: string | React.ReactNode;
+	cta?: React.ReactNode;
+	image?: React.ReactNode;
 	isCompact?: boolean;
 }
 
@@ -17,6 +18,7 @@ export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
  * or to add an item that they currently have none of.
  */
 export const EmptyState: FC<EmptyStateProps> = ({
+	icon,
 	message,
 	description,
 	cta,
@@ -28,17 +30,16 @@ export const EmptyState: FC<EmptyStateProps> = ({
 	return (
 		<div
 			className={cn(
-				"overflow-hidden flex flex-col justify-center items-center text-center min-h-96 py-20 px-10 relative",
+				"overflow-hidden flex flex-col gap-2 justify-center items-center text-center min-h-96 py-20 px-10 relative",
 				isCompact && "min-h-44 py-2.5",
 				className,
 			)}
 			{...attrs}
 		>
-			<h5 className="text-2xl font-medium m-0">{message}</h5>
+			{icon}
+			<h5 className="text-xl font-medium m-0">{message}</h5>
 			{description && (
-				<p className="mt-4 line-height-[140%] max-w-md text-content-secondary">
-					{description}
-				</p>
+				<p className="m-0 max-w-md text-content-secondary">{description}</p>
 			)}
 			{cta && <div className="mt-6">{cta}</div>}
 			{image}
