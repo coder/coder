@@ -1292,7 +1292,7 @@ CREATE TABLE chats (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     parent_chat_id uuid,
     root_chat_id uuid,
-    last_model_config_id uuid NOT NULL,
+    last_model_config_id uuid,
     archived boolean DEFAULT false NOT NULL,
     last_error text
 );
@@ -3801,7 +3801,7 @@ ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
-    ADD CONSTRAINT chat_messages_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
+    ADD CONSTRAINT chat_messages_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
@@ -3822,7 +3822,7 @@ ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
-    ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);
+    ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
