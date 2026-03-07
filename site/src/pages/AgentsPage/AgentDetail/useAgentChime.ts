@@ -31,7 +31,7 @@ let chimeAudio: HTMLAudioElement | null = null;
 function playChime(): void {
 	try {
 		if (!chimeAudio) {
-			chimeAudio = new Audio("/chime.wav");
+			chimeAudio = new Audio("/chime.mp3");
 			chimeAudio.volume = 0.5;
 		}
 		// Reset to the start in case a previous play hasn't
