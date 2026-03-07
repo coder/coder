@@ -65,8 +65,7 @@ coder:
 
   # coder.initContainers -- Init containers for the deployment. See:
   # https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
-  initContainers:
-    []
+  initContainers: []
     # - name: init-container
     #   image: busybox:1.28
     #   command: ['sh', '-c', "sleep 2"]
@@ -169,6 +168,11 @@ coder:
     # the container can gain additional privileges, such as escalating to
     # root. It is recommended to leave this setting disabled in production.
     allowPrivilegeEscalation: false
+    # coder.securityContext.capabilities -- Set capabilities for the
+    # coder a Container.
+    capabilities:
+      drop:
+        - ALL
 
   # coder.podSecurityContext -- Pod-level security context settings that apply
   # to all containers in the pod. This is useful for setting volume ownership
@@ -251,8 +255,7 @@ coder:
   # coder.lifecycle -- container lifecycle handlers for the Coder container, allowing
   # for lifecycle events such as postStart and preStop events
   # See: https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
-  lifecycle:
-    {}
+  lifecycle: {}
     # postStart:
     #   exec:
     #     command: ["/bin/sh", "-c", "echo postStart"]
@@ -318,8 +321,7 @@ coder:
     #
     # The given key in each secret is mounted at
     # `/etc/ssl/certs/{secret_name}.crt`.
-    secrets:
-      []
+    secrets: []
       # - name: "my-ca-bundle"
       #   key: "ca-bundle.crt"
 
@@ -349,12 +351,18 @@ coder:
 
   # coder.tolerations -- Tolerations for tainted nodes.
   # See: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
-  tolerations:
-    []
+  tolerations: []
     # - key: "key"
     #   operator: "Equal"
     #   value: "value"
     #   effect: "NoSchedule"
+
+  # coder.hostAliases -- extra entries for pod's /etc/hosts.
+  # See: https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/
+  hostAliases: []
+    # - hostnames:
+    #     - "some.host.name.com"
+    #  ip: 0.0.0.0
 
   # coder.nodeSelector -- Node labels for constraining coder pods to nodes.
   # See: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector

@@ -59,6 +59,9 @@ spec:
       topologySpreadConstraints:
       {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.coder.hostAliases }}
+      hostAliases:
+      {{- toYaml . | nindent 8 }}
       {{- with .Values.coder.initContainers }}
       initContainers:
       {{ toYaml . | nindent 8 }}
