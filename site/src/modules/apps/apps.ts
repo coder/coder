@@ -101,13 +101,20 @@ export const getAppHref = (
 	{ path, token, workspace, agent, host }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
-		const appProtocol = new URL(app.url).protocol;
-		const isAllowedProtocol =
-			ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(appProtocol);
+		try {
+			const appProtocol = new URL(app.url).protocol;
+			const isAllowedProtocol =
+				ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(appProtocol);
 
-		return needsSessionToken(app) && isAllowedProtocol
-			? app.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, token ?? "")
-			: app.url;
+			return needsSessionToken(app) && isAllowedProtocol
+				? app.url.replaceAll(SESSION_TOKEN_PLACEHOLDER, token ?? "")
+				: app.url;
+		} catch {
+			// If the URL is invalid (e.g. missing protocol), return it as-is
+			// rather than crashing the page. The browser will handle the error
+			// when the user clicks the link.
+			return app.url;
+		}
 	}
 
 	if (app.command) {
