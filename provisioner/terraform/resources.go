@@ -1,9 +1,11 @@
 package terraform
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -634,36 +636,35 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	}
 
 	// Associate envs with agents.
-	for _, resources := range tfResourcesByLabel {
-		for _, resource := range resources {
-			if resource.Type != "coder_env" {
-				continue
-			}
-			var attrs agentEnvAttributes
-			err = mapstructure.Decode(resource.AttributeValues, &attrs)
-			if err != nil {
-				return nil, xerrors.Errorf("decode env attributes: %w", err)
-			}
+	// Collect and sort env resources by address for deterministic ordering.
+	// When multiple coder_env resources define the same key, the last one
+	// by sorted address wins, ensuring stable behavior across builds.
+	sortedEnvResources := sortedResourcesByType(tfResourcesByLabel, "coder_env")
+	for _, resource := range sortedEnvResources {
+		var attrs agentEnvAttributes
+		err = mapstructure.Decode(resource.AttributeValues, &attrs)
+		if err != nil {
+			return nil, xerrors.Errorf("decode env attributes: %w", err)
+		}
 
-			env := &proto.Env{
-				Name:  attrs.Name,
-				Value: attrs.Value,
-			}
+		env := &proto.Env{
+			Name:  attrs.Name,
+			Value: attrs.Value,
+		}
 
-		envAgentLoop:
-			for _, agents := range resourceAgents {
-				for _, agent := range agents {
-					// Find agents with the matching ID and associate them!
-					if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
-						agent.ExtraEnvs = append(agent.ExtraEnvs, env)
+	envAgentLoop:
+		for _, agents := range resourceAgents {
+			for _, agent := range agents {
+				// Find agents with the matching ID and associate them!
+				if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+					agent.ExtraEnvs = append(agent.ExtraEnvs, env)
+					break envAgentLoop
+				}
+
+				for _, dc := range agent.GetDevcontainers() {
+					if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
+						dc.Envs = append(dc.Envs, env)
 						break envAgentLoop
-					}
-
-					for _, dc := range agent.GetDevcontainers() {
-						if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
-							dc.Envs = append(dc.Envs, env)
-							break envAgentLoop
-						}
 					}
 				}
 			}
@@ -671,43 +672,40 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	}
 
 	// Associate scripts with agents.
-	for _, resources := range tfResourcesByLabel {
-		for _, resource := range resources {
-			if resource.Type != "coder_script" {
-				continue
-			}
-			var attrs agentScriptAttributes
-			err = mapstructure.Decode(resource.AttributeValues, &attrs)
-			if err != nil {
-				return nil, xerrors.Errorf("decode script attributes: %w", err)
-			}
+	// Sort for deterministic ordering, same as envs above.
+	sortedScriptResources := sortedResourcesByType(tfResourcesByLabel, "coder_script")
+	for _, resource := range sortedScriptResources {
+		var attrs agentScriptAttributes
+		err = mapstructure.Decode(resource.AttributeValues, &attrs)
+		if err != nil {
+			return nil, xerrors.Errorf("decode script attributes: %w", err)
+		}
 
-			script := &proto.Script{
-				DisplayName:      attrs.DisplayName,
-				Icon:             attrs.Icon,
-				Script:           attrs.Script,
-				Cron:             attrs.Cron,
-				LogPath:          attrs.LogPath,
-				StartBlocksLogin: attrs.StartBlocksLogin,
-				RunOnStart:       attrs.RunOnStart,
-				RunOnStop:        attrs.RunOnStop,
-				TimeoutSeconds:   attrs.TimeoutSeconds,
-			}
+		script := &proto.Script{
+			DisplayName:      attrs.DisplayName,
+			Icon:             attrs.Icon,
+			Script:           attrs.Script,
+			Cron:             attrs.Cron,
+			LogPath:          attrs.LogPath,
+			StartBlocksLogin: attrs.StartBlocksLogin,
+			RunOnStart:       attrs.RunOnStart,
+			RunOnStop:        attrs.RunOnStop,
+			TimeoutSeconds:   attrs.TimeoutSeconds,
+		}
 
-		scriptAgentLoop:
-			for _, agents := range resourceAgents {
-				for _, agent := range agents {
-					// Find agents with the matching ID and associate them!
-					if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
-						agent.Scripts = append(agent.Scripts, script)
+	scriptAgentLoop:
+		for _, agents := range resourceAgents {
+			for _, agent := range agents {
+				// Find agents with the matching ID and associate them!
+				if dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+					agent.Scripts = append(agent.Scripts, script)
+					break scriptAgentLoop
+				}
+
+				for _, dc := range agent.GetDevcontainers() {
+					if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
+						dc.Scripts = append(dc.Scripts, script)
 						break scriptAgentLoop
-					}
-
-					for _, dc := range agent.GetDevcontainers() {
-						if dependsOnDevcontainer(graph, dc, attrs.AgentID, resource) {
-							dc.Scripts = append(dc.Scripts, script)
-							break scriptAgentLoop
-						}
 					}
 				}
 			}
@@ -1145,6 +1143,24 @@ func PtrInt32(number int) *int32 {
 	// #nosec G115 - Safe conversion as the number is expected to be within int32 range
 	n := int32(number)
 	return &n
+}
+
+// sortedResourcesByType collects all resources of the given type from the
+// label map and returns them sorted by address. This ensures deterministic
+// iteration order when processing resources that are stored in Go maps.
+func sortedResourcesByType(tfResourcesByLabel map[string]map[string]*tfjson.StateResource, resourceType string) []*tfjson.StateResource {
+	var result []*tfjson.StateResource
+	for _, resources := range tfResourcesByLabel {
+		for _, resource := range resources {
+			if resource.Type == resourceType {
+				result = append(result, resource)
+			}
+		}
+	}
+	slices.SortFunc(result, func(a, b *tfjson.StateResource) int {
+		return cmp.Compare(a.Address, b.Address)
+	})
+	return result
 }
 
 // convertAddressToLabel returns the Terraform address without the count
