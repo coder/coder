@@ -193,7 +193,7 @@ const CreateWorkspacePage: FC = () => {
 
 	const {
 		externalAuth,
-		externalAuthPollingState,
+		getExternalAuthPollingState,
 		startPollingExternalAuth,
 		isLoadingExternalAuth,
 	} = useExternalAuth(realizedVersionId);
@@ -330,7 +330,7 @@ const CreateWorkspacePage: FC = () => {
 					versionId={realizedVersionId}
 					versionName={templateVersionQuery.data?.name}
 					externalAuth={externalAuth ?? []}
-					externalAuthPollingState={externalAuthPollingState}
+					getExternalAuthPollingState={getExternalAuthPollingState}
 					startPollingExternalAuth={startPollingExternalAuth}
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
 					permissions={permissionsQuery.data as CreateWorkspacePermissions}
@@ -364,45 +364,80 @@ const CreateWorkspacePage: FC = () => {
 };
 
 const useExternalAuth = (versionId: string | undefined) => {
-	const [externalAuthPollingState, setExternalAuthPollingState] =
-		useState<ExternalAuthPollingState>("idle");
+	const [providerPollingState, setProviderPollingState] =
+		useState<Record<string, ExternalAuthPollingState>>({});
+	const timeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+		new Map(),
+	);
 
-	const startPollingExternalAuth = useCallback(() => {
-		setExternalAuthPollingState("polling");
+	const startPollingExternalAuth = useCallback((providerId: string) => {
+		setProviderPollingState((prev) => ({ ...prev, [providerId]: "polling" }));
+
+		// Clear existing timeout for this provider if any
+		const existing = timeoutsRef.current.get(providerId);
+		if (existing) clearTimeout(existing);
+
+		// Poll for a maximum of one minute per provider
+		const timeout = setTimeout(() => {
+			setProviderPollingState((prev) => ({
+				...prev,
+				[providerId]: "abandoned",
+			}));
+			timeoutsRef.current.delete(providerId);
+		}, 60_000);
+		timeoutsRef.current.set(providerId, timeout);
 	}, []);
+
+	const getExternalAuthPollingState = useCallback(
+		(providerId: string): ExternalAuthPollingState =>
+			providerPollingState[providerId] ?? "idle",
+		[providerPollingState],
+	);
+
+	const isPollingAny = Object.values(providerPollingState).includes("polling");
 
 	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery({
 		...templateVersionExternalAuth(versionId ?? ""),
 		enabled: Boolean(versionId),
-		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
+		refetchInterval: isPollingAny ? 1000 : false,
 	});
 
-	const allSignedIn = externalAuth?.every((it) => it.authenticated);
-
+	// Stop polling for providers that have authenticated
 	useEffect(() => {
-		if (allSignedIn) {
-			setExternalAuthPollingState("idle");
-			return;
-		}
+		if (!externalAuth) return;
 
-		if (externalAuthPollingState !== "polling") {
-			return;
-		}
+		setProviderPollingState((prev) => {
+			const next = { ...prev };
+			let changed = false;
+			for (const auth of externalAuth) {
+				if (auth.authenticated && next[auth.id] === "polling") {
+					next[auth.id] = "idle";
+					changed = true;
+					const timeout = timeoutsRef.current.get(auth.id);
+					if (timeout) {
+						clearTimeout(timeout);
+						timeoutsRef.current.delete(auth.id);
+					}
+				}
+			}
+			return changed ? next : prev;
+		});
+	}, [externalAuth]);
 
-		// Poll for a maximum of one minute
-		const quitPolling = setTimeout(
-			() => setExternalAuthPollingState("abandoned"),
-			60_000,
-		);
+	// Cleanup timeouts on unmount
+	useEffect(() => {
+		const currentTimeouts = timeoutsRef.current;
 		return () => {
-			clearTimeout(quitPolling);
+			for (const t of currentTimeouts.values()) {
+				clearTimeout(t);
+			}
 		};
-	}, [externalAuthPollingState, allSignedIn]);
+	}, []);
 
 	return {
 		startPollingExternalAuth,
+		getExternalAuthPollingState,
 		externalAuth,
-		externalAuthPollingState,
 		isLoadingExternalAuth,
 	};
 };
