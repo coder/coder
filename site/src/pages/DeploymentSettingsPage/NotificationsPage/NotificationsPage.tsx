@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import {
 	customNotificationTemplates,
 	notificationDispatchMethods,
@@ -87,7 +86,7 @@ const NotificationsPage: FC = () => {
 				</TabsList>
 			</Tabs>
 
-			<div css={styles.content}>
+			<div className="pt-6">
 				{ready ? (
 					tabState.value === "events" ? (
 						<NotificationEvents
@@ -118,7 +117,3 @@ const NotificationsPage: FC = () => {
 };
 
 export default NotificationsPage;
-
-const styles = {
-	content: { paddingTop: 24 },
-} as Record<string, Interpolation<Theme>>;
