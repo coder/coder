@@ -145,6 +145,78 @@ func TestSSH(t *testing.T) {
 			})
 		}
 	})
+	t.Run("FailedWorkspaceShowsBuildLink", func(t *testing.T) {
+		t.Parallel()
+
+		client, store := coderdtest.NewWithDatabase(t, nil)
+		client.SetLogger(testutil.Logger(t).Named("client"))
+		first := coderdtest.CreateFirstUser(t, client)
+		userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+			r.Username = "myuser"
+		})
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "myworkspace",
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent().Failed().Do()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		inv, root := clitest.New(t, "ssh", r.Workspace.Name)
+		clitest.SetupConfig(t, userClient, root)
+		var stderr bytes.Buffer
+		inv.Stderr = &stderr
+
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		// Non-interactive mode: error should contain helpful message
+		require.Contains(t, err.Error(), "is in failed state")
+		require.Contains(t, err.Error(), "coder start")
+		// Stderr should show build logs link
+		require.Contains(t, stderr.String(), "failed its most recent build")
+		require.Contains(t, stderr.String(), "/builds/")
+	})
+	t.Run("FailedWorkspaceInteractiveRetryPrompt", func(t *testing.T) {
+		t.Parallel()
+
+		client, store := coderdtest.NewWithDatabase(t, nil)
+		client.SetLogger(testutil.Logger(t).Named("client"))
+		first := coderdtest.CreateFirstUser(t, client)
+		userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+			r.Username = "myuser"
+		})
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "myworkspace",
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent().Failed().Do()
+
+		inv, root := clitest.New(t, "ssh", "--force-tty", r.Workspace.Name)
+		clitest.SetupConfig(t, userClient, root)
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stderr = pty.Output()
+		inv.Stdout = pty.Output()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		cmdDone := make(chan error, 1)
+		go func() {
+			cmdDone <- inv.WithContext(ctx).Run()
+		}()
+
+		// Should see the failure message and prompt.
+		pty.ExpectMatchContext(ctx, "failed its most recent build")
+		pty.ExpectMatchContext(ctx, "Retry the build?")
+		// Decline the retry.
+		pty.WriteLine("no")
+
+		err := testutil.TryReceive(ctx, t, cmdDone)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "is in failed state")
+	})
 	t.Run("StartStoppedWorkspace", func(t *testing.T) {
 		t.Parallel()
 
