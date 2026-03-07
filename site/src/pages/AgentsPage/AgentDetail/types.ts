@@ -41,6 +41,14 @@ export type RenderBlock =
 			mediaType: string;
 			data?: string; // base64, absent when file_id is available
 			fileId?: string;
+	  }
+	| {
+			type: "file-reference";
+			fileName: string;
+			startLine: number;
+			endLine: number;
+			content: string;
+			text: string;
 	  };
 
 export type ParsedMessageContent = {
@@ -50,6 +58,13 @@ export type ParsedMessageContent = {
 	toolResults: ParsedToolResult[];
 	tools: MergedTool[];
 	blocks: RenderBlock[];
+	fileReferences: {
+		fileName: string;
+		startLine: number;
+		endLine: number;
+		content: string;
+		text: string;
+	}[];
 };
 
 export type ParsedMessageEntry = {

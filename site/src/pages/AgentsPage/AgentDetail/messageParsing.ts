@@ -76,6 +76,7 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	toolResults: [],
 	tools: [],
 	blocks: [],
+	fileReferences: [],
 });
 
 /** Wraps appendTextBlock with newline-joining for complete message blocks. */
@@ -194,7 +195,31 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					parsed.blocks = ensureToolBlock(parsed.blocks, id);
 					break;
 				}
-				case "tool-result":
+					case "file-reference": {
+						const text = asString(typedBlock.text);
+						const fileName = asString(typedBlock.file_name);
+						const startLine =
+							Number(typedBlock.start_line ?? typedBlock.line_number) || 0;
+						const endLine =
+							Number(typedBlock.end_line ?? typedBlock.line_number) || startLine;
+						const contentStr = asString(typedBlock.content);
+						parsed.fileReferences.push({
+							fileName,
+							startLine,
+							endLine,
+							content: contentStr,
+							text,
+						});
+						parsed.blocks.push({
+							type: "file-reference",
+							fileName,
+							startLine,
+							endLine,
+							content: contentStr,
+							text,
+						});
+						break;
+					}				case "tool-result":
 				case "toolresult": {
 					const name =
 						asString(typedBlock.tool_name) || asString(typedBlock.name);

@@ -96,8 +96,9 @@ interface AgentChatInputProps {
 	onRemoveAttachment?: (index: number) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
+	// Called when the count of file-reference chips in the editor changes.
+	onFileReferenceCountChange?: (count: number) => void;
 }
-
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
 	typeof value === "number" && Number.isFinite(value) && value >= 0;
 
@@ -346,9 +347,19 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		onRemoveAttachment,
 		uploadStates,
 		previewUrls,
+		onFileReferenceCountChange,
 	}) => {
 		const internalRef = useRef<ChatMessageInputRef>(null);
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+		const [fileReferenceCount, setFileReferenceCount] = useState(0);
+		const handleFileReferenceCountChange = useCallback(
+			(count: number) => {
+				setFileReferenceCount(count);
+				onFileReferenceCountChange?.(count);
+			},
+			[onFileReferenceCountChange],
+		);
 
 		// Merge the external inputRef with our internal ref so both
 		// point to the same ChatMessageInputRef instance.
@@ -453,35 +464,32 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			!isDisabled &&
 			!isLoading &&
 			hasModelOptions &&
-			(hasContent || hasUploadedAttachments) &&
+			(hasContent || hasUploadedAttachments || fileReferenceCount > 0) &&
 			!isUploading;
-
 		const handleSubmit = useCallback(() => {
 			const text = internalRef.current?.getValue()?.trim() ?? "";
 
 			// If the input is empty and there are queued messages,
 			// promote the first one instead of submitting.
-			if (
-				!text &&
+				if (
+					!text &&
 				!hasUploadedAttachments &&
+				fileReferenceCount === 0 &&
 				!isDisabled &&
 				!isLoading &&
 				queuedMessages.length > 0 &&
-				onPromoteQueuedMessage
-			) {
-				void onPromoteQueuedMessage(queuedMessages[0].id);
+				onPromoteQueuedMessage				) {				void onPromoteQueuedMessage(queuedMessages[0].id);
 				return;
 			}
 
-			if (
-				(!text && !hasUploadedAttachments) ||
-				isDisabled ||
-				isLoading ||
-				!hasModelOptions
-			) {
-				return;
-			}
-
+				if (
+					(!text && !hasUploadedAttachments && fileReferenceCount === 0) ||
+					isDisabled ||
+					isLoading ||
+					!hasModelOptions
+				) {
+					return;
+				}
 			onSend(text);
 			internalRef.current?.focus();
 		}, [
@@ -601,7 +609,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						disabled={isDisabled || isLoading}
 						rows={4}
 						autoFocus
-					/>
+						onFileReferenceCountChange={handleFileReferenceCountChange}
+					/>{" "}
 					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 						<div className="flex min-w-0 items-center gap-2">
 							<ModelSelector

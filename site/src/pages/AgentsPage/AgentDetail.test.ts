@@ -98,13 +98,15 @@ describe("useConversationEditingState", () => {
 		// Attach a mock ChatMessageInputRef to the chatInputRef
 		const mockFocus = vi.fn();
 		const mockClear = vi.fn();
-		const mockInputRef = {
-			focus: mockFocus,
-			clear: mockClear,
-			insertText: vi.fn(),
-			getValue: vi.fn().mockReturnValue(""),
-		};
-		// The hook exposes chatInputRef – assign the mock to it.
+			const mockInputRef = {
+				focus: mockFocus,
+				clear: mockClear,
+				insertText: vi.fn(),
+				getValue: vi.fn().mockReturnValue(""),
+				addFileReference: vi.fn(),
+				getFileReferences: vi.fn().mockReturnValue([]),
+				getContentParts: vi.fn().mockReturnValue([]),
+			};		// The hook exposes chatInputRef – assign the mock to it.
 		result.current.chatInputRef.current = mockInputRef;
 
 		await act(async () => {
