@@ -2666,6 +2666,9 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			LastInvalidatedAt:   sql.NullTime{},
 		})
 		if err != nil {
+			if database.IsUniqueViolation(err, database.UniqueIndexUniquePresetName) {
+				return xerrors.Errorf("a preset with the name %q already exists in this template version", protoPreset.Name)
+			}
 			return xerrors.Errorf("insert preset: %w", err)
 		}
 
