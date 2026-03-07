@@ -62,6 +62,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 		validationSchema: Yup.object({
 			rich_parameter_values: useValidationSchemaForRichParameters(
 				templateVersionRichParameters,
+				autofillParams,
 			),
 		}),
 	});
