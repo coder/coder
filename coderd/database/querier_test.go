@@ -3867,6 +3867,37 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			queueSizes:     nil, // TODO(yevhenii): should it be empty array instead?
 			queuePositions: nil,
 		},
+		// Many daemons with identical tags should produce same results as one.
+		{
+			name: "duplicate-daemons-same-tags",
+			jobTags: []database.StringMap{
+				{"a": "1"},
+				{"a": "1", "b": "2"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1", "b": "2"},
+				{"a": "1", "b": "2"},
+			},
+			queueSizes:     []int64{2, 2},
+			queuePositions: []int64{1, 2},
+		},
+		// Jobs that don't match any queried job's daemon should still
+		// have correct queue positions.
+		{
+			name: "irrelevant-daemons-filtered",
+			jobTags: []database.StringMap{
+				{"a": "1"},
+				{"x": "9"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1"},
+				{"x": "9"},
+			},
+			queueSizes:     []int64{1},
+			queuePositions: []int64{1},
+			skipJobIDs:     map[int]struct{}{1: {}},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -4190,6 +4221,51 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 		queuePositions = append(queuePositions, job.QueuePosition)
 	}
 	assert.EqualValues(t, []int64{1, 2, 3, 4, 5, 6}, queuePositions, "expected queue positions to be set correctly")
+}
+
+func TestGetProvisionerJobsByIDsWithQueuePosition_DuplicateDaemons(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Create 3 pending jobs with the same tags.
+	jobs := make([]database.ProvisionerJob, 3)
+	for i := range jobs {
+		jobs[i] = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-time.Duration(3-i) * time.Minute),
+			Tags:      database.StringMap{"scope": "organization", "owner": ""},
+		})
+	}
+
+	// Create 50 daemons with identical tags (simulates scale).
+	for i := range 50 {
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:         fmt.Sprintf("daemon_%d", i),
+			Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags:         database.StringMap{"scope": "organization", "owner": ""},
+		})
+	}
+
+	jobIDs := make([]uuid.UUID, len(jobs))
+	for i, j := range jobs {
+		jobIDs[i] = j.ID
+	}
+
+	results, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx,
+		database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             jobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+
+	// All daemons have identical tags, so queue should be same as
+	// if there were just one daemon.
+	for i, r := range results {
+		assert.Equal(t, int64(3), r.QueueSize, "job %d queue size", i)
+		assert.Equal(t, int64(i+1), r.QueuePosition, "job %d queue position", i)
+	}
 }
 
 func TestGroupRemovalTrigger(t *testing.T) {
