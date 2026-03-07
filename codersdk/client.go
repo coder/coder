@@ -3,6 +3,7 @@ package codersdk
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -154,6 +155,9 @@ type Client struct {
 	// connection.
 	// Deprecated: Use WithDisableDirectConnections to set this.
 	DisableDirectConnections bool
+
+	// DERPTLSConfig is an optional TLS config for DERP connections.
+	DERPTLSConfig *tls.Config
 }
 
 // Logger returns the logger for the client.
@@ -723,5 +727,11 @@ func WithTrace() ClientOption {
 func WithDisableDirectConnections() ClientOption {
 	return func(c *Client) {
 		c.DisableDirectConnections = true
+	}
+}
+
+func WithDERPTLSConfig(cfg *tls.Config) ClientOption {
+	return func(c *Client) {
+		c.DERPTLSConfig = cfg
 	}
 }
