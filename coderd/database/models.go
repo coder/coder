@@ -3908,6 +3908,7 @@ type Chat struct {
 	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
 	Archived          bool           `db:"archived" json:"archived"`
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
+	HasActiveRepos    bool           `db:"has_active_repos" json:"has_active_repos"`
 }
 
 type ChatDiffStatus struct {

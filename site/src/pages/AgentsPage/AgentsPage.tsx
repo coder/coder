@@ -104,6 +104,8 @@ export interface AgentsOutletContext {
 	) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
+	/** The Chat record for the active agentId from the sidebar list. */
+	activeChatSummary: TypesGen.Chat | undefined;
 }
 
 const AgentsPage: FC = () => {
@@ -273,6 +275,9 @@ const AgentsPage: FC = () => {
 		});
 	}, []);
 	const chatList = chatsQuery.data ?? [];
+	const activeChatSummary = agentId
+		? chatList.find((c) => c.id === agentId)
+		: undefined;
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
 	const archivingChatId =
@@ -318,6 +323,7 @@ const AgentsPage: FC = () => {
 			requestArchiveAndDeleteWorkspace,
 			isSidebarCollapsed,
 			onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
+			activeChatSummary,
 		}),
 		[
 			chatErrorReasons,
@@ -328,6 +334,7 @@ const AgentsPage: FC = () => {
 			requestArchiveAndDeleteWorkspace,
 			isSidebarCollapsed,
 			handleToggleSidebarCollapsed,
+			activeChatSummary,
 		],
 	);
 	const handleCreateChat = async (options: CreateChatOptions) => {
