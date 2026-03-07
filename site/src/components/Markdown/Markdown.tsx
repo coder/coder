@@ -304,14 +304,23 @@ function parseChildrenAsAlertContent(
 		return null;
 	}
 
-	const alertType = firstEl
-		.trim()
-		.toLowerCase()
-		.replace("!", "")
-		.replace("[", "")
-		.replace("]", "");
+	// Use a regex to extract just the [!TYPE] marker, which may be followed
+	// by additional text when inline markdown (bold, links) causes
+	// react-markdown to split children into mixed string/element arrays.
+	const alertMatch = firstEl.trim().match(/^\[!(\w+)\]/);
+	if (!alertMatch) {
+		return null;
+	}
+
+	const alertType = alertMatch[1].toLowerCase();
 	if (!githubFlavoredMarkdownAlertTypes.includes(alertType)) {
 		return null;
+	}
+
+	// Preserve any text that follows the alert marker in the same string
+	const afterMarker = firstEl.trim().slice(alertMatch[0].length);
+	if (afterMarker.replace(/^\n/, "").length > 0) {
+		remainingChildren.unshift(afterMarker.replace(/^\n/, ""));
 	}
 
 	const hasLeadingLinebreak =
