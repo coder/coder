@@ -171,15 +171,26 @@ export function Autocomplete<TOption>({
 					</span>
 					<span className="flex items-center shrink-0">
 						{loading && <Spinner size="sm" loading className="mr-1" />}
+						{/*
+							Use a span with role="button" instead of native <button>
+							because this control is nested inside the PopoverTrigger
+							<button>, and nested buttons are invalid HTML.
+						*/}
 						{showClearButton && (
-							<button
-								type="button"
+							<span
+								role="button"
+								tabIndex={0}
 								onClick={handleClear}
-								className="flex items-center justify-center size-5 rounded appearance-none bg-transparent border-0 p-0 cursor-pointer hover:bg-surface-secondary transition-colors"
+								onKeyDown={(e) => {
+									if (e.key === "Enter" || e.key === " ") {
+										handleClear(e);
+									}
+								}}
+								className="flex items-center justify-center size-5 rounded hover:bg-surface-secondary transition-colors cursor-pointer"
 								aria-label="Clear selection"
 							>
 								<X className="size-4 text-content-secondary hover:text-content-primary" />
-							</button>
+							</span>
 						)}
 						<span className="flex items-center justify-center size-5">
 							<ChevronDownIcon

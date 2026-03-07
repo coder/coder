@@ -74,10 +74,22 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 		>
 			<TableCell className="!p-0 border-0 border-b text-base">
 				<Collapsible open={isDiffOpen} onOpenChange={setIsDiffOpen}>
-					<button
-						type="button"
-						className="flex flex-row items-center gap-4 py-4 px-8 appearance-none bg-transparent border-0 text-inherit font-inherit text-left w-full cursor-pointer"
+					{/*
+						Use a div with role="button" instead of native <button> because
+						the row content can include links (resource_link), and nested
+						interactive elements inside <button> are invalid HTML.
+					*/}
+					<div
+						className="flex flex-row items-center gap-4 py-4 px-8 cursor-pointer"
+						tabIndex={0}
+						role="button"
 						onClick={toggle}
+						onKeyDown={(event) => {
+							if (event.key === "Enter" || event.key === " ") {
+								event.preventDefault();
+								toggle();
+							}
+						}}
 					>
 						<div className="flex flex-row items-center gap-4 flex-1">
 							<div className="flex flex-row items-center gap-4 w-full">
@@ -237,7 +249,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						) : (
 							<div className="ml-6" />
 						)}
-					</button>
+					</div>
 
 					{shouldDisplayDiff && (
 						<CollapsibleContent>

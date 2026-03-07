@@ -13,7 +13,7 @@ const fruitOptions: FruitOption[] = [
 ];
 
 describe("Autocomplete", () => {
-	it("renders the clear control as a native button", async () => {
+	it("renders the clear control as a non-native button", async () => {
 		const onChange = vi.fn();
 		const user = userEvent.setup();
 
@@ -27,13 +27,11 @@ describe("Autocomplete", () => {
 			/>,
 		);
 
-		const clearButton = screen.getByRole("button", {
-			name: "Clear selection",
-		});
+		const clearButton = screen.getByLabelText("Clear selection");
 
-		expect(clearButton).toHaveAttribute("type", "button");
-		expect(clearButton).not.toHaveAttribute("role");
-		expect(clearButton).not.toHaveAttribute("tabindex");
+		expect(clearButton).toHaveAttribute("role", "button");
+		expect(clearButton).toHaveAttribute("tabindex", "0");
+		expect(clearButton.tagName).toBe("SPAN");
 
 		await user.click(clearButton);
 

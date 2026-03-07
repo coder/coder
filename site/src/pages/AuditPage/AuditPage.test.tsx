@@ -92,8 +92,9 @@ describe("AuditPage", () => {
 		const row = screen.getByTestId(`audit-log-row-${MockAuditLog.id}`);
 		const expandableRowButton = within(row).getByRole("button");
 
-		expect(expandableRowButton).toHaveAttribute("type", "button");
-		expect(expandableRowButton).not.toHaveAttribute("role");
+		expect(expandableRowButton).toHaveAttribute("role", "button");
+		expect(expandableRowButton).toHaveAttribute("tabindex", "0");
+		expect(expandableRowButton.tagName).toBe("DIV");
 		expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
 
 		expandableRowButton.focus();
@@ -120,6 +121,9 @@ describe("AuditPage", () => {
 		const row = screen.getByTestId(`audit-log-row-${MockAuditLog.id}`);
 		const expandableRowButton = within(row).getByRole("button");
 
+		expect(expandableRowButton).toHaveAttribute("role", "button");
+		expect(expandableRowButton).toHaveAttribute("tabindex", "0");
+		expect(expandableRowButton.tagName).toBe("DIV");
 		expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
 
 		expandableRowButton.focus();
