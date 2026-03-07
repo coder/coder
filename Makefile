@@ -1382,7 +1382,11 @@ test-postgres-docker:
 
 # Make sure to keep this in sync with test-go-race from .github/workflows/ci.yaml.
 test-race:
-	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -tags=testsmallbatch -race -count=1 -parallel 4 -p 4 ./...
+	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" \
+		--packages="./..." -- -tags=testsmallbatch -race \
+		-p $(or $(TEST_NUM_PARALLEL_PACKAGES),4) \
+		-parallel $(or $(TEST_NUM_PARALLEL_TESTS),4) \
+		-timeout 30m
 .PHONY: test-race
 
 test-tailnet-integration:
