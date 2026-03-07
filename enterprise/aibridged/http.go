@@ -11,6 +11,7 @@ import (
 	"github.com/coder/aibridge"
 	"github.com/coder/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
 
@@ -37,15 +38,20 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	logger := s.logger.With(slog.F("path", r.URL.Path))
 
-	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
+	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r))
 	if key == "" {
 		logger.Warn(ctx, "no auth key provided")
 		http.Error(rw, ErrNoAuthKey.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Remove the Coder token header so it's not forwarded to upstream providers.
+	// Strip Coder auth data so it is not forwarded upstream: X-Coder-Token,
+	// Coder-Session-Token, X-CSRF-TOKEN, and all cookies (including browser
+	// session/CSRF cookies).
 	r.Header.Del(agplaibridge.HeaderCoderAuth)
+	r.Header.Del(codersdk.SessionTokenHeader)
+	r.Header.Del("X-CSRF-TOKEN")
+	r.Header.Del("Cookie")
 
 	client, err := s.Client()
 	if err != nil {

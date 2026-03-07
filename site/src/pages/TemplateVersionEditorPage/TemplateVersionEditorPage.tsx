@@ -30,6 +30,7 @@ import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
+import type { PublishVersionData } from "./types";
 
 const TemplateVersionEditorPage: FC = () => {
 	const getLink = useLinks();
@@ -116,6 +117,25 @@ const TemplateVersionEditorPage: FC = () => {
 		navigateToVersion(newVersion);
 	};
 
+	const doPublish = async ({
+		isActiveVersion,
+		...data
+	}: PublishVersionData) => {
+		const templateVersion = activeTemplateVersion!;
+		await publishVersionMutation.mutateAsync({
+			isActiveVersion,
+			data,
+			version: templateVersion,
+		});
+		const publishedVersion = {
+			...templateVersion,
+			...data,
+		};
+		setLastSuccessfulPublishedVersion(publishedVersion);
+		queryClient.setQueryData(templateVersionOptions.queryKey, publishedVersion);
+		return publishedVersion;
+	};
+
 	// Provisioner Tags
 	const [provisionerTags, setProvisionerTags] = useState<
 		Record<string, string>
@@ -141,7 +161,9 @@ const TemplateVersionEditorPage: FC = () => {
 					defaultFileTree={fileTree}
 					onPreview={async (newFileTree) => {
 						if (!tarFile) {
-							return;
+							throw new Error(
+								"Template version file contents are unavailable.",
+							);
 						}
 						const newVersionFile = await generateVersionFiles(
 							tarFile,
@@ -158,6 +180,7 @@ const TemplateVersionEditorPage: FC = () => {
 						});
 
 						onBuildEnds(newVersion);
+						return newVersion;
 					}}
 					onPublish={() => {
 						setIsPublishingDialogOpen(true);
@@ -165,22 +188,13 @@ const TemplateVersionEditorPage: FC = () => {
 					onCancelPublish={() => {
 						setIsPublishingDialogOpen(false);
 					}}
-					onConfirmPublish={async ({ isActiveVersion, ...data }) => {
-						await publishVersionMutation.mutateAsync({
-							isActiveVersion,
-							data,
-							version: activeTemplateVersion,
-						});
-						const publishedVersion = {
-							...activeTemplateVersion,
-							...data,
-						};
+					onConfirmPublish={async (data) => {
+						const publishedVersion = await doPublish(data);
 						setIsPublishingDialogOpen(false);
-						setLastSuccessfulPublishedVersion(publishedVersion);
-						queryClient.setQueryData(
-							templateVersionOptions.queryKey,
-							publishedVersion,
-						);
+						navigateToVersion(publishedVersion);
+					}}
+					onPublishVersion={async (data) => {
+						const publishedVersion = await doPublish(data);
 						navigateToVersion(publishedVersion);
 					}}
 					isAskingPublishParameters={isPublishingDialogOpen}

@@ -2555,6 +2555,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "ai-template-editor"
 	| "agents"
 	| "auto-fill-parameters"
 	| "example"
@@ -2562,9 +2563,11 @@ export type Experiment =
 	| "notifications"
 	| "oauth2"
 	| "web-push"
+	| "workspace-sharing"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
+	"ai-template-editor",
 	"agents",
 	"auto-fill-parameters",
 	"example",
@@ -2572,6 +2575,7 @@ export const Experiments: Experiment[] = [
 	"notifications",
 	"oauth2",
 	"web-push",
+	"workspace-sharing",
 	"workspace-usage",
 ];
 

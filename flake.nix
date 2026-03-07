@@ -221,7 +221,13 @@
             zsh
             zstd
           ]
-          ++ frontendPackages;
+          ++ frontendPackages
+          # Go 1.25+ uses SecTrustCopyCertificateChain which requires
+          # macOS 12+ SDK. The default stdenv ships SDK 11.x. Use
+          # unstablePkgs to match the SDK that Go 1.25 depends on.
+          ++ (pkgs.lib.optionals pkgs.stdenv.isDarwin [
+            unstablePkgs.apple-sdk_12
+          ]);
 
         docker = pkgs.callPackage ./nix/docker.nix { };
 
