@@ -84,6 +84,34 @@ const docTemplate = `{
                 }
             }
         },
+        "/aibridge/clients": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Bridge"
+                ],
+                "summary": "List AI Bridge clients",
+                "operationId": "list-ai-bridge-clients",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/aibridge/interceptions": {
             "get": {
                 "security": [
