@@ -22,6 +22,7 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Spinner } from "components/Spinner/Spinner";
+import { TextareaField } from "components/Textarea/TextareaField";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import {
@@ -123,9 +124,9 @@ export const OrganizationSettingsPageView: FC<
 								fullWidth
 								label="Display name"
 							/>
-							<TextField
+							<TextareaField
+								variant="mui"
 								{...getFieldHelpers("description")}
-								multiline
 								fullWidth
 								label="Description"
 								rows={2}

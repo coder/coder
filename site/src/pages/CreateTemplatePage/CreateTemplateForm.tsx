@@ -22,6 +22,7 @@ import {
 import { IconField } from "components/IconField/IconField";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Spinner } from "components/Spinner/Spinner";
+import { TextareaField } from "components/Textarea/TextareaField";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
@@ -303,13 +304,13 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 						label="Display name"
 					/>
 
-					<TextField
+					<TextareaField
+						variant="mui"
 						{...getFieldHelpers("description", {
 							maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
 						})}
 						disabled={isSubmitting}
 						rows={5}
-						multiline
 						fullWidth
 						label="Description"
 					/>
