@@ -416,3 +416,91 @@ func TestDERPMetrics(t *testing.T) {
 	assert.Contains(t, names, "coder_derp_server_packets_dropped_reason_total",
 		"expected coder_derp_server_packets_dropped_reason_total to be registered")
 }
+
+// TestRateLimitByUser verifies that rate limiting keys by user ID when
+// an authenticated session is present, rather than falling back to IP.
+// This is a regression test for https://github.com/coder/coder/issues/20857
+func TestRateLimitByUser(t *testing.T) {
+	t.Parallel()
+
+	const rateLimit = 5
+
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		APIRateLimit: rateLimit,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, ownerClient)
+
+	t.Run("HitsLimit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Make rateLimit requests — they should all succeed.
+		for i := 0; i < rateLimit; i++ {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+				ownerClient.URL.String()+"/api/v2/buildinfo", nil)
+			require.NoError(t, err)
+			req.Header.Set(codersdk.SessionTokenHeader, ownerClient.SessionToken())
+
+			resp, err := ownerClient.HTTPClient.Do(req)
+			require.NoError(t, err)
+			resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode,
+				"request %d should succeed", i+1)
+		}
+
+		// The next request should be rate-limited.
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+			ownerClient.URL.String()+"/api/v2/buildinfo", nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, ownerClient.SessionToken())
+
+		resp, err := ownerClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusTooManyRequests, resp.StatusCode,
+			"request should be rate limited")
+	})
+
+	t.Run("BypassOwner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Owner with bypass header should not be rate-limited.
+		for i := 0; i < rateLimit+5; i++ {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+				ownerClient.URL.String()+"/api/v2/buildinfo", nil)
+			require.NoError(t, err)
+			req.Header.Set(codersdk.SessionTokenHeader, ownerClient.SessionToken())
+			req.Header.Set(codersdk.BypassRatelimitHeader, "true")
+
+			resp, err := ownerClient.HTTPClient.Do(req)
+			require.NoError(t, err)
+			resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode,
+				"owner bypass request %d should succeed", i+1)
+		}
+	})
+
+	t.Run("MemberCannotBypass", func(t *testing.T) {
+		t.Parallel()
+
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A member requesting the bypass header should be rejected
+		// with 428 Precondition Required — only owners may bypass.
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+			memberClient.URL.String()+"/api/v2/buildinfo", nil)
+		require.NoError(t, err)
+		req.Header.Set(codersdk.SessionTokenHeader, memberClient.SessionToken())
+		req.Header.Set(codersdk.BypassRatelimitHeader, "true")
+
+		resp, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusPreconditionRequired, resp.StatusCode,
+			"member should not be able to bypass rate limit")
+	})
+}
