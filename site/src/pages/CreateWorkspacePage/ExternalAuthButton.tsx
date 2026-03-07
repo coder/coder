@@ -38,11 +38,7 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 				)}
 				<p className="font-semibold text-sm m-0">{auth.display_name}</p>
 				{!auth.authenticated && !auth.optional && (
-					<Badge
-						size="sm"
-						border="none"
-						variant={error ? "destructive" : "warning"}
-					>
+					<Badge size="sm" variant={error ? "destructive" : "warning"}>
 						Required
 					</Badge>
 				)}
