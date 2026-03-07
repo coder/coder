@@ -14491,7 +14491,6 @@ const docTemplate = `{
         "codersdk.CreateUserRequestWithOrgs": {
             "type": "object",
             "required": [
-                "email",
                 "username"
             ],
             "properties": {
@@ -14520,6 +14519,10 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string"
+                },
+                "service_account": {
+                    "description": "Service accounts are admin-managed accounts that cannot login.",
+                    "type": "boolean"
                 },
                 "user_status": {
                     "description": "UserStatus defaults to UserStatusDormant.",
