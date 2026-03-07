@@ -124,9 +124,16 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 	// Only touched fields are sent to the websocket
 	// Autofilled parameters are marked as touched since they have been modified
-	const initialTouched = Object.fromEntries(
-		parameters.filter((p) => autofillByName[p.name]).map((p) => [p.name, true]),
-	);
+	const initialTouched = {
+		// Mark the name field as touched when pre-filled via URL parameter
+		// so that validation errors display inline immediately.
+		...(defaultName ? { name: true } : {}),
+		...Object.fromEntries(
+			parameters
+				.filter((p) => autofillByName[p.name])
+				.map((p) => [p.name, true]),
+		),
+	};
 
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
 	// 1. The form parameter values are initialized from the websocket response when the form is mounted
