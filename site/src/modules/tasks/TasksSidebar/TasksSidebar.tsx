@@ -23,6 +23,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
+import { useIsMobile } from "hooks/useIsMobile";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import {
 	EditIcon,
@@ -49,7 +50,8 @@ export const TasksSidebar: FC = () => {
 		defaultValue: user.username,
 	});
 
-	const [isCollapsed, setIsCollapsed] = useState(false);
+	const isMobile = useIsMobile();
+	const [isCollapsed, setIsCollapsed] = useState(isMobile);
 
 	return (
 		<div

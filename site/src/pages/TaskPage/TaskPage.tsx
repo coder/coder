@@ -20,9 +20,12 @@ import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
+import { useIsMobile } from "hooks/useIsMobile";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import {
 	ArrowLeftIcon,
+	MessageSquareIcon,
+	PanelRightOpenIcon,
 	PauseIcon,
 	RotateCcwIcon,
 	TriangleAlertIcon,
@@ -80,6 +83,8 @@ const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 };
 
 const TaskPage = () => {
+	const isMobile = useIsMobile();
+	const [showApps, setShowApps] = useState(false);
 	const [isModifyDialogOpen, setIsModifyDialogOpen] = useState(false);
 	const [isFollowUpDialogOpen, setIsFollowUpDialogOpen] = useState(false);
 	const [followUpDraft, setFollowUpDraft] = useState("");
@@ -328,33 +333,68 @@ const TaskPage = () => {
 		const chatApp = getAllAppsWithAgent(workspace).find(
 			(app) => app.id === task.workspace_app_id,
 		);
-		content = (
-			<PanelGroup autoSaveId="task" direction="horizontal">
-				<Panel defaultSize={25} minSize={20}>
-					{chatApp ? (
-						<TaskAppIFrame active workspace={workspace} app={chatApp} />
-					) : (
-						<div className="h-full flex items-center justify-center p-6 text-center">
-							<div className="flex flex-col items-center">
-								<h3 className="m-0 font-medium text-content-primary text-base">
-									Chat app not found
-								</h3>
-								<span className="text-content-secondary text-sm">
-									Please, make sure your template has a chat sidebar app
-									configured.
-								</span>
+
+		if (isMobile) {
+			content = (
+				<>
+					<div className="h-full w-full">
+						{showApps ? (
+							<TaskApps task={task} workspace={workspace} />
+						) : chatApp ? (
+							<TaskAppIFrame active workspace={workspace} app={chatApp} />
+						) : (
+							<div className="h-full flex items-center justify-center p-6 text-center">
+								<div className="flex flex-col items-center">
+									<h3 className="m-0 font-medium text-content-primary text-base">
+										Chat app not found
+									</h3>
+									<span className="text-content-secondary text-sm">
+										Please, make sure your template has a chat sidebar app
+										configured.
+									</span>
+								</div>
 							</div>
-						</div>
-					)}
-				</Panel>
-				<PanelResizeHandle>
-					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
-				</PanelResizeHandle>
-				<Panel className="[&>*]:h-full">
-					<TaskApps task={task} workspace={workspace} />
-				</Panel>
-			</PanelGroup>
-		);
+						)}
+					</div>
+					<Button
+						size="icon"
+						variant="outline"
+						className="fixed bottom-4 right-4 z-50 shadow-lg size-12 rounded-full"
+						onClick={() => setShowApps((v) => !v)}
+					>
+						{showApps ? <MessageSquareIcon /> : <PanelRightOpenIcon />}
+					</Button>
+				</>
+			);
+		} else {
+			content = (
+				<PanelGroup autoSaveId="task" direction="horizontal">
+					<Panel defaultSize={25} minSize={20}>
+						{chatApp ? (
+							<TaskAppIFrame active workspace={workspace} app={chatApp} />
+						) : (
+							<div className="h-full flex items-center justify-center p-6 text-center">
+								<div className="flex flex-col items-center">
+									<h3 className="m-0 font-medium text-content-primary text-base">
+										Chat app not found
+									</h3>
+									<span className="text-content-secondary text-sm">
+										Please, make sure your template has a chat sidebar app
+										configured.
+									</span>
+								</div>
+							</div>
+						)}
+					</Panel>
+					<PanelResizeHandle>
+						<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
+					</PanelResizeHandle>
+					<Panel className="[&>*]:h-full">
+						<TaskApps task={task} workspace={workspace} />
+					</Panel>
+				</PanelGroup>
+			);
+		}
 	}
 
 	return (
