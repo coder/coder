@@ -3,6 +3,7 @@ import {
 	MockInitializingTasks,
 	MockSystemNotificationTemplates,
 	MockTask,
+	MockTaskLogsResponse,
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
@@ -246,6 +247,7 @@ export const OpenKebabMenu: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -253,6 +255,32 @@ export const OpenKebabMenu: Story = {
 			name: /show task actions/i,
 		});
 		await userEvent.click(kebabButtons[0]);
+	},
+};
+
+export const DownloadChatLogs: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTaskLogs").mockResolvedValue(MockTaskLogsResponse);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const kebabButtons = await canvas.findAllByRole("button", {
+			name: /show task actions/i,
+		});
+		await userEvent.click(kebabButtons[0]);
+
+		const downloadMenuItem = await screen.findByRole("menuitem", {
+			name: /download chat logs/i,
+		});
+		await fireEvent.click(downloadMenuItem);
+		await waitFor(() => {
+			expect(API.getTaskLogs).toHaveBeenCalledWith(
+				MockTask.owner_name,
+				MockTask.id,
+			);
+		});
 	},
 };
 

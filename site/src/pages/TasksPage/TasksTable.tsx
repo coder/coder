@@ -1,3 +1,4 @@
+import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { pauseTask, resumeTask } from "api/queries/tasks";
 import type { Task } from "api/typesGenerated";
@@ -25,8 +26,14 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
+import { saveAs } from "file-saver";
 import { useClickableTableRow } from "hooks";
-import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
+import {
+	DownloadIcon,
+	EllipsisVertical,
+	RotateCcwIcon,
+	TrashIcon,
+} from "lucide-react";
 import { TaskActionButton } from "modules/tasks/TaskActionButton";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
@@ -205,6 +212,19 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 			});
 		},
 	});
+	const downloadLogsMutation = useMutation({
+		mutationFn: async () => {
+			const response = await API.getTaskLogs(task.owner_name, task.id);
+			const json = JSON.stringify(response, null, 2);
+			const blob = new Blob([json], { type: "application/json" });
+			saveAs(blob, `${task.name}-logs.json`);
+		},
+		onError: (error: unknown) => {
+			toast.error(getErrorMessage(error, "Failed to download chat logs."), {
+				description: getErrorDetail(error),
+			});
+		},
+	});
 
 	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
 	// Discard role, breaks Chromatic.
@@ -297,6 +317,16 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									disabled={downloadLogsMutation.isPending}
+									onClick={(e) => {
+										e.stopPropagation();
+										downloadLogsMutation.mutate();
+									}}
+								>
+									<DownloadIcon />
+									Download chat logs
+								</DropdownMenuItem>
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
 									onClick={(e) => {

@@ -5048,6 +5048,30 @@ export const MockTask = {
 	updated_at: "2022-05-17T17:39:01.382927298Z",
 } satisfies TypesGen.Task;
 
+export const MockTaskLogsResponse: TypesGen.TaskLogsResponse = {
+	logs: [
+		{
+			id: 1,
+			content: "What would you like me to do?",
+			type: "output",
+			time: "2022-05-17T17:39:01.382927298Z",
+		},
+		{
+			id: 2,
+			content: "Fix the avatar size on the tasks page.",
+			type: "input",
+			time: "2022-05-17T17:39:05.382927298Z",
+		},
+		{
+			id: 3,
+			content: "I'll fix the avatar size now. Let me look at the code...",
+			type: "output",
+			time: "2022-05-17T17:39:10.382927298Z",
+		},
+	],
+	snapshot: false,
+};
+
 export const MockTaskWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	task_id: MockTask.id,
