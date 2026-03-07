@@ -490,7 +490,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 
 	buildID := takeFirst(orig.ID, uuid.New())
 	jobID := takeFirst(orig.JobID, uuid.New())
-	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
 	hasExternalAgent := takeFirst(orig.HasExternalAgent, sql.NullBool{})
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
@@ -525,10 +524,9 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			require.NoError(t, err)
 		}
 
-		if hasAITask.Valid || hasExternalAgent.Valid {
+		if hasExternalAgent.Valid {
 			require.NoError(t, db.UpdateWorkspaceBuildFlagsByID(genCtx, database.UpdateWorkspaceBuildFlagsByIDParams{
 				ID:               buildID,
-				HasAITask:        hasAITask,
 				HasExternalAgent: hasExternalAgent,
 				UpdatedAt:        dbtime.Now(),
 			}))

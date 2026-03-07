@@ -2710,7 +2710,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 		dbm.EXPECT().UpdateWorkspaceBuildFlagsByID(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		check.Args(database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID:               b.ID,
-			HasAITask:        sql.NullBool{Bool: true, Valid: true},
 			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
 			UpdatedAt:        b.UpdatedAt,
 		}).Asserts(w, policy.ActionUpdate)

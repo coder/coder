@@ -155,7 +155,6 @@ func TestTelemetry(t *testing.T) {
 			WorkspaceID:       taskWs.ID,
 			TemplateVersionID: tv.ID,
 			JobID:             taskJob.ID,
-			HasAITask:         sql.NullBool{Valid: true, Bool: true},
 		})
 		task := dbgen.Task(t, db, database.TaskTable{
 			OwnerID:            user.ID,
@@ -350,12 +349,6 @@ func TestTelemetry(t *testing.T) {
 				return false
 			}
 			return assert.NotNil(t, ttv.HasAITask) && assert.True(t, *ttv.HasAITask)
-		}))
-		require.True(t, slices.ContainsFunc(snapshot.WorkspaceBuilds, func(twb telemetry.WorkspaceBuild) bool {
-			if twb.ID != taskWB.ID {
-				return false
-			}
-			return assert.NotNil(t, twb.HasAITask) && assert.True(t, *twb.HasAITask)
 		}))
 
 		tvs := snapshot.TemplateVersions
