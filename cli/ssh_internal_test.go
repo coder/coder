@@ -352,6 +352,71 @@ func newAsyncCloser(ctx context.Context, t *testing.T) *asyncCloser {
 	}
 }
 
+func TestAnyStartupScriptBlocksLogin(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoScripts", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, anyStartupScriptBlocksLogin(nil))
+		assert.False(t, anyStartupScriptBlocksLogin([]codersdk.WorkspaceAgentScript{}))
+	})
+
+	t.Run("StartBlocksLoginTrue_RunOnStartTrue", func(t *testing.T) {
+		t.Parallel()
+		scripts := []codersdk.WorkspaceAgentScript{
+			{RunOnStart: true, StartBlocksLogin: true},
+		}
+		assert.True(t, anyStartupScriptBlocksLogin(scripts))
+	})
+
+	t.Run("StartBlocksLoginFalse_RunOnStartTrue", func(t *testing.T) {
+		t.Parallel()
+		scripts := []codersdk.WorkspaceAgentScript{
+			{RunOnStart: true, StartBlocksLogin: false},
+		}
+		assert.False(t, anyStartupScriptBlocksLogin(scripts))
+	})
+
+	t.Run("StartBlocksLoginTrue_RunOnStartFalse", func(t *testing.T) {
+		t.Parallel()
+		// A script that doesn't run on start should not block login,
+		// even if start_blocks_login is set (e.g. a cron-only script).
+		scripts := []codersdk.WorkspaceAgentScript{
+			{RunOnStart: false, StartBlocksLogin: true},
+		}
+		assert.False(t, anyStartupScriptBlocksLogin(scripts))
+	})
+
+	t.Run("MixedScripts_OneBlocks", func(t *testing.T) {
+		t.Parallel()
+		scripts := []codersdk.WorkspaceAgentScript{
+			{RunOnStart: true, StartBlocksLogin: false},
+			{RunOnStart: true, StartBlocksLogin: true},
+			{RunOnStart: false, StartBlocksLogin: false},
+		}
+		assert.True(t, anyStartupScriptBlocksLogin(scripts))
+	})
+
+	t.Run("MixedScripts_NoneBlock", func(t *testing.T) {
+		t.Parallel()
+		scripts := []codersdk.WorkspaceAgentScript{
+			{RunOnStart: true, StartBlocksLogin: false},
+			{RunOnStart: false, StartBlocksLogin: true},
+			{RunOnStart: false, StartBlocksLogin: false},
+		}
+		assert.False(t, anyStartupScriptBlocksLogin(scripts))
+	})
+
+	t.Run("AllBlockLogin", func(t *testing.T) {
+		t.Parallel()
+		scripts := []codersdk.WorkspaceAgentScript{
+			{RunOnStart: true, StartBlocksLogin: true},
+			{RunOnStart: true, StartBlocksLogin: true},
+		}
+		assert.True(t, anyStartupScriptBlocksLogin(scripts))
+	})
+}
+
 func Test_getWorkspaceAgent(t *testing.T) {
 	t.Parallel()
 

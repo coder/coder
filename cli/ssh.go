@@ -292,12 +292,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 			case "no":
 				wait = false
 			case "auto":
-				for _, script := range workspaceAgent.Scripts {
-					if script.StartBlocksLogin {
-						wait = true
-						break
-					}
-				}
+				wait = anyStartupScriptBlocksLogin(workspaceAgent.Scripts)
 			default:
 				return xerrors.Errorf("unknown wait value %q", waitEnum)
 			}
@@ -993,6 +988,19 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 	}
 
 	return workspace, workspaceAgent, otherWorkspaceAgents, nil
+}
+
+// anyStartupScriptBlocksLogin returns true if any of the given scripts
+// are configured to block login on start (i.e., RunOnStart is true and
+// StartBlocksLogin is true). This is used to determine the wait behavior
+// when --wait=auto.
+func anyStartupScriptBlocksLogin(scripts []codersdk.WorkspaceAgentScript) bool {
+	for _, script := range scripts {
+		if script.RunOnStart && script.StartBlocksLogin {
+			return true
+		}
+	}
+	return false
 }
 
 func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (workspaceAgent codersdk.WorkspaceAgent, otherAgents []codersdk.WorkspaceAgent, err error) {

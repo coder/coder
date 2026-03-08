@@ -115,12 +115,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			case "no":
 				wait = false
 			case "auto":
-				for _, script := range workspaceAgent.Scripts {
-					if script.StartBlocksLogin {
-						wait = true
-						break
-					}
-				}
+				wait = anyStartupScriptBlocksLogin(workspaceAgent.Scripts)
 			default:
 				return xerrors.Errorf("unknown wait value %q", waitEnum)
 			}
