@@ -32,6 +32,7 @@ interface UsersTableProps {
 	onSuspendUser: (user: TypesGen.User) => void;
 	onActivateUser: (user: TypesGen.User) => void;
 	onDeleteUser: (user: TypesGen.User) => void;
+	onEditUserProfile: (user: TypesGen.User) => void;
 	onListWorkspaces: (user: TypesGen.User) => void;
 	onViewActivity: (user: TypesGen.User) => void;
 	onResetUserPassword: (user: TypesGen.User) => void;
@@ -50,6 +51,7 @@ export const UsersTable: FC<UsersTableProps> = ({
 	roles,
 	onSuspendUser,
 	onDeleteUser,
+	onEditUserProfile,
 	onListWorkspaces,
 	onViewActivity,
 	onActivateUser,
@@ -99,6 +101,7 @@ export const UsersTable: FC<UsersTableProps> = ({
 					isUpdatingUserRoles={isUpdatingUserRoles}
 					onActivateUser={onActivateUser}
 					onDeleteUser={onDeleteUser}
+					onEditUserProfile={onEditUserProfile}
 					onListWorkspaces={onListWorkspaces}
 					onViewActivity={onViewActivity}
 					onResetUserPassword={onResetUserPassword}

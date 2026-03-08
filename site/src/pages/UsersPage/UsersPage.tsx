@@ -10,8 +10,9 @@ import {
 	suspendUser,
 	updatePassword,
 	updateRoles,
+	updateUserProfile,
 } from "api/queries/users";
-import type { User } from "api/typesGenerated";
+import type { UpdateUserProfileRequest, User } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useFilter } from "components/Filter/Filter";
@@ -25,6 +26,7 @@ import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
+import { EditProfileDialog } from "./EditProfileDialog";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { useStatusFilterMenu } from "./UsersFilter";
 import { UsersPageView } from "./UsersPageView";
@@ -89,6 +91,9 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const updatePasswordMutation = useMutation(updatePassword());
 	const updateRolesMutation = useMutation(updateRoles(queryClient));
 
+	const [userToEditProfile, setUserToEditProfile] = useState<User>();
+	const updateUserProfileMutation = useMutation(updateUserProfile(queryClient));
+
 	// Indicates if oidc roles are synced from the oidc idp.
 	// Assign 'false' if unknown.
 	const oidcRoleSyncEnabled =
@@ -122,6 +127,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 					);
 				}}
 				onDeleteUser={setUserToDelete}
+				onEditUserProfile={setUserToEditProfile}
 				onSuspendUser={setUserToSuspend}
 				onActivateUser={setUserToActivate}
 				onResetUserPassword={(user) => {
@@ -260,6 +266,40 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 						<strong>{userToActivate?.username ?? ""}</strong>?
 					</>
 				}
+			/>
+
+			<EditProfileDialog
+				key={userToEditProfile?.id}
+				user={userToEditProfile}
+				open={userToEditProfile !== undefined}
+				loading={updateUserProfileMutation.isPending}
+				error={updateUserProfileMutation.error}
+				onClose={() => {
+					setUserToEditProfile(undefined);
+					updateUserProfileMutation.reset();
+				}}
+				onConfirm={async (user: User, values: UpdateUserProfileRequest) => {
+					try {
+						await updateUserProfileMutation.mutateAsync({
+							userId: user.id,
+							req: values,
+						});
+						setUserToEditProfile(undefined);
+						toast.success(
+							`User "${values.username}" profile updated successfully.`,
+						);
+					} catch (e) {
+						toast.error(
+							getErrorMessage(
+								e,
+								`Error updating profile for "${user.username}".`,
+							),
+							{
+								description: getErrorDetail(e),
+							},
+						);
+					}
+				}}
 			/>
 
 			<ResetPasswordDialog

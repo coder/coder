@@ -253,6 +253,19 @@ export const updateProfile = (userId: string) => {
 	};
 };
 
+export const updateUserProfile = (queryClient: QueryClient) => {
+	return {
+		mutationFn: ({
+			userId,
+			req,
+		}: { userId: string; req: UpdateUserProfileRequest }) =>
+			API.updateProfile(userId, req),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({ queryKey: ["users"] });
+		},
+	};
+};
+
 const myAppearanceKey = ["me", "appearance"];
 
 export const appearanceSettings = (

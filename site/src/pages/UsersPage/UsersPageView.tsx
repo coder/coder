@@ -27,6 +27,7 @@ interface UsersPageViewProps {
 	authMethods?: TypesGen.AuthMethods;
 	onSuspendUser: (user: TypesGen.User) => void;
 	onDeleteUser: (user: TypesGen.User) => void;
+	onEditUserProfile: (user: TypesGen.User) => void;
 	onListWorkspaces: (user: TypesGen.User) => void;
 	onViewActivity: (user: TypesGen.User) => void;
 	onActivateUser: (user: TypesGen.User) => void;
@@ -51,6 +52,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 	roles,
 	onSuspendUser,
 	onDeleteUser,
+	onEditUserProfile,
 	onListWorkspaces,
 	onViewActivity,
 	onActivateUser,
@@ -98,6 +100,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 					groupsByUserId={groupsByUserId}
 					onSuspendUser={onSuspendUser}
 					onDeleteUser={onDeleteUser}
+					onEditUserProfile={onEditUserProfile}
 					onListWorkspaces={onListWorkspaces}
 					onViewActivity={onViewActivity}
 					onActivateUser={onActivateUser}

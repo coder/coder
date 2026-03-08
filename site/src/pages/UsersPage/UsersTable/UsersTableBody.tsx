@@ -28,6 +28,7 @@ import {
 	BanIcon,
 	EllipsisVertical,
 	KeyIcon,
+	PencilIcon,
 	ShieldIcon,
 	TrashIcon,
 	UserLockIcon,
@@ -49,6 +50,7 @@ interface UsersTableBodyProps {
 	canViewActivity?: boolean;
 	onSuspendUser: (user: TypesGen.User) => void;
 	onDeleteUser: (user: TypesGen.User) => void;
+	onEditUserProfile: (user: TypesGen.User) => void;
 	onListWorkspaces: (user: TypesGen.User) => void;
 	onViewActivity: (user: TypesGen.User) => void;
 	onActivateUser: (user: TypesGen.User) => void;
@@ -71,6 +73,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 	roles,
 	onSuspendUser,
 	onDeleteUser,
+	onEditUserProfile,
 	onListWorkspaces,
 	onViewActivity,
 	onActivateUser,
@@ -196,6 +199,13 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 										</Button>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">
+										<DropdownMenuItem
+											onClick={() => onEditUserProfile(user)}
+										>
+											<PencilIcon className="size-icon-xs" />
+											Edit profile
+										</DropdownMenuItem>
+
 										{user.status === "active" || user.status === "dormant" ? (
 											<DropdownMenuItem
 												data-testid="suspend-button"
