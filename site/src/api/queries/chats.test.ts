@@ -24,6 +24,7 @@ const makeChat = (
 	updated_at: "2025-01-01T00:00:00.000Z",
 	archived: false,
 	last_error: null,
+	has_active_repos: false,
 	...overrides,
 });
 

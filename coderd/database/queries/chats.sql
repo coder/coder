@@ -409,5 +409,11 @@ WHERE id = (
 )
 RETURNING *;
 
+-- name: UpdateChatHasActiveRepos :exec
+UPDATE chats
+SET has_active_repos = @has_active_repos::boolean,
+    updated_at = NOW()
+WHERE id = @chat_id::uuid;
+
 -- name: GetChatByIDForUpdate :one
 SELECT * FROM chats WHERE id = @id::uuid FOR UPDATE;

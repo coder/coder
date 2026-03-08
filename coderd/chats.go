@@ -532,6 +532,8 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		// Track live repo count so we can persist has_active_repos.
+		repoSet := make(map[string]struct{})
 		for {
 			select {
 			case <-api.ctx.Done():
@@ -543,6 +545,29 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 					cancel()
 					return
 				}
+
+				// Update the persisted has_active_repos flag when
+				// the set of live repositories changes.
+				if msg.Type == codersdk.WorkspaceAgentGitServerMessageTypeChanges {
+					hadRepos := len(repoSet) > 0
+					for _, repo := range msg.Repositories {
+						if repo.Removed {
+							delete(repoSet, repo.RepoRoot)
+						} else {
+							repoSet[repo.RepoRoot] = struct{}{}
+						}
+					}
+					hasRepos := len(repoSet) > 0
+					if hasRepos != hadRepos {
+						if dbErr := api.Database.UpdateChatHasActiveRepos(ctx, database.UpdateChatHasActiveReposParams{
+							ChatID:         chat.ID,
+							HasActiveRepos: hasRepos,
+						}); dbErr != nil {
+							logger.Warn(ctx, "failed to update has_active_repos", slog.Error(dbErr))
+						}
+					}
+				}
+
 				if err := clientStream.Send(msg); err != nil {
 					logger.Debug(ctx, "failed to forward agent message to client", slog.Error(err))
 					cancel()
@@ -2583,6 +2608,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
 		Archived:          c.Archived,
+		HasActiveRepos:    c.HasActiveRepos,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
 	}
