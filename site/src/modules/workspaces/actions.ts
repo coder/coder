@@ -86,6 +86,8 @@ export const abilitiesByWorkspaceStatus = (
 
 			if (workspace.template_require_active_version && workspace.outdated) {
 				actions.push("updateAndRestartRequireActiveVersion");
+			} else if (workspace.automatic_updates === "always" && workspace.outdated) {
+				actions.push("updateAndRestart");
 			} else {
 				if (workspace.outdated) {
 					actions.unshift("updateAndRestart");
@@ -111,6 +113,8 @@ export const abilitiesByWorkspaceStatus = (
 
 			if (workspace.template_require_active_version && workspace.outdated) {
 				actions.push("updateAndStartRequireActiveVersion");
+			} else if (workspace.automatic_updates === "always" && workspace.outdated) {
+				actions.push("updateAndStart");
 			} else {
 				if (workspace.outdated) {
 					actions.unshift("updateAndStart");
