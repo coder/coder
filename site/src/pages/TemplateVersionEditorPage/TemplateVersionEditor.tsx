@@ -307,7 +307,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 								dismissible
 								actions={
 									<Button
-										variant="subtle"
+										variant="outline"
 										size="sm"
 										onClick={onCreateWorkspace}
 									>
