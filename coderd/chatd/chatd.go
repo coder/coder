@@ -2582,7 +2582,7 @@ func (p *Server) persistChatContextSummary(
 		_, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
 			ChatID:        chatID,
 			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:          string(fantasy.MessageRoleSystem),
+			Role:          string(fantasy.MessageRoleUser),
 			Content: pqtype.NullRawMessage{
 				RawMessage: systemContent,
 				Valid:      len(systemContent) > 0,
