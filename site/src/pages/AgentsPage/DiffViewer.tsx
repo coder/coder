@@ -30,7 +30,7 @@ interface DiffViewerProps {
 	/** Fragment to display in the top-left of the header bar. */
 	headerLeft?: ReactNode;
 	/** Parsed file diffs to render. */
-	parsedFiles: FileDiffMetadata[];
+	parsedFiles: readonly FileDiffMetadata[];
 	/** Cache key prefix for parsePatchFiles worker pool LRU cache. */
 	cacheKeyPrefix?: string;
 	/** Whether the panel is in expanded mode (affects file tree threshold). */
@@ -165,7 +165,7 @@ interface FileTreeNode {
  * Single-child directory chains are collapsed so that e.g.
  * `src/pages/AgentsPage` renders as one row.
  */
-function buildFileTree(files: FileDiffMetadata[]): FileTreeNode[] {
+function buildFileTree(files: readonly FileDiffMetadata[]): FileTreeNode[] {
 	const root: FileTreeNode[] = [];
 
 	for (const file of files) {
