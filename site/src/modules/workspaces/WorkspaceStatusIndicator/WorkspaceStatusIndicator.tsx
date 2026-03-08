@@ -1,4 +1,4 @@
-import type { Workspace } from "api/typesGenerated";
+import type { Workspace, WorkspaceTransition } from "api/typesGenerated";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
@@ -28,6 +28,12 @@ const variantByStatusType: Record<
 	warning: "warning",
 };
 
+const failedTransitionTooltips: Record<WorkspaceTransition, string> = {
+	start: "Build failed during start",
+	stop: "Build failed during stop",
+	delete: "Build failed during deletion",
+};
+
 type WorkspaceStatusIndicatorProps = {
 	workspace: Workspace;
 	children?: React.ReactNode;
@@ -46,7 +52,20 @@ export const WorkspaceStatusIndicator: FC<WorkspaceStatusIndicatorProps> = ({
 		type = "warning";
 	}
 
-	const statusIndicator = (
+	const isFailed = workspace.latest_build.status === "failed";
+	const isUnhealthy = !workspace.health.healthy;
+
+	// Determine tooltip text based on workspace state
+	let tooltipText: string | undefined;
+	if (isFailed) {
+		tooltipText =
+			failedTransitionTooltips[workspace.latest_build.transition];
+	} else if (isUnhealthy) {
+		tooltipText =
+			"Your workspace is running but some agents are unhealthy.";
+	}
+
+	const statusIndicatorContent = (
 		<StatusIndicator variant={variantByStatusType[type]}>
 			<StatusIndicatorDot />
 			<span className="sr-only">Workspace status:</span> {text}
@@ -54,22 +73,16 @@ export const WorkspaceStatusIndicator: FC<WorkspaceStatusIndicatorProps> = ({
 		</StatusIndicator>
 	);
 
-	if (workspace.health.healthy) {
-		return statusIndicator;
+	if (!tooltipText) {
+		return statusIndicatorContent;
 	}
 
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<StatusIndicator variant={variantByStatusType[type]}>
-					<StatusIndicatorDot />
-					<span className="sr-only">Workspace status:</span> {text}
-					{children}
-				</StatusIndicator>
+				{statusIndicatorContent}
 			</TooltipTrigger>
-			<TooltipContent>
-				Your workspace is running but some agents are unhealthy.
-			</TooltipContent>
+			<TooltipContent>{tooltipText}</TooltipContent>
 		</Tooltip>
 	);
 };

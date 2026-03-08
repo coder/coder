@@ -1,6 +1,6 @@
 import { MockWorkspace } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Workspace, WorkspaceStatus } from "api/typesGenerated";
+import type { Workspace, WorkspaceStatus, WorkspaceTransition } from "api/typesGenerated";
 import { WorkspaceStatusIndicator } from "./WorkspaceStatusIndicator";
 
 const meta: Meta<typeof WorkspaceStatusIndicator> = {
@@ -17,6 +17,19 @@ const createWorkspaceWithStatus = (status: WorkspaceStatus): Workspace => {
 		latest_build: {
 			...MockWorkspace.latest_build,
 			status,
+		},
+	} as Workspace;
+};
+
+const createFailedWorkspaceWithTransition = (
+	transition: WorkspaceTransition,
+): Workspace => {
+	return {
+		...MockWorkspace,
+		latest_build: {
+			...MockWorkspace.latest_build,
+			status: "failed" as WorkspaceStatus,
+			transition,
 		},
 	} as Workspace;
 };
@@ -60,6 +73,24 @@ export const Stopping: Story = {
 export const Failed: Story = {
 	args: {
 		workspace: createWorkspaceWithStatus("failed"),
+	},
+};
+
+export const FailedStart: Story = {
+	args: {
+		workspace: createFailedWorkspaceWithTransition("start"),
+	},
+};
+
+export const FailedStop: Story = {
+	args: {
+		workspace: createFailedWorkspaceWithTransition("stop"),
+	},
+};
+
+export const FailedDelete: Story = {
+	args: {
+		workspace: createFailedWorkspaceWithTransition("delete"),
 	},
 };
 
