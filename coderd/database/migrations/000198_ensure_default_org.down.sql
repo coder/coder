@@ -1,1 +1,0 @@
--- There is no down. If the org is created, just let it be. Deleting an org feels dangerous in a migration.

@@ -1,1 +1,0 @@
-ALTER TABLE ONLY templates DROP COLUMN IF EXISTS created_by;

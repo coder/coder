@@ -1,7 +1,0 @@
-{
-	"extends": "//",
-	"files": {
-		"includes": ["!e2e/**/*Generated.ts"]
-	},
-	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json"
-}

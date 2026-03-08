@@ -35,8 +35,10 @@ const styles = {
 	line: (theme) => ({
 		margin: 0,
 		wordBreak: "break-all",
+		whiteSpace: "pre-wrap",
+		overflow: "hidden",
 		display: "flex",
-		alignItems: "center",
+		alignItems: "flex-start",
 		fontSize: 13,
 		color: theme.palette.text.primary,
 		fontFamily: MONOSPACE_FONT_FAMILY,

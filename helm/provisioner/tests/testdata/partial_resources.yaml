@@ -1,7 +1,0 @@
-coder:
-  image:
-    tag: latest
-  resources:
-    requests:
-      cpu: 1500m
-      memory: 3072Mi

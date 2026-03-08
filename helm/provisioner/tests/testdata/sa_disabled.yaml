@@ -1,6 +1,0 @@
-coder:
-  image:
-    tag: latest
-  serviceAccount:
-    workspacePerms: false
-    disableCreate: true

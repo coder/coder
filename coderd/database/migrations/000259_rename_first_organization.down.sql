@@ -1,3 +1,0 @@
--- Leave the name as 'coder', there is no downside.
--- The old name 'first-organization' is not used anywhere, just the
--- is_default property.

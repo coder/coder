@@ -1,1 +1,0 @@
-ALTER TABLE ONLY templates ALTER COLUMN created_by DROP NOT NULL;

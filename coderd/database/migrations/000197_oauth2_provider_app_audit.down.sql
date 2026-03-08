@@ -1,2 +1,0 @@
--- It is not possible to drop enum values from enum types, so the UPs on
--- resource_type have "IF NOT EXISTS".

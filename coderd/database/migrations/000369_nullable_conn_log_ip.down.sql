@@ -1,1 +1,0 @@
-ALTER TABLE connection_logs ALTER COLUMN ip SET NOT NULL;

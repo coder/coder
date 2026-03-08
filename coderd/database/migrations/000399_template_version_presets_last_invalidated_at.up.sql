@@ -1,1 +1,0 @@
-ALTER TABLE template_version_presets ADD COLUMN last_invalidated_at TIMESTAMPTZ;

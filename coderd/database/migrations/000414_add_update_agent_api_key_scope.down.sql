@@ -1,1 +1,0 @@
--- No-op for update agent scopes: keep enum values to avoid dependency churn.

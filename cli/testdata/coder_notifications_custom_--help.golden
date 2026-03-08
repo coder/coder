@@ -1,9 +1,0 @@
-coder v0.0.0-devel
-
-USAGE:
-  coder notifications custom <title> <message>
-
-  Send a custom notification
-
-———
-Run `coder --help` for a list of global options.

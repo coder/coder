@@ -1,6 +1,0 @@
-coder:
-  image:
-    tag: latest
-  commandArgs:
-    - arg1
-    - arg2

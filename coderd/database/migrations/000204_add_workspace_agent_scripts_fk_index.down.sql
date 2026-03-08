@@ -1,1 +1,0 @@
-DROP INDEX workspace_agent_scripts_workspace_agent_id_idx;

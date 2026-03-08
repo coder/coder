@@ -1,1 +1,0 @@
-ALTER TABLE aibridge_interceptions ADD COLUMN ended_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;

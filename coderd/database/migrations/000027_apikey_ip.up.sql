@@ -1,2 +1,0 @@
-ALTER TABLE ONLY api_keys
-    ADD COLUMN IF NOT EXISTS ip_address inet NOT NULL DEFAULT '0.0.0.0';

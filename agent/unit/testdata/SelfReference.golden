@@ -1,4 +1,0 @@
-strict digraph SelfReference {
-  // Node definitions.
-  1;
-}

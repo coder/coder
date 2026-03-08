@@ -38,6 +38,7 @@ export const AgentLogLine: FC<AgentLogLineProps> = ({
 				{number}
 			</LogLinePrefix>
 			<span
+				css={styles.output}
 				// biome-ignore lint/security/noDangerouslySetInnerHtml: Output contains HTML to represent ANSI-code formatting
 				dangerouslySetInnerHTML={{
 					__html: output,
@@ -54,4 +55,11 @@ const styles = {
 		flexShrink: 0,
 		color: theme.palette.text.disabled,
 	}),
+
+	output: {
+		flex: 1,
+		minWidth: 0,
+		overflow: "hidden",
+		textOverflow: "ellipsis",
+	},
 } satisfies Record<string, Interpolation<Theme>>;

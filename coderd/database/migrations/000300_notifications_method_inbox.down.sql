@@ -1,3 +1,0 @@
--- The migration is about an enum value change
--- As we can not remove a value from an enum, we can let the down migration empty
--- In order to avoid any failure, we use ADD VALUE IF NOT EXISTS to add the value

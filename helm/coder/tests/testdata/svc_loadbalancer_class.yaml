@@ -1,6 +1,0 @@
-coder:
-  image:
-    tag: latest
-
-  service:
-    loadBalancerClass: test

@@ -1,1 +1,0 @@
-DROP INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx;

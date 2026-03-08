@@ -1,2 +1,0 @@
-DROP TABLE IF EXISTS workspace_agent_memory_resource_monitors;
-DROP TABLE IF EXISTS workspace_agent_volume_resource_monitors;
