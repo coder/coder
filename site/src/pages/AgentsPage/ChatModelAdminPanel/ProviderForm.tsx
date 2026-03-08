@@ -19,7 +19,7 @@ import { ProviderIcon } from "./ProviderIcon";
 // we know nothing changed.
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
-type ProviderFormProps = {
+interface ProviderFormProps {
 	providerState: ProviderState;
 	providerConfigsUnavailable: boolean;
 	isProviderMutationPending: boolean;
@@ -32,7 +32,7 @@ type ProviderFormProps = {
 	) => Promise<unknown>;
 	onDeleteProvider: (providerConfigId: string) => Promise<void>;
 	onBack: () => void;
-};
+}
 
 export const ProviderForm: FC<ProviderFormProps> = ({
 	providerState,
@@ -314,13 +314,13 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 // ── Field wrapper ──────────────────────────────────────────────
 
-type ProviderFieldProps = {
+interface ProviderFieldProps {
 	label: string;
 	htmlFor: string;
 	required?: boolean;
 	description?: string;
 	children: React.ReactNode;
-};
+}
 
 const ProviderField: FC<ProviderFieldProps> = ({
 	label,

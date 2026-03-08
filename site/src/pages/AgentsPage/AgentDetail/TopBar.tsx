@@ -47,7 +47,7 @@ interface WorkspaceActions {
 	sshCommand: string | undefined;
 }
 
-type AgentDetailTopBarProps = {
+interface AgentDetailTopBarProps {
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
 	onOpenParentChat: (chatId: string) => void;
@@ -60,7 +60,7 @@ type AgentDetailTopBarProps = {
 	isArchived?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
-};
+}
 
 export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	chatTitle,

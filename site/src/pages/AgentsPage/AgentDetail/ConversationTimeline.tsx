@@ -742,7 +742,7 @@ const StickyUserMessage: FC<{
 	);
 };
 
-type ConversationTimelineProps = {
+interface ConversationTimelineProps {
 	isEmpty: boolean;
 	hasMoreMessages: boolean;
 	loadMoreSentinelRef: RefObject<HTMLDivElement | null>;
@@ -762,7 +762,7 @@ type ConversationTimelineProps = {
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
-};
+}
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	isEmpty,
