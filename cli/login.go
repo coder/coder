@@ -475,6 +475,12 @@ func (r *RootCmd) loginToken() *serpent.Command {
 		Long:       "Print the session token for use in scripts and automation.",
 		Middleware: serpent.RequireNArgs(0),
 		Handler: func(inv *serpent.Invocation) error {
+			if err := r.resolveClientURL(); err != nil {
+				if os.IsNotExist(err) {
+					return xerrors.New("no session token found - run 'coder login' first")
+				}
+				return err
+			}
 			tok, err := r.ensureTokenBackend().Read(r.clientURL)
 			if err != nil {
 				if xerrors.Is(err, os.ErrNotExist) {

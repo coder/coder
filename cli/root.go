@@ -964,6 +964,23 @@ func (r *RootCmd) createConfig() config.Root {
 	return config.Root(r.globalConfig)
 }
 
+// resolveClientURL ensures r.clientURL is populated, reading from the config
+// file on disk when --url / CODER_URL was not supplied.  This is the same
+// logic used by InitClient and TryInitClient, extracted so other commands
+// (e.g. "login token") can reuse it without standing up a full client.
+func (r *RootCmd) resolveClientURL() error {
+	if r.clientURL != nil && r.clientURL.String() != "" {
+		return nil
+	}
+	conf := r.createConfig()
+	rawURL, err := conf.URL().Read()
+	if err != nil {
+		return err
+	}
+	r.clientURL, err = url.Parse(strings.TrimSpace(rawURL))
+	return err
+}
+
 // isTTYIn returns whether the passed invocation is having stdin read from a TTY
 func isTTYIn(inv *serpent.Invocation) bool {
 	// If the `--force-tty` command is available, and set,
