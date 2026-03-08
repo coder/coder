@@ -168,7 +168,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						<>
 							<Button className="w-full" asChild type="submit" size="lg">
 								<a href="/api/v2/users/oauth2/github/callback">
-									<ExternalImage src="/icon/github.svg" />
+									<ExternalImage src="/icon/github.svg?monochrome" />
 									{Language.githubCreate}
 								</a>
 							</Button>
