@@ -173,17 +173,20 @@ func (r *RootCmd) createOrganizationRole(orgContext *OrganizationContext) *serpe
 					return xerrors.Errorf("reading stdin: %w", err)
 				}
 
+				// The exported JSON from 'roles show' is an
+				// array of roles. If the input is an array with
+				// exactly one element, unwrap it.
+				bytes, err = unwrapSingleArrayElement(bytes)
+				if err != nil {
+					return err
+				}
+
 				err = json.Unmarshal(bytes, &customRole)
 				if err != nil {
 					return xerrors.Errorf("parsing stdin json: %w", err)
 				}
 
 				if customRole.Name == "" {
-					arr := make([]json.RawMessage, 0)
-					err = json.Unmarshal(bytes, &arr)
-					if err == nil && len(arr) > 0 {
-						return xerrors.Errorf("the input appears to be an array, only 1 role can be sent at a time")
-					}
 					return xerrors.Errorf("json input does not appear to be a valid role")
 				}
 
@@ -299,17 +302,20 @@ func (r *RootCmd) updateOrganizationRole(orgContext *OrganizationContext) *serpe
 					return xerrors.Errorf("reading stdin: %w", err)
 				}
 
+				// The exported JSON from 'roles show' is an
+				// array of roles. If the input is an array with
+				// exactly one element, unwrap it.
+				bytes, err = unwrapSingleArrayElement(bytes)
+				if err != nil {
+					return err
+				}
+
 				err = json.Unmarshal(bytes, &customRole)
 				if err != nil {
 					return xerrors.Errorf("parsing stdin json: %w", err)
 				}
 
 				if customRole.Name == "" {
-					arr := make([]json.RawMessage, 0)
-					err = json.Unmarshal(bytes, &arr)
-					if err == nil && len(arr) > 0 {
-						return xerrors.Errorf("only 1 role can be sent at a time")
-					}
 					return xerrors.Errorf("json input does not appear to be a valid role")
 				}
 
@@ -518,6 +524,31 @@ func existingRole(newRoleName string, existingRoles []codersdk.AssignableRoles) 
 	}
 
 	return nil
+}
+
+// unwrapSingleArrayElement handles JSON input that may be an array
+// containing a single element. The 'roles show -ojson' command exports
+// roles as an array, but the create/update commands expect a single
+// object. This function unwraps an array of exactly one element so
+// that exported JSON can be re-imported directly.
+func unwrapSingleArrayElement(input []byte) ([]byte, error) {
+	var arr []json.RawMessage
+	// Try to parse as an array first.
+	if err := json.Unmarshal(input, &arr); err != nil {
+		// Not a valid JSON array, return the original input
+		// so it can be parsed as a single object.
+		//nolint:nilnil // Returning nil error with original bytes.
+		return input, nil
+	}
+
+	switch len(arr) {
+	case 0:
+		return nil, xerrors.Errorf("json input array is empty, expected a single role")
+	case 1:
+		return arr[0], nil
+	default:
+		return nil, xerrors.Errorf("json input array has %d elements, only 1 role can be sent at a time", len(arr))
+	}
 }
 
 type roleTableRow struct {
