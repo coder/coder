@@ -341,7 +341,11 @@ const ParameterField: FC<ParameterFieldProps> = ({
 			return (
 				<Combobox
 					value={value}
-					onValueChange={(newValue) => onChange(newValue ?? "")}
+					onValueChange={(newValue) => {
+						if (newValue !== undefined) {
+							onChange(newValue);
+						}
+					}}
 				>
 					<ComboboxTrigger asChild>
 						<ComboboxButton
