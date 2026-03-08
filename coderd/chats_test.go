@@ -1527,6 +1527,372 @@ func TestPostChatMessages(t *testing.T) {
 	})
 }
 
+func TestChatMessageWithFileReferences(t *testing.T) {
+	t.Parallel()
+
+	// createChat is a helper that creates a chat so we can post messages to it.
+	createChatForTest := func(t *testing.T, client *codersdk.Client) codersdk.Chat {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "initial message",
+			}},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("FileReferenceOnly", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "main.go",
+				StartLine: 10,
+				EndLine:   15,
+				Content:   "func broken() {}",
+			}},
+		})
+		require.NoError(t, err)
+
+		// The file-reference is stored as a formatted text block.
+		wantText := "[file-reference] main.go:10-15\n" +
+			"```main.go\nfunc broken() {}\n```"
+
+		var found bool
+		require.Eventually(t, func() bool {
+			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			for _, message := range chatWithMessages.Messages {
+				if message.Role != "user" {
+					continue
+				}
+				for _, part := range message.Content {
+					if part.Type == codersdk.ChatMessagePartTypeText &&
+						part.Text == wantText {
+						found = true
+						return true
+					}
+				}
+			}
+			// The message may have been queued.
+			if created.Queued && created.QueuedMessage != nil {
+				for _, queued := range chatWithMessages.QueuedMessages {
+					for _, part := range queued.Content {
+						if part.Type == codersdk.ChatMessagePartTypeText &&
+							part.Text == wantText {
+							found = true
+							return true
+						}
+					}
+				}
+			}
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast)
+		require.True(t, found, "expected to find file-reference text in stored message")
+	})
+
+	t.Run("FileReferenceSingleLine", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "lib/utils.ts",
+				StartLine: 42,
+				EndLine:   42,
+				Content:   "const x = 1;",
+			}},
+		})
+		require.NoError(t, err)
+
+		// Single-line range should use "42" not "42-42".
+		wantText := "[file-reference] lib/utils.ts:42\n" +
+			"```lib/utils.ts\nconst x = 1;\n```"
+
+		require.Eventually(t, func() bool {
+			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			for _, msg := range chatWithMessages.Messages {
+				for _, part := range msg.Content {
+					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+						return true
+					}
+				}
+			}
+			if created.Queued && created.QueuedMessage != nil {
+				for _, queued := range chatWithMessages.QueuedMessages {
+					for _, part := range queued.Content {
+						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+							return true
+						}
+					}
+				}
+			}
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
+
+	t.Run("FileReferenceWithoutContent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "README.md",
+				StartLine: 1,
+				EndLine:   1,
+				// No code content — just a file reference.
+			}},
+		})
+		require.NoError(t, err)
+
+		// No fenced code block when content is empty.
+		wantText := "[file-reference] README.md:1"
+		require.Eventually(t, func() bool {
+			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			for _, msg := range chatWithMessages.Messages {
+				for _, part := range msg.Content {
+					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+						return true
+					}
+				}
+			}
+			if created.Queued && created.QueuedMessage != nil {
+				for _, queued := range chatWithMessages.QueuedMessages {
+					for _, part := range queued.Content {
+						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+							return true
+						}
+					}
+				}
+			}
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
+
+	t.Run("FileReferenceWithCode", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "server.go",
+				StartLine: 5,
+				EndLine:   8,
+				Content:   "func main() {\n\tfmt.Println()\n}",
+			}},
+		})
+		require.NoError(t, err)
+
+		wantText := "[file-reference] server.go:5-8\n" +
+			"```server.go\nfunc main() {\n\tfmt.Println()\n}\n```"
+
+		require.Eventually(t, func() bool {
+			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			for _, msg := range chatWithMessages.Messages {
+				for _, part := range msg.Content {
+					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+						return true
+					}
+				}
+			}
+			if created.Queued && created.QueuedMessage != nil {
+				for _, queued := range chatWithMessages.QueuedMessages {
+					for _, part := range queued.Content {
+						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+							return true
+						}
+					}
+				}
+			}
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
+
+	t.Run("InterleavedTextAndFileReferences", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "Please review these two issues:",
+				},
+				{
+					Type:      codersdk.ChatInputPartTypeFileReference,
+					FileName:  "a.go",
+					StartLine: 1,
+					EndLine:   3,
+					Content:   "line1\nline2\nline3",
+				},
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "first issue",
+				},
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "and also:",
+				},
+				{
+					Type:      codersdk.ChatInputPartTypeFileReference,
+					FileName:  "b.go",
+					StartLine: 10,
+					EndLine:   10,
+					Content:   "return nil",
+				},
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "second issue",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Verify that all six parts are stored in order.
+		wantTexts := []string{
+			"Please review these two issues:",
+			"[file-reference] a.go:1-3\n```a.go\nline1\nline2\nline3\n```",
+			"first issue",
+			"and also:",
+			"[file-reference] b.go:10\n```b.go\nreturn nil\n```",
+			"second issue",
+		}
+
+		require.Eventually(t, func() bool {
+			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+
+			// Check messages and queued messages for the
+			// interleaved parts in order.
+			checkParts := func(parts []codersdk.ChatMessagePart) bool {
+				textParts := make([]string, 0, len(parts))
+				for _, part := range parts {
+					if part.Type == codersdk.ChatMessagePartTypeText {
+						textParts = append(textParts, part.Text)
+					}
+				}
+				if len(textParts) != len(wantTexts) {
+					return false
+				}
+				for i, want := range wantTexts {
+					if textParts[i] != want {
+						return false
+					}
+				}
+				return true
+			}
+
+			for _, msg := range chatWithMessages.Messages {
+				if msg.Role == "user" && checkParts(msg.Content) {
+					return true
+				}
+			}
+			if created.Queued && created.QueuedMessage != nil {
+				for _, queued := range chatWithMessages.QueuedMessages {
+					if checkParts(queued.Content) {
+						return true
+					}
+				}
+			}
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
+
+	t.Run("EmptyFileName", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "",
+				StartLine: 1,
+				EndLine:   1,
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid input part.", sdkErr.Message)
+		require.Equal(t, "content[0].file_name cannot be empty for file-reference.", sdkErr.Detail)
+	})
+
+	t.Run("CreateChatWithFileReference", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// File references should also work in the initial CreateChat call.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "bug.py",
+				StartLine: 7,
+				EndLine:   7,
+				Content:   "x = None",
+			}},
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, chat.ID)
+
+		// Title is derived from the text parts. For file-references
+		// the formatted text becomes the title source.
+		require.NotEmpty(t, chat.Title)
+	})
+}
+
 func TestChatMessageWithFiles(t *testing.T) {
 	t.Parallel()
 

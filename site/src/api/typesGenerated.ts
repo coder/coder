@@ -1121,12 +1121,27 @@ export interface ChatInputPart {
 	readonly type: ChatInputPartType;
 	readonly text?: string;
 	readonly file_id?: string;
+	/**
+	 * The following fields are only set when Type is
+	 * ChatInputPartTypeFileReference.
+	 */
+	readonly file_name?: string;
+	readonly start_line?: number;
+	readonly end_line?: number;
+	/**
+	 * The code content from the diff that was commented on.
+	 */
+	readonly content?: string;
 }
 
 // From codersdk/chats.go
-export type ChatInputPartType = "file" | "text";
+export type ChatInputPartType = "file" | "file-reference" | "text";
 
-export const ChatInputPartTypes: ChatInputPartType[] = ["file", "text"];
+export const ChatInputPartTypes: ChatInputPartType[] = [
+	"file",
+	"file-reference",
+	"text",
+];
 
 // From codersdk/chats.go
 /**
@@ -1163,11 +1178,23 @@ export interface ChatMessagePart {
 	readonly media_type?: string;
 	readonly data?: string;
 	readonly file_id?: string;
+	/**
+	 * The following fields are only set when Type is
+	 * ChatInputPartTypeFileReference.
+	 */
+	readonly file_name?: string;
+	readonly start_line?: number;
+	readonly end_line?: number;
+	/**
+	 * The code content from the diff that was commented on.
+	 */
+	readonly content?: string;
 }
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
 	| "file"
+	| "file-reference"
 	| "reasoning"
 	| "source"
 	| "text"
@@ -1176,6 +1203,7 @@ export type ChatMessagePartType =
 
 export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"file",
+	"file-reference",
 	"reasoning",
 	"source",
 	"text",

@@ -97,7 +97,6 @@ interface AgentChatInputProps {
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 }
-
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
 	typeof value === "number" && Number.isFinite(value) && value >= 0;
 
@@ -350,6 +349,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		const internalRef = useRef<ChatMessageInputRef>(null);
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+		const [hasFileReferences, setHasFileReferences] = useState(false);
+
 		// Merge the external inputRef with our internal ref so both
 		// point to the same ChatMessageInputRef instance.
 		const setRef = useCallback(
@@ -426,8 +427,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		);
 
 		const handleContentChange = useCallback(
-			(content: string) => {
+			(content: string, hasRefs: boolean) => {
 				setHasContent(Boolean(content.trim()));
+				setHasFileReferences(hasRefs);
 				onContentChange?.(content);
 			},
 			[onContentChange],
@@ -455,9 +457,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			!isDisabled &&
 			!isLoading &&
 			hasModelOptions &&
-			(hasContent || hasUploadedAttachments) &&
+			(hasContent || hasUploadedAttachments || hasFileReferences) &&
 			!isUploading;
-
 		const handleSubmit = useCallback(() => {
 			const text = internalRef.current?.getValue()?.trim() ?? "";
 
@@ -466,6 +467,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			if (
 				!text &&
 				!hasUploadedAttachments &&
+				!hasFileReferences &&
 				!isDisabled &&
 				!isLoading &&
 				queuedMessages.length > 0 &&
@@ -476,14 +478,13 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 
 			if (
-				(!text && !hasUploadedAttachments) ||
+				(!text && !hasUploadedAttachments && !hasFileReferences) ||
 				isDisabled ||
 				isLoading ||
 				!hasModelOptions
 			) {
 				return;
 			}
-
 			onSend(text);
 			internalRef.current?.focus();
 		}, [
@@ -491,11 +492,11 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			isLoading,
 			hasModelOptions,
 			hasUploadedAttachments,
+			hasFileReferences,
 			onSend,
 			queuedMessages,
 			onPromoteQueuedMessage,
 		]);
-
 		const handleKeyDown = (e: React.KeyboardEvent) => {
 			if (e.key === "Escape") {
 				if (editingQueuedMessageID !== null) {
@@ -603,7 +604,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						disabled={isDisabled || isLoading}
 						rows={4}
 						autoFocus
-					/>
+					/>{" "}
 					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 						<div className="flex min-w-0 items-center gap-2">
 							<ModelSelector
