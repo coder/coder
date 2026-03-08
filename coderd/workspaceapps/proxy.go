@@ -618,19 +618,38 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		http.Redirect(rw, r, r.URL.Path+"/", http.StatusTemporaryRedirect)
 		return
 	}
-	if path == "/" && r.URL.RawQuery == "" && appURL.RawQuery != "" {
-		// If the application defines a default set of query parameters,
-		// we should always respect them. The reverse proxy will merge
-		// query parameters for server-side requests, but sometimes
-		// client-side applications require the query parameters to render
-		// properly. With code-server, this is the "folder" param.
-		r.URL.RawQuery = appURL.RawQuery
-		http.Redirect(rw, r, r.URL.String(), http.StatusTemporaryRedirect)
+	if path == "/" && r.URL.RawQuery == "" && (appURL.RawQuery != "" || (appURL.Path != "" && appURL.Path != "/")) {
+		// If the application defines a default set of query
+		// parameters or a path (e.g., "http://localhost:8000/docs"
+		// or "http://localhost:8000/?folder=/home"), redirect the
+		// user on the first visit. Query parameters are needed
+		// client-side for some apps like code-server (the "folder"
+		// param). The path is only used for this initial redirect;
+		// it must not be included in the proxy target, otherwise
+		// the reverse proxy would prepend it to every request path,
+		// doubling the path (e.g., /docs/docs). See #18572.
+		u := *r.URL
+		if appURL.Path != "" && appURL.Path != "/" {
+			u.Path = appURL.Path
+			if !strings.HasSuffix(u.Path, "/") {
+				u.Path += "/"
+			}
+		}
+		if appURL.RawQuery != "" {
+			u.RawQuery = appURL.RawQuery
+		}
+		http.Redirect(rw, r, u.String(), http.StatusTemporaryRedirect)
 		return
 	}
 
 	r.URL.Path = path
 	appURL.RawQuery = ""
+	// Strip the path from the app URL before creating the reverse
+	// proxy target. The path component is only used for the initial
+	// redirect above; including it in the proxy target would cause
+	// httputil.NewSingleHostReverseProxy to prepend it to every
+	// request path, resulting in path doubling. See #18572.
+	appURL.Path = ""
 	_, protocol, isPort := app.PortInfo()
 	if isPort {
 		appURL.Scheme = protocol
