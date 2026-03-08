@@ -18731,11 +18731,12 @@ WHERE
 		ELSE true
 	END
 	-- Start filters
-	-- Filter by email or username
+	-- Filter by email, username, or name
 	AND CASE
 		WHEN $2 :: text != '' THEN (
 			email ILIKE concat('%', $2, '%')
 			OR username ILIKE concat('%', $2, '%')
+			OR name ILIKE concat('%', $2, '%')
 		)
 		ELSE true
 	END
