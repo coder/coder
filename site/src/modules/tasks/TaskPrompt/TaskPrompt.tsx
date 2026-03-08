@@ -28,6 +28,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { useExternalAuth } from "hooks/useExternalAuth";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { ArrowUpIcon, InfoIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -343,7 +344,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 												<SelectItem value={preset.ID} key={preset.ID}>
 													<div className="flex items-center gap-2">
 														{preset.Icon && (
-															<img
+															<ExternalImage
 																data-slot="preset-icon"
 																src={preset.Icon}
 																alt={preset.Name}
