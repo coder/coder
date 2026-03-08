@@ -249,23 +249,31 @@ const JSONField: FC<
 
 // ── Schema-driven field renderer ───────────────────────────────
 
+interface SchemaFieldProps extends FieldRenderContext {
+	field: FieldSchema;
+	fieldKey: string;
+	errorKey: string;
+}
+
 /**
  * Render a single field from the schema using the appropriate
  * generic renderer based on its `input_type`.
  */
-function renderSchemaField(
-	field: FieldSchema,
-	fieldKey: string,
-	errorKey: string,
-	ctx: FieldRenderContext,
-): React.ReactNode {
+const SchemaField: FC<SchemaFieldProps> = ({
+	field,
+	fieldKey,
+	errorKey,
+	form,
+	fieldErrors,
+	disabled,
+}) => {
 	const label = snakeToPrettyLabel(field.json_name);
+	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
 
 	switch (field.input_type) {
 		case "input":
 			return (
 				<InputField
-					key={fieldKey}
 					{...ctx}
 					fieldKey={fieldKey}
 					errorKey={errorKey}
@@ -279,7 +287,6 @@ function renderSchemaField(
 				field.enum ?? (field.type === "boolean" ? ["true", "false"] : []);
 			return (
 				<SelectField
-					key={fieldKey}
 					{...ctx}
 					fieldKey={fieldKey}
 					errorKey={errorKey}
@@ -292,7 +299,6 @@ function renderSchemaField(
 		case "json":
 			return (
 				<JSONField
-					key={fieldKey}
 					{...ctx}
 					fieldKey={fieldKey}
 					errorKey={errorKey}
@@ -304,7 +310,7 @@ function renderSchemaField(
 		default:
 			return null;
 	}
-}
+};
 
 // ── Main component ─────────────────────────────────────────────
 
@@ -343,7 +349,15 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 			{fields.map((field) => {
 				const fieldKey = `config.${toFormFieldKey(resolved, field.json_name)}`;
 				const errorKey = toFormFieldKey(resolved, field.json_name);
-				return renderSchemaField(field, fieldKey, errorKey, ctx);
+				return (
+					<SchemaField
+						key={fieldKey}
+						field={field}
+						fieldKey={fieldKey}
+						errorKey={errorKey}
+						{...ctx}
+					/>
+				);
 			})}
 		</div>
 	);
