@@ -159,7 +159,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 			setFilter(nextFilter);
 		}, DEBOUNCE_MS);
 
-	const selectedInputValue = value?.email ?? value?.username ?? "";
+	const selectedInputValue = value?.email || value?.username || "";
 	const selectedFilterValue = value?.username ?? "";
 	// Keep spinner only while typing away from the selected value.
 	const isLoadingOptions =
@@ -203,7 +203,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 									fallback={value.username}
 								/>
 							)}
-							{value?.email ?? value?.username ?? "Select a user"}
+							{value?.email || value?.username || "Select a user"}
 						</span>
 						<ChevronDownIcon className="p-0.5" />
 					</Button>
@@ -233,7 +233,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 								<ComboboxItem
 									key={option.username}
 									value={option.username}
-									keywords={[option.username, option.email ?? ""]}
+									keywords={[option.username, option.email || ""]}
 									className="m-1"
 								>
 									<AvatarData
