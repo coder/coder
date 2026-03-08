@@ -503,7 +503,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							{selectedTab === "logs" && (
 								<div className="flex flex-col h-[280px] overflow-y-auto">
 									{templateVersion.job.error ? (
-										<div>
+										<div className="sticky top-0 z-10">
 											<ProvisionerAlert
 												title="Error during the build"
 												detail={templateVersion.job.error}
