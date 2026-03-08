@@ -135,14 +135,17 @@ func BuiltinScopeNames() []ScopeName {
 // authorization.
 var compositePerms = map[ScopeName]map[string][]policy.Action{
 	"coder:workspaces.create": {
-		ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUse},
-		ResourceWorkspace.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+		ResourceTemplate.Type:              {policy.ActionRead, policy.ActionUse},
+		ResourceWorkspace.Type:             {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+		ResourceOrganizationMember.Type:    {policy.ActionRead},
 	},
 	"coder:workspaces.operate": {
-		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate},
+		ResourceWorkspace.Type:             {policy.ActionRead, policy.ActionUpdate},
+		ResourceOrganizationMember.Type:    {policy.ActionRead},
 	},
 	"coder:workspaces.delete": {
-		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionDelete},
+		ResourceWorkspace.Type:             {policy.ActionRead, policy.ActionDelete},
+		ResourceOrganizationMember.Type:    {policy.ActionRead},
 	},
 	"coder:workspaces.access": {
 		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect},
