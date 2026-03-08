@@ -599,13 +599,22 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				defaultRegion = nil
 			}
 
-			derpMap, err := tailnet.NewDERPMap(
-				ctx, defaultRegion, vals.DERP.Server.STUNAddresses,
-				vals.DERP.Config.URL.String(), vals.DERP.Config.Path.String(),
-				vals.DERP.Config.BlockDirect.Value(),
-			)
-			if err != nil {
-				return xerrors.Errorf("create derp map: %w", err)
+			var derpMap *tailcfg.DERPMap
+			if !vals.DERP.Server.Enable && vals.DERP.Config.URL.String() == "" && vals.DERP.Config.Path.String() == "" {
+				logger.Warn(ctx, "built-in DERP server is disabled and no DERP map is configured; networking will not work until workspace proxies are connected")
+				derpMap = &tailcfg.DERPMap{
+					Regions: map[int]*tailcfg.DERPRegion{},
+				}
+			} else {
+				var err error
+				derpMap, err = tailnet.NewDERPMap(
+					ctx, defaultRegion, vals.DERP.Server.STUNAddresses,
+					vals.DERP.Config.URL.String(), vals.DERP.Config.Path.String(),
+					vals.DERP.Config.BlockDirect.Value(),
+				)
+				if err != nil {
+					return xerrors.Errorf("create derp map: %w", err)
+				}
 			}
 
 			appHostname := vals.WildcardAccessURL.String()
