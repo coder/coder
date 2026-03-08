@@ -207,6 +207,7 @@ function renderBlockList({
 							<button
 								key={`${keyPrefix}-file-${index}`}
 								type="button"
+								aria-label="View image"
 								className="inline-block rounded-md border-0 bg-transparent p-0"
 								onClick={(e) => {
 									e.stopPropagation();
@@ -347,6 +348,7 @@ const ChatMessageItem = memo<{
 													<button
 														key={`user-file-${i}`}
 														type="button"
+														aria-label="View image"
 														className="inline-block rounded-md border-0 bg-transparent p-0"
 														onClick={(e) => {
 															e.stopPropagation();
