@@ -357,7 +357,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 	return (
 		<>
-			<div className="sticky top-5 ml-10">
+			<div className="sticky top-5 ml-10 z-10">
 				<button
 					onClick={onCancel}
 					type="button"
