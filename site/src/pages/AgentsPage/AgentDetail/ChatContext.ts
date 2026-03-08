@@ -11,12 +11,9 @@ import {
 } from "react";
 import { useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
+import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { StreamState } from "./types";
-
-// Reconnect delay bounds for exponential backoff.
-const RECONNECT_BASE_MS = 1_000;
-const RECONNECT_MAX_MS = 10_000;
 
 const VALID_CHAT_STATUSES: ReadonlySet<string> = new Set<TypesGen.ChatStatus>([
 	"pending",
@@ -590,10 +587,9 @@ export const useChatStore = (
 
 		// Capture chatID as a narrowed string for use in closures.
 		const activeChatID = chatID;
+		// Local disposed flag so the message handler (which lives
+		// outside the utility) can bail out after cleanup.
 		let disposed = false;
-		let reconnectAttempt = 0;
-		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-		let activeSocket: ReturnType<typeof watchChat> | null = null;
 
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
@@ -771,55 +767,24 @@ export const useChatStore = (
 			flushMessageParts();
 		};
 
-		// Schedule a reconnect with capped exponential backoff.
-		// Does nothing if the effect has been cleaned up.
-		const scheduleReconnect = () => {
-			if (disposed) {
-				return;
-			}
-			if (reconnectTimer !== null) {
-				clearTimeout(reconnectTimer);
-			}
-			const delay = Math.min(
-				RECONNECT_BASE_MS * 2 ** reconnectAttempt,
-				RECONNECT_MAX_MS,
-			);
-			reconnectAttempt += 1;
-			reconnectTimer = setTimeout(connect, delay);
-		};
-
-		function connect() {
-			if (disposed) {
-				return;
-			}
-			if (activeSocket) {
-				activeSocket.close();
-			}
-
-			// Use the latest known message ID so the server only
-			// sends events the client hasn't seen yet.
-			const socket = watchChat(activeChatID, lastMessageIdRef.current);
-			activeSocket = socket;
-
-			const handleOpen = () => {
-				// Connection succeeded — reset backoff and clear any
-				// previous disconnect error.
-				reconnectAttempt = 0;
+		const disposeSocket = createReconnectingWebSocket({
+			connect() {
+				// Use the latest known message ID so the server only
+				// sends events the client hasn't seen yet.
+				const socket = watchChat(activeChatID, lastMessageIdRef.current);
+				socket.addEventListener("message", handleMessage);
+				return socket;
+			},
+			onOpen() {
+				// Connection succeeded — clear any previous disconnect
+				// error.
 				store.clearStreamError();
-			};
-
-			const handleDisconnect = () => {
-				// Guard against duplicate calls: browsers fire both
-				// "error" and "close" on a failed WebSocket, so we
-				// only process the first event per socket instance.
-				if (activeSocket !== socket || disposed) {
-					return;
-				}
-				activeSocket = null;
+			},
+			onDisconnect(attempt) {
 				// Show the error only on the first disconnect (not
 				// while we are already retrying).
-				if (reconnectAttempt === 0) {
-					store.setStreamError("Chat stream disconnected. Reconnecting…");
+				if (attempt === 0) {
+					store.setStreamError("Chat stream disconnected. Reconnecting\u2026");
 				}
 				// Clear "running" status on disconnect so the UI
 				// doesn't show a stale spinner. The reconnected
@@ -828,26 +793,12 @@ export const useChatStore = (
 				if (currentStatus === "running") {
 					store.setChatStatus(null);
 				}
-				scheduleReconnect();
-			};
-
-			socket.addEventListener("open", handleOpen);
-			socket.addEventListener("message", handleMessage);
-			socket.addEventListener("error", handleDisconnect);
-			socket.addEventListener("close", handleDisconnect);
-		}
-
-		// Kick off the first connection.
-		connect();
+			},
+		});
 
 		return () => {
 			disposed = true;
-			if (reconnectTimer !== null) {
-				clearTimeout(reconnectTimer);
-			}
-			if (activeSocket) {
-				activeSocket.close();
-			}
+			disposeSocket();
 			cancelScheduledStreamReset();
 			activeChatIDRef.current = null;
 		};
