@@ -92,15 +92,23 @@ const StartTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 };
 
 const StartErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
+	const isScriptError = agent.health.reason?.toLowerCase().includes("startup script");
+	const title = isScriptError
+		? "Startup script failed"
+		: "Error starting the agent";
+	const description = isScriptError
+		? "A startup script exited with an error. The agent is still running and accessible. Contact your template admin to fix the startup script."
+		: "Something went wrong during the agent startup.";
+
 	return (
 		<HelpTooltip>
 			<HelpTooltipTrigger asChild role="status" aria-label="Start error">
 				<TriangleAlertIcon css={styles.errorWarning} />
 			</HelpTooltipTrigger>
 			<HelpTooltipContent>
-				<HelpTooltipTitle>Error starting the agent</HelpTooltipTitle>
+				<HelpTooltipTitle>{title}</HelpTooltipTitle>
 				<HelpTooltipText>
-					Something went wrong during the agent startup.{" "}
+					{description}{" "}
 					<Link
 						target="_blank"
 						rel="noreferrer"
