@@ -5753,7 +5753,9 @@ func (q *querier) UpdateProvisionerJobWithCancelByID(ctx context.Context, arg da
 
 		// Template can specify if cancels are allowed.
 		// Would be nice to have a way in the rbac rego to do this.
-		if !template.AllowUserCancelWorkspaceJobs {
+		// Pending jobs haven't started provisioning, so cancelling is always
+		// non-destructive and should be allowed regardless of template settings.
+		if !template.AllowUserCancelWorkspaceJobs && job.JobStatus != database.ProvisionerJobStatusPending {
 			// Only owners can cancel workspace builds
 			actor, ok := ActorFromContext(ctx)
 			if !ok {

@@ -1020,6 +1020,20 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		dbm.EXPECT().UpdateProvisionerJobWithCancelByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns()
 	}))
+	s.Run("BuildPendingFalseCancel/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		// Pending jobs should always be cancellable, even when AllowUserCancelWorkspaceJobs is false.
+		tpl := testutil.Fake(s.T(), faker, database.Template{AllowUserCancelWorkspaceJobs: false})
+		ws := testutil.Fake(s.T(), faker, database.Workspace{TemplateID: tpl.ID})
+		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild, JobStatus: database.ProvisionerJobStatusPending})
+		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: ws.ID})
+		arg := database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}
+		dbm.EXPECT().GetProvisionerJobByID(gomock.Any(), j.ID).Return(j, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), j.ID).Return(build, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().UpdateProvisionerJobWithCancelByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns()
+	}))
 	s.Run("TemplateVersion/UpdateProvisionerJobWithCancelByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{})
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeTemplateVersionImport})
