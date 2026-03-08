@@ -8,7 +8,8 @@ import {
 	Tool,
 } from "components/ai-elements";
 import { FileIcon } from "components/FileIcon/FileIcon";
-import { ChevronDownIcon, Loader2Icon } from "lucide-react";
+import { Spinner } from "components/Spinner/Spinner";
+import { ChevronDownIcon } from "lucide-react";
 import {
 	type FC,
 	memo,
@@ -348,9 +349,10 @@ const ChatMessageItem = memo<{
 											{parsed.markdown || ""}
 										</span>
 										{isSavingMessage && (
-											<Loader2Icon
-												className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary"
+											<Spinner
+												className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
 												aria-label="Saving message edit"
+												loading
 											/>
 										)}
 									</div>

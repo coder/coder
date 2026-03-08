@@ -9,12 +9,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import {
 	ChevronDownIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
-	Loader2Icon,
 } from "lucide-react";
 import { type FC, useMemo, useState } from "react";
 import { cn } from "utils/cn";
@@ -487,10 +487,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 									disabled={isDeleting}
 									onClick={() => void onDeleteModel(editingModel.id)}
 								>
-									{isDeleting && (
-										<Loader2Icon className="h-4 w-4 animate-spin" />
-									)}
-									Delete model
+									{isDeleting && <Spinner className="h-4 w-4" loading />}
+									Delete model{" "}
 								</Button>
 							</div>
 						</div>
@@ -522,7 +520,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 								type="submit"
 								disabled={isSaving || !form.isValid || hasFieldErrors}
 							>
-								{isSaving && <Loader2Icon className="h-4 w-4 animate-spin" />}
+								{isSaving && <Spinner className="h-4 w-4" loading />}{" "}
 								{isEditing ? "Save" : "Add model"}{" "}
 							</Button>
 						</div>
