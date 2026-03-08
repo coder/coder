@@ -54,9 +54,16 @@ export const DialogActionButtons: FC<DialogActionButtonsProps> = ({
 					onClick={onConfirm}
 					data-testid="confirm-button"
 					type="submit"
+					className="relative"
 				>
-					<Spinner loading={confirmLoading} />
-					{confirmText}
+					{confirmLoading && (
+						<span className="absolute inset-0 flex items-center justify-center">
+							<Spinner loading />
+						</span>
+					)}
+					<span className={confirmLoading ? "invisible" : undefined}>
+						{confirmText}
+					</span>
 				</Button>
 			)}
 		</>
