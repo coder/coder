@@ -266,10 +266,25 @@ const useWorkspacesFilter = ({
 			filter.update({ ...filter.values, template: option?.value }),
 	});
 
+	// The "unhealthy" option is a virtual status that maps to the backend's
+	// "healthy:false" query parameter. When "healthy:false" is in the filter
+	// query, we show the "unhealthy" option as selected in the status dropdown.
+	const statusValue =
+		filter.values.healthy === "false" ? "unhealthy" : filter.values.status;
+
 	const statusMenu = useStatusFilterMenu({
-		value: filter.values.status,
-		onChange: (option) =>
-			filter.update({ ...filter.values, status: option?.value }),
+		value: statusValue,
+		onChange: (option) => {
+			if (option?.value === "unhealthy") {
+				// Remove status filter and set healthy:false
+				const { status: _, ...rest } = filter.values;
+				filter.update({ ...rest, healthy: "false" });
+			} else {
+				// Remove healthy filter and set status as normal
+				const { healthy: _, ...rest } = filter.values;
+				filter.update({ ...rest, status: option?.value });
+			}
+		},
 	});
 
 	const { showOrganizations } = useDashboard();

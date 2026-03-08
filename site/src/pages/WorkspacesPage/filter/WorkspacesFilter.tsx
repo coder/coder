@@ -27,6 +27,7 @@ const workspaceFilterQuery = {
 	all: "",
 	running: "status:running",
 	failed: "status:failed",
+	unhealthy: "healthy:false",
 	dormant: "dormant:true",
 	outdated: "outdated:true",
 	shared: "shared:true",
@@ -55,6 +56,10 @@ const PRESET_FILTERS: FilterPreset[] = [
 	{
 		query: workspaceFilterQuery.failed,
 		name: "Failed workspaces",
+	},
+	{
+		query: workspaceFilterQuery.unhealthy,
+		name: "Unhealthy workspaces",
 	},
 	{
 		query: workspaceFilterQuery.outdated,

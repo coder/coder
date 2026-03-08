@@ -97,6 +97,10 @@ export const TemplateMenu: FC<TemplateMenuProps> = ({ width, menu }) => {
 
 /** Status Filter Menu */
 
+// Union type for status filter values, including the virtual "unhealthy" option
+// which maps to the backend's "healthy:false" query parameter.
+export type StatusFilterValue = WorkspaceStatus | "unhealthy";
+
 export const useStatusFilterMenu = ({
 	value,
 	onChange,
@@ -107,7 +111,7 @@ export const useStatusFilterMenu = ({
 		"failed",
 		"pending",
 	];
-	const statusOptions = statusesToFilter.map((status) => {
+	const statusOptions: SelectFilterOption[] = statusesToFilter.map((status) => {
 		const display = getDisplayWorkspaceStatus(status);
 		return {
 			label: display.text,
@@ -117,6 +121,16 @@ export const useStatusFilterMenu = ({
 			),
 		};
 	});
+
+	// Add the "unhealthy" virtual status option. This is not a WorkspaceStatus
+	// enum value, but maps to the backend "healthy:false" filter which finds
+	// workspaces with disconnected or timed-out agents.
+	statusOptions.push({
+		label: "Unhealthy",
+		value: "unhealthy",
+		startIcon: <StatusIndicatorDot variant="warning" />,
+	});
+
 	return useFilterMenu({
 		onChange,
 		value,
