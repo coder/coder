@@ -111,7 +111,7 @@ const InputField: FC<
 				placeholder={placeholder}
 				{...fieldProps}
 				disabled={disabled}
-				aria-invalid={!!fieldError}
+				aria-invalid={Boolean(fieldError)}
 				aria-describedby={fieldError ? errorId : undefined}
 			/>
 			{fieldError && (
@@ -171,7 +171,7 @@ const SelectField: FC<
 						"h-9 min-w-0 text-[13px]",
 						fieldError && "border-content-destructive",
 					)}
-					aria-invalid={!!fieldError}
+					aria-invalid={Boolean(fieldError)}
 					aria-describedby={fieldError ? errorId : undefined}
 				>
 					<SelectValue placeholder="Unset" />
@@ -235,7 +235,7 @@ const JSONField: FC<
 				placeholder={placeholder}
 				{...fieldProps}
 				disabled={disabled}
-				aria-invalid={!!fieldError}
+				aria-invalid={Boolean(fieldError)}
 				aria-describedby={fieldError ? errorId : undefined}
 			/>
 			{fieldError && (
