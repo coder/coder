@@ -35,6 +35,19 @@ func TestUsernameValid(t *testing.T) {
 		{"abcdefghijklmnopqrstu", true},
 		{"wow-test", true},
 
+		// Reserved usernames that conflict with API routes
+		// under /api/v2/users/.
+		{"me", false},
+		{"first", false},
+		{"roles", false},
+		{"authmethods", false},
+		{"login", false},
+		{"logout", false},
+		{"otp", false},
+		{"oauth2", false},
+		{"oidc", false},
+		{"validate-password", false},
+
 		{"", false},
 		{" ", false},
 		{" a", false},
@@ -184,6 +197,12 @@ func TestFrom(t *testing.T) {
 		{"kyle+testing", "kyletesting"},
 		{"kyle-testing", "kyle-testing"},
 		{"much.”more unusual”@example.com", "muchmoreunusual"},
+
+		// Reserved usernames produce a random name.
+		{"roles", ""},
+		{"me", ""},
+		{"first", ""},
+		{"authmethods", ""},
 
 		// Cases where an invalid string is provided, and the result is a random name.
 		{"123456789012345678901234567890123", ""},

@@ -16,6 +16,23 @@ var (
 
 	templateVersionName = regexp.MustCompile(`^[a-zA-Z0-9]+(?:[_.-]{1}[a-zA-Z0-9]+)*$`)
 	templateDisplayName = regexp.MustCompile(`^[^\s](.*[^\s])?$`)
+
+	// reservedUsernames contains names that conflict with API routes
+	// under /api/v2/users/. Using these as usernames would cause
+	// routing ambiguity with endpoints like /users/roles,
+	// /users/authmethods, etc.
+	reservedUsernames = map[string]bool{
+		"me":                true,
+		"first":             true,
+		"roles":             true,
+		"authmethods":       true,
+		"login":             true,
+		"logout":            true,
+		"otp":               true,
+		"oauth2":            true,
+		"oidc":              true,
+		"validate-password": true,
+	}
 )
 
 // UsernameFrom returns a best-effort username from the provided string.
@@ -50,6 +67,10 @@ func NameValid(str string) error {
 	}
 	// Avoid conflicts with routes like /templates/new and /groups/create.
 	if str == "new" || str == "create" {
+		return xerrors.Errorf("cannot use %q as a name", str)
+	}
+	// Avoid conflicts with API routes under /api/v2/users/.
+	if reservedUsernames[str] {
 		return xerrors.Errorf("cannot use %q as a name", str)
 	}
 	matched := UsernameValidRegex.MatchString(str)
