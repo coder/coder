@@ -342,6 +342,7 @@ const ParameterField: FC<ParameterFieldProps> = ({
 				<Combobox
 					value={value}
 					onValueChange={(newValue) => onChange(newValue ?? "")}
+					open={disabled ? false : undefined}
 				>
 					<ComboboxTrigger asChild>
 						<ComboboxButton
