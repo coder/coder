@@ -562,16 +562,13 @@ const AgentsPage: FC = () => {
 		};
 	}, [queryClient]);
 
-	useEffect(() => {
-		document.title = pageTitle("Agents");
-	}, []);
-
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
 	});
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
+			<title>{pageTitle("Agents")}</title>
 			<div
 				className={cn(
 					"md:h-full md:w-[320px] md:min-h-0 md:border-b-0",
