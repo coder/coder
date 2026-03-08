@@ -20,6 +20,7 @@ WHERE
 	tus.start_time >= @start_time::timestamptz
 	AND tus.end_time <= @end_time::timestamptz
 	AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+	AND u.is_system = false
 GROUP BY
 	tus.user_id, u.username, u.avatar_url
 ORDER BY
@@ -37,18 +38,23 @@ WITH
 	deployment_stats AS (
 		SELECT
 			start_time,
-			user_id,
+			tus.user_id,
 			array_agg(template_id) AS template_ids,
 			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
 			LEAST(SUM(usage_mins), 30) AS usage_mins
 		FROM
-			template_usage_stats
+			template_usage_stats tus
+		JOIN
+			users u
+		ON
+			u.id = tus.user_id
 		WHERE
-			start_time >= @start_time::timestamptz
-			AND end_time <= @end_time::timestamptz
-			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			tus.start_time >= @start_time::timestamptz
+			AND tus.end_time <= @end_time::timestamptz
+			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			AND u.is_system = false
 		GROUP BY
-			start_time, user_id
+			start_time, tus.user_id
 	),
 	template_ids AS (
 		SELECT
@@ -94,37 +100,47 @@ ORDER BY
 WITH
 	insights AS (
 		SELECT
-			user_id,
+			tus.user_id,
 			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
-			LEAST(SUM(usage_mins), 30) AS usage_mins,
-			LEAST(SUM(ssh_mins), 30) AS ssh_mins,
-			LEAST(SUM(sftp_mins), 30) AS sftp_mins,
-			LEAST(SUM(reconnecting_pty_mins), 30) AS reconnecting_pty_mins,
-			LEAST(SUM(vscode_mins), 30) AS vscode_mins,
-			LEAST(SUM(jetbrains_mins), 30) AS jetbrains_mins
+			LEAST(SUM(tus.usage_mins), 30) AS usage_mins,
+			LEAST(SUM(tus.ssh_mins), 30) AS ssh_mins,
+			LEAST(SUM(tus.sftp_mins), 30) AS sftp_mins,
+			LEAST(SUM(tus.reconnecting_pty_mins), 30) AS reconnecting_pty_mins,
+			LEAST(SUM(tus.vscode_mins), 30) AS vscode_mins,
+			LEAST(SUM(tus.jetbrains_mins), 30) AS jetbrains_mins
 		FROM
-			template_usage_stats
+			template_usage_stats tus
+		JOIN
+			users u
+		ON
+			u.id = tus.user_id
 		WHERE
-			start_time >= @start_time::timestamptz
-			AND end_time <= @end_time::timestamptz
-			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			tus.start_time >= @start_time::timestamptz
+			AND tus.end_time <= @end_time::timestamptz
+			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			AND u.is_system = false
 		GROUP BY
-			start_time, user_id
+			tus.start_time, tus.user_id
 	),
 	templates AS (
 		SELECT
-			array_agg(DISTINCT template_id) AS template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE ssh_mins > 0) AS ssh_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE sftp_mins > 0) AS sftp_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE reconnecting_pty_mins > 0) AS reconnecting_pty_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE vscode_mins > 0) AS vscode_template_ids,
-			array_agg(DISTINCT template_id) FILTER (WHERE jetbrains_mins > 0) AS jetbrains_template_ids
+			array_agg(DISTINCT tus.template_id) AS template_ids,
+			array_agg(DISTINCT tus.template_id) FILTER (WHERE tus.ssh_mins > 0) AS ssh_template_ids,
+			array_agg(DISTINCT tus.template_id) FILTER (WHERE tus.sftp_mins > 0) AS sftp_template_ids,
+			array_agg(DISTINCT tus.template_id) FILTER (WHERE tus.reconnecting_pty_mins > 0) AS reconnecting_pty_template_ids,
+			array_agg(DISTINCT tus.template_id) FILTER (WHERE tus.vscode_mins > 0) AS vscode_template_ids,
+			array_agg(DISTINCT tus.template_id) FILTER (WHERE tus.jetbrains_mins > 0) AS jetbrains_template_ids
 		FROM
-			template_usage_stats
+			template_usage_stats tus
+		JOIN
+			users u
+		ON
+			u.id = tus.user_id
 		WHERE
-			start_time >= @start_time::timestamptz
-			AND end_time <= @end_time::timestamptz
-			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			tus.start_time >= @start_time::timestamptz
+			AND tus.end_time <= @end_time::timestamptz
+			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN tus.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+			AND u.is_system = false
 	)
 
 SELECT
