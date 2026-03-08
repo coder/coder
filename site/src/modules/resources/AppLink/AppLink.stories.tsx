@@ -208,6 +208,17 @@ export const BlockingStartupScriptRunning: Story = {
 	},
 };
 
+export const AgentConnecting: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: MockWorkspaceApp,
+		agent: {
+			...MockWorkspaceAgent,
+			status: "connecting",
+		},
+	},
+};
+
 export const WithTooltip: Story = {
 	args: {
 		workspace: MockWorkspace,

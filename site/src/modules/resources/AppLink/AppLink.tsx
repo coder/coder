@@ -109,6 +109,11 @@ export const AppLink: FC<AppLinkProps> = ({
 		);
 	}
 
+	if (agent.status !== "connected") {
+		canClick = false;
+		primaryTooltip = "Waiting for the agent to connect...";
+	}
+
 	if (isExternalApp(app) && needsSessionToken(app) && !link.hasToken) {
 		canClick = false;
 	}
