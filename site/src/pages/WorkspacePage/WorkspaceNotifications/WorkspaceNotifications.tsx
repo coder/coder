@@ -93,18 +93,40 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 		const troubleshootingURL = findTroubleshootingURL(workspace.latest_build);
 		const hasActions = permissions.updateWorkspace || troubleshootingURL;
 
+		// Check if all failing agents have start_error lifecycle (startup script failure)
+		const failingAgentIds = new Set(workspace.health.failing_agents);
+		const failingAgents = workspace.latest_build.resources
+			.flatMap((r) => r.agents ?? [])
+			.filter((a) => failingAgentIds.has(a.id));
+		const allStartErrors =
+			failingAgents.length > 0 &&
+			failingAgents.every((a) => a.lifecycle_state === "start_error");
+
+		const notifTitle = allStartErrors
+			? "Startup script failed"
+			: "Workspace is unhealthy";
+		const notifDetail = allStartErrors ? (
+			<>
+				Your workspace is running but{" "}
+				{failingAgents.length > 1
+					? `${failingAgents.length} startup scripts exited with errors`
+					: "a startup script exited with an error"}
+				. The workspace is still accessible.
+			</>
+		) : (
+			<>
+				Your workspace is running but{" "}
+				{workspace.health.failing_agents.length > 1
+					? `${workspace.health.failing_agents.length} agents are unhealthy`
+					: "1 agent is unhealthy"}
+				.
+			</>
+		);
+
 		notifications.push({
-			title: "Workspace is unhealthy",
+			title: notifTitle,
 			severity: "warning",
-			detail: (
-				<>
-					Your workspace is running but{" "}
-					{workspace.health.failing_agents.length > 1
-						? `${workspace.health.failing_agents.length} agents are unhealthy`
-						: "1 agent is unhealthy"}
-					.
-				</>
-			),
+			detail: notifDetail,
 			actions: hasActions ? (
 				<>
 					{permissions.updateWorkspace && (
