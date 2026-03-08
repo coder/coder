@@ -725,20 +725,24 @@ const AgentDetail: FC = () => {
 	// Extract PR number from diff status URL.
 	const prMatch = diffStatusQuery.data?.url?.match(/\/pull\/(\d+)/)?.[1];
 	const prNumber = prMatch ? Number(prMatch) : undefined;
-	useEffect(() => {
-		setSelectedModel((current) => {
-			if (current && modelOptions.some((model) => model.id === current)) {
-				return current;
+	// Compute an effective selected model by validating the user's
+	// explicit choice against the current model options, falling
+	// back to the chat's last model or the first available option.
+	const effectiveSelectedModel = useMemo(() => {
+		if (
+			selectedModel &&
+			modelOptions.some((model) => model.id === selectedModel)
+		) {
+			return selectedModel;
+		}
+		if (chatLastModelConfigID) {
+			const fromChat = modelIDByConfigID.get(chatLastModelConfigID);
+			if (fromChat && modelOptions.some((model) => model.id === fromChat)) {
+				return fromChat;
 			}
-			if (chatLastModelConfigID) {
-				const fromChat = modelIDByConfigID.get(chatLastModelConfigID);
-				if (fromChat && modelOptions.some((model) => model.id === fromChat)) {
-					return fromChat;
-				}
-			}
-			return modelOptions[0]?.id ?? "";
-		});
-	}, [chatLastModelConfigID, modelIDByConfigID, modelOptions]);
+		}
+		return modelOptions[0]?.id ?? "";
+	}, [selectedModel, chatLastModelConfigID, modelIDByConfigID, modelOptions]);
 
 	const compressionThreshold = useMemo(() => {
 		if (!chatLastModelConfigID) {
@@ -815,7 +819,9 @@ const AgentDetail: FC = () => {
 			return;
 		}
 		const selectedModelConfigID =
-			(selectedModel && modelConfigIDByModelID.get(selectedModel)) || undefined;
+			(effectiveSelectedModel &&
+				modelConfigIDByModelID.get(effectiveSelectedModel)) ||
+			undefined;
 		const request: TypesGen.CreateChatMessageRequest = {
 			content,
 			model_config_id: selectedModelConfigID,
@@ -1066,7 +1072,7 @@ const AgentDetail: FC = () => {
 						initialValue=""
 						isDisabled={isInputDisabled}
 						isLoading={false}
-						selectedModel={selectedModel}
+						selectedModel={effectiveSelectedModel}
 						onModelChange={setSelectedModel}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
@@ -1205,7 +1211,7 @@ const AgentDetail: FC = () => {
 						isSendPending={isSubmissionPending}
 						isInterruptPending={interruptMutation.isPending}
 						hasModelOptions={hasModelOptions}
-						selectedModel={selectedModel}
+						selectedModel={effectiveSelectedModel}
 						onModelChange={setSelectedModel}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
