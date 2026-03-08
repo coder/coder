@@ -46,6 +46,7 @@ import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import { AgentChatInput } from "./AgentChatInput";
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import { AgentsSidebar } from "./AgentsSidebar";
@@ -377,189 +378,140 @@ const AgentsPage: FC = () => {
 	activeChatIDRef.current = agentId;
 
 	useEffect(() => {
-		let disposed = false;
-		let reconnectAttempt = 0;
-		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-		let activeSocket: ReturnType<typeof watchChats> | null = null;
+		return createReconnectingWebSocket({
+			connect() {
+				const ws = watchChats();
 
-		// Schedule a reconnect with capped exponential backoff.
-		const scheduleReconnect = () => {
-			if (disposed) {
-				return;
-			}
-			if (reconnectTimer !== null) {
-				clearTimeout(reconnectTimer);
-			}
-			const delay = Math.min(1000 * 2 ** reconnectAttempt, 10000);
-			reconnectAttempt += 1;
-			reconnectTimer = setTimeout(connect, delay);
-		};
+				ws.addEventListener("message", (event) => {
+					if (event.parseError) {
+						console.warn("Failed to parse chat watch event:", event.parseError);
+						return;
+					}
+					const sse = event.parsedMessage;
+					if (sse?.type !== "data" || !sse.data) {
+						return;
+					}
+					if (!isChatListSSEEvent(sse.data)) {
+						return;
+					}
+					const chatEvent = sse.data;
+					const updatedChat = chatEvent.chat;
 
-		function connect() {
-			if (disposed) {
-				return;
-			}
-			if (activeSocket) {
-				activeSocket.close();
-			}
+					// Read the previous status from the query cache, which
+					// is synchronously updated by both the per-chat WebSocket
+					// (via updateSidebarChat) and this handler. This avoids
+					// the async-lag of a useEffect-based status map.
+					const currentChats =
+						queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+					const prevStatus = currentChats?.find(
+						(c) => c.id === updatedChat.id,
+					)?.status;
+					// Only play the chime for top-level chats, not sub-agents.
+					if (!updatedChat.parent_chat_id) {
+						maybePlayChime(
+							prevStatus,
+							updatedChat.status,
+							updatedChat.id,
+							activeChatIDRef.current,
+						);
+					}
 
-			const ws = watchChats();
-			activeSocket = ws;
+					if (chatEvent.kind === "deleted") {
+						queryClient.setQueryData(
+							chatsKey,
+							(prev: TypesGen.Chat[] | undefined) =>
+								prev?.filter(
+									(c) =>
+										c.id !== updatedChat.id &&
+										c.root_chat_id !== updatedChat.id,
+								),
+						);
+						queryClient.removeQueries({
+							queryKey: chatKey(updatedChat.id),
+							exact: true,
+						});
+						return;
+					}
 
-			ws.addEventListener("open", () => {
-				// Connection succeeded — reset backoff.
-				reconnectAttempt = 0;
-				void queryClient.invalidateQueries({ queryKey: chatsKey });
-			});
+					if (chatEvent.kind === "diff_status_change") {
+						void Promise.all([
+							queryClient.invalidateQueries({
+								queryKey: chatsKey,
+							}),
+							queryClient.invalidateQueries({
+								queryKey: chatDiffStatusKey(updatedChat.id),
+							}),
+							queryClient.invalidateQueries({
+								queryKey: chatDiffContentsKey(updatedChat.id),
+							}),
+						]);
+						return;
+					}
 
-			const handleDisconnect = () => {
-				// Guard against duplicate calls: browsers fire both
-				// "error" and "close" on a failed WebSocket, so we
-				// only process the first event per socket instance.
-				if (activeSocket !== ws || disposed) {
-					return;
-				}
-				activeSocket = null;
-				void queryClient.invalidateQueries({ queryKey: chatsKey });
-				scheduleReconnect();
-			};
+					// Scope field updates by event kind so that
+					// status_change events (which may carry a stale title
+					// snapshot from before async title generation
+					// finished) don't clobber a title_change that already
+					// landed.
+					const isTitleEvent = chatEvent.kind === "title_change";
+					const isStatusEvent = chatEvent.kind === "status_change";
 
-			ws.addEventListener("close", handleDisconnect);
-			ws.addEventListener("error", handleDisconnect);
-
-			ws.addEventListener("message", (event) => {
-				if (event.parseError) {
-					console.warn("Failed to parse chat watch event:", event.parseError);
-					return;
-				}
-				const sse = event.parsedMessage;
-				if (sse?.type !== "data" || !sse.data) {
-					return;
-				}
-				if (!isChatListSSEEvent(sse.data)) {
-					return;
-				}
-				const chatEvent = sse.data;
-				const updatedChat = chatEvent.chat;
-
-				// Read the previous status from the query cache, which
-				// is synchronously updated by both the per-chat WebSocket
-				// (via updateSidebarChat) and this handler. This avoids
-				// the async-lag of a useEffect-based status map.
-				const currentChats =
-					queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
-				const prevStatus = currentChats?.find(
-					(c) => c.id === updatedChat.id,
-				)?.status;
-				// Only play the chime for top-level chats, not sub-agents.
-				if (!updatedChat.parent_chat_id) {
-					maybePlayChime(
-						prevStatus,
-						updatedChat.status,
-						updatedChat.id,
-						activeChatIDRef.current,
-					);
-				}
-
-				if (chatEvent.kind === "deleted") {
 					queryClient.setQueryData(
 						chatsKey,
-						(prev: TypesGen.Chat[] | undefined) =>
-							prev?.filter(
-								(c) =>
-									c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
-							),
+						(prev: TypesGen.Chat[] | undefined) => {
+							if (!prev) return prev;
+							const exists = prev.some((c) => c.id === updatedChat.id);
+							if (exists) {
+								return prev.map((c) => {
+									if (c.id !== updatedChat.id) return c;
+									return {
+										...c,
+										...(isStatusEvent && { status: updatedChat.status }),
+										...(isTitleEvent && { title: updatedChat.title }),
+										updated_at:
+											c.updated_at > updatedChat.updated_at
+												? c.updated_at
+												: updatedChat.updated_at,
+									};
+								});
+							}
+							if (chatEvent.kind === "created") {
+								return [updatedChat, ...prev];
+							}
+							return prev;
+						},
 					);
-					queryClient.removeQueries({
-						queryKey: chatKey(updatedChat.id),
-						exact: true,
-					});
-					return;
-				}
-
-				if (chatEvent.kind === "diff_status_change") {
-					void Promise.all([
-						queryClient.invalidateQueries({
-							queryKey: chatsKey,
-						}),
-						queryClient.invalidateQueries({
-							queryKey: chatDiffStatusKey(updatedChat.id),
-						}),
-						queryClient.invalidateQueries({
-							queryKey: chatDiffContentsKey(updatedChat.id),
-						}),
-					]);
-					return;
-				}
-
-				// Scope field updates by event kind so that
-				// status_change events (which may carry a stale title
-				// snapshot from before async title generation
-				// finished) don't clobber a title_change that already
-				// landed.
-				const isTitleEvent = chatEvent.kind === "title_change";
-				const isStatusEvent = chatEvent.kind === "status_change";
-
-				queryClient.setQueryData(
-					chatsKey,
-					(prev: TypesGen.Chat[] | undefined) => {
-						if (!prev) return prev;
-						const exists = prev.some((c) => c.id === updatedChat.id);
-						if (exists) {
-							return prev.map((c) => {
-								if (c.id !== updatedChat.id) return c;
-								return {
-									...c,
+					queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
+						chatKey(updatedChat.id),
+						(previousChat) => {
+							if (!previousChat) {
+								return previousChat;
+							}
+							return {
+								...previousChat,
+								chat: {
+									...previousChat.chat,
 									...(isStatusEvent && { status: updatedChat.status }),
 									...(isTitleEvent && { title: updatedChat.title }),
 									updated_at:
-										c.updated_at > updatedChat.updated_at
-											? c.updated_at
+										previousChat.chat.updated_at > updatedChat.updated_at
+											? previousChat.chat.updated_at
 											: updatedChat.updated_at,
-								};
-							});
-						}
-						if (chatEvent.kind === "created") {
-							return [updatedChat, ...prev];
-						}
-						return prev;
-					},
-				);
-				queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
-					chatKey(updatedChat.id),
-					(previousChat) => {
-						if (!previousChat) {
-							return previousChat;
-						}
-						return {
-							...previousChat,
-							chat: {
-								...previousChat.chat,
-								...(isStatusEvent && { status: updatedChat.status }),
-								...(isTitleEvent && { title: updatedChat.title }),
-								updated_at:
-									previousChat.chat.updated_at > updatedChat.updated_at
-										? previousChat.chat.updated_at
-										: updatedChat.updated_at,
-							},
-						};
-					},
-				);
-			});
-		}
+								},
+							};
+						},
+					);
+				});
 
-		// Kick off the first connection.
-		connect();
-
-		return () => {
-			disposed = true;
-			if (reconnectTimer !== null) {
-				clearTimeout(reconnectTimer);
-			}
-			if (activeSocket) {
-				activeSocket.close();
-			}
-		};
+				return ws;
+			},
+			onOpen() {
+				void queryClient.invalidateQueries({ queryKey: chatsKey });
+			},
+			onDisconnect() {
+				void queryClient.invalidateQueries({ queryKey: chatsKey });
+			},
+		});
 	}, [queryClient]);
 
 	useEffect(() => {
