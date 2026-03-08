@@ -1,14 +1,20 @@
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import { health, refreshHealth } from "api/queries/debug";
+import {
+	experiments,
+	isKnownExperiment,
+} from "api/queries/experiments";
 import type { HealthSeverity } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import kebabCase from "lodash/fp/kebabCase";
 import { BellOffIcon, RotateCcwIcon } from "lucide-react";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
@@ -18,6 +24,7 @@ import { NavLink, Outlet } from "react-router";
 import { cn } from "utils/cn";
 import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
+import { Alert, AlertTitle } from "../../components/Alert/Alert";
 import { HealthIcon } from "./Content";
 
 const linkStyles = {
@@ -42,6 +49,14 @@ export const HealthLayout: FC = () => {
 	const { mutate: forceRefresh, isPending: isRefreshing } = useMutation(
 		refreshHealth(queryClient),
 	);
+
+	const { metadata } = useEmbeddedMetadata();
+	const enabledExperimentsQuery = useQuery(experiments(metadata.experiments));
+	const invalidExperiments =
+		enabledExperimentsQuery.data?.filter((exp) => {
+			return !isKnownExperiment(exp);
+		}) ?? [];
+
 	const sections = {
 		derp: "DERP",
 		access_url: "Access URL",
@@ -170,6 +185,30 @@ export const HealthLayout: FC = () => {
 					</div>
 
 					<div className="overflow-y-auto w-full">
+						{invalidExperiments.length > 0 && (
+							<div className="p-4 pb-0">
+								<Alert severity="warning">
+									<AlertTitle>Invalid experiments in use:</AlertTitle>
+									<ul>
+										{invalidExperiments.map((it) => (
+											<li key={it}>
+												<pre>{it}</pre>
+											</li>
+										))}
+									</ul>
+									It is recommended that you remove these experiments from your
+									configuration as they have no effect. See{" "}
+									<Link
+										href="https://coder.com/docs/reference/cli/server#--experiments"
+										target="_blank"
+										rel="noreferrer"
+									>
+										the documentation
+									</Link>{" "}
+									for more details.
+								</Alert>
+							</div>
+						)}
 						<Suspense fallback={<Loader />}>
 							<Outlet context={healthStatus} />
 						</Suspense>

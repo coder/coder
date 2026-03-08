@@ -3,7 +3,6 @@ import type {
 	Experiment,
 	SerpentOption,
 } from "api/typesGenerated";
-import { Link } from "components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -14,14 +13,12 @@ import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
-import { Alert, AlertTitle } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";
 
 type OverviewPageViewProps = {
 	deploymentOptions: SerpentOption[];
 	dailyActiveUsers: DAUsResponse | undefined;
-	readonly invalidExperiments: readonly string[];
 	readonly safeExperiments: readonly Experiment[];
 };
 
@@ -29,7 +26,6 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 	deploymentOptions,
 	dailyActiveUsers,
 	safeExperiments,
-	invalidExperiments,
 }) => {
 	return (
 		<>
@@ -49,28 +45,6 @@ export const OverviewPageView: FC<OverviewPageViewProps> = ({
 						users: i.amount,
 					}))}
 				/>
-				{invalidExperiments.length > 0 && (
-					<Alert severity="warning">
-						<AlertTitle>Invalid experiments in use:</AlertTitle>
-						<ul>
-							{invalidExperiments.map((it) => (
-								<li key={it}>
-									<pre>{it}</pre>
-								</li>
-							))}
-						</ul>
-						It is recommended that you remove these experiments from your
-						configuration as they have no effect. See{" "}
-						<Link
-							href="https://coder.com/docs/reference/cli/server#--experiments"
-							target="_blank"
-							rel="noreferrer"
-						>
-							the documentation
-						</Link>{" "}
-						for more details.
-					</Alert>
-				)}
 				<OptionsTable
 					options={useDeploymentOptions(
 						deploymentOptions,
