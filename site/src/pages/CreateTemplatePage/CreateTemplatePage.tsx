@@ -1,4 +1,4 @@
-import { createTemplate } from "api/queries/templates";
+import { createTemplate, JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -24,14 +24,20 @@ const CreateTemplatePage: FC = () => {
 	const pageViewProps: CreateTemplatePageViewProps = {
 		onCreateTemplate: async (options) => {
 			setIsBuildLogsOpen(true);
-			const template = await createTemplateMutation.mutateAsync({
-				...options,
-				onCreateVersion: setTemplateVersion,
-				onTemplateVersionChanges: setTemplateVersion,
-			});
-			navigate(
-				`${getLink(linkToTemplate(options.organization, template.name))}/files`,
-			);
+			try {
+				const template = await createTemplateMutation.mutateAsync({
+					...options,
+					onCreateVersion: setTemplateVersion,
+					onTemplateVersionChanges: setTemplateVersion,
+				});
+				navigate(
+					`${getLink(linkToTemplate(options.organization, template.name))}/files`,
+				);
+			} catch (e) {
+				if (!(e instanceof JobError)) {
+					setIsBuildLogsOpen(false);
+				}
+			}
 		},
 		onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
 		error: createTemplateMutation.error,
