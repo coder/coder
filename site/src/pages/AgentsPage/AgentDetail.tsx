@@ -908,15 +908,11 @@ const AgentDetail: FC = () => {
 
 	const chatTitle = chatQuery.data?.chat?.title;
 
-	// Update the browser tab title when navigating to / between agents.
-	useEffect(() => {
-		document.title = chatTitle
-			? pageTitle(chatTitle, "Agents")
-			: pageTitle("Agents");
-		return () => {
-			document.title = pageTitle("Agents");
-		};
-	}, [chatTitle]);
+	const titleElement = (
+		<title>
+			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
+		</title>
+	);
 
 	const parentChatID = getParentChatID(chatQuery.data?.chat);
 	const parentChat = parentChatID
@@ -1008,6 +1004,7 @@ const AgentDetail: FC = () => {
 	if (chatQuery.isLoading) {
 		return (
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+				{titleElement}
 				<AgentDetailTopBar
 					diff={{
 						hasDiffStatus: false,
@@ -1086,6 +1083,7 @@ const AgentDetail: FC = () => {
 	if (!chatQuery.data || !agentId) {
 		return (
 			<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+				{titleElement}
 				<AgentDetailTopBar
 					diff={{
 						hasDiffStatus: false,
@@ -1126,6 +1124,7 @@ const AgentDetail: FC = () => {
 				shouldShowSidebar && !visualExpanded && "flex-row",
 			)}
 		>
+			{titleElement}
 			<div
 				className={cn(
 					"relative flex min-h-0 min-w-0 flex-1 flex-col",
