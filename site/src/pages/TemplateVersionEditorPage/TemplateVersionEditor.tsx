@@ -502,7 +502,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
 							{selectedTab === "logs" && (
 								<div className="flex flex-col h-[280px] overflow-y-auto">
-									{templateVersion.job.error ? (
+									{templateVersion.job.error && !gotBuildLogs && (
 										<div>
 											<ProvisionerAlert
 												title="Error during the build"
@@ -512,18 +512,18 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												variant={AlertVariant.Inline}
 											/>
 										</div>
-									) : (
-										!gotBuildLogs && (
-											<>
-												<ProvisionerStatusAlert
-													matchingProvisioners={matchingProvisioners}
-													availableProvisioners={availableProvisioners}
-													tags={templateVersion.job.tags}
-													variant={AlertVariant.Inline}
-												/>
-												<Loader className="h-full" />
-											</>
-										)
+									)}
+
+									{!templateVersion.job.error && !gotBuildLogs && (
+										<>
+											<ProvisionerStatusAlert
+												matchingProvisioners={matchingProvisioners}
+												availableProvisioners={availableProvisioners}
+												tags={templateVersion.job.tags}
+												variant={AlertVariant.Inline}
+											/>
+											<Loader className="h-full" />
+										</>
 									)}
 
 									{gotBuildLogs && (
@@ -538,6 +538,18 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											hideTimestamps
 											logs={buildLogs}
 										/>
+									)}
+
+									{templateVersion.job.error && gotBuildLogs && (
+										<div>
+											<ProvisionerAlert
+												title="Error during the build"
+												detail={templateVersion.job.error}
+												severity="error"
+												tags={templateVersion.job.tags}
+												variant={AlertVariant.Inline}
+											/>
+										</div>
 									)}
 
 									{resources && (
