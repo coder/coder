@@ -45,7 +45,7 @@ const WorkspaceParametersPage: FC = () => {
 				const stopBuild = await API.stopWorkspace(workspace.id);
 				const stoppedJob = await API.waitForBuild(stopBuild);
 				if (stoppedJob?.status === "canceled") {
-					return;
+					throw new Error("Stop was canceled. Parameters were not updated.");
 				}
 			}
 			await API.postWorkspaceBuild(workspace.id, {
