@@ -97,7 +97,7 @@ export const formatTime = (time: number): string => {
 		unit = "s";
 	} else if (absTime < hour) {
 		value = time / minute;
-		unit = "m";
+		unit = "min";
 		frac = 1;
 	} else if (absTime < day) {
 		value = time / hour;
