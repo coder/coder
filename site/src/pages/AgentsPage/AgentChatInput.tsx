@@ -421,11 +421,13 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 
 		// Track whether the editor has content so we can gate the
 		// send button without a controlled value prop.
-		const [hasContent, setHasContent] = useState(() => !!initialValue?.trim());
+		const [hasContent, setHasContent] = useState(() =>
+			Boolean(initialValue?.trim()),
+		);
 
 		const handleContentChange = useCallback(
 			(content: string) => {
-				setHasContent(!!content.trim());
+				setHasContent(Boolean(content.trim()));
 				onContentChange?.(content);
 			},
 			[onContentChange],
