@@ -199,11 +199,11 @@ const useProviderStates = (
 
 // ── Component ──────────────────────────────────────────────────
 
-type ChatModelAdminPanelProps = {
+interface ChatModelAdminPanelProps {
 	className?: string;
 	section?: ChatModelAdminSection;
 	sectionLabel?: string;
-};
+}
 
 export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	className,

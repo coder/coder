@@ -314,12 +314,12 @@ const SchemaField: FC<SchemaFieldProps> = ({
 
 // ── Main component ─────────────────────────────────────────────
 
-type ModelConfigFieldsProps = {
+interface ModelConfigFieldsProps {
 	provider: string;
 	form: FormikContextType<ModelFormValues>;
 	fieldErrors: ModelConfigFormBuildResult["fieldErrors"];
 	disabled: boolean;
-};
+}
 
 /**
  * Provider-specific fields (reasoning, tool calls, etc.) that

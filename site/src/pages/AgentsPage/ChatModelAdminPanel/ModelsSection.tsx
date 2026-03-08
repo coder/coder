@@ -30,7 +30,7 @@ type ModelView =
 	| { mode: "add"; provider: string }
 	| { mode: "edit"; model: TypesGen.ChatModelConfig };
 
-type ModelsSectionProps = {
+interface ModelsSectionProps {
 	sectionLabel?: string;
 	providerStates: readonly ProviderState[];
 	selectedProvider: string | null;
@@ -49,7 +49,7 @@ type ModelsSectionProps = {
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
 	onDeleteModel: (modelConfigId: string) => Promise<void>;
-};
+}
 
 export const ModelsSection: FC<ModelsSectionProps> = ({
 	sectionLabel,
