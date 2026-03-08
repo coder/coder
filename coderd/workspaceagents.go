@@ -1940,6 +1940,42 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Check if the workspace's template version actually requires external auth
+	// for the matched provider. If not, return immediately instead of entering
+	// a long-poll loop that will never resolve (see #22035).
+	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, build.TemplateVersionID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get template version.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	var requiredProviders []database.ExternalAuthProvider
+	if len(templateVersion.ExternalAuthProviders) > 0 {
+		if err := json.Unmarshal(templateVersion.ExternalAuthProviders, &requiredProviders); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to parse template version external auth providers.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+	providerRequired := false
+	for _, p := range requiredProviders {
+		if p.ID == externalAuthConfig.ID {
+			providerRequired = true
+			break
+		}
+	}
+	if !providerRequired {
+		// The template version does not require this external auth provider.
+		// Return an empty response immediately rather than long-polling
+		// indefinitely waiting for a token that will never arrive.
+		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ExternalAuthResponse{})
+		return
+	}
+
 	// Persist git refs as soon as the agent requests external auth so branch
 	// context is retained even if the flow requires an out-of-band login.
 	if gitRef.Branch != "" || gitRef.RemoteOrigin != "" {
