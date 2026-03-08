@@ -78,6 +78,7 @@ export const DiffStatsInline: FC<{
 		<button
 			type="button"
 			onClick={onClick}
+			aria-label="View diff statistics"
 			className="inline-flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 leading-none transition-opacity hover:opacity-80 outline-none"
 		>
 			<DiffStatNumbers additions={additions} deletions={deletions} />
