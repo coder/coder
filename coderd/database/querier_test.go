@@ -1854,6 +1854,84 @@ func TestUpdateSystemUser(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestInsertUserServiceAccountConstraints(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	// Happy path: should succeed.
+	t.Run("ServiceAccountWithEmptyEmailAndLoginNone", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "",
+			LoginType:        database.LoginTypeNone,
+			ID:               uuid.New(),
+			Username:         "sa-ok",
+			RBACRoles:        []string{},
+			IsServiceAccount: true,
+		})
+		require.NoError(t, err)
+		require.True(t, user.IsServiceAccount)
+		require.Empty(t, user.Email)
+	})
+
+	// Service account with a non-empty email should be rejected
+	// by the users_email_not_empty constraint.
+	t.Run("ServiceAccountWithNonEmptyEmail", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "sa@coder.com",
+			LoginType:        database.LoginTypeNone,
+			ID:               uuid.New(),
+			Username:         "sa-with-email",
+			RBACRoles:        []string{},
+			IsServiceAccount: true,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUsersEmailNotEmpty))
+	})
+
+	// A non-service-account with empty email should be rejected
+	// by the users_email_not_empty constraint.
+	t.Run("RegularUserWithEmptyEmail", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "",
+			LoginType:        database.LoginTypePassword,
+			ID:               uuid.New(),
+			Username:         "regular-no-email",
+			RBACRoles:        []string{},
+			IsServiceAccount: false,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUsersEmailNotEmpty))
+	})
+
+	// Service account with login_type!=none should be rejected
+	// by the users_service_account_login_type constraint.
+	t.Run("ServiceAccountWithPasswordLoginType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "",
+			LoginType:        database.LoginTypePassword,
+			ID:               uuid.New(),
+			Username:         "sa-with-password",
+			RBACRoles:        []string{},
+			IsServiceAccount: true,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUsersServiceAccountLoginType))
+	})
+}
+
 func TestUserChangeLoginType(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
