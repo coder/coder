@@ -105,9 +105,13 @@ export const WithWorkspaces: Story = {
 export const SearchWorkspaces: Story = {
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
+		// Simulate server-side filtering: return matching results based on query.
+		spyOn(API, "getWorkspaces").mockImplementation(async (req) => {
+			const q = (req?.q ?? "").toLowerCase();
+			const filtered = q.includes("backend")
+				? mockWorkspaces.filter((ws) => ws.name.includes("backend"))
+				: mockWorkspaces;
+			return { workspaces: filtered, count: filtered.length };
 		});
 	},
 	play: async ({ canvasElement }) => {
@@ -121,15 +125,14 @@ export const SearchWorkspaces: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await body.findByRole("dialog");
 
-		// Type in the search input to filter workspaces.
+		// Type in the search input to filter workspaces (server-side).
 		const searchInput = body.getByPlaceholderText("Search workspaces...");
 		await userEvent.type(searchInput, "backend");
 
 		// Only the matching workspace should remain visible.
+		// "Auto-create Workspace" is hidden during search.
 		await waitFor(() => {
 			const options = body.getAllByRole("option");
-			// "Auto-create Workspace" is filtered out, only
-			// "johndoe/backend-api" matches.
 			expect(options).toHaveLength(1);
 			expect(options[0]).toHaveTextContent("johndoe/backend-api");
 		});
@@ -139,9 +142,18 @@ export const SearchWorkspaces: Story = {
 export const SelectWorkspaceViaSearch: Story = {
 	beforeEach: () => {
 		localStorage.clear();
-		spyOn(API, "getWorkspaces").mockResolvedValue({
-			workspaces: mockWorkspaces,
-			count: mockWorkspaces.length,
+		// Simulate server-side filtering: return matching results based on query.
+		spyOn(API, "getWorkspaces").mockImplementation(async (req) => {
+			const q = (req?.q ?? "").toLowerCase();
+			const filtered = q.includes("janedoe")
+				? mockWorkspaces.filter((ws) => ws.owner_name === "janedoe")
+				: mockWorkspaces;
+			return { workspaces: filtered, count: filtered.length };
+		});
+		spyOn(API, "getWorkspace").mockImplementation(async (id) => {
+			const ws = mockWorkspaces.find((ws) => ws.id === id);
+			if (!ws) throw new Error("Workspace not found");
+			return ws;
 		});
 	},
 	play: async ({ canvasElement }) => {

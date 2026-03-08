@@ -12,7 +12,7 @@ import {
 	createChat,
 	unarchiveChat,
 } from "api/queries/chats";
-import { workspaces } from "api/queries/workspaces";
+import { workspaces, workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
@@ -30,6 +30,7 @@ import {
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { useAuthenticated } from "hooks";
+import { useDebouncedValue } from "hooks/debounce";
 import { MonitorIcon, PanelLeftIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
@@ -41,7 +42,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "react-query";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
@@ -832,14 +833,37 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		useState(initialSystemPrompt);
 	const [systemPromptDraft, setSystemPromptDraft] =
 		useState(initialSystemPrompt);
-	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
+	const [workspaceSearch, setWorkspaceSearch] = useState("");
+	const debouncedWorkspaceSearch = useDebouncedValue(workspaceSearch, 250);
+	const workspaceSearchQuery = debouncedWorkspaceSearch
+		? `owner:me ${debouncedWorkspaceSearch}`
+		: "owner:me";
+	const workspacesQuery = useQuery({
+		...workspaces({ q: workspaceSearchQuery, limit: 25 }),
+		placeholderData: keepPreviousData,
+	});
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
 			if (typeof window === "undefined") return null;
 			return localStorage.getItem(selectedWorkspaceIdStorageKey) || null;
 		},
 	);
-	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
+	// Fetch the selected workspace separately so its label is always
+	// available in the trigger even when it falls outside search results.
+	const selectedWorkspaceQuery = useQuery({
+		...workspaceById(selectedWorkspaceId ?? ""),
+		enabled: !!selectedWorkspaceId,
+	});
+	const searchedWorkspaces = workspacesQuery.data?.workspaces ?? [];
+	// Merge the selected workspace into the list if it is not already
+	// present in the current search results.
+	const workspaceOptions = useMemo(() => {
+		const selected = selectedWorkspaceQuery.data;
+		if (!selected || searchedWorkspaces.some((ws) => ws.id === selected.id)) {
+			return searchedWorkspaces;
+		}
+		return [selected, ...searchedWorkspaces];
+	}, [searchedWorkspaces, selectedWorkspaceQuery.data]);
 	const autoCreateWorkspaceValue = "__auto_create_workspace__";
 	const hasAdminControls = canSetSystemPrompt || canManageChatModelConfigs;
 	const hasModelOptions = modelOptions.length > 0;
@@ -892,6 +916,9 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
 
 	const handleWorkspaceChange = (value: string) => {
+		// Clear the search when an item is selected so the full list
+		// is visible next time the dropdown opens.
+		setWorkspaceSearch("");
 		if (value === autoCreateWorkspaceValue) {
 			setSelectedWorkspaceId(null);
 			if (typeof window !== "undefined") {
@@ -947,7 +974,8 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	);
 
 	const selectedWorkspace = selectedWorkspaceId
-		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)
+		? (selectedWorkspaceQuery.data ??
+			workspaceOptions.find((ws) => ws.id === selectedWorkspaceId))
 		: undefined;
 	const selectedWorkspaceLabel = selectedWorkspace
 		? `${selectedWorkspace.owner_name}/${selectedWorkspace.name}`
@@ -1040,17 +1068,23 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 								side="top"
 								align="center"
 								className="w-72 [&_[cmdk-item]]:text-xs"
+								shouldFilter={false}
 							>
-								<ComboboxInput placeholder="Search workspaces..." />
+								<ComboboxInput
+									placeholder="Search workspaces..."
+									value={workspaceSearch}
+									onValueChange={setWorkspaceSearch}
+								/>
 								<ComboboxList>
-									<ComboboxItem value={autoCreateWorkspaceValue}>
-										Auto-create Workspace
-									</ComboboxItem>
+									{!debouncedWorkspaceSearch && (
+										<ComboboxItem value={autoCreateWorkspaceValue}>
+											Auto-create Workspace
+										</ComboboxItem>
+									)}
 									{workspaceOptions.map((workspace) => (
 										<ComboboxItem
 											key={workspace.id}
 											value={workspace.id}
-											keywords={[workspace.owner_name, workspace.name]}
 										>
 											{workspace.owner_name}/{workspace.name}
 										</ComboboxItem>
