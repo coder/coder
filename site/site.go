@@ -726,9 +726,10 @@ func (jfs justFilesSystem) Open(name string) (fs.File, error) {
 // RenderOAuthAllowData contains the variables that are found in
 // site/static/oauth2allow.html.
 type RenderOAuthAllowData struct {
-	AppIcon     string
-	AppName     string
-	CancelURI   string
+	AppIcon   string
+	AppName   string
+	CancelURI htmltemplate.URL
+	// RedirectURI is used as the form action for the POST request.
 	RedirectURI string
 	CSRFToken   string
 	Username    string

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
+	htmltemplate "html/template"
 	"net/http"
 	"net/url"
 	"strings"
@@ -148,10 +149,13 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 		cancelQuery.Add("error", "access_denied")
 		cancel.RawQuery = cancelQuery.Encode()
 
+		// Use htmltemplate.URL so Go's html/template does not
+		// sanitize non-standard schemes (e.g. custom OAuth2
+		// callback URIs) to "#ZgotmplZ".
 		site.RenderOAuthAllowPage(rw, r, site.RenderOAuthAllowData{
 			AppIcon:     app.Icon,
 			AppName:     app.Name,
-			CancelURI:   cancel.String(),
+			CancelURI:   htmltemplate.URL(cancel.String()), // #nosec G203 -- cancel URI is built from the registered app callback URL, not user input.
 			RedirectURI: r.URL.String(),
 			CSRFToken:   nosurf.Token(r),
 			Username:    ua.FriendlyName,
