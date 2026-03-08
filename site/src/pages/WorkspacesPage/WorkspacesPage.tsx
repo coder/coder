@@ -222,7 +222,6 @@ const WorkspacesPage: FC = () => {
 				onSubmit={async () => {
 					await batchActions.updateTemplateVersions({
 						workspaces: checkedWorkspaces,
-						isDynamicParametersEnabled: false,
 					});
 					setActiveBatchAction(undefined);
 				}}
