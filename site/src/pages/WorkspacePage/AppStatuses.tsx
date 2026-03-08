@@ -55,6 +55,9 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	const comparisonDate = referenceDate ?? new Date();
 	const latestStatus = allStatuses[0];
 	const otherStatuses = allStatuses.slice(1);
+	// When the workspace is not running, disable the animated spinner
+	// so the last reported status is shown as a static indicator.
+	const isWorkspaceStopped = workspace.latest_build.status !== "running";
 
 	return (
 		<div className="flex flex-col border border-solid border-border rounded-lg">
@@ -66,7 +69,11 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 			>
 				<div className="flex flex-col overflow-hidden">
 					<div className="text-sm font-medium text-content-primary flex items-center gap-2 ">
-						<AppStatusStateIcon state={latestStatus.state} latest />
+						<AppStatusStateIcon
+							state={latestStatus.state}
+							latest
+							disabled={isWorkspaceStopped}
+						/>
 						<span className="block flex-1 whitespace-nowrap overflow-hidden text-ellipsis">
 							{latestStatus.message || capitalize(latestStatus.state)}
 						</span>
