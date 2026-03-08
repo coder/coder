@@ -84,12 +84,22 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 
 	const stages = [
 		...provisioningStages,
-		...agents.flatMap((agent) =>
-			agentStages(
+		...agents.flatMap((agent) => {
+			const allAgentStages = agentStages(
 				`agent (${agent.workspace_agent_name})`,
 				agent.workspace_agent_id,
-			),
-		),
+			);
+			// Hide the "start" (startup scripts) stage when there are no
+			// script timings for this agent, to avoid showing an empty row.
+			const hasStartupScripts = uniqScriptTimings.some(
+				(t) =>
+					t.workspace_agent_id === agent.workspace_agent_id &&
+					t.stage === "start",
+			);
+			return hasStartupScripts
+				? allAgentStages
+				: allAgentStages.filter((s) => s.name !== "start");
+		}),
 	];
 
 	const displayProvisioningTime = () => {
