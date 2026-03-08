@@ -135,7 +135,12 @@ export const AppLink: FC<AppLinkProps> = ({
 
 	const button = grouped ? (
 		<DropdownMenuItem asChild>
-			<a href={canClick ? link.href : undefined} onClick={link.onClick}>
+			<a
+				href={canClick ? link.href : undefined}
+				onClick={link.onClick}
+				target={link.target}
+				rel={link.target === "_blank" ? "noopener noreferrer" : undefined}
+			>
 				{icon}
 				{link.label}
 				{ShareIcon && <ShareIcon />}
@@ -143,7 +148,12 @@ export const AppLink: FC<AppLinkProps> = ({
 		</DropdownMenuItem>
 	) : (
 		<AgentButton asChild>
-			<a href={canClick ? link.href : undefined} onClick={link.onClick}>
+			<a
+				href={canClick ? link.href : undefined}
+				onClick={link.onClick}
+				target={link.target}
+				rel={link.target === "_blank" ? "noopener noreferrer" : undefined}
+			>
 				{icon}
 				{link.label}
 				{ShareIcon && <ShareIcon />}

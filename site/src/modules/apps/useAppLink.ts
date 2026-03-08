@@ -25,6 +25,7 @@ type AppLink = {
 	onClick: (e: React.MouseEvent) => void;
 	label: string;
 	hasToken: boolean;
+	target?: string;
 };
 
 export const useAppLink = (
@@ -112,5 +113,6 @@ export const useAppLink = (
 		onClick,
 		label,
 		hasToken: !!apiKeyResponse?.key,
+		target: app.open_in === "tab" ? "_blank" : undefined,
 	};
 };
