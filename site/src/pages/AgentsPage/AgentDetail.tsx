@@ -108,7 +108,7 @@ interface AgentDetailTimelineProps {
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data?: string }>,
+		fileBlocks?: readonly { mediaType: string; data?: string }[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -222,11 +222,11 @@ interface AgentDetailInputProps {
 	onCancelHistoryEdit: () => void;
 	// File blocks from the message being edited, converted to
 	// File objects and pre-populated into attachments.
-	editingFileBlocks?: Array<{
+	editingFileBlocks?: readonly {
 		mediaType: string;
 		data?: string;
 		fileId?: string;
-	}>;
+	}[];
 }
 
 const AgentDetailInput: FC<AgentDetailInputProps> = ({
@@ -430,14 +430,18 @@ export function useConversationEditingState(deps: {
 		string | null
 	>(null);
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
-		Array<{ mediaType: string; data?: string; fileId?: string }>
+		readonly { mediaType: string; data?: string; fileId?: string }[]
 	>([]);
 
 	const handleEditUserMessage = useCallback(
 		(
 			messageId: number,
 			text: string,
-			fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+			fileBlocks?: readonly {
+				mediaType: string;
+				data?: string;
+				fileId?: string;
+			}[],
 		) => {
 			setDraftBeforeHistoryEdit((prev) =>
 				editingMessageId !== null ? prev : inputValueRef.current,

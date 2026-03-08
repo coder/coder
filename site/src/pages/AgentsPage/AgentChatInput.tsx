@@ -91,7 +91,7 @@ interface AgentChatInputProps {
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
 	// Omit entirely to hide the indicator.
 	contextUsage?: AgentContextUsage | null;
-	attachments?: File[];
+	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;
 	onRemoveAttachment?: (index: number) => void;
 	uploadStates?: Map<File, UploadState>;
@@ -240,7 +240,7 @@ ImageThumbnail.displayName = "ImageThumbnail";
 
 /** Renders a horizontal strip of attachment thumbnails above the input. */
 export const AttachmentPreview = memo<{
-	attachments: File[];
+	attachments: readonly File[];
 	onRemove: (index: number) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
