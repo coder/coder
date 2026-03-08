@@ -407,6 +407,104 @@ func TestStartAutoUpdate(t *testing.T) {
 	}
 }
 
+// TestStartAutoUpdateWithDefaultParams verifies that when automatic_updates
+// forces a template version upgrade and the new version introduces parameters
+// with default values, those defaults are applied automatically without
+// prompting. This prevents non-interactive sessions (e.g. SSH) from blocking.
+func TestStartAutoUpdateWithDefaultParams(t *testing.T) {
+	t.Parallel()
+
+	const (
+		defaultParamName  = "new_param"
+		defaultParamValue = "default_val"
+	)
+
+	richParameters := []*proto.RichParameter{
+		{
+			Name:         defaultParamName,
+			Type:         "string",
+			Mutable:      true,
+			Required:     true,
+			DefaultValue: defaultParamValue,
+		},
+	}
+
+	type testcase struct {
+		Name string
+		Cmd  string
+	}
+
+	cases := []testcase{
+		{
+			Name: "StartOK",
+			Cmd:  "start",
+		},
+		{
+			Name: "RestartOK",
+			Cmd:  "restart",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+			version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+				ctvr.Name = "v1"
+			})
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
+			workspace := coderdtest.CreateWorkspace(t, member, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+				cwr.AutomaticUpdates = codersdk.AutomaticUpdatesAlways
+			})
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			if c.Cmd == "start" {
+				coderdtest.MustTransitionWorkspace(t, member, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+			}
+
+			// Update to a new template version that adds a parameter with a default value
+			version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(richParameters), func(ctvr *codersdk.CreateTemplateVersionRequest) {
+				ctvr.Name = "v2"
+				ctvr.TemplateID = template.ID
+			})
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+			coderdtest.UpdateActiveTemplateVersion(t, client, template.ID, version2.ID)
+
+			// Start/restart without interactive prompts — the default should be
+			// auto-applied because the update is forced by automatic_updates.
+			inv, root := clitest.New(t, c.Cmd, "-y", workspace.Name)
+			clitest.SetupConfig(t, member, root)
+			doneChan := make(chan struct{})
+			pty := ptytest.New(t).Attach(inv)
+			go func() {
+				defer close(doneChan)
+				err := inv.Run()
+				assert.NoError(t, err)
+			}()
+
+			// Should NOT prompt for the parameter — it should use the default.
+			pty.ExpectMatch("workspace has been started")
+			<-doneChan
+
+			workspace = coderdtest.MustWorkspace(t, member, workspace.ID)
+			require.Equal(t, version2.ID, workspace.LatestBuild.TemplateVersionID)
+
+			// Verify that the default value was applied
+			ctx := testutil.Context(t, testutil.WaitShort)
+			actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+			require.NoError(t, err)
+			require.Contains(t, actualParameters, codersdk.WorkspaceBuildParameter{
+				Name:  defaultParamName,
+				Value: defaultParamValue,
+			})
+		})
+	}
+}
+
 func TestStart_AlreadyRunning(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
