@@ -156,8 +156,18 @@ export const autostopDisplay = (
 				</span>
 			);
 		}
+		const diffMinutes = deadline.diff(dayjs(), "minute");
+		const diffHours = Math.round(diffMinutes / 60);
+		let timeUntilStop: string;
+		if (diffMinutes < 60) {
+			timeUntilStop = deadline.fromNow();
+		} else if (diffHours === 1) {
+			timeUntilStop = "in an hour";
+		} else {
+			timeUntilStop = `in ${diffHours} hours`;
+		}
 		return {
-			message: `Stop ${deadline.fromNow()}`,
+			message: `Stop ${timeUntilStop}`,
 			tooltip: (
 				<span data-chromatic="ignore">
 					{title}
