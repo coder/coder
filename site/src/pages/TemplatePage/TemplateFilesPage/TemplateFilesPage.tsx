@@ -1,5 +1,7 @@
 import { previousTemplateVersion, templateFiles } from "api/queries/templates";
+import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { Loader } from "components/Loader/Loader";
+import { LockIcon } from "lucide-react";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import type { FC } from "react";
@@ -12,7 +14,7 @@ const TemplateFilesPage: FC = () => {
 		organization?: string;
 	};
 	const { template, activeVersion } = useTemplateLayoutContext();
-	const { data: currentFiles } = useQuery(
+	const currentFilesQuery = useQuery(
 		templateFiles(activeVersion.job.file_id),
 	);
 	const previousVersionQuery = useQuery(
@@ -29,19 +31,32 @@ const TemplateFilesPage: FC = () => {
 		...templateFiles(previousVersion?.job.file_id ?? ""),
 		enabled: hasPreviousVersion,
 	});
+
+	const hasError = Boolean(currentFilesQuery.error);
 	const shouldDisplayFiles =
-		currentFiles && (!hasPreviousVersion || previousFiles);
+		currentFilesQuery.data && (!hasPreviousVersion || previousFiles);
 
 	return (
 		<>
 			<title>{getTemplatePageTitle("Source Code", template)}</title>
 
-			{shouldDisplayFiles ? (
+			{hasError ? (
+				<Alert severity="warning">
+					<AlertTitle className="flex items-center gap-2">
+						<LockIcon className="size-4" />
+						Insufficient permissions to view source code
+					</AlertTitle>
+					<AlertDescription>
+						You do not have permission to view the source code for this
+						template. Contact an administrator to request access.
+					</AlertDescription>
+				</Alert>
+			) : shouldDisplayFiles ? (
 				<TemplateFiles
 					organizationName={template.organization_name}
 					templateName={template.name}
 					versionName={activeVersion.name}
-					currentFiles={currentFiles}
+					currentFiles={currentFilesQuery.data}
 					baseFiles={previousFiles}
 				/>
 			) : (

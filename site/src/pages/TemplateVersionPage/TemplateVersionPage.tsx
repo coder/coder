@@ -67,8 +67,10 @@ const TemplateVersionPage: FC = () => {
 				error={
 					templateQuery.error ||
 					selectedVersionQuery.error ||
+					activeVersionQuery.error
+				}
+				filesError={
 					selectedVersionFilesQuery.error ||
-					activeVersionQuery.error ||
 					activeVersionFilesQuery.error
 				}
 				currentVersion={selectedVersionQuery.data}

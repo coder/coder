@@ -1,4 +1,5 @@
 import type { TemplateVersion } from "api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
@@ -10,7 +11,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import { EditIcon, ExternalLinkIcon, PlusIcon } from "lucide-react";
+import { EditIcon, ExternalLinkIcon, LockIcon, PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
@@ -25,6 +26,7 @@ export interface TemplateVersionPageViewProps {
 	versionName: string;
 	createWorkspaceUrl?: string;
 	error: unknown;
+	filesError: unknown;
 	currentVersion: TemplateVersion | undefined;
 	currentFiles: TemplateVersionFiles | undefined;
 	baseFiles: TemplateVersionFiles | undefined;
@@ -39,9 +41,11 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 	currentFiles,
 	baseFiles,
 	error,
+	filesError,
 }) => {
 	const getLink = useLinks();
 	const templateLink = getLink(linkToTemplate(organizationName, templateName));
+	const hasFilesPermissionError = Boolean(filesError);
 
 	return (
 		<Margins>
@@ -69,7 +73,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 				<PageHeaderTitle>{versionName}</PageHeaderTitle>
 			</PageHeader>
 
-			{!currentFiles && !error && <Loader />}
+			{!currentVersion && !error && <Loader />}
 
 			<Stack spacing={4}>
 				{Boolean(error) && <ErrorAlert error={error} />}
@@ -78,7 +82,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 						{currentVersion.message}
 					</TemplateUpdateMessage>
 				)}
-				{currentVersion && currentFiles && (
+				{currentVersion && (
 					<>
 						<Stats className="justify-between">
 							<div className="flex flex-wrap items-center">
@@ -108,13 +112,28 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 							</a>
 						</Stats>
 
-						<TemplateFiles
-							organizationName={organizationName}
-							templateName={templateName}
-							versionName={versionName}
-							currentFiles={currentFiles}
-							baseFiles={baseFiles}
-						/>
+						{hasFilesPermissionError ? (
+							<Alert severity="warning">
+								<AlertTitle className="flex items-center gap-2">
+									<LockIcon className="size-4" />
+									Insufficient permissions to view source code
+								</AlertTitle>
+								<AlertDescription>
+									You do not have permission to view the source code for this
+									template version. Contact an administrator to request access.
+								</AlertDescription>
+							</Alert>
+						) : currentFiles ? (
+							<TemplateFiles
+								organizationName={organizationName}
+								templateName={templateName}
+								versionName={versionName}
+								currentFiles={currentFiles}
+								baseFiles={baseFiles}
+							/>
+						) : (
+							<Loader />
+						)}
 					</>
 				)}
 			</Stack>

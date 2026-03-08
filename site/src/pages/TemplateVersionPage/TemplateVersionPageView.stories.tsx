@@ -35,6 +35,7 @@ const defaultArgs: TemplateVersionPageViewProps = {
 	},
 	baseFiles: undefined,
 	error: undefined,
+	filesError: undefined,
 };
 
 const meta: Meta<typeof TemplateVersionPageView> = {
@@ -62,6 +63,16 @@ export const WithError: Story = {
 		currentFiles: undefined,
 		error: mockApiError({
 			message: "Error on loading the template version",
+		}),
+	},
+};
+
+export const WithFilesPermissionError: Story = {
+	args: {
+		...defaultArgs,
+		currentFiles: undefined,
+		filesError: mockApiError({
+			message: "Forbidden",
 		}),
 	},
 };
