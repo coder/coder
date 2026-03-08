@@ -101,6 +101,12 @@ type ComboboxContentProps = React.ComponentPropsWithRef<
 	typeof PopoverContent
 > & {
 	shouldFilter?: boolean;
+	/**
+	 * Text shown when no options match a search query. When provided, a
+	 * `ComboboxEmpty` element is rendered automatically inside the command list
+	 * so callers don't need to add one manually.
+	 */
+	emptyText?: string;
 };
 
 export const ComboboxContent = ({
@@ -108,6 +114,7 @@ export const ComboboxContent = ({
 	className,
 	ref,
 	shouldFilter,
+	emptyText,
 	...props
 }: ComboboxContentProps) => {
 	return (
@@ -121,6 +128,9 @@ export const ComboboxContent = ({
 		>
 			<Command className="bg-surface-secondary" shouldFilter={shouldFilter}>
 				{children}
+				{emptyText !== undefined && (
+					<CommandEmpty>{emptyText}</CommandEmpty>
+				)}
 			</Command>
 		</PopoverContent>
 	);

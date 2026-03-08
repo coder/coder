@@ -11,6 +11,7 @@ import {
 	Combobox,
 	ComboboxButton,
 	ComboboxContent,
+	ComboboxInput,
 	ComboboxItem,
 	ComboboxList,
 	ComboboxTrigger,
@@ -357,7 +358,8 @@ const ParameterField: FC<ParameterFieldProps> = ({
 							disabled={disabled}
 						/>
 					</ComboboxTrigger>
-					<ComboboxContent>
+					<ComboboxContent emptyText="No matching options">
+						<ComboboxInput placeholder="Search..." />
 						<ComboboxList>
 							{parameter.options.map((option) => (
 								<ComboboxItem
