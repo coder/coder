@@ -22,8 +22,6 @@ const modelOptions = [
 	},
 ] as const;
 
-const behaviorStorageKey = "agents.system-prompt";
-
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
