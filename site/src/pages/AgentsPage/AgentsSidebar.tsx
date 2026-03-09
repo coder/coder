@@ -23,6 +23,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { Spinner } from "components/Spinner/Spinner";
 import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
@@ -445,7 +446,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 				</NavLink>
 				<div className="relative mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
 					{isArchivingThisChat ? (
-						<Loader2Icon className="h-3.5 w-3.5 animate-spin text-content-secondary" />
+						<Spinner className="h-3.5 w-3.5 text-content-secondary" loading />
 					) : (
 						<>
 							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">

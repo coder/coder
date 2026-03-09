@@ -3,11 +3,13 @@ import type {
 	WorkspaceAgentGitClientMessage,
 	WorkspaceAgentGitServerMessage,
 	WorkspaceAgentRepoChanges,
+	WorkspaceAgentStatus,
 } from "api/typesGenerated";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseGitWatcherOptions {
 	chatId: string | undefined;
+	agentStatus: WorkspaceAgentStatus | undefined;
 }
 
 interface UseGitWatcherResult {
@@ -23,6 +25,7 @@ const MAX_BACKOFF_MS = 30_000;
 
 export function useGitWatcher({
 	chatId,
+	agentStatus,
 }: UseGitWatcherOptions): UseGitWatcherResult {
 	const [repositories, setRepositories] = useState<
 		ReadonlyMap<string, WorkspaceAgentRepoChanges>
@@ -47,7 +50,7 @@ export function useGitWatcher({
 	}, [sendMessage]);
 
 	useEffect(() => {
-		if (!chatId) {
+		if (!chatId || agentStatus !== "connected") {
 			return;
 		}
 
@@ -126,7 +129,7 @@ export function useGitWatcher({
 			setRepositories(new Map());
 			reconnectAttemptRef.current = 0;
 		};
-	}, [chatId]);
+	}, [chatId, agentStatus]);
 
 	return { repositories, isConnected, refresh };
 }

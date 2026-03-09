@@ -9,7 +9,7 @@ import { ProviderIcon } from "./ProviderIcon";
 
 type ProviderView = { mode: "list" } | { mode: "detail"; provider: string };
 
-type ProvidersSectionProps = {
+interface ProvidersSectionProps {
 	sectionLabel?: string;
 	providerStates: readonly ProviderState[];
 	providerConfigsUnavailable: boolean;
@@ -23,7 +23,7 @@ type ProvidersSectionProps = {
 	) => Promise<unknown>;
 	onDeleteProvider: (providerConfigId: string) => Promise<void>;
 	onSelectedProviderChange: (provider: string) => void;
-};
+}
 
 export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	sectionLabel,

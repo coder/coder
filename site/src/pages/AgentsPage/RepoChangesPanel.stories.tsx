@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
-import { fn } from "storybook/test";
 import { RepoChangesPanel } from "./RepoChangesPanel";
 
 const sampleDiff = `--- a/src/main.ts
@@ -35,8 +34,6 @@ const meta: Meta<typeof RepoChangesPanel> = {
 	component: RepoChangesPanel,
 	args: {
 		repo: baseRepo,
-		onRefresh: fn(),
-		onCommit: fn(),
 		diffStyle: "unified",
 	},
 };
@@ -60,42 +57,3 @@ export const SplitDiffStyle: Story = {
 		diffStyle: "split",
 	},
 };
-
-export const LongBranchName: Story = {
-	args: {
-		repo: {
-			...baseRepo,
-			branch:
-				"feature/TICKET-12345-implement-very-long-branch-name-for-testing-truncation-behavior",
-		},
-	},
-	decorators: [
-		(Story) => (
-			<div style={{ width: 400 }}>
-				<Story />
-			</div>
-		),
-	],
-};
-
-export const DeepRepoPath: Story = {
-	args: {
-		repo: {
-			...baseRepo,
-			repo_root: "/home/coder/workspaces/my-org/services/project",
-		},
-	},
-};
-
-export const EmptyBranchName: Story = {
-	args: {
-		repo: {
-			...baseRepo,
-			branch: "",
-		},
-	},
-};
-
-export const ManyFiles: Story = {};
-
-export const UntrackedFiles: Story = {};

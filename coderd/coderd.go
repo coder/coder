@@ -662,6 +662,7 @@ func New(options *Options) *API {
 	api.SiteHandler, err = site.New(&site.Options{
 		CacheDir:          siteCacheDir,
 		Database:          options.Database,
+		Authorizer:        options.Authorizer,
 		SiteFS:            site.FS(),
 		OAuth2Configs:     oauthConfigs,
 		DocsURL:           options.DeploymentValues.DocsURL.String(),
@@ -926,6 +927,16 @@ func New(options *Options) *API {
 		loggermw.Logger(api.Logger),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
+		// Validate API key on every request (if present) and store
+		// the result in context. The rate limiter reads this to key
+		// by user ID, and downstream ExtractAPIKeyMW reuses it to
+		// avoid redundant DB lookups. Never rejects requests.
+		httpmw.PrecheckAPIKey(httpmw.ValidateAPIKeyConfig{
+			DB:                          options.Database,
+			OAuth2Configs:               oauthConfigs,
+			DisableSessionExpiryRefresh: options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
+			Logger:                      options.Logger,
+		}),
 		httpmw.HTTPRoute, // NB: prometheusMW depends on this middleware.
 		prometheusMW,
 		// Build-Version is helpful for debugging.
@@ -1074,8 +1085,6 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
-			// Specific routes can specify different limits, but every rate
-			// limit must be configurable by the admin.
 			apiRateLimiter,
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
@@ -1168,8 +1177,6 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
-			// Specific routes can specify different limits, but every rate
-			// limit must be configurable by the admin.
 			apiRateLimiter,
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)

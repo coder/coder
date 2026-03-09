@@ -1,4 +1,4 @@
-import { API } from "api/api";
+import { API, watchWorkspace } from "api/api";
 import {
 	chat,
 	chatDiffStatus,
@@ -12,7 +12,7 @@ import {
 	promoteChatQueuedMessage,
 } from "api/queries/chats";
 import { deploymentSSHConfig } from "api/queries/deployment";
-import { workspaceById } from "api/queries/workspaces";
+import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -70,7 +70,7 @@ import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import { useWorkspaceCreationWatcher } from "./AgentDetail/useWorkspaceCreationWatcher";
 import type { AgentsOutletContext } from "./AgentsPage";
-
+import { GitPanel } from "./GitPanel";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -78,7 +78,7 @@ import {
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { RightPanel } from "./RightPanel";
-import { SidebarTabView } from "./SidebarTabView";
+import { type SidebarTab, SidebarTabView } from "./SidebarTabView";
 import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
 
@@ -108,7 +108,7 @@ interface AgentDetailTimelineProps {
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data?: string }>,
+		fileBlocks?: readonly { mediaType: string; data?: string }[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -222,11 +222,11 @@ interface AgentDetailInputProps {
 	onCancelHistoryEdit: () => void;
 	// File blocks from the message being edited, converted to
 	// File objects and pre-populated into attachments.
-	editingFileBlocks?: Array<{
+	editingFileBlocks?: readonly {
 		mediaType: string;
 		data?: string;
 		fileId?: string;
-	}>;
+	}[];
 }
 
 const AgentDetailInput: FC<AgentDetailInputProps> = ({
@@ -430,14 +430,18 @@ export function useConversationEditingState(deps: {
 		string | null
 	>(null);
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
-		Array<{ mediaType: string; data?: string; fileId?: string }>
+		readonly { mediaType: string; data?: string; fileId?: string }[]
 	>([]);
 
 	const handleEditUserMessage = useCallback(
 		(
 			messageId: number,
 			text: string,
-			fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+			fileBlocks?: readonly {
+				mediaType: string;
+				data?: string;
+				fileId?: string;
+			}[],
 		) => {
 			setDraftBeforeHistoryEdit((prev) =>
 				editingMessageId !== null ? prev : inputValueRef.current,
@@ -600,6 +604,27 @@ const AgentDetail: FC = () => {
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
 	});
+
+	// Subscribe to live workspace updates so that agent status changes
+	// (e.g. connected/disconnected) are reflected without a page refresh.
+	useEffect(() => {
+		if (!workspaceId) {
+			return;
+		}
+		const socket = watchWorkspace(workspaceId);
+		socket.addEventListener("message", (event) => {
+			if (event.parseError) {
+				return;
+			}
+			if (event.parsedMessage.type === "data") {
+				queryClient.setQueryData(
+					workspaceByIdKey(workspaceId),
+					event.parsedMessage.data as TypesGen.Workspace,
+				);
+			}
+		});
+		return () => socket.close();
+	}, [workspaceId, queryClient]);
 	const diffStatusQuery = useQuery({
 		...chatDiffStatus(agentId ?? ""),
 		enabled: Boolean(agentId),
@@ -622,7 +647,7 @@ const AgentDetail: FC = () => {
 	const [prevHasDiffStatus, setPrevHasDiffStatus] = useState(false);
 	if (hasDiffStatus !== prevHasDiffStatus) {
 		setPrevHasDiffStatus(hasDiffStatus);
-		if (hasDiffStatus) {
+		if (hasDiffStatus && !window.matchMedia("(max-width: 767px)").matches) {
 			setShowSidebarPanel(true);
 		}
 	}
@@ -688,9 +713,12 @@ const AgentDetail: FC = () => {
 		clearChatErrorReason,
 	});
 
-	// Git watcher: runs regardless of sidebar visibility.
+	// Git watcher: runs regardless of sidebar visibility, but only
+	// connects when the workspace agent is in the "connected" state
+	// to avoid an infinite reconnect loop against a missing agent.
 	const gitWatcher = useGitWatcher({
 		chatId: agentId,
+		agentStatus: workspaceAgent?.status,
 	});
 
 	// Detect workspace creation so the sidebar can resolve the
@@ -717,7 +745,7 @@ const AgentDetail: FC = () => {
 	const hasGitRepos = gitWatcher.repositories.size > 0;
 	if (hasGitRepos !== prevHasGitRepos) {
 		setPrevHasGitRepos(hasGitRepos);
-		if (hasGitRepos) {
+		if (hasGitRepos && !window.matchMedia("(max-width: 767px)").matches) {
 			setShowSidebarPanel(true);
 		}
 	}
@@ -725,21 +753,24 @@ const AgentDetail: FC = () => {
 	// Extract PR number from diff status URL.
 	const prMatch = diffStatusQuery.data?.url?.match(/\/pull\/(\d+)/)?.[1];
 	const prNumber = prMatch ? Number(prMatch) : undefined;
-
-	useEffect(() => {
-		setSelectedModel((current) => {
-			if (current && modelOptions.some((model) => model.id === current)) {
-				return current;
+	// Compute an effective selected model by validating the user's
+	// explicit choice against the current model options, falling
+	// back to the chat's last model or the first available option.
+	const effectiveSelectedModel = useMemo(() => {
+		if (
+			selectedModel &&
+			modelOptions.some((model) => model.id === selectedModel)
+		) {
+			return selectedModel;
+		}
+		if (chatLastModelConfigID) {
+			const fromChat = modelIDByConfigID.get(chatLastModelConfigID);
+			if (fromChat && modelOptions.some((model) => model.id === fromChat)) {
+				return fromChat;
 			}
-			if (chatLastModelConfigID) {
-				const fromChat = modelIDByConfigID.get(chatLastModelConfigID);
-				if (fromChat && modelOptions.some((model) => model.id === fromChat)) {
-					return fromChat;
-				}
-			}
-			return modelOptions[0]?.id ?? "";
-		});
-	}, [chatLastModelConfigID, modelIDByConfigID, modelOptions]);
+		}
+		return modelOptions[0]?.id ?? "";
+	}, [selectedModel, chatLastModelConfigID, modelIDByConfigID, modelOptions]);
 
 	const compressionThreshold = useMemo(() => {
 		if (!chatLastModelConfigID) {
@@ -781,13 +812,44 @@ const AgentDetail: FC = () => {
 		fileIds?: string[],
 		editedMessageID?: number,
 	) => {
-		const hasContent = message.trim() || (fileIds && fileIds.length > 0);
+		const chatInputHandle = (
+			editing.chatInputRef as React.RefObject<ChatMessageInputRef | null>
+		)?.current;
+
+		// Walk the Lexical tree in document order so file-reference
+		// parts appear at the correct position relative to the
+		// surrounding text the user typed.
+		const editorParts = chatInputHandle?.getContentParts() ?? [];
+		const hasFileReferences = editorParts.some(
+			(p) => p.type === "file-reference",
+		);
+		const hasContent =
+			message.trim() || (fileIds && fileIds.length > 0) || hasFileReferences;
 		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
 			return;
 		}
+
 		const content: TypesGen.ChatInputPart[] = [];
-		if (message.trim()) {
-			content.push({ type: "text", text: message });
+
+		// Emit parts in document order — text segments and
+		// file-reference chips are interleaved as they appear in
+		// the editor.
+		for (const part of editorParts) {
+			if (part.type === "text") {
+				const trimmed = part.text.trim();
+				if (trimmed) {
+					content.push({ type: "text", text: part.text });
+				}
+			} else {
+				const r = part.reference;
+				content.push({
+					type: "file-reference",
+					file_name: r.fileName,
+					start_line: r.startLine,
+					end_line: r.endLine,
+					content: r.content,
+				});
+			}
 		}
 
 		// Add pre-uploaded file references.
@@ -816,7 +878,9 @@ const AgentDetail: FC = () => {
 			return;
 		}
 		const selectedModelConfigID =
-			(selectedModel && modelConfigIDByModelID.get(selectedModel)) || undefined;
+			(effectiveSelectedModel &&
+				modelConfigIDByModelID.get(effectiveSelectedModel)) ||
+			undefined;
 		const request: TypesGen.CreateChatMessageRequest = {
 			content,
 			model_config_id: selectedModelConfigID,
@@ -905,15 +969,11 @@ const AgentDetail: FC = () => {
 
 	const chatTitle = chatQuery.data?.chat?.title;
 
-	// Update the browser tab title when navigating to / between agents.
-	useEffect(() => {
-		document.title = chatTitle
-			? pageTitle(chatTitle, "Agents")
-			: pageTitle("Agents");
-		return () => {
-			document.title = pageTitle("Agents");
-		};
-	}, [chatTitle]);
+	const titleElement = (
+		<title>
+			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
+		</title>
+	);
 
 	const parentChatID = getParentChatID(chatQuery.data?.chat);
 	const parentChat = parentChatID
@@ -936,7 +996,7 @@ const AgentDetail: FC = () => {
 		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
-	const shouldShowSidebar = (hasDiffStatus || hasGitRepos) && showSidebarPanel;
+	const shouldShowSidebar = showSidebarPanel;
 
 	const generateKeyMutation = useMutation({
 		mutationFn: () => API.getApiKey(),
@@ -1005,13 +1065,9 @@ const AgentDetail: FC = () => {
 	if (chatQuery.isLoading) {
 		return (
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+				{titleElement}
 				<AgentDetailTopBar
-					diff={{
-						hasDiffStatus: false,
-						diffStatus: undefined,
-						hasGitRepos: false,
-						gitRepoCount: 0,
-						gitRepositories: new Map(),
+					panel={{
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
 					}}
@@ -1056,7 +1112,7 @@ const AgentDetail: FC = () => {
 									<Skeleton className="h-4 w-4/6" />
 									<Skeleton className="h-4 w-full" />
 									<Skeleton className="h-4 w-3/5" />
-								</div>
+								</div>{" "}
 							</div>
 						</div>
 					</div>
@@ -1067,7 +1123,7 @@ const AgentDetail: FC = () => {
 						initialValue=""
 						isDisabled={isInputDisabled}
 						isLoading={false}
-						selectedModel={selectedModel}
+						selectedModel={effectiveSelectedModel}
 						onModelChange={setSelectedModel}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
@@ -1083,13 +1139,9 @@ const AgentDetail: FC = () => {
 	if (!chatQuery.data || !agentId) {
 		return (
 			<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+				{titleElement}
 				<AgentDetailTopBar
-					diff={{
-						hasDiffStatus: false,
-						diffStatus: undefined,
-						hasGitRepos: false,
-						gitRepoCount: 0,
-						gitRepositories: new Map(),
+					panel={{
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
 					}}
@@ -1111,11 +1163,10 @@ const AgentDetail: FC = () => {
 				/>
 				<div className="flex flex-1 items-center justify-center text-content-secondary">
 					Chat not found
-				</div>
+				</div>{" "}
 			</div>
 		);
 	}
-
 	return (
 		<div
 			className={cn(
@@ -1123,10 +1174,12 @@ const AgentDetail: FC = () => {
 				shouldShowSidebar && !visualExpanded && "flex-row",
 			)}
 		>
+			{titleElement}
 			<div
 				className={cn(
 					"relative flex min-h-0 min-w-0 flex-1 flex-col",
 					visualExpanded && "hidden",
+					shouldShowSidebar && "max-md:hidden",
 				)}
 			>
 				<div className="relative z-10 shrink-0 overflow-visible">
@@ -1134,12 +1187,7 @@ const AgentDetail: FC = () => {
 						chatTitle={chatTitle}
 						parentChat={parentChat}
 						onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
-						diff={{
-							hasDiffStatus,
-							diffStatus: diffStatusQuery.data,
-							hasGitRepos,
-							gitRepoCount: gitWatcher.repositories.size,
-							gitRepositories: gitWatcher.repositories,
+						panel={{
 							showSidebarPanel,
 							onToggleSidebar: () => setShowSidebarPanel((prev) => !prev),
 						}}
@@ -1205,7 +1253,7 @@ const AgentDetail: FC = () => {
 						isSendPending={isSubmissionPending}
 						isInterruptPending={interruptMutation.isPending}
 						hasModelOptions={hasModelOptions}
-						selectedModel={selectedModel}
+						selectedModel={effectiveSelectedModel}
 						onModelChange={setSelectedModel}
 						modelOptions={modelOptions}
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
@@ -1233,28 +1281,37 @@ const AgentDetail: FC = () => {
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			>
 				<SidebarTabView
-					prTab={
-						prNumber && agentId ? { prNumber, chatId: agentId } : undefined
+					tabs={
+						[
+							(hasDiffStatus || hasGitRepos) && {
+								id: "git",
+								label: "Git",
+								content: (
+									<GitPanel
+										prTab={
+											prNumber && agentId
+												? { prNumber, chatId: agentId }
+												: undefined
+										}
+										repositories={gitWatcher.repositories}
+										onRefresh={gitWatcher.refresh}
+										onCommit={handleCommit}
+										isExpanded={visualExpanded}
+										remoteDiffStats={diffStatusQuery.data}
+										chatInputRef={editing.chatInputRef}
+									/>
+								),
+							},
+						].filter(Boolean) as SidebarTab[]
 					}
-					repositories={gitWatcher.repositories}
-					workspace={
-						workspace
-							? {
-									name: workspace.name,
-									ownerName: workspace.owner_name,
-								}
-							: undefined
-					}
-					onRefresh={gitWatcher.refresh}
-					onCommit={handleCommit}
+					onClose={() => setShowSidebarPanel(false)}
 					isExpanded={visualExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					chatTitle={chatTitle}
-					diffStatus={diffStatusQuery.data}
 				/>
-			</RightPanel>
+			</RightPanel>{" "}
 		</div>
 	);
 };

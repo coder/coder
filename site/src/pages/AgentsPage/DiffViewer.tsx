@@ -30,7 +30,7 @@ interface DiffViewerProps {
 	/** Fragment to display in the top-left of the header bar. */
 	headerLeft?: ReactNode;
 	/** Parsed file diffs to render. */
-	parsedFiles: FileDiffMetadata[];
+	parsedFiles: readonly FileDiffMetadata[];
 	/** Cache key prefix for parsePatchFiles worker pool LRU cache. */
 	cacheKeyPrefix?: string;
 	/** Whether the panel is in expanded mode (affects file tree threshold). */
@@ -73,7 +73,7 @@ const STICKY_HEADER_CSS = [
 ].join(" ");
 
 export type DiffStyle = "unified" | "split";
-export const DIFF_STYLE_KEY = "agents.diff-view-style";
+const DIFF_STYLE_KEY = "agents.diff-view-style";
 
 export function loadDiffStyle(): DiffStyle {
 	if (typeof window === "undefined") {
@@ -84,6 +84,10 @@ export function loadDiffStyle(): DiffStyle {
 		return stored;
 	}
 	return "unified";
+}
+
+export function saveDiffStyle(style: DiffStyle): void {
+	localStorage.setItem(DIFF_STYLE_KEY, style);
 }
 
 /** Width of the file tree sidebar in pixels. */
@@ -165,7 +169,7 @@ interface FileTreeNode {
  * Single-child directory chains are collapsed so that e.g.
  * `src/pages/AgentsPage` renders as one row.
  */
-function buildFileTree(files: FileDiffMetadata[]): FileTreeNode[] {
+function buildFileTree(files: readonly FileDiffMetadata[]): FileTreeNode[] {
 	const root: FileTreeNode[] = [];
 
 	for (const file of files) {
@@ -609,7 +613,9 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			className="flex h-full min-w-0 flex-col overflow-hidden"
 		>
 			{/* Header */}
-			<div className="flex items-center gap-1 px-3 py-2">{headerLeft}</div>
+			<div className="flex items-center gap-1 bg-surface-secondary px-3 py-2">
+				{headerLeft}
+			</div>
 			{/* Diff contents */}
 			{sortedFiles.length === 0 ? (
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">

@@ -194,6 +194,24 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					parsed.blocks = ensureToolBlock(parsed.blocks, id);
 					break;
 				}
+				case "file-reference": {
+					const text = asString(typedBlock.text);
+					const fileName = asString(typedBlock.file_name);
+					const startLine =
+						Number(typedBlock.start_line ?? typedBlock.line_number) || 0;
+					const endLine =
+						Number(typedBlock.end_line ?? typedBlock.line_number) || startLine;
+					const contentStr = asString(typedBlock.content);
+					parsed.blocks.push({
+						type: "file-reference",
+						fileName,
+						startLine,
+						endLine,
+						content: contentStr,
+						text,
+					});
+					break;
+				}
 				case "tool-result":
 				case "toolresult": {
 					const name =

@@ -72,12 +72,13 @@ type ChatMessageUsage struct {
 type ChatMessagePartType string
 
 const (
-	ChatMessagePartTypeText       ChatMessagePartType = "text"
-	ChatMessagePartTypeReasoning  ChatMessagePartType = "reasoning"
-	ChatMessagePartTypeToolCall   ChatMessagePartType = "tool-call"
-	ChatMessagePartTypeToolResult ChatMessagePartType = "tool-result"
-	ChatMessagePartTypeSource     ChatMessagePartType = "source"
-	ChatMessagePartTypeFile       ChatMessagePartType = "file"
+	ChatMessagePartTypeText          ChatMessagePartType = "text"
+	ChatMessagePartTypeReasoning     ChatMessagePartType = "reasoning"
+	ChatMessagePartTypeToolCall      ChatMessagePartType = "tool-call"
+	ChatMessagePartTypeToolResult    ChatMessagePartType = "tool-result"
+	ChatMessagePartTypeSource        ChatMessagePartType = "source"
+	ChatMessagePartTypeFile          ChatMessagePartType = "file"
+	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 )
 
 // ChatMessagePart is a structured chunk of a chat message.
@@ -98,14 +99,22 @@ type ChatMessagePart struct {
 	MediaType   string              `json:"media_type,omitempty"`
 	Data        []byte              `json:"data,omitempty"`
 	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeFileReference.
+	FileName  string `json:"file_name,omitempty"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+	// The code content from the diff that was commented on.
+	Content string `json:"content,omitempty"`
 }
 
 // ChatInputPartType represents an input part type for user chat input.
 type ChatInputPartType string
 
 const (
-	ChatInputPartTypeText ChatInputPartType = "text"
-	ChatInputPartTypeFile ChatInputPartType = "file"
+	ChatInputPartTypeText          ChatInputPartType = "text"
+	ChatInputPartTypeFile          ChatInputPartType = "file"
+	ChatInputPartTypeFileReference ChatInputPartType = "file-reference"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
@@ -113,6 +122,13 @@ type ChatInputPart struct {
 	Type   ChatInputPartType `json:"type"`
 	Text   string            `json:"text,omitempty"`
 	FileID uuid.UUID         `json:"file_id,omitempty" format:"uuid"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeFileReference.
+	FileName  string `json:"file_name,omitempty"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+	// The code content from the diff that was commented on.
+	Content string `json:"content,omitempty"`
 }
 
 // CreateChatRequest is the request to create a new chat.

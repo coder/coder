@@ -182,8 +182,10 @@ type SendMessageBusyBehavior string
 const (
 	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
 	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
-	// SendMessageBusyBehaviorInterrupt inserts the message immediately and
-	// transitions the chat to pending, which interrupts the active run.
+	// SendMessageBusyBehaviorInterrupt queues the message and
+	// interrupts the active run. The queued message is
+	// auto-promoted after the interrupted assistant response is
+	// persisted, ensuring correct message ordering.
 	SendMessageBusyBehaviorInterrupt SendMessageBusyBehavior = "interrupt"
 )
 
@@ -376,8 +378,15 @@ func (p *Server) SendMessage(
 			modelConfigID = *opts.ModelConfigID
 		}
 
-		if busyBehavior == SendMessageBusyBehaviorQueue &&
-			shouldQueueUserMessage(lockedChat.Status) {
+		// Both queue and interrupt behaviors queue messages
+		// when the chat is busy. Interrupt additionally
+		// signals the running loop to stop so the queued
+		// message is promoted sooner. Crucially, this
+		// guarantees the interrupted assistant response is
+		// persisted (with a lower id/created_at) before the
+		// user message is promoted into chat_messages,
+		// preserving correct conversation order.
+		if shouldQueueUserMessage(lockedChat.Status) {
 			existingQueued, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
 			if err != nil {
 				return xerrors.Errorf("get queued messages: %w", err)
@@ -434,6 +443,29 @@ func (p *Server) SendMessage(
 		p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 			QueueUpdate: true,
 		})
+
+		// For interrupt behavior, signal the running loop to
+		// stop. setChatWaiting publishes a status notification
+		// that the worker's control subscriber detects, causing
+		// it to cancel with ErrInterrupted. The deferred cleanup
+		// in processChat then auto-promotes the queued message
+		// after persisting the partial assistant response.
+		if busyBehavior == SendMessageBusyBehaviorInterrupt {
+			updatedChat, err := p.setChatWaiting(ctx, opts.ChatID)
+			if err != nil {
+				// The message is already queued so the chat is
+				// not in a broken state — the user can still
+				// wait for the current run to finish. Log the
+				// error but don't fail the request.
+				p.logger.Error(ctx, "failed to interrupt chat for queued message",
+					slog.F("chat_id", opts.ChatID),
+					slog.Error(err),
+				)
+			} else {
+				result.Chat = updatedChat
+			}
+		}
+
 		return result, nil
 	}
 
@@ -1330,10 +1362,14 @@ func (p *Server) Subscribe(
 				}
 				return
 			case notify := <-notifications:
-				if notify.AfterMessageID > 0 {
+				if notify.AfterMessageID > 0 || notify.FullRefresh {
+					afterID := lastMessageID
+					if notify.FullRefresh {
+						afterID = 0
+					}
 					newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
 						ChatID:  chatID,
-						AfterID: lastMessageID,
+						AfterID: afterID,
 					})
 					if msgErr != nil {
 						p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
@@ -1642,7 +1678,7 @@ func (p *Server) publishEditedMessage(chatID uuid.UUID, message database.ChatMes
 		Message: &sdkMessage,
 	})
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-		AfterMessageID: 0,
+		FullRefresh: true,
 	})
 }
 
@@ -2209,6 +2245,19 @@ func (p *Server) runChat(
 
 		var insertedMessages []database.ChatMessage
 		err := p.db.InTx(func(tx database.Store) error {
+			// Verify this worker still owns the chat before
+			// inserting messages. This closes the race where
+			// EditMessage truncates history and clears worker_id
+			// while persistInterruptedStep (which uses an
+			// uncancelable context) is still running.
+			lockedChat, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
+			if lockErr != nil {
+				return xerrors.Errorf("lock chat for persist: %w", lockErr)
+			}
+			if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != p.workerID {
+				return chatloop.ErrInterrupted
+			}
+
 			if len(assistantBlocks) > 0 {
 				assistantContent, marshalErr := chatprompt.MarshalContent(assistantBlocks, nil)
 				if marshalErr != nil {
@@ -2533,7 +2582,7 @@ func (p *Server) persistChatContextSummary(
 		_, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
 			ChatID:        chatID,
 			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:          string(fantasy.MessageRoleSystem),
+			Role:          string(fantasy.MessageRoleUser),
 			Content: pqtype.NullRawMessage{
 				RawMessage: systemContent,
 				Valid:      len(systemContent) > 0,

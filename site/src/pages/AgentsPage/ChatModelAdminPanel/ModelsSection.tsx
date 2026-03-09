@@ -30,7 +30,7 @@ type ModelView =
 	| { mode: "add"; provider: string }
 	| { mode: "edit"; model: TypesGen.ChatModelConfig };
 
-type ModelsSectionProps = {
+interface ModelsSectionProps {
 	sectionLabel?: string;
 	providerStates: readonly ProviderState[];
 	selectedProvider: string | null;
@@ -49,7 +49,7 @@ type ModelsSectionProps = {
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
 	onDeleteModel: (modelConfigId: string) => Promise<void>;
-};
+}
 
 export const ModelsSection: FC<ModelsSectionProps> = ({
 	sectionLabel,
@@ -199,6 +199,11 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 											handleSetDefault(modelConfig);
 										}}
 										aria-disabled={isUpdating || modelConfig.is_default}
+										aria-label={
+											modelConfig.is_default
+												? "Default model"
+												: "Set as default model"
+										}
 										className={cn(
 											"flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-transparent border-0 p-0 transition-colors",
 											modelConfig.is_default

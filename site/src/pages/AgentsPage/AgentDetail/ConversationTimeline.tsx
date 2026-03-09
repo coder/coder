@@ -7,7 +7,9 @@ import {
 	Shimmer,
 	Tool,
 } from "components/ai-elements";
-import { ChevronDownIcon, Loader2Icon } from "lucide-react";
+import { FileIcon } from "components/FileIcon/FileIcon";
+import { Spinner } from "components/Spinner/Spinner";
+import { ChevronDownIcon } from "lucide-react";
 import {
 	type FC,
 	memo,
@@ -163,6 +165,26 @@ function renderBlockList({
 							isStreaming={isStreaming}
 						/>
 					);
+				case "file-reference":
+					return (
+						<div
+							key={`${keyPrefix}-file-reference-${index}`}
+							className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
+						>
+							{" "}
+							<span className="shrink-0 text-xs font-medium text-content-link">
+								{block.fileName}:
+								{block.startLine === block.endLine
+									? block.startLine
+									: `${block.startLine}\u2013${block.endLine}`}
+							</span>
+							{block.text && (
+								<span className="text-sm text-content-primary">
+									{block.text}
+								</span>
+							)}
+						</div>
+					);
 				case "tool": {
 					const tool = toolByID.get(block.id);
 					if (!tool) {
@@ -207,6 +229,7 @@ function renderBlockList({
 							<button
 								key={`${keyPrefix}-file-${index}`}
 								type="button"
+								aria-label="View image"
 								className="inline-block rounded-md border-0 bg-transparent p-0"
 								onClick={(e) => {
 									e.stopPropagation();
@@ -320,59 +343,100 @@ const ChatMessageItem = memo<{
 										: undefined
 								}
 							>
-								<div className="flex items-start gap-2">
-									<span className="min-w-0 flex-1">
-										{parsed.markdown || ""}
-									</span>
-									{isSavingMessage && (
-										<Loader2Icon
-											className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary"
-											aria-label="Saving message edit"
+								<div className="flex flex-col gap-1.5">
+									<div className="flex items-start gap-2">
+										<span className="min-w-0 flex-1">
+											{parsed.markdown || ""}
+										</span>
+										{isSavingMessage && (
+											<Spinner
+												className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
+												aria-label="Saving message edit"
+												loading
+											/>
+										)}
+									</div>
+									{(() => {
+										const imageBlocks = parsed.blocks.filter(
+											(b): b is Extract<RenderBlock, { type: "file" }> =>
+												b.type === "file" && b.mediaType.startsWith("image/"),
+										);
+										if (imageBlocks.length === 0) return null;
+										return (
+											<div className="mt-2 flex flex-wrap gap-2">
+												{imageBlocks.map((block, i) => {
+													const src = block.fileId
+														? `/api/experimental/chats/files/${block.fileId}`
+														: `data:${block.mediaType};base64,${block.data}`;
+													return (
+														<button
+															key={`user-file-${i}`}
+															type="button"
+															className="inline-block rounded-md border-0 bg-transparent p-0"
+															onClick={(e) => {
+																e.stopPropagation();
+																setPreviewImage(src);
+															}}
+														>
+															<ImageThumbnail
+																previewUrl={src}
+																name="Attached image"
+																className="cursor-pointer transition-opacity hover:opacity-80"
+															/>
+														</button>
+													);
+												})}
+											</div>
+										);
+									})()}
+									{(() => {
+										const fileRefBlocks = parsed.blocks.filter(
+											(
+												b,
+											): b is Extract<
+												RenderBlock,
+												{ type: "file-reference" }
+											> => b.type === "file-reference",
+										);
+										if (fileRefBlocks.length === 0) return null;
+										return (
+											<div className="flex flex-col gap-1 border-t border-border-default pt-1.5">
+												{fileRefBlocks.map((dc, i) => (
+													<div
+														key={i}
+														className="flex items-start gap-2 rounded border border-content-link/20 bg-content-link/5 px-2 py-1"
+													>
+														<FileIcon
+															fileName={
+																dc.fileName.split("/").pop() || dc.fileName
+															}
+															className="shrink-0"
+														/>
+														<span className="shrink-0 text-2xs font-mono font-medium text-content-link">
+															{dc.fileName.split("/").pop()}:
+															{dc.startLine === dc.endLine
+																? dc.startLine
+																: `${dc.startLine}\u2013${dc.endLine}`}
+														</span>
+														{dc.text && (
+															<span className="text-2xs text-content-primary">
+																{dc.text}
+															</span>
+														)}
+													</div>
+												))}
+											</div>
+										);
+									})()} {fadeFromBottom && (
+										<div
+											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
+											style={{
+												background:
+													"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
+											}}
 										/>
 									)}
 								</div>
-								{(() => {
-									const imageBlocks = parsed.blocks.filter(
-										(b): b is Extract<RenderBlock, { type: "file" }> =>
-											b.type === "file" && b.mediaType.startsWith("image/"),
-									);
-									if (imageBlocks.length === 0) return null;
-									return (
-										<div className="mt-2 flex flex-wrap gap-2">
-											{imageBlocks.map((block, i) => {
-												const src = block.fileId
-													? `/api/experimental/chats/files/${block.fileId}`
-													: `data:${block.mediaType};base64,${block.data}`;
-												return (
-													<button
-														key={`user-file-${i}`}
-														type="button"
-														className="inline-block rounded-md border-0 bg-transparent p-0"
-														onClick={(e) => {
-															e.stopPropagation();
-															setPreviewImage(src);
-														}}
-													>
-														<ImageThumbnail
-															previewUrl={src}
-															name="Attached image"
-															className="cursor-pointer transition-opacity hover:opacity-80"
-														/>
-													</button>
-												);
-											})}
-										</div>
-									);
-								})()}
-								{fadeFromBottom && (
-									<div
-										className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
-										style={{
-											background:
-												"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
-										}}
-									/>
-								)}
 							</MessageContent>
 						</Message>
 					) : (
@@ -740,7 +804,7 @@ const StickyUserMessage: FC<{
 	);
 };
 
-type ConversationTimelineProps = {
+interface ConversationTimelineProps {
 	isEmpty: boolean;
 	hasMoreMessages: boolean;
 	loadMoreSentinelRef: RefObject<HTMLDivElement | null>;
@@ -760,7 +824,7 @@ type ConversationTimelineProps = {
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
-};
+}
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	isEmpty,

@@ -3321,9 +3321,8 @@ WITH latest_compressed_summary AS (
         chat_messages
     WHERE
         chat_id = $1::uuid
-        AND role = 'system'
-        AND visibility IN ('model', 'both')
         AND compressed = TRUE
+        AND visibility = 'model'
     ORDER BY
         created_at DESC,
         id DESC
