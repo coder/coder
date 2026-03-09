@@ -9,12 +9,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import {
 	ChevronDownIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
-	Loader2Icon,
 } from "lucide-react";
 import { type FC, useMemo, useState } from "react";
 import { cn } from "utils/cn";
@@ -40,11 +40,13 @@ import { ProviderIcon } from "./ProviderIcon";
 const validationSchema = Yup.object({
 	model: Yup.string().trim().required("Model ID is required."),
 	displayName: Yup.string(),
-	contextLimit: Yup.string().test(
-		"positive-integer",
-		"Context limit must be a positive integer.",
-		(value) => !value?.trim() || parsePositiveInteger(value) !== null,
-	),
+	contextLimit: Yup.string()
+		.required("Context limit is required.")
+		.test(
+			"positive-integer",
+			"Context limit must be a positive integer.",
+			(value) => !value?.trim() || parsePositiveInteger(value) !== null,
+		),
 	compressionThreshold: Yup.string().test(
 		"threshold-range",
 		"Compression threshold must be a number between 0 and 100.",
@@ -367,7 +369,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 								htmlFor={contextLimitField.id}
 								className="text-sm font-medium text-content-primary"
 							>
-								Context Limit
+								Context Limit{" "}
+								<span className="text-xs font-bold text-content-destructive">
+									*
+								</span>
 							</Label>
 							<p className="m-0 text-xs text-content-secondary">
 								Max tokens in the context window.
@@ -487,10 +492,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 									disabled={isDeleting}
 									onClick={() => void onDeleteModel(editingModel.id)}
 								>
-									{isDeleting && (
-										<Loader2Icon className="h-4 w-4 animate-spin" />
-									)}
-									Delete model
+									{isDeleting && <Spinner className="h-4 w-4" loading />}
+									Delete model{" "}
 								</Button>
 							</div>
 						</div>
@@ -522,7 +525,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 								type="submit"
 								disabled={isSaving || !form.isValid || hasFieldErrors}
 							>
-								{isSaving && <Loader2Icon className="h-4 w-4 animate-spin" />}
+								{isSaving && <Spinner className="h-4 w-4" loading />}{" "}
 								{isEditing ? "Save" : "Add model"}{" "}
 							</Button>
 						</div>
