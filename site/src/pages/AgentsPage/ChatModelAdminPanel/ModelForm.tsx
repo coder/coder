@@ -40,11 +40,13 @@ import { ProviderIcon } from "./ProviderIcon";
 const validationSchema = Yup.object({
 	model: Yup.string().trim().required("Model ID is required."),
 	displayName: Yup.string(),
-	contextLimit: Yup.string().test(
-		"positive-integer",
-		"Context limit must be a positive integer.",
-		(value) => !value?.trim() || parsePositiveInteger(value) !== null,
-	),
+	contextLimit: Yup.string()
+		.required("Context limit is required.")
+		.test(
+			"positive-integer",
+			"Context limit must be a positive integer.",
+			(value) => !value?.trim() || parsePositiveInteger(value) !== null,
+		),
 	compressionThreshold: Yup.string().test(
 		"threshold-range",
 		"Compression threshold must be a number between 0 and 100.",
@@ -367,7 +369,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 								htmlFor={contextLimitField.id}
 								className="text-sm font-medium text-content-primary"
 							>
-								Context Limit
+								Context Limit{" "}
+								<span className="text-xs font-bold text-content-destructive">
+									*
+								</span>
 							</Label>
 							<p className="m-0 text-xs text-content-secondary">
 								Max tokens in the context window.
