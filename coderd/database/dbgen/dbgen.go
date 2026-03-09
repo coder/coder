@@ -578,6 +578,12 @@ func WorkspaceBuildParameters(t testing.TB, db database.Store, orig []database.W
 }
 
 func User(t testing.TB, db database.Store, orig database.User) database.User {
+	loginType := takeFirst(orig.LoginType, database.LoginTypePassword)
+	// A DB constraint requires login_type = 'none' for service accounts.
+	if orig.IsServiceAccount {
+		loginType = database.LoginTypeNone
+	}
+
 	user, err := db.InsertUser(genCtx, database.InsertUserParams{
 		ID:               takeFirst(orig.ID, uuid.New()),
 		Email:            takeFirst(orig.Email, testutil.GetRandomName(t)),
@@ -587,7 +593,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:        takeFirst(orig.UpdatedAt, dbtime.Now()),
 		RBACRoles:        takeFirstSlice(orig.RBACRoles, []string{}),
-		LoginType:        takeFirst(orig.LoginType, database.LoginTypePassword),
+		LoginType:        loginType,
 		Status:           string(takeFirst(orig.Status, database.UserStatusDormant)),
 		IsServiceAccount: orig.IsServiceAccount,
 	})

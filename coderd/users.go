@@ -359,6 +359,9 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 	// Service accounts must use login_type 'none' and have no password
 	// or email.
 	if req.ServiceAccount {
+		// The client can omit login type for a service account and it will be
+		// set for them below. But if they request the wrong one, we have to let
+		// them know.
 		if req.UserLoginType != "" && req.UserLoginType != codersdk.LoginTypeNone {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Service accounts must use login type 'none'.",
@@ -379,9 +382,7 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		req.UserLoginType = codersdk.LoginTypeNone
-	}
-
-	if req.UserLoginType == "" {
+	} else if req.UserLoginType == "" {
 		// Default to password auth
 		req.UserLoginType = codersdk.LoginTypePassword
 	}

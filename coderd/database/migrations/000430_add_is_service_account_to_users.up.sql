@@ -9,7 +9,7 @@ ALTER TABLE users ADD CONSTRAINT users_service_account_login_type CHECK (is_serv
 -- service account so that adding the constraint below does not fail.
 -- NOTE: considered setting email to nobody@localhost instead but for all we
 -- know it may already exist, so chose the lesser of two evils.
-UPDATE users SET is_service_account = true WHERE email = '';
+UPDATE users SET is_service_account = true, login_type = 'none' WHERE email = '';
 
 -- Service accounts must have empty email; other users must not.
 ALTER TABLE users ADD CONSTRAINT users_email_not_empty CHECK ((is_service_account = true) = (email = ''));

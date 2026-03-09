@@ -23,11 +23,5 @@ VALUES (
     '2024-01-01 00:00:00+00',
     'active',
     '{}',
-    'none'
+    'password'
 );
-
--- Needed so that the down migration for 000299_user_configs does not
--- fail with a NOT NULL violation when copying theme_preference back
--- to the users table.
-INSERT INTO user_configs (user_id, key, value)
-VALUES ('8ddb584a-68b8-48ac-998f-86f091ccb380', 'theme_preference', '');
