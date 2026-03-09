@@ -266,29 +266,73 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 	troubleshootingURL,
 }) => {
 	const failingAgentCount = workspace.health.failing_agents.length;
-	const failureSet = new Set<WorkspaceAgentStatus>();
+	const statusSet = new Set<WorkspaceAgentStatus>();
+	let hasStartError = false;
+	let hasShuttingDown = false;
 
 	workspace.latest_build.resources.forEach((resource) => {
 		resource.agents?.forEach((agent) => {
-			failureSet.add(agent.status);
+			statusSet.add(agent.status);
+			if (agent.lifecycle_state === "start_error") {
+				hasStartError = true;
+			}
+			if (
+				agent.lifecycle_state === "shutting_down" ||
+				agent.lifecycle_state === "shutdown_error" ||
+				agent.lifecycle_state === "shutdown_timeout"
+			) {
+				hasShuttingDown = true;
+			}
 		});
 	});
 
-	var title = "Workspace agents are not connected";
-	var message =
-		"Your workspace cannot be used until an agent connects. Continue to wait and check the log output of your workspace for any errors.";
+	let title: string;
+	let subtitle: string;
+	let message: string;
 
-	// Disconnected is a more serious failure than timeout, so we can
-	// prioritize handling it first.
-	if (failureSet.has("disconnected")) {
+	if (statusSet.has("disconnected")) {
+		// Disconnected is a more serious failure than timeout, so we
+		// prioritize handling it first.
 		title = "Workspace agents have disconnected";
+		subtitle =
+			failingAgentCount > 1
+				? `${failingAgentCount} agents have lost connection.`
+				: "The agent has lost connection.";
 		message =
 			"Continue to wait and check the log output of your workspace for any errors. If the agent does not reconnect, restarting the workspace can be used to try again.";
-	} else if (failureSet.has("timeout")) {
-		// Handle timeout case
-		title = "Your workspace is starting, but the agent has not yet connected.";
+	} else if (statusSet.has("timeout")) {
+		title =
+			"Your workspace is starting, but the agent has not yet connected";
+		subtitle =
+			failingAgentCount > 1
+				? `${failingAgentCount} agents have not connected yet.`
+				: "The agent has not connected yet.";
 		message =
 			"The agent is taking longer than expected to connect. Continue to wait and check the log output of your workspace for any errors. If the agent does not connect, restarting the workspace can be used to try again.";
+	} else if (hasShuttingDown) {
+		title = "Workspace agent is shutting down";
+		subtitle =
+			failingAgentCount > 1
+				? `${failingAgentCount} agents are shutting down.`
+				: "The agent is shutting down.";
+		message =
+			"The workspace agent is in the process of shutting down.";
+	} else if (hasStartError) {
+		title = "Startup script failed";
+		subtitle =
+			failingAgentCount > 1
+				? `${failingAgentCount} agents have startup script errors.`
+				: "A startup script exited with an error.";
+		message =
+			"Your workspace is running but a startup script exited with an error. Check the agent logs for more details. You can edit the startup script in your template to fix the issue.";
+	} else {
+		title = "Workspace agents are not connected";
+		subtitle =
+			failingAgentCount > 1
+				? `${failingAgentCount} agents have not connected yet.`
+				: "The agent has not connected yet.";
+		message =
+			"Your workspace cannot be used until an agent connects. Continue to wait and check the log output of your workspace for any errors.";
 	}
 
 	return (
@@ -296,11 +340,7 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDescription>
 				<p>
-					Your workspace is running but{" "}
-					{failingAgentCount > 1
-						? `${failingAgentCount} agents have not connected yet.`
-						: "the agent has not connected yet."}
-					.{" "}
+					Your workspace is running but {subtitle}
 				</p>
 				<p>{message}</p>
 				<p>
