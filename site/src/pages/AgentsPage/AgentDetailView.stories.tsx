@@ -4,49 +4,15 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import type { FC } from "react";
 import { fn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { cn } from "utils/cn";
+import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetail";
 import { createChatStore } from "./AgentDetail/ChatContext";
 import {
 	AgentDetailLoadingView,
 	AgentDetailNotFoundView,
 	AgentDetailView,
 } from "./AgentDetailView";
-
-// ---------------------------------------------------------------------------
-// Stub components for the injected timeline / input slots.
-// ---------------------------------------------------------------------------
-const StubTimeline: FC<{ chatID: string }> = ({ chatID }) => (
-	<div className="mx-auto w-full max-w-3xl py-6">
-		<div className="mb-4 flex justify-end">
-			<div className="rounded-lg bg-surface-secondary px-4 py-2 text-sm">
-				Can you help me refactor the auth module?
-			</div>
-		</div>
-		<div className="space-y-2 text-sm text-content-secondary">
-			<p>
-				Sure! I&apos;ll start by analyzing the current structure of chat{" "}
-				{chatID}.
-			</p>
-			<p>
-				The main issues I can see are mixed concerns and duplicated middleware.
-			</p>
-		</div>
-	</div>
-);
-
-const StubInput: FC<{ isInputDisabled: boolean }> = ({ isInputDisabled }) => (
-	<div
-		className={cn(
-			"rounded-lg border border-border-default p-3 text-sm text-content-secondary",
-			isInputDisabled && "opacity-50",
-		)}
-	>
-		Ask a follow-up question...
-	</div>
-);
 
 // ---------------------------------------------------------------------------
 // Shared constants & helpers
@@ -95,11 +61,11 @@ const defaultEditing = {
 	handleContentChange: fn(),
 };
 
-const defaultGitWatcher = {
-	repositories: new Map<
-		string,
-		TypesGen.WorkspaceAgentRepoChanges
-	>() as ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>,
+const defaultGitWatcher: {
+	repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
+	refresh: () => void;
+} = {
+	repositories: new Map(),
 	refresh: fn(),
 };
 
@@ -130,8 +96,8 @@ const meta: Meta<typeof AgentDetailView> = {
 		}),
 	},
 	args: {
-		AgentDetailTimeline: StubTimeline as never,
-		AgentDetailInput: StubInput as never,
+		AgentDetailTimeline: AgentDetailTimeline,
+		AgentDetailInput: AgentDetailInput,
 		agentId: AGENT_ID,
 		chatTitle: "Help me refactor",
 		parentChat: undefined,
