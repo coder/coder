@@ -1051,8 +1051,30 @@ const fillParameters = async (
 		switch (richParameter.type) {
 			case "bool":
 				{
+					const wantChecked = buildParameter.value === "true";
 					const parameterField = parameterLabel.locator("button");
-					await parameterField.click();
+					// Dynamic parameters can hydrate after initial render
+					// and reset the switch state. Check the current value
+					// and retry the click if needed.
+					for (let attempt = 0; attempt < 3; attempt++) {
+						const isChecked =
+							(await parameterField.getAttribute("aria-checked")) === "true";
+						if (isChecked !== wantChecked) {
+							await parameterField.click();
+						}
+						try {
+							await expect(parameterField).toHaveAttribute(
+								"aria-checked",
+								String(wantChecked),
+								{ timeout: 1000 },
+							);
+							break;
+						} catch (error) {
+							if (attempt === 2) {
+								throw error;
+							}
+						}
+					}
 				}
 				break;
 			case "string":
