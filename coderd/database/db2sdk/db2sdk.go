@@ -1156,9 +1156,7 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 		}
 
 		var rawBlocks []json.RawMessage
-		if role == string(fantasy.MessageRoleAssistant) {
-			_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
-		}
+		_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
 
 		parts := make([]codersdk.ChatMessagePart, 0, len(content))
 		for i, block := range content {
@@ -1166,10 +1164,20 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 			if part.Type == "" {
 				continue
 			}
-			if part.Type == codersdk.ChatMessagePartTypeReasoning {
-				part.Title = ""
-				if i < len(rawBlocks) {
+			if i < len(rawBlocks) {
+				switch part.Type {
+				case codersdk.ChatMessagePartTypeReasoning:
 					part.Title = reasoningStoredTitle(rawBlocks[i])
+				case codersdk.ChatMessagePartTypeFile:
+					if fid, err := chatprompt.ExtractFileID(rawBlocks[i]); err == nil {
+						part.FileID = uuid.NullUUID{UUID: fid, Valid: true}
+					}
+					// When a file_id is present, omit inline data
+					// from the response. Clients fetch content via
+					// the GET /chats/files/{id} endpoint instead.
+					if part.FileID.Valid {
+						part.Data = nil
+					}
 				}
 			}
 			parts = append(parts, part)

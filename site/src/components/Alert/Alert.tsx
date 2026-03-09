@@ -135,9 +135,9 @@ export const AlertDescription: React.FC<React.PropsWithChildren> = ({
 	);
 };
 
-export const AlertTitle: React.FC<React.ComponentPropsWithRef<"h1">> = ({
+export const AlertTitle: React.FC<React.ComponentPropsWithRef<"h2">> = ({
 	className,
 	...props
 }) => {
-	return <h1 className={cn("m-0 text-sm font-medium", className)} {...props} />;
+	return <h2 className={cn("m-0 text-sm font-medium", className)} {...props} />;
 };

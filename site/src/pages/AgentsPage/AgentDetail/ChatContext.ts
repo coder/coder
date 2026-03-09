@@ -11,12 +11,9 @@ import {
 } from "react";
 import { useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
+import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { StreamState } from "./types";
-
-// Reconnect delay bounds for exponential backoff.
-const RECONNECT_BASE_MS = 1_000;
-const RECONNECT_MAX_MS = 10_000;
 
 const VALID_CHAT_STATUSES: ReadonlySet<string> = new Set<TypesGen.ChatStatus>([
 	"pending",
@@ -217,6 +214,7 @@ export const createChatStore = (): ChatStore => {
 		const nextMessagesByID = buildMessageMap(safeMessages);
 		const nextOrderedMessageIDs = buildOrderedMessageIDs(safeMessages);
 
+		// Fast-path: skip setState entirely when nothing changed.
 		if (
 			mapsEqualByRef(state.messagesByID, nextMessagesByID) &&
 			arraysEqual(state.orderedMessageIDs, nextOrderedMessageIDs)
@@ -224,35 +222,62 @@ export const createChatStore = (): ChatStore => {
 			return;
 		}
 
-		setState((current) => ({
-			...current,
-			messagesByID: nextMessagesByID,
-			orderedMessageIDs: nextOrderedMessageIDs,
-		}));
+		setState((current) => {
+			// Re-check equality against `current` inside the updater
+			// to avoid overwriting a concurrent state change.
+			if (
+				mapsEqualByRef(current.messagesByID, nextMessagesByID) &&
+				arraysEqual(current.orderedMessageIDs, nextOrderedMessageIDs)
+			) {
+				return current;
+			}
+			return {
+				...current,
+				messagesByID: nextMessagesByID,
+				orderedMessageIDs: nextOrderedMessageIDs,
+			};
+		});
 	};
 
 	const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
+		// Use `state` for the early-return guard so we can return
+		// the result synchronously. The actual mutation below uses
+		// `current` inside the updater to avoid overwriting a
+		// concurrent state change (TOCTOU).
 		const existing = state.messagesByID.get(message.id);
 		const isDuplicate = state.messagesByID.has(message.id);
 		if (existing && chatMessagesEqualByValue(existing, message)) {
 			return { isDuplicate, changed: false };
 		}
 
-		const nextMessagesByID = new Map(state.messagesByID);
-		nextMessagesByID.set(message.id, message);
+		let actuallyChanged = false;
+		setState((current) => {
+			// Re-check inside the updater: another call may have
+			// already applied this exact message.
+			const curExisting = current.messagesByID.get(message.id);
+			if (curExisting && chatMessagesEqualByValue(curExisting, message)) {
+				return current;
+			}
 
-		const needsReorder =
-			!isDuplicate || nextMessagesByID.size !== state.messagesByID.size;
-		const nextOrderedMessageIDs = needsReorder
-			? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
-			: state.orderedMessageIDs;
+			actuallyChanged = true;
 
-		setState((current) => ({
-			...current,
-			messagesByID: nextMessagesByID,
-			orderedMessageIDs: nextOrderedMessageIDs,
-		}));
-		return { isDuplicate, changed: true };
+			const nextMessagesByID = new Map(current.messagesByID);
+			nextMessagesByID.set(message.id, message);
+
+			const curIsDuplicate = current.messagesByID.has(message.id);
+			const needsReorder =
+				!curIsDuplicate || nextMessagesByID.size !== current.messagesByID.size;
+			const nextOrderedMessageIDs = needsReorder
+				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
+				: current.orderedMessageIDs;
+
+			return {
+				...current,
+				messagesByID: nextMessagesByID,
+				orderedMessageIDs: nextOrderedMessageIDs,
+			};
+		});
+		return { isDuplicate, changed: actuallyChanged };
 	};
 
 	const applyMessageParts = (parts: readonly Record<string, unknown>[]) => {
@@ -260,17 +285,19 @@ export const createChatStore = (): ChatStore => {
 			return;
 		}
 
-		let nextStreamState: StreamState | null = state.streamState;
-		for (const part of parts) {
-			nextStreamState = applyMessagePartToStreamState(nextStreamState, part);
-		}
-		if (nextStreamState === state.streamState) {
-			return;
-		}
-		setState((current) => ({
-			...current,
-			streamState: nextStreamState,
-		}));
+		setState((current) => {
+			let nextStreamState: StreamState | null = current.streamState;
+			for (const part of parts) {
+				nextStreamState = applyMessagePartToStreamState(nextStreamState, part);
+			}
+			if (nextStreamState === current.streamState) {
+				return current;
+			}
+			return {
+				...current,
+				streamState: nextStreamState,
+			};
+		});
 	};
 
 	return {
@@ -287,15 +314,17 @@ export const createChatStore = (): ChatStore => {
 		applyMessageParts,
 		setQueuedMessages: (queuedMessages) => {
 			const nextQueuedMessages = queuedMessages ?? [];
-			if (
-				chatQueuedMessagesEqualByID(state.queuedMessages, nextQueuedMessages)
-			) {
-				return;
-			}
-			setState((current) => ({
-				...current,
-				queuedMessages: nextQueuedMessages,
-			}));
+			setState((current) => {
+				if (
+					chatQueuedMessagesEqualByID(
+						current.queuedMessages,
+						nextQueuedMessages,
+					)
+				) {
+					return current;
+				}
+				return { ...current, queuedMessages: nextQueuedMessages };
+			});
 		},
 		setChatStatus: (status) => {
 			if (state.chatStatus === status) {
@@ -355,12 +384,14 @@ export const createChatStore = (): ChatStore => {
 			if (state.subagentStatusOverrides.get(chatID) === status) {
 				return;
 			}
-			const nextOverrides = new Map(state.subagentStatusOverrides);
-			nextOverrides.set(chatID, status);
-			setState((current) => ({
-				...current,
-				subagentStatusOverrides: nextOverrides,
-			}));
+			setState((current) => {
+				if (current.subagentStatusOverrides.get(chatID) === status) {
+					return current;
+				}
+				const nextOverrides = new Map(current.subagentStatusOverrides);
+				nextOverrides.set(chatID, status);
+				return { ...current, subagentStatusOverrides: nextOverrides };
+			});
 		},
 		resetTransientState: () => {
 			if (
@@ -556,14 +587,16 @@ export const useChatStore = (
 
 		// Capture chatID as a narrowed string for use in closures.
 		const activeChatID = chatID;
+		// Local disposed flag so the message handler (which lives
+		// outside the utility) can bail out after cleanup.
 		let disposed = false;
-		let reconnectAttempt = 0;
-		let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-		let activeSocket: ReturnType<typeof watchChat> | null = null;
 
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 		) => {
+			if (disposed) {
+				return;
+			}
 			if (payload.parseError || !payload.parsedMessage) {
 				store.setStreamError("Failed to parse chat stream update.");
 				return;
@@ -633,6 +666,17 @@ export const useChatStore = (
 							continue;
 						}
 						const { changed } = store.upsertDurableMessage(message);
+						// Keep lastMessageIdRef in sync with
+						// stream-delivered messages so reconnections use
+						// the correct after_id and don't re-fetch or
+						// miss events.
+						if (
+							message.id !== undefined &&
+							(lastMessageIdRef.current === undefined ||
+								message.id > lastMessageIdRef.current)
+						) {
+							lastMessageIdRef.current = message.id;
+						}
 						if (changed) {
 							scheduleStreamReset();
 						}
@@ -684,6 +728,10 @@ export const useChatStore = (
 						continue;
 					}
 					case "error": {
+						const eventChatID = asString(streamEvent.chat_id);
+						if (eventChatID && eventChatID !== chatID) {
+							continue;
+						}
 						const error = asRecord(streamEvent.error);
 						const reason =
 							asString(error?.message).trim() || "Chat processing failed.";
@@ -698,8 +746,13 @@ export const useChatStore = (
 						continue;
 					}
 					case "retry": {
+						const eventChatID = asString(streamEvent.chat_id);
+						if (eventChatID && eventChatID !== chatID) {
+							continue;
+						}
 						const retry = streamEvent.retry;
 						if (retry) {
+							store.clearStreamState();
 							store.setRetryState({
 								attempt: retry.attempt,
 								error: retry.error,
@@ -714,66 +767,38 @@ export const useChatStore = (
 			flushMessageParts();
 		};
 
-		// Schedule a reconnect with capped exponential backoff.
-		// Does nothing if the effect has been cleaned up.
-		const scheduleReconnect = () => {
-			if (disposed) {
-				return;
-			}
-			const delay = Math.min(
-				RECONNECT_BASE_MS * 2 ** reconnectAttempt,
-				RECONNECT_MAX_MS,
-			);
-			reconnectAttempt += 1;
-			reconnectTimer = setTimeout(connect, delay);
-		};
-
-		function connect() {
-			if (disposed) {
-				return;
-			}
-
-			// Use the latest known message ID so the server only
-			// sends events the client hasn't seen yet.
-			const socket = watchChat(activeChatID, lastMessageIdRef.current);
-			activeSocket = socket;
-
-			const handleOpen = () => {
-				// Connection succeeded — reset backoff and clear any
-				// previous disconnect error.
-				reconnectAttempt = 0;
+		const disposeSocket = createReconnectingWebSocket({
+			connect() {
+				// Use the latest known message ID so the server only
+				// sends events the client hasn't seen yet.
+				const socket = watchChat(activeChatID, lastMessageIdRef.current);
+				socket.addEventListener("message", handleMessage);
+				return socket;
+			},
+			onOpen() {
+				// Connection succeeded — clear any previous disconnect
+				// error.
 				store.clearStreamError();
-			};
-
-			const handleDisconnect = () => {
-				if (disposed) {
-					return;
-				}
+			},
+			onDisconnect(attempt) {
 				// Show the error only on the first disconnect (not
 				// while we are already retrying).
-				if (reconnectAttempt === 0) {
-					store.setStreamError("Chat stream disconnected. Reconnecting…");
+				if (attempt === 0) {
+					store.setStreamError("Chat stream disconnected. Reconnecting\u2026");
 				}
-				scheduleReconnect();
-			};
-
-			socket.addEventListener("open", handleOpen);
-			socket.addEventListener("message", handleMessage);
-			socket.addEventListener("error", handleDisconnect);
-			socket.addEventListener("close", handleDisconnect);
-		}
-
-		// Kick off the first connection.
-		connect();
+				// Clear "running" status on disconnect so the UI
+				// doesn't show a stale spinner. The reconnected
+				// stream will deliver the authoritative status.
+				const currentStatus = store.getSnapshot().chatStatus;
+				if (currentStatus === "running") {
+					store.setChatStatus(null);
+				}
+			},
+		});
 
 		return () => {
 			disposed = true;
-			if (reconnectTimer !== null) {
-				clearTimeout(reconnectTimer);
-			}
-			if (activeSocket) {
-				activeSocket.close();
-			}
+			disposeSocket();
 			cancelScheduledStreamReset();
 			activeChatIDRef.current = null;
 		};

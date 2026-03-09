@@ -474,22 +474,24 @@ export const StreamedSubagentTitle: Story = {
 			},
 			{ diffUrl: undefined },
 		),
-		webSocket: [
-			{
-				event: "message",
-				data: wrapSSE({
-					type: "message_part",
-					message_part: {
-						part: {
-							type: "tool-call",
-							tool_call_id: "tool-subagent-stream-1",
-							tool_name: "spawn_agent",
-							args_delta: '{"title":"Streamed Child"',
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: wrapSSE({
+						type: "message_part",
+						message_part: {
+							part: {
+								type: "tool-call",
+								tool_call_id: "tool-subagent-stream-1",
+								tool_name: "spawn_agent",
+								args_delta: '{"title":"Streamed Child"',
+							},
 						},
-					},
-				}),
-			},
-		],
+					}),
+				},
+			],
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -503,6 +505,252 @@ export const StreamedSubagentTitle: Story = {
 	},
 };
 
+/**
+ * Sidebar with a PR tab and two git repo tabs. The git watcher receives
+ * repo data via the mocked WebSocket, and the diff-status query provides
+ * the PR tab.
+ */
+export const SidebarWithPRAndRepos: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				chat: {
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Full sidebar demo",
+					status: "completed",
+				},
+				messages: [],
+				queued_messages: [],
+			},
+			{ diffUrl: "https://github.com/coder/coder/pull/456" },
+		),
+		webSocket: {
+			"/git/watch": [
+				{
+					event: "message",
+					data: JSON.stringify({
+						type: "changes",
+						scanned_at: new Date().toISOString(),
+						repositories: [
+							{
+								repo_root: "/home/coder/frontend",
+								branch: "feat/ui-overhaul",
+								remote_origin: "https://github.com/coder/frontend.git",
+								unified_diff: [
+									"diff --git a/src/index.ts b/src/index.ts",
+									"index aaa1111..bbb2222 100644",
+									"--- a/src/index.ts",
+									"+++ b/src/index.ts",
+									"@@ -1,4 +1,6 @@",
+									' import { render } from "react-dom";',
+									'+import { ThemeProvider } from "./theme";',
+									"+",
+									" const root = document.getElementById('root');",
+									"-render(<App />, root);",
+									"+render(<ThemeProvider><App /></ThemeProvider>, root);",
+									"",
+									"diff --git a/src/old-utils.ts b/src/old-utils.ts",
+									"deleted file mode 100644",
+									"index fff6666..0000000",
+									"--- a/src/old-utils.ts",
+									"+++ /dev/null",
+									"@@ -1,3 +0,0 @@",
+									"-export const deprecatedHelper = () => {};",
+									"-export const oldFormat = () => {};",
+									"-export const legacyParse = () => {};",
+									"",
+									"diff --git a/src/helpers.ts b/src/utils.ts",
+									"similarity index 90%",
+									"rename from src/helpers.ts",
+									"rename to src/utils.ts",
+									"index aaa1111..bbb2222 100644",
+									"--- a/src/helpers.ts",
+									"+++ b/src/utils.ts",
+									"",
+									"diff --git a/src/components/Button.tsx b/src/components/Button.tsx",
+									"new file mode 100644",
+									"index 0000000..abc1234",
+									"--- /dev/null",
+									"+++ b/src/components/Button.tsx",
+									"@@ -0,0 +1,8 @@",
+									'+import { type FC } from "react";',
+									"+",
+									"+interface ButtonProps {",
+									"+  children: React.ReactNode;",
+									"+}",
+									"+",
+									"+export const Button: FC<ButtonProps> = ({ children }) => {",
+									'+  return <button className="btn">{children}</button>;',
+									"+};",
+								].join("\n"),
+							},
+							{
+								repo_root: "/home/coder/backend",
+								branch: "feat/api-v2",
+								remote_origin: "https://github.com/coder/backend.git",
+								unified_diff: [
+									"diff --git a/cmd/server/main.go b/cmd/server/main.go",
+									"index ddd4444..eee5555 100644",
+									"--- a/cmd/server/main.go",
+									"+++ b/cmd/server/main.go",
+									"@@ -15,3 +15,7 @@ func main() {",
+									'   srv := &http.Server{Addr: ":8080"}',
+									"+  srv.ReadTimeout = 30 * time.Second",
+									"+  srv.WriteTimeout = 30 * time.Second",
+									"+",
+									'+  log.Println("starting server on :8080")',
+									"   log.Fatal(srv.ListenAndServe())",
+									" }",
+									"",
+									"diff --git a/internal/old-handler.go b/internal/old-handler.go",
+									"deleted file mode 100644",
+									"index ccc3333..0000000",
+									"--- a/internal/old-handler.go",
+									"+++ /dev/null",
+									"@@ -1,5 +0,0 @@",
+									"-package internal",
+									"-",
+									"-func OldHandler() {",
+									"-  // deprecated",
+									"-}",
+									"",
+									"diff --git a/internal/handler.go b/internal/router.go",
+									"similarity index 85%",
+									"rename from internal/handler.go",
+									"rename to internal/router.go",
+									"index aaa1111..bbb2222 100644",
+									"--- a/internal/handler.go",
+									"+++ b/internal/router.go",
+									"",
+									"diff --git a/internal/middleware.go b/internal/middleware.go",
+									"new file mode 100644",
+									"index 0000000..def5678",
+									"--- /dev/null",
+									"+++ b/internal/middleware.go",
+									"@@ -0,0 +1,12 @@",
+									"+package internal",
+									"+",
+									'+import "net/http"',
+									"+",
+									"+// Logger is a middleware that logs incoming requests.",
+									"+func Logger(next http.Handler) http.Handler {",
+									"+  return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {",
+									'+    log.Printf("%s %s", r.Method, r.URL.Path)',
+									"+    next.ServeHTTP(w, r)",
+									"+  })",
+									"+}",
+								].join("\n"),
+							},
+							{
+								repo_root: "/home/coder/docs",
+								branch: "feat/ui-overhaul",
+								remote_origin: "https://github.com/coder/docs.git",
+								unified_diff: [
+									"diff --git a/guides/setup.md b/guides/setup.md",
+									"index aaa1111..bbb2222 100644",
+									"--- a/guides/setup.md",
+									"+++ b/guides/setup.md",
+									"@@ -5,7 +5,9 @@ ## Installation",
+									" ",
+									" ```bash",
+									"-npm install @coder/sdk",
+									"+npm install @coder/sdk@latest",
+									" ```",
+									" ",
+									"+> **Note:** Requires Node.js 18 or later.",
+									"+",
+									" ## Configuration",
+									"",
+									"diff --git a/guides/auth.md b/guides/auth.md",
+									"index ccc3333..ddd4444 100644",
+									"--- a/guides/auth.md",
+									"+++ b/guides/auth.md",
+									"@@ -12,8 +12,10 @@ ## Token refresh",
+									" Tokens are valid for 24 hours.",
+									" ",
+									"-To refresh a token, call `refreshToken()`.",
+									"-This will invalidate the old token.",
+									"+To refresh a token, call `client.refreshToken()`.",
+									"+This will invalidate the old token and return a",
+									"+new one with an extended expiry.",
+									" ",
+									" ## Revoking access",
+								].join("\n"),
+							},
+						],
+					} satisfies TypesGen.WorkspaceAgentGitServerMessage),
+				},
+			],
+		},
+	},
+};
+
+/**
+ * Sidebar with a single git repo tab (no PR). Because there is only one tab
+ * the tab bar is hidden and the repo panel is rendered directly.
+ */
+export const SidebarWithSingleRepo: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				chat: {
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Single repo sidebar",
+					status: "completed",
+				},
+				messages: [],
+				queued_messages: [],
+			},
+			{ diffUrl: undefined },
+		),
+		webSocket: {
+			"/git/watch": [
+				{
+					event: "message",
+					data: JSON.stringify({
+						type: "changes",
+						scanned_at: new Date().toISOString(),
+						repositories: [
+							{
+								repo_root: "/home/coder/project",
+								branch: "main",
+								remote_origin: "https://github.com/coder/project.git",
+								unified_diff: [
+									"diff --git a/src/app.ts b/src/app.ts",
+									"index aaa1111..bbb2222 100644",
+									"--- a/src/app.ts",
+									"+++ b/src/app.ts",
+									"@@ -1,5 +1,7 @@",
+									' import express from "express";',
+									'+import cors from "cors";',
+									" ",
+									" const app = express();",
+									"+app.use(cors());",
+									" ",
+									' app.get("/", (req, res) => {',
+									"",
+									"diff --git a/README.md b/README.md",
+									"index ccc3333..ddd4444 100644",
+									"--- a/README.md",
+									"+++ b/README.md",
+									"@@ -1,3 +1,5 @@",
+									" # Project",
+									" ",
+									"-A simple app.",
+									"+A simple app with CORS support.",
+									"+",
+									"+## Getting Started",
+								].join("\n"),
+							},
+						],
+					} satisfies TypesGen.WorkspaceAgentGitServerMessage),
+				},
+			],
+		},
+	},
+};
 /**
  * Streaming reasoning part via WebSocket — renders collapsed and
  * can be expanded on click.
@@ -522,21 +770,23 @@ export const StreamedReasoningCollapsed: Story = {
 			},
 			{ diffUrl: undefined },
 		),
-		webSocket: [
-			{
-				event: "message",
-				data: wrapSSE({
-					type: "message_part",
-					message_part: {
-						part: {
-							type: "reasoning",
-							title: "Plan migration",
-							text: "Streaming reasoning body",
+		webSocket: {
+			"/chats/": [
+				{
+					event: "message",
+					data: wrapSSE({
+						type: "message_part",
+						message_part: {
+							part: {
+								type: "reasoning",
+								title: "Plan migration",
+								text: "Streaming reasoning body",
+							},
 						},
-					},
-				}),
-			},
-		],
+					}),
+				},
+			],
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

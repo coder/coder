@@ -1,4 +1,5 @@
 import { MockWorkspace } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import {
@@ -26,6 +27,7 @@ const behaviorStorageKey = "agents.system-prompt";
 const meta: Meta<typeof AgentsEmptyState> = {
 	title: "pages/AgentsPage/AgentsEmptyState",
 	component: AgentsEmptyState,
+	decorators: [withDashboardProvider],
 	args: {
 		onCreateChat: fn(),
 		isCreating: false,

@@ -7,22 +7,14 @@ package agentgit
 import (
 	"bytes"
 	"context"
-	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/dustin/go-humanize"
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/filemode"
-	fdiff "github.com/go-git/go-git/v5/plumbing/format/diff"
-	"github.com/go-git/go-git/v5/plumbing/object"
-	"github.com/go-git/go-git/v5/utils/diff"
-	dmp "github.com/sergi/go-diff/diffmatchpatch"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -41,20 +33,19 @@ func WithClock(c quartz.Clock) Option {
 	}
 }
 
+// WithGitBinary overrides the git binary path (for testing).
+func WithGitBinary(path string) Option {
+	return func(h *Handler) {
+		h.gitBin = path
+	}
+}
+
 const (
 	// scanCooldown is the minimum interval between successive scans.
 	scanCooldown = 1 * time.Second
 	// fallbackPollInterval is the safety-net poll period used when no
 	// filesystem events arrive.
 	fallbackPollInterval = 30 * time.Second
-	// maxFileReadSize is the maximum file size that will be read
-	// into memory. Files larger than this are tracked by status
-	// only, and their diffs show a placeholder message.
-	maxFileReadSize = 2 * 1024 * 1024 // 2 MiB
-	// maxFileDiffSize is the maximum encoded size of a single
-	// file's diff. If an individual file's diff exceeds this
-	// limit, it is replaced with a placeholder stub.
-	maxFileDiffSize = 256 * 1024 // 256 KiB
 	// maxTotalDiffSize is the maximum size of the combined
 	// unified diff for an entire repository sent over the wire.
 	// This must stay under the WebSocket message size limit.
@@ -65,6 +56,7 @@ const (
 type Handler struct {
 	logger slog.Logger
 	clock  quartz.Clock
+	gitBin string // path to git binary; empty means "git" (from PATH)
 
 	mu            sync.Mutex
 	repoRoots     map[string]struct{}     // watched repo roots
@@ -85,6 +77,7 @@ func NewHandler(logger slog.Logger, opts ...Option) *Handler {
 	h := &Handler{
 		logger:        logger,
 		clock:         quartz.NewReal(),
+		gitBin:        "git",
 		repoRoots:     make(map[string]struct{}),
 		lastSnapshots: make(map[string]repoSnapshot),
 		scanTrigger:   make(chan struct{}, 1),
@@ -92,13 +85,30 @@ func NewHandler(logger slog.Logger, opts ...Option) *Handler {
 	for _, opt := range opts {
 		opt(h)
 	}
+
+	// Check if git is available.
+	if _, err := exec.LookPath(h.gitBin); err != nil {
+		h.logger.Warn(context.Background(), "git binary not found, git scanning disabled")
+	}
+
 	return h
+}
+
+// gitAvailable returns true if the configured git binary can be found
+// in PATH.
+func (h *Handler) gitAvailable() bool {
+	_, err := exec.LookPath(h.gitBin)
+	return err == nil
 }
 
 // Subscribe processes a subscribe message, resolving paths to git repo
 // roots and adding new repos to the watch set. Returns true if any new
 // repo roots were added.
 func (h *Handler) Subscribe(paths []string) bool {
+	if !h.gitAvailable() {
+		return false
+	}
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -109,7 +119,7 @@ func (h *Handler) Subscribe(paths []string) bool {
 		}
 		p = filepath.Clean(p)
 
-		root, err := findRepoRoot(p)
+		root, err := findRepoRoot(h.gitBin, p)
 		if err != nil {
 			// Not a git path — silently ignore.
 			continue
@@ -135,6 +145,10 @@ func (h *Handler) RequestScan() {
 // Scan performs a scan of all subscribed repos and computes deltas
 // against the previously emitted snapshots.
 func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMessage {
+	if !h.gitAvailable() {
+		return nil
+	}
+
 	h.mu.Lock()
 	roots := make([]string, 0, len(h.repoRoots))
 	for r := range h.repoRoots {
@@ -158,7 +172,7 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 	}
 	results := make([]scanResult, 0, len(roots))
 	for _, root := range roots {
-		changes, err := getRepoChanges(ctx, h.logger, root)
+		changes, err := getRepoChanges(ctx, h.logger, h.gitBin, root)
 		results = append(results, scanResult{root: root, changes: changes, err: err})
 	}
 
@@ -168,7 +182,7 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 
 	for _, res := range results {
 		if res.err != nil {
-			if isRepoDeleted(res.root) {
+			if isRepoDeleted(h.gitBin, res.root) {
 				// Repo root or .git directory was removed.
 				// Emit a removal entry, then evict from watch set.
 				removal := codersdk.WorkspaceAgentRepoChanges{
@@ -276,8 +290,9 @@ func (h *Handler) rateLimitedScan(ctx context.Context, scanFn func()) {
 //  2. The .git entry (directory or file) was removed.
 //  3. The .git entry is a file (worktree/submodule) whose target
 //     gitdir was removed. In this case .git exists on disk but
-//     git.PlainOpen fails because the referenced directory is gone.
-func isRepoDeleted(repoRoot string) bool {
+//     `git rev-parse --git-dir` fails because the referenced
+//     directory is gone.
+func isRepoDeleted(gitBin string, repoRoot string) bool {
 	if _, err := os.Stat(repoRoot); os.IsNotExist(err) {
 		return true
 	}
@@ -288,78 +303,77 @@ func isRepoDeleted(repoRoot string) bool {
 	}
 	// If .git is a regular file (worktree or submodule), the actual
 	// git object store lives elsewhere. Validate that the target is
-	// still reachable by attempting to open the repo.
+	// still reachable by running git rev-parse.
 	if err == nil && !fi.IsDir() {
-		if _, openErr := git.PlainOpen(repoRoot); openErr != nil {
+		cmd := exec.CommandContext(context.Background(), gitBin, "-C", repoRoot, "rev-parse", "--git-dir")
+		if err := cmd.Run(); err != nil {
 			return true
 		}
 	}
 	return false
 }
 
-// findRepoRoot walks up from the given path to find a .git directory.
-func findRepoRoot(p string) (string, error) {
-	// If p is a file, start from its directory.
+// findRepoRoot uses `git rev-parse --show-toplevel` to find the
+// repository root for the given path.
+func findRepoRoot(gitBin string, p string) (string, error) {
+	// If p is a file, start from its parent directory.
 	dir := p
-	for {
-		_, err := git.PlainOpen(dir)
-		if err == nil {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", xerrors.Errorf("no git repo found for %s", p)
-		}
-		dir = parent
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		dir = filepath.Dir(dir)
 	}
+	cmd := exec.CommandContext(context.Background(), gitBin, "rev-parse", "--show-toplevel")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", xerrors.Errorf("no git repo found for %s", p)
+	}
+	root := filepath.FromSlash(strings.TrimSpace(string(out)))
+	// Resolve symlinks and short (8.3) names on Windows so the
+	// returned root matches paths produced by Go's filepath APIs.
+	if resolved, evalErr := filepath.EvalSymlinks(root); evalErr == nil {
+		root = resolved
+	}
+	return root, nil
 }
 
 // getRepoChanges reads the current state of a git repository using
-// go-git. It returns branch, remote origin, and per-file status.
-func getRepoChanges(ctx context.Context, logger slog.Logger, repoRoot string) (codersdk.WorkspaceAgentRepoChanges, error) {
-	repo, err := git.PlainOpen(repoRoot)
-	if err != nil {
-		return codersdk.WorkspaceAgentRepoChanges{}, xerrors.Errorf("open repo: %w", err)
-	}
-
+// the git CLI. It returns branch, remote origin, and a unified diff.
+func getRepoChanges(ctx context.Context, logger slog.Logger, gitBin string, repoRoot string) (codersdk.WorkspaceAgentRepoChanges, error) {
 	result := codersdk.WorkspaceAgentRepoChanges{
 		RepoRoot: repoRoot,
 	}
 
-	// Read branch.
-	headRef, err := repo.Head()
-	if err != nil {
-		// Repo may have no commits yet.
+	// Verify this is still a valid git repository before doing
+	// anything else. This catches deleted repos early.
+	verifyCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "--git-dir")
+	if err := verifyCmd.Run(); err != nil {
+		return result, xerrors.Errorf("not a git repository: %w", err)
+	}
+
+	// Read branch name.
+	branchCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "symbolic-ref", "--short", "HEAD")
+	if out, err := branchCmd.Output(); err == nil {
+		result.Branch = strings.TrimSpace(string(out))
+	} else {
 		logger.Debug(ctx, "failed to read HEAD", slog.F("root", repoRoot), slog.Error(err))
-	} else if headRef.Name().IsBranch() {
-		result.Branch = headRef.Name().Short()
 	}
 
 	// Read remote origin URL.
-	cfg, err := repo.Config()
-	if err == nil {
-		if origin, ok := cfg.Remotes["origin"]; ok && len(origin.URLs) > 0 {
-			result.RemoteOrigin = origin.URLs[0]
-		}
+	remoteCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "config", "--get", "remote.origin.url")
+	if out, err := remoteCmd.Output(); err == nil {
+		result.RemoteOrigin = strings.TrimSpace(string(out))
 	}
 
-	// Get worktree status.
-	wt, err := repo.Worktree()
+	// Compute unified diff.
+	// `git diff HEAD` shows both staged and unstaged changes vs HEAD.
+	// For repos with no commits yet, fall back to showing untracked
+	// files only.
+	diff, err := computeGitDiff(ctx, logger, gitBin, repoRoot)
 	if err != nil {
-		return result, xerrors.Errorf("get worktree: %w", err)
+		return result, xerrors.Errorf("compute diff: %w", err)
 	}
 
-	status, err := wt.Status()
-	if err != nil {
-		return result, xerrors.Errorf("worktree status: %w", err)
-	}
-
-	worktreeDiff, err := computeWorktreeDiff(repo, repoRoot, status)
-	if err != nil {
-		return result, xerrors.Errorf("compute worktree diff: %w", err)
-	}
-
-	result.UnifiedDiff = worktreeDiff.unifiedDiff
+	result.UnifiedDiff = diff
 	if len(result.UnifiedDiff) > maxTotalDiffSize {
 		result.UnifiedDiff = "Total diff too large to show. Size: " + humanize.IBytes(uint64(len(result.UnifiedDiff))) + ". Showing branch and remote only."
 	}
@@ -367,390 +381,61 @@ func getRepoChanges(ctx context.Context, logger slog.Logger, repoRoot string) (c
 	return result, nil
 }
 
-type worktreeDiffResult struct {
-	unifiedDiff string
-	additions   int
-	deletions   int
-}
+// computeGitDiff produces a unified diff string for the repository by
+// combining `git diff HEAD` (staged + unstaged changes) with diffs
+// for untracked files.
+func computeGitDiff(ctx context.Context, logger slog.Logger, gitBin string, repoRoot string) (string, error) {
+	var diffParts []string
 
-type fileSnapshot struct {
-	exists   bool
-	content  []byte
-	mode     filemode.FileMode
-	binary   bool
-	tooLarge bool
-	size     int64 // actual file size on disk, set even when tooLarge
-}
-
-func computeWorktreeDiff(
-	repo *git.Repository,
-	repoRoot string,
-	status git.Status,
-) (worktreeDiffResult, error) {
-	headTree, err := getHeadTree(repo)
-	if err != nil {
-		return worktreeDiffResult{}, xerrors.Errorf("get head tree: %w", err)
+	// Check if the repo has any commits.
+	hasCommits := true
+	checkCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "HEAD")
+	if err := checkCmd.Run(); err != nil {
+		hasCommits = false
 	}
 
-	paths := sortedStatusPaths(status)
-	filePatches := make([]fdiff.FilePatch, 0, len(paths))
-	totalAdditions := 0
-	totalDeletions := 0
-
-	for _, path := range paths {
-		fileStatus := status[path]
-
-		fromPath := path
-		if isRenamed(fileStatus) && fileStatus.Extra != "" {
-			fromPath = fileStatus.Extra
-		}
-		toPath := path
-
-		before, err := readHeadFileSnapshot(headTree, fromPath)
+	if hasCommits {
+		// `git diff HEAD` captures both staged and unstaged changes
+		// relative to HEAD in a single unified diff.
+		cmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", "HEAD")
+		out, err := cmd.Output()
 		if err != nil {
-			return worktreeDiffResult{}, xerrors.Errorf("read head file %q: %w", fromPath, err)
+			return "", xerrors.Errorf("git diff HEAD: %w", err)
 		}
-
-		after, err := readWorktreeFileSnapshot(repoRoot, toPath)
-		if err != nil {
-			return worktreeDiffResult{}, xerrors.Errorf("read worktree file %q: %w", toPath, err)
+		if len(out) > 0 {
+			diffParts = append(diffParts, string(out))
 		}
+	}
 
-		filePatch, additions, deletions := buildFilePatch(fromPath, toPath, before, after)
-		if filePatch == nil {
+	// Show untracked files as diffs too.
+	// `git ls-files --others --exclude-standard` lists untracked,
+	// non-ignored files.
+	lsCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "ls-files", "--others", "--exclude-standard")
+	lsOut, err := lsCmd.Output()
+	if err != nil {
+		logger.Debug(ctx, "failed to list untracked files", slog.F("root", repoRoot), slog.Error(err))
+		return strings.Join(diffParts, ""), nil
+	}
+
+	untrackedFiles := strings.Split(strings.TrimSpace(string(lsOut)), "\n")
+	for _, f := range untrackedFiles {
+		f = strings.TrimSpace(f)
+		if f == "" {
 			continue
 		}
-
-		// Check whether this single file's diff exceeds the
-		// per-file limit. If so, replace it with a stub.
-		encoded, err := encodeUnifiedDiff([]fdiff.FilePatch{filePatch})
-		if err != nil {
-			return worktreeDiffResult{}, xerrors.Errorf("encode file diff %q: %w", toPath, err)
+		// Use `git diff --no-index /dev/null <file>` to generate
+		// a unified diff for untracked files.
+		var stdout bytes.Buffer
+		untrackedCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", "--no-index", "--", "/dev/null", f)
+		untrackedCmd.Stdout = &stdout
+		// git diff --no-index exits with 1 when files differ,
+		// which is expected. We ignore the error and check for
+		// output instead.
+		_ = untrackedCmd.Run()
+		if stdout.Len() > 0 {
+			diffParts = append(diffParts, stdout.String())
 		}
-		if len(encoded) > maxFileDiffSize {
-			msg := "File diff too large to show. Diff size: " + humanize.IBytes(uint64(len(encoded)))
-			filePatch = buildStubFilePatch(fromPath, toPath, before, after, msg)
-			additions = 0
-			deletions = 0
-		}
-
-		filePatches = append(filePatches, filePatch)
-		totalAdditions += additions
-		totalDeletions += deletions
 	}
 
-	diffText, err := encodeUnifiedDiff(filePatches)
-	if err != nil {
-		return worktreeDiffResult{}, xerrors.Errorf("encode unified diff: %w", err)
-	}
-
-	return worktreeDiffResult{
-		unifiedDiff: diffText,
-		additions:   totalAdditions,
-		deletions:   totalDeletions,
-	}, nil
-}
-
-func getHeadTree(repo *git.Repository) (*object.Tree, error) {
-	headRef, err := repo.Head()
-	if err != nil {
-		if errors.Is(err, plumbing.ErrReferenceNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	commit, err := repo.CommitObject(headRef.Hash())
-	if err != nil {
-		return nil, err
-	}
-
-	return commit.Tree()
-}
-
-func readHeadFileSnapshot(headTree *object.Tree, path string) (fileSnapshot, error) {
-	if headTree == nil {
-		return fileSnapshot{}, nil
-	}
-
-	file, err := headTree.File(path)
-	if err != nil {
-		if errors.Is(err, object.ErrFileNotFound) {
-			return fileSnapshot{}, nil
-		}
-		return fileSnapshot{}, err
-	}
-
-	if file.Size > maxFileReadSize {
-		return fileSnapshot{
-			exists:   true,
-			tooLarge: true,
-			size:     file.Size,
-			mode:     file.Mode,
-		}, nil
-	}
-
-	content, err := file.Contents()
-	if err != nil {
-		return fileSnapshot{}, err
-	}
-
-	isBinary, err := file.IsBinary()
-	if err != nil {
-		return fileSnapshot{}, err
-	}
-
-	return fileSnapshot{
-		exists:  true,
-		content: []byte(content),
-		mode:    file.Mode,
-		binary:  isBinary,
-	}, nil
-}
-
-func readWorktreeFileSnapshot(repoRoot string, path string) (fileSnapshot, error) {
-	absPath := filepath.Join(repoRoot, filepath.FromSlash(path))
-	fileInfo, err := os.Stat(absPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fileSnapshot{}, nil
-		}
-		return fileSnapshot{}, err
-	}
-	if fileInfo.IsDir() {
-		return fileSnapshot{}, nil
-	}
-
-	if fileInfo.Size() > maxFileReadSize {
-		mode, err := filemode.NewFromOSFileMode(fileInfo.Mode())
-		if err != nil {
-			mode = filemode.Regular
-		}
-		return fileSnapshot{
-			exists:   true,
-			tooLarge: true,
-			size:     fileInfo.Size(),
-			mode:     mode,
-		}, nil
-	}
-
-	content, err := os.ReadFile(absPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fileSnapshot{}, nil
-		}
-		return fileSnapshot{}, err
-	}
-
-	mode, err := filemode.NewFromOSFileMode(fileInfo.Mode())
-	if err != nil {
-		mode = filemode.Regular
-	}
-
-	return fileSnapshot{
-		exists:  true,
-		content: content,
-		mode:    mode,
-		binary:  isBinaryContent(content),
-		size:    fileInfo.Size(),
-	}, nil
-}
-
-func buildFilePatch(
-	fromPath string,
-	toPath string,
-	before fileSnapshot,
-	after fileSnapshot,
-) (fdiff.FilePatch, int, int) {
-	if !before.exists && !after.exists {
-		return nil, 0, 0
-	}
-
-	unchangedContent := bytes.Equal(before.content, after.content)
-	if before.exists &&
-		after.exists &&
-		fromPath == toPath &&
-		before.mode == after.mode &&
-		unchangedContent {
-		return nil, 0, 0
-	}
-
-	// Files that exceed the read size limit get a stub patch
-	// instead of a full diff to avoid OOM.
-	if before.tooLarge || after.tooLarge {
-		sz := max(after.size, 0)
-		//nolint:gosec // sz is guaranteed to fit in uint64
-		msg := "File too large to diff. Current size: " + humanize.IBytes(uint64(sz))
-		return buildStubFilePatch(fromPath, toPath, before, after, msg), 0, 0
-	}
-
-	patch := &workspaceFilePatch{
-		from: snapshotToDiffFile(fromPath, before),
-		to:   snapshotToDiffFile(toPath, after),
-	}
-
-	if before.binary || after.binary {
-		patch.binary = true
-		return patch, 0, 0
-	}
-
-	diffs := diff.Do(string(before.content), string(after.content))
-	chunks := make([]fdiff.Chunk, 0, len(diffs))
-	additions := 0
-	deletions := 0
-
-	for _, d := range diffs {
-		var operation fdiff.Operation
-		switch d.Type {
-		case dmp.DiffEqual:
-			operation = fdiff.Equal
-		case dmp.DiffDelete:
-			operation = fdiff.Delete
-			deletions += countChunkLines(d.Text)
-		case dmp.DiffInsert:
-			operation = fdiff.Add
-			additions += countChunkLines(d.Text)
-		default:
-			continue
-		}
-
-		chunks = append(chunks, workspaceDiffChunk{
-			content: d.Text,
-			op:      operation,
-		})
-	}
-
-	patch.chunks = chunks
-	return patch, additions, deletions
-}
-
-func buildStubFilePatch(fromPath, toPath string, before, after fileSnapshot, message string) fdiff.FilePatch {
-	return &workspaceFilePatch{
-		from: snapshotToDiffFile(fromPath, before),
-		to:   snapshotToDiffFile(toPath, after),
-		chunks: []fdiff.Chunk{
-			workspaceDiffChunk{
-				content: message + "\n",
-				op:      fdiff.Add,
-			},
-		},
-	}
-}
-
-func snapshotToDiffFile(path string, snapshot fileSnapshot) fdiff.File {
-	if !snapshot.exists {
-		return nil
-	}
-
-	return workspaceDiffFile{
-		path: path,
-		mode: snapshot.mode,
-		hash: plumbing.ComputeHash(plumbing.BlobObject, snapshot.content),
-	}
-}
-
-func encodeUnifiedDiff(filePatches []fdiff.FilePatch) (string, error) {
-	if len(filePatches) == 0 {
-		return "", nil
-	}
-
-	patch := workspaceDiffPatch{filePatches: filePatches}
-	var builder strings.Builder
-	encoder := fdiff.NewUnifiedEncoder(&builder, fdiff.DefaultContextLines)
-	if err := encoder.Encode(patch); err != nil {
-		return "", err
-	}
-
-	return builder.String(), nil
-}
-
-func sortedStatusPaths(status git.Status) []string {
-	paths := make([]string, 0, len(status))
-	for path := range status {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-	return paths
-}
-
-func isRenamed(fileStatus *git.FileStatus) bool {
-	return fileStatus.Staging == git.Renamed || fileStatus.Worktree == git.Renamed
-}
-
-func countChunkLines(content string) int {
-	if content == "" {
-		return 0
-	}
-
-	lines := strings.Count(content, "\n")
-	if !strings.HasSuffix(content, "\n") {
-		lines++
-	}
-	return lines
-}
-
-func isBinaryContent(content []byte) bool {
-	return bytes.IndexByte(content, 0) >= 0
-}
-
-type workspaceDiffPatch struct {
-	filePatches []fdiff.FilePatch
-}
-
-func (p workspaceDiffPatch) FilePatches() []fdiff.FilePatch {
-	return p.filePatches
-}
-
-func (workspaceDiffPatch) Message() string {
-	return ""
-}
-
-type workspaceFilePatch struct {
-	from   fdiff.File
-	to     fdiff.File
-	chunks []fdiff.Chunk
-	binary bool
-}
-
-func (p *workspaceFilePatch) IsBinary() bool {
-	return p.binary
-}
-
-func (p *workspaceFilePatch) Files() (fdiff.File, fdiff.File) {
-	return p.from, p.to
-}
-
-func (p *workspaceFilePatch) Chunks() []fdiff.Chunk {
-	return p.chunks
-}
-
-type workspaceDiffFile struct {
-	path string
-	mode filemode.FileMode
-	hash plumbing.Hash
-}
-
-func (f workspaceDiffFile) Hash() plumbing.Hash {
-	return f.hash
-}
-
-func (f workspaceDiffFile) Mode() filemode.FileMode {
-	return f.mode
-}
-
-func (f workspaceDiffFile) Path() string {
-	return f.path
-}
-
-type workspaceDiffChunk struct {
-	content string
-	op      fdiff.Operation
-}
-
-func (c workspaceDiffChunk) Content() string {
-	return c.content
-}
-
-func (c workspaceDiffChunk) Type() fdiff.Operation {
-	return c.op
+	return strings.Join(diffParts, ""), nil
 }

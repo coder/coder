@@ -1,11 +1,13 @@
 package coderd_test
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -1525,6 +1527,541 @@ func TestPostChatMessages(t *testing.T) {
 	})
 }
 
+func TestChatMessageWithFileReferences(t *testing.T) {
+	t.Parallel()
+
+	// createChat is a helper that creates a chat so we can post messages to it.
+	createChatForTest := func(t *testing.T, client *codersdk.Client) codersdk.Chat {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "initial message",
+			}},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("FileReferenceOnly", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "main.go",
+				StartLine: 10,
+				EndLine:   15,
+				Content:   "func broken() {}",
+			}},
+		})
+		require.NoError(t, err)
+
+		// The file-reference is stored as a formatted text block.
+		wantText := "[file-reference] main.go:10-15\n" +
+			"```main.go\nfunc broken() {}\n```"
+
+		var found bool
+		require.Eventually(t, func() bool {
+			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			for _, message := range chatWithMessages.Messages {
+				if message.Role != "user" {
+					continue
+				}
+				for _, part := range message.Content {
+					if part.Type == codersdk.ChatMessagePartTypeText &&
+						part.Text == wantText {
+						found = true
+						return true
+					}
+				}
+			}
+			// The message may have been queued.
+			if created.Queued && created.QueuedMessage != nil {
+				for _, queued := range chatWithMessages.QueuedMessages {
+					for _, part := range queued.Content {
+						if part.Type == codersdk.ChatMessagePartTypeText &&
+							part.Text == wantText {
+							found = true
+							return true
+						}
+					}
+				}
+			}
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast)
+		require.True(t, found, "expected to find file-reference text in stored message")
+	})
+
+	t.Run("FileReferenceSingleLine", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "lib/utils.ts",
+				StartLine: 42,
+				EndLine:   42,
+				Content:   "const x = 1;",
+			}},
+		})
+		require.NoError(t, err)
+
+		// Single-line range should use "42" not "42-42".
+		wantText := "[file-reference] lib/utils.ts:42\n" +
+			"```lib/utils.ts\nconst x = 1;\n```"
+
+		require.Eventually(t, func() bool {
+			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			for _, msg := range chatWithMessages.Messages {
+				for _, part := range msg.Content {
+					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+						return true
+					}
+				}
+			}
+			if created.Queued && created.QueuedMessage != nil {
+				for _, queued := range chatWithMessages.QueuedMessages {
+					for _, part := range queued.Content {
+						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+							return true
+						}
+					}
+				}
+			}
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
+
+	t.Run("FileReferenceWithoutContent", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "README.md",
+				StartLine: 1,
+				EndLine:   1,
+				// No code content — just a file reference.
+			}},
+		})
+		require.NoError(t, err)
+
+		// No fenced code block when content is empty.
+		wantText := "[file-reference] README.md:1"
+		require.Eventually(t, func() bool {
+			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			for _, msg := range chatWithMessages.Messages {
+				for _, part := range msg.Content {
+					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+						return true
+					}
+				}
+			}
+			if created.Queued && created.QueuedMessage != nil {
+				for _, queued := range chatWithMessages.QueuedMessages {
+					for _, part := range queued.Content {
+						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+							return true
+						}
+					}
+				}
+			}
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
+
+	t.Run("FileReferenceWithCode", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "server.go",
+				StartLine: 5,
+				EndLine:   8,
+				Content:   "func main() {\n\tfmt.Println()\n}",
+			}},
+		})
+		require.NoError(t, err)
+
+		wantText := "[file-reference] server.go:5-8\n" +
+			"```server.go\nfunc main() {\n\tfmt.Println()\n}\n```"
+
+		require.Eventually(t, func() bool {
+			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			for _, msg := range chatWithMessages.Messages {
+				for _, part := range msg.Content {
+					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+						return true
+					}
+				}
+			}
+			if created.Queued && created.QueuedMessage != nil {
+				for _, queued := range chatWithMessages.QueuedMessages {
+					for _, part := range queued.Content {
+						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+							return true
+						}
+					}
+				}
+			}
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
+
+	t.Run("InterleavedTextAndFileReferences", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "Please review these two issues:",
+				},
+				{
+					Type:      codersdk.ChatInputPartTypeFileReference,
+					FileName:  "a.go",
+					StartLine: 1,
+					EndLine:   3,
+					Content:   "line1\nline2\nline3",
+				},
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "first issue",
+				},
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "and also:",
+				},
+				{
+					Type:      codersdk.ChatInputPartTypeFileReference,
+					FileName:  "b.go",
+					StartLine: 10,
+					EndLine:   10,
+					Content:   "return nil",
+				},
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "second issue",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Verify that all six parts are stored in order.
+		wantTexts := []string{
+			"Please review these two issues:",
+			"[file-reference] a.go:1-3\n```a.go\nline1\nline2\nline3\n```",
+			"first issue",
+			"and also:",
+			"[file-reference] b.go:10\n```b.go\nreturn nil\n```",
+			"second issue",
+		}
+
+		require.Eventually(t, func() bool {
+			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+
+			// Check messages and queued messages for the
+			// interleaved parts in order.
+			checkParts := func(parts []codersdk.ChatMessagePart) bool {
+				textParts := make([]string, 0, len(parts))
+				for _, part := range parts {
+					if part.Type == codersdk.ChatMessagePartTypeText {
+						textParts = append(textParts, part.Text)
+					}
+				}
+				if len(textParts) != len(wantTexts) {
+					return false
+				}
+				for i, want := range wantTexts {
+					if textParts[i] != want {
+						return false
+					}
+				}
+				return true
+			}
+
+			for _, msg := range chatWithMessages.Messages {
+				if msg.Role == "user" && checkParts(msg.Content) {
+					return true
+				}
+			}
+			if created.Queued && created.QueuedMessage != nil {
+				for _, queued := range chatWithMessages.QueuedMessages {
+					if checkParts(queued.Content) {
+						return true
+					}
+				}
+			}
+			return false
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
+
+	t.Run("EmptyFileName", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+		chat := createChatForTest(t, client)
+
+		_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "",
+				StartLine: 1,
+				EndLine:   1,
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid input part.", sdkErr.Message)
+		require.Equal(t, "content[0].file_name cannot be empty for file-reference.", sdkErr.Detail)
+	})
+
+	t.Run("CreateChatWithFileReference", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// File references should also work in the initial CreateChat call.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type:      codersdk.ChatInputPartTypeFileReference,
+				FileName:  "bug.py",
+				StartLine: 7,
+				EndLine:   7,
+				Content:   "x = None",
+			}},
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, chat.ID)
+
+		// Title is derived from the text parts. For file-references
+		// the formatted text becomes the title source.
+		require.NotEmpty(t, chat.Title)
+	})
+}
+
+func TestChatMessageWithFiles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("FileOnly", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Create a chat with text first.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "initial message",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Send a file-only message (no text).
+		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type:   codersdk.ChatInputPartTypeFile,
+					FileID: uploadResp.ID,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Verify the message was accepted.
+		if resp.Queued {
+			require.NotNil(t, resp.QueuedMessage)
+		} else {
+			require.NotNil(t, resp.Message)
+			require.Equal(t, "user", resp.Message.Role)
+		}
+	})
+
+	t.Run("TextAndFile", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Create a chat with text first.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "initial message",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Send a message with both text and file.
+		resp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "here is an image",
+				},
+				{
+					Type:   codersdk.ChatInputPartTypeFile,
+					FileID: uploadResp.ID,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		if resp.Queued {
+			require.NotNil(t, resp.QueuedMessage)
+		} else {
+			require.NotNil(t, resp.Message)
+			require.Equal(t, "user", resp.Message.Role)
+		}
+
+		// Verify file parts omit inline data in the API response.
+		chatWithMessages, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		for _, msg := range chatWithMessages.Messages {
+			for _, part := range msg.Content {
+				if part.Type == codersdk.ChatMessagePartTypeFile {
+					require.True(t, part.FileID.Valid, "file part should have a valid file_id")
+					require.Equal(t, uploadResp.ID, part.FileID.UUID)
+					require.Nil(t, part.Data, "file data should not be sent when file_id is present")
+				}
+			}
+		}
+	})
+
+	t.Run("FileOnlyOnCreate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Create a new chat with only a file part.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type:   codersdk.ChatInputPartTypeFile,
+					FileID: uploadResp.ID,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// With no text, chatTitleFromMessage("") returns "New Chat".
+		require.Equal(t, "New Chat", chat.Title)
+	})
+
+	t.Run("InvalidFileID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// Create a chat with text first.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "initial message",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Send a message with a non-existent file ID.
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type:   codersdk.ChatInputPartTypeFile,
+					FileID: uuid.New(),
+				},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid input part.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "does not exist")
+	})
+}
+
 func TestPatchChatMessage(t *testing.T) {
 	t.Parallel()
 
@@ -1600,6 +2137,100 @@ func TestPatchChatMessage(t *testing.T) {
 		}
 		require.True(t, foundEditedInChat)
 		require.False(t, foundOriginalInChat)
+	})
+
+	t.Run("PreservesFileID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// Upload a file.
+		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploadResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(pngData))
+		require.NoError(t, err)
+
+		// Create a chat with a text + file part.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "before edit with file",
+				},
+				{
+					Type:   codersdk.ChatInputPartTypeFile,
+					FileID: uploadResp.ID,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Find the user message ID.
+		chatWithMessages, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+
+		var userMessageID int64
+		for _, message := range chatWithMessages.Messages {
+			if message.Role == "user" {
+				userMessageID = message.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		// Edit the message: new text, same file_id.
+		edited, err := client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "after edit with file",
+				},
+				{
+					Type:   codersdk.ChatInputPartTypeFile,
+					FileID: uploadResp.ID,
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, userMessageID, edited.ID)
+
+		// Assert the edit response preserves the file_id.
+		var foundText, foundFile bool
+		for _, part := range edited.Content {
+			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "after edit with file" {
+				foundText = true
+			}
+			if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid && part.FileID.UUID == uploadResp.ID {
+				foundFile = true
+				require.Nil(t, part.Data, "file data should not be sent when file_id is present")
+			}
+		}
+		require.True(t, foundText, "edited message should contain updated text")
+		require.True(t, foundFile, "edited message should preserve file_id")
+
+		// GET the chat and verify the file_id persists.
+		updatedChat, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+
+		var foundTextInChat, foundFileInChat bool
+		for _, message := range updatedChat.Messages {
+			if message.Role != "user" {
+				continue
+			}
+			for _, part := range message.Content {
+				if part.Type == codersdk.ChatMessagePartTypeText && part.Text == "after edit with file" {
+					foundTextInChat = true
+				}
+				if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid && part.FileID.UUID == uploadResp.ID {
+					foundFileInChat = true
+					require.Nil(t, part.Data, "file data should not be sent when file_id is present")
+				}
+			}
+		}
+		require.True(t, foundTextInChat, "chat should contain edited text")
+		require.True(t, foundFileInChat, "chat should preserve file_id after edit")
 	})
 
 	t.Run("MessageNotFound", func(t *testing.T) {
@@ -2209,6 +2840,259 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid queued message ID.", sdkErr.Message)
 		require.Contains(t, sdkErr.Detail, "invalid syntax")
+	})
+}
+
+func TestPostChatFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success/PNG", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Valid PNG header + padding.
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, resp.ID)
+	})
+
+	t.Run("Success/JPEG", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		data := append([]byte{0xFF, 0xD8, 0xFF, 0xE0}, make([]byte, 64)...)
+		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/jpeg", "test.jpg", bytes.NewReader(data))
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, resp.ID)
+	})
+
+	t.Run("Success/WebP", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// WebP: RIFF + 4-byte size + WEBP + padding.
+		data := append([]byte("RIFF"), make([]byte, 4)...)
+		data = append(data, []byte("WEBP")...)
+		data = append(data, make([]byte, 64)...)
+		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/webp", "test.webp", bytes.NewReader(data))
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, resp.ID)
+	})
+
+	t.Run("UnsupportedContentType", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "test.txt", bytes.NewReader([]byte("hello")))
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("SVGBlocked", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/svg+xml", "test.svg", bytes.NewReader([]byte("<svg></svg>")))
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("ContentSniffingRejects", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Header says PNG but body is plain text.
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader([]byte("hello world")))
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("TooLarge", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// 10 MB + 1 byte, with valid PNG header to pass MIME check.
+		data := make([]byte, 10<<20+1)
+		copy(data, []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
+		require.Error(t, err)
+	})
+
+	t.Run("MissingOrganization", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		coderdtest.CreateFirstUser(t, client)
+
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/files", bytes.NewReader(data), func(r *http.Request) {
+			r.Header.Set("Content-Type", "image/png")
+		})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		err = codersdk.ReadBodyAsError(res)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "Missing organization")
+	})
+
+	t.Run("InvalidOrganization", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		coderdtest.CreateFirstUser(t, client)
+
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/files?organization=not-a-uuid", bytes.NewReader(data), func(r *http.Request) {
+			r.Header.Set("Content-Type", "image/png")
+		})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		err = codersdk.ReadBodyAsError(res)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "Invalid organization ID")
+	})
+
+	t.Run("WrongOrganization", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		coderdtest.CreateFirstUser(t, client)
+
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		_, err := client.UploadChatFile(ctx, uuid.New(), "image/png", "test.png", bytes.NewReader(data))
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		// dbauthz returns 404 or 500 depending on how the org lookup
+		// fails; 403 is also possible. Any non-success code is valid.
+		require.GreaterOrEqual(t, sdkErr.StatusCode(), http.StatusBadRequest,
+			"expected error status, got %d", sdkErr.StatusCode())
+	})
+
+	t.Run("Unauthenticated", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		unauthed := codersdk.New(client.URL)
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		_, err := unauthed.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
+		requireSDKError(t, err, http.StatusUnauthorized)
+	})
+}
+
+func TestGetChatFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
+		require.NoError(t, err)
+
+		got, contentType, err := client.GetChatFile(ctx, uploaded.ID)
+		require.NoError(t, err)
+		require.Equal(t, "image/png", contentType)
+		require.Equal(t, data, got)
+	})
+
+	t.Run("CacheHeaders", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "private, max-age=31536000, immutable", res.Header.Get("Cache-Control"))
+		require.Contains(t, res.Header.Get("Content-Disposition"), "inline")
+		require.Contains(t, res.Header.Get("Content-Disposition"), "test.png")
+	})
+
+	t.Run("LongFilename", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		longName := strings.Repeat("a", 300) + ".png"
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", longName, bytes.NewReader(data))
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		// Filename should be truncated to maxChatFileName (255) bytes.
+		cd := res.Header.Get("Content-Disposition")
+		require.Contains(t, cd, "inline")
+		require.Contains(t, cd, strings.Repeat("a", 255))
+		require.NotContains(t, cd, strings.Repeat("a", 256))
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		coderdtest.CreateFirstUser(t, client)
+
+		_, _, err := client.GetChatFile(ctx, uuid.New())
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("InvalidUUID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		coderdtest.CreateFirstUser(t, client)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			"/api/experimental/chats/files/not-a-uuid", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		err = codersdk.ReadBodyAsError(res)
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("OtherUserForbidden", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
+		require.NoError(t, err)
+
+		otherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		_, _, err = otherClient.GetChatFile(ctx, uploaded.ID)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 }
 

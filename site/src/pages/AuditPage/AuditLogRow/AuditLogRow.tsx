@@ -80,7 +80,8 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						role="button"
 						onClick={toggle}
 						onKeyDown={(event) => {
-							if (event.key === "Enter") {
+							if (event.key === "Enter" || event.key === " ") {
+								event.preventDefault();
 								toggle();
 							}
 						}}

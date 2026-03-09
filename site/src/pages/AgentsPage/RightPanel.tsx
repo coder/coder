@@ -1,5 +1,3 @@
-import { Button } from "components/Button/Button";
-import { MaximizeIcon, MinimizeIcon, PanelLeftIcon } from "lucide-react";
 import {
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
@@ -14,8 +12,6 @@ const STORAGE_KEY = "agents.right-panel-width";
 const MIN_WIDTH = 360;
 const MAX_WIDTH_RATIO = 0.7;
 const DEFAULT_WIDTH = 480;
-
-const TABS = [{ id: "git", label: "Git" }];
 
 const SNAP_THRESHOLD = 80;
 
@@ -46,60 +42,55 @@ interface RightPanelProps {
 	isExpanded: boolean;
 	onToggleExpanded: () => void;
 	onClose: () => void;
-	chatTitle?: string;
-	isSidebarCollapsed?: boolean;
-	onToggleSidebarCollapsed?: () => void;
-	tabContent: Partial<Record<(typeof TABS)[number]["id"], ReactNode>>;
-	/** Optional extra info per tab (e.g. diff stats). */
-	tabMeta?: Partial<Record<(typeof TABS)[number]["id"], ReactNode>>;
 	/** Fires during drag with the live visual expanded state, and
 	 * null when the drag ends so the parent falls back to the
 	 * committed isExpanded prop. */
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
+	isSidebarCollapsed?: boolean;
+	onToggleSidebarCollapsed?: () => void;
+	children: ReactNode;
 }
 
 /**
  * Encapsulates all drag/resize logic for the right panel:
- * refs, pointer handlers, snap state, sidebar collapse
- * tracking, and visual state derivation.
+ * refs, pointer handlers, snap state, and visual state
+ * derivation.
  */
 function useResizableDrag({
 	isExpanded,
-	isSidebarCollapsed,
-	onToggleSidebarCollapsed,
 	width,
 	setWidth,
 	isOpen,
 	onSnapCommit,
 	onVisualExpandedChange,
+	isSidebarCollapsed,
+	onToggleSidebarCollapsed,
 }: {
 	isExpanded: boolean;
-	isSidebarCollapsed?: boolean;
-	onToggleSidebarCollapsed?: () => void;
 	width: number;
 	setWidth: React.Dispatch<React.SetStateAction<number>>;
 	isOpen: boolean;
 	onSnapCommit: (snap: "normal" | "expanded" | "closed") => void;
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
+	isSidebarCollapsed?: boolean;
+	onToggleSidebarCollapsed?: () => void;
 }) {
 	const isDragging = useRef(false);
 	const startX = useRef(0);
 	const startWidth = useRef(0);
+	const sidebarCollapsedByDrag = useRef(false);
 	// Track snap state during a drag. This is state (not a ref) so
 	// the panel visually updates as the user drags across thresholds.
 	const [dragSnap, setDragSnap] = useState<
 		"normal" | "expanded" | "closed" | null
 	>(null);
-	// Whether we collapsed the sidebar during this drag gesture.
-	// Used to reverse it if the user drags back.
-	const sidebarCollapsedByDrag = useRef(false);
 
 	const handlePointerDown = useCallback(
 		(e: ReactPointerEvent<HTMLDivElement>) => {
 			e.preventDefault();
 			isDragging.current = true;
-			sidebarCollapsedByDrag.current = false;
 			setDragSnap(null);
+			sidebarCollapsedByDrag.current = false;
 			startX.current = e.clientX;
 			startWidth.current = isExpanded
 				? ((e.target as HTMLElement).closest(
@@ -156,11 +147,11 @@ function useResizableDrag({
 			onVisualExpandedChange?.(nextVisualExpanded);
 		},
 		[
-			isSidebarCollapsed,
-			onToggleSidebarCollapsed,
 			setWidth,
 			isExpanded,
 			onVisualExpandedChange,
+			isSidebarCollapsed,
+			onToggleSidebarCollapsed,
 		],
 	);
 
@@ -200,7 +191,6 @@ function useResizableDrag({
 		handlePointerDown,
 		handlePointerMove,
 		handlePointerUp,
-		sidebarCollapsedByDrag,
 	};
 }
 
@@ -209,14 +199,11 @@ export const RightPanel = ({
 	isExpanded,
 	onToggleExpanded,
 	onClose,
-	chatTitle,
+	onVisualExpandedChange,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
-	tabContent,
-	tabMeta,
-	onVisualExpandedChange,
+	children,
 }: RightPanelProps) => {
-	const [activeTab, setActiveTab] = useState("git");
 	const [width, setWidth] = useState(loadPersistedWidth);
 
 	// Clamp width when the viewport shrinks so the panel
@@ -254,13 +241,13 @@ export const RightPanel = ({
 		handlePointerUp,
 	} = useResizableDrag({
 		isExpanded,
-		isSidebarCollapsed,
-		onToggleSidebarCollapsed,
 		width,
 		setWidth,
 		isOpen,
 		onSnapCommit: handleSnapCommit,
 		onVisualExpandedChange,
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
 	});
 
 	useEffect(() => {
@@ -283,79 +270,22 @@ export const RightPanel = ({
 					: cn(
 							"relative min-h-0 min-w-0",
 							visualOpen
-								? "flex h-[42dvh] min-h-[260px] max-h-[56dvh] flex-col xl:h-auto xl:max-h-none xl:w-[var(--panel-width)] xl:min-w-[360px] xl:max-w-[70vw] xl:border-0 xl:border-l xl:border-solid xl:border-border-default"
+								? "flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[var(--panel-width)] sm:min-w-[360px] sm:max-w-[70vw]"
 								: "hidden",
 						),
 			)}
 		>
-			{/* Drag handle (xl+ only, on the left edge of the panel) */}
+			{/* Drag handle (sm+, on the left edge of the panel) */}
 			<div
 				onPointerDown={handlePointerDown}
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerUp}
 				className={cn(
-					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link xl:block",
+					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link sm:block",
 					visualExpanded && "-left-1",
 				)}
 			/>
-			<div className="flex min-h-0 flex-1 flex-col">
-				{/* Tabbed header */}
-				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1">
-					{/* Left side: sidebar toggle (expanded + collapsed only) + tabs */}
-					<div className="flex items-center">
-						{visualExpanded &&
-							isSidebarCollapsed &&
-							onToggleSidebarCollapsed && (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={onToggleSidebarCollapsed}
-									aria-label="Expand sidebar"
-									className="mr-1 h-7 w-7 min-w-0 shrink-0"
-								>
-									<PanelLeftIcon />
-								</Button>
-							)}
-						{TABS.map((tab) => (
-							<Button
-								key={tab.id}
-								variant={activeTab === tab.id ? "outline" : "subtle"}
-								size="lg"
-								onClick={() => setActiveTab(tab.id)}
-								className={cn(
-									"min-w-0 h-6 px-3 gap-3 py-0",
-									activeTab === tab.id && "bg-surface-secondary",
-									tabMeta?.[tab.id] && "pr-0 items-stretch",
-								)}
-							>
-								{tab.label}
-								{tabMeta?.[tab.id]}
-							</Button>
-						))}
-					</div>
-					{/* Center: chat title */}{" "}
-					<div className="min-w-0 flex-1 text-center">
-						{visualExpanded && chatTitle && (
-							<span className="truncate text-sm text-content-primary">
-								{chatTitle}
-							</span>
-						)}
-					</div>
-					{/* Right side: expand/contract button */}
-					<Button
-						variant="subtle"
-						size="icon"
-						onClick={onToggleExpanded}
-						aria-label={visualExpanded ? "Collapse panel" : "Expand panel"}
-						className="h-7 w-7 text-content-secondary hover:text-content-primary"
-					>
-						{visualExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
-					</Button>
-				</div>
-				<div className="min-h-0 flex-1 overflow-hidden bg-surface-secondary/45">
-					{tabContent[activeTab]}
-				</div>
-			</div>
+			<div className="flex min-h-0 flex-1 flex-col">{children}</div>
 		</div>
 	);
 };

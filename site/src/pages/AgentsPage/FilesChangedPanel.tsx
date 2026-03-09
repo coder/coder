@@ -1,5 +1,9 @@
 import { useTheme } from "@emotion/react";
-import type { ChangeTypes, FileDiffMetadata } from "@pierre/diffs";
+import type {
+	ChangeTypes,
+	DiffLineAnnotation,
+	FileDiffMetadata,
+} from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
@@ -15,6 +19,7 @@ import { Skeleton } from "components/Skeleton/Skeleton";
 import {
 	ChevronRightIcon,
 	Columns2Icon,
+	CornerDownLeftIcon,
 	ExternalLinkIcon,
 	GitBranchIcon,
 	GitPullRequestIcon,
@@ -23,6 +28,7 @@ import {
 import {
 	type ComponentProps,
 	type FC,
+	type ReactNode,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -31,10 +37,12 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
+import type { ChatMessageInputRef } from "./AgentChatInput";
 
 interface FilesChangedPanelProps {
 	chatId: string;
 	isExpanded?: boolean;
+	chatInputRef?: React.RefObject<ChatMessageInputRef | null>;
 }
 
 /**
@@ -62,6 +70,70 @@ const STICKY_HEADER_CSS = [
 
 type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
+
+/**
+ * Walk the parsed hunks for a file and collect code lines that fall
+ * within `startLine..endLine` on the given side. For "additions"
+ * lines are matched against addition line numbers (using
+ * `hunk.additionStart`); for "deletions" against deletion line
+ * numbers (using `hunk.deletionStart`). Context lines that fall
+ * in range are included as well.
+ */
+function extractDiffContent(
+	parsedFiles: readonly FileDiffMetadata[],
+	fileName: string,
+	startLine: number,
+	endLine: number,
+	side: "additions" | "deletions",
+): string {
+	const file = parsedFiles.find((f) => f.name === fileName);
+	if (!file) return "";
+
+	const collected: string[] = [];
+	for (const hunk of file.hunks) {
+		let addLine = hunk.additionStart;
+		let delLine = hunk.deletionStart;
+
+		for (const block of hunk.hunkContent) {
+			if (block.type === "context") {
+				for (const line of block.lines) {
+					const ln = side === "additions" ? addLine : delLine;
+					if (ln >= startLine && ln <= endLine) {
+						collected.push(line);
+					}
+					addLine++;
+					delLine++;
+				}
+			} else {
+				// ChangeContent block.
+				if (side === "deletions") {
+					for (const line of block.deletions) {
+						if (delLine >= startLine && delLine <= endLine) {
+							collected.push(line);
+						}
+						delLine++;
+					}
+					// Addition lines in a change block still advance
+					// the addition counter.
+					addLine += block.additions.length;
+				} else {
+					// side === "additions"
+					// Deletion lines in a change block still advance
+					// the deletion counter.
+					delLine += block.deletions.length;
+					for (const line of block.additions) {
+						if (addLine >= startLine && addLine <= endLine) {
+							collected.push(line);
+						}
+						addLine++;
+					}
+				}
+			}
+		}
+	}
+
+	return collected.join("\n");
+}
 
 function loadDiffStyle(): DiffStyle {
 	if (typeof window === "undefined") {
@@ -307,9 +379,80 @@ const FileTreeNodeView: FC<{
 	);
 };
 
+/**
+ * Inline input rendered as a diff annotation under the selected
+ * line(s). Supports multiline via Shift+Enter. Enter submits,
+ * Escape dismisses.
+ */
+const InlinePromptInput: FC<{
+	onSubmit: (text: string) => void;
+	onCancel: () => void;
+}> = ({ onSubmit, onCancel }) => {
+	const [text, setText] = useState("");
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+	// Focus the textarea on mount. We use a ref callback via rAF
+	// rather than autoFocus because the component renders inside
+	// Shadow DOM where autoFocus is unreliable.
+	useEffect(() => {
+		requestAnimationFrame(() => {
+			textareaRef.current?.focus();
+		});
+	}, []);
+
+	return (
+		<div className="px-2 py-1.5">
+			<div className="rounded-lg border border-border-default bg-surface-secondary p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
+				<textarea
+					ref={textareaRef}
+					className="w-full resize-none border-none bg-transparent px-2.5 py-1.5 font-sans text-[13px] leading-5 text-content-primary placeholder:text-content-secondary outline-none ring-0 focus:outline-none focus:ring-0"
+					placeholder="Add a comment to include with this reference..."
+					rows={1}
+					value={text}
+					onChange={(e) => setText(e.target.value)}
+					onKeyDown={(e) => {
+						if (e.key === "Enter" && !e.shiftKey) {
+							e.preventDefault();
+							if (text.trim()) {
+								onSubmit(text.trim());
+							} else {
+								onCancel();
+							}
+						}
+						if (e.key === "Escape") {
+							e.preventDefault();
+							onCancel();
+						}
+					}}
+				/>
+				<div className="flex items-center justify-end px-1.5 pb-1">
+					<Button
+						size="sm"
+						variant="subtle"
+						className="h-6 gap-1.5 px-2 text-xs text-content-secondary hover:text-content-primary"
+						disabled={!text.trim()}
+						onMouseDown={(e) => {
+							// Prevent blur from firing before click.
+							e.preventDefault();
+						}}
+						onClick={() => {
+							if (text.trim()) {
+								onSubmit(text.trim());
+							}
+						}}
+					>
+						<CornerDownLeftIcon className="size-3" />
+						Add to chat
+					</Button>
+				</div>
+			</div>
+		</div>
+	);
+};
 export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 	chatId,
 	isExpanded,
+	chatInputRef,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
@@ -318,6 +461,13 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		setDiffStyle(style);
 		localStorage.setItem(DIFF_STYLE_KEY, style);
 	}, []);
+
+	const [activeCommentBox, setActiveCommentBox] = useState<{
+		fileName: string;
+		startLine: number;
+		endLine: number;
+		side: "additions" | "deletions";
+	} | null>(null);
 
 	const diffOptions = useMemo(() => {
 		const base = getDiffViewerOptions(isDark);
@@ -330,22 +480,63 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		};
 	}, [isDark, diffStyle]);
 
-	// Memoize the per-file options object so every <FileDiff>
-	// receives the same reference and avoids re-highlighting
-	// when the parent re-renders.
-	const fileOptions = useMemo(
-		() => ({
+	// Returns per-file diff options that include a line-number click
+	// handler scoped to the given file name.
+	const getFileOptions = useCallback(
+		(fileName: string) => ({
 			...diffOptions,
 			overflow: "wrap" as const,
 			enableLineSelection: true,
 			enableHoverUtility: true,
-			onLineSelected() {
-				// TODO: Make this add context to the input so the
-				// user can type.
+			onLineNumberClick(props: {
+				lineNumber: number;
+				annotationSide: "additions" | "deletions";
+			}) {
+				setActiveCommentBox({
+					fileName,
+					startLine: props.lineNumber,
+					endLine: props.lineNumber,
+					side: props.annotationSide,
+				});
+			},
+			onLineSelected(
+				range: {
+					start: number;
+					end: number;
+					side?: "additions" | "deletions";
+				} | null,
+			) {
+				if (!range || range.start === range.end) return;
+				const side = range.side ?? "additions";
+				setActiveCommentBox({
+					fileName,
+					startLine: Math.min(range.start, range.end),
+					endLine: Math.max(range.start, range.end),
+					side,
+				});
 			},
 		}),
 		[diffOptions],
 	);
+
+	const getAnnotationsForFile = useCallback(
+		(fileName: string): DiffLineAnnotation<string>[] => {
+			if (activeCommentBox && activeCommentBox.fileName === fileName) {
+				return [
+					{
+						side: activeCommentBox.side,
+						lineNumber: activeCommentBox.startLine,
+						metadata: "active-input",
+					},
+				];
+			}
+			return [];
+		},
+		[activeCommentBox],
+	);
+	const handleCancelComment = useCallback(() => {
+		setActiveCommentBox(null);
+	}, []);
 
 	const diffStatusQuery = useQuery(chatDiffStatus(chatId));
 	const diffContentsQuery = useQuery({
@@ -368,6 +559,48 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 			return [];
 		}
 	}, [diffContentsQuery.data?.diff, chatId]);
+
+	const handleSubmitComment = useCallback(
+		(text: string) => {
+			if (!activeCommentBox) return;
+			const content = extractDiffContent(
+				parsedFiles,
+				activeCommentBox.fileName,
+				activeCommentBox.startLine,
+				activeCommentBox.endLine,
+				activeCommentBox.side,
+			);
+			// Single imperative call — chip inserted atomically
+			// in one Lexical update. No rAF hack needed.
+			chatInputRef?.current?.addFileReference({
+				fileName: activeCommentBox.fileName,
+				startLine: activeCommentBox.startLine,
+				endLine: activeCommentBox.endLine,
+				content,
+			});
+			if (text.trim()) {
+				chatInputRef?.current?.insertText(text);
+			}
+			setActiveCommentBox(null);
+		},
+		[activeCommentBox, chatInputRef, parsedFiles],
+	);
+
+	const renderAnnotation = useCallback(
+		(annotation: DiffLineAnnotation<string>) => {
+			if (annotation.metadata === "active-input") {
+				if (!activeCommentBox) return null;
+				return (
+					<InlinePromptInput
+						onSubmit={handleSubmitComment}
+						onCancel={handleCancelComment}
+					/>
+				);
+			}
+			return null;
+		},
+		[activeCommentBox, handleSubmitComment, handleCancelComment],
+	);
 
 	const fileTree = useMemo(() => buildFileTree(parsedFiles), [parsedFiles]);
 
@@ -516,6 +749,22 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		}
 	}, []);
 
+	// Listen for chip clicks from the chat input to scroll to the
+	// corresponding comment annotation in the diff.
+	useEffect(() => {
+		const handler = (e: Event) => {
+			const { fileName } = (e as CustomEvent).detail ?? {};
+			if (typeof fileName !== "string") return;
+			const el = fileRefs.current.get(fileName);
+			if (el) {
+				el.scrollIntoView({ block: "start", behavior: "smooth" });
+				setActiveFile(fileName);
+			}
+		};
+		window.addEventListener("file-reference-click", handler);
+		return () => window.removeEventListener("file-reference-click", handler);
+	}, []);
+
 	if (diffContentsQuery.isLoading || diffStatusQuery.isLoading) {
 		return (
 			<div className="flex h-full min-w-0 flex-col overflow-hidden">
@@ -658,7 +907,12 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 									key={fileDiff.name}
 									ref={(el) => setFileRef(fileDiff.name, el)}
 								>
-									<LazyFileDiff fileDiff={fileDiff} options={fileOptions} />
+									<LazyFileDiff
+										fileDiff={fileDiff}
+										options={getFileOptions(fileDiff.name)}
+										lineAnnotations={getAnnotationsForFile(fileDiff.name)}
+										renderAnnotation={renderAnnotation}
+									/>
 								</div>
 							))}
 							{/* Spacer so the last file can scroll fully to the top. */}
@@ -702,7 +956,14 @@ function estimateDiffHeight(fileDiff: FileDiffMetadata): number {
 const LazyFileDiff: FC<{
 	fileDiff: FileDiffMetadata;
 	options: ComponentProps<typeof FileDiff>["options"];
-}> = ({ fileDiff, options }) => {
+	lineAnnotations?: DiffLineAnnotation<string>[];
+	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
+}> = ({
+	fileDiff,
+	options,
+	lineAnnotations,
+	renderAnnotation: renderAnnotationProp,
+}) => {
 	const placeholderRef = useRef<HTMLDivElement>(null);
 	const [visible, setVisible] = useState(false);
 
@@ -743,6 +1004,12 @@ const LazyFileDiff: FC<{
 	}
 
 	return (
-		<FileDiff fileDiff={fileDiff} options={options} style={DIFFS_FONT_STYLE} />
+		<FileDiff
+			fileDiff={fileDiff}
+			options={options}
+			style={DIFFS_FONT_STYLE}
+			lineAnnotations={lineAnnotations}
+			renderAnnotation={renderAnnotationProp}
+		/>
 	);
 };

@@ -434,7 +434,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			Provider:    "two",
 			Model:       "two",
 			StartedAt:   now.Add(-time.Hour),
-			Client:      sql.NullString{String: aiblib.ClientCursor, Valid: true},
+			Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
 		}, &now)
 		i3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000003"),
@@ -442,7 +442,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			Provider:    "three",
 			Model:       "three",
 			StartedAt:   now.Add(-2 * time.Hour),
-			Client:      sql.NullString{String: aiblib.ClientClaude, Valid: true},
+			Client:      sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
 		}, &now)
 
 		// Convert to SDK types for response comparison. We don't care about the
@@ -508,7 +508,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			},
 			{
 				name:   "Client/Match",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Client: aiblib.ClientCursor},
+				filter: codersdk.AIBridgeListInterceptionsFilter{Client: string(aiblib.ClientCursor)},
 				want:   []codersdk.AIBridgeInterception{i2SDK},
 			},
 			{

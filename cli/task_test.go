@@ -88,6 +88,13 @@ func Test_Tasks(t *testing.T) {
 					o.Client = agentClient
 				})
 				coderdtest.NewWorkspaceAgentWaiter(t, userClient, tasks[0].WorkspaceID.UUID).WithContext(ctx).WaitFor(coderdtest.AgentsReady)
+				// Report the task app as idle so that waitForTaskIdle
+				// can proceed during the "send task message" step.
+				require.NoError(t, agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+					AppSlug: "task-sidebar",
+					State:   codersdk.WorkspaceAppStatusStateIdle,
+					Message: "ready",
+				}))
 			},
 		},
 		{
@@ -272,10 +279,19 @@ func fakeAgentAPIEcho(ctx context.Context, t testing.TB, initMsg agentapisdk.Mes
 // setupCLITaskTest creates a test workspace with an AI task template and agent,
 // with a fake agent API configured with the provided set of handlers.
 // Returns the user client and workspace.
-func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) (ownerClient *codersdk.Client, memberClient *codersdk.Client, task codersdk.Task) {
+// setupCLITaskTestResult holds the return values from setupCLITaskTest.
+type setupCLITaskTestResult struct {
+	ownerClient *codersdk.Client
+	userClient  *codersdk.Client
+	task        codersdk.Task
+	agentToken  string
+	agent       agent.Agent
+}
+
+func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) setupCLITaskTestResult {
 	t.Helper()
 
-	ownerClient = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	userClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
@@ -292,21 +308,56 @@ func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[st
 	})
 	require.NoError(t, err)
 
-	// Wait for the task's underlying workspace to be built
+	// Wait for the task's underlying workspace to be built.
 	require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
 	workspace, err := userClient.Workspace(ctx, task.WorkspaceID.UUID)
 	require.NoError(t, err)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
 	agentClient := agentsdk.New(userClient.URL, agentsdk.WithFixedToken(authToken))
-	_ = agenttest.New(t, userClient.URL, authToken, func(o *agent.Options) {
+	agt := agenttest.New(t, userClient.URL, authToken, func(o *agent.Options) {
 		o.Client = agentClient
 	})
 
 	coderdtest.NewWorkspaceAgentWaiter(t, userClient, workspace.ID).
 		WaitFor(coderdtest.AgentsReady)
 
-	return ownerClient, userClient, task
+	// Report the task app as idle so that waitForTaskIdle can proceed.
+	err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
+		AppSlug: "task-sidebar",
+		State:   codersdk.WorkspaceAppStatusStateIdle,
+		Message: "ready",
+	})
+	require.NoError(t, err)
+
+	return setupCLITaskTestResult{
+		ownerClient: ownerClient,
+		userClient:  userClient,
+		task:        task,
+		agentToken:  authToken,
+		agent:       agt,
+	}
+}
+
+// pauseTask pauses the task and waits for the stop build to complete.
+func pauseTask(ctx context.Context, t *testing.T, client *codersdk.Client, task codersdk.Task) {
+	t.Helper()
+
+	pauseResp, err := client.PauseTask(ctx, task.OwnerName, task.ID)
+	require.NoError(t, err)
+	require.NotNil(t, pauseResp.WorkspaceBuild)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, pauseResp.WorkspaceBuild.ID)
+}
+
+// resumeTask resumes the task waits for the start build to complete. The task
+// will be in "initializing" state after this returns because no agent is connected.
+func resumeTask(ctx context.Context, t *testing.T, client *codersdk.Client, task codersdk.Task) {
+	t.Helper()
+
+	resumeResp, err := client.ResumeTask(ctx, task.OwnerName, task.ID)
+	require.NoError(t, err)
+	require.NotNil(t, resumeResp.WorkspaceBuild)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, resumeResp.WorkspaceBuild.ID)
 }
 
 // setupCLITaskTestWithSnapshot creates a task in the specified status with a log snapshot.

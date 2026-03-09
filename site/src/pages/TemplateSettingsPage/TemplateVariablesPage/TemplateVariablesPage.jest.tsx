@@ -15,6 +15,14 @@ import { API } from "api/api";
 import { toast } from "sonner";
 import TemplateVariablesPage from "./TemplateVariablesPage";
 
+// The createAndBuildTemplateVersion mutation polls getTemplateVersion behind
+// a real `delay(1000)` call. Without this mock the 1 s wall-clock wait races
+// against the default `waitFor` timeout (also 1 s), making the "submit"
+// assertion flaky in CI.
+jest.mock("utils/delay", () => ({
+	delay: () => Promise.resolve(),
+}));
+
 const validFormValues = {
 	first_variable: "Hello world",
 	second_variable: "123",

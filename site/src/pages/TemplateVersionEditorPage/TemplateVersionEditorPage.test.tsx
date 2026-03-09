@@ -414,7 +414,7 @@ test("display pending badge and update it to running when status changes", async
 
 	renderEditorPage(createTestQueryClient());
 
-	const status = await screen.findByRole("status");
+	const status = await screen.findByRole("status", { name: /pending/i });
 	expect(status).toHaveTextContent("Pending");
 
 	// Manually update the endpoint, as to not rely on the editor page

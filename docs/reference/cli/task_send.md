@@ -12,11 +12,12 @@ coder task send [flags] <task> [<input> | --stdin]
 ## Description
 
 ```console
-  - Send direct input to a task.:
+Send input to a task. If the task is paused, it will be automatically resumed before input is sent. If the task is initializing, it will wait for the task to become ready.
+  - Send direct input to a task:
 
      $ coder task send task1 "Please also add unit tests"
 
-  - Send input from stdin to a task.:
+  - Send input from stdin to a task:
 
      $ echo "Please also add unit tests" | coder task send task1 --stdin
 ```

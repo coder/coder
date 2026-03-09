@@ -564,7 +564,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		// The check `s.OIDCConfig != nil` is not as strict, since it can be an interface
 		// pointing to a typed nil.
 		if !reflect.ValueOf(s.OIDCConfig).IsNil() {
-			workspaceOwnerOIDCAccessToken, err = obtainOIDCAccessToken(ctx, s.Logger, s.Database, s.OIDCConfig, owner.ID)
+			workspaceOwnerOIDCAccessToken, err = ObtainOIDCAccessToken(ctx, s.Logger, s.Database, s.OIDCConfig, owner.ID)
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("obtain OIDC access token: %s", err))
 			}
@@ -3075,15 +3075,15 @@ func deleteSessionTokenForUserAndWorkspace(ctx context.Context, db database.Stor
 	return nil
 }
 
-func shouldRefreshOIDCToken(link database.UserLink) bool {
+func shouldRefreshOIDCToken(link database.UserLink) (bool, time.Time) {
 	if link.OAuthRefreshToken == "" {
 		// We cannot refresh even if we wanted to
-		return false
+		return false, link.OAuthExpiry
 	}
 
 	if link.OAuthExpiry.IsZero() {
 		// 0 expire means the token never expires, so we shouldn't refresh
-		return false
+		return false, link.OAuthExpiry
 	}
 
 	// This handles an edge case where the token is about to expire. A workspace
@@ -3093,15 +3093,19 @@ func shouldRefreshOIDCToken(link database.UserLink) bool {
 	//
 	// If an OIDC provider issues short-lived tokens less than our defined period,
 	// the token will always be refreshed on every workspace build.
-	assumeExpiredAt := dbtime.Now().Add(-1 * time.Minute * 10)
+	//
+	// By setting the expiration backwards, we are effectively shortening the
+	// time a token can be alive for by 10 minutes.
+	// Note: This is how it is done in the oauth2 package's own token refreshing logic.
+	expiresAt := link.OAuthExpiry.Add(-time.Minute * 10)
 
 	// Return if the token is assumed to be expired.
-	return link.OAuthExpiry.Before(assumeExpiredAt)
+	return expiresAt.Before(dbtime.Now()), expiresAt
 }
 
-// obtainOIDCAccessToken returns a valid OpenID Connect access token
+// ObtainOIDCAccessToken returns a valid OpenID Connect access token
 // for the user if it's able to obtain one, otherwise it returns an empty string.
-func obtainOIDCAccessToken(ctx context.Context, logger slog.Logger, db database.Store, oidcConfig promoauth.OAuth2Config, userID uuid.UUID) (string, error) {
+func ObtainOIDCAccessToken(ctx context.Context, logger slog.Logger, db database.Store, oidcConfig promoauth.OAuth2Config, userID uuid.UUID) (string, error) {
 	link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 		UserID:    userID,
 		LoginType: database.LoginTypeOIDC,
@@ -3113,11 +3117,13 @@ func obtainOIDCAccessToken(ctx context.Context, logger slog.Logger, db database.
 		return "", xerrors.Errorf("get owner oidc link: %w", err)
 	}
 
-	if shouldRefreshOIDCToken(link) {
+	if shouldRefresh, expiresAt := shouldRefreshOIDCToken(link); shouldRefresh {
 		token, err := oidcConfig.TokenSource(ctx, &oauth2.Token{
 			AccessToken:  link.OAuthAccessToken,
 			RefreshToken: link.OAuthRefreshToken,
-			Expiry:       link.OAuthExpiry,
+			// Use the expiresAt returned by shouldRefreshOIDCToken.
+			// It will force a refresh with an expired time.
+			Expiry: expiresAt,
 		}).Token()
 		if err != nil {
 			// If OIDC fails to refresh, we return an empty string and don't fail.

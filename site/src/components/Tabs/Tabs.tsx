@@ -96,11 +96,7 @@ export const TabsList: FC<TabsListProps> = ({ className, ...props }) => {
 
 	return (
 		<div ref={listRef} className="relative">
-			<div
-				role="tablist"
-				className={cn("flex items-baseline gap-6", className)}
-				{...props}
-			/>
+			<div className={cn("flex items-baseline gap-6", className)} {...props} />
 			<div
 				ref={indicatorRef}
 				className="absolute bottom-0 h-px bg-surface-invert-primary opacity-0 transition-all duration-300 ease-in-out"
@@ -128,6 +124,7 @@ export const TabLink: FC<TabLinkProps> = ({
 	return (
 		<Link
 			data-active={isActive}
+			aria-current={isActive ? "page" : undefined}
 			{...linkProps}
 			className={cn(
 				"text-sm text-content-secondary no-underline font-medium py-3 px-1 hover:text-content-primary rounded-md",

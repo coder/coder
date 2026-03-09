@@ -46,6 +46,7 @@ func Test_ProxyServer_Headers(t *testing.T) {
 		"--primary-access-url", srv.URL,
 		"--proxy-session-token", "test-token",
 		"--access-url", "http://localhost:8080",
+		"--http-address", ":0",
 		"--header", fmt.Sprintf("%s=%s", headerName1, headerVal1),
 		"--header-command", fmt.Sprintf("printf %s=%s", headerName2, headerVal2),
 	)
@@ -97,7 +98,7 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 		"--primary-access-url", srv.URL,
 		"--proxy-session-token", "test-token",
 		"--access-url", "http://foobar:3001",
-		"--http-address", fmt.Sprintf("127.0.0.1:%d", testutil.RandomPort(t)),
+		"--http-address", ":0",
 		"--prometheus-enable",
 		"--prometheus-address", fmt.Sprintf("127.0.0.1:%d", prometheusPort),
 	)

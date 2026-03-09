@@ -17,8 +17,11 @@ const defaultProps = {
 	diff: {
 		hasDiffStatus: false,
 		diffStatus: undefined,
-		showDiffPanel: false,
-		onToggleFilesChanged: () => {},
+		hasGitRepos: false,
+		gitRepoCount: 0,
+		gitRepositories: new Map(),
+		showSidebarPanel: false,
+		onToggleSidebar: () => {},
 	},
 	workspace: {
 		canOpenEditors: true,
@@ -53,8 +56,11 @@ export const WithDiffStats: Story = {
 		diff: {
 			hasDiffStatus: true,
 			diffStatus: mockDiffStatus,
-			showDiffPanel: false,
-			onToggleFilesChanged: () => {},
+			hasGitRepos: false,
+			gitRepoCount: 0,
+			gitRepositories: new Map(),
+			showSidebarPanel: false,
+			onToggleSidebar: () => {},
 		},
 	},
 };
@@ -64,8 +70,11 @@ export const WithDiffPanelOpen: Story = {
 		diff: {
 			hasDiffStatus: true,
 			diffStatus: mockDiffStatus,
-			showDiffPanel: true,
-			onToggleFilesChanged: () => {},
+			hasGitRepos: false,
+			gitRepoCount: 0,
+			gitRepositories: new Map(),
+			showSidebarPanel: true,
+			onToggleSidebar: () => {},
 		},
 	},
 };

@@ -28,11 +28,14 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { DiffStatsInline } from "../DiffStats";
 
-interface DiffPanelState {
+interface SidebarPanelState {
 	hasDiffStatus: boolean;
 	diffStatus: ChatDiffStatusResponse | undefined;
-	showDiffPanel: boolean;
-	onToggleFilesChanged: () => void;
+	hasGitRepos: boolean;
+	gitRepoCount: number;
+	gitRepositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
+	showSidebarPanel: boolean;
+	onToggleSidebar: () => void;
 }
 
 interface WorkspaceActions {
@@ -44,11 +47,11 @@ interface WorkspaceActions {
 	sshCommand: string | undefined;
 }
 
-type AgentDetailTopBarProps = {
+interface AgentDetailTopBarProps {
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
 	onOpenParentChat: (chatId: string) => void;
-	diff: DiffPanelState;
+	diff: SidebarPanelState;
 	workspace: WorkspaceActions;
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
@@ -57,7 +60,7 @@ type AgentDetailTopBarProps = {
 	isArchived?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
-};
+}
 
 export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	chatTitle,
@@ -119,14 +122,16 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
-						{diff.hasDiffStatus && diff.diffStatus && !diff.showDiffPanel && (
-							<span className="ml-3">
-								<DiffStatsInline
-									status={diff.diffStatus}
-									onClick={diff.onToggleFilesChanged}
-								/>
-							</span>
-						)}
+						{diff.hasDiffStatus &&
+							diff.diffStatus &&
+							!diff.showSidebarPanel && (
+								<span className="ml-3">
+									<DiffStatsInline
+										status={diff.diffStatus}
+										onClick={diff.onToggleSidebar}
+									/>
+								</span>
+							)}
 						{isArchived && (
 							<span className="shrink-0 rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary">
 								Archived
@@ -226,15 +231,15 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
-				{diff.hasDiffStatus && diff.diffStatus && (
+				{(diff.hasDiffStatus || diff.hasGitRepos) && (
 					<Button
 						variant="subtle"
 						size="icon"
-						onClick={diff.onToggleFilesChanged}
+						onClick={diff.onToggleSidebar}
 						className="h-7 w-7 text-content-secondary hover:text-content-primary"
 						aria-label="Toggle files changed"
 					>
-						{diff.showDiffPanel ? (
+						{diff.showSidebarPanel ? (
 							<PanelRightCloseIcon className="h-4 w-4" />
 						) : (
 							<PanelRightOpenIcon className="h-4 w-4" />

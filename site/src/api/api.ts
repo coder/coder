@@ -159,6 +159,10 @@ export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 	});
 };
 
+export const watchChatGit = (chatId: string): WebSocket => {
+	return createWebSocket(`/api/experimental/chats/${chatId}/git/watch`);
+};
+
 export const watchAgentContainers = (
 	agentId: string,
 ): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
@@ -2289,6 +2293,23 @@ class ApiMethods {
 			headers: { "Content-Type": file.type },
 		});
 
+		return response.data;
+	};
+
+	uploadChatFile = async (
+		file: File,
+		organizationId: string,
+	): Promise<TypesGen.UploadChatFileResponse> => {
+		const response = await this.axios.post(
+			`/api/experimental/chats/files?organization=${organizationId}`,
+			file,
+			{
+				headers: {
+					"Content-Type": file.type || "application/octet-stream",
+					"Content-Disposition": `attachment; filename="${file.name}"`,
+				},
+			},
+		);
 		return response.data;
 	};
 
