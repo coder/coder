@@ -8,7 +8,7 @@ import { type FC, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-import { AgentsEmptyState, type CreateChatOptions } from "./AgentsPage";
+import { AgentCreateForm, type CreateChatOptions } from "./AgentsPage";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ChimeButton } from "./ChimeButton";
 import { WebPushButton } from "./WebPushButton";
@@ -168,7 +168,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 								)}
 							</div>
 						</div>
-						<AgentsEmptyState
+						<AgentCreateForm
 							onCreateChat={onCreateChat}
 							isCreating={isCreating}
 							createError={createError}

@@ -575,7 +575,7 @@ export function useEmptyStateDraft() {
 	};
 }
 
-interface AgentsEmptyStateProps {
+interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
 	createError: unknown;
@@ -591,7 +591,7 @@ interface AgentsEmptyStateProps {
 	onConfigureAgentsDialogOpenChange: (open: boolean) => void;
 }
 
-export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
+export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
 	isCreating,
 	createError,
