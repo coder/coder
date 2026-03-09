@@ -706,9 +706,11 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 # pre-push runs the full CI suite including tests. This is the git
 # pre-push hook default, catching everything CI would before pushing.
 #
-# Both use two-phase execution: gen+fmt first (writes files), then
-# lint+build (reads files). This avoids races where gen's `go run`
-# creates temporary .go files that lint's find-based checks pick up.
+# pre-push uses two-phase execution: gen+fmt+test-postgres-docker
+# first (writes files, starts Docker), then lint+build+test in
+# parallel. pre-commit uses two phases: gen+fmt first, then
+# lint+build. This avoids races where gen's `go run` creates
+# temporary .go files that lint's find-based checks pick up.
 # Within each phase, targets run in parallel via -j. Both fail if
 # any tracked files have unstaged changes afterward.
 #
@@ -717,7 +719,7 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 #
 # pre-push only (need external services or are slow):
 #   site/out/index.html (pnpm build)
-#   test-postgres (needs Docker)
+#   test-postgres-docker + test (needs Docker)
 #   test-js, test-e2e (needs Playwright)
 #   sqlc-vet (needs Docker)
 #   offlinedocs/check
@@ -754,14 +756,14 @@ pre-commit:
 .PHONY: pre-commit
 
 pre-push:
-	$(MAKE) -j --output-sync=target gen fmt
+	$(MAKE) -j --output-sync=target gen fmt test-postgres-docker
 	$(check-unstaged)
 	$(MAKE) -j --output-sync=target \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT) \
 		site/out/index.html \
-		test-postgres \
+		test \
 		test-js \
 		test-e2e \
 		test-race \
@@ -1326,21 +1328,6 @@ sqlc-vet: test-postgres-docker
 	sqlc vet -f coderd/database/sqlc.yaml && echo "Passed sqlc vet"
 .PHONY: sqlc-vet
 
-# When updating -timeout for this test, keep in sync with
-# test-go-postgres (.github/workflows/coder.yaml).
-# Do add coverage flags so that test caching works.
-test-postgres: test-postgres-docker
-	# The postgres test is prone to failure, so we limit parallelism for
-	# more consistent execution.
-	$(GIT_FLAGS)  gotestsum \
-		--junitfile="gotests.xml" \
-		--jsonfile="gotests.json" \
-		$(GOTESTSUM_RETRY_FLAGS) \
-		--packages="./..." -- \
-		-tags=testsmallbatch \
-		-timeout=20m \
-		-count=1
-.PHONY: test-postgres
 
 test-migrations: test-postgres-docker
 	echo "--- test migrations"
