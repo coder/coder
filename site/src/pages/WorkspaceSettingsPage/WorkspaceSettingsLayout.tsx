@@ -73,9 +73,9 @@ export const WorkspaceSettingsLayout: FC = () => {
 							>
 								<Sidebar />
 								<Suspense fallback={<Loader />}>
-									<main css={{ width: "100%" }}>
+									<div css={{ width: "100%" }}>
 										<Outlet />
-									</main>
+									</div>
 								</Suspense>
 							</WorkspaceSettings.Provider>
 						)

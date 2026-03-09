@@ -21,7 +21,7 @@ const CreateOrganizationPage: FC = () => {
 	const error = createOrganizationMutation.error;
 
 	return (
-		<main className="py-7">
+		<div className="py-7">
 			<RequirePermission isFeatureVisible={permissions.createOrganization}>
 				<CreateOrganizationPageView
 					error={error}
@@ -38,7 +38,7 @@ const CreateOrganizationPage: FC = () => {
 					}}
 				/>
 			</RequirePermission>
-		</main>
+		</div>
 	);
 };
 

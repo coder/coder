@@ -161,7 +161,7 @@ const TasksPage: FC = () => {
 					<PageHeaderSubtitle>Automate tasks with AI</PageHeaderSubtitle>
 				</PageHeader>
 
-				<main className="pb-8">
+				<div className="pb-8">
 					<TaskPrompt
 						templates={aiTemplatesQuery.data}
 						error={aiTemplatesQuery.error}
@@ -276,7 +276,7 @@ const TasksPage: FC = () => {
 								/>
 							</section>
 						)}
-				</main>
+				</div>
 
 				<BatchDeleteConfirmation
 					open={isDeleteDialogOpen}

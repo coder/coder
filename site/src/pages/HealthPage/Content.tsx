@@ -83,7 +83,8 @@ export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
 
 export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
-		<main
+		/* DashboardLayout provides the app-level primary landmark. */
+		<div
 			css={{
 				padding: `0 ${CONTENT_PADDING}px ${CONTENT_PADDING}px`,
 				display: "flex",
