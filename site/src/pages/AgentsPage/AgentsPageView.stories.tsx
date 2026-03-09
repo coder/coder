@@ -100,8 +100,9 @@ const meta: Meta<typeof AgentsPageView> = {
 			isSidebarCollapsed: false,
 			onToggleSidebarCollapsed: fn(),
 		},
-		emptyStateNode,
-	},
+			emptyStateNode,
+			isAgentsAdmin: false,
+			onOpenConfigureAgentsDialog: fn(),	},
 };
 
 export default meta;
@@ -191,7 +192,7 @@ export const SidebarCollapsed: Story = {
 
 export const WithToolbarEndContent: Story = {
 	args: {
-		toolbarEndContent: <button type="button">Admin</button>,
+		isAgentsAdmin: true,
 	},
 };
 

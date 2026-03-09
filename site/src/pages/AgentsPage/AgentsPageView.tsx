@@ -47,7 +47,8 @@ interface AgentsPageViewProps {
 	onExpandSidebar: () => void;
 	outletContext: AgentsOutletContext;
 	emptyStateNode: ReactNode;
-	toolbarEndContent?: ReactNode;
+	isAgentsAdmin: boolean;
+	onOpenConfigureAgentsDialog: () => void;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -68,7 +69,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	onExpandSidebar,
 	outletContext,
 	emptyStateNode,
-	toolbarEndContent,
+	isAgentsAdmin,
+	onOpenConfigureAgentsDialog,
 }) => {
 	const {
 		chatErrorReasons,
@@ -144,7 +146,16 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 							<div className="flex items-center gap-2">
 								<ChimeButton />
 								<WebPushButton />
-								{toolbarEndContent}
+								{isAgentsAdmin && (
+									<Button
+										variant="subtle"
+										disabled={isCreating}
+										className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
+										onClick={onOpenConfigureAgentsDialog}
+									>
+										Admin
+									</Button>
+								)}
 							</div>
 						</div>
 						{emptyStateNode}

@@ -19,7 +19,6 @@ import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { Button } from "components/Button/Button";
 import {
 	Combobox,
 	ComboboxContent,
@@ -531,18 +530,8 @@ const AgentsPage: FC = () => {
 					onConfigureAgentsDialogOpenChange={setConfigureAgentsDialogOpen}
 				/>
 			}
-			toolbarEndContent={
-				isAgentsAdmin ? (
-					<Button
-						variant="subtle"
-						disabled={createMutation.isPending}
-						className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
-						onClick={() => setConfigureAgentsDialogOpen(true)}
-					>
-						Admin
-					</Button>
-				) : undefined
-			}
+			isAgentsAdmin={isAgentsAdmin}
+			onOpenConfigureAgentsDialog={() => setConfigureAgentsDialogOpen(true)}
 		/>
 	);
 };
