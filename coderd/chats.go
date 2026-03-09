@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
@@ -1269,21 +1270,26 @@ func (api *API) resolveChatDiffContents(
 		return result, nil
 	}
 
-	token, _ := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
+	token, err := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
+	if err != nil {
+		return result, xerrors.Errorf("resolve git access token: %w", err)
+	} else if token == nil {
+		return result, xerrors.New("nil git access token")
+	}
 
 	if reference.PullRequestURL != "" {
 		ref, ok := gp.ParsePullRequestURL(reference.PullRequestURL)
 		if !ok {
 			return result, xerrors.Errorf("invalid pull request URL %q", reference.PullRequestURL)
 		}
-		diff, err := gp.FetchPullRequestDiff(ctx, token, ref)
+		diff, err := gp.FetchPullRequestDiff(ctx, *token, ref)
 		if err != nil {
 			return result, err
 		}
 		result.Diff = diff
 		return result, nil
 	}
-	diff, err := gp.FetchBranchDiff(ctx, token, gitprovider.BranchRef{
+	diff, err := gp.FetchBranchDiff(ctx, *token, gitprovider.BranchRef{
 		Owner:  reference.RepositoryRef.Owner,
 		Repo:   reference.RepositoryRef.Repo,
 		Branch: reference.RepositoryRef.Branch,
@@ -1324,8 +1330,13 @@ func (api *API) resolveChatDiffReference(
 	if reference.RepositoryRef != nil && reference.RepositoryRef.Owner != "" {
 		gp := api.resolveGitProvider(reference.RepositoryRef.RemoteOrigin)
 		if gp != nil {
-			token, _ := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
-			prRef, lookupErr := gp.ResolveBranchPullRequest(ctx, token, gitprovider.BranchRef{
+			token, err := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
+			if err != nil {
+				return chatDiffReference{}, xerrors.Errorf("resolve git access token: %w", err)
+			} else if token == nil {
+				return chatDiffReference{}, xerrors.New("nil git access token")
+			}
+			prRef, lookupErr := gp.ResolveBranchPullRequest(ctx, *token, gitprovider.BranchRef{
 				Owner:  reference.RepositoryRef.Owner,
 				Repo:   reference.RepositoryRef.Repo,
 				Branch: reference.RepositoryRef.Branch,
@@ -1503,8 +1514,13 @@ func (api *API) refreshChatDiffStatus(
 	}
 
 	origin := gp.BuildRepositoryURL(ref.Owner, ref.Repo)
-	token, _ := api.resolveChatGitAccessToken(ctx, chatOwnerID, origin)
-	status, err := gp.FetchPullRequestStatus(ctx, token, ref)
+	token, err := api.resolveChatGitAccessToken(ctx, chatOwnerID, origin)
+	if err != nil {
+		return database.ChatDiffStatus{}, xerrors.Errorf("resolve git access token: %w", err)
+	} else if token == nil {
+		return database.ChatDiffStatus{}, xerrors.New("nil git access token")
+	}
+	status, err := gp.FetchPullRequestStatus(ctx, *token, ref)
 	if err != nil {
 		return database.ChatDiffStatus{}, err
 	}
@@ -1537,7 +1553,7 @@ func (api *API) resolveChatGitAccessToken(
 	ctx context.Context,
 	userID uuid.UUID,
 	origin string,
-) (string, error) {
+) (*string, error) {
 	origin = strings.TrimSpace(origin)
 
 	// If we have an origin, find the specific matching config first.
@@ -1563,7 +1579,7 @@ func (api *API) resolveChatGitAccessToken(
 			}
 			token := strings.TrimSpace(link.OAuthAccessToken)
 			if token != "" {
-				return token, nil
+				return ptr.Ref(token), nil
 			}
 		}
 	}
@@ -1616,11 +1632,11 @@ func (api *API) resolveChatGitAccessToken(
 
 		token := strings.TrimSpace(link.OAuthAccessToken)
 		if token != "" {
-			return token, nil
+			return ptr.Ref(token), nil
 		}
 	}
 
-	return "", nil
+	return nil, gitsync.ErrNoTokenAvailable
 }
 
 type createChatWorkspaceSelection struct {
