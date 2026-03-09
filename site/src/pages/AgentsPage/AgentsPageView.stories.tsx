@@ -85,7 +85,7 @@ const meta: Meta<typeof AgentsPageView> = {
 		isArchiving: false,
 		archivingChatId: undefined,
 		isChatsLoading: false,
-		chatsLoadError: undefined,
+		chatsLoadError: null,
 		onRetryChatsLoad: fn(),
 		onCollapseSidebar: fn(),
 		isSidebarCollapsed: false,

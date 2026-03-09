@@ -508,7 +508,7 @@ const AgentsPage: FC = () => {
 			isArchiving={isArchiving}
 			archivingChatId={archivingChatId}
 			isChatsLoading={chatsQuery.isLoading}
-			chatsLoadError={chatsQuery.isError ? chatsQuery.error : undefined}
+			chatsLoadError={chatsQuery.error}
 			onRetryChatsLoad={() => void chatsQuery.refetch()}
 			onCollapseSidebar={() => setIsSidebarCollapsed(true)}
 			isSidebarCollapsed={isSidebarCollapsed}
@@ -906,7 +906,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 							<ComboboxContent
 								side="top"
 								align="center"
-								className="w-72 [& [cmdk-item]]:text-xs"
+								className="w-72 [&_[cmdk-item]]:text-xs"
 							>
 								<ComboboxInput placeholder="Search workspaces..." />
 								<ComboboxList>

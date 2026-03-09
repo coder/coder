@@ -40,7 +40,7 @@ interface AgentsPageViewProps {
 	isArchiving: boolean;
 	archivingChatId: string | undefined;
 	isChatsLoading: boolean;
-	chatsLoadError: Error | undefined;
+	chatsLoadError: Error | null;
 	onRetryChatsLoad: () => void;
 	onCollapseSidebar: () => void;
 	isSidebarCollapsed: boolean;
