@@ -103,6 +103,11 @@ VERSION      := $(shell ./scripts/version.sh)
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
 
+# Limit parallel Make jobs in pre-commit/pre-push. Defaults to
+# nproc/4 (min 2) since test and lint targets have internal
+# parallelism. Override: make pre-push PARALLEL_JOBS=8
+PARALLEL_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8); echo $$(( n / 4 > 2 ? n / 4 : 2 )))
+
 # Use the highest ZSTD compression level in CI.
 ifdef CI
 ZSTDFLAGS := -22 --ultra
@@ -746,9 +751,9 @@ define check-unstaged
 endef
 
 pre-commit:
-	$(MAKE) -j --output-sync=target gen fmt
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target gen fmt
 	$(check-unstaged)
-	$(MAKE) -j --output-sync=target \
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
@@ -756,9 +761,9 @@ pre-commit:
 .PHONY: pre-commit
 
 pre-push:
-	$(MAKE) -j --output-sync=target gen fmt test-postgres-docker
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target gen fmt test-postgres-docker
 	$(check-unstaged)
-	$(MAKE) -j --output-sync=target \
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT) \
@@ -1244,8 +1249,10 @@ RACE_PARALLEL_TESTS := $(or $(TEST_NUM_PARALLEL_TESTS),4)
 # Use testsmallbatch tag to reduce wireguard memory allocation in tests
 # (from ~18GB to negligible). Recursively expanded so target-specific
 # overrides of TEST_PARALLEL_* take effect (e.g. test-race lowers
-# parallelism).
-GOTEST_FLAGS = -tags=testsmallbatch -v -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
+# parallelism). CI job timeout is 25m (see test-go-pg in ci.yaml),
+# keep the Go timeout 5m shorter so tests produce goroutine dumps
+# instead of the CI runner killing the process with no output.
+GOTEST_FLAGS = -tags=testsmallbatch -v -timeout 20m -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
 
 # The most common use is to set TEST_COUNT=1 to avoid Go's test cache.
 ifdef TEST_COUNT
@@ -1270,7 +1277,6 @@ endif
 
 TEST_PACKAGES ?= ./...
 
-# CI calls both test and test-race via .github/actions/test-go-pg/action.yaml.
 test:
 	$(GIT_FLAGS) gotestsum --format standard-quiet \
 		$(GOTESTSUM_RETRY_FLAGS) \
@@ -1288,7 +1294,6 @@ test-race:
 		--packages="$(TEST_PACKAGES)" \
 		-- \
 		-race \
-		-timeout 30m \
 		$(GOTEST_FLAGS)
 .PHONY: test-race
 
