@@ -777,8 +777,12 @@ export const useChatStore = (
 			},
 			onOpen() {
 				// Connection succeeded — clear any previous disconnect
-				// error.
+				// error and stale stream state. Clearing stream state
+				// is critical for reconnections: the server replays
+				// all buffered message_part events, so we must start
+				// from a clean slate to avoid duplicating text.
 				store.clearStreamError();
+				store.clearStreamState();
 			},
 			onDisconnect(attempt) {
 				// Show the error only on the first disconnect (not
