@@ -30,7 +30,6 @@ import {
 	PanelLeftIcon,
 	PauseIcon,
 	PlayIcon,
-	Share2Icon,
 	TrashIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
