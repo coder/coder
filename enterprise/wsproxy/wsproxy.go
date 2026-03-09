@@ -535,7 +535,7 @@ func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflig
 	slices.Sort(relayURLs)
 	singleflightStr := strings.Join(relayURLs, " ") // URLs can't contain spaces.
 
-	//nolint:dogsled
+	//nolint:dogsled,errcheck // Error is encoded into the return value.
 	errStrInterface, _, _ := sf.Do(singleflightStr, func() (any, error) {
 		client := http.Client{
 			Timeout: 3 * time.Second,
