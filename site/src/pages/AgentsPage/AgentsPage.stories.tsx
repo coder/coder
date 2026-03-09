@@ -22,8 +22,6 @@ const modelOptions = [
 	},
 ] as const;
 
-const behaviorStorageKey = "agents.system-prompt";
-
 const meta: Meta<typeof AgentsEmptyState> = {
 	title: "pages/AgentsPage/AgentsEmptyState",
 	component: AgentsEmptyState,
@@ -49,6 +47,10 @@ const meta: Meta<typeof AgentsEmptyState> = {
 			workspaces: [],
 			count: 0,
 		});
+		spyOn(API, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "",
+		});
+		spyOn(API, "updateChatSystemPrompt").mockResolvedValue();
 	},
 };
 
@@ -186,9 +188,9 @@ export const SavesBehaviorPromptAndRestores: Story = {
 		await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
-			expect(localStorage.getItem(behaviorStorageKey)).toBe(
-				"You are a focused coding assistant.",
-			);
+			expect(API.updateChatSystemPrompt).toHaveBeenCalledWith({
+				system_prompt: "You are a focused coding assistant.",
+			});
 		});
 	},
 };
