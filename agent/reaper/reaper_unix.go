@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/hashicorp/go-reap"
@@ -64,10 +65,17 @@ func ForkReap(opt ...Option) (int, error) {
 		o(opts)
 	}
 
-	go reap.ReapChildren(opts.PIDs, nil, opts.Done, nil)
+	// Use the reapLock to prevent the reaper's Wait4(-1) from
+	// stealing the direct child's exit status. The reaper takes
+	// a write lock; we hold a read lock during our own Wait4.
+	var reapLock sync.RWMutex
+	reapLock.RLock()
+
+	go reap.ReapChildren(opts.PIDs, nil, opts.Done, &reapLock)
 
 	pwd, err := os.Getwd()
 	if err != nil {
+		reapLock.RUnlock()
 		return 1, xerrors.Errorf("get wd: %w", err)
 	}
 
@@ -87,6 +95,7 @@ func ForkReap(opt ...Option) (int, error) {
 	//#nosec G204
 	pid, err := syscall.ForkExec(opts.ExecArgs[0], opts.ExecArgs, pattrs)
 	if err != nil {
+		reapLock.RUnlock()
 		return 1, xerrors.Errorf("fork exec: %w", err)
 	}
 
@@ -97,6 +106,7 @@ func ForkReap(opt ...Option) (int, error) {
 	for xerrors.Is(err, syscall.EINTR) {
 		_, err = syscall.Wait4(pid, &wstatus, 0, nil)
 	}
+	reapLock.RUnlock()
 
 	// Convert wait status to exit code using standard Unix conventions:
 	// - Normal exit: use the exit code
