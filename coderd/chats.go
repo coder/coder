@@ -2300,7 +2300,9 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	const maxSystemPromptLen = 32768 // 32 KiB
+	// 128 KiB is generous for a system prompt while still
+	// preventing abuse or accidental pastes of large content.
+	const maxSystemPromptLen = 131072 // 128 KiB
 	if len(req.SystemPrompt) > maxSystemPromptLen {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "System prompt exceeds maximum length.",

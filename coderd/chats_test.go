@@ -3170,10 +3170,21 @@ func TestChatSystemPrompt(t *testing.T) {
 		requireSDKError(t, err, http.StatusForbidden)
 	})
 
+	t.Run("UnauthenticatedFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		anonClient := codersdk.New(adminClient.URL)
+		_, err := anonClient.GetChatSystemPrompt(ctx)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
+
 	t.Run("TooLong", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		tooLong := strings.Repeat("a", 32769)
+		tooLong := strings.Repeat("a", 131073)
 		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt: tooLong,
 		})
