@@ -115,10 +115,11 @@ type Config struct {
 // is a supported git hosting provider. Returns nil for non-git
 // providers (e.g. Slack, JFrog).
 func (c *Config) Git(client *http.Client) gitprovider.Provider {
-	if !codersdk.EnhancedExternalAuthProvider(c.Type).Git() {
+	norm := strings.ToLower(c.Type)
+	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {
 		return nil
 	}
-	return gitprovider.New(strings.ToLower(c.Type), c.APIBaseURL, client)
+	return gitprovider.New(norm, c.APIBaseURL, client)
 }
 
 // GenerateTokenExtra generates the extra token data to store in the database.
@@ -126,7 +127,7 @@ func (c *Config) GenerateTokenExtra(token *oauth2.Token) (pqtype.NullRawMessage,
 	if len(c.ExtraTokenKeys) == 0 {
 		return pqtype.NullRawMessage{}, nil
 	}
-	extraMap := map[string]interface{}{}
+	extraMap := map[string]any{}
 	for _, key := range c.ExtraTokenKeys {
 		extraMap[key] = token.Extra(key)
 	}
