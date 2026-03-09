@@ -301,8 +301,7 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 		message =
 			"Continue to wait and check the log output of your workspace for any errors. If the agent does not reconnect, restarting the workspace can be used to try again.";
 	} else if (statusSet.has("timeout")) {
-		title =
-			"Your workspace is starting, but the agent has not yet connected";
+		title = "Your workspace is starting, but the agent has not yet connected";
 		subtitle =
 			failingAgentCount > 1
 				? `${failingAgentCount} agents have not connected yet.`
@@ -315,8 +314,7 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 			failingAgentCount > 1
 				? `${failingAgentCount} agents are shutting down.`
 				: "The agent is shutting down.";
-		message =
-			"The workspace agent is in the process of shutting down.";
+		message = "The workspace agent is in the process of shutting down.";
 	} else if (hasStartError) {
 		title = "Startup script failed";
 		subtitle =
@@ -339,9 +337,7 @@ const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 		<Alert severity="warning" prominent>
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDescription>
-				<p>
-					Your workspace is running but {subtitle}
-				</p>
+				<p>Your workspace is running but {subtitle}</p>
 				<p>{message}</p>
 				<p>
 					{troubleshootingURL && (
