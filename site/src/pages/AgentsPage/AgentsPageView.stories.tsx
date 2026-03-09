@@ -93,15 +93,16 @@ const meta: Meta<typeof AgentsPageView> = {
 			requestArchiveAndDeleteWorkspace: fn(),
 			isSidebarCollapsed: false,
 			onToggleSidebarCollapsed: fn(),
-			},
-			isAgentsAdmin: false,
-			onCreateChat: fn(),
-			createError: undefined,
-			modelCatalog: undefined,
-			isModelCatalogLoading: false,
-			isModelConfigsLoading: false,
-			modelCatalogError: undefined,
-		},};
+		},
+		isAgentsAdmin: false,
+		onCreateChat: fn(),
+		createError: undefined,
+		modelCatalog: undefined,
+		isModelCatalogLoading: false,
+		isModelConfigsLoading: false,
+		modelCatalogError: undefined,
+	},
+};
 
 export default meta;
 type Story = StoryObj<typeof AgentsPageView>;

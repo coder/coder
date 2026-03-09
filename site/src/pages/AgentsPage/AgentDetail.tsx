@@ -80,7 +80,6 @@ import {
 import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
 
-
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
