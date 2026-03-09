@@ -1447,6 +1447,7 @@ site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES)
 
 test-e2e: site/e2e/bin/coder site/node_modules/.installed site/out/index.html
 	cd site/
+	pnpm playwright:install
 ifdef CI
 	DEBUG=pw:api pnpm playwright:test --forbid-only --workers 1
 else
