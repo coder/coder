@@ -67,7 +67,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// reconnecting-pty proxy server we want to test is mounted.
 			client := appDetails.AppClient(t)
 			testReconnectingPTY(ctx, t, client, appDetails.Agent.ID, "")
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("SignedTokenQueryParameter", func(t *testing.T) {
@@ -97,7 +97,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// Make an unauthenticated client.
 			unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
 			testReconnectingPTY(ctx, t, unauthedAppClient, appDetails.Agent.ID, issueRes.SignedToken)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 	})
 
@@ -123,7 +123,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Contains(t, string(body), "Path-based applications are disabled")
 			// Even though path-based apps are disabled, the request should indicate
 			// that the workspace was used.
-			assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("LoginWithoutAuthOnPrimary", func(t *testing.T) {
@@ -150,7 +150,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.True(t, loc.Query().Has("message"))
 			require.True(t, loc.Query().Has("redirect"))
-			assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("LoginWithoutAuthOnProxy", func(t *testing.T) {
@@ -189,7 +189,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// request is getting stripped.
 			require.Equal(t, u.Path, redirectURI.Path+"/")
 			require.Equal(t, u.RawQuery, redirectURI.RawQuery)
-			assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("NoAccessShould404", func(t *testing.T) {
@@ -281,7 +281,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("ProxiesHTTPS", func(t *testing.T) {
@@ -320,7 +320,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("BlocksMe", func(t *testing.T) {
@@ -341,7 +341,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Contains(t, string(body), "must be accessed with the full username, not @me")
-			assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("ForwardsIP", func(t *testing.T) {
@@ -361,7 +361,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			require.Equal(t, "1.1.1.1,127.0.0.1", resp.Header.Get("X-Forwarded-For"))
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("ProxyError", func(t *testing.T) {
@@ -377,7 +377,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, http.StatusBadGateway, resp.StatusCode)
 			// An valid authenticated attempt to access a workspace app
 			// should count as usage regardless of success.
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("NoProxyPort", func(t *testing.T) {
@@ -393,7 +393,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// TODO(@deansheather): This should be 400. There's a todo in the
 			// resolve request code to fix this.
 			require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-			assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("BadJWT", func(t *testing.T) {
@@ -449,7 +449,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 
 			// Since the old token is invalid, the signed app token cookie should have a new value.
 			newTokenCookie := mustFindCookie(t, resp.Cookies(), codersdk.SignedAppTokenCookie)
@@ -1109,7 +1109,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		_ = resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, resp.Header.Get("X-Got-Host"), u.Host)
-		assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+		assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 	})
 
 	t.Run("WorkspaceAppsProxySubdomainHostnamePrefix/Different", func(t *testing.T) {
@@ -1160,7 +1160,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.NoError(t, err)
 		_ = resp.Body.Close()
 		require.NotEqual(t, http.StatusOK, resp.StatusCode)
-		assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+		assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 	})
 
 	// This test ensures that the subdomain handler does nothing if
@@ -1244,7 +1244,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusNotFound, resp.StatusCode)
-			assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("RedirectsWithSlash", func(t *testing.T) {
@@ -1265,7 +1265,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			loc, err := resp.Location()
 			require.NoError(t, err)
 			require.Equal(t, appDetails.SubdomainAppURL(appDetails.Apps.Owner).Path, loc.Path)
-			assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("RedirectsWithQuery", func(t *testing.T) {
@@ -1285,7 +1285,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			loc, err := resp.Location()
 			require.NoError(t, err)
 			require.Equal(t, appDetails.SubdomainAppURL(appDetails.Apps.Owner).RawQuery, loc.RawQuery)
-			assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("Proxies", func(t *testing.T) {
@@ -1321,7 +1321,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("ProxiesHTTPS", func(t *testing.T) {
@@ -1366,7 +1366,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("ProxiesPort", func(t *testing.T) {
@@ -1383,7 +1383,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("ProxyError", func(t *testing.T) {
@@ -1397,7 +1397,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusBadGateway, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("ProxyPortMinimumError", func(t *testing.T) {
@@ -1419,7 +1419,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			err = json.NewDecoder(resp.Body).Decode(&resBody)
 			require.NoError(t, err)
 			require.Contains(t, resBody.Message, "Coder reserves ports less than")
-			assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("SuffixWildcardOK", func(t *testing.T) {
@@ -1442,7 +1442,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("WildcardPortOK", func(t *testing.T) {
@@ -1475,7 +1475,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("SuffixWildcardNotMatch", func(t *testing.T) {
@@ -1505,7 +1505,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				// It's probably rendering the dashboard or a 404 page, so only
 				// ensure that the body doesn't match.
 				require.NotContains(t, string(body), proxyTestAppBody)
-				assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+				assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 			})
 
 			t.Run("DifferentSuffix", func(t *testing.T) {
@@ -1532,7 +1532,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				// It's probably rendering the dashboard, so only ensure that the body
 				// doesn't match.
 				require.NotContains(t, string(body), proxyTestAppBody)
-				assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+				assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 			})
 		})
 
@@ -1590,7 +1590,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			require.Equal(t, proxyTestAppBody, string(body))
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 
 			// Since the old token is invalid, the signed app token cookie should have a new value.
 			newTokenCookie := mustFindCookie(t, resp.Cookies(), codersdk.SignedAppTokenCookie)
@@ -1614,7 +1614,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusNotFound, resp.StatusCode)
-			assertWorkspaceLastUsedAtNotUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtNotUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("AuthenticatedOK", func(t *testing.T) {
@@ -1643,7 +1643,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("PublicOK", func(t *testing.T) {
@@ -1671,7 +1671,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 
 		t.Run("HTTPS", func(t *testing.T) {
@@ -1701,7 +1701,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			assertWorkspaceLastUsedAtUpdated(ctx, t, appDetails)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails, testutil.WaitLong)
 		})
 	})
 
@@ -2428,8 +2428,16 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 // Accessing an app should update the workspace's LastUsedAt.
 // NOTE: Despite our efforts with the flush channel, this is inherently racy when used with
 // parallel tests on the same workspace/app.
-func assertWorkspaceLastUsedAtUpdated(ctx context.Context, t testing.TB, details *Details) {
+//
+// This function accepts a timeout duration instead of a context so that
+// it always gets a fresh deadline. Callers often reuse a context that
+// has already been partially consumed by a preceding HTTP request (e.g.
+// proxying to a fake unreachable app), which can leave too little time
+// for the Eventually loop below and cause flakes.
+func assertWorkspaceLastUsedAtUpdated(t testing.TB, details *Details, timeout time.Duration) {
 	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	require.NotNil(t, details.Workspace, "can't assert LastUsedAt on a nil workspace!")
 	before, err := details.SDKClient.Workspace(ctx, details.Workspace.ID)
@@ -2447,8 +2455,13 @@ func assertWorkspaceLastUsedAtUpdated(ctx context.Context, t testing.TB, details
 // Except when it sometimes shouldn't (e.g. no access)
 // NOTE: Despite our efforts with the flush channel, this is inherently racy when used with
 // parallel tests on the same workspace/app.
-func assertWorkspaceLastUsedAtNotUpdated(ctx context.Context, t testing.TB, details *Details) {
+//
+// See assertWorkspaceLastUsedAtUpdated for why this takes a duration
+// instead of a context.
+func assertWorkspaceLastUsedAtNotUpdated(t testing.TB, details *Details, timeout time.Duration) {
 	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	require.NotNil(t, details.Workspace, "can't assert LastUsedAt on a nil workspace!")
 	before, err := details.SDKClient.Workspace(ctx, details.Workspace.ID)
