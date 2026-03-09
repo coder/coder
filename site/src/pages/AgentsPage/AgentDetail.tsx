@@ -15,8 +15,6 @@ import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import { ArchiveIcon } from "lucide-react";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -34,7 +32,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
-import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import {
 	AgentChatInput,
@@ -66,19 +63,20 @@ import {
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
-import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import { useWorkspaceCreationWatcher } from "./AgentDetail/useWorkspaceCreationWatcher";
+import {
+	AgentDetailLoadingView,
+	AgentDetailNotFoundView,
+	AgentDetailView,
+} from "./AgentDetailView";
 import type { AgentsOutletContext } from "./AgentsPage";
-import { GitPanel } from "./GitPanel";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
-import { RightPanel } from "./RightPanel";
-import { type SidebarTab, SidebarTabView } from "./SidebarTabView";
 import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
 
@@ -996,7 +994,6 @@ const AgentDetail: FC = () => {
 		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
-	const shouldShowSidebar = showSidebarPanel;
 
 	const generateKeyMutation = useMutation({
 		mutationFn: () => API.getApiKey(),
@@ -1064,255 +1061,87 @@ const AgentDetail: FC = () => {
 
 	if (chatQuery.isLoading) {
 		return (
-			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
-				{titleElement}
-				<AgentDetailTopBar
-					panel={{
-						showSidebarPanel: false,
-						onToggleSidebar: () => {},
-					}}
-					workspace={{
-						canOpenEditors: false,
-						canOpenWorkspace: false,
-						onOpenInEditor: () => {},
-						onViewWorkspace: () => {},
-						onOpenTerminal: () => {},
-						sshCommand: undefined,
-					}}
-					onOpenParentChat={() => {}}
-					onArchiveAgent={() => {}}
-					onUnarchiveAgent={() => {}}
-					onArchiveAndDeleteWorkspace={() => {}}
-					hasWorkspace={false}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-				/>
-				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
-					<div className="px-4">
-						<div className="mx-auto w-full max-w-3xl py-6">
-							<div className="flex flex-col gap-3">
-								{/* User message bubble (right-aligned) */}
-								<div className="flex w-full justify-end">
-									<Skeleton className="h-10 w-2/3 rounded-lg" />
-								</div>
-								{/* Assistant response lines (left-aligned) */}
-								<div className="space-y-3">
-									<Skeleton className="h-4 w-full" />
-									<Skeleton className="h-4 w-5/6" />
-									<Skeleton className="h-4 w-4/6" />
-								</div>
-								{/* Second user message bubble */}
-								<div className="mt-3 flex w-full justify-end">
-									<Skeleton className="h-10 w-1/2 rounded-lg" />
-								</div>
-								{/* Second assistant response */}
-								<div className="space-y-3">
-									<Skeleton className="h-4 w-full" />
-									<Skeleton className="h-4 w-5/6" />
-									<Skeleton className="h-4 w-4/6" />
-									<Skeleton className="h-4 w-full" />
-									<Skeleton className="h-4 w-3/5" />
-								</div>{" "}
-							</div>
-						</div>
-					</div>
-				</div>
-				<div className="shrink-0 px-4">
-					<AgentChatInput
-						onSend={() => {}}
-						initialValue=""
-						isDisabled={isInputDisabled}
-						isLoading={false}
-						selectedModel={effectiveSelectedModel}
-						onModelChange={setSelectedModel}
-						modelOptions={modelOptions}
-						modelSelectorPlaceholder={modelSelectorPlaceholder}
-						hasModelOptions={hasModelOptions}
-						inputStatusText={inputStatusText}
-						modelCatalogStatusMessage={modelCatalogStatusMessage}
-					/>
-				</div>
-			</div>
+			<AgentDetailLoadingView
+				titleElement={titleElement}
+				isInputDisabled={isInputDisabled}
+				effectiveSelectedModel={effectiveSelectedModel}
+				setSelectedModel={setSelectedModel}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder={modelSelectorPlaceholder}
+				hasModelOptions={hasModelOptions}
+				inputStatusText={inputStatusText}
+				modelCatalogStatusMessage={modelCatalogStatusMessage}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+			/>
 		);
 	}
 
 	if (!chatQuery.data || !agentId) {
 		return (
-			<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-				{titleElement}
-				<AgentDetailTopBar
-					panel={{
-						showSidebarPanel: false,
-						onToggleSidebar: () => {},
-					}}
-					workspace={{
-						canOpenEditors: false,
-						canOpenWorkspace: false,
-						onOpenInEditor: () => {},
-						onViewWorkspace: () => {},
-						onOpenTerminal: () => {},
-						sshCommand: undefined,
-					}}
-					onOpenParentChat={() => {}}
-					onArchiveAgent={() => {}}
-					onUnarchiveAgent={() => {}}
-					onArchiveAndDeleteWorkspace={() => {}}
-					hasWorkspace={false}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-				/>
-				<div className="flex flex-1 items-center justify-center text-content-secondary">
-					Chat not found
-				</div>{" "}
-			</div>
+			<AgentDetailNotFoundView
+				titleElement={titleElement}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+			/>
 		);
 	}
 	return (
-		<div
-			className={cn(
-				"relative flex min-h-0 min-w-0 flex-1",
-				shouldShowSidebar && !visualExpanded && "flex-row",
-			)}
-		>
-			{titleElement}
-			<div
-				className={cn(
-					"relative flex min-h-0 min-w-0 flex-1 flex-col",
-					visualExpanded && "hidden",
-					shouldShowSidebar && "max-md:hidden",
-				)}
-			>
-				<div className="relative z-10 shrink-0 overflow-visible">
-					<AgentDetailTopBar
-						chatTitle={chatTitle}
-						parentChat={parentChat}
-						onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
-						panel={{
-							showSidebarPanel,
-							onToggleSidebar: () => setShowSidebarPanel((prev) => !prev),
-						}}
-						workspace={{
-							canOpenEditors,
-							canOpenWorkspace,
-							onOpenInEditor: handleOpenInEditor,
-							onViewWorkspace: handleViewWorkspace,
-							onOpenTerminal: handleOpenTerminal,
-							sshCommand,
-						}}
-						onArchiveAgent={handleArchiveAgentAction}
-						onUnarchiveAgent={handleUnarchiveAgentAction}
-						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
-						hasWorkspace={Boolean(workspaceId)}
-						isArchived={isArchived}
-						isSidebarCollapsed={isSidebarCollapsed}
-						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-					/>
-					{isArchived && (
-						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
-							<ArchiveIcon className="h-4 w-4 shrink-0" />
-							This agent has been archived and is read-only.
-						</div>
-					)}
-					<div
-						aria-hidden
-						className="pointer-events-none absolute inset-x-0 top-full z-10 h-6 bg-surface-primary"
-						style={{
-							maskImage:
-								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-							WebkitMaskImage:
-								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-						}}
-					/>
-				</div>
-				<div
-					ref={scrollContainerRef}
-					className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
-				>
-					<div className="px-4">
-						<AgentDetailTimeline
-							store={store}
-							chatID={agentId}
-							persistedErrorReason={
-								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
-							}
-							onEditUserMessage={editing.handleEditUserMessage}
-							editingMessageId={editing.editingMessageId}
-							savingMessageId={pendingEditMessageId}
-						/>
-					</div>
-				</div>
-				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
-					<AgentDetailInput
-						store={store}
-						compressionThreshold={compressionThreshold}
-						onSend={editing.handleSendFromInput}
-						onDeleteQueuedMessage={handleDeleteQueuedMessage}
-						onPromoteQueuedMessage={handlePromoteQueuedMessage}
-						onInterrupt={handleInterrupt}
-						isInputDisabled={isInputDisabled}
-						isSendPending={isSubmissionPending}
-						isInterruptPending={interruptMutation.isPending}
-						hasModelOptions={hasModelOptions}
-						selectedModel={effectiveSelectedModel}
-						onModelChange={setSelectedModel}
-						modelOptions={modelOptions}
-						modelSelectorPlaceholder={modelSelectorPlaceholder}
-						inputStatusText={inputStatusText}
-						modelCatalogStatusMessage={modelCatalogStatusMessage}
-						inputRef={editing.chatInputRef}
-						initialValue={editing.editorInitialValue}
-						onContentChange={editing.handleContentChange}
-						editingQueuedMessageID={editing.editingQueuedMessageID}
-						onStartQueueEdit={editing.handleStartQueueEdit}
-						onCancelQueueEdit={editing.handleCancelQueueEdit}
-						isEditingHistoryMessage={editing.editingMessageId !== null}
-						onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-						editingFileBlocks={editing.editingFileBlocks}
-					/>
-				</div>
-			</div>
-			<RightPanel
-				isOpen={shouldShowSidebar}
-				isExpanded={isRightPanelExpanded}
-				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-				onClose={() => setShowSidebarPanel(false)}
-				onVisualExpandedChange={setDragVisualExpanded}
-				isSidebarCollapsed={isSidebarCollapsed}
-				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			>
-				<SidebarTabView
-					tabs={
-						[
-							(hasDiffStatus || hasGitRepos) && {
-								id: "git",
-								label: "Git",
-								content: (
-									<GitPanel
-										prTab={
-											prNumber && agentId
-												? { prNumber, chatId: agentId }
-												: undefined
-										}
-										repositories={gitWatcher.repositories}
-										onRefresh={gitWatcher.refresh}
-										onCommit={handleCommit}
-										isExpanded={visualExpanded}
-										remoteDiffStats={diffStatusQuery.data}
-										chatInputRef={editing.chatInputRef}
-									/>
-								),
-							},
-						].filter(Boolean) as SidebarTab[]
-					}
-					onClose={() => setShowSidebarPanel(false)}
-					isExpanded={visualExpanded}
-					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-					chatTitle={chatTitle}
-				/>
-			</RightPanel>{" "}
-		</div>
+		<AgentDetailView
+			AgentDetailTimeline={AgentDetailTimeline}
+			AgentDetailInput={AgentDetailInput}
+			agentId={agentId}
+			chatTitle={chatTitle}
+			parentChat={parentChat}
+			chatErrorReasons={chatErrorReasons}
+			chatRecord={chatRecord}
+			isArchived={isArchived}
+			hasWorkspace={Boolean(workspaceId)}
+			store={store}
+			editing={editing}
+			pendingEditMessageId={pendingEditMessageId}
+			effectiveSelectedModel={effectiveSelectedModel}
+			setSelectedModel={setSelectedModel}
+			modelOptions={modelOptions}
+			modelSelectorPlaceholder={modelSelectorPlaceholder}
+			hasModelOptions={hasModelOptions}
+			inputStatusText={inputStatusText}
+			modelCatalogStatusMessage={modelCatalogStatusMessage}
+			compressionThreshold={compressionThreshold}
+			isInputDisabled={isInputDisabled}
+			isSubmissionPending={isSubmissionPending}
+			isInterruptPending={interruptMutation.isPending}
+			showSidebarPanel={showSidebarPanel}
+			setShowSidebarPanel={setShowSidebarPanel}
+			isRightPanelExpanded={isRightPanelExpanded}
+			setIsRightPanelExpanded={setIsRightPanelExpanded}
+			visualExpanded={visualExpanded}
+			setDragVisualExpanded={setDragVisualExpanded}
+			isSidebarCollapsed={isSidebarCollapsed}
+			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+			hasDiffStatus={hasDiffStatus}
+			hasGitRepos={hasGitRepos}
+			prNumber={prNumber}
+			diffStatusData={diffStatusQuery.data}
+			gitWatcher={gitWatcher}
+			canOpenEditors={canOpenEditors}
+			canOpenWorkspace={canOpenWorkspace}
+			sshCommand={sshCommand}
+			handleOpenInEditor={handleOpenInEditor}
+			handleViewWorkspace={handleViewWorkspace}
+			handleOpenTerminal={handleOpenTerminal}
+			handleCommit={handleCommit}
+			onNavigateToChat={(chatId) => navigate(`/agents/${chatId}`)}
+			handleInterrupt={handleInterrupt}
+			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
+			handlePromoteQueuedMessage={handlePromoteQueuedMessage}
+			handleArchiveAgentAction={handleArchiveAgentAction}
+			handleUnarchiveAgentAction={handleUnarchiveAgentAction}
+			handleArchiveAndDeleteWorkspaceAction={
+				handleArchiveAndDeleteWorkspaceAction
+			}
+			scrollContainerRef={scrollContainerRef}
+		/>
 	);
 };
 

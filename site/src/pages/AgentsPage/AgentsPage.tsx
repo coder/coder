@@ -29,10 +29,8 @@ import {
 	ComboboxList,
 	ComboboxTrigger,
 } from "components/Combobox/Combobox";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { CoderIcon } from "components/Icons/CoderIcon";
 import { useAuthenticated } from "hooks";
-import { MonitorIcon, PanelLeftIcon } from "lucide-react";
+import { MonitorIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
@@ -44,15 +42,13 @@ import {
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { NavLink, Outlet, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { cn } from "utils/cn";
-import { pageTitle } from "utils/page";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import { AgentChatInput } from "./AgentChatInput";
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
-import { AgentsSidebar } from "./AgentsSidebar";
-import { ChimeButton } from "./ChimeButton";
+import type { AgentsOutletContext } from "./AgentsPageView";
+import { AgentsPageView } from "./AgentsPageView";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 import {
 	getModelCatalogStatusMessage,
@@ -63,7 +59,6 @@ import {
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
 import { useFileAttachments } from "./useFileAttachments";
-import { WebPushButton } from "./WebPushButton";
 
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";
@@ -94,19 +89,7 @@ function isChatListSSEEvent(
 	);
 }
 
-export interface AgentsOutletContext {
-	chatErrorReasons: Record<string, string>;
-	setChatErrorReason: (chatId: string, reason: string) => void;
-	clearChatErrorReason: (chatId: string) => void;
-	requestArchiveAgent: (chatId: string) => void;
-	requestUnarchiveAgent: (chatId: string) => void;
-	requestArchiveAndDeleteWorkspace: (
-		chatId: string,
-		workspaceId: string,
-	) => void;
-	isSidebarCollapsed: boolean;
-	onToggleSidebarCollapsed: () => void;
-}
+export type { AgentsOutletContext } from "./AgentsPageView";
 
 const AgentsPage: FC = () => {
 	useAgentsPWA();
@@ -514,108 +497,57 @@ const AgentsPage: FC = () => {
 	});
 
 	return (
-		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
-			<title>{pageTitle("Agents")}</title>
-			<div
-				className={cn(
-					"md:h-full md:w-[320px] md:min-h-0 md:border-b-0",
-					agentId
-						? "hidden md:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-						: "order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0",
-					isSidebarCollapsed && "md:hidden",
-				)}
-			>
-				<AgentsSidebar
-					chats={chatList}
-					chatErrorReasons={chatErrorReasons}
+		<AgentsPageView
+			agentId={agentId}
+			chatList={chatList}
+			chatErrorReasons={chatErrorReasons}
+			catalogModelOptions={catalogModelOptions}
+			modelConfigs={chatModelConfigsQuery.data ?? []}
+			logoUrl={appearance.logo_url}
+			requestArchiveAgent={requestArchiveAgent}
+			requestUnarchiveAgent={requestUnarchiveAgent}
+			requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+			handleNewAgent={handleNewAgent}
+			isCreating={createMutation.isPending}
+			isArchiving={isArchiving}
+			archivingChatId={archivingChatId}
+			isChatsLoading={chatsQuery.isLoading}
+			chatsLoadError={chatsQuery.isError ? chatsQuery.error : undefined}
+			onRetryChatsLoad={() => void chatsQuery.refetch()}
+			onCollapseSidebar={() => setIsSidebarCollapsed(true)}
+			isSidebarCollapsed={isSidebarCollapsed}
+			onExpandSidebar={() => setIsSidebarCollapsed(false)}
+			outletContext={outletContext}
+			emptyStateNode={
+				<AgentsEmptyState
+					onCreateChat={handleCreateChat}
+					isCreating={createMutation.isPending}
+					createError={createMutation.error}
+					modelCatalog={chatModelsQuery.data}
 					modelOptions={catalogModelOptions}
 					modelConfigs={chatModelConfigsQuery.data ?? []}
-					logoUrl={appearance.logo_url}
-					onArchiveAgent={requestArchiveAgent}
-					onUnarchiveAgent={requestUnarchiveAgent}
-					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
-					onNewAgent={handleNewAgent}
-					isCreating={createMutation.isPending}
-					isArchiving={isArchiving}
-					archivingChatId={archivingChatId}
-					isLoading={chatsQuery.isLoading}
-					loadError={chatsQuery.isError ? chatsQuery.error : undefined}
-					onRetryLoad={() => void chatsQuery.refetch()}
-					onCollapse={() => setIsSidebarCollapsed(true)}
+					isModelCatalogLoading={chatModelsQuery.isLoading}
+					isModelConfigsLoading={chatModelConfigsQuery.isLoading}
+					modelCatalogError={chatModelsQuery.error}
+					canSetSystemPrompt={canSetSystemPrompt}
+					canManageChatModelConfigs={isAgentsAdmin}
+					isConfigureAgentsDialogOpen={isConfigureAgentsDialogOpen}
+					onConfigureAgentsDialogOpenChange={setConfigureAgentsDialogOpen}
 				/>
-			</div>
-
-			<div
-				className={cn(
-					"flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
-					!agentId && "order-1 md:order-none flex-none md:flex-1",
-				)}
-			>
-				{agentId ? (
-					<Outlet key={agentId} context={outletContext} />
-				) : (
-					<>
-						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
-							<NavLink
-								to="/workspaces"
-								className="inline-flex shrink-0 md:hidden"
-							>
-								{appearance.logo_url ? (
-									<ExternalImage
-										className="h-6"
-										src={appearance.logo_url}
-										alt="Logo"
-									/>
-								) : (
-									<CoderIcon className="h-6 w-6 fill-content-primary" />
-								)}
-							</NavLink>
-							{isSidebarCollapsed && (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={() => setIsSidebarCollapsed(false)}
-									aria-label="Expand sidebar"
-									className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
-								>
-									<PanelLeftIcon />
-								</Button>
-							)}
-							<div className="flex min-w-0 flex-1 items-center" />
-							<div className="flex items-center gap-2">
-								<ChimeButton />
-								<WebPushButton />{" "}
-								{isAgentsAdmin && (
-									<Button
-										variant="subtle"
-										disabled={createMutation.isPending}
-										className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
-										onClick={() => setConfigureAgentsDialogOpen(true)}
-									>
-										Admin
-									</Button>
-								)}
-							</div>
-						</div>
-						<AgentsEmptyState
-							onCreateChat={handleCreateChat}
-							isCreating={createMutation.isPending}
-							createError={createMutation.error}
-							modelCatalog={chatModelsQuery.data}
-							modelOptions={catalogModelOptions}
-							modelConfigs={chatModelConfigsQuery.data ?? []}
-							isModelCatalogLoading={chatModelsQuery.isLoading}
-							isModelConfigsLoading={chatModelConfigsQuery.isLoading}
-							modelCatalogError={chatModelsQuery.error}
-							canSetSystemPrompt={canSetSystemPrompt}
-							canManageChatModelConfigs={isAgentsAdmin}
-							isConfigureAgentsDialogOpen={isConfigureAgentsDialogOpen}
-							onConfigureAgentsDialogOpenChange={setConfigureAgentsDialogOpen}
-						/>
-					</>
-				)}
-			</div>
-		</div>
+			}
+			toolbarEndContent={
+				isAgentsAdmin ? (
+					<Button
+						variant="subtle"
+						disabled={createMutation.isPending}
+						className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
+						onClick={() => setConfigureAgentsDialogOpen(true)}
+					>
+						Admin
+					</Button>
+				) : undefined
+			}
+		/>
 	);
 };
 
@@ -978,7 +910,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 							<ComboboxContent
 								side="top"
 								align="center"
-								className="w-72 [&_[cmdk-item]]:text-xs"
+								className="w-72 [& [cmdk-item]]:text-xs"
 							>
 								<ComboboxInput placeholder="Search workspaces..." />
 								<ComboboxList>
