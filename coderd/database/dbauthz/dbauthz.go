@@ -2565,8 +2565,14 @@ func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (
 }
 
 func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
-	// No authz checks as the system prompt is read during chat
-	// creation for all authenticated users.
+	// The system prompt is a deployment-wide setting read during chat
+	// creation by every authenticated user, so no RBAC policy check
+	// is needed. We still verify that a valid actor exists in the
+	// context to ensure this is never callable by an unauthenticated
+	// or system-internal path without an explicit actor.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return "", ErrNoActor
+	}
 	return q.db.GetChatSystemPrompt(ctx)
 }
 
