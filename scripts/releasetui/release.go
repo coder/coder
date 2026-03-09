@@ -382,8 +382,8 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		humanTitle = strings.TrimSpace(humanTitle)
 		// Build entry: - Title (#PR, SHA) (@author)
 		var entry string
-		if c.PRNum > 0 {
-			entry = fmt.Sprintf("- %s (#%d, %s)", humanTitle, c.PRNum, c.SHA)
+		if c.PRCount > 0 {
+			entry = fmt.Sprintf("- %s (#%d, %s)", humanTitle, c.PRCount, c.SHA)
 		} else {
 			entry = fmt.Sprintf("- %s (%s)", humanTitle, c.SHA)
 		}

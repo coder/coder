@@ -12,7 +12,7 @@ type commitEntry struct {
 	SHA       string
 	FullSHA   string
 	Title     string
-	PRNum     int // 0 if no PR number found
+	PRCount   int // 0 if no PR number found
 	Timestamp int64
 }
 
@@ -85,7 +85,7 @@ func commitLog(commitRange string) ([]commitEntry, error) {
 			Timestamp: ts,
 		}
 		if m := prNumRe.FindStringSubmatch(e.Title); m != nil {
-			e.PRNum, _ = strconv.Atoi(m[1])
+			e.PRCount, _ = strconv.Atoi(m[1])
 		}
 		entries = append(entries, e)
 	}

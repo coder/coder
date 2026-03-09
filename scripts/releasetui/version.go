@@ -9,7 +9,9 @@ import (
 
 // version holds a parsed semver version.
 type version struct {
-	Major, Minor, Patch int
+	Major int
+	Minor int
+	Patch int
 }
 
 var semverRe = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)$`)
