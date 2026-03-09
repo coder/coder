@@ -8,6 +8,7 @@ import {
 import {
 	ArrowUpIcon,
 	CornerDownLeftIcon,
+	ImageIcon,
 	Loader2Icon,
 	PencilIcon,
 	Trash2Icon,
@@ -37,6 +38,11 @@ const extractBlockText = (value: unknown): string | undefined => {
 	}
 	const record = asRecord(value);
 	if (!record) {
+		return undefined;
+	}
+	// File-type parts have no extractable text; skip them so callers
+	// don't fall through to JSON.stringify.
+	if (record.type === "file") {
 		return undefined;
 	}
 	if (typeof record.text === "string") {
@@ -72,6 +78,17 @@ const extractQueuedContentText = (value: unknown): string => {
 		if (texts.length > 0) {
 			return texts.join(" ");
 		}
+		// If the array only contains file parts (no extractable text),
+		// return empty string instead of falling through to JSON.stringify.
+		const hasOnlyFiles =
+			value.length > 0 &&
+			value.every((item) => {
+				const record = asRecord(item);
+				return record?.type === "file";
+			});
+		if (hasOnlyFiles) {
+			return "";
+		}
 		try {
 			return JSON.stringify(value);
 		} catch {
@@ -101,9 +118,38 @@ const extractQueuedContentText = (value: unknown): string => {
 	return "";
 };
 
-const getQueuedMessageText = (message: ChatQueuedMessage): string => {
-	const text = extractQueuedContentText(message.content).trim();
-	return text || "Queued message";
+const countFileAttachments = (value: unknown): number => {
+	if (!Array.isArray(value)) {
+		return 0;
+	}
+	return value.filter((item) => {
+		const record = asRecord(item);
+		return record?.type === "file";
+	}).length;
+};
+
+interface QueuedMessageInfo {
+	text: string;
+	attachmentCount: number;
+}
+
+const getQueuedMessageInfo = (
+	message: ChatQueuedMessage,
+): QueuedMessageInfo => {
+	const attachmentCount = countFileAttachments(message.content);
+	const rawText = extractQueuedContentText(message.content).trim();
+
+	if (rawText) {
+		return { text: rawText, attachmentCount };
+	}
+
+	if (attachmentCount > 0) {
+		const label =
+			attachmentCount === 1 ? "1 attachment" : `${attachmentCount} attachments`;
+		return { text: label, attachmentCount };
+	}
+
+	return { text: "Queued message", attachmentCount: 0 };
 };
 
 export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
@@ -116,10 +162,14 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 }) => {
 	const items = useMemo(
 		() =>
-			messages.map((message) => ({
-				id: message.id,
-				text: getQueuedMessageText(message),
-			})),
+			messages.map((message) => {
+				const { text, attachmentCount } = getQueuedMessageInfo(message);
+				return {
+					id: message.id,
+					text,
+					attachmentCount,
+				};
+			}),
 		[messages],
 	);
 
@@ -243,6 +293,12 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 								{item.text.split("\n")[0]}
 								{item.text.includes("\n") ? "…" : ""}
 							</span>
+							{item.attachmentCount > 0 && (
+								<span className="flex shrink-0 items-center gap-0.5 text-xs text-content-secondary">
+									<ImageIcon className="h-3 w-3" />
+									{item.attachmentCount}
+								</span>
+							)}
 							{isFirst && (
 								<span
 									className={cn(

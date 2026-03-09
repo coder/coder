@@ -101,3 +101,43 @@ export const LongMessageText: Story = {
 		],
 	},
 };
+
+// A message with both text and a file attachment shows the ImageIcon badge.
+export const WithAttachments: Story = {
+	args: {
+		messages: [
+			makeMessage(1, [
+				{ type: "text", text: "Check this screenshot" },
+				{ type: "file", file_id: "abc-123", media_type: "image/png" },
+			] as ChatQueuedMessage["content"]),
+		],
+	},
+};
+
+// A message with only file attachments and no text displays a count label.
+export const AttachmentsOnly: Story = {
+	args: {
+		messages: [
+			makeMessage(1, [
+				{ type: "file", file_id: "img-1", media_type: "image/png" },
+				{ type: "file", file_id: "img-2", media_type: "image/jpeg" },
+			] as ChatQueuedMessage["content"]),
+		],
+	},
+};
+
+// A mixed queue with text-only, text+attachment, and attachment-only messages.
+export const MixedQueueWithAttachments: Story = {
+	args: {
+		messages: [
+			makeMessage(1, textContent("Run the linter")),
+			makeMessage(2, [
+				{ type: "text", text: "Fix this layout bug" },
+				{ type: "file", file_id: "img-a", media_type: "image/png" },
+			] as ChatQueuedMessage["content"]),
+			makeMessage(3, [
+				{ type: "file", file_id: "img-b", media_type: "image/png" },
+			] as ChatQueuedMessage["content"]),
+		],
+	},
+};

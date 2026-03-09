@@ -470,6 +470,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				!hasFileReferences &&
 				!isDisabled &&
 				!isLoading &&
+				!isUploading &&
 				queuedMessages.length > 0 &&
 				onPromoteQueuedMessage
 			) {
@@ -481,6 +482,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				(!text && !hasUploadedAttachments && !hasFileReferences) ||
 				isDisabled ||
 				isLoading ||
+				isUploading ||
 				!hasModelOptions
 			) {
 				return;
@@ -490,6 +492,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		}, [
 			isDisabled,
 			isLoading,
+			isUploading,
 			hasModelOptions,
 			hasUploadedAttachments,
 			hasFileReferences,
