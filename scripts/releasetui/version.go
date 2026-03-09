@@ -31,7 +31,7 @@ func (v version) String() string {
 	return fmt.Sprintf("v%d.%d.%d", v.Major, v.Minor, v.Patch)
 }
 
-func (v version) GT(b version) bool {
+func (v version) GreaterThan(b version) bool {
 	if v.Major != b.Major {
 		return v.Major > b.Major
 	}
@@ -41,7 +41,7 @@ func (v version) GT(b version) bool {
 	return v.Patch > b.Patch
 }
 
-func (v version) Eq(b version) bool {
+func (v version) Equal(b version) bool {
 	return v.Major == b.Major && v.Minor == b.Minor && v.Patch == b.Patch
 }
 

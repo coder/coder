@@ -180,7 +180,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	// --- Semver sanity checks ---
 	if prevVersion != nil { //nolint:nestif // Sequential release checks are inherently nested.
 		// Downgrade check.
-		if prevVersion.GT(newVersion) {
+		if prevVersion.GreaterThan(newVersion) {
 			warnf(w, "Version DOWNGRADE detected: %s → %s.", prevVersion, newVersion)
 			if err := confirmWithDefault(inv, "Continue?", cliui.ConfirmNo); err != nil {
 				return err
@@ -189,7 +189,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		}
 
 		// Duplicate check.
-		if prevVersion.Eq(newVersion) {
+		if prevVersion.Equal(newVersion) {
 			warnf(w, "Version %s is the SAME as the previous tag %s.", newVersion, prevVersion)
 			if err := confirmWithDefault(inv, "Continue?", cliui.ConfirmNo); err != nil {
 				return err
