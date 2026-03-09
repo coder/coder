@@ -42,9 +42,20 @@ func WithLogger(logger slog.Logger) Option {
 	}
 }
 
+// WithDone sets a channel that, when closed, stops the reaper
+// goroutine. Callers that invoke ForkReap more than once in the
+// same process (e.g. tests) should use this to prevent goroutine
+// accumulation.
+func WithDone(ch chan struct{}) Option {
+	return func(o *options) {
+		o.Done = ch
+	}
+}
+
 type options struct {
 	ExecArgs     []string
 	PIDs         reap.PidCh
 	CatchSignals []os.Signal
 	Logger       slog.Logger
+	Done         chan struct{}
 }
