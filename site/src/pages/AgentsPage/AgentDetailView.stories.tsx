@@ -6,7 +6,6 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { fn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetail";
 import { createChatStore } from "./AgentDetail/ChatContext";
 import {
 	AgentDetailLoadingView,
@@ -96,8 +95,6 @@ const meta: Meta<typeof AgentDetailView> = {
 		}),
 	},
 	args: {
-		AgentDetailTimeline: AgentDetailTimeline,
-		AgentDetailInput: AgentDetailInput,
 		agentId: AGENT_ID,
 		chatTitle: "Help me refactor",
 		parentChat: undefined,

@@ -7,6 +7,7 @@ import { type FC, type RefObject, useState } from "react";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
+import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetail";
 import type { useChatStore } from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { GitPanel } from "./GitPanel";
@@ -16,57 +17,6 @@ import { type SidebarTab, SidebarTabView } from "./SidebarTabView";
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 // Re-use the inner presentational components directly. They are
-// defined in this view file but receive their data via the parent
-// props.
-
-interface AgentDetailTimelineProps {
-	store: ChatStoreHandle;
-	chatID: string;
-	persistedErrorReason: string | undefined;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly { mediaType: string; data?: string }[],
-	) => void;
-	editingMessageId?: number | null;
-	savingMessageId?: number | null;
-}
-
-interface AgentDetailInputProps {
-	store: ChatStoreHandle;
-	compressionThreshold: number | undefined;
-	onSend: (message: string, fileIds?: string[]) => void;
-	onDeleteQueuedMessage: (id: number) => Promise<void>;
-	onPromoteQueuedMessage: (id: number) => Promise<void>;
-	onInterrupt: () => void;
-	isInputDisabled: boolean;
-	isSendPending: boolean;
-	isInterruptPending: boolean;
-	hasModelOptions: boolean;
-	selectedModel: string;
-	onModelChange: (modelID: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	modelSelectorPlaceholder: string;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
-	// Controlled input value and editing state, owned by the
-	// conversation component.
-	inputRef?: React.Ref<ChatMessageInputRef>;
-	initialValue?: string;
-	onContentChange?: (content: string) => void;
-	editingQueuedMessageID: number | null;
-	onStartQueueEdit: (id: number, text: string) => void;
-	onCancelQueueEdit: () => void;
-	isEditingHistoryMessage: boolean;
-	onCancelHistoryEdit: () => void;
-	// File blocks from the message being edited, converted to
-	// File objects and pre-populated into attachments.
-	editingFileBlocks?: readonly {
-		mediaType: string;
-		data?: string;
-		fileId?: string;
-	}[];
-}
 
 interface EditingState {
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
@@ -95,10 +45,6 @@ interface EditingState {
 }
 
 interface AgentDetailViewProps {
-	// Components to render into the timeline and input slots.
-	AgentDetailTimeline: FC<AgentDetailTimelineProps>;
-	AgentDetailInput: FC<AgentDetailInputProps>;
-
 	// Chat data.
 	agentId: string;
 	chatTitle: string | undefined;
@@ -167,8 +113,6 @@ interface AgentDetailViewProps {
 }
 
 export const AgentDetailView: FC<AgentDetailViewProps> = ({
-	AgentDetailTimeline,
-	AgentDetailInput,
 	agentId,
 	chatTitle,
 	parentChat,

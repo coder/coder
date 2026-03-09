@@ -1057,8 +1057,6 @@ const AgentDetail: FC = () => {
 	}
 	return (
 		<AgentDetailView
-			AgentDetailTimeline={AgentDetailTimeline}
-			AgentDetailInput={AgentDetailInput}
 			agentId={agentId}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
