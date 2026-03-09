@@ -779,14 +779,14 @@ func New(options *Options) *API {
 		options.Logger.Named("gitsync").Named("refresher"),
 		quartz.NewReal(),
 	)
-	api.chatDiffWorker = gitsync.NewWorker(options.Database,
+	api.gitSyncWorker = gitsync.NewWorker(options.Database,
 		refresher,
 		api.chatDaemon,
 		quartz.NewReal(),
 		options.Logger.Named("gitsync"),
 	)
 	// nolint:gocritic // chat diff worker needs to be able to CRUD chats.
-	go api.chatDiffWorker.Start(dbauthz.AsChatd(api.ctx))
+	go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
@@ -2004,9 +2004,9 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
-	// chatDiffWorker refreshes stale chat diff statuses in the
+	// gitSyncWorker refreshes stale chat diff statuses in the
 	// background.
-	chatDiffWorker *gitsync.Worker
+	gitSyncWorker *gitsync.Worker
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2038,7 +2038,7 @@ func (api *API) Close() error {
 	api.dbRolluper.Close()
 	// chatDiffWorker is unconditionally initialized in New().
 	select {
-	case <-api.chatDiffWorker.Done():
+	case <-api.gitSyncWorker.Done():
 	case <-time.After(10 * time.Second):
 		api.Logger.Warn(context.Background(),
 			"chat diff refresh worker did not exit in time")
