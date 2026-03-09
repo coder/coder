@@ -144,7 +144,6 @@ interface WorkspaceSharingFormProps {
 	organizationId: string;
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
-	isTaskWorkspace: boolean;
 	error: unknown;
 	onUpdateUser: (user: WorkspaceUser, role: WorkspaceRole) => void;
 	updatingUserId: WorkspaceUser["id"] | undefined;
@@ -161,7 +160,6 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 	organizationId,
 	workspaceACL,
 	canUpdatePermissions,
-	isTaskWorkspace,
 	error,
 	updatingUserId,
 	onUpdateUser,

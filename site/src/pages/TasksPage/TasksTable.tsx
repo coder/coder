@@ -215,7 +215,9 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
 	// Discard role, breaks Chromatic.
 	const { role, ...clickableRowProps } = useClickableTableRow({
-		onClick: () => navigate(taskPageLink),
+		onClick: () => {
+			navigate(taskPageLink);
+		},
 	});
 
 	return (
@@ -316,43 +318,6 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 							</DropdownMenuContent>
 						</DropdownMenu>
 					</div>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon-lg"
-								variant="subtle"
-								onClick={(e) => e.stopPropagation()}
-							>
-								<EllipsisVertical aria-hidden="true" />
-								<span className="sr-only">Open task actions</span>
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								onSelect={(e) => {
-									e.stopPropagation();
-									navigate(
-										`/@${task.owner_name}/${task.workspace_name}/settings/sharing`,
-									);
-									console.log("navigating or something");
-								}}
-							>
-								<Share2Icon />
-								Share
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={(e) => {
-									e.stopPropagation();
-									setIsDeleteDialogOpen(true);
-								}}
-							>
-								<TrashIcon />
-								Delete&hellip;
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
 				</TableCell>
 			</TableRow>
 
