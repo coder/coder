@@ -103,6 +103,11 @@ VERSION      := $(shell ./scripts/version.sh)
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
 
+# Limit parallel Make jobs in pre-commit/pre-push. Defaults to
+# nproc/4 (min 2) since test and lint targets have internal
+# parallelism. Override: make pre-push PARALLEL_JOBS=8
+PARALLEL_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8); echo $$(( n / 4 > 2 ? n / 4 : 2 )))
+
 # Use the highest ZSTD compression level in CI.
 ifdef CI
 ZSTDFLAGS := -22 --ultra
@@ -746,19 +751,26 @@ define check-unstaged
 endef
 
 pre-commit:
-	$(MAKE) -j --output-sync=target gen fmt
+	start=$$(date +%s)
+	echo "=== Phase 1/2: gen + fmt ==="
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target gen fmt
 	$(check-unstaged)
-	$(MAKE) -j --output-sync=target \
+	echo "=== Phase 2/2: lint + build ==="
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	$(check-unstaged)
+	echo "$(BOLD)$(GREEN)=== pre-commit passed in $$(( $$(date +%s) - $$start ))s ===$(RESET)"
 .PHONY: pre-commit
 
 pre-push:
-	$(MAKE) -j --output-sync=target gen fmt test-postgres-docker
+	start=$$(date +%s)
+	echo "=== Phase 1/2: gen + fmt + postgres ==="
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target gen fmt test-postgres-docker
 	$(check-unstaged)
-	$(MAKE) -j --output-sync=target \
+	echo "=== Phase 2/2: lint + build + test ==="
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT) \
@@ -770,6 +782,7 @@ pre-push:
 		sqlc-vet \
 		offlinedocs/check
 	$(check-unstaged)
+	echo "$(BOLD)$(GREEN)=== pre-push passed in $$(( $$(date +%s) - $$start ))s ===$(RESET)"
 .PHONY: pre-push
 
 offlinedocs/check: offlinedocs/node_modules/.installed
@@ -1244,8 +1257,10 @@ RACE_PARALLEL_TESTS := $(or $(TEST_NUM_PARALLEL_TESTS),4)
 # Use testsmallbatch tag to reduce wireguard memory allocation in tests
 # (from ~18GB to negligible). Recursively expanded so target-specific
 # overrides of TEST_PARALLEL_* take effect (e.g. test-race lowers
-# parallelism).
-GOTEST_FLAGS = -tags=testsmallbatch -v -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
+# parallelism). CI job timeout is 25m (see test-go-pg in ci.yaml),
+# keep the Go timeout 5m shorter so tests produce goroutine dumps
+# instead of the CI runner killing the process with no output.
+GOTEST_FLAGS = -tags=testsmallbatch -v -timeout 20m -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
 
 # The most common use is to set TEST_COUNT=1 to avoid Go's test cache.
 ifdef TEST_COUNT
@@ -1270,7 +1285,6 @@ endif
 
 TEST_PACKAGES ?= ./...
 
-# CI calls both test and test-race via .github/actions/test-go-pg/action.yaml.
 test:
 	$(GIT_FLAGS) gotestsum --format standard-quiet \
 		$(GOTESTSUM_RETRY_FLAGS) \
@@ -1288,7 +1302,6 @@ test-race:
 		--packages="$(TEST_PACKAGES)" \
 		-- \
 		-race \
-		-timeout 30m \
 		$(GOTEST_FLAGS)
 .PHONY: test-race
 
@@ -1312,19 +1325,19 @@ sqlc-cloud-is-setup:
 
 sqlc-push: sqlc-cloud-is-setup test-postgres-docker
 	echo "--- sqlc push"
-	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$$(go run scripts/migrate-ci/main.go)" \
 	sqlc push -f coderd/database/sqlc.yaml && echo "Passed sqlc push"
 .PHONY: sqlc-push
 
 sqlc-verify: sqlc-cloud-is-setup test-postgres-docker
 	echo "--- sqlc verify"
-	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$$(go run scripts/migrate-ci/main.go)" \
 	sqlc verify -f coderd/database/sqlc.yaml && echo "Passed sqlc verify"
 .PHONY: sqlc-verify
 
 sqlc-vet: test-postgres-docker
 	echo "--- sqlc vet"
-	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$(shell go run scripts/migrate-ci/main.go)" \
+	SQLC_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/$$(go run scripts/migrate-ci/main.go)" \
 	sqlc vet -f coderd/database/sqlc.yaml && echo "Passed sqlc vet"
 .PHONY: sqlc-vet
 
@@ -1343,13 +1356,24 @@ test-migrations: test-postgres-docker
 
 # NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
+	# If our container is already running, nothing to do.
+	if docker ps --filter "name=test-postgres-docker-${POSTGRES_VERSION}" --format '{{.Names}}' | grep -q .; then \
+		echo "test-postgres-docker-${POSTGRES_VERSION} is already running."; \
+		exit 0; \
+	fi
+	# If something else is on 5432, warn but don't fail.
+	if pg_isready -h 127.0.0.1 -q 2>/dev/null; then \
+		echo "WARNING: PostgreSQL is already running on 127.0.0.1:5432 (not our container)."; \
+		echo "Tests will use this instance. To use the Makefile's container, stop it first."; \
+		exit 0; \
+	fi
 	docker rm -f test-postgres-docker-${POSTGRES_VERSION} || true
 
 	# Try pulling up to three times to avoid CI flakes.
 	docker pull ${POSTGRES_IMAGE} || {
 		retries=2
-		for try in $(seq 1 ${retries}); do
-			echo "Failed to pull image, retrying (${try}/${retries})..."
+		for try in $$(seq 1 $${retries}); do
+			echo "Failed to pull image, retrying ($${try}/$${retries})..."
 			sleep 1
 			if docker pull ${POSTGRES_IMAGE}; then
 				break
@@ -1390,7 +1414,7 @@ test-postgres-docker:
 		-c log_statement=all
 	while ! pg_isready -h 127.0.0.1
 	do
-		echo "$(date) - waiting for database to start"
+		echo "$$(date) - waiting for database to start"
 		sleep 0.5
 	done
 .PHONY: test-postgres-docker
@@ -1423,6 +1447,7 @@ site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES)
 
 test-e2e: site/e2e/bin/coder site/node_modules/.installed site/out/index.html
 	cd site/
+	pnpm playwright:install
 ifdef CI
 	DEBUG=pw:api pnpm playwright:test --forbid-only --workers 1
 else
