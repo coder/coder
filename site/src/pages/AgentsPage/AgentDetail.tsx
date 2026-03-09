@@ -561,15 +561,6 @@ const AgentDetail: FC = () => {
 	const outletContext = useOutletContext<AgentsOutletContext | undefined>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
-	const [showSidebarPanel, setShowSidebarPanel] = useState(false);
-	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
-	// Tracks the live visual expanded state during drag so sibling
-	// content hides/shows in real-time rather than on pointer-up.
-	// Null means "no drag override, use isRightPanelExpanded".
-	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
-		null,
-	);
-	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
@@ -630,7 +621,6 @@ const AgentDetail: FC = () => {
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
-	const hasDiffStatus = Boolean(diffStatusQuery.data?.url);
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const chatData = chatQuery.data;
@@ -639,16 +629,6 @@ const AgentDetail: FC = () => {
 	const chatMessages = chatData?.messages;
 	const chatQueuedMessages = chatData?.queued_messages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
-
-	// Auto-open the diff panel when diff status first appears.
-	// See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-	const [prevHasDiffStatus, setPrevHasDiffStatus] = useState(false);
-	if (hasDiffStatus !== prevHasDiffStatus) {
-		setPrevHasDiffStatus(hasDiffStatus);
-		if (hasDiffStatus && !window.matchMedia("(max-width: 767px)").matches) {
-			setShowSidebarPanel(true);
-		}
-	}
 
 	const modelOptions = useMemo(
 		() =>
@@ -736,17 +716,6 @@ const AgentDetail: FC = () => {
 		chatInputRef.current?.insertText(prefix + commitPrompt);
 		chatInputRef.current?.focus();
 	}, []);
-
-	// Auto-open sidebar when git watcher receives its first non-empty
-	// repositories update.
-	const [prevHasGitRepos, setPrevHasGitRepos] = useState(false);
-	const hasGitRepos = gitWatcher.repositories.size > 0;
-	if (hasGitRepos !== prevHasGitRepos) {
-		setPrevHasGitRepos(hasGitRepos);
-		if (hasGitRepos && !window.matchMedia("(max-width: 767px)").matches) {
-			setShowSidebarPanel(true);
-		}
-	}
 
 	// Extract PR number from diff status URL.
 	const prMatch = diffStatusQuery.data?.url?.match(/\/pull\/(\d+)/)?.[1];
@@ -1111,16 +1080,8 @@ const AgentDetail: FC = () => {
 			isInputDisabled={isInputDisabled}
 			isSubmissionPending={isSubmissionPending}
 			isInterruptPending={interruptMutation.isPending}
-			showSidebarPanel={showSidebarPanel}
-			setShowSidebarPanel={setShowSidebarPanel}
-			isRightPanelExpanded={isRightPanelExpanded}
-			setIsRightPanelExpanded={setIsRightPanelExpanded}
-			visualExpanded={visualExpanded}
-			setDragVisualExpanded={setDragVisualExpanded}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			hasDiffStatus={hasDiffStatus}
-			hasGitRepos={hasGitRepos}
 			prNumber={prNumber}
 			diffStatusData={diffStatusQuery.data}
 			gitWatcher={gitWatcher}

@@ -77,13 +77,9 @@ const meta: Meta<typeof AgentsPageView> = {
 	args: {
 		agentId: undefined,
 		chatList: [],
-		chatErrorReasons: {},
 		catalogModelOptions: defaultModelOptions,
 		modelConfigs: defaultModelConfigs,
 		logoUrl: "",
-		requestArchiveAgent: fn(),
-		requestUnarchiveAgent: fn(),
-		requestArchiveAndDeleteWorkspace: fn(),
 		handleNewAgent: fn(),
 		isCreating: false,
 		isArchiving: false,
@@ -281,10 +277,6 @@ export const WithErrorReasons: Story = {
 				updated_at: todayTimestamp,
 			}),
 		],
-		chatErrorReasons: {
-			"chat-1": "Model rate limited",
-			"chat-3": "Context window exceeded",
-		},
 		outletContext: {
 			chatErrorReasons: {
 				"chat-1": "Model rate limited",

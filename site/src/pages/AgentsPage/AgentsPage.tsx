@@ -500,13 +500,9 @@ const AgentsPage: FC = () => {
 		<AgentsPageView
 			agentId={agentId}
 			chatList={chatList}
-			chatErrorReasons={chatErrorReasons}
 			catalogModelOptions={catalogModelOptions}
 			modelConfigs={chatModelConfigsQuery.data ?? []}
 			logoUrl={appearance.logo_url}
-			requestArchiveAgent={requestArchiveAgent}
-			requestUnarchiveAgent={requestUnarchiveAgent}
-			requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 			handleNewAgent={handleNewAgent}
 			isCreating={createMutation.isPending}
 			isArchiving={isArchiving}

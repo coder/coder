@@ -3,7 +3,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { ArchiveIcon } from "lucide-react";
-import type { FC, RefObject } from "react";
+import { type FC, type RefObject, useState } from "react";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
@@ -129,20 +129,10 @@ interface AgentDetailViewProps {
 	isInterruptPending: boolean;
 
 	// Sidebar / panel state.
-	showSidebarPanel: boolean;
-	setShowSidebarPanel: (show: boolean | ((prev: boolean) => boolean)) => void;
-	isRightPanelExpanded: boolean;
-	setIsRightPanelExpanded: (
-		expanded: boolean | ((prev: boolean) => boolean),
-	) => void;
-	visualExpanded: boolean;
-	setDragVisualExpanded: (expanded: boolean | null) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 
 	// Sidebar content data.
-	hasDiffStatus: boolean;
-	hasGitRepos: boolean;
 	prNumber: number | undefined;
 	diffStatusData: ChatDiffStatusResponse | undefined;
 	gitWatcher: {
@@ -200,16 +190,8 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	isInputDisabled,
 	isSubmissionPending,
 	isInterruptPending,
-	showSidebarPanel,
-	setShowSidebarPanel,
-	isRightPanelExpanded,
-	setIsRightPanelExpanded,
-	visualExpanded,
-	setDragVisualExpanded,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
-	hasDiffStatus,
-	hasGitRepos,
 	prNumber,
 	diffStatusData,
 	gitWatcher,
@@ -229,6 +211,39 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleArchiveAndDeleteWorkspaceAction,
 	scrollContainerRef,
 }) => {
+	// Panel/sidebar UI state – purely visual, no data-fetching
+	// implications.
+	const [showSidebarPanel, setShowSidebarPanel] = useState(false);
+	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
+	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
+		null,
+	);
+	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
+
+	// Derive trivial booleans the View can compute itself.
+	const hasDiffStatus = Boolean(diffStatusData?.url);
+	const hasGitRepos = gitWatcher.repositories.size > 0;
+
+	// Auto-open the diff panel when diff status first appears.
+	// See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+	const [prevHasDiffStatus, setPrevHasDiffStatus] = useState(false);
+	if (hasDiffStatus !== prevHasDiffStatus) {
+		setPrevHasDiffStatus(hasDiffStatus);
+		if (hasDiffStatus && !window.matchMedia("(max-width: 767px)").matches) {
+			setShowSidebarPanel(true);
+		}
+	}
+
+	// Auto-open sidebar when git watcher receives its first non-empty
+	// repositories update.
+	const [prevHasGitRepos, setPrevHasGitRepos] = useState(false);
+	if (hasGitRepos !== prevHasGitRepos) {
+		setPrevHasGitRepos(hasGitRepos);
+		if (hasGitRepos && !window.matchMedia("(max-width: 767px)").matches) {
+			setShowSidebarPanel(true);
+		}
+	}
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}

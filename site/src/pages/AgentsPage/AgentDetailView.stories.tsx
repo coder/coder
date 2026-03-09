@@ -119,16 +119,8 @@ const meta: Meta<typeof AgentDetailView> = {
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
-		showSidebarPanel: false,
-		setShowSidebarPanel: fn(),
-		isRightPanelExpanded: false,
-		setIsRightPanelExpanded: fn(),
-		visualExpanded: false,
-		setDragVisualExpanded: fn(),
 		isSidebarCollapsed: false,
 		onToggleSidebarCollapsed: fn(),
-		hasDiffStatus: false,
-		hasGitRepos: false,
 		prNumber: undefined,
 		diffStatusData: undefined,
 		gitWatcher: defaultGitWatcher,
@@ -203,9 +195,6 @@ export const SubmissionPending: Story = {
 /** Right sidebar panel is open with diff status data. */
 export const WithSidebarPanel: Story = {
 	args: {
-		showSidebarPanel: true,
-		hasDiffStatus: true,
-		hasGitRepos: false,
 		prNumber: 123,
 		diffStatusData: {
 			chat_id: AGENT_ID,

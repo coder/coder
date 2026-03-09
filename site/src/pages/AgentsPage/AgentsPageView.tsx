@@ -32,16 +32,9 @@ export interface AgentsOutletContext {
 interface AgentsPageViewProps {
 	agentId: string | undefined;
 	chatList: TypesGen.Chat[];
-	chatErrorReasons: Record<string, string>;
 	catalogModelOptions: readonly ChatModelOption[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	logoUrl: string;
-	requestArchiveAgent: (chatId: string) => void;
-	requestUnarchiveAgent: (chatId: string) => void;
-	requestArchiveAndDeleteWorkspace: (
-		chatId: string,
-		workspaceId: string,
-	) => void;
 	handleNewAgent: () => void;
 	isCreating: boolean;
 	isArchiving: boolean;
@@ -60,13 +53,9 @@ interface AgentsPageViewProps {
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	agentId,
 	chatList,
-	chatErrorReasons,
 	catalogModelOptions,
 	modelConfigs,
 	logoUrl,
-	requestArchiveAgent,
-	requestUnarchiveAgent,
-	requestArchiveAndDeleteWorkspace,
 	handleNewAgent,
 	isCreating,
 	isArchiving,
@@ -81,6 +70,12 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	emptyStateNode,
 	toolbarEndContent,
 }) => {
+	const {
+		chatErrorReasons,
+		requestArchiveAgent,
+		requestUnarchiveAgent,
+		requestArchiveAndDeleteWorkspace,
+	} = outletContext;
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<title>{pageTitle("Agents")}</title>
