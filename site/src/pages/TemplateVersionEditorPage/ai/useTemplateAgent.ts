@@ -587,6 +587,7 @@ export const useTemplateAgent = ({
 
 	const mcpClientRef = useRef<MCPClientInstance | null>(null);
 	const mcpToolsRef = useRef<MCPTools>({});
+	const [mcpConnectionFailed, setMcpConnectionFailed] = useState(false);
 
 	// Tracks whether a successful build happened for the current chat
 	// session so publish can skip the dirty-file check after approval
@@ -637,10 +638,17 @@ export const useTemplateAgent = ({
 
 				mcpClientRef.current = client;
 				mcpToolsRef.current = prefixToolNames(await client.tools());
+				setMcpConnectionFailed(false);
 			} catch (error) {
 				// Best-effort integration: keep local tools available if MCP
-				// initialization fails.
-				console.warn("Failed to initialize MCP client:", error);
+				// initialization fails. Surface the failure so the UI can
+				// warn the user that registry tools are unavailable.
+				const errorType = error instanceof Error ? error.name : typeof error;
+				const errorMsg = error instanceof Error ? error.message : String(error);
+				console.warn(
+					`MCP client initialization failed (${errorType}): ${errorMsg}. Registry tools will be unavailable.`,
+				);
+				setMcpConnectionFailed(true);
 			}
 		};
 
@@ -913,6 +921,7 @@ export const useTemplateAgent = ({
 		isStreaming: status === "streaming",
 		status,
 		pendingApproval,
+		mcpConnectionFailed,
 		send,
 		approve,
 		reject,

@@ -122,15 +122,14 @@ const TemplateVersionEditorPage: FC = () => {
 		...data
 	}: PublishVersionData) => {
 		const templateVersion = activeTemplateVersion!;
-		await publishVersionMutation.mutateAsync({
+		// publishVersion returns the server's patched TemplateVersion,
+		// so we use it as the authoritative source of truth instead of
+		// manually reconstructing the object from local inputs.
+		const publishedVersion = await publishVersionMutation.mutateAsync({
 			isActiveVersion,
 			data,
 			version: templateVersion,
 		});
-		const publishedVersion = {
-			...templateVersion,
-			...data,
-		};
 		setLastSuccessfulPublishedVersion(publishedVersion);
 		queryClient.setQueryData(templateVersionOptions.queryKey, publishedVersion);
 		return publishedVersion;
@@ -348,29 +347,34 @@ const generateVersionFiles = async (
 	return new File([blob], "template.tar", { type: "application/x-tar" });
 };
 
+/**
+ * Publish a template version by patching its metadata and optionally
+ * promoting it to the active version. Returns the server's patched
+ * TemplateVersion so callers use authoritative data instead of
+ * reconstructing the object locally.
+ */
 const publishVersion = async (options: {
 	version: TemplateVersion;
 	data: PatchTemplateVersionRequest;
 	isActiveVersion: boolean;
-}) => {
+}): Promise<TemplateVersion> => {
 	const { version, data, isActiveVersion } = options;
 	const haveChanges =
 		data.name !== version.name || data.message !== version.message;
-	const publishActions: Promise<unknown>[] = [];
 
-	if (haveChanges) {
-		publishActions.push(API.patchTemplateVersion(version.id, data));
-	}
+	// Patch metadata first so we have the server's response as the
+	// canonical source of truth for the updated TemplateVersion.
+	const patchedVersion = haveChanges
+		? await API.patchTemplateVersion(version.id, data)
+		: version;
 
 	if (version.template_id && isActiveVersion) {
-		publishActions.push(
-			API.updateActiveTemplateVersion(version.template_id, {
-				id: version.id,
-			}),
-		);
+		await API.updateActiveTemplateVersion(version.template_id, {
+			id: version.id,
+		});
 	}
 
-	return Promise.all(publishActions);
+	return patchedVersion;
 };
 
 const defaultMainTerraformFile = "main.tf";

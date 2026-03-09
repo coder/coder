@@ -6,7 +6,7 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, useMemo } from "react";
+import { type FC, useEffect, useMemo, useRef } from "react";
 import { cn } from "utils/cn";
 import {
 	existsFile,
@@ -168,6 +168,16 @@ export const EditApprovalCard: FC<EditApprovalCardProps> = ({
 	onNavigateToFile,
 	getFileTree,
 }) => {
+	const approveRef = useRef<HTMLButtonElement>(null);
+	// Move focus to the Approve button when this card first
+	// requires user input so keyboard and screen-reader users
+	// are immediately aware of the pending action.
+	useEffect(() => {
+		if (isPending) {
+			approveRef.current?.focus();
+		}
+	}, [isPending]);
+
 	const path = typeof toolCall.args.path === "string" ? toolCall.args.path : "";
 	const hasValidPath = path.length > 0;
 	const pathLabel = hasValidPath ? path : "(invalid path)";
@@ -208,8 +218,17 @@ export const EditApprovalCard: FC<EditApprovalCardProps> = ({
 	const resultError = typeof result?.error === "string" ? result.error : null;
 	const resultSuccess = result?.success === true;
 
+	const actionLabel =
+		toolCall.toolName === "editFile"
+			? `Edit file: ${pathLabel}`
+			: `Delete file: ${pathLabel}`;
+
 	return (
-		<div className="space-y-2 rounded-md border border-solid border-border-default p-2.5">
+		<div
+			className="space-y-2 rounded-md border border-solid border-border-default p-2.5"
+			role="region"
+			aria-label={actionLabel}
+		>
 			<div className="flex items-center gap-2">
 				{toolCall.toolName === "editFile" ? (
 					<FilePenLineIcon className="size-3.5 text-content-secondary" />
@@ -288,8 +307,17 @@ export const EditApprovalCard: FC<EditApprovalCardProps> = ({
 			)}
 
 			{isPending && (
-				<div className="flex items-center gap-1.5">
-					<Button variant="outline" size="sm" onClick={onApprove}>
+				<div
+					className="flex items-center gap-1.5"
+					role="group"
+					aria-label="Approval actions"
+				>
+					<Button
+						ref={approveRef}
+						variant="outline"
+						size="sm"
+						onClick={onApprove}
+					>
 						<CheckIcon />
 						Approve
 					</Button>

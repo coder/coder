@@ -1,6 +1,11 @@
 import type { AIBridgeModel, AIModelConfig } from "api/queries/aiBridge";
 import { Button } from "components/Button/Button";
-import { RotateCcwIcon, SparklesIcon, XIcon } from "lucide-react";
+import {
+	RotateCcwIcon,
+	SparklesIcon,
+	TriangleAlertIcon,
+	XIcon,
+} from "lucide-react";
 import { type FC, useEffect, useRef } from "react";
 import type { FileTree } from "utils/filetree";
 import { ChatInput } from "./ChatInput";
@@ -32,6 +37,7 @@ export const AIChatPanel: FC<AIChatPanelProps> = ({
 		isStreaming,
 		status,
 		pendingApproval,
+		mcpConnectionFailed,
 		send,
 		approve,
 		reject,
@@ -84,6 +90,19 @@ export const AIChatPanel: FC<AIChatPanelProps> = ({
 				availableModels={availableModels}
 				onModelConfigChange={onModelConfigChange}
 			/>
+
+			{mcpConnectionFailed && (
+				<div
+					className="mx-3 flex items-center gap-2 rounded-md bg-surface-orange/10 px-2.5 py-1.5 text-2xs text-content-warning"
+					role="status"
+				>
+					<TriangleAlertIcon className="size-3 shrink-0" />
+					<span>
+						Coder Registry tools are unavailable. Local file editing still
+						works.
+					</span>
+				</div>
+			)}
 
 			<div ref={listRef} className="flex-1 overflow-y-auto px-3 py-2">
 				<div className="flex min-h-full flex-col justify-end gap-3">
