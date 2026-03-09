@@ -669,7 +669,11 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									onClick={handleSubmit}
 									disabled={!canSend}
 								>
-									{isLoading ? <Spinner size="sm" loading /> : <ArrowUpIcon />}
+									{isLoading ? (
+										<Spinner size="sm" loading aria-hidden="true" />
+									) : (
+										<ArrowUpIcon />
+									)}
 									<span className="sr-only">{sendButtonLabel}</span>
 								</Button>
 							)}
