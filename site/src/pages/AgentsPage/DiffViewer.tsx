@@ -73,7 +73,7 @@ const STICKY_HEADER_CSS = [
 ].join(" ");
 
 export type DiffStyle = "unified" | "split";
-export const DIFF_STYLE_KEY = "agents.diff-view-style";
+const DIFF_STYLE_KEY = "agents.diff-view-style";
 
 export function loadDiffStyle(): DiffStyle {
 	if (typeof window === "undefined") {
@@ -84,6 +84,10 @@ export function loadDiffStyle(): DiffStyle {
 		return stored;
 	}
 	return "unified";
+}
+
+export function saveDiffStyle(style: DiffStyle): void {
+	localStorage.setItem(DIFF_STYLE_KEY, style);
 }
 
 /** Width of the file tree sidebar in pixels. */
@@ -609,7 +613,9 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			className="flex h-full min-w-0 flex-col overflow-hidden"
 		>
 			{/* Header */}
-			<div className="flex items-center gap-1 px-3 py-2">{headerLeft}</div>
+			<div className="flex items-center gap-1 bg-surface-secondary px-3 py-2">
+				{headerLeft}
+			</div>
 			{/* Diff contents */}
 			{sortedFiles.length === 0 ? (
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">

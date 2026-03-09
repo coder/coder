@@ -70,6 +70,7 @@ import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import { useWorkspaceCreationWatcher } from "./AgentDetail/useWorkspaceCreationWatcher";
 import type { AgentsOutletContext } from "./AgentsPage";
+import { GitPanel } from "./GitPanel";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
@@ -77,7 +78,7 @@ import {
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { RightPanel } from "./RightPanel";
-import { SidebarTabView } from "./SidebarTabView";
+import { type SidebarTab, SidebarTabView } from "./SidebarTabView";
 import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
 
@@ -989,7 +990,7 @@ const AgentDetail: FC = () => {
 		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
 			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
 			: undefined;
-	const shouldShowSidebar = (hasDiffStatus || hasGitRepos) && showSidebarPanel;
+	const shouldShowSidebar = showSidebarPanel;
 
 	const generateKeyMutation = useMutation({
 		mutationFn: () => API.getApiKey(),
@@ -1060,12 +1061,7 @@ const AgentDetail: FC = () => {
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
 				{titleElement}
 				<AgentDetailTopBar
-					diff={{
-						hasDiffStatus: false,
-						diffStatus: undefined,
-						hasGitRepos: false,
-						gitRepoCount: 0,
-						gitRepositories: new Map(),
+					panel={{
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
 					}}
@@ -1110,7 +1106,7 @@ const AgentDetail: FC = () => {
 									<Skeleton className="h-4 w-4/6" />
 									<Skeleton className="h-4 w-full" />
 									<Skeleton className="h-4 w-3/5" />
-								</div>
+								</div>{" "}
 							</div>
 						</div>
 					</div>
@@ -1139,12 +1135,7 @@ const AgentDetail: FC = () => {
 			<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
 				{titleElement}
 				<AgentDetailTopBar
-					diff={{
-						hasDiffStatus: false,
-						diffStatus: undefined,
-						hasGitRepos: false,
-						gitRepoCount: 0,
-						gitRepositories: new Map(),
+					panel={{
 						showSidebarPanel: false,
 						onToggleSidebar: () => {},
 					}}
@@ -1166,7 +1157,7 @@ const AgentDetail: FC = () => {
 				/>
 				<div className="flex flex-1 items-center justify-center text-content-secondary">
 					Chat not found
-				</div>
+				</div>{" "}
 			</div>
 		);
 	}
@@ -1190,12 +1181,7 @@ const AgentDetail: FC = () => {
 						chatTitle={chatTitle}
 						parentChat={parentChat}
 						onOpenParentChat={(chatId) => navigate(`/agents/${chatId}`)}
-						diff={{
-							hasDiffStatus,
-							diffStatus: diffStatusQuery.data,
-							hasGitRepos,
-							gitRepoCount: gitWatcher.repositories.size,
-							gitRepositories: gitWatcher.repositories,
+						panel={{
 							showSidebarPanel,
 							onToggleSidebar: () => setShowSidebarPanel((prev) => !prev),
 						}}
@@ -1289,30 +1275,37 @@ const AgentDetail: FC = () => {
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			>
 				<SidebarTabView
-					prTab={
-						prNumber && agentId ? { prNumber, chatId: agentId } : undefined
+					tabs={
+						[
+							(hasDiffStatus || hasGitRepos) && {
+								id: "git",
+								label: "Git",
+								content: (
+									<GitPanel
+										prTab={
+											prNumber && agentId
+												? { prNumber, chatId: agentId }
+												: undefined
+										}
+										repositories={gitWatcher.repositories}
+										onRefresh={gitWatcher.refresh}
+										onCommit={handleCommit}
+										isExpanded={visualExpanded}
+										remoteDiffStats={diffStatusQuery.data}
+										chatInputRef={editing.chatInputRef}
+									/>
+								),
+							},
+						].filter(Boolean) as SidebarTab[]
 					}
-					repositories={gitWatcher.repositories}
-					workspace={
-						workspace
-							? {
-									name: workspace.name,
-									ownerName: workspace.owner_name,
-								}
-							: undefined
-					}
-					onRefresh={gitWatcher.refresh}
-					onCommit={handleCommit}
 					onClose={() => setShowSidebarPanel(false)}
 					isExpanded={visualExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					chatTitle={chatTitle}
-					diffStatus={diffStatusQuery.data}
-					chatInputRef={editing.chatInputRef}
 				/>
-			</RightPanel>
+			</RightPanel>{" "}
 		</div>
 	);
 };
