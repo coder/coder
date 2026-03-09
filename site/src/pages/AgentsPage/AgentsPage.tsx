@@ -67,7 +67,7 @@ const nilUUID = "00000000-0000-0000-0000-000000000000";
 
 type ChatModelOption = ModelSelectorOption;
 
-type CreateChatOptions = {
+export type CreateChatOptions = {
 	message: string;
 	fileIDs?: string[];
 	workspaceId?: string;
@@ -100,7 +100,6 @@ const AgentsPage: FC = () => {
 	const isAgentsAdmin =
 		permissions.editDeploymentConfig ||
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
-	const canSetSystemPrompt = isAgentsAdmin;
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -189,8 +188,6 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
 		},
 	});
-	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
-		useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, string>
@@ -513,25 +510,13 @@ const AgentsPage: FC = () => {
 			isSidebarCollapsed={isSidebarCollapsed}
 			onExpandSidebar={() => setIsSidebarCollapsed(false)}
 			outletContext={outletContext}
-			emptyStateNode={
-				<AgentsEmptyState
-					onCreateChat={handleCreateChat}
-					isCreating={createMutation.isPending}
-					createError={createMutation.error}
-					modelCatalog={chatModelsQuery.data}
-					modelOptions={catalogModelOptions}
-					modelConfigs={chatModelConfigsQuery.data ?? []}
-					isModelCatalogLoading={chatModelsQuery.isLoading}
-					isModelConfigsLoading={chatModelConfigsQuery.isLoading}
-					modelCatalogError={chatModelsQuery.error}
-					canSetSystemPrompt={canSetSystemPrompt}
-					canManageChatModelConfigs={isAgentsAdmin}
-					isConfigureAgentsDialogOpen={isConfigureAgentsDialogOpen}
-					onConfigureAgentsDialogOpenChange={setConfigureAgentsDialogOpen}
-				/>
-			}
+			onCreateChat={handleCreateChat}
+			createError={createMutation.error}
+			modelCatalog={chatModelsQuery.data}
+			isModelCatalogLoading={chatModelsQuery.isLoading}
+			isModelConfigsLoading={chatModelConfigsQuery.isLoading}
+			modelCatalogError={chatModelsQuery.error}
 			isAgentsAdmin={isAgentsAdmin}
-			onOpenConfigureAgentsDialog={() => setConfigureAgentsDialogOpen(true)}
 		/>
 	);
 };

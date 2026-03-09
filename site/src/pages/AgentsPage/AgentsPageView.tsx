@@ -4,12 +4,13 @@ import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { PanelLeftIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
+import { type FC, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 
 import { AgentsSidebar } from "./AgentsSidebar";
+import { AgentsEmptyState, type CreateChatOptions } from "./AgentsPage";
 import { ChimeButton } from "./ChimeButton";
 import { WebPushButton } from "./WebPushButton";
 
@@ -46,9 +47,13 @@ interface AgentsPageViewProps {
 	isSidebarCollapsed: boolean;
 	onExpandSidebar: () => void;
 	outletContext: AgentsOutletContext;
-	emptyStateNode: ReactNode;
 	isAgentsAdmin: boolean;
-	onOpenConfigureAgentsDialog: () => void;
+	onCreateChat: (options: CreateChatOptions) => Promise<void>;
+	createError: unknown;
+	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
+	isModelCatalogLoading: boolean;
+	isModelConfigsLoading: boolean;
+	modelCatalogError: unknown;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -68,9 +73,13 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isSidebarCollapsed,
 	onExpandSidebar,
 	outletContext,
-	emptyStateNode,
 	isAgentsAdmin,
-	onOpenConfigureAgentsDialog,
+	onCreateChat,
+	createError,
+	modelCatalog,
+	isModelCatalogLoading,
+	isModelConfigsLoading,
+	modelCatalogError,
 }) => {
 	const {
 		chatErrorReasons,
@@ -78,6 +87,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestUnarchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 	} = outletContext;
+	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
+		useState(false);
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<title>{pageTitle("Agents")}</title>
@@ -151,14 +162,28 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 										variant="subtle"
 										disabled={isCreating}
 										className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
-										onClick={onOpenConfigureAgentsDialog}
+										onClick={() => setConfigureAgentsDialogOpen(true)}
 									>
 										Admin
 									</Button>
 								)}
 							</div>
 						</div>
-						{emptyStateNode}
+						<AgentsEmptyState
+							onCreateChat={onCreateChat}
+							isCreating={isCreating}
+							createError={createError}
+							modelCatalog={modelCatalog}
+							modelOptions={catalogModelOptions}
+							modelConfigs={modelConfigs}
+							isModelCatalogLoading={isModelCatalogLoading}
+							isModelConfigsLoading={isModelConfigsLoading}
+							modelCatalogError={modelCatalogError}
+							canSetSystemPrompt={isAgentsAdmin}
+							canManageChatModelConfigs={isAgentsAdmin}
+							isConfigureAgentsDialogOpen={isConfigureAgentsDialogOpen}
+							onConfigureAgentsDialogOpenChange={setConfigureAgentsDialogOpen}
+						/>
 					</>
 				)}
 			</div>

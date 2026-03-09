@@ -56,12 +56,6 @@ const agentsRouting = [
 	...{ path: string; useStoryElement: boolean }[],
 ];
 
-const emptyStateNode = (
-	<div className="flex min-h-0 flex-1 items-center justify-center text-content-secondary">
-		No agents yet. Start a conversation!
-	</div>
-);
-
 const meta: Meta<typeof AgentsPageView> = {
 	title: "pages/AgentsPage/AgentsPageView",
 	component: AgentsPageView,
@@ -99,11 +93,15 @@ const meta: Meta<typeof AgentsPageView> = {
 			requestArchiveAndDeleteWorkspace: fn(),
 			isSidebarCollapsed: false,
 			onToggleSidebarCollapsed: fn(),
-		},
-			emptyStateNode,
+			},
 			isAgentsAdmin: false,
-			onOpenConfigureAgentsDialog: fn(),	},
-};
+			onCreateChat: fn(),
+			createError: undefined,
+			modelCatalog: undefined,
+			isModelCatalogLoading: false,
+			isModelConfigsLoading: false,
+			modelCatalogError: undefined,
+		},};
 
 export default meta;
 type Story = StoryObj<typeof AgentsPageView>;
