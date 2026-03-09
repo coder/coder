@@ -64,7 +64,9 @@ self.addEventListener("notificationclick", (event) => {
 			.then((clientList) => {
 				for (const client of clientList) {
 					if (client.url.includes("/agents") && "focus" in client) {
-						client.navigate(targetUrl);
+						if (!client.url.includes(targetUrl)) {
+							client.navigate(targetUrl);
+						}
 						return client.focus();
 					}
 				}

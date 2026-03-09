@@ -245,3 +245,84 @@ describe("serviceWorker push handler", () => {
 		});
 	});
 });
+
+// Helper to build a minimal NotificationEvent-like object for
+// the notificationclick handler.
+function makeNotificationClickEvent(url?: string) {
+	let waitUntilPromise: Promise<unknown> = Promise.resolve();
+	return {
+		notification: {
+			close: vi.fn(),
+			data: url !== undefined ? { url } : undefined,
+		},
+		waitUntil: (p: Promise<unknown>) => {
+			waitUntilPromise = p;
+		},
+		// Expose the promise so tests can await it.
+		get _waitUntilPromise() {
+			return waitUntilPromise;
+		},
+	};
+}
+
+describe("serviceWorker notificationclick handler", () => {
+	it("focuses existing client without navigating when already on the target URL", async () => {
+		const mockClient = {
+			url: "https://example.com/agents/abc",
+			visibilityState: "visible",
+			focused: true,
+			focus: vi.fn(() => Promise.resolve()),
+			navigate: vi.fn(() => Promise.resolve()),
+		};
+		mockMatchAll.mockResolvedValue([mockClient]);
+
+		const event = makeNotificationClickEvent("/agents/abc");
+		handlers.notificationclick(event);
+		await event._waitUntilPromise;
+
+		expect(event.notification.close).toHaveBeenCalled();
+		expect(mockClient.navigate).not.toHaveBeenCalled();
+		expect(mockClient.focus).toHaveBeenCalled();
+	});
+
+	it("navigates and focuses existing client when on a different agents page", async () => {
+		const mockClient = {
+			url: "https://example.com/agents/other",
+			visibilityState: "visible",
+			focused: true,
+			focus: vi.fn(() => Promise.resolve()),
+			navigate: vi.fn(() => Promise.resolve()),
+		};
+		mockMatchAll.mockResolvedValue([mockClient]);
+
+		const event = makeNotificationClickEvent("/agents/abc");
+		handlers.notificationclick(event);
+		await event._waitUntilPromise;
+
+		expect(event.notification.close).toHaveBeenCalled();
+		expect(mockClient.navigate).toHaveBeenCalledWith("/agents/abc");
+		expect(mockClient.focus).toHaveBeenCalled();
+	});
+
+	it("opens new window when no matching client exists", async () => {
+		mockMatchAll.mockResolvedValue([]);
+
+		const event = makeNotificationClickEvent("/agents/abc");
+		handlers.notificationclick(event);
+		await event._waitUntilPromise;
+
+		expect(event.notification.close).toHaveBeenCalled();
+		expect(mockClients.openWindow).toHaveBeenCalledWith("/agents/abc");
+	});
+
+	it("defaults to /agents when notification has no data url", async () => {
+		mockMatchAll.mockResolvedValue([]);
+
+		const event = makeNotificationClickEvent();
+		handlers.notificationclick(event);
+		await event._waitUntilPromise;
+
+		expect(event.notification.close).toHaveBeenCalled();
+		expect(mockClients.openWindow).toHaveBeenCalledWith("/agents");
+	});
+});
