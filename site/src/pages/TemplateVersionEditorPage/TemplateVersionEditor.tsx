@@ -343,6 +343,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const buildCompleteResolverRef = useRef<{
 		id: number;
 		expectedVersionId: string;
+		// Set to true once the useEffect observes templateVersion.id
+		// matching expectedVersionId. Used to distinguish "page hasn't
+		// navigated to the build yet" from "page moved to a newer build"
+		// so we can cancel stale waiters without false positives.
+		seenExpectedVersion: boolean;
 		resolve: (result: BuildResult) => void;
 	} | null>(null);
 
@@ -381,6 +386,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 			buildCompleteResolverRef.current = {
 				id,
 				expectedVersionId: requestedBuildVersion.id,
+				seenExpectedVersion: false,
 				resolve,
 			};
 		});
@@ -485,14 +491,30 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 		if (pending.id !== buildIdRef.current) {
 			return;
 		}
-		if (
-			templateVersion.id !== pending.expectedVersionId ||
-			!isTerminalBuildStatus(templateVersion.job.status)
-		) {
+
+		if (templateVersion.id === pending.expectedVersionId) {
+			// Mark that we observed the expected version at least once.
+			pending.seenExpectedVersion = true;
+			if (!isTerminalBuildStatus(templateVersion.job.status)) {
+				return;
+			}
+			pending.resolve(buildResultFromSnapshot(templateVersion, buildLogs));
+			buildCompleteResolverRef.current = null;
 			return;
 		}
-		pending.resolve(buildResultFromSnapshot(templateVersion, buildLogs));
-		buildCompleteResolverRef.current = null;
+
+		// The active version diverged from what the AI build produced.
+		// Only cancel once we know the page *did* navigate to the expected
+		// version first (seenExpectedVersion) — otherwise the page simply
+		// hasn't caught up yet and we should keep waiting.
+		if (pending.seenExpectedVersion) {
+			pending.resolve({
+				status: "canceled",
+				error: "Build superseded by a newer template version.",
+				logs: "",
+			});
+			buildCompleteResolverRef.current = null;
+		}
 	}, [templateVersion, buildLogs]);
 
 	// Abort any active stream when the page-level component is
