@@ -189,8 +189,8 @@ func (q *sqlQuerier) UpdateUser(ctx context.Context, arg UpdateUserParams) (User
 ### Common Debug Commands
 
 ```bash
-# Check database connection
-make test-postgres
+# Run tests (starts Postgres automatically if needed)
+make test
 
 # Run specific database tests
 go test ./coderd/database/... -run TestSpecificFunction

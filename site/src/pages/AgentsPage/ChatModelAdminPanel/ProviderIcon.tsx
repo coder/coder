@@ -14,10 +14,10 @@ const providerIconMap: Record<string, string> = {
 	gemini: "/icon/gemini.svg",
 };
 
-type ProviderIconProps = {
+interface ProviderIconProps {
 	provider: string;
 	className?: string;
-};
+}
 
 export const ProviderIcon: FC<ProviderIconProps> = ({
 	provider,

@@ -1,35 +1,39 @@
-import { parsePatchFiles } from "@pierre/diffs";
-import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
-	FolderIcon,
-	GitPullRequestIcon,
+	ChevronLeftIcon,
+	ChevronRightIcon,
 	MaximizeIcon,
 	MinimizeIcon,
 	PanelLeftIcon,
+	XIcon,
 } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useId,
+	useRef,
+	useState,
+} from "react";
 import { cn } from "utils/cn";
-import { FilesChangedPanel } from "./FilesChangedPanel";
-import { RepoChangesPanel } from "./RepoChangesPanel";
+
+/** A single tab definition for the sidebar panel. */
+export interface SidebarTab {
+	id: string;
+	/** Label shown in the tab button. */
+	label: string;
+	/** Optional icon shown before the label. */
+	icon?: ReactNode;
+	/** Optional badge shown after the label (e.g. diff stats). */
+	badge?: ReactNode;
+	/** The content to render when this tab is active. */
+	content: ReactNode;
+}
 
 interface SidebarTabViewProps {
-	/** PR tab data. Omitted if no PR is associated. */
-	prTab?: {
-		prNumber: number;
-		chatId: string;
-	};
-	/** Repository tabs from git watcher. */
-	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
-	/** Workspace info for the header. */
-	workspace?: {
-		name: string;
-		ownerName: string;
-	};
-	/** Callback to send a refresh to the git watcher. */
-	onRefresh: () => void;
-	/** Called when the user clicks the Commit button in any repo tab. */
-	onCommit: (repoRoot: string) => void;
+	/** The tabs to display. */
+	tabs: SidebarTab[];
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded: boolean;
 	/** Callback to toggle expanded state. */
@@ -40,127 +44,142 @@ interface SidebarTabViewProps {
 	onToggleSidebarCollapsed?: () => void;
 	/** Shown in center when expanded. */
 	chatTitle?: string;
-	/** PR diff stats for the PR tab. */
-	diffStatus?: { additions?: number; deletions?: number };
+	/** Callback to close the panel (used on mobile). */
+	onClose?: () => void;
 }
 
-function repoTabLabel(repoRoot: string): string {
-	const segments = repoRoot.split("/").filter(Boolean);
-	return segments[segments.length - 1] ?? repoRoot;
-}
+/** How far (px) each chevron click scrolls the tab strip. */
+const TAB_SCROLL_AMOUNT = 120;
 
-function computeDiffStats(unifiedDiff: string | undefined): {
-	additions: number;
-	deletions: number;
-} {
-	if (!unifiedDiff) return { additions: 0, deletions: 0 };
-	try {
-		const patches = parsePatchFiles(unifiedDiff);
-		let additions = 0;
-		let deletions = 0;
-		for (const patch of patches) {
-			for (const file of patch.files) {
-				for (const hunk of file.hunks) {
-					additions += hunk.additionLines;
-					deletions += hunk.deletionLines;
-				}
-			}
-		}
-		return { additions, deletions };
-	} catch {
-		return { additions: 0, deletions: 0 };
-	}
+/**
+ * Tracks whether the tab scroll container overflows and
+ * exposes scroll helpers for the chevron buttons.
+ */
+function useTabScroll() {
+	const ref = useRef<HTMLDivElement>(null);
+	const [canScrollLeft, setCanScrollLeft] = useState(false);
+	const [canScrollRight, setCanScrollRight] = useState(false);
+
+	const update = useCallback(() => {
+		const el = ref.current;
+		if (!el) return;
+		setCanScrollLeft(el.scrollLeft > 0);
+		setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+	}, []);
+
+	useEffect(() => {
+		const el = ref.current;
+		if (!el) return;
+
+		// Initial check.
+		update();
+
+		// Re-check on scroll.
+		el.addEventListener("scroll", update, { passive: true });
+
+		// Re-check when the container or its children resize.
+		const ro = new ResizeObserver(update);
+		ro.observe(el);
+
+		return () => {
+			el.removeEventListener("scroll", update);
+			ro.disconnect();
+		};
+	}, [update]);
+
+	const scrollLeft = useCallback(() => {
+		ref.current?.scrollBy({
+			left: -TAB_SCROLL_AMOUNT,
+			behavior: "smooth",
+		});
+	}, []);
+
+	const scrollRight = useCallback(() => {
+		ref.current?.scrollBy({
+			left: TAB_SCROLL_AMOUNT,
+			behavior: "smooth",
+		});
+	}, []);
+
+	return { ref, canScrollLeft, canScrollRight, scrollLeft, scrollRight };
 }
 
 export const SidebarTabView: FC<SidebarTabViewProps> = ({
-	prTab,
-	repositories,
-	onRefresh,
-	onCommit,
+	tabs,
 	isExpanded,
 	onToggleExpanded,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	chatTitle,
-	diffStatus,
+	onClose,
 }) => {
-	const repoEntries = Array.from(repositories.entries()).sort(([a], [b]) =>
-		a.localeCompare(b),
+	const tabIdPrefix = useId();
+	const [activeTabId, setActiveTabId] = useState<string | null>(
+		tabs.length > 0 ? tabs[0].id : null,
 	);
 
-	const hasPR = Boolean(prTab);
-	const hasRepos = repoEntries.length > 0;
+	// Derive the effective tab. Fall back to the first tab if
+	// the stored activeTabId no longer matches any tab in the list.
+	const effectiveTabId =
+		activeTabId !== null && tabs.some((t) => t.id === activeTabId)
+			? activeTabId
+			: tabs.length > 0
+				? tabs[0].id
+				: null;
 
-	// Default active tab: PR if present, otherwise first repo.
-	const defaultTab = hasPR
-		? "pr"
-		: repoEntries.length > 0
-			? repoEntries[0][0]
-			: null;
+	const activeTab = tabs.find((t) => t.id === effectiveTabId) ?? null;
 
-	const [activeTab, setActiveTab] = useState<string | null>(defaultTab);
+	const tabScroll = useTabScroll();
 
-	// Derive the effective tab inline to avoid a one-frame flash when
-	// activeTab is stale or null but a valid default exists.
-	const effectiveTab =
-		activeTab !== null &&
-		(activeTab === "pr" ? hasPR : repositories.has(activeTab))
-			? activeTab
-			: defaultTab;
-
-	// Compute diff stats for all repo tabs and cache them.
-	const repoDiffStats = useMemo(() => {
-		const statsMap = new Map<
-			string,
-			{ additions: number; deletions: number }
-		>();
-		for (const [repoRoot, repo] of repoEntries) {
-			statsMap.set(repoRoot, computeDiffStats(repo.unified_diff));
-		}
-		return statsMap;
-	}, [repoEntries]);
-
-	const prDiffAdditions = diffStatus?.additions ?? 0;
-	const prDiffDeletions = diffStatus?.deletions ?? 0;
-
-	if (!hasPR && !hasRepos) {
+	if (tabs.length === 0) {
 		return (
-			<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-l border-solid bg-surface-primary">
+			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 				{/* Tab bar – always visible for the expand button. */}
 				<div
 					role="tablist"
-					className="flex shrink-0 items-center gap-1 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1"
 				>
-					<div className="min-w-0 flex-1 text-center">
+					<div className="min-w-0 shrink-0 text-center">
 						{isExpanded && chatTitle && (
 							<span className="truncate text-sm text-content-primary">
 								{chatTitle}
 							</span>
 						)}
 					</div>
+					{onClose && (
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={onClose}
+							aria-label="Close panel"
+							className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:hidden"
+						>
+							<XIcon />
+						</Button>
+					)}
 					<Button
 						variant="subtle"
 						size="icon"
 						onClick={onToggleExpanded}
 						aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-						className="h-7 w-7 text-content-secondary hover:text-content-primary"
+						className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:inline-flex"
 					>
 						{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 					</Button>
 				</div>
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">
-					No changes to display.
+					No panels available.
 				</div>
 			</div>
 		);
 	}
 
 	return (
-		<div className="flex h-full min-w-0 flex-col overflow-hidden border-0 border-l border-solid bg-surface-primary">
+		<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 			{/* Tab bar */}
 			<div
 				role="tablist"
-				className="flex shrink-0 items-center gap-1 overflow-x-auto px-1 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1"
 			>
 				{/* Sidebar toggle – only when expanded and sidebar is collapsed */}
 				{isExpanded && isSidebarCollapsed && onToggleSidebarCollapsed && (
@@ -169,122 +188,111 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						size="icon"
 						onClick={onToggleSidebarCollapsed}
 						aria-label="Expand sidebar"
-						className="mr-1 h-7 w-7 min-w-0 shrink-0"
+						className="mr-1 h-7 w-7 shrink-0"
 					>
 						<PanelLeftIcon />
 					</Button>
 				)}
-
-				{/* Tabs */}
-				{hasPR && prTab && (
-					<button
-						type="button"
-						id="sidebar-tab-pr"
-						role="tab"
-						aria-selected={effectiveTab === "pr"}
-						onClick={() => setActiveTab("pr")}
-						className={cn(
-							"flex shrink-0 items-center gap-1.5 rounded border border-solid border-border-default px-2 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
-							effectiveTab === "pr"
-								? "bg-surface-tertiary text-content-primary"
-								: "bg-transparent text-content-secondary hover:bg-surface-secondary hover:text-content-primary",
-						)}
-					>
-						<GitPullRequestIcon className="h-3.5 w-3.5" />#{prTab.prNumber}
-						{(prDiffAdditions > 0 || prDiffDeletions > 0) && (
-							<span className="ml-1 inline-flex items-center gap-1 font-mono text-[10px] tabular-nums">
-								{prDiffAdditions > 0 && (
-									<span className="text-green-700 dark:text-green-500">
-										+{prDiffAdditions}
-									</span>
-								)}
-								{prDiffDeletions > 0 && (
-									<span className="text-red-700 dark:text-red-400">
-										&minus;{prDiffDeletions}
-									</span>
-								)}
-							</span>
-						)}
-					</button>
-				)}
-				{repoEntries.map(([repoRoot]) => {
-					const stats = repoDiffStats.get(repoRoot);
-					const additions = stats?.additions ?? 0;
-					const deletions = stats?.deletions ?? 0;
-					return (
+				{/* Scrollable tab strip with overlay chevrons */}
+				<div className="relative min-w-0 flex-1">
+					{tabScroll.canScrollLeft && (
 						<button
 							type="button"
-							id={`sidebar-tab-${repoRoot}`}
-							role="tab"
-							aria-selected={effectiveTab === repoRoot}
-							key={repoRoot}
-							onClick={() => setActiveTab(repoRoot)}
-							className={cn(
-								"flex shrink-0 items-center gap-1.5 rounded border border-solid border-border-default px-2 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link",
-								effectiveTab === repoRoot
-									? "bg-surface-tertiary text-content-primary"
-									: "bg-transparent text-content-secondary hover:bg-surface-secondary hover:text-content-primary",
-							)}
+							onClick={tabScroll.scrollLeft}
+							aria-label="Scroll tabs left"
+							className="absolute left-0 top-0 z-10 flex h-full w-8 cursor-pointer items-center justify-start border-none p-0 pl-1 text-content-primary [background:linear-gradient(to_right,hsl(var(--surface-primary))_50%,transparent)]"
 						>
-							<FolderIcon className="h-3.5 w-3.5" />
-							{repoTabLabel(repoRoot)}
-							{(additions > 0 || deletions > 0) && (
-								<span className="ml-1 inline-flex items-center gap-1 font-mono text-[10px] tabular-nums">
-									{additions > 0 && (
-										<span className="text-green-700 dark:text-green-500">
-											+{additions}
-										</span>
-									)}
-									{deletions > 0 && (
-										<span className="text-red-700 dark:text-red-400">
-											&minus;{deletions}
-										</span>
-									)}
-								</span>
-							)}
+							<ChevronLeftIcon className="size-3.5" />
 						</button>
-					);
-				})}
-
-				{/* Center: chat title when expanded */}
-				<div className="min-w-0 flex-1 text-center">
-					{isExpanded && chatTitle && (
-						<span className="truncate text-sm text-content-primary">
-							{chatTitle}
-						</span>
+					)}
+					<div
+						ref={tabScroll.ref}
+						className="flex w-full items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+					>
+						{tabs.map((tab) => {
+							const isActive = effectiveTabId === tab.id;
+							return (
+								<Button
+									key={tab.id}
+									id={`${tabIdPrefix}-tab-${tab.id}`}
+									role="tab"
+									aria-selected={isActive}
+									onClick={() => setActiveTabId(tab.id)}
+									variant="outline"
+									size="lg"
+									className={cn(
+										"shrink-0 h-6 min-w-0 gap-3 px-2 py-0 bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+										isActive &&
+											"bg-surface-quaternary/25 hover:bg-surface-quaternary/50",
+										tab.badge && "pr-0",
+									)}
+								>
+									{tab.icon}
+									{tab.label}
+									{tab.badge && (
+										<span
+											className={cn(
+												"flex h-full items-center self-stretch transition-opacity",
+												!isActive && "opacity-50",
+											)}
+										>
+											{tab.badge}
+										</span>
+									)}
+								</Button>
+							);
+						})}
+					</div>
+					{tabScroll.canScrollRight && (
+						<button
+							type="button"
+							onClick={tabScroll.scrollRight}
+							aria-label="Scroll tabs right"
+							className="absolute right-0 top-0 z-10 flex h-full w-8 cursor-pointer items-center justify-end border-none p-0 pr-1 text-content-primary [background:linear-gradient(to_left,hsl(var(--surface-primary))_50%,transparent)]"
+						>
+							<ChevronRightIcon className="size-3.5" />
+						</button>
 					)}
 				</div>
-
-				{/* Right side: expand/contract button */}
+				{/* Center: chat title when expanded */}
+				{isExpanded && chatTitle && (
+					<div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+						<span className="truncate px-24 text-sm text-content-primary">
+							{chatTitle}
+						</span>
+					</div>
+				)}
+				{/* Right side: close (mobile) / expand (desktop) */}
+				{onClose && (
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={onClose}
+						aria-label="Close panel"
+						className="h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:hidden"
+					>
+						<XIcon />
+					</Button>
+				)}
 				<Button
 					variant="subtle"
 					size="icon"
 					onClick={onToggleExpanded}
 					aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-					className="h-7 w-7 text-content-secondary hover:text-content-primary"
+					className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:inline-flex"
 				>
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
-
 			{/* Tab content */}
 			<div
 				role="tabpanel"
 				aria-labelledby={
-					effectiveTab ? `sidebar-tab-${effectiveTab}` : undefined
+					effectiveTabId ? `${tabIdPrefix}-tab-${effectiveTabId}` : undefined
 				}
 				className="min-h-0 flex-1"
 			>
-				{effectiveTab === "pr" && prTab ? (
-					<FilesChangedPanel chatId={prTab.chatId} isExpanded={isExpanded} />
-				) : effectiveTab && repositories.has(effectiveTab) ? (
-					<RepoChangesPanel
-						repo={repositories.get(effectiveTab)!}
-						onRefresh={onRefresh}
-						onCommit={() => onCommit(effectiveTab)}
-						isExpanded={isExpanded}
-					/>
-				) : null}
+				{activeTab?.content}
 			</div>
 		</div>
 	);

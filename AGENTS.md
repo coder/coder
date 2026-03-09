@@ -37,21 +37,20 @@ Only pause to ask for confirmation when:
 
 ## Essential Commands
 
-| Task              | Command                  | Notes                               |
-|-------------------|--------------------------|-------------------------------------|
-| **Development**   | `./scripts/develop.sh`   | ⚠️ Don't use manual build           |
-| **Build**         | `make build`             | Fat binaries (includes server)      |
-| **Build Slim**    | `make build-slim`        | Slim binaries                       |
-| **Test**          | `make test`              | Full test suite                     |
-| **Test Single**   | `make test RUN=TestName` | Faster than full suite              |
-| **Test Postgres** | `make test-postgres`     | Run tests with Postgres database    |
-| **Test Race**     | `make test-race`         | Run tests with Go race detector     |
-| **Lint**          | `make lint`              | Always run after changes            |
-| **Generate**      | `make gen`               | After database changes              |
-| **Format**        | `make fmt`               | Auto-format code                    |
-| **Clean**         | `make clean`             | Clean build artifacts               |
-| **Pre-commit**    | `make pre-commit`        | Fast CI checks (gen/fmt/lint/build) |
-| **Pre-push**      | `make pre-push`          | All CI checks including tests       |
+| Task            | Command                  | Notes                               |
+|-----------------|--------------------------|-------------------------------------|
+| **Development** | `./scripts/develop.sh`   | ⚠️ Don't use manual build           |
+| **Build**       | `make build`             | Fat binaries (includes server)      |
+| **Build Slim**  | `make build-slim`        | Slim binaries                       |
+| **Test**        | `make test`              | Full test suite                     |
+| **Test Single** | `make test RUN=TestName` | Faster than full suite              |
+| **Test Race**   | `make test-race`         | Run tests with Go race detector     |
+| **Lint**        | `make lint`              | Always run after changes            |
+| **Generate**    | `make gen`               | After database changes              |
+| **Format**      | `make fmt`               | Auto-format code                    |
+| **Clean**       | `make clean`             | Clean build artifacts               |
+| **Pre-commit**  | `make pre-commit`        | Fast CI checks (gen/fmt/lint/build) |
+| **Pre-push**    | `make pre-push`          | All CI checks including tests       |
 
 ### Documentation Commands
 
@@ -105,21 +104,36 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 
 ### Full workflows available in imported WORKFLOWS.md
 
-### Git Hooks (MANDATORY)
+### Git Hooks (MANDATORY - DO NOT SKIP)
 
-Before your first commit, ensure the git hooks are installed.
-Two hooks run automatically:
+**You MUST install and use the git hooks. NEVER bypass them with
+`--no-verify`. Skipping hooks wastes CI cycles and is unacceptable.**
 
-- **pre-commit**: `make pre-commit` (gen, fmt, lint, typos, build).
-  Fast checks that catch most CI failures.
-- **pre-push**: `make pre-push` (full CI suite including tests).
-  Runs before pushing to catch everything CI would.
-
-Wait for them to complete, do not skip or bypass them.
+The first run will be slow as caches warm up. Consecutive runs are
+**significantly faster** (often 10x) thanks to Go build cache,
+generated file timestamps, and warm node_modules. This is NOT a
+reason to skip them. Wait for hooks to complete before proceeding,
+no matter how long they take.
 
 ```sh
 git config core.hooksPath scripts/githooks
 ```
+
+Two hooks run automatically:
+
+- **pre-commit**: `make pre-commit` (gen, fmt, lint, typos, build).
+  Fast checks that catch most CI failures. Allow at least 5 minutes.
+- **pre-push**: `make pre-push` (full CI suite including tests).
+  Runs before pushing to catch everything CI would. Allow at least
+  15 minutes (race tests are slow without cache).
+
+`git commit` and `git push` will appear to hang while hooks run.
+This is normal. Do not interrupt, retry, or reduce the timeout.
+
+NEVER run `git config core.hooksPath` to change or disable hooks.
+
+If a hook fails, fix the issue and retry. Do not work around the
+failure by skipping the hook.
 
 ### Git Workflow
 

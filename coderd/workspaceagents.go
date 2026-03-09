@@ -2170,7 +2170,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	userID := apiKey.UserID.String()
 
 	// Store connection telemetry event
-	now := time.Now()
+	now := dbtime.Now()
 	connectionTelemetryEvent := telemetry.UserTailnetConnection{
 		ConnectedAt:         now,
 		DisconnectedAt:      nil,
@@ -2187,7 +2187,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer func() {
 		// Update telemetry event with disconnection time
-		disconnectTime := time.Now()
+		disconnectTime := dbtime.Now()
 		connectionTelemetryEvent.DisconnectedAt = &disconnectTime
 		api.Telemetry.Report(&telemetry.Snapshot{
 			UserTailnetConnections: []telemetry.UserTailnetConnection{connectionTelemetryEvent},

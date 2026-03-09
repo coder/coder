@@ -1,12 +1,13 @@
 import { getErrorMessage } from "api/errors";
 import { Button } from "components/Button/Button";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useWebpushNotifications } from "contexts/useWebpushNotifications";
-import { BellIcon, BellOffIcon, Loader2Icon } from "lucide-react";
+import { BellIcon, BellOffIcon } from "lucide-react";
 import type { FC } from "react";
 import { toast } from "sonner";
 
@@ -43,10 +44,15 @@ export const WebPushButton: FC = () => {
 					size="icon"
 					disabled={webPush.loading}
 					onClick={handleClick}
+					aria-label={
+						webPush.subscribed
+							? "Disable notifications"
+							: "Enable notifications"
+					}
 					className="h-7 w-7 text-content-secondary hover:text-content-primary"
 				>
 					{webPush.loading ? (
-						<Loader2Icon className="animate-spin" />
+						<Spinner size="sm" loading />
 					) : webPush.subscribed ? (
 						<BellIcon className="text-content-success" />
 					) : (

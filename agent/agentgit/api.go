@@ -85,15 +85,21 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 	if chatIDStr != "" && a.pathStore != nil {
 		chatID, parseErr := uuid.Parse(chatIDStr)
 		if parseErr == nil {
+			// Subscribe to future path updates BEFORE reading
+			// existing paths. This ordering guarantees no
+			// notification from AddPaths is lost: any call that
+			// lands before Subscribe is picked up by GetPaths
+			// below, and any call after Subscribe delivers a
+			// notification on the channel.
+			notifyCh, unsubscribe := a.pathStore.Subscribe(chatID)
+			defer unsubscribe()
+
 			// Load any paths that are already tracked for this chat.
 			existingPaths := a.pathStore.GetPaths(chatID)
 			if len(existingPaths) > 0 {
 				handler.Subscribe(existingPaths)
 				handler.RequestScan()
 			}
-			// Subscribe to future path updates.
-			notifyCh, unsubscribe := a.pathStore.Subscribe(chatID)
-			defer unsubscribe()
 
 			go func() {
 				for {

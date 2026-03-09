@@ -6,11 +6,10 @@ import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
 } from "components/ai-elements/tool/utils";
-import { Button } from "components/Button/Button";
 import { FileIcon } from "components/FileIcon/FileIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
-import { ChevronRightIcon, Columns2Icon, Rows3Icon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	type FC,
@@ -31,7 +30,7 @@ interface DiffViewerProps {
 	/** Fragment to display in the top-left of the header bar. */
 	headerLeft?: ReactNode;
 	/** Parsed file diffs to render. */
-	parsedFiles: FileDiffMetadata[];
+	parsedFiles: readonly FileDiffMetadata[];
 	/** Cache key prefix for parsePatchFiles worker pool LRU cache. */
 	cacheKeyPrefix?: string;
 	/** Whether the panel is in expanded mode (affects file tree threshold). */
@@ -42,6 +41,8 @@ interface DiffViewerProps {
 	error?: unknown;
 	/** Empty state message. */
 	emptyMessage?: string;
+	/** Which diff rendering style to use. */
+	diffStyle: DiffStyle;
 }
 
 // -------------------------------------------------------------------
@@ -71,10 +72,10 @@ const STICKY_HEADER_CSS = [
 	"}",
 ].join(" ");
 
-type DiffStyle = "unified" | "split";
+export type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
 
-function loadDiffStyle(): DiffStyle {
+export function loadDiffStyle(): DiffStyle {
 	if (typeof window === "undefined") {
 		return "unified";
 	}
@@ -83,6 +84,10 @@ function loadDiffStyle(): DiffStyle {
 		return stored;
 	}
 	return "unified";
+}
+
+export function saveDiffStyle(style: DiffStyle): void {
+	localStorage.setItem(DIFF_STYLE_KEY, style);
 }
 
 /** Width of the file tree sidebar in pixels. */
@@ -164,7 +169,7 @@ interface FileTreeNode {
  * Single-child directory chains are collapsed so that e.g.
  * `src/pages/AgentsPage` renders as one row.
  */
-function buildFileTree(files: FileDiffMetadata[]): FileTreeNode[] {
+function buildFileTree(files: readonly FileDiffMetadata[]): FileTreeNode[] {
 	const root: FileTreeNode[] = [];
 
 	for (const file of files) {
@@ -391,14 +396,10 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	isLoading,
 	error,
 	emptyMessage = "No file changes to display.",
+	diffStyle,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
-	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
-	const handleSetDiffStyle = useCallback((style: DiffStyle) => {
-		setDiffStyle(style);
-		localStorage.setItem(DIFF_STYLE_KEY, style);
-	}, []);
 
 	const diffOptions = useMemo(() => {
 		const base = getDiffViewerOptions(isDark);
@@ -612,35 +613,8 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			className="flex h-full min-w-0 flex-col overflow-hidden"
 		>
 			{/* Header */}
-			<div className="flex items-center gap-1 px-3 py-2">
+			<div className="flex items-center gap-1 bg-surface-secondary px-3 py-2">
 				{headerLeft}
-				{/* Diff style toggle */}
-				<div className="ml-auto flex items-center gap-1">
-					<Button
-						variant={diffStyle === "unified" ? "outline" : "subtle"}
-						size="lg"
-						onClick={() => handleSetDiffStyle("unified")}
-						className={cn(
-							"min-w-0 h-6 px-2 py-0",
-							diffStyle === "unified" && "bg-surface-secondary",
-						)}
-						aria-label="Unified diff view"
-					>
-						<Rows3Icon className="!p-0 !size-3.5" />
-					</Button>
-					<Button
-						variant={diffStyle === "split" ? "outline" : "subtle"}
-						size="lg"
-						onClick={() => handleSetDiffStyle("split")}
-						className={cn(
-							"min-w-0 h-6 px-2 py-0",
-							diffStyle === "split" && "bg-surface-secondary",
-						)}
-						aria-label="Split diff view"
-					>
-						<Columns2Icon className="!p-0 !size-3.5" />
-					</Button>
-				</div>
 			</div>
 			{/* Diff contents */}
 			{sortedFiles.length === 0 ? (
