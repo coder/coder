@@ -1231,8 +1231,6 @@ GOTESTSUM_RETRY_FLAGS :=
 endif
 
 # Default to 8x8 parallelism to avoid overwhelming our workspaces.
-# Hopefully we can remove these defaults when we get our test suite's
-# resource utilization under control.
 # Race detection defaults to 4x4 because the detector adds significant
 # CPU overhead. Override via TEST_NUM_PARALLEL_PACKAGES /
 # TEST_NUM_PARALLEL_TESTS.
