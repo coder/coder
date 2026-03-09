@@ -844,6 +844,40 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 	return fake, config, link
 }
 
+func TestApplyDefaultsToConfig_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
+	instrument := promoauth.NewFactory(prometheus.NewRegistry())
+	accessURL, err := url.Parse("https://coder.example.com")
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		Name string
+		Type string
+	}{
+		{Name: "GitHub", Type: "GitHub"},
+		{Name: "GITLAB", Type: "GITLAB"},
+		{Name: "Gitea", Type: "Gitea"},
+	} {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			configs, err := externalauth.ConvertConfig(
+				instrument,
+				[]codersdk.ExternalAuthConfig{{
+					Type:         tc.Type,
+					ClientID:     "test-id",
+					ClientSecret: "test-secret",
+				}},
+				accessURL,
+			)
+			require.NoError(t, err)
+			require.Len(t, configs, 1)
+			// Defaults should have been applied despite mixed-case Type.
+			assert.NotEmpty(t, configs[0].AuthCodeURL("state"), "auth URL should be populated from defaults")
+		})
+	}
+}
+
 type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
