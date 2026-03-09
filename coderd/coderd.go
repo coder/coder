@@ -777,12 +777,12 @@ func New(options *Options) *API {
 		api.resolveGitProvider,
 		api.resolveChatGitAccessToken,
 		options.Logger.Named("gitsync").Named("refresher"),
-		options.Clock,
+		quartz.NewReal(),
 	)
 	api.chatDiffWorker = gitsync.NewWorker(options.Database,
 		refresher,
 		api.chatDaemon,
-		options.Clock,
+		quartz.NewReal(),
 		options.Logger.Named("gitsync"),
 	)
 	// nolint:gocritic // chat diff worker needs to be able to CRUD chats.

@@ -1944,7 +1944,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	// context is retained even if the flow requires an out-of-band login.
 	if gitRef.Branch != "" && gitRef.RemoteOrigin != "" {
 		//nolint:gocritic // System context needed for cross-user chat lookup.
-		api.chatDiffWorker.MarkStale(dbauthz.AsSystemRestricted(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
+		api.chatDiffWorker.MarkStale(dbauthz.AsChatd(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
 	}
 
 	var previousToken *database.ExternalAuthLink
