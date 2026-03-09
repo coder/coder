@@ -1943,7 +1943,7 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 	// Persist git refs as soon as the agent requests external auth so branch
 	// context is retained even if the flow requires an out-of-band login.
 	if gitRef.Branch != "" && gitRef.RemoteOrigin != "" {
-		//nolint:gocritic // System context needed for cross-user chat lookup.
+		//nolint:gocritic // Chat processor context required for cross-user chat lookup
 		api.chatDiffWorker.MarkStale(dbauthz.AsChatd(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
 	}
 
@@ -2091,8 +2091,8 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 			})
 			return
 		}
-		//nolint:gocritic // System context needed for cross-user chat lookup.
-		api.chatDiffWorker.MarkStale(dbauthz.AsSystemRestricted(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
+		//nolint:gocritic // Chat processor context required for cross-user chat lookup
+		api.chatDiffWorker.MarkStale(dbauthz.AsChatd(ctx), workspace.ID, workspace.OwnerID, gitRef.Branch, gitRef.RemoteOrigin)
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
 		return
 	}
