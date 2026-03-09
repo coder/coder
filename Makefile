@@ -1348,8 +1348,8 @@ test-postgres-docker:
 	# Try pulling up to three times to avoid CI flakes.
 	docker pull ${POSTGRES_IMAGE} || {
 		retries=2
-		for try in $(seq 1 ${retries}); do
-			echo "Failed to pull image, retrying (${try}/${retries})..."
+		for try in $$(seq 1 $${retries}); do
+			echo "Failed to pull image, retrying ($${try}/$${retries})..."
 			sleep 1
 			if docker pull ${POSTGRES_IMAGE}; then
 				break
@@ -1390,7 +1390,7 @@ test-postgres-docker:
 		-c log_statement=all
 	while ! pg_isready -h 127.0.0.1
 	do
-		echo "$(date) - waiting for database to start"
+		echo "$$(date) - waiting for database to start"
 		sleep 0.5
 	done
 .PHONY: test-postgres-docker
