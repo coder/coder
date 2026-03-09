@@ -2328,7 +2328,7 @@ func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 	if err != nil {
 		// Log but don't fail chat creation — fall back to the
 		// built-in default so the user isn't blocked.
-		api.Logger.Warn(ctx, "failed to fetch custom chat system prompt, using default", slog.Error(err))
+		api.Logger.Error(ctx, "failed to fetch custom chat system prompt, using default", slog.Error(err))
 		return chatd.DefaultSystemPrompt
 	}
 	if strings.TrimSpace(custom) != "" {
