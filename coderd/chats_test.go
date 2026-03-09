@@ -3150,6 +3150,34 @@ func TestChatSystemPrompt(t *testing.T) {
 		require.Equal(t, "You are a helpful coding assistant.", resp.SystemPrompt)
 	})
 
+	t.Run("AdminCanUnset", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// Set a custom prompt first.
+		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "Custom prompt.",
+		})
+		require.NoError(t, err)
+
+		resp, err := client.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "Custom prompt.", resp.SystemPrompt)
+
+		// Unset by sending an empty string.
+		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "",
+		})
+		require.NoError(t, err)
+
+		resp, err = client.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "", resp.SystemPrompt)
+	})
+
 	t.Run("NonAdminForbidden", func(t *testing.T) {
 		t.Parallel()
 

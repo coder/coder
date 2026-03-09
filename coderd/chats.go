@@ -2270,7 +2270,7 @@ func detectChatFileType(data []byte) string {
 // @Success 200 {object} codersdk.ChatSystemPromptResponse
 // @Router /chats/system-prompt [get]
 //
-//nolint:revive // HTTP handler writes to ResponseWriter.
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	prompt, err := api.Database.GetChatSystemPrompt(ctx)
@@ -2296,10 +2296,6 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 // @Router /chats/system-prompt [put]
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
 	var req codersdk.UpdateChatSystemPromptRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -2312,11 +2308,12 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	//nolint:gocritic // The handler-level Authorize above already
-	// verified the caller is an admin. We escalate to system context
-	// so the dbauthz layer allows the write.
-	err := api.Database.UpsertChatSystemPrompt(dbauthz.AsSystemRestricted(ctx), req.SystemPrompt)
+	err := api.Database.UpsertChatSystemPrompt(ctx, req.SystemPrompt)
 	if err != nil {
+		if rbac.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating chat system prompt.",
 			Detail:  err.Error(),
