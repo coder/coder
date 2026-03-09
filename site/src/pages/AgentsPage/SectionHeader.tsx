@@ -1,10 +1,10 @@
 import type { FC, ReactNode } from "react";
 
-type SectionHeaderProps = {
+interface SectionHeaderProps {
 	label: string;
 	description?: string;
 	action?: ReactNode;
-};
+}
 
 export const SectionHeader: FC<SectionHeaderProps> = ({
 	label,

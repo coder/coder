@@ -46,6 +46,7 @@ import { NavLink, Outlet, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import { AgentChatInput } from "./AgentChatInput";
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import { AgentsSidebar } from "./AgentsSidebar";
@@ -59,6 +60,7 @@ import {
 } from "./modelOptions";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
+import { useFileAttachments } from "./useFileAttachments";
 import { WebPushButton } from "./WebPushButton";
 
 /** @internal Exported for testing. */
@@ -72,6 +74,7 @@ type ChatModelOption = ModelSelectorOption;
 
 type CreateChatOptions = {
 	message: string;
+	fileIDs?: string[];
 	workspaceId?: string;
 	model?: string;
 };
@@ -329,11 +332,20 @@ const AgentsPage: FC = () => {
 		],
 	);
 	const handleCreateChat = async (options: CreateChatOptions) => {
-		const { message, workspaceId, model } = options;
+		const { message, fileIDs, workspaceId, model } = options;
 		const modelConfigID =
 			(model && modelConfigIDByModelID.get(model)) || nilUUID;
+		const content: TypesGen.ChatInputPart[] = [];
+		if (message.trim()) {
+			content.push({ type: "text", text: message });
+		}
+		if (fileIDs) {
+			for (const fileID of fileIDs) {
+				content.push({ type: "file", file_id: fileID });
+			}
+		}
 		const createdChat = await createMutation.mutateAsync({
-			content: [{ type: "text", text: message }],
+			content,
 			workspace_id: workspaceId,
 			model_config_id: modelConfigID,
 		});
@@ -366,131 +378,141 @@ const AgentsPage: FC = () => {
 	activeChatIDRef.current = agentId;
 
 	useEffect(() => {
-		const ws = watchChats();
-		ws.addEventListener("open", () => {
-			void queryClient.invalidateQueries({ queryKey: chatsKey });
-		});
-		ws.addEventListener("close", () => {
-			void queryClient.invalidateQueries({ queryKey: chatsKey });
-		});
-		ws.addEventListener("error", () => {
-			void queryClient.invalidateQueries({ queryKey: chatsKey });
-		});
-		ws.addEventListener("message", (event) => {
-			const sse = event.parsedMessage;
-			if (sse?.type !== "data" || !sse.data) {
-				return;
-			}
-			if (!isChatListSSEEvent(sse.data)) {
-				return;
-			}
-			const chatEvent = sse.data;
-			const updatedChat = chatEvent.chat;
+		return createReconnectingWebSocket({
+			connect() {
+				const ws = watchChats();
 
-			// Read the previous status from the query cache, which
-			// is synchronously updated by both the per-chat WebSocket
-			// (via updateSidebarChat) and this handler. This avoids
-			// the async-lag of a useEffect-based status map.
-			const currentChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
-			const prevStatus = currentChats?.find(
-				(c) => c.id === updatedChat.id,
-			)?.status;
-			// Only play the chime for top-level chats, not sub-agents.
-			if (!updatedChat.parent_chat_id) {
-				maybePlayChime(
-					prevStatus,
-					updatedChat.status,
-					updatedChat.id,
-					activeChatIDRef.current,
-				);
-			}
+				ws.addEventListener("message", (event) => {
+					if (event.parseError) {
+						console.warn("Failed to parse chat watch event:", event.parseError);
+						return;
+					}
+					const sse = event.parsedMessage;
+					if (sse?.type !== "data" || !sse.data) {
+						return;
+					}
+					if (!isChatListSSEEvent(sse.data)) {
+						return;
+					}
+					const chatEvent = sse.data;
+					const updatedChat = chatEvent.chat;
 
-			if (chatEvent.kind === "deleted") {
-				queryClient.setQueryData(
-					chatsKey,
-					(prev: TypesGen.Chat[] | undefined) =>
-						prev?.filter(
-							(c) =>
-								c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
-						),
-				);
-				queryClient.removeQueries({
-					queryKey: chatKey(updatedChat.id),
-					exact: true,
-				});
-				return;
-			}
+					// Read the previous status from the query cache, which
+					// is synchronously updated by both the per-chat WebSocket
+					// (via updateSidebarChat) and this handler. This avoids
+					// the async-lag of a useEffect-based status map.
+					const currentChats =
+						queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+					const prevStatus = currentChats?.find(
+						(c) => c.id === updatedChat.id,
+					)?.status;
+					// Only play the chime for top-level chats, not sub-agents.
+					if (!updatedChat.parent_chat_id) {
+						maybePlayChime(
+							prevStatus,
+							updatedChat.status,
+							updatedChat.id,
+							activeChatIDRef.current,
+						);
+					}
 
-			if (chatEvent.kind === "diff_status_change") {
-				void Promise.all([
-					queryClient.invalidateQueries({
-						queryKey: chatsKey,
-					}),
-					queryClient.invalidateQueries({
-						queryKey: chatDiffStatusKey(updatedChat.id),
-					}),
-					queryClient.invalidateQueries({
-						queryKey: chatDiffContentsKey(updatedChat.id),
-					}),
-				]);
-				return;
-			}
+					if (chatEvent.kind === "deleted") {
+						queryClient.setQueryData(
+							chatsKey,
+							(prev: TypesGen.Chat[] | undefined) =>
+								prev?.filter(
+									(c) =>
+										c.id !== updatedChat.id &&
+										c.root_chat_id !== updatedChat.id,
+								),
+						);
+						queryClient.removeQueries({
+							queryKey: chatKey(updatedChat.id),
+							exact: true,
+						});
+						return;
+					}
 
-			queryClient.setQueryData(
-				chatsKey,
-				(prev: TypesGen.Chat[] | undefined) => {
-					if (!prev) return prev;
-					const exists = prev.some((c) => c.id === updatedChat.id);
-					if (exists) {
-						return prev.map((c) =>
-							c.id === updatedChat.id
-								? {
+					if (chatEvent.kind === "diff_status_change") {
+						void Promise.all([
+							queryClient.invalidateQueries({
+								queryKey: chatsKey,
+							}),
+							queryClient.invalidateQueries({
+								queryKey: chatDiffStatusKey(updatedChat.id),
+							}),
+							queryClient.invalidateQueries({
+								queryKey: chatDiffContentsKey(updatedChat.id),
+							}),
+						]);
+						return;
+					}
+
+					// Scope field updates by event kind so that
+					// status_change events (which may carry a stale title
+					// snapshot from before async title generation
+					// finished) don't clobber a title_change that already
+					// landed.
+					const isTitleEvent = chatEvent.kind === "title_change";
+					const isStatusEvent = chatEvent.kind === "status_change";
+
+					queryClient.setQueryData(
+						chatsKey,
+						(prev: TypesGen.Chat[] | undefined) => {
+							if (!prev) return prev;
+							const exists = prev.some((c) => c.id === updatedChat.id);
+							if (exists) {
+								return prev.map((c) => {
+									if (c.id !== updatedChat.id) return c;
+									return {
 										...c,
-										status: updatedChat.status,
-										title: updatedChat.title,
+										...(isStatusEvent && { status: updatedChat.status }),
+										...(isTitleEvent && { title: updatedChat.title }),
 										updated_at:
 											c.updated_at > updatedChat.updated_at
 												? c.updated_at
 												: updatedChat.updated_at,
-									}
-								: c,
-						);
-					}
-					if (chatEvent.kind === "created") {
-						return [updatedChat, ...prev];
-					}
-					return prev;
-				},
-			);
-			queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
-				chatKey(updatedChat.id),
-				(previousChat) => {
-					if (!previousChat) {
-						return previousChat;
-					}
-					return {
-						...previousChat,
-						chat: {
-							...previousChat.chat,
-							status: updatedChat.status,
-							title: updatedChat.title,
-							updated_at:
-								previousChat.chat.updated_at > updatedChat.updated_at
-									? previousChat.chat.updated_at
-									: updatedChat.updated_at,
+									};
+								});
+							}
+							if (chatEvent.kind === "created") {
+								return [updatedChat, ...prev];
+							}
+							return prev;
 						},
-					};
-				},
-			);
-		});
-		return () => {
-			ws.close();
-		};
-	}, [queryClient]);
+					);
+					queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
+						chatKey(updatedChat.id),
+						(previousChat) => {
+							if (!previousChat) {
+								return previousChat;
+							}
+							return {
+								...previousChat,
+								chat: {
+									...previousChat.chat,
+									...(isStatusEvent && { status: updatedChat.status }),
+									...(isTitleEvent && { title: updatedChat.title }),
+									updated_at:
+										previousChat.chat.updated_at > updatedChat.updated_at
+											? previousChat.chat.updated_at
+											: updatedChat.updated_at,
+								},
+							};
+						},
+					);
+				});
 
-	useEffect(() => {
-		document.title = pageTitle("Agents");
-	}, []);
+				return ws;
+			},
+			onOpen() {
+				void queryClient.invalidateQueries({ queryKey: chatsKey });
+			},
+			onDisconnect() {
+				void queryClient.invalidateQueries({ queryKey: chatsKey });
+			},
+		});
+	}, [queryClient]);
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
@@ -498,6 +520,7 @@ const AgentsPage: FC = () => {
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
+			<title>{pageTitle("Agents")}</title>
 			<div
 				className={cn(
 					"md:h-full md:w-[320px] md:min-h-0 md:border-b-0",
@@ -686,6 +709,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	isConfigureAgentsDialogOpen,
 	onConfigureAgentsDialogOpenChange,
 }) => {
+	const { organizations } = useDashboard();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
 		useEmptyStateDraft();
 	const initialSystemPrompt = () => {
@@ -855,10 +879,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	);
 
 	const handleSend = useCallback(
-		(message: string) => {
+		async (message: string, fileIDs?: string[]) => {
 			submitDraft();
-			void onCreateChat({
+			await onCreateChat({
 				message,
+				fileIDs,
 				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
 				model: selectedModelRef.current || undefined,
 			}).catch(() => {
@@ -877,6 +902,44 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		? `${selectedWorkspace.owner_name}/${selectedWorkspace.name}`
 		: undefined;
 
+	const {
+		attachments,
+		uploadStates,
+		previewUrls,
+		handleAttach,
+		handleRemoveAttachment,
+		resetAttachments,
+	} = useFileAttachments(organizations[0]?.id);
+
+	const handleSendWithAttachments = useCallback(
+		async (message: string) => {
+			const fileIds: string[] = [];
+			let skippedErrors = 0;
+			for (const file of attachments) {
+				const state = uploadStates.get(file);
+				if (state?.status === "error") {
+					skippedErrors++;
+					continue;
+				}
+				if (state?.status === "uploaded" && state.fileId) {
+					fileIds.push(state.fileId);
+				}
+			}
+			if (skippedErrors > 0) {
+				toast.warning(
+					`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+				);
+			}
+			try {
+				await handleSend(message, fileIds.length > 0 ? fileIds : undefined);
+				resetAttachments();
+			} catch {
+				// Attachments preserved for retry on failure.
+			}
+		},
+		[attachments, handleSend, resetAttachments, uploadStates],
+	);
+
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
@@ -886,7 +949,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 				)}
 
 				<AgentChatInput
-					onSend={handleSend}
+					onSend={handleSendWithAttachments}
 					placeholder="Ask Coder to build, fix bugs, or explore your project..."
 					isDisabled={isCreating}
 					isLoading={isCreating}
@@ -899,6 +962,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					hasModelOptions={hasModelOptions}
 					inputStatusText={inputStatusText}
 					modelCatalogStatusMessage={modelCatalogStatusMessage}
+					attachments={attachments}
+					onAttach={handleAttach}
+					onRemoveAttachment={handleRemoveAttachment}
+					uploadStates={uploadStates}
+					previewUrls={previewUrls}
 					leftActions={
 						<Combobox
 							value={selectedWorkspaceId ?? autoCreateWorkspaceValue}

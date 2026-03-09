@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+#
+# Pre-push hook that runs the full CI suite locally.
+# Runs `make pre-push` (gen, fmt, lint, typos, build, tests)
+# to catch issues before they reach CI.
+#
+# The pre-commit hook already runs the lite checks on each commit.
+# This hook adds the heavier checks (test-postgres, test-js,
+# test-e2e, sqlc-vet, offlinedocs) before pushing.
+#
+# Installation (worktree-compatible):
+#
+#   git config core.hooksPath scripts/githooks
+#
+# Bypass: git push --no-verify
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+unset GIT_DIR
+
+# In linked worktrees, set worktree-scoped hooksPath to override shared config.
+if [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then
+	git config --worktree core.hooksPath scripts/githooks
+fi
+exec make pre-push

@@ -2296,6 +2296,23 @@ class ApiMethods {
 		return response.data;
 	};
 
+	uploadChatFile = async (
+		file: File,
+		organizationId: string,
+	): Promise<TypesGen.UploadChatFileResponse> => {
+		const response = await this.axios.post(
+			`/api/experimental/chats/files?organization=${organizationId}`,
+			file,
+			{
+				headers: {
+					"Content-Type": file.type || "application/octet-stream",
+					"Content-Disposition": `attachment; filename="${file.name}"`,
+				},
+			},
+		);
+		return response.data;
+	};
+
 	getTemplateVersionLogs = async (
 		versionId: string,
 	): Promise<TypesGen.ProvisionerJobLog[]> => {

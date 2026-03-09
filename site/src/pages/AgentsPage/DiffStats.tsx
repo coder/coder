@@ -32,6 +32,33 @@ const DiffStatNumbers: FC<DiffStatsProps> = ({
 };
 
 /**
+ * Pill-styled diff stats badge with coloured backgrounds,
+ * used inside the Git tab header.
+ */
+export const DiffStatBadge: FC<{ additions: number; deletions: number }> = ({
+	additions,
+	deletions,
+}) => {
+	if (additions === 0 && deletions === 0) {
+		return null;
+	}
+	return (
+		<span className="inline-flex h-full items-center self-stretch overflow-hidden rounded-[calc(theme(borderRadius.md)-1px)] font-mono text-xs font-medium">
+			{additions > 0 && (
+				<span className="flex h-full items-center bg-green-100 dark:bg-green-950 px-1.5 text-green-700 dark:text-green-500">
+					+{additions}
+				</span>
+			)}
+			{deletions > 0 && (
+				<span className="flex h-full items-center bg-red-100 dark:bg-red-950 px-1.5 text-red-700 dark:text-red-400">
+					&minus;{deletions}
+				</span>
+			)}
+		</span>
+	);
+};
+
+/**
  * Clickable inline diff stats shown in the top bar when the
  * diff panel is closed.
  */
@@ -51,6 +78,7 @@ export const DiffStatsInline: FC<{
 		<button
 			type="button"
 			onClick={onClick}
+			aria-label="View diff statistics"
 			className="inline-flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 leading-none transition-opacity hover:opacity-80 outline-none"
 		>
 			<DiffStatNumbers additions={additions} deletions={deletions} />

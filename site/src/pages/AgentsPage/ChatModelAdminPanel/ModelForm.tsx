@@ -55,7 +55,7 @@ const validationSchema = Yup.object({
 
 // ── Component ──────────────────────────────────────────────────
 
-type ModelFormProps = {
+interface ModelFormProps {
 	/** When set, the form is in "edit" mode for the given model. */
 	editingModel?: TypesGen.ChatModelConfig;
 	providerStates: readonly ProviderState[];
@@ -74,7 +74,7 @@ type ModelFormProps = {
 	) => Promise<unknown>;
 	onCancel: () => void;
 	onDeleteModel?: (modelConfigId: string) => Promise<void>;
-};
+}
 
 export const ModelForm: FC<ModelFormProps> = ({
 	editingModel,

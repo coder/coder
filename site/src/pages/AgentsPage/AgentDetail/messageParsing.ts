@@ -194,6 +194,24 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					parsed.blocks = ensureToolBlock(parsed.blocks, id);
 					break;
 				}
+				case "file-reference": {
+					const text = asString(typedBlock.text);
+					const fileName = asString(typedBlock.file_name);
+					const startLine =
+						Number(typedBlock.start_line ?? typedBlock.line_number) || 0;
+					const endLine =
+						Number(typedBlock.end_line ?? typedBlock.line_number) || startLine;
+					const contentStr = asString(typedBlock.content);
+					parsed.blocks.push({
+						type: "file-reference",
+						fileName,
+						startLine,
+						endLine,
+						content: contentStr,
+						text,
+					});
+					break;
+				}
 				case "tool-result":
 				case "toolresult": {
 					const name =
@@ -214,6 +232,23 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 						isError: parseToolResultIsError(name, typedBlock, result),
 					});
 					parsed.blocks = ensureToolBlock(parsed.blocks, id);
+					break;
+				}
+				case "file": {
+					const mediaType = asString(typedBlock.media_type);
+					const data = asString(typedBlock.data);
+					const fileId = asString(typedBlock.file_id);
+					if (mediaType && (data || fileId)) {
+						parsed.blocks = [
+							...parsed.blocks,
+							{
+								type: "file",
+								mediaType,
+								data: data || undefined,
+								fileId: fileId || undefined,
+							},
+						];
+					}
 					break;
 				}
 				default: {

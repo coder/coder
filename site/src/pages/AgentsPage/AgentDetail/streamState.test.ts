@@ -134,7 +134,70 @@ describe("applyMessagePartToStreamState", () => {
 		expect(result).not.toBeNull();
 		const ids = Object.keys(result!.toolCalls);
 		expect(ids).toHaveLength(1);
-		expect(ids[0]).toBe("tool-call-1");
+		expect(ids[0]).toMatch(/^tool-call-1-\d+$/);
+	});
+
+	it("does not collide IDs for multiple tool calls with the same name", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "bash",
+			args: { command: "ls" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "bash",
+			args: { command: "pwd" },
+		});
+		const ids = Object.keys(state!.toolCalls);
+		expect(ids).toHaveLength(2);
+		// The two calls must have distinct IDs.
+		expect(ids[0]).not.toBe(ids[1]);
+		// Each call must retain its own args.
+		const calls = Object.values(state!.toolCalls);
+		const args = calls.map((c) => c.args);
+		expect(args).toContainEqual({ command: "ls" });
+		expect(args).toContainEqual({ command: "pwd" });
+	});
+
+	it("does not collide IDs for multiple tool results with the same name", () => {
+		let state: StreamState | null = null;
+		// Two tool calls with the same name, each receiving a separate result.
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "bash",
+			args: { command: "ls" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "bash",
+			args: { command: "pwd" },
+		});
+		const callIds = Object.keys(state!.toolCalls);
+		expect(callIds).toHaveLength(2);
+
+		// First result arrives without an explicit tool_call_id.
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "bash",
+			result: { output: "file.txt" },
+		});
+		// Second result arrives without an explicit tool_call_id.
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "bash",
+			result: { output: "/home" },
+		});
+
+		const resultIds = Object.keys(state!.toolResults);
+		expect(resultIds).toHaveLength(2);
+		// The two results must have distinct IDs.
+		expect(resultIds[0]).not.toBe(resultIds[1]);
+		// Each result must retain its own output.
+		const results = Object.values(state!.toolResults);
+		const outputs = results.map((r) => r.result);
+		expect(outputs).toContainEqual({ output: "file.txt" });
+		expect(outputs).toContainEqual({ output: "/home" });
 	});
 
 	it("creates tool result entry from tool-result part", () => {

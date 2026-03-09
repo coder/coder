@@ -73,7 +73,9 @@ type RunOptions struct {
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
 	// number, error, and backoff delay so callers can publish status
-	// events to connected clients.
+	// events to connected clients. Callers should also clear any
+	// buffered stream state from the failed attempt in this callback
+	// to avoid sending duplicated content.
 	OnRetry chatretry.OnRetryFn
 
 	OnInterruptedPersistError func(error)
@@ -209,6 +211,10 @@ func Run(ctx context.Context, opts RunOptions) error {
 	var lastUsage fantasy.Usage
 	var lastProviderMetadata fantasy.ProviderMetadata
 
+	totalSteps := 0
+	// When totalSteps reaches MaxSteps the inner loop exits immediately
+	// (its condition is false), stoppedByModel stays false, and the
+	// post-loop guard breaks the outer compaction loop.
 	for compactionAttempt := 0; ; compactionAttempt++ {
 		alreadyCompacted := false
 		// stoppedByModel is true when the inner step loop
@@ -222,7 +228,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 		// agent never had a chance to use the compacted context.
 		compactedOnFinalStep := false
 
-		for step := 0; step < opts.MaxSteps; step++ {
+		for step := 0; totalSteps < opts.MaxSteps; step++ {
+			totalSteps++
 			// Copy messages so that provider-specific caching
 			// mutations don't leak back to the caller's slice.
 			// copy copies Message structs by value, so field
@@ -321,6 +328,12 @@ func Run(ctx context.Context, opts RunOptions) error {
 			lastUsage = result.usage
 			lastProviderMetadata = result.providerMetadata
 
+			// Append the step's response messages so that both
+			// inline and post-loop compaction see the full
+			// conversation including the latest assistant reply.
+			stepMessages := result.toResponseMessages()
+			messages = append(messages, stepMessages...)
+
 			// Inline compaction.
 			if opts.Compaction != nil && opts.ReloadMessages != nil {
 				did, compactErr := tryCompact(
@@ -354,17 +367,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// The agent is continuing with tool calls, so any
 			// prior compaction has already been consumed.
 			compactedOnFinalStep = false
-
-			// Build messages from the step for the next iteration.
-			// toResponseMessages produces assistant-role content
-			// (text, reasoning, tool calls) and tool-result content.
-			stepMessages := result.toResponseMessages()
-			messages = append(messages, stepMessages...)
 		}
 
 		// Post-run compaction safety net: if we never compacted
 		// during the loop, try once at the end.
-		if !alreadyCompacted && opts.Compaction != nil {
+		if !alreadyCompacted && opts.Compaction != nil && opts.ReloadMessages != nil {
 			did, err := tryCompact(
 				ctx,
 				opts.Model,
@@ -383,7 +390,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 				compactedOnFinalStep = true
 			}
 		}
-
 		// Re-enter the step loop when compaction fired on the
 		// model's final step. This lets the agent continue
 		// working with fresh summarized context instead of
@@ -514,7 +520,6 @@ func processStepStream(
 					})
 				}
 			}
-
 		case fantasy.StreamPartTypeToolInputStart:
 			activeToolCalls[part.ID] = &fantasy.ToolCallContent{
 				ToolCallID:       part.ID,

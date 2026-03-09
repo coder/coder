@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,30 +23,44 @@ import (
 	"github.com/coder/websocket"
 )
 
+// gitCmd runs a git command in the given directory and fails the test
+// on error.
+func gitCmd(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=Test",
+		"GIT_AUTHOR_EMAIL=test@test.com",
+		"GIT_COMMITTER_NAME=Test",
+		"GIT_COMMITTER_EMAIL=test@test.com",
+	)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git %v: %s", args, out)
+}
+
 // initTestRepo creates a temporary git repo with an initial commit
 // and returns the repo root path.
 func initTestRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	repo, err := git.PlainInit(dir, false)
-	require.NoError(t, err)
+	// Resolve symlinks and short (8.3) names on Windows so test
+	// expectations match the canonical paths returned by git.
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err == nil {
+		dir = resolved
+	}
+
+	gitCmd(t, dir, "init")
+	gitCmd(t, dir, "config", "user.name", "Test")
+	gitCmd(t, dir, "config", "user.email", "test@test.com")
 
 	// Create a file and commit it so the repo has HEAD.
 	testFile := filepath.Join(dir, "README.md")
 	require.NoError(t, os.WriteFile(testFile, []byte("# Test\n"), 0o600))
 
-	wt, err := repo.Worktree()
-	require.NoError(t, err)
-	_, err = wt.Add("README.md")
-	require.NoError(t, err)
-	_, err = wt.Commit("initial commit", &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test",
-			Email: "test@test.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	gitCmd(t, dir, "add", "README.md")
+	gitCmd(t, dir, "commit", "-m", "initial commit")
 
 	return dir
 }
@@ -137,6 +149,88 @@ func TestScanReturnsRepoChanges(t *testing.T) {
 
 	// Verify the new file appears in the unified diff.
 	require.Contains(t, repo.UnifiedDiff, "new.go")
+}
+
+func TestScanRespectsGitignore(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	logger := slogtest.Make(t, nil)
+
+	// Add a .gitignore that ignores *.log files and the build/ directory.
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, ".gitignore"), []byte("*.log\nbuild/\n"), 0o600))
+	gitCmd(t, repoDir, "add", ".gitignore")
+	gitCmd(t, repoDir, "commit", "-m", "add gitignore")
+
+	// Create unstaged files: two normal, three matching gitignore patterns.
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "main.go"), []byte("package main\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "util.go"), []byte("package util\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "debug.log"), []byte("some log output\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "error.log"), []byte("some error\n"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(repoDir, "build"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "build", "output.bin"), []byte("binary\n"), 0o600))
+
+	h := agentgit.NewHandler(logger)
+	h.Subscribe([]string{filepath.Join(repoDir, "main.go")})
+
+	ctx := context.Background()
+	msg := h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+
+	diff := msg.Repositories[0].UnifiedDiff
+
+	// The non-ignored files should appear in the diff.
+	assert.Contains(t, diff, "main.go")
+	assert.Contains(t, diff, "util.go")
+	// The gitignored files must not appear in the diff.
+	assert.NotContains(t, diff, "debug.log")
+	assert.NotContains(t, diff, "error.log")
+	assert.NotContains(t, diff, "output.bin")
+}
+
+func TestScanRespectsGitignoreNestedNegation(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	logger := slogtest.Make(t, nil)
+
+	// Add a .gitignore that ignores node_modules/.
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, ".gitignore"), []byte("node_modules/\n"), 0o600))
+	gitCmd(t, repoDir, "add", ".gitignore")
+	gitCmd(t, repoDir, "commit", "-m", "add gitignore")
+
+	// Simulate the tailwindcss stubs directory which contains a nested
+	// .gitignore with "!*" (negation that un-ignores everything).
+	// Real git keeps the parent node_modules/ ignore rule, but go-git
+	// incorrectly lets the child negation override it.
+	stubsDir := filepath.Join(repoDir, "site", "node_modules", ".pnpm",
+		"tailwindcss@3.4.18", "node_modules", "tailwindcss", "stubs")
+	require.NoError(t, os.MkdirAll(stubsDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(stubsDir, ".gitignore"), []byte("!*\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(stubsDir, "config.full.js"), []byte("module.exports = {}\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(stubsDir, "tailwind.config.js"), []byte("// tw config\n"), 0o600))
+
+	// Also create a normal file outside node_modules.
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "main.go"), []byte("package main\n"), 0o600))
+
+	h := agentgit.NewHandler(logger)
+	h.Subscribe([]string{filepath.Join(repoDir, "main.go")})
+
+	ctx := context.Background()
+	msg := h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+
+	diff := msg.Repositories[0].UnifiedDiff
+
+	// The non-ignored file should appear in the diff.
+	assert.Contains(t, diff, "main.go")
+	// Files inside node_modules must not appear even though a nested
+	// .gitignore contains "!*". The parent node_modules/ rule takes
+	// precedence in real git.
+	assert.NotContains(t, diff, "config.full.js")
+	assert.NotContains(t, diff, "tailwind.config.js")
 }
 
 func TestScanDeltaEmission(t *testing.T) {
@@ -296,24 +390,16 @@ func TestSubscribeNestedGitRepos(t *testing.T) {
 	// Create an inner repo nested inside the outer one.
 	innerDir := filepath.Join(outerDir, "subproject")
 	require.NoError(t, os.MkdirAll(innerDir, 0o700))
-	innerRepo, err := git.PlainInit(innerDir, false)
-	require.NoError(t, err)
+
+	gitCmd(t, innerDir, "init")
+	gitCmd(t, innerDir, "config", "user.name", "Test")
+	gitCmd(t, innerDir, "config", "user.email", "test@test.com")
 
 	// Commit a file in the inner repo so it has HEAD.
 	innerFile := filepath.Join(innerDir, "inner.go")
 	require.NoError(t, os.WriteFile(innerFile, []byte("package inner\n"), 0o600))
-	innerWt, err := innerRepo.Worktree()
-	require.NoError(t, err)
-	_, err = innerWt.Add("inner.go")
-	require.NoError(t, err)
-	_, err = innerWt.Commit("inner commit", &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test",
-			Email: "test@test.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	gitCmd(t, innerDir, "add", "inner.go")
+	gitCmd(t, innerDir, "commit", "-m", "inner commit")
 
 	// Now create a dirty file in the inner repo.
 	dirtyFile := filepath.Join(innerDir, "dirty.go")
@@ -411,46 +497,16 @@ func TestScanDeletedWorktreeGitdirEmitsRemoved(t *testing.T) {
 	// Set up a main repo that we'll use as the source for a worktree.
 	mainRepoDir := initTestRepo(t)
 
-	// Create a linked worktree using git.
-	worktreeDir := t.TempDir()
-	mainRepo, err := git.PlainOpen(mainRepoDir)
-	require.NoError(t, err)
-
-	// Create a branch for the worktree.
-	headRef, err := mainRepo.Head()
-	require.NoError(t, err)
-	err = mainRepo.Storer.SetReference(
-		//nolint:revive // plumbing.NewBranchReferenceName is not available.
-		plumbing.NewHashReference("refs/heads/worktree-branch", headRef.Hash()),
-	)
-	require.NoError(t, err)
-
-	// Manually construct the worktree linkage:
-	// 1. Create worktree gitdir inside main repo's worktrees/
-	// 2. Write a .git file in the worktree dir pointing to that gitdir.
-	gitdirPath := filepath.Join(mainRepoDir, ".git", "worktrees", "wt")
-	require.NoError(t, os.MkdirAll(gitdirPath, 0o755))
-
-	// The worktree gitdir needs HEAD and commondir files.
-	require.NoError(t, os.WriteFile(
-		filepath.Join(gitdirPath, "HEAD"),
-		[]byte("ref: refs/heads/worktree-branch\n"), 0o600,
-	))
-	require.NoError(t, os.WriteFile(
-		filepath.Join(gitdirPath, "commondir"),
-		[]byte(filepath.Join(mainRepoDir, ".git")+"\n"), 0o600,
-	))
-
-	// Write the .git file in the worktree directory.
-	gitFileContent := "gitdir: " + gitdirPath + "\n"
-	require.NoError(t, os.WriteFile(
-		filepath.Join(worktreeDir, ".git"),
-		[]byte(gitFileContent), 0o600,
-	))
-
-	// Verify the worktree is a valid repo before we break it.
-	_, err = git.PlainOpen(worktreeDir)
-	require.NoError(t, err, "worktree should be openable before deletion")
+	// Create a linked worktree using git CLI.
+	wtBase := t.TempDir()
+	// Resolve symlinks and short (8.3) names on Windows so test
+	// expectations match the canonical paths returned by git.
+	if resolved, err := filepath.EvalSymlinks(wtBase); err == nil {
+		wtBase = resolved
+	}
+	worktreeDir := filepath.Join(wtBase, "wt")
+	gitCmd(t, mainRepoDir, "branch", "worktree-branch")
+	gitCmd(t, mainRepoDir, "worktree", "add", worktreeDir, "worktree-branch")
 
 	logger := slogtest.Make(t, nil)
 	h := agentgit.NewHandler(logger)
@@ -468,12 +524,14 @@ func TestScanDeletedWorktreeGitdirEmitsRemoved(t *testing.T) {
 	require.Len(t, msg1.Repositories, 1)
 	require.False(t, msg1.Repositories[0].Removed)
 
-	// Now delete the target gitdir. The .git file in the worktree
-	// still exists, but it points to a directory that is gone.
+	// Now delete the target gitdir inside .git/worktrees/. The .git
+	// file in the worktree still exists, but it points to a directory
+	// that is gone.
+	gitdirPath := filepath.Join(mainRepoDir, ".git", "worktrees", filepath.Base(worktreeDir))
 	require.NoError(t, os.RemoveAll(gitdirPath))
 
 	// Verify the .git file still exists (this is the bug scenario).
-	_, err = os.Stat(filepath.Join(worktreeDir, ".git"))
+	_, err := os.Stat(filepath.Join(worktreeDir, ".git"))
 	require.NoError(t, err, ".git file should still exist")
 
 	// Next scan should detect the broken worktree and emit removal.
@@ -775,13 +833,8 @@ func TestGetRepoChangesStagedModifiedDeleted(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("# Modified\n"), 0o600))
 
 	// Stage a new file.
-	repo, err := git.PlainOpen(repoDir)
-	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "staged.go"), []byte("package staged\n"), 0o600))
-	wt, err := repo.Worktree()
-	require.NoError(t, err)
-	_, err = wt.Add("staged.go")
-	require.NoError(t, err)
+	gitCmd(t, repoDir, "add", "staged.go")
 
 	// Create an untracked file.
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "untracked.txt"), []byte("hello\n"), 0o600))
@@ -791,34 +844,22 @@ func TestGetRepoChangesStagedModifiedDeleted(t *testing.T) {
 	require.NotNil(t, msg)
 	require.Len(t, msg.Repositories, 1)
 
+	diff := msg.Repositories[0].UnifiedDiff
+
 	// README.md was committed then modified in worktree.
-	require.Contains(t, msg.Repositories[0].UnifiedDiff, "README.md")
+	require.Contains(t, diff, "README.md")
+	require.Contains(t, diff, "--- a/README.md")
+	require.Contains(t, diff, "+++ b/README.md")
+	require.Contains(t, diff, "-# Test")
+	require.Contains(t, diff, "+# Modified")
+
 	// staged.go was added to the staging area.
-	require.Contains(t, msg.Repositories[0].UnifiedDiff, "staged.go")
-	// untracked.txt is untracked.
-	require.Contains(t, msg.Repositories[0].UnifiedDiff, "untracked.txt")
-	require.Equal(t, `diff --git a/README.md b/README.md
-index 8ae056963b8b4664c9059e30bc8b834151e03950..6c31532bd0a2258bcfa88789d20d50574cfcc3da 100644
---- a/README.md
-+++ b/README.md
-@@ -1 +1 @@
--# Test
-+# Modified
-diff --git a/staged.go b/staged.go
-new file mode 100644
-index 0000000000000000000000000000000000000000..98a5a992ed2bc4b17d078d396ba034c8064079b4
---- /dev/null
-+++ b/staged.go
-@@ -0,0 +1 @@
-+package staged
-diff --git a/untracked.txt b/untracked.txt
-new file mode 100644
-index 0000000000000000000000000000000000000000..ce013625030ba8dba906f756967f9e9ca394464a
---- /dev/null
-+++ b/untracked.txt
-@@ -0,0 +1 @@
-+hello
-`, msg.Repositories[0].UnifiedDiff)
+	require.Contains(t, diff, "staged.go")
+	require.Contains(t, diff, "+package staged")
+
+	// untracked.txt is untracked (shown via --no-index diff).
+	require.Contains(t, diff, "untracked.txt")
+	require.Contains(t, diff, "+hello")
 }
 
 func TestFallbackPollTriggersScan(t *testing.T) {
@@ -912,12 +953,17 @@ func TestScanLargeFileTooLargeToDiff(t *testing.T) {
 
 	h := agentgit.NewHandler(logger)
 
-	// Create a file larger than maxFileReadSize (2 MiB).
-	largeContent := make([]byte, 3*1024*1024)
+	// Create a large text file (1 MiB). The diff produced by git
+	// CLI will be under maxTotalDiffSize (3 MiB) so it appears in
+	// the unified diff output.
+	largeContent := make([]byte, 1*1024*1024)
 	for i := range largeContent {
 		largeContent[i] = byte('A' + (i % 26))
+		if i%80 == 79 {
+			largeContent[i] = '\n'
+		}
 	}
-	largeFile := filepath.Join(repoDir, "large.bin")
+	largeFile := filepath.Join(repoDir, "large.txt")
 	require.NoError(t, os.WriteFile(largeFile, largeContent, 0o600))
 
 	h.Subscribe([]string{largeFile})
@@ -930,13 +976,7 @@ func TestScanLargeFileTooLargeToDiff(t *testing.T) {
 	repo := msg.Repositories[0]
 
 	// The large file should appear in the unified diff.
-	require.Contains(t, repo.UnifiedDiff, "large.bin")
-
-	// The unified diff should contain the "too large" message,
-	// NOT the actual file content.
-	require.Contains(t, repo.UnifiedDiff, "File too large to diff")
-	require.NotContains(t, repo.UnifiedDiff, "AAAA",
-		"actual file content should not appear in diff")
+	require.Contains(t, repo.UnifiedDiff, "large.txt")
 }
 
 func TestScanLargeFileDeltaTracking(t *testing.T) {
@@ -975,45 +1015,6 @@ func TestScanLargeFileDeltaTracking(t *testing.T) {
 	require.NotContains(t, msg3.Repositories[0].UnifiedDiff, "big.dat")
 }
 
-func TestScanFileDiffTooLargeForWire(t *testing.T) {
-	t.Parallel()
-
-	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
-
-	h := agentgit.NewHandler(logger)
-
-	// Create a single file whose diff exceeds maxFileDiffSize
-	// (256 KiB) but stays under maxFileReadSize (2 MiB).
-	content := make([]byte, 512*1024)
-	for i := range content {
-		content[i] = byte('A' + (i % 26))
-	}
-	bigFile := filepath.Join(repoDir, "big_diff.txt")
-	require.NoError(t, os.WriteFile(bigFile, content, 0o600))
-
-	h.Subscribe([]string{bigFile})
-
-	ctx := context.Background()
-	msg := h.Scan(ctx)
-	require.NotNil(t, msg)
-	require.Len(t, msg.Repositories, 1)
-
-	repo := msg.Repositories[0]
-
-	// The single file diff exceeds 256 KiB, so it should be
-	// replaced with a per-file stub.
-	require.Contains(t, repo.UnifiedDiff, "File diff too large to show")
-	require.Contains(t, repo.UnifiedDiff, "big_diff.txt")
-
-	// The stub should NOT contain the actual file content.
-	require.NotContains(t, repo.UnifiedDiff, "ABCDEFGHIJ",
-		"actual file content should not appear in diff")
-
-	// Branch metadata should still be present.
-	require.NotEmpty(t, repo.Branch)
-}
-
 func TestScanTotalDiffTooLargeForWire(t *testing.T) {
 	t.Parallel()
 
@@ -1023,7 +1024,7 @@ func TestScanTotalDiffTooLargeForWire(t *testing.T) {
 	h := agentgit.NewHandler(logger)
 
 	// Create many files whose individual diffs are under 256 KiB
-	// but whose total exceeds maxTotalDiffSize (4 MiB).
+	// but whose total exceeds maxTotalDiffSize (3 MiB).
 	// ~100 files x 50 KiB content each = ~5 MiB of diffs.
 	var paths []string
 	for i := range 100 {
@@ -1046,14 +1047,14 @@ func TestScanTotalDiffTooLargeForWire(t *testing.T) {
 
 	repo := msg.Repositories[0]
 
-	// The total diff exceeds 4 MiB, so we should get the
+	// The total diff exceeds 3 MiB, so we should get the
 	// total-diff placeholder.
 	require.Contains(t, repo.UnifiedDiff, "Total diff too large to show")
 
 	// Branch and remote metadata should still be present.
 	require.NotEmpty(t, repo.Branch, "branch should still be populated")
 
-	// The placeholder message should be well under 4 MiB.
+	// The placeholder message should be well under 3 MiB.
 	require.Less(t, len(repo.UnifiedDiff), 4*1024*1024,
 		"placeholder diff should be much smaller than maxTotalDiffSize")
 }
@@ -1083,10 +1084,9 @@ func TestScanBinaryFileDiff(t *testing.T) {
 	// The binary file should appear in the unified diff.
 	require.Contains(t, repo.UnifiedDiff, "image.png")
 
-	// The unified diff should contain the go-git binary marker,
+	// The unified diff should contain the git binary marker,
 	// not the raw binary content.
-	require.Contains(t, repo.UnifiedDiff, "Binary files")
-	require.Contains(t, repo.UnifiedDiff, "image.png")
+	require.Contains(t, repo.UnifiedDiff, "Binary")
 	require.NotContains(t, repo.UnifiedDiff, "\x00",
 		"raw binary content should not appear in diff")
 }
@@ -1095,25 +1095,17 @@ func TestScanBinaryFileModifiedDiff(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	repo, err := git.PlainInit(dir, false)
-	require.NoError(t, err)
+
+	gitCmd(t, dir, "init")
+	gitCmd(t, dir, "config", "user.name", "Test")
+	gitCmd(t, dir, "config", "user.email", "test@test.com")
 
 	// Commit a binary file.
 	binPath := filepath.Join(dir, "data.bin")
 	require.NoError(t, os.WriteFile(binPath, []byte("v1\x00\x01\x02"), 0o600))
 
-	wt, err := repo.Worktree()
-	require.NoError(t, err)
-	_, err = wt.Add("data.bin")
-	require.NoError(t, err)
-	_, err = wt.Commit("add binary", &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test",
-			Email: "test@test.com",
-			When:  time.Now(),
-		},
-	})
-	require.NoError(t, err)
+	gitCmd(t, dir, "add", "data.bin")
+	gitCmd(t, dir, "commit", "-m", "add binary")
 
 	// Modify the binary file in the worktree.
 	require.NoError(t, os.WriteFile(binPath, []byte("v2\x00\x03\x04\x05"), 0o600))
@@ -1133,10 +1125,43 @@ func TestScanBinaryFileModifiedDiff(t *testing.T) {
 	require.Contains(t, repoChanges.UnifiedDiff, "data.bin")
 
 	// Diff should show binary marker for modification too.
-	require.Contains(t, repoChanges.UnifiedDiff, "Binary files")
-	require.Contains(t, repoChanges.UnifiedDiff, "data.bin")
+	require.Contains(t, repoChanges.UnifiedDiff, "Binary")
 	require.NotContains(t, repoChanges.UnifiedDiff, "\x00",
 		"raw binary content should not appear in diff")
+}
+
+func TestScanFileDiffTooLargeForWire(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepo(t)
+	logger := slogtest.Make(t, nil)
+
+	h := agentgit.NewHandler(logger)
+
+	// Create a single file whose diff is large. With git CLI, the
+	// diff is produced by git itself so per-file size limiting is
+	// handled by the total diff size check.
+	content := make([]byte, 512*1024)
+	for i := range content {
+		content[i] = byte('A' + (i % 26))
+	}
+	bigFile := filepath.Join(repoDir, "big_diff.txt")
+	require.NoError(t, os.WriteFile(bigFile, content, 0o600))
+
+	h.Subscribe([]string{bigFile})
+
+	ctx := context.Background()
+	msg := h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+
+	repo := msg.Repositories[0]
+
+	// The file should appear in the diff output.
+	require.Contains(t, repo.UnifiedDiff, "big_diff.txt")
+
+	// Branch metadata should still be present.
+	require.NotEmpty(t, repo.Branch)
 }
 
 func TestWebSocketLargePathStoreSubscription(t *testing.T) {

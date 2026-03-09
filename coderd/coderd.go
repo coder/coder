@@ -1121,6 +1121,11 @@ func New(options *Options) *API {
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
+			r.Route("/files", func(r chi.Router) {
+				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
+				r.Post("/", api.postChatFile)
+				r.Get("/{file}", api.chatFileByID)
+			})
 			r.Route("/providers", func(r chi.Router) {
 				r.Get("/", api.listChatProviders)
 				r.Post("/", api.createChatProvider)
@@ -1846,6 +1851,14 @@ func New(options *Options) *API {
 		// and continue
 		api.Logger.Error(context.Background(),
 			"parsing additional CSP headers", slog.Error(cspParseErrors))
+	}
+
+	// Add blob: to img-src for chat file attachment previews when
+	// the agents experiment is enabled.
+	if api.Experiments.Enabled(codersdk.ExperimentAgents) {
+		additionalCSPHeaders[httpmw.CSPDirectiveImgSrc] = append(
+			additionalCSPHeaders[httpmw.CSPDirectiveImgSrc], "blob:",
+		)
 	}
 
 	// Add CSP headers to all static assets and pages. CSP headers only affect

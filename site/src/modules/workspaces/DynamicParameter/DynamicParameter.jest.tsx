@@ -835,7 +835,7 @@ describe("DynamicParameter", () => {
 			},
 		});
 
-		it("renders a password field by default and toggles visibility on mouse events", async () => {
+		it("toggles visibility with persistent pressed-state semantics", async () => {
 			render(
 				<DynamicParameter
 					parameter={mockMaskedInputParameter}
@@ -847,12 +847,49 @@ describe("DynamicParameter", () => {
 			const input = screen.getByLabelText("Masked Input Parameter");
 			expect(input).toHaveAttribute("type", "password");
 
-			const toggleButton = screen.getByRole("button");
-			fireEvent.mouseDown(toggleButton);
+			const showButton = screen.getByRole("button", { name: "Show value" });
+			expect(showButton).toHaveAttribute("aria-pressed", "false");
+
+			await userEvent.click(showButton);
 			expect(input).toHaveAttribute("type", "text");
 
-			fireEvent.mouseUp(toggleButton);
+			const hideButton = screen.getByRole("button", { name: "Hide value" });
+			expect(hideButton).toHaveAttribute("aria-pressed", "true");
+
+			await userEvent.click(hideButton);
 			expect(input).toHaveAttribute("type", "password");
+			expect(
+				screen.getByRole("button", { name: "Show value" }),
+			).toHaveAttribute("aria-pressed", "false");
+		});
+
+		it("supports keyboard activation for toggling masked values", async () => {
+			render(
+				<DynamicParameter
+					parameter={mockMaskedInputParameter}
+					value="secret123"
+					onChange={mockOnChange}
+				/>,
+			);
+
+			const input = screen.getByLabelText("Masked Input Parameter");
+			const showButton = screen.getByRole("button", { name: "Show value" });
+			showButton.focus();
+
+			await userEvent.keyboard("[Enter]");
+			expect(input).toHaveAttribute("type", "text");
+			expect(
+				screen.getByRole("button", { name: "Hide value" }),
+			).toHaveAttribute("aria-pressed", "true");
+
+			const hideButton = screen.getByRole("button", { name: "Hide value" });
+			hideButton.focus();
+			await userEvent.keyboard("[Space]");
+
+			expect(input).toHaveAttribute("type", "password");
+			expect(
+				screen.getByRole("button", { name: "Show value" }),
+			).toHaveAttribute("aria-pressed", "false");
 		});
 	});
 

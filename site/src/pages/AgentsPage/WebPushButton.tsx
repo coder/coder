@@ -43,6 +43,11 @@ export const WebPushButton: FC = () => {
 					size="icon"
 					disabled={webPush.loading}
 					onClick={handleClick}
+					aria-label={
+						webPush.subscribed
+							? "Disable notifications"
+							: "Enable notifications"
+					}
 					className="h-7 w-7 text-content-secondary hover:text-content-primary"
 				>
 					{webPush.loading ? (

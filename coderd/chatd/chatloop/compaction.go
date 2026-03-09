@@ -123,7 +123,8 @@ func tryCompact(
 		config.SystemSummaryPrefix + "\n\n" + summary,
 	)
 
-	err = config.Persist(ctx, CompactionResult{
+	persistCtx := context.WithoutCancel(ctx)
+	err = config.Persist(persistCtx, CompactionResult{
 		SystemSummary:    systemSummary,
 		SummaryReport:    summary,
 		ThresholdPercent: config.ThresholdPercent,

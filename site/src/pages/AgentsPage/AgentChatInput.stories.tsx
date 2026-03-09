@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { AgentChatInput } from "./AgentChatInput";
+import { AgentChatInput, type UploadState } from "./AgentChatInput";
 
 const defaultModelOptions = [
 	{
@@ -143,4 +143,81 @@ export const LongContentScrollable: Story = {
 	args: {
 		initialValue: longContent,
 	},
+};
+
+// Tiny 1x1 transparent PNG as data URI for attachment previews.
+const TINY_PNG =
+	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+const createMockFile = (name: string, type: string) =>
+	new File(["mock-data"], name, { type });
+
+export const WithAttachments: Story = {
+	args: (() => {
+		const file1 = createMockFile("screenshot.png", "image/png");
+		const file2 = createMockFile("diagram.jpg", "image/jpeg");
+		const attachments = [file1, file2];
+		return {
+			attachments,
+			uploadStates: new Map<File, UploadState>([
+				[file1, { status: "uploaded", fileId: "f1" }],
+				[file2, { status: "uploaded", fileId: "f2" }],
+			]),
+			previewUrls: new Map<File, string>([
+				[file1, TINY_PNG],
+				[file2, TINY_PNG],
+			]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Here are the images",
+		};
+	})(),
+};
+
+export const WithUploadingAttachment: Story = {
+	args: (() => {
+		const file = createMockFile("uploading.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploading" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Waiting for upload",
+		};
+	})(),
+};
+
+export const WithAttachmentError: Story = {
+	args: (() => {
+		const file = createMockFile("broken.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "error", error: "Upload failed: server error" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Upload had an error",
+		};
+	})(),
+};
+
+export const AttachmentsOnly: Story = {
+	args: (() => {
+		const file = createMockFile("photo.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "f-only" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "",
+		};
+	})(),
 };

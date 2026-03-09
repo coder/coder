@@ -2457,6 +2457,30 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 	return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 }
 
+func (q *querier) GetChatFileByID(ctx context.Context, id uuid.UUID) (database.ChatFile, error) {
+	file, err := q.db.GetChatFileByID(ctx, id)
+	if err != nil {
+		return database.ChatFile{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, file); err != nil {
+		return database.ChatFile{}, err
+	}
+	return file, nil
+}
+
+func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ChatFile, error) {
+	files, err := q.db.GetChatFilesByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		if err := q.authorizeContext(ctx, policy.ActionRead, f); err != nil {
+			return nil, err
+		}
+	}
+	return files, nil
+}
+
 func (q *querier) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	// ChatMessages are authorized through their parent Chat.
 	// We need to fetch the message first to get its chat_id.
@@ -4489,6 +4513,11 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 
 func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()), q.db.InsertChat)(ctx, arg)
+}
+
+func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFileParams) (database.InsertChatFileRow, error) {
+	// Authorize create on chat resource scoped to the owner and org.
+	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChatFile)(ctx, arg)
 }
 
 func (q *querier) InsertChatMessage(ctx context.Context, arg database.InsertChatMessageParams) (database.ChatMessage, error) {
