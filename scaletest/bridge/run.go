@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -230,7 +231,10 @@ func (r *Runner) makeRequest(ctx context.Context, logger slog.Logger, url, token
 	r.cfg.Metrics.ObserveDuration(duration.Seconds())
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			body = []byte(fmt.Sprintf("<failed to read response body: %s>", readErr))
+		}
 		err := xerrors.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
 		span.RecordError(err)
 		return err
