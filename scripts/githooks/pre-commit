@@ -16,4 +16,5 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 unset GIT_DIR
 
+git config --worktree core.hooksPath scripts/githooks 2>/dev/null || git config core.hooksPath scripts/githooks
 exec make pre-commit
