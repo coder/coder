@@ -269,6 +269,8 @@ describe("serviceWorker notificationclick handler", () => {
 	it("focuses existing client without navigating when already on the target URL", async () => {
 		const mockClient = {
 			url: "https://example.com/agents/abc",
+			visibilityState: "visible",
+			focused: true,
 			focus: vi.fn(() => Promise.resolve()),
 			navigate: vi.fn(() => Promise.resolve()),
 		};
@@ -286,6 +288,8 @@ describe("serviceWorker notificationclick handler", () => {
 	it("navigates and focuses existing client when on a different agents page", async () => {
 		const mockClient = {
 			url: "https://example.com/agents/other",
+			visibilityState: "visible",
+			focused: true,
 			focus: vi.fn(() => Promise.resolve()),
 			navigate: vi.fn(() => Promise.resolve()),
 		};
