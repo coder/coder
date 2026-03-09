@@ -294,15 +294,6 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 									</DropdownMenuItem>
 								)}
 								{(showPause || showResume) && <DropdownMenuSeparator />}
-								<DropdownMenuItem asChild>
-									<RouterLink
-										to={`/@${task.owner_name}/${task.workspace_name}/settings/sharing`}
-									>
-										<Share2Icon />
-										Share workspace
-									</RouterLink>
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
 								<DropdownMenuItem
 									className="text-content-destructive focus:text-content-destructive"
 									onClick={(e) => {
