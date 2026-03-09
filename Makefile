@@ -19,6 +19,16 @@ SHELL := bash
 .SHELLFLAGS := -ceu
 .ONESHELL:
 
+# When MAKE_TIMED=1, replace SHELL with a wrapper that prints
+# elapsed wall-clock time for each recipe. pre-commit and pre-push
+# set this on their sub-makes so every parallel job reports its
+# duration. Ad-hoc usage: make MAKE_TIMED=1 test
+ifdef MAKE_TIMED
+SHELL := $(CURDIR)/scripts/lib/timed-shell.sh
+.SHELLFLAGS = $@ -ceu
+export MAKE_TIMED
+endif
+
 # This doesn't work on directories.
 # See https://stackoverflow.com/questions/25752543/make-delete-on-error-for-directory-targets
 .DELETE_ON_ERROR:
@@ -753,10 +763,10 @@ endef
 pre-commit:
 	start=$$(date +%s)
 	echo "=== Phase 1/2: gen + fmt ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target gen fmt
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 gen fmt
 	$(check-unstaged)
 	echo "=== Phase 2/2: lint + build ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target \
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
@@ -767,10 +777,10 @@ pre-commit:
 pre-push:
 	start=$$(date +%s)
 	echo "=== Phase 1/2: gen + fmt + postgres ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target gen fmt test-postgres-docker
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 gen fmt test-postgres-docker
 	$(check-unstaged)
 	echo "=== Phase 2/2: lint + build + test ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target \
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT) \
