@@ -141,6 +141,17 @@ func TestReapInterrupt(t *testing.T) {
 	}()
 
 	require.Equal(t, <-usrSig, syscall.SIGUSR1)
+
+	// Prevent SIGINT from terminating the test process. Under the
+	// race detector, the catchSignals goroutine in ForkReap may not
+	// have called signal.Notify yet, so the default Go handler
+	// could kill us. Registering our own Notify disables the
+	// default behavior. Both this channel and the one inside
+	// catchSignals receive independent copies of the signal.
+	intC := make(chan os.Signal, 1)
+	signal.Notify(intC, os.Interrupt)
+	defer signal.Stop(intC)
+
 	err := syscall.Kill(os.Getpid(), syscall.SIGINT)
 	require.NoError(t, err)
 	require.Equal(t, <-usrSig, syscall.SIGUSR2)
