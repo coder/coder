@@ -105,21 +105,36 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 
 ### Full workflows available in imported WORKFLOWS.md
 
-### Git Hooks (MANDATORY)
+### Git Hooks (MANDATORY - DO NOT SKIP)
 
-Before your first commit, ensure the git hooks are installed.
-Two hooks run automatically:
+**You MUST install and use the git hooks. NEVER bypass them with
+`--no-verify`. Skipping hooks wastes CI cycles and is unacceptable.**
 
-- **pre-commit**: `make pre-commit` (gen, fmt, lint, typos, build).
-  Fast checks that catch most CI failures.
-- **pre-push**: `make pre-push` (full CI suite including tests).
-  Runs before pushing to catch everything CI would.
-
-Wait for them to complete, do not skip or bypass them.
+The first run will be slow as caches warm up. Consecutive runs are
+**significantly faster** (often 10x) thanks to Go build cache,
+generated file timestamps, and warm node_modules. This is NOT a
+reason to skip them. Wait for hooks to complete before proceeding,
+no matter how long they take.
 
 ```sh
 git config core.hooksPath scripts/githooks
 ```
+
+Two hooks run automatically:
+
+- **pre-commit**: `make pre-commit` (gen, fmt, lint, typos, build).
+  Fast checks that catch most CI failures. Allow at least 5 minutes.
+- **pre-push**: `make pre-push` (full CI suite including tests).
+  Runs before pushing to catch everything CI would. Allow at least
+  15 minutes (race tests are slow without cache).
+
+`git commit` and `git push` will appear to hang while hooks run.
+This is normal. Do not interrupt, retry, or reduce the timeout.
+
+NEVER run `git config core.hooksPath` to change or disable hooks.
+
+If a hook fails, fix the issue and retry. Do not work around the
+failure by skipping the hook.
 
 ### Git Workflow
 
