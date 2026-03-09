@@ -12,53 +12,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/gitsync"
+	"github.com/coder/coder/v2/coderd/gitsync/gitsyncmock"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
-// mockStore implements gitsync.Store with function fields.
-type mockStore struct {
-	acquireStaleChatDiffStatuses func(ctx context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error)
-	backoffChatDiffStatus        func(ctx context.Context, arg database.BackoffChatDiffStatusParams) error
-	upsertChatDiffStatus         func(ctx context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error)
-	upsertChatDiffStatusRef      func(ctx context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error)
-	getChatsByOwnerID            func(ctx context.Context, arg database.GetChatsByOwnerIDParams) ([]database.Chat, error)
-}
 
-func (m *mockStore) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
-	return m.acquireStaleChatDiffStatuses(ctx, limitVal)
-}
-
-func (m *mockStore) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
-	return m.backoffChatDiffStatus(ctx, arg)
-}
-
-func (m *mockStore) UpsertChatDiffStatus(ctx context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
-	return m.upsertChatDiffStatus(ctx, arg)
-}
-
-func (m *mockStore) UpsertChatDiffStatusReference(ctx context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
-	return m.upsertChatDiffStatusRef(ctx, arg)
-}
-
-func (m *mockStore) GetChatsByOwnerID(ctx context.Context, arg database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
-	return m.getChatsByOwnerID(ctx, arg)
-}
-
-// mockPublisher implements gitsync.EventPublisher.
-type mockPublisher struct {
-	publishDiffStatusChange func(ctx context.Context, chatID uuid.UUID) error
-}
-
-func (m *mockPublisher) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) error {
-	return m.publishDiffStatusChange(ctx, chatID)
-}
 
 // testRefresherCfg configures newTestRefresher.
 type testRefresherCfg struct {
@@ -189,26 +155,27 @@ func TestWorker_PicksUpStaleRows(t *testing.T) {
 	var publishCount atomic.Int32
 	tickDone := make(chan struct{})
 
-	store := &mockStore{
-		acquireStaleChatDiffStatuses: func(_ context.Context, _ int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
-			return []database.AcquireStaleChatDiffStatusesRow{
-				makeAcquiredRow(chat1, ownerID),
-				makeAcquiredRow(chat2, ownerID),
-			}, nil
-		},
-		upsertChatDiffStatus: func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{
+			makeAcquiredRow(chat1, ownerID),
+			makeAcquiredRow(chat2, ownerID),
+		}, nil)
+	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
 			upsertCount.Add(1)
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(_ context.Context, _ uuid.UUID) error {
+		}).Times(2)
+	pub.EXPECT().PublishDiffStatusChange(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ uuid.UUID) error {
 			if publishCount.Add(1) == 2 {
 				close(tickDone)
 			}
 			return nil
-		},
-	}
+		}).Times(2)
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -225,23 +192,18 @@ func TestWorker_SkipsFreshRows(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	var upsertCount atomic.Int32
-	var publishCount atomic.Int32
 	tickDone := make(chan struct{})
 
-	store := &mockStore{
-		acquireStaleChatDiffStatuses: func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
 			// No stale rows — tick returns immediately.
 			close(tickDone)
 			return nil, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(context.Context, uuid.UUID) error {
-			publishCount.Add(1)
-			return nil
-		},
-	}
+		})
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -249,9 +211,6 @@ func TestWorker_SkipsFreshRows(t *testing.T) {
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
 	tickOnce(ctx, t, mClock, worker, tickDone)
-
-	assert.Equal(t, int32(0), upsertCount.Load())
-	assert.Equal(t, int32(0), publishCount.Load())
 }
 
 func TestWorker_LimitsToNRows(t *testing.T) {
@@ -269,24 +228,27 @@ func TestWorker_LimitsToNRows(t *testing.T) {
 		rows[i] = makeAcquiredRow(uuid.New(), ownerID)
 	}
 
-	store := &mockStore{
-		acquireStaleChatDiffStatuses: func(_ context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
 			capturedLimit.Store(limitVal)
 			return rows, nil
-		},
-		upsertChatDiffStatus: func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
+		})
+	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
 			upsertCount.Add(1)
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(context.Context, uuid.UUID) error {
+		}).Times(numRows)
+	pub.EXPECT().PublishDiffStatusChange(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, uuid.UUID) error {
 			if upsertCount.Load() == numRows {
 				close(tickDone)
 			}
 			return nil
-		},
-	}
+		}).Times(numRows)
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -306,8 +268,6 @@ func TestWorker_RefresherReturnsNilNil_SkipsUpsert(t *testing.T) {
 
 	chatID := uuid.New()
 	ownerID := uuid.New()
-	var upsertCount atomic.Int32
-	var publishCount atomic.Int32
 
 	// When the Refresher returns (nil, nil) the worker skips the
 	// upsert and publish. We signal tickDone from the refresher
@@ -315,25 +275,12 @@ func TestWorker_RefresherReturnsNilNil_SkipsUpsert(t *testing.T) {
 	// returns.
 	tickDone := make(chan struct{})
 
-	store := &mockStore{
-		acquireStaleChatDiffStatuses: func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
-			return []database.AcquireStaleChatDiffStatusesRow{makeAcquiredRow(chatID, ownerID)}, nil
-		},
-		backoffChatDiffStatus: func(context.Context, database.BackoffChatDiffStatusParams) error {
-			t.Fatal("unexpected backoff call")
-			return nil
-		},
-		upsertChatDiffStatus: func(context.Context, database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
-			upsertCount.Add(1)
-			return database.ChatDiffStatus{}, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(context.Context, uuid.UUID) error {
-			publishCount.Add(1)
-			return nil
-		},
-	}
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{makeAcquiredRow(chatID, ownerID)}, nil)
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -350,9 +297,6 @@ func TestWorker_RefresherReturnsNilNil_SkipsUpsert(t *testing.T) {
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
 	tickOnce(ctx, t, mClock, worker, tickDone)
-
-	assert.Equal(t, int32(0), upsertCount.Load())
-	assert.Equal(t, int32(0), publishCount.Load())
 }
 
 func TestWorker_RefresherError_BacksOffRow(t *testing.T) {
@@ -382,34 +326,36 @@ func TestWorker_RefresherError_BacksOffRow(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 
-	store := &mockStore{
-		acquireStaleChatDiffStatuses: func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
-			return []database.AcquireStaleChatDiffStatusesRow{
-				makeAcquiredRow(chat1, ownerID),
-				makeAcquiredRow(chat2, ownerID),
-			}, nil
-		},
-		backoffChatDiffStatus: func(_ context.Context, arg database.BackoffChatDiffStatusParams) error {
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{
+			makeAcquiredRow(chat1, ownerID),
+			makeAcquiredRow(chat2, ownerID),
+		}, nil)
+	store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.BackoffChatDiffStatusParams) error {
 			backoffCount.Add(1)
 			mu.Lock()
 			backoffArgs = append(backoffArgs, arg)
 			mu.Unlock()
 			signalIfDone()
 			return nil
-		},
-		upsertChatDiffStatus: func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
+		})
+	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
 			upsertCount.Add(1)
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(context.Context, uuid.UUID) error {
+		})
+	pub.EXPECT().PublishDiffStatusChange(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, uuid.UUID) error {
 			// Only the successful row publishes.
 			publishCount.Add(1)
 			signalIfDone()
 			return nil
-		},
-	}
+		})
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
@@ -473,14 +419,17 @@ func TestWorker_UpsertError_ContinuesNextRow(t *testing.T) {
 		}
 	}
 
-	store := &mockStore{
-		acquireStaleChatDiffStatuses: func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
-			return []database.AcquireStaleChatDiffStatusesRow{
-				makeAcquiredRow(chat1, ownerID),
-				makeAcquiredRow(chat2, ownerID),
-			}, nil
-		},
-		upsertChatDiffStatus: func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{
+			makeAcquiredRow(chat1, ownerID),
+			makeAcquiredRow(chat2, ownerID),
+		}, nil)
+	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
 			if arg.ChatID == chat1 {
 				// Terminal event for the failing row.
 				signalIfDone()
@@ -490,16 +439,14 @@ func TestWorker_UpsertError_ContinuesNextRow(t *testing.T) {
 			upsertedChatIDs[arg.ChatID] = struct{}{}
 			mu.Unlock()
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(context.Context, uuid.UUID) error {
+		}).Times(2)
+	pub.EXPECT().PublishDiffStatusChange(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, uuid.UUID) error {
 			publishCount.Add(1)
 			// Terminal event for the successful row.
 			signalIfDone()
 			return nil
-		},
-	}
+		})
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -519,14 +466,12 @@ func TestWorker_RespectsShutdown(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	store := &mockStore{
-		acquireStaleChatDiffStatuses: func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
-			return nil, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(context.Context, uuid.UUID) error { return nil },
-	}
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return(nil, nil).AnyTimes()
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -568,23 +513,24 @@ func TestWorker_BatchRefreshAllRows(t *testing.T) {
 	var publishCount atomic.Int32
 	tickDone := make(chan struct{})
 
-	store := &mockStore{
-		acquireStaleChatDiffStatuses: func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
-			return rows, nil
-		},
-		upsertChatDiffStatus: func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return(rows, nil)
+	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
 			upsertCount.Add(1)
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(context.Context, uuid.UUID) error {
+		}).Times(numRows)
+	pub.EXPECT().PublishDiffStatusChange(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, uuid.UUID) error {
 			if publishCount.Add(1) == numRows {
 				close(tickDone)
 			}
 			return nil
-		},
-	}
+		}).Times(numRows)
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -613,30 +559,33 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 	var upsertRefCalls []database.UpsertChatDiffStatusReferenceParams
 	var publishedIDs []uuid.UUID
 
-	store := &mockStore{
-		getChatsByOwnerID: func(_ context.Context, arg database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
+
+	store.EXPECT().GetChatsByOwnerID(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
 			require.Equal(t, ownerID, arg.OwnerID)
 			return []database.Chat{
 				{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
 				{ID: chat2, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
 				{ID: chatOther, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
 			}, nil
-		},
-		upsertChatDiffStatusRef: func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
+		})
+	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
 			mu.Lock()
 			upsertRefCalls = append(upsertRefCalls, arg)
 			mu.Unlock()
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(_ context.Context, chatID uuid.UUID) error {
+		}).Times(2)
+	pub.EXPECT().PublishDiffStatusChange(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, chatID uuid.UUID) error {
 			mu.Lock()
 			publishedIDs = append(publishedIDs, chatID)
 			mu.Unlock()
 			return nil
-		},
-	}
+		}).Times(2)
 
 	mClock := quartz.NewMock(t)
 	now := mClock.Now()
@@ -669,27 +618,15 @@ func TestWorker_MarkStale_NoMatchingChats(t *testing.T) {
 	workspaceID := uuid.New()
 	ownerID := uuid.New()
 
-	var upsertRefCount atomic.Int32
-	var publishCount atomic.Int32
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
 
-	store := &mockStore{
-		getChatsByOwnerID: func(context.Context, database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
-			return []database.Chat{
-				{ID: uuid.New(), OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
-				{ID: uuid.New(), OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
-			}, nil
-		},
-		upsertChatDiffStatusRef: func(context.Context, database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
-			upsertRefCount.Add(1)
-			return database.ChatDiffStatus{}, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(context.Context, uuid.UUID) error {
-			publishCount.Add(1)
-			return nil
-		},
-	}
+	store.EXPECT().GetChatsByOwnerID(gomock.Any(), gomock.Any()).
+		Return([]database.Chat{
+			{ID: uuid.New(), OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+			{ID: uuid.New(), OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+		}, nil)
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -697,9 +634,6 @@ func TestWorker_MarkStale_NoMatchingChats(t *testing.T) {
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
 	worker.MarkStale(ctx, workspaceID, ownerID, "main", "https://github.com/x/y")
-
-	assert.Equal(t, int32(0), upsertRefCount.Load())
-	assert.Equal(t, int32(0), publishCount.Load())
 }
 
 func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
@@ -713,26 +647,27 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 
 	var publishCount atomic.Int32
 
-	store := &mockStore{
-		getChatsByOwnerID: func(context.Context, database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
-			return []database.Chat{
-				{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
-				{ID: chat2, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
-			}, nil
-		},
-		upsertChatDiffStatusRef: func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
+
+	store.EXPECT().GetChatsByOwnerID(gomock.Any(), gomock.Any()).
+		Return([]database.Chat{
+			{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
+			{ID: chat2, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
+		}, nil)
+	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
 			if arg.ChatID == chat1 {
 				return database.ChatDiffStatus{}, fmt.Errorf("upsert ref error")
 			}
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(context.Context, uuid.UUID) error {
+		}).Times(2)
+	pub.EXPECT().PublishDiffStatusChange(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, uuid.UUID) error {
 			publishCount.Add(1)
 			return nil
-		},
-	}
+		})
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -748,20 +683,12 @@ func TestWorker_MarkStale_GetChatsFails(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	var upsertRefCount atomic.Int32
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
 
-	store := &mockStore{
-		getChatsByOwnerID: func(context.Context, database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
-			return nil, fmt.Errorf("db error")
-		},
-		upsertChatDiffStatusRef: func(context.Context, database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
-			upsertRefCount.Add(1)
-			return database.ChatDiffStatus{}, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(context.Context, uuid.UUID) error { return nil },
-	}
+	store.EXPECT().GetChatsByOwnerID(gomock.Any(), gomock.Any()).
+		Return(nil, fmt.Errorf("db error"))
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -769,34 +696,23 @@ func TestWorker_MarkStale_GetChatsFails(t *testing.T) {
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
 	worker.MarkStale(ctx, uuid.New(), uuid.New(), "main", "https://github.com/x/y")
-
-	assert.Equal(t, int32(0), upsertRefCount.Load())
 }
 
 func TestWorker_TickStoreError(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	var upsertCount atomic.Int32
-	var publishCount atomic.Int32
 	tickDone := make(chan struct{})
 
-	store := &mockStore{
-		acquireStaleChatDiffStatuses: func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+	ctrl := gomock.NewController(t)
+	store := gitsyncmock.NewMockStore(ctrl)
+	pub := gitsyncmock.NewMockEventPublisher(ctrl)
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
 			close(tickDone)
 			return nil, fmt.Errorf("database unavailable")
-		},
-		upsertChatDiffStatus: func(context.Context, database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
-			upsertCount.Add(1)
-			return database.ChatDiffStatus{}, nil
-		},
-	}
-	pub := &mockPublisher{
-		publishDiffStatusChange: func(context.Context, uuid.UUID) error {
-			publishCount.Add(1)
-			return nil
-		},
-	}
+		})
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -804,9 +720,6 @@ func TestWorker_TickStoreError(t *testing.T) {
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
 	tickOnce(ctx, t, mClock, worker, tickDone)
-
-	assert.Equal(t, int32(0), upsertCount.Load())
-	assert.Equal(t, int32(0), publishCount.Load())
 }
 
 func TestWorker_MarkStale_EmptyBranchOrOrigin(t *testing.T) {
@@ -828,17 +741,12 @@ func TestWorker_MarkStale_EmptyBranchOrOrigin(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 
-			var getChatsCalled atomic.Bool
+			ctrl := gomock.NewController(t)
+			store := gitsyncmock.NewMockStore(ctrl)
+			pub := gitsyncmock.NewMockEventPublisher(ctrl)
 
-			store := &mockStore{
-				getChatsByOwnerID: func(context.Context, database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
-					getChatsCalled.Store(true)
-					return nil, nil
-				},
-			}
-			pub := &mockPublisher{
-				publishDiffStatusChange: func(context.Context, uuid.UUID) error { return nil },
-			}
+			// No EXPECT calls — gomock will fail if any method is
+			// called unexpectedly.
 
 			mClock := quartz.NewMock(t)
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -846,9 +754,6 @@ func TestWorker_MarkStale_EmptyBranchOrOrigin(t *testing.T) {
 			worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
 			worker.MarkStale(ctx, uuid.New(), uuid.New(), tc.branch, tc.origin)
-			assert.False(t, getChatsCalled.Load(),
-				"GetChatsByOwnerID should not be called with branch=%q origin=%q",
-				tc.branch, tc.origin)
 		})
 	}
 }
