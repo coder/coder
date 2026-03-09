@@ -15,8 +15,8 @@ const WorkspaceSharingPage: FC = () => {
 	const sharing = useWorkspaceSharing(workspace);
 
 	const checks = workspaceChecks(workspace);
-	const permissionsQuery = useQuery<WorkspacePermissions>({
-		...checkAuthorization({ checks }),
+	const permissionsQuery = useQuery({
+		...checkAuthorization<WorkspacePermissions>({ checks }),
 	});
 	const permissions = permissionsQuery.data;
 	const canUpdatePermissions = Boolean(permissions?.updateWorkspace);
