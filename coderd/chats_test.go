@@ -1564,9 +1564,14 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// The file-reference is stored as a formatted text block.
-		wantText := "[file-reference] main.go:10-15\n" +
-			"```main.go\nfunc broken() {}\n```"
+		// The file-reference is now stored as a native file-reference part.
+		checkFileRef := func(part codersdk.ChatMessagePart) bool {
+			return part.Type == codersdk.ChatMessagePartTypeFileReference &&
+				part.FileName == "main.go" &&
+				part.StartLine == 10 &&
+				part.EndLine == 15 &&
+				part.Content == "func broken() {}"
+		}
 
 		var found bool
 		require.Eventually(t, func() bool {
@@ -1579,8 +1584,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 					continue
 				}
 				for _, part := range message.Content {
-					if part.Type == codersdk.ChatMessagePartTypeText &&
-						part.Text == wantText {
+					if checkFileRef(part) {
 						found = true
 						return true
 					}
@@ -1590,8 +1594,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			if created.Queued && created.QueuedMessage != nil {
 				for _, queued := range chatWithMessages.QueuedMessages {
 					for _, part := range queued.Content {
-						if part.Type == codersdk.ChatMessagePartTypeText &&
-							part.Text == wantText {
+						if checkFileRef(part) {
 							found = true
 							return true
 						}
@@ -1600,7 +1603,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			}
 			return false
 		}, testutil.WaitLong, testutil.IntervalFast)
-		require.True(t, found, "expected to find file-reference text in stored message")
+		require.True(t, found, "expected to find file-reference part in stored message")
 	})
 
 	t.Run("FileReferenceSingleLine", func(t *testing.T) {
@@ -1623,9 +1626,14 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Single-line range should use "42" not "42-42".
-		wantText := "[file-reference] lib/utils.ts:42\n" +
-			"```lib/utils.ts\nconst x = 1;\n```"
+		// Single-line range: stored as native file-reference part.
+		checkFileRef := func(part codersdk.ChatMessagePart) bool {
+			return part.Type == codersdk.ChatMessagePartTypeFileReference &&
+				part.FileName == "lib/utils.ts" &&
+				part.StartLine == 42 &&
+				part.EndLine == 42 &&
+				part.Content == "const x = 1;"
+		}
 
 		require.Eventually(t, func() bool {
 			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
@@ -1634,7 +1642,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			}
 			for _, msg := range chatWithMessages.Messages {
 				for _, part := range msg.Content {
-					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+					if checkFileRef(part) {
 						return true
 					}
 				}
@@ -1642,7 +1650,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			if created.Queued && created.QueuedMessage != nil {
 				for _, queued := range chatWithMessages.QueuedMessages {
 					for _, part := range queued.Content {
-						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+						if checkFileRef(part) {
 							return true
 						}
 					}
@@ -1672,8 +1680,14 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// No fenced code block when content is empty.
-		wantText := "[file-reference] README.md:1"
+		// Stored as native file-reference with empty content.
+		checkFileRef := func(part codersdk.ChatMessagePart) bool {
+			return part.Type == codersdk.ChatMessagePartTypeFileReference &&
+				part.FileName == "README.md" &&
+				part.StartLine == 1 &&
+				part.EndLine == 1 &&
+				part.Content == ""
+		}
 		require.Eventually(t, func() bool {
 			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
 			if getErr != nil {
@@ -1681,7 +1695,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			}
 			for _, msg := range chatWithMessages.Messages {
 				for _, part := range msg.Content {
-					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+					if checkFileRef(part) {
 						return true
 					}
 				}
@@ -1689,7 +1703,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			if created.Queued && created.QueuedMessage != nil {
 				for _, queued := range chatWithMessages.QueuedMessages {
 					for _, part := range queued.Content {
-						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+						if checkFileRef(part) {
 							return true
 						}
 					}
@@ -1719,8 +1733,13 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		wantText := "[file-reference] server.go:5-8\n" +
-			"```server.go\nfunc main() {\n\tfmt.Println()\n}\n```"
+		checkFileRef := func(part codersdk.ChatMessagePart) bool {
+			return part.Type == codersdk.ChatMessagePartTypeFileReference &&
+				part.FileName == "server.go" &&
+				part.StartLine == 5 &&
+				part.EndLine == 8 &&
+				part.Content == "func main() {\n\tfmt.Println()\n}"
+		}
 
 		require.Eventually(t, func() bool {
 			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
@@ -1729,7 +1748,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			}
 			for _, msg := range chatWithMessages.Messages {
 				for _, part := range msg.Content {
-					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+					if checkFileRef(part) {
 						return true
 					}
 				}
@@ -1737,7 +1756,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			if created.Queued && created.QueuedMessage != nil {
 				for _, queued := range chatWithMessages.QueuedMessages {
 					for _, part := range queued.Content {
-						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
+						if checkFileRef(part) {
 							return true
 						}
 					}
@@ -1792,14 +1811,21 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Verify that all six parts are stored in order.
-		wantTexts := []string{
-			"Please review these two issues:",
-			"[file-reference] a.go:1-3\n```a.go\nline1\nline2\nline3\n```",
-			"first issue",
-			"and also:",
-			"[file-reference] b.go:10\n```b.go\nreturn nil\n```",
-			"second issue",
+		// Verify that all six parts are stored in order with
+		// correct types: text, file-reference, text, text,
+		// file-reference, text.
+		type wantPart struct {
+			partType codersdk.ChatMessagePartType
+			text     string // for text parts
+			fileName string // for file-reference parts
+		}
+		wantParts := []wantPart{
+			{partType: codersdk.ChatMessagePartTypeText, text: "Please review these two issues:"},
+			{partType: codersdk.ChatMessagePartTypeFileReference, fileName: "a.go"},
+			{partType: codersdk.ChatMessagePartTypeText, text: "first issue"},
+			{partType: codersdk.ChatMessagePartTypeText, text: "and also:"},
+			{partType: codersdk.ChatMessagePartTypeFileReference, fileName: "b.go"},
+			{partType: codersdk.ChatMessagePartTypeText, text: "second issue"},
 		}
 
 		require.Eventually(t, func() bool {
@@ -1811,18 +1837,22 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			// Check messages and queued messages for the
 			// interleaved parts in order.
 			checkParts := func(parts []codersdk.ChatMessagePart) bool {
-				textParts := make([]string, 0, len(parts))
-				for _, part := range parts {
-					if part.Type == codersdk.ChatMessagePartTypeText {
-						textParts = append(textParts, part.Text)
-					}
-				}
-				if len(textParts) != len(wantTexts) {
+				if len(parts) != len(wantParts) {
 					return false
 				}
-				for i, want := range wantTexts {
-					if textParts[i] != want {
+				for i, want := range wantParts {
+					if parts[i].Type != want.partType {
 						return false
+					}
+					switch want.partType {
+					case codersdk.ChatMessagePartTypeText:
+						if parts[i].Text != want.text {
+							return false
+						}
+					case codersdk.ChatMessagePartTypeFileReference:
+						if parts[i].FileName != want.fileName {
+							return false
+						}
 					}
 				}
 				return true

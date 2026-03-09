@@ -3,6 +3,7 @@ package chatprompt
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -50,12 +51,33 @@ func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
 }
 
 // extractFileIDs scans raw message content for file_id references.
-// Returns a map of block index to file ID. Returns nil for
-// non-array content or content with no file references.
+// Returns a map of block index to file ID. Supports both the legacy
+// fantasy envelope format (file_id nested under "data") and the new
+// SDK format (file_id at the top level). Returns nil for non-array
+// content or content with no file references.
 func extractFileIDs(raw pqtype.NullRawMessage) map[int]uuid.UUID {
 	if !raw.Valid || len(raw.RawMessage) == 0 {
 		return nil
 	}
+
+	// Try SDK format first (new user message storage).
+	if !IsFantasyEnvelopeFormat(raw.RawMessage) {
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(raw.RawMessage, &parts); err == nil {
+			var result map[int]uuid.UUID
+			for i, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid {
+					if result == nil {
+						result = make(map[int]uuid.UUID)
+					}
+					result[i] = part.FileID.UUID
+				}
+			}
+			return result
+		}
+	}
+
+	// Fall back to legacy fantasy envelope format.
 	var rawBlocks []json.RawMessage
 	if err := json.Unmarshal(raw.RawMessage, &rawBlocks); err != nil {
 		return nil
@@ -340,6 +362,34 @@ func ParseContent(role string, raw pqtype.NullRawMessage) ([]fantasy.Content, er
 		return []fantasy.Content{fantasy.TextContent{Text: text}}, nil
 	}
 
+	// Try SDK format (new user message storage format). SDK format
+	// stores []codersdk.ChatMessagePart directly, without the
+	// fantasy {"type":...,"data":{...}} envelope wrapper.
+	if !IsFantasyEnvelopeFormat(raw.RawMessage) {
+		var parts []codersdk.ChatMessagePart
+		if err := json.Unmarshal(raw.RawMessage, &parts); err == nil && len(parts) > 0 {
+			content := make([]fantasy.Content, 0, len(parts))
+			for _, part := range parts {
+				switch part.Type {
+				case codersdk.ChatMessagePartTypeText:
+					content = append(content, fantasy.TextContent{Text: part.Text})
+				case codersdk.ChatMessagePartTypeFile:
+					content = append(content, fantasy.FileContent{
+						MediaType: part.MediaType,
+						Data:      part.Data,
+					})
+				case codersdk.ChatMessagePartTypeFileReference:
+					// Convert to text representation for LLM.
+					content = append(content, fantasy.TextContent{
+						Text: fileReferencePartToText(part),
+					})
+				}
+			}
+			return content, nil
+		}
+	}
+
+	// Fall back to fantasy envelope format (legacy storage).
 	var rawBlocks []json.RawMessage
 	if err := json.Unmarshal(raw.RawMessage, &rawBlocks); err != nil {
 		return nil, xerrors.Errorf("parse %s content: %w", role, err)
@@ -354,6 +404,42 @@ func ParseContent(role string, raw pqtype.NullRawMessage) ([]fantasy.Content, er
 		content = append(content, block)
 	}
 	return content, nil
+}
+
+// fileReferencePartToText converts a ChatMessagePart file-reference
+// into the text representation used for LLM dispatch.
+func fileReferencePartToText(part codersdk.ChatMessagePart) string {
+	lineRange := fmt.Sprintf("%d", part.StartLine)
+	if part.StartLine != part.EndLine {
+		lineRange = fmt.Sprintf("%d-%d", part.StartLine, part.EndLine)
+	}
+	var sb strings.Builder
+	_, _ = fmt.Fprintf(&sb, "[file-reference] %s:%s", part.FileName, lineRange)
+	if strings.TrimSpace(part.Content) != "" {
+		_, _ = fmt.Fprintf(&sb, "\n```%s\n%s\n```", part.FileName, strings.TrimSpace(part.Content))
+	}
+	return sb.String()
+}
+
+// IsFantasyEnvelopeFormat checks whether the JSON content uses the
+// fantasy {"type": ..., "data": {...}} envelope format. Returns
+// false for the newer SDK ChatMessagePart format or non-array
+// content.
+func IsFantasyEnvelopeFormat(raw json.RawMessage) bool {
+	var blocks []json.RawMessage
+	if err := json.Unmarshal(raw, &blocks); err != nil || len(blocks) == 0 {
+		return false
+	}
+	var probe struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(blocks[0], &probe); err != nil {
+		return false
+	}
+	// Fantasy envelope wraps content in "data" as a JSON object.
+	// The SDK ChatMessagePart.Data field serializes as a base64
+	// string (not an object), so checking for '{' is safe.
+	return len(probe.Data) > 0 && probe.Data[0] == '{'
 }
 
 // toolResultRaw is an untyped representation of a persisted tool
@@ -583,6 +669,19 @@ func MarshalContent(blocks []fantasy.Content, fileIDs map[int]uuid.UUID) (pqtype
 	data, err := json.Marshal(encodedBlocks)
 	if err != nil {
 		return pqtype.NullRawMessage{}, xerrors.Errorf("encode content blocks: %w", err)
+	}
+	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
+}
+
+// MarshalUserContent serializes user message parts directly as
+// JSON for storage in the chat_messages content column.
+func MarshalUserContent(parts []codersdk.ChatMessagePart) (pqtype.NullRawMessage, error) {
+	if len(parts) == 0 {
+		return pqtype.NullRawMessage{}, nil
+	}
+	data, err := json.Marshal(parts)
+	if err != nil {
+		return pqtype.NullRawMessage{}, xerrors.Errorf("marshal user content: %w", err)
 	}
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }

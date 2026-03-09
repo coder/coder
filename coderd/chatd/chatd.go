@@ -163,17 +163,14 @@ var (
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
-	OwnerID            uuid.UUID
-	WorkspaceID        uuid.NullUUID
-	ParentChatID       uuid.NullUUID
-	RootChatID         uuid.NullUUID
-	Title              string
-	ModelConfigID      uuid.UUID
-	SystemPrompt       string
-	InitialUserContent []fantasy.Content
-	// ContentFileIDs maps content block indices to their chat_files IDs
-	// so the file_id can be preserved in the stored message JSON.
-	ContentFileIDs map[int]uuid.UUID
+	OwnerID       uuid.UUID
+	WorkspaceID   uuid.NullUUID
+	ParentChatID  uuid.NullUUID
+	RootChatID    uuid.NullUUID
+	Title         string
+	ModelConfigID uuid.UUID
+	SystemPrompt  string
+	Content       []codersdk.ChatMessagePart
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -191,11 +188,10 @@ const (
 
 // SendMessageOptions controls user message insertion with busy-state behavior.
 type SendMessageOptions struct {
-	ChatID         uuid.UUID
-	Content        []fantasy.Content
-	ContentFileIDs map[int]uuid.UUID
-	ModelConfigID  *uuid.UUID
-	BusyBehavior   SendMessageBusyBehavior
+	ChatID        uuid.UUID
+	Content       []codersdk.ChatMessagePart
+	ModelConfigID *uuid.UUID
+	BusyBehavior  SendMessageBusyBehavior
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -210,8 +206,7 @@ type SendMessageResult struct {
 type EditMessageOptions struct {
 	ChatID          uuid.UUID
 	EditedMessageID int64
-	Content         []fantasy.Content
-	ContentFileIDs  map[int]uuid.UUID
+	Content         []codersdk.ChatMessagePart
 }
 
 // EditMessageResult contains the updated user message and chat status.
@@ -241,7 +236,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if strings.TrimSpace(opts.Title) == "" {
 		return database.Chat{}, xerrors.New("title is required")
 	}
-	if len(opts.InitialUserContent) == 0 {
+	if len(opts.Content) == 0 {
 		return database.Chat{}, xerrors.New("initial user content is required")
 	}
 
@@ -291,7 +286,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			}
 		}
 
-		userContent, err := chatprompt.MarshalContent(opts.InitialUserContent, opts.ContentFileIDs)
+		userContent, err := chatprompt.MarshalUserContent(opts.Content)
 		if err != nil {
 			return xerrors.Errorf("marshal initial user content: %w", err)
 		}
@@ -358,7 +353,7 @@ func (p *Server) SendMessage(
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
 
-	content, err := chatprompt.MarshalContent(opts.Content, opts.ContentFileIDs)
+	content, err := chatprompt.MarshalUserContent(opts.Content)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
@@ -491,7 +486,7 @@ func (p *Server) EditMessage(
 		return EditMessageResult{}, xerrors.New("content is required")
 	}
 
-	content, err := chatprompt.MarshalContent(opts.Content, opts.ContentFileIDs)
+	content, err := chatprompt.MarshalUserContent(opts.Content)
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}

@@ -333,6 +333,8 @@ describe("parseMessageContent", () => {
 		expect(ref.endLine).toBe(0);
 	});
 
+
+
 	it("does not affect markdown when file-reference blocks are present", () => {
 		const result = parseMessageContent([
 			{ type: "text", text: "Hello" },

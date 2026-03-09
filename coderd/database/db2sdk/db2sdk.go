@@ -1150,13 +1150,24 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 			Text: content,
 		}}, nil
 	case string(fantasy.MessageRoleUser), string(fantasy.MessageRoleAssistant):
+		// User messages may be stored in SDK format (new) or
+		// fantasy envelope format (legacy). Try SDK format first
+		// for user messages.
+		if role == string(fantasy.MessageRoleUser) {
+			if parts, ok := tryParseSDKParts(raw); ok {
+				return parts, nil
+			}
+		}
+
+		// Fall back to fantasy envelope format (legacy user
+		// messages and all assistant messages).
+		var rawBlocks []json.RawMessage
+		_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
+
 		content, err := parseContentBlocks(role, raw)
 		if err != nil {
 			return nil, err
 		}
-
-		var rawBlocks []json.RawMessage
-		_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
 
 		parts := make([]codersdk.ChatMessagePart, 0, len(content))
 		for i, block := range content {
@@ -1202,6 +1213,41 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 	default:
 		return nil, nil
 	}
+}
+
+// tryParseSDKParts attempts to parse content as
+// []codersdk.ChatMessagePart (new SDK storage format for user
+// messages). Returns false if the content uses the legacy fantasy
+// envelope format.
+func tryParseSDKParts(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, bool) {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return nil, false
+	}
+
+	// Plain string is handled by parseContentBlocks, not here.
+	if raw.RawMessage[0] == '"' {
+		return nil, false
+	}
+
+	// Check if this is fantasy envelope format (has "data" object
+	// wrapper). If so, fall through to legacy parsing.
+	if chatprompt.IsFantasyEnvelopeFormat(raw.RawMessage) {
+		return nil, false
+	}
+
+	var parts []codersdk.ChatMessagePart
+	if err := json.Unmarshal(raw.RawMessage, &parts); err != nil {
+		return nil, false
+	}
+
+	// Strip inline file data — clients fetch via the files endpoint.
+	for i := range parts {
+		if parts[i].Type == codersdk.ChatMessagePartTypeFile && parts[i].FileID.Valid {
+			parts[i].Data = nil
+		}
+	}
+
+	return parts, true
 }
 
 func parseSystemContent(raw pqtype.NullRawMessage) (string, error) {
