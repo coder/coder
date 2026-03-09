@@ -405,6 +405,106 @@ func TestRun_PersistStepErrorPropagates(t *testing.T) {
 	require.ErrorContains(t, err, "database write failed")
 }
 
+func TestRun_ToolCallsWithFinishReasonLength(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+	var secondCallPrompt []fantasy.Message
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			switch step {
+			case 0:
+				// Step 0: produce a complete tool call but finish
+				// with FinishReasonLength (max output tokens hit).
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-len-1", ToolCallName: "read_file"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-len-1", Delta: `{"path":"main.go"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-len-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-len-1",
+						ToolCallName:  "read_file",
+						ToolCallInput: `{"path":"main.go"}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonLength},
+				}), nil
+			default:
+				// Step 1: capture the prompt, then return text.
+				mu.Lock()
+				secondCallPrompt = append([]fantasy.Message(nil), call.Prompt...)
+				mu.Unlock()
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "all done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	var persistStepCalls int
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "please read main.go"),
+		},
+		Tools: []fantasy.AgentTool{
+			newNoopTool("read_file"),
+		},
+		MaxSteps: 5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			persistStepCalls++
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	// Stream should be called twice: once for the tool-call step
+	// (finished with FinishReasonLength), once for the follow-up.
+	require.Equal(t, 2, streamCalls)
+
+	// PersistStep is called once per step.
+	require.Equal(t, 2, persistStepCalls)
+
+	// The second call's prompt must contain the tool result from
+	// step 0, proving the tool was executed despite FinishReasonLength.
+	require.NotEmpty(t, secondCallPrompt)
+
+	var foundAssistantToolCall bool
+	var foundToolResult bool
+	for _, msg := range secondCallPrompt {
+		if msg.Role == fantasy.MessageRoleAssistant {
+			for _, part := range msg.Content {
+				if tc, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok {
+					if tc.ToolCallID == "tc-len-1" && tc.ToolName == "read_file" {
+						foundAssistantToolCall = true
+					}
+				}
+			}
+		}
+		if msg.Role == fantasy.MessageRoleTool {
+			for _, part := range msg.Content {
+				if tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok {
+					if tr.ToolCallID == "tc-len-1" {
+						foundToolResult = true
+					}
+				}
+			}
+		}
+	}
+	require.True(t, foundAssistantToolCall, "second call prompt should contain assistant tool call from step 0")
+	require.True(t, foundToolResult, "second call prompt should contain tool result message")
+}
+
 func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
 	if len(message.ProviderOptions) == 0 {
 		return false

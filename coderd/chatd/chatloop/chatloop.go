@@ -609,8 +609,16 @@ func processStepStream(
 		}
 	}
 
+	// Continue when the model produced tool calls, regardless of
+	// whether the finish reason is "tool-calls" or "length". When
+	// the model hits MaxOutputTokens mid-response
+	// (FinishReasonLength) but had already emitted complete tool
+	// calls, those tools must still be executed. Otherwise the
+	// agent loop silently stops and the user has to manually
+	// prompt it to continue.
 	result.shouldContinue = len(result.toolCalls) > 0 &&
-		result.finishReason == fantasy.FinishReasonToolCalls
+		(result.finishReason == fantasy.FinishReasonToolCalls ||
+			result.finishReason == fantasy.FinishReasonLength)
 	return result, nil
 }
 
