@@ -80,16 +80,7 @@ import {
 import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
 
-const noopSetChatErrorReason: AgentsOutletContext["setChatErrorReason"] =
-	() => {};
-const noopClearChatErrorReason: AgentsOutletContext["clearChatErrorReason"] =
-	() => {};
-const noopRequestArchiveAgent: AgentsOutletContext["requestArchiveAgent"] =
-	() => {};
-const noopRequestArchiveAndDeleteWorkspace: AgentsOutletContext["requestArchiveAndDeleteWorkspace"] =
-	() => {};
-const noopRequestUnarchiveAgent: AgentsOutletContext["requestUnarchiveAgent"] =
-	() => {};
+
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
@@ -558,27 +549,22 @@ export function useConversationEditingState(deps: {
 const AgentDetail: FC = () => {
 	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
-	const outletContext = useOutletContext<AgentsOutletContext | undefined>();
+	const outletContext = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const [selectedModel, setSelectedModel] = useState("");
 	const [pendingEditMessageId, setPendingEditMessageId] = useState<
 		number | null
 	>(null);
-	const chatErrorReasons = outletContext?.chatErrorReasons ?? {};
-	const setChatErrorReason =
-		outletContext?.setChatErrorReason ?? noopSetChatErrorReason;
-	const clearChatErrorReason =
-		outletContext?.clearChatErrorReason ?? noopClearChatErrorReason;
-	const requestArchiveAgent =
-		outletContext?.requestArchiveAgent ?? noopRequestArchiveAgent;
-	const requestArchiveAndDeleteWorkspace =
-		outletContext?.requestArchiveAndDeleteWorkspace ??
-		noopRequestArchiveAndDeleteWorkspace;
-	const requestUnarchiveAgent =
-		outletContext?.requestUnarchiveAgent ?? noopRequestUnarchiveAgent;
-	const isSidebarCollapsed = outletContext?.isSidebarCollapsed ?? false;
-	const onToggleSidebarCollapsed =
-		outletContext?.onToggleSidebarCollapsed ?? (() => {});
+	const {
+		chatErrorReasons,
+		setChatErrorReason,
+		clearChatErrorReason,
+		requestArchiveAgent,
+		requestArchiveAndDeleteWorkspace,
+		requestUnarchiveAgent,
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
+	} = outletContext;
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef("");
