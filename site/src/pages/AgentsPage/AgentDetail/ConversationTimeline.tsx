@@ -435,49 +435,6 @@ const ChatMessageItem = memo<{
 										/>
 									)}
 								</div>
-								{(() => {
-									const imageBlocks = parsed.blocks.filter(
-										(b): b is Extract<RenderBlock, { type: "file" }> =>
-											b.type === "file" && b.mediaType.startsWith("image/"),
-									);
-									if (imageBlocks.length === 0) return null;
-									return (
-										<div className="mt-2 flex flex-wrap gap-2">
-											{imageBlocks.map((block, i) => {
-												const src = block.fileId
-													? `/api/experimental/chats/files/${block.fileId}`
-													: `data:${block.mediaType};base64,${block.data}`;
-												return (
-													<button
-														key={`user-file-${i}`}
-														type="button"
-														aria-label="View image"
-														className="inline-block rounded-md border-0 bg-transparent p-0"
-														onClick={(e) => {
-															e.stopPropagation();
-															setPreviewImage(src);
-														}}
-													>
-														<ImageThumbnail
-															previewUrl={src}
-															name="Attached image"
-															className="cursor-pointer transition-opacity hover:opacity-80"
-														/>
-													</button>
-												);
-											})}
-										</div>
-									);
-								})()}
-								{fadeFromBottom && (
-									<div
-										className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
-										style={{
-											background:
-												"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
-										}}
-									/>
-								)}{" "}
 							</MessageContent>
 						</Message>
 					) : (
