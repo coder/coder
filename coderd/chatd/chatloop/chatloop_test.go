@@ -505,6 +505,54 @@ func TestRun_ToolCallsWithFinishReasonLength(t *testing.T) {
 	require.True(t, foundToolResult, "second call prompt should contain tool result message")
 }
 
+func TestRun_FinishReasonLengthWithoutToolCallsStops(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			streamCalls++
+			mu.Unlock()
+
+			// Return text-only response with FinishReasonLength
+			// (no tool calls). The loop must NOT continue.
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "partial response truncated by token limit"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonLength},
+			}), nil
+		},
+	}
+
+	var persistStepCalls int
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "write me an essay"),
+		},
+		Tools: []fantasy.AgentTool{
+			newNoopTool("read_file"),
+		},
+		MaxSteps: 5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			persistStepCalls++
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	// Stream should be called exactly once. Even though the finish
+	// reason is FinishReasonLength, there are no tool calls so the
+	// loop must stop.
+	require.Equal(t, 1, streamCalls)
+	require.Equal(t, 1, persistStepCalls)
+}
+
 func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
 	if len(message.ProviderOptions) == 0 {
 		return false
