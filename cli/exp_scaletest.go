@@ -303,46 +303,6 @@ func (o *scaleTestOutput) write(res harness.Results, stdout io.Writer) error {
 	return nil
 }
 
-// writeAutostartOutput writes autostart-specific results to the specified output.
-func writeAutostartOutput(o scaleTestOutput, results autostart.RunResults, stdout io.Writer) error {
-	var (
-		w = stdout
-		c io.Closer
-	)
-	if o.path != "-" {
-		f, err := os.Create(o.path)
-		if err != nil {
-			return xerrors.Errorf("create output file: %w", err)
-		}
-		w, c = f, f
-	}
-
-	switch o.format {
-	case scaleTestOutputFormatText:
-		results.PrintText(w)
-	case scaleTestOutputFormatJSON:
-		err := json.NewEncoder(w).Encode(results)
-		if err != nil {
-			return xerrors.Errorf("encode JSON: %w", err)
-		}
-	}
-
-	// Sync the file to disk if it's a file.
-	if s, ok := w.(interface{ Sync() error }); ok {
-		// Best effort. If we get an error from syncing, just ignore it.
-		_ = s.Sync()
-	}
-
-	if c != nil {
-		err := c.Close()
-		if err != nil {
-			return xerrors.Errorf("close output file: %w", err)
-		}
-	}
-
-	return nil
-}
-
 type scaletestOutputFlags struct {
 	outputSpecs []string
 }
@@ -1949,7 +1909,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			if len(runResults) > 0 {
 				results := autostart.NewRunResults(runResults)
 				for _, out := range outputs {
-					if err := writeAutostartOutput(out, results, inv.Stdout); err != nil {
+					if err := out.write(results.ToHarnessResults(), inv.Stdout); err != nil {
 						return xerrors.Errorf("write output: %w", err)
 					}
 				}

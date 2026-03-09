@@ -6,6 +6,10 @@ import (
 	"io"
 	"sort"
 	"time"
+
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/scaletest/harness"
 )
 
 // RunResults contains the aggregated metrics from all autostart test runs.
@@ -184,4 +188,38 @@ func (r RunResults) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(jr)
+}
+
+// ToHarnessResults converts autostart-specific results into the standard
+// harness.Results format for use with existing output functions.
+func (r RunResults) ToHarnessResults() harness.Results {
+	harnessRuns := make(map[string]harness.RunResult)
+
+	for i, run := range r.Runs {
+		id := fmt.Sprintf("%d", i)
+		var err error
+		if !run.Success {
+			err = xerrors.New(run.Error)
+		}
+
+		harnessRuns[id] = harness.RunResult{
+			FullID:   fmt.Sprintf("autostart/%s", run.WorkspaceName),
+			TestName: "autostart",
+			ID:       id,
+			Error:    err,
+			Metrics: map[string]any{
+				"end_to_end_latency_seconds":    run.EndToEndLatency().Seconds(),
+				"trigger_to_completion_seconds": run.TriggerToCompletionLatency().Seconds(),
+				"workspace_id":                  run.WorkspaceID.String(),
+				"workspace_name":                run.WorkspaceName,
+			},
+		}
+	}
+
+	return harness.Results{
+		TotalRuns: r.TotalRuns,
+		TotalPass: r.SuccessfulRuns,
+		TotalFail: r.FailedRuns,
+		Runs:      harnessRuns,
+	}
 }
