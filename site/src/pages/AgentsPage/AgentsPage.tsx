@@ -716,7 +716,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		useEmptyStateDraft();
 	const systemPromptQuery = useQuery(chatSystemPrompt());
 	const {
-		mutateAsync: saveSystemPrompt,
+		mutate: saveSystemPrompt,
 		isPending: isSavingSystemPrompt,
 		isError: isSaveSystemPromptError,
 	} = useMutation(updateChatSystemPrompt(queryClient));
@@ -779,20 +779,9 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
-	const [systemPromptDraft, setSystemPromptDraft] = useState("");
-
-	// Sync draft with server value on initial load and after
-	// a successful save (when the draft matches what was saved).
 	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
-	useEffect(() => {
-		if (systemPromptQuery.data) {
-			setSystemPromptDraft((prev) =>
-				prev === "" || prev === serverPrompt ? serverPrompt : prev,
-			);
-		}
-	}, [systemPromptQuery.data, serverPrompt]);
-
-	const savedSystemPrompt = serverPrompt;
+	const [localEdit, setLocalEdit] = useState<string | null>(null);
+	const systemPromptDraft = localEdit ?? serverPrompt;
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -850,7 +839,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	selectedWorkspaceIdRef.current = selectedWorkspaceId;
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
-	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
+	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
 
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
@@ -872,19 +861,15 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	}, []);
 
 	const handleSaveSystemPrompt = useCallback(
-		async (event: FormEvent) => {
+		(event: FormEvent) => {
 			event.preventDefault();
 			if (!isSystemPromptDirty) {
 				return;
 			}
-			try {
-				await saveSystemPrompt({
-					system_prompt: systemPromptDraft,
-				});
-			} catch {
-				// The draft stays dirty so the user can retry. The error
-				// is surfaced in the dialog via saveSystemPromptError.
-			}
+			saveSystemPrompt(
+				{ system_prompt: systemPromptDraft },
+				{ onSuccess: () => setLocalEdit(null) },
+			);
 		},
 		[isSystemPromptDirty, systemPromptDraft, saveSystemPrompt],
 	);
@@ -1030,7 +1015,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					canManageChatModelConfigs={canManageChatModelConfigs}
 					canSetSystemPrompt={canSetSystemPrompt}
 					systemPromptDraft={systemPromptDraft}
-					onSystemPromptDraftChange={setSystemPromptDraft}
+					onSystemPromptDraftChange={setLocalEdit}
 					onSaveSystemPrompt={handleSaveSystemPrompt}
 					isSystemPromptDirty={isSystemPromptDirty}
 					saveSystemPromptError={isSaveSystemPromptError}
