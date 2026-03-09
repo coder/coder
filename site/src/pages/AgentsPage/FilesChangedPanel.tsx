@@ -796,7 +796,8 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 			className="flex h-full min-w-0 flex-col overflow-hidden"
 		>
 			{/* Header */}
-			<div className="flex items-center gap-3 px-3 py-2">
+			<div className="flex items-center gap-3 bg-surface-secondary px-3 py-2">
+				{" "}
 				{pullRequestUrl && parsedPr ? (
 					<a
 						href={pullRequestUrl}

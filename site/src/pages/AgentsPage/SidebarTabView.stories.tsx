@@ -1,36 +1,41 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { fn } from "storybook/test";
+import type { SidebarTab } from "./SidebarTabView";
 import { SidebarTabView } from "./SidebarTabView";
 
-const sampleDiff = `--- a/src/index.ts
-+++ b/src/index.ts
-@@ -1,3 +1,5 @@
-+import { init } from "./init";
-+
- const main = () => {
-   console.log("hello");
- };
-`;
+const makePanelContent = (label: string) => (
+	<div className="flex h-full items-center justify-center p-6 text-sm text-content-secondary">
+		Content for {label}
+	</div>
+);
 
-const makeRepo = (
-	name: string,
-	overrides?: Partial<WorkspaceAgentRepoChanges>,
-): WorkspaceAgentRepoChanges => ({
-	repo_root: `/home/coder/${name}`,
-	branch: "main",
-	remote_origin: `https://github.com/coder/${name}.git`,
-	unified_diff: sampleDiff,
-	...overrides,
-});
+const makeBadge = (additions: number, deletions: number) => (
+	<span className="inline-flex h-full items-center self-stretch overflow-hidden font-mono text-xs font-medium">
+		{additions > 0 && (
+			<span className="flex h-full items-center bg-green-100 px-1.5 text-green-700 dark:bg-green-950 dark:text-green-500">
+				+{additions}
+			</span>
+		)}
+		{deletions > 0 && (
+			<span className="flex h-full items-center bg-red-100 px-1.5 text-red-700 dark:bg-red-950 dark:text-red-400">
+				&minus;{deletions}
+			</span>
+		)}
+	</span>
+);
+
+const gitTab: SidebarTab = {
+	id: "git",
+	label: "Git",
+	badge: makeBadge(42, 7),
+	content: makePanelContent("Git"),
+};
 
 const meta: Meta<typeof SidebarTabView> = {
 	title: "pages/AgentsPage/SidebarTabView",
 	component: SidebarTabView,
 	args: {
-		workspace: { name: "my-workspace", ownerName: "admin" },
-		onRefresh: fn(),
-		onCommit: fn(),
+		tabs: [gitTab],
 		isExpanded: false,
 		onToggleExpanded: fn(),
 	},
@@ -45,92 +50,47 @@ const meta: Meta<typeof SidebarTabView> = {
 export default meta;
 type Story = StoryObj<typeof SidebarTabView>;
 
-export const PROnly: Story = {
+export const GitWithBadge: Story = {};
+
+export const GitNoBadge: Story = {
 	args: {
-		prTab: { prNumber: 42, chatId: "chat-1" },
-		repositories: new Map(),
+		tabs: [{ ...gitTab, badge: undefined }],
 	},
 };
 
-export const SingleRepo: Story = {
+export const MultipleTabs: Story = {
 	args: {
-		prTab: undefined,
-		repositories: new Map([["/home/coder/project", makeRepo("project")]]),
-	},
-};
-
-export const PRAndRepos: Story = {
-	args: {
-		prTab: { prNumber: 123, chatId: "chat-2" },
-		repositories: new Map([
-			["/home/coder/frontend", makeRepo("frontend")],
-			[
-				"/home/coder/backend",
-				makeRepo("backend", {
-					branch: "feat/api",
-				}),
-			],
-		]),
-	},
-};
-
-export const ManyRepos: Story = {
-	args: {
-		prTab: undefined,
-		repositories: new Map(
-			["alpha", "bravo", "charlie", "delta", "echo"].map((name) => [
-				`/home/coder/${name}`,
-				makeRepo(name),
-			]),
-		),
+		tabs: [
+			gitTab,
+			{ id: "preview", label: "Preview", content: makePanelContent("Preview") },
+		],
 	},
 };
 
 export const EmptyState: Story = {
 	args: {
-		prTab: undefined,
-		repositories: new Map(),
+		tabs: [],
 	},
 };
 
-export const SplitDiffMode: Story = {
+export const ExpandedWithTitle: Story = {
 	args: {
-		prTab: undefined,
-		repositories: new Map([["/home/coder/project", makeRepo("project")]]),
-	},
-};
-
-export const ExpandedWithDiffToggle: Story = {
-	args: {
-		prTab: { prNumber: 42, chatId: "chat-1" },
-		repositories: new Map([["/home/coder/project", makeRepo("project")]]),
+		tabs: [gitTab],
 		isExpanded: true,
 		chatTitle: "Fix authentication bug",
 	},
 	decorators: [
 		(Story) => (
-			<div style={{ height: 600, width: 900 }}>
+			<div style={{ height: 500, width: 900 }}>
 				<Story />
 			</div>
 		),
 	],
 };
 
-export const WithDiffStats: Story = {
-	args: {
-		prTab: { prNumber: 99, chatId: "chat-3" },
-		repositories: new Map([
-			["/home/coder/frontend", makeRepo("frontend")],
-			["/home/coder/backend", makeRepo("backend", { branch: "feat/api" })],
-		]),
-		diffStatus: { additions: 150, deletions: 42 },
-	},
-};
-
 export const NarrowPanel: Story = {
 	args: {
-		prTab: { prNumber: 42, chatId: "chat-1" },
-		repositories: new Map([["/home/coder/project", makeRepo("project")]]),
+		tabs: [gitTab],
 	},
 	decorators: [
 		(Story) => (
