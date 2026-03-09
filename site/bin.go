@@ -52,7 +52,10 @@ var StandardEncoders = map[string]func(w io.Writer, level int) io.WriteCloser{
 func (h *binHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if !strings.HasPrefix(r.URL.Path, "/bin/") {
 		rw.WriteHeader(http.StatusNotFound)
-		_, _ = rw.Write([]byte("not found"))
+		// Best-effort write of error body to client.
+		if _, err := rw.Write([]byte("not found")); err != nil {
+			return
+		}
 		return
 	}
 	r.URL.Path = strings.TrimPrefix(r.URL.Path, "/bin")
