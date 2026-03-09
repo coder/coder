@@ -475,11 +475,6 @@ jobs:
           mkdir -p /tmp/tmpfs
           sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
 
-          # Install google-chrome for scaletests.
-          # As another concern, should we really have this kind of external dependency
-          # requirement on standard CI?
-          brew install google-chrome
-
           # macOS will output "The default interactive shell is now zsh" intermittently in CI.
           touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
 
