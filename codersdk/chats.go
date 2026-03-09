@@ -202,6 +202,16 @@ type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
 }
 
+// ChatSystemPromptResponse is the response for getting the chat system prompt.
+type ChatSystemPromptResponse struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
+// UpdateChatSystemPromptRequest is the request to update the chat system prompt.
+type UpdateChatSystemPromptRequest struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
 // ChatProviderConfigSource describes how a provider entry is sourced.
 type ChatProviderConfigSource string
 
@@ -671,6 +681,33 @@ func (c *Client) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.U
 // DeleteChatModelConfig deletes an admin-managed chat model config.
 func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatSystemPrompt returns the deployment-wide chat system prompt.
+func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/system-prompt", nil)
+	if err != nil {
+		return ChatSystemPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatSystemPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatSystemPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
+func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSystemPromptRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/system-prompt", req)
 	if err != nil {
 		return err
 	}

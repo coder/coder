@@ -1613,6 +1613,14 @@ export interface ChatStreamStatus {
 
 // From codersdk/chats.go
 /**
+ * ChatSystemPromptResponse is the response for getting the chat system prompt.
+ */
+export interface ChatSystemPromptResponse {
+	readonly system_prompt: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatWithMessages is a chat along with its messages.
  */
 export interface ChatWithMessages {
@@ -6301,6 +6309,14 @@ export interface UpdateChatProviderConfigRequest {
  */
 export interface UpdateChatRequest {
 	readonly title: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatSystemPromptRequest is the request to update the chat system prompt.
+ */
+export interface UpdateChatSystemPromptRequest {
+	readonly system_prompt: string;
 }
 
 // From codersdk/updatecheck.go

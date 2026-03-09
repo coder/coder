@@ -1109,6 +1109,8 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
 			)
+			r.Get("/system-prompt", api.getChatSystemPrompt)
+			r.Put("/system-prompt", api.putChatSystemPrompt)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)

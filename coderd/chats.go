@@ -284,7 +284,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
 		ModelConfigID:      modelConfigID,
-		SystemPrompt:       defaultChatSystemPrompt(),
+		SystemPrompt:       api.resolvedChatSystemPrompt(ctx),
 		InitialUserContent: contentBlocks,
 		ContentFileIDs:     contentFileIDs,
 	})
@@ -2262,7 +2262,81 @@ func detectChatFileType(data []byte) string {
 	return http.DetectContentType(data)
 }
 
-func defaultChatSystemPrompt() string {
+// @Summary Get the chat system prompt
+// @ID get-chat-system-prompt
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chats
+// @Success 200 {object} codersdk.ChatSystemPromptResponse
+// @Router /chats/system-prompt [get]
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	prompt, err := api.Database.GetChatSystemPrompt(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat system prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPromptResponse{
+		SystemPrompt: prompt,
+	})
+}
+
+// @Summary Update the chat system prompt
+// @ID update-chat-system-prompt
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Chats
+// @Param request body codersdk.UpdateChatSystemPromptRequest true "Update chat system prompt request"
+// @Success 204
+// @Router /chats/system-prompt [put]
+func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	var req codersdk.UpdateChatSystemPromptRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	const maxSystemPromptLen = 32768 // 32 KiB
+	if len(req.SystemPrompt) > maxSystemPromptLen {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "System prompt exceeds maximum length.",
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLen, len(req.SystemPrompt)),
+		})
+		return
+	}
+	//nolint:gocritic // The handler-level Authorize above already
+	// verified the caller is an admin. We escalate to system context
+	// so the dbauthz layer allows the write.
+	err := api.Database.UpsertChatSystemPrompt(dbauthz.AsSystemRestricted(ctx), req.SystemPrompt)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating chat system prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
+	custom, err := api.Database.GetChatSystemPrompt(ctx)
+	if err != nil {
+		// Log but don't fail chat creation — fall back to the
+		// built-in default so the user isn't blocked.
+		api.Logger.Warn(ctx, "failed to fetch custom chat system prompt, using default", slog.Error(err))
+		return chatd.DefaultSystemPrompt
+	}
+	if strings.TrimSpace(custom) != "" {
+		return custom
+	}
 	return chatd.DefaultSystemPrompt
 }
 

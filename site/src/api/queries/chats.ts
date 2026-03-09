@@ -196,6 +196,22 @@ export const chatDiffContents = (chatId: string) => ({
 	queryFn: () => API.getChatDiffContents(chatId),
 });
 
+const chatSystemPromptKey = ["chat-system-prompt"] as const;
+
+export const chatSystemPrompt = () => ({
+	queryKey: chatSystemPromptKey,
+	queryFn: () => API.getChatSystemPrompt(),
+});
+
+export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
+	mutationFn: API.updateChatSystemPrompt,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatSystemPromptKey,
+		});
+	},
+});
+
 export const chatModelsKey = ["chat-models"] as const;
 
 export const chatModels = () => ({
