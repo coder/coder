@@ -10,7 +10,6 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -27,12 +26,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks";
-import {
-	EllipsisVertical,
-	RotateCcwIcon,
-	Share2Icon,
-	TrashIcon,
-} from "lucide-react";
+import { EllipsisVertical, RotateCcwIcon, TrashIcon } from "lucide-react";
 import { TaskActionButton } from "modules/tasks/TaskActionButton";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
