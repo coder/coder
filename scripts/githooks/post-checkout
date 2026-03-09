@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Shield this worktree against shared config hooksPath poisoning.
+# Worktree-scoped config overrides the shared .git/config, so even if
+# another worktree runs `git config core.hooksPath /dev/null`, this
+# worktree continues to use the correct hooks.
+#
+# This hook runs on `git worktree add` and `git checkout`/`git switch`.
+git config --worktree core.hooksPath scripts/githooks 2>/dev/null || git config core.hooksPath scripts/githooks
