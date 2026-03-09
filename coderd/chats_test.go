@@ -3118,73 +3118,51 @@ func createChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.ChatM
 	return modelConfig
 }
 
+//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
 func TestChatSystemPrompt(t *testing.T) {
 	t.Parallel()
 
+	adminClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
 	t.Run("ReturnsEmptyWhenUnset", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
 
-		resp, err := client.GetChatSystemPrompt(ctx)
+		resp, err := adminClient.GetChatSystemPrompt(ctx)
 		require.NoError(t, err)
 		require.Equal(t, "", resp.SystemPrompt)
 	})
 
 	t.Run("AdminCanSet", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
 
-		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt: "You are a helpful coding assistant.",
 		})
 		require.NoError(t, err)
 
-		resp, err := client.GetChatSystemPrompt(ctx)
+		resp, err := adminClient.GetChatSystemPrompt(ctx)
 		require.NoError(t, err)
 		require.Equal(t, "You are a helpful coding assistant.", resp.SystemPrompt)
 	})
 
 	t.Run("AdminCanUnset", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		// Set a custom prompt first.
-		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt: "Custom prompt.",
-		})
-		require.NoError(t, err)
-
-		resp, err := client.GetChatSystemPrompt(ctx)
-		require.NoError(t, err)
-		require.Equal(t, "Custom prompt.", resp.SystemPrompt)
 
 		// Unset by sending an empty string.
-		err = client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt: "",
 		})
 		require.NoError(t, err)
 
-		resp, err = client.GetChatSystemPrompt(ctx)
+		resp, err := adminClient.GetChatSystemPrompt(ctx)
 		require.NoError(t, err)
 		require.Equal(t, "", resp.SystemPrompt)
 	})
 
 	t.Run("NonAdminForbidden", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
-		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 		err := memberClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt: "This should fail.",
@@ -3193,14 +3171,10 @@ func TestChatSystemPrompt(t *testing.T) {
 	})
 
 	t.Run("TooLong", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
 
 		tooLong := strings.Repeat("a", 32769)
-		err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt: tooLong,
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
