@@ -31,8 +31,10 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
 	"tailscale.com/types/netlogtype"
 	"tailscale.com/util/clientmetric"
 
@@ -1830,43 +1832,7 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 
 	// Compute the median connection latency!
 	a.logger.Debug(ctx, "starting peer latency measurement for stats")
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	status := a.network.Status()
-	durations := []float64{}
-	p2pConns := 0
-	derpConns := 0
-	pingCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
-	defer cancelFunc()
-	for nodeID, peer := range status.Peer {
-		if !peer.Active {
-			continue
-		}
-		addresses, found := a.network.NodeAddresses(nodeID)
-		if !found {
-			continue
-		}
-		if len(addresses) == 0 {
-			continue
-		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			duration, p2p, _, err := a.network.Ping(pingCtx, addresses[0].Addr())
-			if err != nil {
-				return
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			durations = append(durations, float64(duration.Microseconds()))
-			if p2p {
-				p2pConns++
-			} else {
-				derpConns++
-			}
-		}()
-	}
-	wg.Wait()
+	durations, p2pConns, derpConns := collectPeerLatencies(ctx, a.network)
 	sort.Float64s(durations)
 	durationsLength := len(durations)
 	switch {
@@ -1893,6 +1859,69 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 	stats.Metrics = a.collectMetrics(metricsCtx)
 
 	return stats
+}
+
+// peerPinger is the subset of tailnet.Conn used by
+// collectPeerLatencies, extracted as an interface for testing.
+type peerPinger interface {
+	Status() *ipnstate.Status
+	NodeAddresses(key.NodePublic) ([]netip.Prefix, bool)
+	Ping(context.Context, netip.Addr) (time.Duration, bool, *ipnstate.PingResult, error)
+}
+
+// collectPeerLatencies pings every active peer and returns per-ping
+// durations (in microseconds), plus DERP and P2P connection counts.
+// At most one Ping is in-flight at a time to avoid piling goroutines
+// on magicsock.Conn.mu, which can trigger the wgengine watchdog
+// during network disruption. See #22864.
+func collectPeerLatencies(ctx context.Context, network peerPinger) (
+	durations []float64, p2pConns int, derpConns int,
+) {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	status := network.Status()
+	pingCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelFunc()
+
+	// Capacity-1 semaphore: at most one Ping in flight.
+	pingSem := make(chan struct{}, 1)
+
+	for nodeID, peer := range status.Peer {
+		if !peer.Active {
+			continue
+		}
+		addresses, found := network.NodeAddresses(nodeID)
+		if !found {
+			continue
+		}
+		if len(addresses) == 0 {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case pingSem <- struct{}{}:
+			case <-pingCtx.Done():
+				return
+			}
+			defer func() { <-pingSem }()
+			duration, p2p, _, err := network.Ping(pingCtx, addresses[0].Addr())
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			durations = append(durations, float64(duration.Microseconds()))
+			if p2p {
+				p2pConns++
+			} else {
+				derpConns++
+			}
+		}()
+	}
+	wg.Wait()
+	return durations, p2pConns, derpConns
 }
 
 // isClosed returns whether the API is closed or not.
