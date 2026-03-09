@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/gitsync"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -111,8 +112,8 @@ func newTestRefresher(t *testing.T, clk quartz.Clock, opts ...testRefresherOpt) 
 	}
 
 	providers := func(string) gitprovider.Provider { return prov }
-	tokens := func(context.Context, uuid.UUID, string) (string, error) {
-		return "tok", nil
+	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
+		return ptr.Ref("tok"), nil
 	}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})

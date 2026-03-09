@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/gitsync"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/quartz"
 )
 
@@ -128,8 +129,8 @@ func TestRefresher_WithPRURL(t *testing.T) {
 	}
 
 	providers := func(_ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (string, error) {
-		return "test-token", nil
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		return ptr.Ref("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -184,8 +185,8 @@ func TestRefresher_BranchResolvesToPR(t *testing.T) {
 	}
 
 	providers := func(_ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (string, error) {
-		return "test-token", nil
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		return ptr.Ref("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -226,8 +227,8 @@ func TestRefresher_BranchNoPRYet(t *testing.T) {
 	}
 
 	providers := func(_ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (string, error) {
-		return "test-token", nil
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		return ptr.Ref("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -255,8 +256,8 @@ func TestRefresher_NoProviderForOrigin(t *testing.T) {
 	t.Parallel()
 
 	providers := func(_ string) gitprovider.Provider { return nil }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (string, error) {
-		return "test-token", nil
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		return ptr.Ref("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -296,8 +297,8 @@ func TestRefresher_TokenResolutionFails(t *testing.T) {
 	}
 
 	providers := func(_ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (string, error) {
-		return "", errors.New("token lookup failed")
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		return nil, errors.New("token lookup failed")
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -328,8 +329,8 @@ func TestRefresher_EmptyToken(t *testing.T) {
 	mp := &mockProvider{}
 
 	providers := func(_ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (string, error) {
-		return "", nil
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		return ptr.Ref(""), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -350,8 +351,7 @@ func TestRefresher_EmptyToken(t *testing.T) {
 	res := results[0]
 
 	assert.Nil(t, res.Params)
-	require.Error(t, res.Error)
-	assert.Contains(t, res.Error.Error(), "empty access token")
+	require.ErrorIs(t, res.Error, gitsync.ErrNoTokenAvailable)
 }
 
 func TestRefresher_ProviderFetchFails(t *testing.T) {
@@ -367,8 +367,8 @@ func TestRefresher_ProviderFetchFails(t *testing.T) {
 	}
 
 	providers := func(_ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (string, error) {
-		return "test-token", nil
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		return ptr.Ref("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -403,8 +403,8 @@ func TestRefresher_PRURLParseFailure(t *testing.T) {
 	}
 
 	providers := func(_ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (string, error) {
-		return "test-token", nil
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		return ptr.Ref("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -443,9 +443,9 @@ func TestRefresher_BatchGroupsByOwnerAndOrigin(t *testing.T) {
 	providers := func(_ string) gitprovider.Provider { return mp }
 
 	var tokenCalls atomic.Int32
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (string, error) {
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		tokenCalls.Add(1)
-		return "test-token", nil
+		return ptr.Ref("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -523,8 +523,8 @@ func TestRefresher_UsesInjectedClock(t *testing.T) {
 	}
 
 	providers := func(_ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (string, error) {
-		return "test-token", nil
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		return ptr.Ref("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), mClock)
@@ -600,8 +600,8 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 	}
 
 	providers := func(_ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (string, error) {
-		return "test-token", nil
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		return ptr.Ref("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -669,15 +669,15 @@ func TestRefresher_CorrectTokenPerOrigin(t *testing.T) {
 	t.Parallel()
 
 	var tokenCalls atomic.Int32
-	tokens := func(_ context.Context, _ uuid.UUID, origin string) (string, error) {
+	tokens := func(_ context.Context, _ uuid.UUID, origin string) (*string, error) {
 		tokenCalls.Add(1)
 		switch {
 		case strings.Contains(origin, "github.com"):
-			return "gh-public-token", nil
+			return ptr.Ref("gh-public-token"), nil
 		case strings.Contains(origin, "ghes.corp.com"):
-			return "ghe-private-token", nil
+			return ptr.Ref("ghe-private-token"), nil
 		default:
-			return "", fmt.Errorf("unexpected origin: %s", origin)
+			return nil, fmt.Errorf("unexpected origin: %s", origin)
 		}
 	}
 

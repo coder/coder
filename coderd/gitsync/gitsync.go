@@ -26,13 +26,16 @@ const (
 // that handles it. Returns nil if no provider matches.
 type ProviderResolver func(origin string) gitprovider.Provider
 
+var ErrNoTokenAvailable error = errors.New("No token available")
+
 // TokenResolver obtains the user's git access token for a given
-// remote origin. Returns ("", nil) if no token is available.
+// remote origin. Should return nil if no token is available, in
+// which case ErrNoTokenAvailable will be returned.
 type TokenResolver func(
 	ctx context.Context,
 	userID uuid.UUID,
 	origin string,
-) (string, error)
+) (*string, error)
 
 // Refresher contains the stateless business logic for fetching
 // fresh PR data from a git provider given a stale
@@ -123,22 +126,23 @@ func (r *Refresher) Refresh(
 		token, err := r.tokens(ctx, key.ownerID, key.origin)
 		if err != nil {
 			err = xerrors.Errorf("resolve token: %w", err)
+		} else if token == nil || len(*token) == 0 {
+			err = ErrNoTokenAvailable
+		}
+		if err != nil {
 			for _, i := range indices {
 				results[i].Error = err
 			}
 			continue
 		}
-		if token == "" {
-			err = xerrors.New("empty access token")
-			for _, i := range indices {
-				results[i].Error = err
-			}
+		// This is technically unnecessary but kept here as a future molly-guard.
+		if token == nil {
 			continue
 		}
 
 		for i, idx := range indices {
 			req := requests[idx]
-			params, err := r.refreshOne(ctx, provider, token, req.Row)
+			params, err := r.refreshOne(ctx, provider, *token, req.Row)
 			results[idx] = RefreshResult{Request: req, Params: params, Error: err}
 
 			// If rate-limited, skip remaining rows in this group.
