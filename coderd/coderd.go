@@ -2019,7 +2019,7 @@ func (api *API) Close() error {
 	}
 
 	wsDone := make(chan struct{})
-	timer := api.Clock.NewTimer(10*time.Second, "ws_shutdown")
+	timer := time.NewTimer(10 * time.Second)
 	defer timer.Stop()
 	go func() {
 		api.WebsocketWaitMutex.Lock()
@@ -2037,11 +2037,9 @@ func (api *API) Close() error {
 	}
 	api.dbRolluper.Close()
 	// chatDiffWorker is unconditionally initialized in New().
-	gitSyncTimer := api.Clock.NewTimer(10*time.Second, "gitsync_shutdown")
-	defer gitSyncTimer.Stop()
 	select {
 	case <-api.gitSyncWorker.Done():
-	case <-gitSyncTimer.C:
+	case <-time.After(10 * time.Second):
 		api.Logger.Warn(context.Background(),
 			"chat diff refresh worker did not exit in time")
 	}

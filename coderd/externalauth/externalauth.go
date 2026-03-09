@@ -782,8 +782,7 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 
 // applyDefaultsToConfig applies defaults to the config entry.
 func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
-	config.Type = strings.ToLower(config.Type)
-	configType := codersdk.EnhancedExternalAuthProvider(config.Type)
+	configType := codersdk.EnhancedExternalAuthProvider(strings.ToLower(config.Type))
 	if configType == "bitbucket" {
 		// For backwards compatibility, we need to support the "bitbucket" string.
 		configType = codersdk.EnhancedExternalAuthProviderBitBucketCloud
@@ -800,7 +799,7 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 	}
 
 	// Dynamic defaults
-	switch codersdk.EnhancedExternalAuthProvider(config.Type) {
+	switch configType {
 	case codersdk.EnhancedExternalAuthProviderGitHub:
 		copyDefaultSettings(config, gitHubDefaults(config))
 		return

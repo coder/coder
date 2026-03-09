@@ -745,8 +745,6 @@ func TestWorker_MarkStale_EmptyBranchOrOrigin(t *testing.T) {
 			store := gitsyncmock.NewMockStore(ctrl)
 			pub := gitsyncmock.NewMockEventPublisher(ctrl)
 
-			// No EXPECT calls — gomock will fail if any method is
-			// called unexpectedly.
 
 			mClock := quartz.NewMock(t)
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
