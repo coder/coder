@@ -1331,10 +1331,11 @@ func (api *API) resolveChatDiffReference(
 		gp := api.resolveGitProvider(reference.RepositoryRef.RemoteOrigin)
 		if gp != nil {
 			token, err := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
-			if err != nil {
+			if token == nil || errors.Is(err, gitsync.ErrNoTokenAvailable) {
+				// No token available yet.
+				return reference, nil
+			} else if err != nil {
 				return chatDiffReference{}, xerrors.Errorf("resolve git access token: %w", err)
-			} else if token == nil {
-				return chatDiffReference{}, xerrors.New("nil git access token")
 			}
 			prRef, lookupErr := gp.ResolveBranchPullRequest(ctx, *token, gitprovider.BranchRef{
 				Owner:  reference.RepositoryRef.Owner,

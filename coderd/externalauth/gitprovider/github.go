@@ -474,7 +474,6 @@ func ParseRetryAfter(h http.Header, clk quartz.Clock) time.Duration {
 	}
 	// Retry-After header: seconds until retry.
 	if ra := h.Get("Retry-After"); ra != "" {
-		_, _ = fmt.Printf("Retry-After: %q", ra)
 		if secs, err := strconv.Atoi(ra); err == nil {
 			return time.Duration(secs) * time.Second
 		}

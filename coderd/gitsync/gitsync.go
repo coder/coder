@@ -26,7 +26,7 @@ const (
 // that handles it. Returns nil if no provider matches.
 type ProviderResolver func(origin string) gitprovider.Provider
 
-var ErrNoTokenAvailable error = errors.New("No token available")
+var ErrNoTokenAvailable error = errors.New("no token available")
 
 // TokenResolver obtains the user's git access token for a given
 // remote origin. Should return nil if no token is available, in
