@@ -8,9 +8,8 @@ import { type FC, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-
-import { AgentsSidebar } from "./AgentsSidebar";
 import { AgentsEmptyState, type CreateChatOptions } from "./AgentsPage";
+import { AgentsSidebar } from "./AgentsSidebar";
 import { ChimeButton } from "./ChimeButton";
 import { WebPushButton } from "./WebPushButton";
 
