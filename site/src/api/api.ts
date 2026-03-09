@@ -2915,6 +2915,19 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getAIBridgeSessionList = async (_options: SearchParamOptions) => {
+		// TODO real API call
+		return TypesGen.aiBridgeSessionListResponse;
+	};
+
+	getAIBridgeSession = async (
+		_sessionId: string,
+		_options: SearchParamOptions,
+	) => {
+		// TODO real API call
+		return TypesGen.aiBridgeSessionResponse;
+	};
+
 	// Chat API methods
 	getChats = async (): Promise<TypesGen.Chat[]> => {
 		const response = await this.axios.get<TypesGen.Chat[]>(

@@ -1,4 +1,4 @@
-import type { AIBridgeInterception } from "api/typesGenerated";
+import type { AIBridgeSession } from "api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { Link } from "components/Link/Link";
 import {
@@ -32,9 +32,10 @@ export interface AISessionListPageViewProps {
 	isLoading: boolean;
 	isAISessionsEntitled: boolean;
 	isAISessionsEnabled: boolean;
-	interceptions?: readonly AIBridgeInterception[];
-	interceptionsQuery: PaginationResult;
+	sessions?: readonly AIBridgeSession[];
+	sessionsQuery: PaginationResult;
 	filterProps: ComponentProps<typeof AISessionListFilter>;
+	onSessionRowClick?: (sessionId: string) => void;
 }
 
 const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
@@ -49,7 +50,8 @@ const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 					an initial human prompt and a subsequent agentic loop.
 				</p>
 				<p>
-					<Link href="TODO docs page" target="_blank">
+					{/* FIXME need real docs url */}
+					<Link href="#" target="_blank">
 						View session terminology
 					</Link>
 				</p>
@@ -62,9 +64,10 @@ export const AISessionListPageView: FC<AISessionListPageViewProps> = ({
 	isLoading,
 	isAISessionsEntitled,
 	isAISessionsEnabled,
-	interceptions,
-	interceptionsQuery,
+	sessions,
+	sessionsQuery,
 	filterProps,
+	onSessionRowClick,
 }) => {
 	if (!isAISessionsEntitled) {
 		return <PaywallAIGovernance />;
@@ -94,10 +97,7 @@ export const AISessionListPageView: FC<AISessionListPageViewProps> = ({
 		<>
 			<AISessionListFilter {...filterProps} />
 
-			<PaginationContainer
-				query={interceptionsQuery}
-				paginationUnitLabel="interceptions"
-			>
+			<PaginationContainer query={sessionsQuery} paginationUnitLabel="sessions">
 				<Table className="text-sm">
 					<TableHeader>
 						<TableRow className="text-xs">
@@ -118,13 +118,14 @@ export const AISessionListPageView: FC<AISessionListPageViewProps> = ({
 					<TableBody>
 						{isLoading ? (
 							<TableLoader />
-						) : interceptions?.length === 0 ? (
+						) : sessions?.length === 0 ? (
 							<TableEmpty message="No session logs available" />
 						) : (
-							interceptions?.map((interception) => (
+							sessions?.map((session) => (
 								<AISessionListRow
-									interception={interception}
-									key={interception.id}
+									session={session}
+									key={session.id}
+									onClick={() => onSessionRowClick?.(session.id)}
 								/>
 							))
 						)}

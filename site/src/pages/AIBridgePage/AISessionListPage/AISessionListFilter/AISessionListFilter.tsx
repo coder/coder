@@ -1,12 +1,12 @@
 import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import { type UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 import type { FC } from "react";
 import {
 	ProviderFilter,
 	type ProviderFilterMenu,
 } from "../../RequestLogsPage/RequestLogsFilter/ProviderFilter";
 import { ClientFilter, type ClientFilterMenu } from "./ClientFilter";
-import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 
 interface AISessionListFilterProps {
 	filter: ReturnType<typeof useFilter>;
@@ -26,8 +26,9 @@ export const AISessionListFilter: FC<AISessionListFilterProps> = ({
 	return (
 		<>
 			<div className="mb-4 flex items-center justify-end">
+				<span className="mr-2 text-content-secondary">Organization:</span>
 				<OrganizationAutocomplete
-					className="w-72"
+					className="w-48"
 					onChange={(org) => console.info("Selected organization", org)}
 				/>
 			</div>

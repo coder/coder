@@ -5,12 +5,9 @@ import {
 } from "components/Filter/menu";
 import { SelectFilter } from "components/Filter/SelectFilter";
 import type { FC } from "react";
-import {
-	type AIBridgeClient,
-	AIBridgeClientIcon,
-} from "../../RequestLogsPage/icons/AIBridgeClientIcon";
+import { AIBridgeClientIcon } from "../../RequestLogsPage/icons/AIBridgeClientIcon";
 
-const AIBRIDGE_CLIENTS: AIBridgeClient[] = [
+const AIBRIDGE_CLIENTS: string[] = [
 	"Claude Code",
 	"Codex",
 	"Kilo Code",
@@ -59,7 +56,7 @@ export const useClientFilterMenu = ({
 				),
 			};
 		},
-		getOptions: async (query) => {
+		getOptions: async (_query) => {
 			return AIBRIDGE_CLIENTS.map((client) => ({
 				label: client,
 				value: client,

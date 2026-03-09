@@ -1,6 +1,4 @@
 import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
-import AISessionsLayout from "pages/AIBridgePage/AISessionsLayout";
-import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 import { lazy, Suspense } from "react";
 import {
 	createBrowserRouter,
@@ -20,6 +18,7 @@ import LoginOAuthDevicePage from "./pages/LoginOAuthDevicePage/LoginOAuthDeviceP
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
+import { TemplateRedirectController } from "./pages/TemplatePage/TemplateRedirectController";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
@@ -363,8 +362,14 @@ const AIBridgeLayout = lazy(
 const AIBridgeRequestLogsPage = lazy(
 	() => import("./pages/AIBridgePage/RequestLogsPage/RequestLogsPage"),
 );
-const AIBridgeSessionsListPage = lazy(
+const AISessionsLayout = lazy(
+	() => import("./pages/AIBridgePage/AISessionsLayout"),
+);
+const AISessionListPage = lazy(
 	() => import("./pages/AIBridgePage/AISessionListPage/AISessionListPage"),
+);
+const AISessionPage = lazy(
+	() => import("./pages/AIBridgePage/AISessionPage/AISessionPage"),
 );
 
 const GlobalLayout = () => {
@@ -597,11 +602,13 @@ export const router = createBrowserRouter(
 					<Route path="/aibridge" element={<AIBridgeLayout />}>
 						<Route index element={<Navigate to="request-logs" replace />} />
 						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
+						<Route path="sessions" element={<AISessionListPage />} />
+						<Route path="sessions/:sessionId" element={<AISessionPage />} />
 					</Route>
 
-					{/* these routes will eventually _replace_ the request logs page */}
 					<Route path="/aibridge/sessions" element={<AISessionsLayout />}>
-						<Route index element={<AIBridgeSessionsListPage />} />
+						<Route index element={<AISessionListPage />} />
+						<Route path=":sessionId" element={<AISessionPage />} />
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>

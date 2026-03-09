@@ -1,8 +1,4 @@
-import {
-	MockInterception,
-	MockInterceptionAnthropic,
-	MockInterceptionCopilot,
-} from "testHelpers/entities";
+import { MockSession } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	getDefaultFilterProps,
@@ -30,11 +26,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	},
 });
 
-const interceptions = [
-	MockInterception,
-	MockInterceptionAnthropic,
-	MockInterceptionCopilot,
-];
+const sessions = [MockSession];
 
 const meta: Meta<typeof AISessionListPageView> = {
 	title: "pages/AIBridgePage/AISessionListPageView",
@@ -63,11 +55,11 @@ export const Loaded: Story = {
 	args: {
 		isAISessionsEntitled: true,
 		isAISessionsEnabled: true,
-		interceptions,
+		sessions,
 		filterProps: {
 			...defaultFilterProps,
 		},
-		interceptionsQuery: mockSuccessResult,
+		sessionsQuery: mockSuccessResult,
 	},
 };
 
@@ -75,11 +67,11 @@ export const Empty: Story = {
 	args: {
 		isAISessionsEntitled: true,
 		isAISessionsEnabled: true,
-		interceptions: [],
+		sessions: [],
 		filterProps: {
 			...defaultFilterProps,
 		},
-		interceptionsQuery: mockSuccessResult,
+		sessionsQuery: mockSuccessResult,
 	},
 };
 
@@ -88,10 +80,10 @@ export const Loading: Story = {
 		isLoading: true,
 		isAISessionsEntitled: true,
 		isAISessionsEnabled: true,
-		interceptions: [],
+		sessions: [],
 		filterProps: {
 			...defaultFilterProps,
 		},
-		interceptionsQuery: mockInitialRenderResult,
+		sessionsQuery: mockInitialRenderResult,
 	},
 };

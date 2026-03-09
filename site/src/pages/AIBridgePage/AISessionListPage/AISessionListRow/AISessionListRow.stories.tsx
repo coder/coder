@@ -1,4 +1,4 @@
-import { MockInterception } from "testHelpers/entities";
+import { MockSession } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Table, TableBody } from "components/Table/Table";
 import { AISessionListRow } from "./AISessionListRow";
@@ -20,8 +20,8 @@ const meta: Meta<typeof AISessionListRow> = {
 export default meta;
 type Story = StoryObj<typeof AISessionListRow>;
 
-export const Close: Story = {
+export const Session: Story = {
 	args: {
-		interception: MockInterception,
+		session: MockSession,
 	},
 };
