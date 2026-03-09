@@ -751,18 +751,25 @@ define check-unstaged
 endef
 
 pre-commit:
+	start=$$(date +%s)
+	echo "=== Phase 1/2: gen + fmt ==="
 	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target gen fmt
 	$(check-unstaged)
+	echo "=== Phase 2/2: lint + build ==="
 	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	$(check-unstaged)
+	echo "$(BOLD)$(GREEN)=== pre-commit passed in $$(( $$(date +%s) - $$start ))s ===$(RESET)"
 .PHONY: pre-commit
 
 pre-push:
+	start=$$(date +%s)
+	echo "=== Phase 1/2: gen + fmt + postgres ==="
 	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target gen fmt test-postgres-docker
 	$(check-unstaged)
+	echo "=== Phase 2/2: lint + build + test ==="
 	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target \
 		lint \
 		lint/typos \
@@ -775,6 +782,7 @@ pre-push:
 		sqlc-vet \
 		offlinedocs/check
 	$(check-unstaged)
+	echo "$(BOLD)$(GREEN)=== pre-push passed in $$(( $$(date +%s) - $$start ))s ===$(RESET)"
 .PHONY: pre-push
 
 offlinedocs/check: offlinedocs/node_modules/.installed
