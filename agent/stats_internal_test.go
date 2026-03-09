@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"tailscale.com/types/ipproto"
 	"tailscale.com/types/netlogtype"
@@ -133,6 +134,92 @@ func TestStatsReporter(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestStatsReporter_NonFatalRPCError verifies that a transient RPC
+// error from UpdateStats does not cause reportLoop to exit. The
+// loop should log the error and continue reporting on the next
+// callback. Regression test for #22864.
+func TestStatsReporter_NonFatalRPCError(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+	fSource := newFakeNetworkStatsSource(ctx, t)
+	fCollector := newFakeCollector(t)
+	fDest := newFakeErrStatsDest()
+	uut := newStatsReporter(logger, fSource, fCollector)
+
+	loopErr := make(chan error, 1)
+	loopCtx, loopCancel := context.WithCancel(ctx)
+	go func() {
+		loopErr <- uut.reportLoop(loopCtx, fDest)
+	}()
+
+	// Initial request to get the reporting interval.
+	req := testutil.TryReceive(ctx, t, fDest.reqs)
+	require.NotNil(t, req)
+	require.Nil(t, req.Stats)
+	interval := 34 * time.Second
+	testutil.RequireSend(ctx, t, fDest.resps,
+		&proto.UpdateStatsResponse{
+			ReportInterval: durationpb.New(interval),
+		})
+
+	// Source configured with callback and interval.
+	gotInterval := testutil.TryReceive(ctx, t, fSource.period)
+	require.Equal(t, interval, gotInterval)
+
+	// First callback delivers network stats.
+	netStats := map[netlogtype.Connection]netlogtype.Counts{
+		{
+			Proto: ipproto.TCP,
+			Src:   netip.MustParseAddrPort("10.0.0.1:1234"),
+			Dst:   netip.MustParseAddrPort("10.0.0.2:5678"),
+		}: {TxPackets: 1, TxBytes: 2, RxPackets: 3, RxBytes: 4},
+	}
+	fSource.callback(time.Now(), time.Now(), netStats, nil)
+
+	// Collector is called; supply stats.
+	gotNetStats := testutil.TryReceive(ctx, t, fCollector.calls)
+	require.Equal(t, netStats, gotNetStats)
+	stats := &proto.Stats{SessionCountJetbrains: 10}
+	testutil.RequireSend(ctx, t, fCollector.stats, stats)
+
+	// Destination receives the request, but we return an error.
+	update := testutil.TryReceive(ctx, t, fDest.reqs)
+	require.NotNil(t, update)
+	require.Equal(t, stats, update.Stats)
+	testutil.RequireSend(ctx, t, fDest.errs,
+		xerrors.New("transient RPC failure"))
+
+	// The loop must NOT have exited. Send another callback and
+	// verify it is reported successfully.
+	netStats2 := map[netlogtype.Connection]netlogtype.Counts{
+		{
+			Proto: ipproto.TCP,
+			Src:   netip.MustParseAddrPort("10.0.0.1:1234"),
+			Dst:   netip.MustParseAddrPort("10.0.0.2:5678"),
+		}: {TxPackets: 5, TxBytes: 6, RxPackets: 7, RxBytes: 8},
+	}
+	fSource.callback(time.Now(), time.Now(), netStats2, nil)
+
+	gotNetStats2 := testutil.TryReceive(ctx, t, fCollector.calls)
+	require.Equal(t, netStats2, gotNetStats2)
+	stats2 := &proto.Stats{SessionCountJetbrains: 20}
+	testutil.RequireSend(ctx, t, fCollector.stats, stats2)
+
+	update2 := testutil.TryReceive(ctx, t, fDest.reqs)
+	require.NotNil(t, update2)
+	require.Equal(t, stats2, update2.Stats)
+	testutil.RequireSend(ctx, t, fDest.resps,
+		&proto.UpdateStatsResponse{
+			ReportInterval: durationpb.New(interval),
+		})
+
+	// Clean shutdown — loop exits without error.
+	loopCancel()
+	err := testutil.TryReceive(ctx, t, loopErr)
+	require.NoError(t, err)
+}
+
 type fakeNetworkStatsSource struct {
 	sync.Mutex
 	ctx      context.Context
@@ -217,5 +304,41 @@ func newFakeStatsDest() *fakeStatsDest {
 	return &fakeStatsDest{
 		reqs:  make(chan *proto.UpdateStatsRequest),
 		resps: make(chan *proto.UpdateStatsResponse),
+	}
+}
+
+// fakeErrStatsDest is like fakeStatsDest but can return errors on
+// demand via the errs channel. When a value is available on errs,
+// it is returned instead of waiting for resps.
+type fakeErrStatsDest struct {
+	reqs  chan *proto.UpdateStatsRequest
+	resps chan *proto.UpdateStatsResponse
+	errs  chan error
+}
+
+func (f *fakeErrStatsDest) UpdateStats(
+	ctx context.Context, req *proto.UpdateStatsRequest,
+) (*proto.UpdateStatsResponse, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case f.reqs <- req:
+		// OK
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case err := <-f.errs:
+		return nil, err
+	case resp := <-f.resps:
+		return resp, nil
+	}
+}
+
+func newFakeErrStatsDest() *fakeErrStatsDest {
+	return &fakeErrStatsDest{
+		reqs:  make(chan *proto.UpdateStatsRequest),
+		resps: make(chan *proto.UpdateStatsResponse),
+		errs:  make(chan error),
 	}
 }

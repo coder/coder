@@ -728,13 +728,17 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient28
 			updatedMetadata[mr.key] = mr.result
 			continue
 		case err := <-reportError:
-			logMsg := "batch update metadata complete"
-			if err != nil {
-				a.logger.Debug(ctx, logMsg, slog.Error(err))
-				return xerrors.Errorf("failed to report metadata: %w", err)
-			}
-			a.logger.Debug(ctx, logMsg)
 			reportInFlight = false
+			if err != nil {
+				// RPC errors for metadata are non-fatal. The
+				// data will be re-collected and sent on the
+				// next tick. Returning here would tear down
+				// the entire API connection errgroup.
+				// See #22864.
+				a.logger.Warn(ctx, "failed to report metadata", slog.Error(err))
+				continue
+			}
+			a.logger.Debug(ctx, "batch update metadata complete")
 		case <-report:
 			if len(updatedMetadata) == 0 {
 				continue
