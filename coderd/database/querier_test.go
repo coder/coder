@@ -8841,3 +8841,202 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 		})
 	}
 }
+
+func TestGetChatMessagesForPromptByChatID(t *testing.T) {
+	t.Parallel()
+
+	// This test exercises a complex CTE query for prompt
+	// reconstruction after compaction. It requires Postgres.
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	// Helper: create a chat model config (required FK for chats).
+	user := dbgen.User(t, db, database.User{})
+
+	// A chat_providers row is required as a FK for model configs.
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	newChat := func(t *testing.T) database.Chat {
+		t.Helper()
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           user.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-chat-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	insertMsg := func(
+		t *testing.T,
+		chatID uuid.UUID,
+		role string,
+		vis database.ChatMessageVisibility,
+		compressed bool,
+		content string,
+	) database.ChatMessage {
+		t.Helper()
+		msg, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:     chatID,
+			Role:       role,
+			Visibility: vis,
+			Compressed: sql.NullBool{Bool: compressed, Valid: true},
+			Content: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`"` + content + `"`),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+		return msg
+	}
+
+	msgIDs := func(msgs []database.ChatMessage) []int64 {
+		ids := make([]int64, len(msgs))
+		for i, m := range msgs {
+			ids[i] = m.ID
+		}
+		return ids
+	}
+
+	t.Run("NoCompaction", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		sys := insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
+		usr := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "hello")
+		ast := insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityBoth, false, "hi there")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []int64{sys.ID, usr.ID, ast.ID}, msgIDs(got))
+	})
+
+	t.Run("UserOnlyVisibilityExcluded", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// Messages with visibility=user should NOT appear in the
+		// prompt (they are only for the UI).
+		insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
+		insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityUser, false, "user-only msg")
+		usr := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "hello")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		for _, m := range got {
+			require.NotEqual(t, database.ChatMessageVisibilityUser, m.Visibility,
+				"visibility=user messages should not appear in the prompt")
+		}
+		require.Contains(t, msgIDs(got), usr.ID)
+	})
+
+	t.Run("AfterCompaction", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// Pre-compaction conversation.
+		sys := insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
+		preUser := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "old question")
+		preAsst := insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityBoth, false, "old answer")
+
+		// Compaction messages:
+		// 1. Summary (role=user, visibility=model, compressed=true).
+		summary := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityModel, true, "compaction summary")
+		// 2. Compressed assistant tool-call (visibility=user).
+		insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityUser, true, "tool call")
+		// 3. Compressed tool result (visibility=both).
+		insertMsg(t, chat.ID, "tool", database.ChatMessageVisibilityBoth, true, "tool result")
+
+		// Post-compaction messages.
+		postUser := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "new question")
+		postAsst := insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityBoth, false, "new answer")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		gotIDs := msgIDs(got)
+
+		// Must include: system prompt, summary, post-compaction.
+		require.Contains(t, gotIDs, sys.ID, "system prompt must be included")
+		require.Contains(t, gotIDs, summary.ID, "compaction summary must be included")
+		require.Contains(t, gotIDs, postUser.ID, "post-compaction user msg must be included")
+		require.Contains(t, gotIDs, postAsst.ID, "post-compaction assistant msg must be included")
+
+		// Must exclude: pre-compaction non-system messages.
+		require.NotContains(t, gotIDs, preUser.ID, "pre-compaction user msg must be excluded")
+		require.NotContains(t, gotIDs, preAsst.ID, "pre-compaction assistant msg must be excluded")
+
+		// Verify ordering.
+		require.Equal(t, []int64{sys.ID, summary.ID, postUser.ID, postAsst.ID}, gotIDs)
+	})
+
+	t.Run("AfterCompactionSummaryIsUserRole", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// After compaction the summary must appear as role=user so
+		// that LLM APIs (e.g. Anthropic) see at least one
+		// non-system message in the prompt.
+		insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
+		summary := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityModel, true, "summary text")
+		newUsr := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "new question")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		hasNonSystem := false
+		for _, m := range got {
+			if m.Role != "system" {
+				hasNonSystem = true
+				break
+			}
+		}
+		require.True(t, hasNonSystem,
+			"prompt must contain at least one non-system message after compaction")
+		require.Contains(t, msgIDs(got), summary.ID)
+		require.Contains(t, msgIDs(got), newUsr.ID)
+	})
+
+	t.Run("CompressedToolResultNotPickedAsSummary", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// The CTE uses visibility='model' (exact match). If it
+		// used IN ('model','both'), the compressed tool result
+		// (visibility=both) would be picked as the "summary"
+		// instead of the actual summary.
+		insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
+		summary := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityModel, true, "real summary")
+		compressedTool := insertMsg(t, chat.ID, "tool", database.ChatMessageVisibilityBoth, true, "tool result")
+		postUser := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "follow-up")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		gotIDs := msgIDs(got)
+		require.Contains(t, gotIDs, summary.ID, "real summary must be included")
+		require.NotContains(t, gotIDs, compressedTool.ID,
+			"compressed tool result must not be included")
+		require.Contains(t, gotIDs, postUser.ID)
+	})
+}
