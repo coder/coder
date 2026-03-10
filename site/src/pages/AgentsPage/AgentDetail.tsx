@@ -957,7 +957,7 @@ const AgentDetail: FC = () => {
 		inputValueRef,
 	});
 
-	const chatTitle = chatQuery.data?.chat?.title;
+	const chatTitle = chatQuery.data?.chat?.title ?? undefined;
 
 	const titleElement = (
 		<title>

@@ -1283,7 +1283,7 @@ CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     owner_id uuid NOT NULL,
     workspace_id uuid,
-    title text DEFAULT 'New Chat'::text NOT NULL,
+    title text,
     status chat_status DEFAULT 'waiting'::chat_status NOT NULL,
     worker_id uuid,
     started_at timestamp with time zone,

@@ -167,15 +167,13 @@ INSERT INTO chats (
     workspace_id,
     parent_chat_id,
     root_chat_id,
-    last_model_config_id,
-    title
+    last_model_config_id
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
     sqlc.narg('parent_chat_id')::uuid,
     sqlc.narg('root_chat_id')::uuid,
-    @last_model_config_id::uuid,
-    @title::text
+    @last_model_config_id::uuid
 )
 RETURNING
     *;
@@ -237,7 +235,7 @@ RETURNING
 UPDATE
     chats
 SET
-    title = @title::text,
+    title = sqlc.narg('title')::text,
     updated_at = NOW()
 WHERE
     id = @id::uuid

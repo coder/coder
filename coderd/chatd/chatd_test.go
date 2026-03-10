@@ -46,7 +46,6 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 
 	chat, err := replicaA.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "interrupt-me",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -249,7 +248,6 @@ func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "db-transition",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -285,7 +283,6 @@ func TestUpdateChatHeartbeatRequiresOwnership(t *testing.T) {
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "heartbeat-ownership",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -327,7 +324,6 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "queue-when-busy",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -378,7 +374,6 @@ func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "interrupt-when-busy",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -437,7 +432,6 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "edit-message",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "original"}},
 	})
@@ -525,7 +519,6 @@ func TestEditMessageRejectsMissingMessage(t *testing.T) {
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "missing-edited-message",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -551,7 +544,6 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "non-user-edited-message",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -603,7 +595,6 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 	deadWorkerID := uuid.New()
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OwnerID:           user.ID,
-		Title:             "stale-recovery-periodic",
 		LastModelConfigID: model.ID,
 	})
 	require.NoError(t, err)
@@ -648,7 +639,6 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 	deadWorkerID2 := uuid.New()
 	chat2, err := db.InsertChat(ctx, database.InsertChatParams{
 		OwnerID:           user.ID,
-		Title:             "stale-recovery-periodic-2",
 		LastModelConfigID: model.ID,
 	})
 	require.NoError(t, err)
@@ -686,7 +676,6 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	deadReplicaID := uuid.New()
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OwnerID:           user.ID,
-		Title:             "orphaned-chat",
 		LastModelConfigID: model.ID,
 	})
 	require.NoError(t, err)
@@ -728,7 +717,6 @@ func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 	// by stale recovery.
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OwnerID:           user.ID,
-		Title:             "waiting-chat",
 		LastModelConfigID: model.ID,
 	})
 	require.NoError(t, err)
@@ -770,7 +758,6 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 
 	chat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OwnerID:           user.ID,
-		Title:             "error-persisted",
 		LastModelConfigID: model.ID,
 	})
 	require.NoError(t, err)
@@ -825,7 +812,6 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "status-snapshot",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -854,7 +840,6 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "no-dup-parts",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -894,7 +879,6 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	// Create a chat — this inserts one initial "user" message.
 	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "after-id-test",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "first"}},
 	})
@@ -1423,7 +1407,6 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "interrupt-no-push",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -1528,7 +1511,6 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "push-nav-test",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -1612,7 +1594,6 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 
 	chat, err := serverA.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "shutdown-retry",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})

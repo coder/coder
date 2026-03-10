@@ -107,7 +107,9 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-xs text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
 									onClick={() => onOpenParentChat(parentChat.id)}
 								>
-									<span className="truncate">{parentChat.title}</span>
+									<span className="truncate">
+										{parentChat.title ?? "Untitled"}
+									</span>
 								</Button>
 								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70" />
 							</>

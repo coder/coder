@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"time"
 
@@ -92,13 +93,13 @@ func (p *Server) maybeGenerateChatTitle(
 			)
 			continue
 		}
-		if title == "" || title == chat.Title {
+		if title == "" {
 			return
 		}
 
 		_, err = p.db.UpdateChatByID(ctx, database.UpdateChatByIDParams{
 			ID:    chat.ID,
-			Title: title,
+			Title: sql.NullString{String: title, Valid: true},
 		})
 		if err != nil {
 			logger.Warn(ctx, "failed to update generated chat title",
@@ -107,7 +108,7 @@ func (p *Server) maybeGenerateChatTitle(
 			)
 			return
 		}
-		chat.Title = title
+		chat.Title = sql.NullString{String: title, Valid: true}
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange)
 		return
 	}
@@ -167,12 +168,17 @@ func generateTitle(
 
 // titleInput returns the first user message text and whether title
 // generation should proceed. It returns false when the chat already
-// has assistant/tool replies, has more than one visible user message,
-// or the current title doesn't look like a candidate for replacement.
+// has a title set, has assistant/tool replies, or no user text is
+// available.
 func titleInput(
 	chat database.Chat,
 	messages []database.ChatMessage,
 ) (string, bool) {
+	// Only generate a title if one hasn't been set yet.
+	if chat.Title.Valid {
+		return "", false
+	}
+
 	userCount := 0
 	firstUserText := ""
 
@@ -200,16 +206,7 @@ func titleInput(
 		}
 	}
 
-	if userCount != 1 || firstUserText == "" {
-		return "", false
-	}
-
-	currentTitle := strings.TrimSpace(chat.Title)
-	if currentTitle == "" {
-		return firstUserText, true
-	}
-
-	if currentTitle != fallbackChatTitle(firstUserText) {
+	if userCount == 0 || firstUserText == "" {
 		return "", false
 	}
 
@@ -225,29 +222,6 @@ func normalizeTitleOutput(title string) string {
 	title = strings.Trim(title, "\"'`")
 	title = strings.Join(strings.Fields(title), " ")
 	return truncateRunes(title, 80)
-}
-
-func fallbackChatTitle(message string) string {
-	const maxWords = 6
-	const maxRunes = 80
-
-	words := strings.Fields(message)
-	if len(words) == 0 {
-		return "New Chat"
-	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-
-	title := strings.Join(words, " ")
-	if truncated {
-		title += "…"
-	}
-
-	return truncateRunes(title, maxRunes)
 }
 
 // contentBlocksToText concatenates the text parts of content blocks

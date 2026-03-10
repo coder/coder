@@ -215,7 +215,7 @@ const collectVisibleChatIDs = ({
 	}
 
 	const matchedChatIDs = chats
-		.filter((chat) => chat.title.toLowerCase().includes(search))
+		.filter((chat) => (chat.title ?? "").toLowerCase().includes(search))
 		.map((chat) => chat.id);
 	if (matchedChatIDs.length === 0) {
 		return new Set<string>();
@@ -413,7 +413,9 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 											isActive && "font-medium",
 										)}
 									>
-										{chat.title}
+										{chat.title ?? (
+											<span className="inline-block h-3.5 w-24 animate-pulse rounded bg-surface-tertiary" />
+										)}
 									</span>
 								</div>
 								<div className="flex min-w-0 items-center gap-1.5">
@@ -460,7 +462,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 										size="icon"
 										variant="subtle"
 										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-										aria-label={`Open actions for ${chat.title}`}
+										aria-label={`Open actions for ${chat.title ?? "Untitled"}`}
 									>
 										<EllipsisIcon className="h-3.5 w-3.5" />
 									</Button>

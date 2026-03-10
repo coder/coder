@@ -150,7 +150,6 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 	// Create a chat and mark it as running on a remote worker.
 	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "relay-reconnect",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -244,7 +243,6 @@ func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 	// Create a chat in pending status.
 	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "relay-async-nonblock",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -351,7 +349,6 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 	// Create a chat already running on a remote worker.
 	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "relay-snapshot",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -464,7 +461,6 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 
 	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "stale-dial-test",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -627,7 +623,6 @@ func TestSubscribeCancelDuringInFlightDial(t *testing.T) {
 
 	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "cancel-inflight-dial",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -725,7 +720,6 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 
 	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "running-to-running",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -847,7 +841,6 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 	// synchronous relay.
 	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "failed-dial-retry",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -957,7 +950,6 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 	// opens a synchronous relay.
 	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "local-worker-closes-relay",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})
@@ -1065,7 +1057,6 @@ func TestSubscribeRelayMultipleReconnects(t *testing.T) {
 	// Subscribe opens a synchronous relay immediately.
 	chat, err := subscriber.CreateChat(ctx, osschatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "multiple-reconnects",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
 	})

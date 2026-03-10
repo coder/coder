@@ -167,7 +167,6 @@ type CreateOptions struct {
 	WorkspaceID        uuid.NullUUID
 	ParentChatID       uuid.NullUUID
 	RootChatID         uuid.NullUUID
-	Title              string
 	ModelConfigID      uuid.UUID
 	SystemPrompt       string
 	InitialUserContent []fantasy.Content
@@ -238,9 +237,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if opts.OwnerID == uuid.Nil {
 		return database.Chat{}, xerrors.New("owner_id is required")
 	}
-	if strings.TrimSpace(opts.Title) == "" {
-		return database.Chat{}, xerrors.New("title is required")
-	}
 	if len(opts.InitialUserContent) == 0 {
 		return database.Chat{}, xerrors.New("initial user content is required")
 	}
@@ -253,7 +249,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			ParentChatID:      opts.ParentChatID,
 			RootChatID:        opts.RootChatID,
 			LastModelConfigID: opts.ModelConfigID,
-			Title:             opts.Title,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
@@ -1601,10 +1596,12 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	sdkChat := codersdk.Chat{
 		ID:        chat.ID,
 		OwnerID:   chat.OwnerID,
-		Title:     chat.Title,
 		Status:    codersdk.ChatStatus(chat.Status),
 		CreatedAt: chat.CreatedAt,
 		UpdatedAt: chat.UpdatedAt,
+	}
+	if chat.Title.Valid {
+		sdkChat.Title = &chat.Title.String
 	}
 	if chat.ParentChatID.Valid {
 		parentChatID := chat.ParentChatID.UUID
@@ -2030,7 +2027,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if p.webpushDispatcher != nil && p.webpushDispatcher.PublicKey() != "" && !chat.ParentChatID.Valid && !wasInterrupted {
 			if status == database.ChatStatusWaiting || status == database.ChatStatusError {
 				pushMsg := codersdk.WebpushMessage{
-					Title: chat.Title,
+					Title: chat.Title.String,
 					Body:  "Agent has finished running.",
 					Icon:  "/favicon.ico",
 					Data:  map[string]string{"url": fmt.Sprintf("/agents/%s", chat.ID)},

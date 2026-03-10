@@ -89,7 +89,7 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 
 				return toolJSONResponse(map[string]any{
 					"chat_id": childChat.ID.String(),
-					"title":   childChat.Title,
+					"title":   childChat.Title.String,
 					"status":  string(childChat.Status),
 				}), nil
 			},
@@ -128,7 +128,7 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 
 				return toolJSONResponse(map[string]any{
 					"chat_id": targetChatID.String(),
-					"title":   targetChat.Title,
+					"title":   targetChat.Title.String,
 					"report":  report,
 					"status":  string(targetChat.Status),
 				}), nil
@@ -169,7 +169,7 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 
 				return toolJSONResponse(map[string]any{
 					"chat_id":     targetChatID.String(),
-					"title":       targetChat.Title,
+					"title":       targetChat.Title.String,
 					"status":      string(targetChat.Status),
 					"interrupted": args.Interrupt,
 				}), nil
@@ -202,7 +202,7 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 
 				return toolJSONResponse(map[string]any{
 					"chat_id":    targetChatID.String(),
-					"title":      targetChat.Title,
+					"title":      targetChat.Title.String,
 					"terminated": true,
 					"status":     string(targetChat.Status),
 				}), nil
@@ -223,7 +223,7 @@ func (p *Server) createChildSubagentChat(
 	ctx context.Context,
 	parent database.Chat,
 	prompt string,
-	title string,
+	_ string,
 ) (database.Chat, error) {
 	if parent.ParentChatID.Valid {
 		return database.Chat{}, xerrors.New("delegated chats cannot create child subagents")
@@ -232,11 +232,6 @@ func (p *Server) createChildSubagentChat(
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
 		return database.Chat{}, xerrors.New("prompt is required")
-	}
-
-	title = strings.TrimSpace(title)
-	if title == "" {
-		title = subagentFallbackChatTitle(prompt)
 	}
 
 	rootChatID := parent.ID
@@ -259,7 +254,6 @@ func (p *Server) createChildSubagentChat(
 			Valid: true,
 		},
 		ModelConfigID:      parent.LastModelConfigID,
-		Title:              title,
 		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: prompt}},
 	})
 	if err != nil {
@@ -492,42 +486,6 @@ func listSubagentDescendants(
 	}
 
 	return out, nil
-}
-
-func subagentFallbackChatTitle(message string) string {
-	const maxWords = 6
-	const maxRunes = 80
-
-	words := strings.Fields(message)
-	if len(words) == 0 {
-		return "New Chat"
-	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-
-	title := strings.Join(words, " ")
-	if truncated {
-		title += "..."
-	}
-
-	return subagentTruncateRunes(title, maxRunes)
-}
-
-func subagentTruncateRunes(value string, maxRunes int) string {
-	if maxRunes <= 0 {
-		return ""
-	}
-
-	runes := []rune(value)
-	if len(runes) <= maxRunes {
-		return value
-	}
-
-	return string(runes[:maxRunes])
 }
 
 func toolJSONResponse(result map[string]any) fantasy.ToolResponse {

@@ -36,7 +36,7 @@ type Chat struct {
 	ParentChatID      *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
 	RootChatID        *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
 	LastModelConfigID uuid.UUID       `json:"last_model_config_id" format:"uuid"`
-	Title             string          `json:"title"`
+	Title             *string         `json:"title"`
 	Status            ChatStatus      `json:"status"`
 	LastError         *string         `json:"last_error"`
 	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`

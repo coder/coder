@@ -75,7 +75,7 @@ func TestPostChats(t *testing.T) {
 		require.NotEqual(t, uuid.Nil, chat.ID)
 		require.Equal(t, user.UserID, chat.OwnerID)
 		require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
-		require.Equal(t, "hello from chats route tests", chat.Title)
+		require.Nil(t, chat.Title)
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 		require.NotZero(t, chat.CreatedAt)
 		require.NotZero(t, chat.UpdatedAt)
@@ -321,7 +321,6 @@ func TestListChats(t *testing.T) {
 		memberDBChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "member chat only",
 		})
 		require.NoError(t, err)
 
@@ -351,8 +350,8 @@ func TestListChats(t *testing.T) {
 		require.Contains(t, chatsByID, firstChatA.ID)
 		require.Contains(t, chatsByID, firstChatB.ID)
 		require.NotContains(t, chatsByID, memberDBChat.ID)
-		require.Equal(t, "first owner chat", chatsByID[firstChatA.ID].Title)
-		require.Equal(t, "second owner chat", chatsByID[firstChatB.ID].Title)
+		require.Nil(t, chatsByID[firstChatA.ID].Title)
+		require.Nil(t, chatsByID[firstChatB.ID].Title)
 
 		for i := 1; i < len(chats); i++ {
 			require.False(t, chats[i-1].UpdatedAt.Before(chats[i].UpdatedAt))
@@ -369,7 +368,7 @@ func TestListChats(t *testing.T) {
 		require.Len(t, memberChats, 1)
 		require.Equal(t, memberDBChat.ID, memberChats[0].ID)
 		require.Equal(t, member.ID, memberChats[0].OwnerID)
-		require.Equal(t, "member chat only", memberChats[0].Title)
+		require.Nil(t, memberChats[0].Title)
 		require.NotNil(t, memberChats[0].RootChatID)
 		require.Equal(t, memberChats[0].ID, *memberChats[0].RootChatID)
 		require.NotNil(t, memberChats[0].DiffStatus)
@@ -1196,7 +1195,7 @@ func TestGetChat(t *testing.T) {
 		require.Equal(t, createdChat.ID, chatWithMessages.Chat.ID)
 		require.Equal(t, firstUser.UserID, chatWithMessages.Chat.OwnerID)
 		require.Equal(t, modelConfig.ID, chatWithMessages.Chat.LastModelConfigID)
-		require.Equal(t, "get chat route payload", chatWithMessages.Chat.Title)
+		require.Nil(t, chatWithMessages.Chat.Title)
 		require.NotZero(t, chatWithMessages.Chat.CreatedAt)
 		require.NotZero(t, chatWithMessages.Chat.UpdatedAt)
 		require.NotEmpty(t, chatWithMessages.Messages)
@@ -1337,7 +1336,6 @@ func TestArchiveChat(t *testing.T) {
 		child1, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "child 1",
 			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 		})
@@ -1346,7 +1344,6 @@ func TestArchiveChat(t *testing.T) {
 		child2, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "child 2",
 			ParentChatID:      uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: parentChat.ID, Valid: true},
 		})
@@ -1971,9 +1968,9 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, chat.ID)
 
-		// Title is derived from the text parts. For file-references
-		// the formatted text becomes the title source.
-		require.NotEmpty(t, chat.Title)
+		// Title is not set on creation; it is populated
+		// asynchronously by the chat daemon.
+		require.Nil(t, chat.Title)
 	})
 }
 
@@ -2108,8 +2105,9 @@ func TestChatMessageWithFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// With no text, chatTitleFromMessage("") returns "New Chat".
-		require.Equal(t, "New Chat", chat.Title)
+		// Title is not set on creation; it is populated
+		// asynchronously by the chat daemon.
+		require.Nil(t, chat.Title)
 	})
 
 	t.Run("InvalidFileID", func(t *testing.T) {
@@ -2476,7 +2474,6 @@ func TestInterruptChat(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "interrupt route test",
 		})
 		require.NoError(t, err)
 
@@ -2544,7 +2541,6 @@ func TestGetChatDiffStatus(t *testing.T) {
 		noCachedStatusChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "get diff status route no cache",
 		})
 		require.NoError(t, err)
 
@@ -2563,7 +2559,6 @@ func TestGetChatDiffStatus(t *testing.T) {
 		cachedStatusChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "get diff status route cached",
 		})
 		require.NoError(t, err)
 
@@ -2666,7 +2661,6 @@ func TestGetChatDiffContents(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "diff contents with cached repository reference",
 		})
 		require.NoError(t, err)
 
@@ -2761,7 +2755,6 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "delete queued message route test",
 		})
 		require.NoError(t, err)
 
@@ -2808,7 +2801,6 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "delete queued invalid id",
 		})
 		require.NoError(t, err)
 
@@ -2842,7 +2834,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "promote queued message route test",
 		})
 		require.NoError(t, err)
 
@@ -2907,7 +2898,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "promote queued invalid id",
 		})
 		require.NoError(t, err)
 

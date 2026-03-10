@@ -3593,15 +3593,13 @@ INSERT INTO chats (
     workspace_id,
     parent_chat_id,
     root_chat_id,
-    last_model_config_id,
-    title
+    last_model_config_id
 ) VALUES (
     $1::uuid,
     $2::uuid,
     $3::uuid,
     $4::uuid,
-    $5::uuid,
-    $6::text
+    $5::uuid
 )
 RETURNING
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
@@ -3613,7 +3611,6 @@ type InsertChatParams struct {
 	ParentChatID      uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
 	RootChatID        uuid.NullUUID `db:"root_chat_id" json:"root_chat_id"`
 	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
-	Title             string        `db:"title" json:"title"`
 }
 
 func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
@@ -3623,7 +3620,6 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		arg.ParentChatID,
 		arg.RootChatID,
 		arg.LastModelConfigID,
-		arg.Title,
 	)
 	var i Chat
 	err := row.Scan(
@@ -3910,8 +3906,8 @@ RETURNING
 `
 
 type UpdateChatByIDParams struct {
-	Title string    `db:"title" json:"title"`
-	ID    uuid.UUID `db:"id" json:"id"`
+	Title sql.NullString `db:"title" json:"title"`
+	ID    uuid.UUID      `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error) {

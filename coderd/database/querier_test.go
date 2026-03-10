@@ -8957,7 +8957,6 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-chat-" + uuid.NewString(),
 		})
 		require.NoError(t, err)
 		return chat

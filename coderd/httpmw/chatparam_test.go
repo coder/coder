@@ -67,7 +67,6 @@ func TestChatParam(t *testing.T) {
 			ParentChatID:      uuid.NullUUID{},
 			RootChatID:        uuid.NullUUID{},
 			LastModelConfigID: modelConfig.ID,
-			Title:             "Test chat",
 		})
 		require.NoError(t, err)
 

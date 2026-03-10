@@ -1,0 +1,3 @@
+UPDATE chats SET title = 'New Chat' WHERE title IS NULL;
+ALTER TABLE chats ALTER COLUMN title SET NOT NULL;
+ALTER TABLE chats ALTER COLUMN title SET DEFAULT 'New Chat';

@@ -1059,7 +1059,7 @@ export interface Chat {
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;
 	readonly last_model_config_id: string;
-	readonly title: string;
+	readonly title: string | null;
 	readonly status: ChatStatus;
 	readonly last_error: string | null;
 	readonly diff_status?: ChatDiffStatus;

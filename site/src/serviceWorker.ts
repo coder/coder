@@ -44,12 +44,15 @@ self.addEventListener("push", (event) => {
 						return;
 					}
 				}
-				return self.registration.showNotification(payload.title, {
-					body: payload.body || "",
-					icon: payload.icon || "/favicon.ico",
-					data: payload.data,
-					tag: payload.tag,
-				});
+				return self.registration.showNotification(
+					payload.title ?? "New notification",
+					{
+						body: payload.body || "",
+						icon: payload.icon || "/favicon.ico",
+						data: payload.data,
+						tag: payload.tag,
+					},
+				);
 			}),
 	);
 });

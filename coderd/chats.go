@@ -262,7 +262,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, contentFileIDs, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	contentBlocks, contentFileIDs, _, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
 		return
@@ -273,8 +273,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, validationStatus, *validationError)
 		return
 	}
-
-	title := chatTitleFromMessage(titleSource)
 
 	if api.chatDaemon == nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -293,7 +291,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
-		Title:              title,
 		ModelConfigID:      modelConfigID,
 		SystemPrompt:       api.resolvedChatSystemPrompt(ctx),
 		InitialUserContent: contentBlocks,
@@ -2586,48 +2583,18 @@ func createChatInputFromParts(
 	return content, fileIDs, titleSource, nil
 }
 
-func chatTitleFromMessage(message string) string {
-	const maxWords = 6
-	const maxRunes = 80
-	words := strings.Fields(message)
-	if len(words) == 0 {
-		return "New Chat"
-	}
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-	title := strings.Join(words, " ")
-	if truncated {
-		title += "…"
-	}
-	return truncateRunes(title, maxRunes)
-}
-
-func truncateRunes(value string, maxLen int) string {
-	if maxLen <= 0 {
-		return ""
-	}
-
-	runes := []rune(value)
-	if len(runes) <= maxLen {
-		return value
-	}
-
-	return string(runes[:maxLen])
-}
-
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OwnerID:           c.OwnerID,
 		LastModelConfigID: c.LastModelConfigID,
-		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
 		Archived:          c.Archived,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
+	}
+	if c.Title.Valid {
+		chat.Title = &c.Title.String
 	}
 	if c.LastError.Valid {
 		chat.LastError = &c.LastError.String

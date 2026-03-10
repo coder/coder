@@ -35,7 +35,6 @@ func TestStartWorkspace(t *testing.T) {
 		chat, err := db.InsertChat(ctx, database.InsertChatParams{
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-no-workspace",
 		})
 		require.NoError(t, err)
 
@@ -78,7 +77,6 @@ func TestStartWorkspace(t *testing.T) {
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-already-running",
 		})
 		require.NoError(t, err)
 
@@ -133,7 +131,6 @@ func TestStartWorkspace(t *testing.T) {
 			OwnerID:           user.ID,
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 			LastModelConfigID: modelCfg.ID,
-			Title:             "test-stopped-workspace",
 		})
 		require.NoError(t, err)
 
