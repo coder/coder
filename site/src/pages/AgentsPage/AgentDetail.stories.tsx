@@ -28,6 +28,7 @@ import {
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
 import AgentDetail from "./AgentDetail";
+import { RIGHT_PANEL_OPEN_KEY } from "./AgentDetailView";
 import type { AgentsOutletContext } from "./AgentsPage";
 
 // ---------------------------------------------------------------------------
@@ -305,6 +306,10 @@ export const Loading: Story = {};
 
 /** Full layout with actions menu and diff panel portaled to the right slot. */
 export const CompletedWithDiffPanel: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
 	parameters: {
 		queries: buildQueries(
 			{
@@ -517,6 +522,10 @@ export const StreamedSubagentTitle: Story = {
  * the PR tab.
  */
 export const SidebarWithPRAndRepos: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
 	parameters: {
 		queries: buildQueries(
 			{
@@ -697,6 +706,10 @@ export const SidebarWithPRAndRepos: Story = {
  * the tab bar is hidden and the repo panel is rendered directly.
  */
 export const SidebarWithSingleRepo: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
 	parameters: {
 		queries: buildQueries(
 			{
