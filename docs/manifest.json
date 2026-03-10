@@ -1191,6 +1191,7 @@
 					"title": "Coder Agents",
 					"description": "Self-hosted agent by Coder",
 					"path": "./ai-coder/agents/index.md",
+					"state": ["early access"],
 					"children": [
 						{
 							"title": "Architecture",
