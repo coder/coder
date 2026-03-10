@@ -1977,33 +1977,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		chat.Status = status
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
 
-		// Send a web push notification when the agent finishes
-		// processing. We only notify for terminal states (waiting
-		// = success, error = failure) and skip sub-agent chats
-		// and user-interrupted chats to avoid unnecessary
-		// notifications.
-		if p.webpushDispatcher != nil && p.webpushDispatcher.PublicKey() != "" && !chat.ParentChatID.Valid && !wasInterrupted {
-			if status == database.ChatStatusWaiting || status == database.ChatStatusError {
-				pushMsg := codersdk.WebpushMessage{
-					Title: chat.Title,
-					Body:  "Agent has finished running.",
-					Icon:  "/favicon.ico",
-					Data:  map[string]string{"url": fmt.Sprintf("/agents/%s", chat.ID)},
-				}
-				if status == database.ChatStatusError {
-					pushMsg.Body = "Agent encountered an error."
-					if lastError != "" {
-						pushMsg.Body = lastError
-					}
-				}
-				if err := p.webpushDispatcher.Dispatch(cleanupCtx, chat.OwnerID, pushMsg); err != nil {
-					logger.Warn(cleanupCtx, "failed to send chat completion web push",
-						slog.F("chat_id", chat.ID),
-						slog.F("status", status),
-						slog.Error(err),
-					)
-				}
-			}
+		if !wasInterrupted {
+			p.maybeSendPushNotification(cleanupCtx, chat, status, lastError, logger)
 		}
 	}()
 
@@ -2929,6 +2904,90 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 
 	if recovered > 0 {
 		p.logger.Info(ctx, "recovered stale chats", slog.F("count", recovered))
+	}
+}
+
+// maybeSendPushNotification sends a web push notification when an
+// agent chat reaches a terminal state. For errors it dispatches
+// synchronously; for successful completions it spawns a goroutine
+// that generates a short LLM summary before dispatching. The caller
+// is responsible for skipping interrupted chats.
+func (p *Server) maybeSendPushNotification(
+	ctx context.Context,
+	chat database.Chat,
+	status database.ChatStatus,
+	lastError string,
+	logger slog.Logger,
+) {
+	if p.webpushDispatcher == nil || p.webpushDispatcher.PublicKey() == "" {
+		return
+	}
+	if chat.ParentChatID.Valid {
+		return
+	}
+
+	switch status {
+	case database.ChatStatusError:
+		pushBody := "Agent encountered an error."
+		if lastError != "" {
+			pushBody = lastError
+		}
+		p.dispatchPush(ctx, chat, pushBody, status, logger)
+
+	case database.ChatStatusWaiting:
+		// Generate a push notification summary asynchronously
+		// using a cheap LLM model. This avoids blocking the
+		// deferred cleanup path while still providing a
+		// meaningful notification body.
+		p.inflight.Add(1)
+		go func() {
+			defer p.inflight.Done()
+			pushCtx := context.WithoutCancel(ctx)
+			pushBody := "Agent has finished running."
+
+			msg, err := p.db.GetLastChatMessageByRole(pushCtx, database.GetLastChatMessageByRoleParams{
+				ChatID: chat.ID,
+				Role:   "assistant",
+			})
+			if err == nil {
+				content, parseErr := chatprompt.ParseContent(msg.Role, msg.Content)
+				if parseErr == nil {
+					assistantText := strings.TrimSpace(contentBlocksToText(content))
+					if assistantText != "" {
+						model, _, keys, resolveErr := p.resolveChatModel(pushCtx, chat)
+						if resolveErr == nil {
+							if summary := generatePushSummary(pushCtx, chat.Title, assistantText, model, keys, logger); summary != "" {
+								pushBody = summary
+							}
+						}
+					}
+				}
+			}
+
+			p.dispatchPush(pushCtx, chat, pushBody, status, logger)
+		}()
+	}
+}
+
+func (p *Server) dispatchPush(
+	ctx context.Context,
+	chat database.Chat,
+	body string,
+	status database.ChatStatus,
+	logger slog.Logger,
+) {
+	pushMsg := codersdk.WebpushMessage{
+		Title: chat.Title,
+		Body:  body,
+		Icon:  "/favicon.ico",
+		Data:  map[string]string{"url": fmt.Sprintf("/agents/%s", chat.ID)},
+	}
+	if err := p.webpushDispatcher.Dispatch(ctx, chat.OwnerID, pushMsg); err != nil {
+		logger.Warn(ctx, "failed to send chat completion web push",
+			slog.F("chat_id", chat.ID),
+			slog.F("status", status),
+			slog.Error(err),
+		)
 	}
 }
 

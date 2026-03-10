@@ -433,5 +433,18 @@ WHERE id = (
 )
 RETURNING *;
 
+-- name: GetLastChatMessageByRole :one
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND role = @role::text
+ORDER BY
+    created_at DESC, id DESC
+LIMIT
+    1;
+
 -- name: GetChatByIDForUpdate :one
 SELECT * FROM chats WHERE id = @id::uuid FOR UPDATE;
