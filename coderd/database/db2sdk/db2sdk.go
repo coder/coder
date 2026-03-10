@@ -1193,11 +1193,12 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 		parts := make([]codersdk.ChatMessagePart, 0, len(results))
 		for _, result := range results {
 			parts = append(parts, codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolResult,
-				ToolCallID: result.ToolCallID,
-				ToolName:   result.ToolName,
-				Result:     result.Result,
-				IsError:    result.IsError,
+				Type:             codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID:       result.ToolCallID,
+				ToolName:         result.ToolName,
+				Result:           result.Result,
+				IsError:          result.IsError,
+				ProviderExecuted: result.ProviderExecuted,
 			})
 		}
 		return parts, nil
@@ -1251,10 +1252,11 @@ func parseContentBlocks(role string, raw pqtype.NullRawMessage) ([]fantasy.Conte
 // toolResultRow is used only for extracting top-level fields from
 // persisted tool result JSON. The result payload is kept as raw JSON.
 type toolResultRow struct {
-	ToolCallID string          `json:"tool_call_id"`
-	ToolName   string          `json:"tool_name"`
-	Result     json.RawMessage `json:"result"`
-	IsError    bool            `json:"is_error,omitempty"`
+	ToolCallID       string          `json:"tool_call_id"`
+	ToolName         string          `json:"tool_name"`
+	Result           json.RawMessage `json:"result"`
+	IsError          bool            `json:"is_error,omitempty"`
+	ProviderExecuted bool            `json:"provider_executed,omitempty"`
 }
 
 func parseToolResults(raw pqtype.NullRawMessage) ([]toolResultRow, error) {
@@ -1293,17 +1295,19 @@ func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 		}
 	case fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: value.ToolCallID,
-			ToolName:   value.ToolName,
-			Args:       []byte(value.Input),
+			Type:             codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:       value.ToolCallID,
+			ToolName:         value.ToolName,
+			Args:             []byte(value.Input),
+			ProviderExecuted: value.ProviderExecuted,
 		}
 	case *fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: value.ToolCallID,
-			ToolName:   value.ToolName,
-			Args:       []byte(value.Input),
+			Type:             codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:       value.ToolCallID,
+			ToolName:         value.ToolName,
+			Args:             []byte(value.Input),
+			ProviderExecuted: value.ProviderExecuted,
 		}
 	case fantasy.SourceContent:
 		return codersdk.ChatMessagePart{

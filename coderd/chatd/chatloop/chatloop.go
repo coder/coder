@@ -525,18 +525,20 @@ func processStepStream(
 				toolNames[part.ID] = part.ToolCallName
 			}
 
-		case fantasy.StreamPartTypeToolInputDelta:
-			if toolCall, exists := activeToolCalls[part.ID]; exists {
-				toolCall.Input += part.Delta
-			}
-			toolName := toolNames[part.ID]
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: part.ID,
-				ToolName:   toolName,
-				ArgsDelta:  part.Delta,
-			})
-
+			case fantasy.StreamPartTypeToolInputDelta:
+				var providerExecuted bool
+				if toolCall, exists := activeToolCalls[part.ID]; exists {
+					toolCall.Input += part.Delta
+					providerExecuted = toolCall.ProviderExecuted
+				}
+				toolName := toolNames[part.ID]
+				publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+					Type:             codersdk.ChatMessagePartTypeToolCall,
+					ToolCallID:       part.ID,
+					ToolName:         toolName,
+					ArgsDelta:        part.Delta,
+					ProviderExecuted: providerExecuted,
+				})
 		case fantasy.StreamPartTypeToolInputEnd:
 			// No callback needed; the full tool call arrives in
 			// StreamPartTypeToolCall.
