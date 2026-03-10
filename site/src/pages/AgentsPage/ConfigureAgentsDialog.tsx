@@ -1,3 +1,4 @@
+import { getErrorMessage } from "api/errors";
 import { Button } from "components/Button/Button";
 import {
 	Dialog,
@@ -32,7 +33,7 @@ interface ConfigureAgentsDialogProps {
 	onSystemPromptDraftChange: (value: string) => void;
 	onSaveSystemPrompt: (event: FormEvent) => void;
 	isSystemPromptDirty: boolean;
-	saveSystemPromptError: boolean;
+	saveSystemPromptError: unknown;
 	isDisabled: boolean;
 }
 
@@ -185,9 +186,12 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 											Save
 										</Button>
 									</div>
-									{saveSystemPromptError && (
+									{saveSystemPromptError != null && (
 										<p className="m-0 text-xs text-content-destructive">
-											Failed to save system prompt.
+											{getErrorMessage(
+												saveSystemPromptError,
+												"Failed to save system prompt.",
+											)}
 										</p>
 									)}
 								</div>

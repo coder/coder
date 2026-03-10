@@ -1,6 +1,8 @@
 import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { Button } from "components/Button/Button";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { ArchiveIcon } from "lucide-react";
 import { type FC, type RefObject, useCallback, useMemo, useState } from "react";
@@ -456,6 +458,55 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 					inputStatusText={inputStatusText}
 					modelCatalogStatusMessage={modelCatalogStatusMessage}
 				/>
+			</div>
+		</div>
+	);
+};
+
+interface AgentDetailErrorViewProps {
+	titleElement: React.ReactNode;
+	error: unknown;
+	onRetry: () => void;
+	isSidebarCollapsed: boolean;
+	onToggleSidebarCollapsed: () => void;
+}
+
+export const AgentDetailErrorView: FC<AgentDetailErrorViewProps> = ({
+	titleElement,
+	error,
+	onRetry,
+	isSidebarCollapsed,
+	onToggleSidebarCollapsed,
+}) => {
+	return (
+		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+			{titleElement}
+			<AgentDetailTopBar
+				panel={{
+					showSidebarPanel: false,
+					onToggleSidebar: () => {},
+				}}
+				workspace={{
+					canOpenEditors: false,
+					canOpenWorkspace: false,
+					onOpenInEditor: () => {},
+					onViewWorkspace: () => {},
+					onOpenTerminal: () => {},
+					sshCommand: undefined,
+				}}
+				onOpenParentChat={() => {}}
+				onArchiveAgent={() => {}}
+				onUnarchiveAgent={() => {}}
+				onArchiveAndDeleteWorkspace={() => {}}
+				hasWorkspace={false}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+			/>
+			<div className="flex flex-1 flex-col items-center justify-center gap-4">
+				<ErrorAlert error={error} />
+				<Button variant="outline" onClick={onRetry}>
+					Retry
+				</Button>
 			</div>
 		</div>
 	);
