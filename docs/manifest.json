@@ -1191,6 +1191,7 @@
 					"title": "Coder Agents",
 					"description": "Self-hosted agent by Coder",
 					"path": "./ai-coder/agents/index.md",
+					"state": ["early access"],
 					"children": [
 						{
 							"title": "Architecture",
@@ -1206,6 +1207,11 @@
 							"title": "Platform Controls",
 							"description": "How platform teams control agent behavior, models, and policies",
 							"path": "./ai-coder/agents/platform-controls.md"
+						},
+						{
+							"title": "Early Access",
+							"description": "About the Coder Agents Early Access program",
+							"path": "./ai-coder/agents/early-access.md"
 						}
 					]
 				}
