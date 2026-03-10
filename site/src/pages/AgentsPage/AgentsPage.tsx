@@ -7,10 +7,12 @@ import {
 	chatKey,
 	chatModelConfigs,
 	chatModels,
+	chatSystemPrompt,
 	chats,
 	chatsKey,
 	createChat,
 	unarchiveChat,
+	updateChatSystemPrompt,
 } from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
@@ -67,7 +69,6 @@ import { WebPushButton } from "./WebPushButton";
 export const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-const systemPromptStorageKey = "agents.system-prompt";
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 
 type ChatModelOption = ModelSelectorOption;
@@ -704,14 +705,15 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	onConfigureAgentsDialogOpenChange,
 }) => {
 	const { organizations } = useDashboard();
+	const queryClient = useQueryClient();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
 		useEmptyStateDraft();
-	const initialSystemPrompt = () => {
-		if (typeof window === "undefined") {
-			return "";
-		}
-		return localStorage.getItem(systemPromptStorageKey) ?? "";
-	};
+	const systemPromptQuery = useQuery(chatSystemPrompt());
+	const {
+		mutate: saveSystemPrompt,
+		isPending: isSavingSystemPrompt,
+		isError: isSaveSystemPromptError,
+	} = useMutation(updateChatSystemPrompt(queryClient));
 	const [initialLastModelConfigID] = useState(() => {
 		if (typeof window === "undefined") {
 			return "";
@@ -771,10 +773,9 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
-	const [savedSystemPrompt, setSavedSystemPrompt] =
-		useState(initialSystemPrompt);
-	const [systemPromptDraft, setSystemPromptDraft] =
-		useState(initialSystemPrompt);
+	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
+	const [localEdit, setLocalEdit] = useState<string | null>(null);
+	const systemPromptDraft = localEdit ?? serverPrompt;
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -832,7 +833,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	selectedWorkspaceIdRef.current = selectedWorkspaceId;
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
-	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
+	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
 
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
@@ -859,17 +860,12 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 			if (!isSystemPromptDirty) {
 				return;
 			}
-
-			setSavedSystemPrompt(systemPromptDraft);
-			if (typeof window !== "undefined") {
-				if (systemPromptDraft) {
-					localStorage.setItem(systemPromptStorageKey, systemPromptDraft);
-				} else {
-					localStorage.removeItem(systemPromptStorageKey);
-				}
-			}
+			saveSystemPrompt(
+				{ system_prompt: systemPromptDraft },
+				{ onSuccess: () => setLocalEdit(null) },
+			);
 		},
-		[isSystemPromptDirty, systemPromptDraft],
+		[isSystemPromptDirty, systemPromptDraft, saveSystemPrompt],
 	);
 
 	const handleSend = useCallback(
@@ -1013,10 +1009,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					canManageChatModelConfigs={canManageChatModelConfigs}
 					canSetSystemPrompt={canSetSystemPrompt}
 					systemPromptDraft={systemPromptDraft}
-					onSystemPromptDraftChange={setSystemPromptDraft}
+					onSystemPromptDraftChange={setLocalEdit}
 					onSaveSystemPrompt={handleSaveSystemPrompt}
 					isSystemPromptDirty={isSystemPromptDirty}
-					isDisabled={isCreating}
+					saveSystemPromptError={isSaveSystemPromptError}
+					isDisabled={isCreating || isSavingSystemPrompt}
 				/>
 			)}
 		</div>

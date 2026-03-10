@@ -1127,6 +1127,11 @@ func New(options *Options) *API {
 				r.Post("/", api.postChatFile)
 				r.Get("/{file}", api.chatFileByID)
 			})
+			r.Route("/config", func(r chi.Router) {
+				r.Get("/system-prompt", api.getChatSystemPrompt)
+				r.Put("/system-prompt", api.putChatSystemPrompt)
+			})
+			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {
 				r.Get("/", api.listChatProviders)
 				r.Post("/", api.createChatProvider)
@@ -1135,6 +1140,7 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatProvider)
 				})
 			})
+			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/model-configs", func(r chi.Router) {
 				r.Get("/", api.listChatModelConfigs)
 				r.Post("/", api.createChatModelConfig)

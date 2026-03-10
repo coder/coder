@@ -32,6 +32,7 @@ interface ConfigureAgentsDialogProps {
 	onSystemPromptDraftChange: (value: string) => void;
 	onSaveSystemPrompt: (event: FormEvent) => void;
 	isSystemPromptDirty: boolean;
+	saveSystemPromptError: boolean;
 	isDisabled: boolean;
 }
 
@@ -44,6 +45,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	onSystemPromptDraftChange,
 	onSaveSystemPrompt,
 	isSystemPromptDirty,
+	saveSystemPromptError,
 	isDisabled,
 }) => {
 	const configureSectionOptions = useMemo<
@@ -152,7 +154,8 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 										System Prompt
 									</h3>
 									<p className="m-0 text-xs text-content-secondary">
-										Admin-only instruction applied to all new chats.
+										Admin-only instruction applied to all new chats. When empty,
+										the built-in default prompt is used.
 									</p>
 									<TextareaAutosize
 										className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
@@ -182,6 +185,11 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 											Save
 										</Button>
 									</div>
+									{saveSystemPromptError && (
+										<p className="m-0 text-xs text-content-destructive">
+											Failed to save system prompt.
+										</p>
+									)}
 								</div>
 							</form>
 						</>
