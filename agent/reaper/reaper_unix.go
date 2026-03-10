@@ -20,20 +20,7 @@ func IsInitProcess() bool {
 	return os.Getpid() == 1
 }
 
-func catchSignals(logger slog.Logger, pid int, sigs []os.Signal) {
-	if len(sigs) == 0 {
-		return
-	}
-
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, sigs...)
-	defer signal.Stop(sc)
-
-	logger.Info(context.Background(), "reaper catching signals",
-		slog.F("signals", sigs),
-		slog.F("child_pid", pid),
-	)
-
+func catchSignals(logger slog.Logger, pid int, sc <-chan os.Signal) {
 	for {
 		s := <-sc
 		sig, ok := s.(syscall.Signal)
@@ -99,7 +86,15 @@ func ForkReap(opt ...Option) (int, error) {
 		return 1, xerrors.Errorf("fork exec: %w", err)
 	}
 
-	go catchSignals(opts.Logger, pid, opts.CatchSignals)
+	// Register the signal handler before spawning the goroutine
+	// so it is active by the time the child process starts. This
+	// avoids a race where a signal arrives before the goroutine
+	// has called signal.Notify.
+	if len(opts.CatchSignals) > 0 {
+		sc := make(chan os.Signal, 1)
+		signal.Notify(sc, opts.CatchSignals...)
+		go catchSignals(opts.Logger, pid, sc)
+	}
 
 	var wstatus syscall.WaitStatus
 	_, err = syscall.Wait4(pid, &wstatus, 0, nil)
