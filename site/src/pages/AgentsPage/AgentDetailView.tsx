@@ -3,7 +3,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useState } from "react";
+import { type FC, type RefObject, useMemo, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -13,7 +13,7 @@ import type { useChatStore } from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { GitPanel } from "./GitPanel";
 import { RightPanel } from "./RightPanel";
-import { type SidebarTab, SidebarTabView } from "./SidebarTabView";
+import { SidebarTabView } from "./SidebarTabView";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -192,6 +192,23 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 		}
 	}
 
+	// Compute local diff stats from git watcher unified diffs.
+	const localDiffStats = useMemo(() => {
+		let additions = 0;
+		let deletions = 0;
+		for (const repo of gitWatcher.repositories.values()) {
+			if (!repo.unified_diff) continue;
+			for (const line of repo.unified_diff.split("\n")) {
+				if (line.startsWith("+") && !line.startsWith("+++")) {
+					additions++;
+				} else if (line.startsWith("-") && !line.startsWith("---")) {
+					deletions++;
+				}
+			}
+		}
+		return { additions, deletions, changed_files: 0 };
+	}, [gitWatcher.repositories]);
+
 	const titleElement = (
 		<title>
 			{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
@@ -315,29 +332,28 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			>
 				<SidebarTabView
-					tabs={
-						[
-							(hasDiffStatus || hasGitRepos) && {
-								id: "git",
-								label: "Git",
-								content: (
-									<GitPanel
-										prTab={
-											prNumber && agentId
-												? { prNumber, chatId: agentId }
-												: undefined
-										}
-										repositories={gitWatcher.repositories}
-										onRefresh={gitWatcher.refresh}
-										onCommit={handleCommit}
-										isExpanded={visualExpanded}
-										remoteDiffStats={diffStatusData}
-										chatInputRef={editing.chatInputRef}
-									/>
-								),
-							},
-						].filter(Boolean) as SidebarTab[]
-					}
+					tabs={[
+						{
+							id: "git",
+							label: "Git",
+							content: (
+								<GitPanel
+									prTab={
+										prNumber && agentId
+											? { prNumber, chatId: agentId }
+											: undefined
+									}
+									repositories={gitWatcher.repositories}
+									onRefresh={gitWatcher.refresh}
+									onCommit={handleCommit}
+									isExpanded={visualExpanded}
+									remoteDiffStats={diffStatusData}
+									localDiffStats={localDiffStats}
+									chatInputRef={editing.chatInputRef}
+								/>
+							),
+						},
+					]}
 					onClose={() => setShowSidebarPanel(false)}
 					isExpanded={visualExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}

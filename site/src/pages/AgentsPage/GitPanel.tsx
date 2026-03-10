@@ -70,18 +70,22 @@ export const GitPanel: FC<GitPanelProps> = ({
 	localDiffStats,
 	chatInputRef,
 }) => {
-	const [view, setView] = useState<GitView>("remote");
-
-	// Diff style is managed here for the local view only.
-	// FilesChangedPanel manages its own diff style internally.
-	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
-
 	const hasRemoteStats =
 		!!remoteDiffStats &&
 		(remoteDiffStats.additions > 0 || remoteDiffStats.deletions > 0);
 	const hasLocalStats =
 		!!localDiffStats &&
 		(localDiffStats.additions > 0 || localDiffStats.deletions > 0);
+
+	// Default to "local" when there are only local changes and no
+	// remote stats, so the user sees content immediately.
+	const [view, setView] = useState<GitView>(
+		!hasRemoteStats && hasLocalStats ? "local" : "remote",
+	);
+
+	// Diff style is managed here for the local view only.
+	// FilesChangedPanel manages its own diff style internally.
+	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
 	const handleDiffStyleChange = useCallback((style: DiffStyle) => {
 		saveDiffStyle(style);
@@ -93,12 +97,12 @@ export const GitPanel: FC<GitPanelProps> = ({
 			{/* Toolbar */}
 			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
 				{/* Remote / Local segmented control */}
-				<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default text-xs">
+				<div className="flex h-6 items-stretch overflow-hidden rounded-md text-xs">
 					<button
 						type="button"
 						onClick={() => setView("remote")}
 						className={cn(
-							"flex cursor-pointer items-center gap-3 border-none font-medium transition-colors",
+							"flex cursor-pointer items-center gap-3 border-none font-medium transition-colors outline-none focus-visible:outline-none",
 							view === "remote"
 								? "bg-surface-quaternary/25 text-content-primary"
 								: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -109,7 +113,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						{hasRemoteStats && (
 							<span
 								className={cn(
-									"flex h-full items-center self-stretch transition-opacity",
+									"flex -my-px items-center self-stretch transition-opacity",
 									view !== "remote" && "opacity-50",
 								)}
 							>
@@ -124,7 +128,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						type="button"
 						onClick={() => setView("local")}
 						className={cn(
-							"flex cursor-pointer items-center gap-3 border-0 border-l border-solid border-border-default font-medium transition-colors",
+							"flex cursor-pointer items-center gap-3 border-0 border-l border-solid border-border-default font-medium transition-colors outline-none focus-visible:outline-none",
 							view === "local"
 								? "bg-surface-quaternary/25 text-content-primary"
 								: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -135,7 +139,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						{hasLocalStats && (
 							<span
 								className={cn(
-									"flex h-full items-center self-stretch transition-opacity",
+									"flex -my-px items-center self-stretch transition-opacity",
 									view !== "local" && "opacity-50",
 								)}
 							>

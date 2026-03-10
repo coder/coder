@@ -40,7 +40,14 @@ const ReasoningDisclosure: FC<{
 	urlTransform?: UrlTransform;
 }> = ({ id, title, text, isStreaming = false, urlTransform }) => {
 	const [isOpen, setIsOpen] = useState(false);
-	const hasText = text.trim().length > 0;
+	const { visibleText } = useSmoothStreamingText({
+		fullText: text,
+		isStreaming,
+		bypassSmoothing: !isStreaming,
+		streamKey: id,
+	});
+	const displayText = isStreaming ? visibleText : text;
+	const hasText = displayText.trim().length > 0;
 	const label = title ?? "Thinking";
 	const showStreamingPlaceholder = isStreaming && !hasText;
 
@@ -51,12 +58,11 @@ const ReasoningDisclosure: FC<{
 					className="text-[11px] text-content-secondary"
 					urlTransform={urlTransform}
 				>
-					{text}
+					{displayText}
 				</Response>
 			</div>
 		);
 	}
-
 	const labelContent = (
 		<span className="text-sm">
 			{showStreamingPlaceholder ? (
@@ -96,7 +102,7 @@ const ReasoningDisclosure: FC<{
 						className="text-[11px] text-content-secondary"
 						urlTransform={urlTransform}
 					>
-						{text}
+						{displayText}
 					</Response>
 				</div>
 			) : null}
