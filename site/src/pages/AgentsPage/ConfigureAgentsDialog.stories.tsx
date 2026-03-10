@@ -78,6 +78,7 @@ const meta: Meta<typeof ConfigureAgentsDialog> = {
 		onSystemPromptDraftChange: fn(),
 		onSaveSystemPrompt: fn(),
 		isSystemPromptDirty: false,
+		saveSystemPromptError: false,
 		isDisabled: false,
 	},
 };

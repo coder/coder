@@ -3052,6 +3052,20 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getChatSystemPrompt =
+		async (): Promise<TypesGen.ChatSystemPromptResponse> => {
+			const response = await this.axios.get<TypesGen.ChatSystemPromptResponse>(
+				"/api/experimental/chats/config/system-prompt",
+			);
+			return response.data;
+		};
+
+	updateChatSystemPrompt = async (
+		req: TypesGen.UpdateChatSystemPromptRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
+	};
+
 	getChatProviderConfigs = async (): Promise<TypesGen.ChatProviderConfig[]> => {
 		const response = await this.axios.get<TypesGen.ChatProviderConfig[]>(
 			chatProviderConfigsPath,

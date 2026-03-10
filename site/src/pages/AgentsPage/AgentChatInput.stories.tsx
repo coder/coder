@@ -112,9 +112,13 @@ export const LoadingSpinner: Story = {
 		const canvas = within(canvasElement);
 		const sendButton = canvas.getByRole("button", { name: "Send" });
 		expect(sendButton).toBeDisabled();
-		// The Loader2Icon renders with the animate-spin class when
-		// isLoading is true.
-		expect(sendButton.querySelector(".animate-spin")).toBeTruthy();
+		// The Spinner component renders an SVG with a "Loading spinner"
+		// title when isLoading is true.
+		const spinnerSvg = sendButton.querySelector("svg");
+		expect(spinnerSvg).toBeTruthy();
+		expect(spinnerSvg?.querySelector("title")?.textContent).toBe(
+			"Loading spinner",
+		);
 	},
 };
 
@@ -130,6 +134,28 @@ export const LoadingDisablesSend: Story = {
 		// The send button should be disabled while a previous send is
 		// in-flight, even though the textarea has content.
 		expect(sendButton).toBeDisabled();
+	},
+};
+
+export const Streaming: Story = {
+	args: {
+		isStreaming: true,
+		onInterrupt: fn(),
+		isInterruptPending: false,
+		initialValue: "",
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+};
+
+export const StreamingInterruptPending: Story = {
+	args: {
+		isStreaming: true,
+		onInterrupt: fn(),
+		isInterruptPending: true,
+		initialValue: "",
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
 	},
 };
 

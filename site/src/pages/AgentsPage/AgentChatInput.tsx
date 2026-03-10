@@ -8,6 +8,7 @@ import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
 } from "components/ChatMessageInput/ChatMessageInput";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -17,7 +18,6 @@ import {
 	AlertTriangleIcon,
 	ArrowUpIcon,
 	ImageIcon,
-	Loader2Icon,
 	Square,
 	XIcon,
 } from "lucide-react";
@@ -274,7 +274,7 @@ export const AttachmentPreview = memo<{
 						)}
 						{uploadState?.status === "uploading" && (
 							<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
-								<Loader2Icon className="h-5 w-5 animate-spin text-white" />
+								<Spinner className="h-5 w-5 text-white" loading />
 							</div>
 						)}
 						{uploadState?.status === "error" && (
@@ -565,9 +565,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					{isEditingHistoryMessage && editingQueuedMessageID === null && (
 						<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
 							<span className="flex items-center gap-1.5 text-sm text-content-secondary">
-								{isLoading && (
-									<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-								)}
+								{isLoading && <Spinner className="h-3.5 w-3.5" loading />}
 								{isLoading ? "Saving edit..." : "Editing message"}
 							</span>
 							<Button
@@ -642,12 +640,12 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 										type="button"
 										variant="outline"
 										size="icon"
-										className="size-7 shrink-0 rounded-full [&>svg]:p-0"
+										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
 										onClick={() => fileInputRef.current?.click()}
 										disabled={isDisabled}
 										aria-label="Attach files"
 									>
-										<ImageIcon className="h-4 w-4" />
+										<ImageIcon />
 									</Button>
 								</>
 							)}
@@ -655,11 +653,11 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								<Button
 									size="icon"
 									variant="default"
-									className="size-7 rounded-full transition-colors [&>svg]:p-0"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
 									onClick={onInterrupt}
 									disabled={isInterruptPending}
 								>
-									<Square className="h-3 w-3 fill-current" />
+									<Square className="fill-current" />
 									<span className="sr-only">Stop</span>
 								</Button>
 							)}
@@ -667,12 +665,12 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								<Button
 									size="icon"
 									variant="default"
-									className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
 									onClick={handleSubmit}
 									disabled={!canSend}
 								>
 									{isLoading ? (
-										<Loader2Icon className="animate-spin" />
+										<Spinner size="sm" loading aria-hidden="true" />
 									) : (
 										<ArrowUpIcon />
 									)}

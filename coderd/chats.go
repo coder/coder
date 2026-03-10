@@ -55,6 +55,7 @@ const (
 	defaultChatContextCompressionThreshold        = int32(70)
 	minChatContextCompressionThreshold            = int32(0)
 	maxChatContextCompressionThreshold            = int32(100)
+	maxSystemPromptLenBytes                       = 131072 // 128 KiB
 )
 
 // chatGitRef holds the branch and remote origin reported by the
@@ -245,7 +246,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
 		ModelConfigID:      modelConfigID,
-		SystemPrompt:       defaultChatSystemPrompt(),
+		SystemPrompt:       api.resolvedChatSystemPrompt(ctx),
 		InitialUserContent: contentBlocks,
 		ContentFileIDs:     contentFileIDs,
 	})
@@ -1761,7 +1762,63 @@ func detectChatFileType(data []byte) string {
 	return http.DetectContentType(data)
 }
 
-func defaultChatSystemPrompt() string {
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	prompt, err := api.Database.GetChatSystemPrompt(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat system prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPromptResponse{
+		SystemPrompt: prompt,
+	})
+}
+
+func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req codersdk.UpdateChatSystemPromptRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	trimmedPrompt := strings.TrimSpace(req.SystemPrompt)
+	// 128 KiB is generous for a system prompt while still
+	// preventing abuse or accidental pastes of large content.
+	if len(trimmedPrompt) > maxSystemPromptLenBytes {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "System prompt exceeds maximum length.",
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(trimmedPrompt)),
+		})
+		return
+	}
+	err := api.Database.UpsertChatSystemPrompt(ctx, trimmedPrompt)
+	if httpapi.Is404Error(err) { // also catches authz error
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating chat system prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
+	custom, err := api.Database.GetChatSystemPrompt(ctx)
+	if err != nil {
+		// Log but don't fail chat creation — fall back to the
+		// built-in default so the user isn't blocked.
+		api.Logger.Error(ctx, "failed to fetch custom chat system prompt, using default", slog.Error(err))
+		return chatd.DefaultSystemPrompt
+	}
+	if strings.TrimSpace(custom) != "" {
+		return custom
+	}
 	return chatd.DefaultSystemPrompt
 }
 

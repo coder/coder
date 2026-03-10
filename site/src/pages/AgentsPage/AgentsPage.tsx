@@ -7,17 +7,18 @@ import {
 	chatKey,
 	chatModelConfigs,
 	chatModels,
+	chatSystemPrompt,
 	chats,
 	chatsKey,
 	createChat,
 	unarchiveChat,
+	updateChatSystemPrompt,
 } from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { Button } from "components/Button/Button";
 import {
 	Combobox,
 	ComboboxContent,
@@ -27,10 +28,8 @@ import {
 	ComboboxList,
 	ComboboxTrigger,
 } from "components/Combobox/Combobox";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { CoderIcon } from "components/Icons/CoderIcon";
 import { useAuthenticated } from "hooks";
-import { MonitorIcon, PanelLeftIcon } from "lucide-react";
+import { MonitorIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
@@ -42,15 +41,13 @@ import {
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { NavLink, Outlet, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { cn } from "utils/cn";
-import { pageTitle } from "utils/page";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import { AgentChatInput } from "./AgentChatInput";
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
-import { AgentsSidebar } from "./AgentsSidebar";
-import { ChimeButton } from "./ChimeButton";
+import type { AgentsOutletContext } from "./AgentsPageView";
+import { AgentsPageView } from "./AgentsPageView";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 import {
 	getModelCatalogStatusMessage,
@@ -61,18 +58,16 @@ import {
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
 import { useFileAttachments } from "./useFileAttachments";
-import { WebPushButton } from "./WebPushButton";
 
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-const systemPromptStorageKey = "agents.system-prompt";
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 
 type ChatModelOption = ModelSelectorOption;
 
-type CreateChatOptions = {
+export type CreateChatOptions = {
 	message: string;
 	fileIDs?: string[];
 	workspaceId?: string;
@@ -93,19 +88,7 @@ function isChatListSSEEvent(
 	);
 }
 
-export interface AgentsOutletContext {
-	chatErrorReasons: Record<string, string>;
-	setChatErrorReason: (chatId: string, reason: string) => void;
-	clearChatErrorReason: (chatId: string) => void;
-	requestArchiveAgent: (chatId: string) => void;
-	requestUnarchiveAgent: (chatId: string) => void;
-	requestArchiveAndDeleteWorkspace: (
-		chatId: string,
-		workspaceId: string,
-	) => void;
-	isSidebarCollapsed: boolean;
-	onToggleSidebarCollapsed: () => void;
-}
+export type { AgentsOutletContext } from "./AgentsPageView";
 
 const AgentsPage: FC = () => {
 	useAgentsPWA();
@@ -117,7 +100,6 @@ const AgentsPage: FC = () => {
 	const isAgentsAdmin =
 		permissions.editDeploymentConfig ||
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
-	const canSetSystemPrompt = isAgentsAdmin;
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -171,7 +153,6 @@ const AgentsPage: FC = () => {
 		...archiveChatBase,
 		onSuccess: (_data, chatId) => {
 			clearChatErrorReason(chatId);
-			toast.success("Agent archived.");
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -194,8 +175,6 @@ const AgentsPage: FC = () => {
 			clearChatErrorReason(chatId);
 			await queryClient.invalidateQueries({ queryKey: chatsKey });
 			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
-			toast.success("Agent archived.");
-			toast.success("Workspace deletion initiated.");
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
@@ -204,16 +183,11 @@ const AgentsPage: FC = () => {
 	const unarchiveChatBase = unarchiveChat(queryClient);
 	const unarchiveAgentMutation = useMutation({
 		...unarchiveChatBase,
-		onSuccess: () => {
-			toast.success("Agent unarchived.");
-		},
 		onError: (error, chatId, context) => {
 			unarchiveChatBase.onError(error, chatId, context);
 			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
 		},
 	});
-	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
-		useState(false);
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, string>
@@ -519,108 +493,31 @@ const AgentsPage: FC = () => {
 	});
 
 	return (
-		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
-			<title>{pageTitle("Agents")}</title>
-			<div
-				className={cn(
-					"md:h-full md:w-[320px] md:min-h-0 md:border-b-0",
-					agentId
-						? "hidden md:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-						: "order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0",
-					isSidebarCollapsed && "md:hidden",
-				)}
-			>
-				<AgentsSidebar
-					chats={chatList}
-					chatErrorReasons={chatErrorReasons}
-					modelOptions={catalogModelOptions}
-					modelConfigs={chatModelConfigsQuery.data ?? []}
-					logoUrl={appearance.logo_url}
-					onArchiveAgent={requestArchiveAgent}
-					onUnarchiveAgent={requestUnarchiveAgent}
-					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
-					onNewAgent={handleNewAgent}
-					isCreating={createMutation.isPending}
-					isArchiving={isArchiving}
-					archivingChatId={archivingChatId}
-					isLoading={chatsQuery.isLoading}
-					loadError={chatsQuery.isError ? chatsQuery.error : undefined}
-					onRetryLoad={() => void chatsQuery.refetch()}
-					onCollapse={() => setIsSidebarCollapsed(true)}
-				/>
-			</div>
-
-			<div
-				className={cn(
-					"flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
-					!agentId && "order-1 md:order-none flex-none md:flex-1",
-				)}
-			>
-				{agentId ? (
-					<Outlet key={agentId} context={outletContext} />
-				) : (
-					<>
-						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
-							<NavLink
-								to="/workspaces"
-								className="inline-flex shrink-0 md:hidden"
-							>
-								{appearance.logo_url ? (
-									<ExternalImage
-										className="h-6"
-										src={appearance.logo_url}
-										alt="Logo"
-									/>
-								) : (
-									<CoderIcon className="h-6 w-6 fill-content-primary" />
-								)}
-							</NavLink>
-							{isSidebarCollapsed && (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={() => setIsSidebarCollapsed(false)}
-									aria-label="Expand sidebar"
-									className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
-								>
-									<PanelLeftIcon />
-								</Button>
-							)}
-							<div className="flex min-w-0 flex-1 items-center" />
-							<div className="flex items-center gap-2">
-								<ChimeButton />
-								<WebPushButton />{" "}
-								{isAgentsAdmin && (
-									<Button
-										variant="subtle"
-										disabled={createMutation.isPending}
-										className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
-										onClick={() => setConfigureAgentsDialogOpen(true)}
-									>
-										Admin
-									</Button>
-								)}
-							</div>
-						</div>
-						<AgentsEmptyState
-							onCreateChat={handleCreateChat}
-							isCreating={createMutation.isPending}
-							createError={createMutation.error}
-							modelCatalog={chatModelsQuery.data}
-							modelOptions={catalogModelOptions}
-							modelConfigs={chatModelConfigsQuery.data ?? []}
-							isModelCatalogLoading={chatModelsQuery.isLoading}
-							isModelConfigsLoading={chatModelConfigsQuery.isLoading}
-							modelCatalogError={chatModelsQuery.error}
-							canSetSystemPrompt={canSetSystemPrompt}
-							canManageChatModelConfigs={isAgentsAdmin}
-							isConfigureAgentsDialogOpen={isConfigureAgentsDialogOpen}
-							onConfigureAgentsDialogOpenChange={setConfigureAgentsDialogOpen}
-						/>
-					</>
-				)}
-			</div>
-		</div>
+		<AgentsPageView
+			agentId={agentId}
+			chatList={chatList}
+			catalogModelOptions={catalogModelOptions}
+			modelConfigs={chatModelConfigsQuery.data ?? []}
+			logoUrl={appearance.logo_url}
+			handleNewAgent={handleNewAgent}
+			isCreating={createMutation.isPending}
+			isArchiving={isArchiving}
+			archivingChatId={archivingChatId}
+			isChatsLoading={chatsQuery.isLoading}
+			chatsLoadError={chatsQuery.error}
+			onRetryChatsLoad={() => void chatsQuery.refetch()}
+			onCollapseSidebar={() => setIsSidebarCollapsed(true)}
+			isSidebarCollapsed={isSidebarCollapsed}
+			onExpandSidebar={() => setIsSidebarCollapsed(false)}
+			outletContext={outletContext}
+			onCreateChat={handleCreateChat}
+			createError={createMutation.error}
+			modelCatalog={chatModelsQuery.data}
+			isModelCatalogLoading={chatModelsQuery.isLoading}
+			isModelConfigsLoading={chatModelConfigsQuery.isLoading}
+			modelCatalogError={chatModelsQuery.error}
+			isAgentsAdmin={isAgentsAdmin}
+		/>
 	);
 };
 
@@ -678,7 +575,7 @@ export function useEmptyStateDraft() {
 	};
 }
 
-interface AgentsEmptyStateProps {
+interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	isCreating: boolean;
 	createError: unknown;
@@ -694,7 +591,7 @@ interface AgentsEmptyStateProps {
 	onConfigureAgentsDialogOpenChange: (open: boolean) => void;
 }
 
-export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
+export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
 	isCreating,
 	createError,
@@ -710,14 +607,15 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	onConfigureAgentsDialogOpenChange,
 }) => {
 	const { organizations } = useDashboard();
+	const queryClient = useQueryClient();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
 		useEmptyStateDraft();
-	const initialSystemPrompt = () => {
-		if (typeof window === "undefined") {
-			return "";
-		}
-		return localStorage.getItem(systemPromptStorageKey) ?? "";
-	};
+	const systemPromptQuery = useQuery(chatSystemPrompt());
+	const {
+		mutate: saveSystemPrompt,
+		isPending: isSavingSystemPrompt,
+		isError: isSaveSystemPromptError,
+	} = useMutation(updateChatSystemPrompt(queryClient));
 	const [initialLastModelConfigID] = useState(() => {
 		if (typeof window === "undefined") {
 			return "";
@@ -777,10 +675,9 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
-	const [savedSystemPrompt, setSavedSystemPrompt] =
-		useState(initialSystemPrompt);
-	const [systemPromptDraft, setSystemPromptDraft] =
-		useState(initialSystemPrompt);
+	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
+	const [localEdit, setLocalEdit] = useState<string | null>(null);
+	const systemPromptDraft = localEdit ?? serverPrompt;
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -838,7 +735,7 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 	selectedWorkspaceIdRef.current = selectedWorkspaceId;
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
-	const isSystemPromptDirty = systemPromptDraft !== savedSystemPrompt;
+	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
 
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
@@ -865,17 +762,12 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 			if (!isSystemPromptDirty) {
 				return;
 			}
-
-			setSavedSystemPrompt(systemPromptDraft);
-			if (typeof window !== "undefined") {
-				if (systemPromptDraft) {
-					localStorage.setItem(systemPromptStorageKey, systemPromptDraft);
-				} else {
-					localStorage.removeItem(systemPromptStorageKey);
-				}
-			}
+			saveSystemPrompt(
+				{ system_prompt: systemPromptDraft },
+				{ onSuccess: () => setLocalEdit(null) },
+			);
 		},
-		[isSystemPromptDirty, systemPromptDraft],
+		[isSystemPromptDirty, systemPromptDraft, saveSystemPrompt],
 	);
 
 	const handleSend = useCallback(
@@ -1019,10 +911,11 @@ export const AgentsEmptyState: FC<AgentsEmptyStateProps> = ({
 					canManageChatModelConfigs={canManageChatModelConfigs}
 					canSetSystemPrompt={canSetSystemPrompt}
 					systemPromptDraft={systemPromptDraft}
-					onSystemPromptDraftChange={setSystemPromptDraft}
+					onSystemPromptDraftChange={setLocalEdit}
 					onSaveSystemPrompt={handleSaveSystemPrompt}
 					isSystemPromptDirty={isSystemPromptDirty}
-					isDisabled={isCreating}
+					saveSystemPromptError={isSaveSystemPromptError}
+					isDisabled={isCreating || isSavingSystemPrompt}
 				/>
 			)}
 		</div>

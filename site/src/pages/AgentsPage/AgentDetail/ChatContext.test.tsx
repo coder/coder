@@ -1975,6 +1975,144 @@ describe("useChatStore", () => {
 		);
 	});
 
+	it("does not duplicate streamed text after reconnect", async () => {
+		// The reconnect timer in createReconnectingWebSocket
+		// fires inside a setTimeout. With real timers the
+		// callback runs outside any act() boundary, so
+		// startTransition updates from the reconnected socket
+		// never commit to React state. Fake timers with
+		// shouldAdvanceTime let us control when the reconnect
+		// timer fires (via advanceTimersByTime inside act)
+		// while still letting waitFor's internal polling work.
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+
+		const chatID = "chat-reconnect-dedup";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const watchMock = vi.mocked(watchChat);
+
+		// Return a fresh MockSocket for each connection attempt
+		// so we can control the first and second sockets
+		// independently.
+		watchMock.mockImplementation(() => createMockSocket() as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: makeChat(chatID),
+					chatData: {
+						chat: makeChat(chatID),
+						messages: [existingMessage],
+						queued_messages: [],
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		// Wait for the first socket to be created.
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		const socket1 = watchMock.mock.results[0].value as MockSocket;
+
+		// Simulate the first socket opening successfully.
+		act(() => socket1.emitOpen());
+
+		// Stream "Hello world" on the first connection.
+		act(() => {
+			socket1.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "Hello" },
+				},
+			});
+			socket1.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: " world" },
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "Hello world" },
+			]);
+		});
+
+		// --- Disconnect the first socket ---
+		act(() => socket1.emitClose());
+
+		// Advance past the reconnect backoff (1 s base delay)
+		// inside act() so the setTimeout callback fires within
+		// React's scheduling context.
+		await act(async () => {
+			vi.advanceTimersByTime(1_500);
+		});
+
+		// A second socket should now exist.
+		expect(watchMock).toHaveBeenCalledTimes(2);
+		const socket2 = watchMock.mock.results[1].value as MockSocket;
+
+		// Simulate the reconnected socket opening. This is
+		// where onOpen fires clearStreamState().
+		act(() => socket2.emitOpen());
+
+		// Replay the same parts the server would send on the
+		// new connection.
+		act(() => {
+			socket2.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "Hello" },
+				},
+			});
+			socket2.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: " world" },
+				},
+			});
+		});
+
+		// Without clearStreamState() in onOpen the replayed
+		// parts would append to the stale accumulator, producing
+		// "Hello worldHello world". The fix ensures a clean
+		// slate so we get the correct single copy.
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "Hello world" },
+			]);
+		});
+
+		vi.useRealTimers();
+	});
+
 	it("clears chatErrorReason when status transitions to non-error", async () => {
 		immediateAnimationFrame();
 

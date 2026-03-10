@@ -36,7 +36,10 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -70,6 +73,7 @@ func init() {
 type Options struct {
 	CacheDir          string
 	Database          database.Store
+	Authorizer        rbac.Authorizer
 	SiteFS            fs.FS
 	OAuth2Configs     *httpmw.OAuth2Configs
 	DocsURL           string
@@ -264,6 +268,8 @@ type htmlState struct {
 
 	TasksTabVisible  string
 	AgentsTabVisible string
+	Permissions      string
+	Organizations    string
 }
 
 type csrfState struct {
@@ -394,6 +400,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	var themePreference string
 	var terminalFont string
 	orgIDs := []uuid.UUID{}
+	var userOrgs []database.Organization
 	eg.Go(func() error {
 		var err error
 		user, err = h.opts.Database.GetUserByID(ctx, apiKey.UserID)
@@ -428,98 +435,157 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		orgIDs = memberIDs[0].OrganizationIDs
 		return err
 	})
+	eg.Go(func() error {
+		orgs, err := h.opts.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+			UserID: apiKey.UserID,
+		})
+		if err == nil {
+			userOrgs = orgs
+		}
+		// Don't fail the entire group if we can't fetch orgs.
+		return nil
+	})
 	err := eg.Wait()
 	if err == nil {
-		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			user, err := json.Marshal(db2sdk.User(user, orgIDs))
-			if err == nil {
-				state.User = html.EscapeString(string(user))
-			}
-		}()
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			userAppearance, err := json.Marshal(codersdk.UserAppearanceSettings{
-				ThemePreference: themePreference,
-				TerminalFont:    codersdk.TerminalFontName(terminalFont),
-			})
-			if err == nil {
-				state.UserAppearance = html.EscapeString(string(userAppearance))
-			}
-		}()
-
-		if h.Entitlements != nil {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				state.Entitlements = html.EscapeString(string(h.Entitlements.AsJSON()))
-			}()
-		}
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			cfg, err := af.Fetch(ctx)
-			if err == nil {
-				appr, err := json.Marshal(cfg)
-				if err == nil {
-					state.Appearance = html.EscapeString(string(appr))
-					state.ApplicationName = applicationNameOrDefault(cfg)
-					state.LogoURL = cfg.LogoURL
-				}
-			}
-		}()
-
-		if h.RegionsFetcher != nil {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				regions, err := h.RegionsFetcher(ctx)
-				if err == nil {
-					regions, err := json.Marshal(regions)
-					if err == nil {
-						state.Regions = html.EscapeString(string(regions))
-					}
-				}
-			}()
-		}
-		experiments := h.Experiments.Load()
-		if experiments != nil {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				experiments, err := json.Marshal(experiments)
-				if err == nil {
-					state.Experiments = html.EscapeString(string(experiments))
-				}
-			}()
-		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			tasksTabVisible, err := json.Marshal(!h.opts.HideAITasks)
-			if err == nil {
-				state.TasksTabVisible = html.EscapeString(string(tasksTabVisible))
-			}
-		}()
-		wg.Go(func() {
-			agentsTabVisible := false
-			if experiments != nil {
-				agentsTabVisible = experiments.Enabled(codersdk.ExperimentAgents)
-			}
-			data, err := json.Marshal(agentsTabVisible)
-			if err == nil {
-				state.AgentsTabVisible = html.EscapeString(string(data))
-			}
-		})
-		wg.Wait()
+		h.populateHTMLState(ctx, &state, af, actor, user, orgIDs, userOrgs, themePreference, terminalFont)
 	}
 
 	return execTmpl(tmpl, state)
+}
+
+// populateHTMLState runs concurrent goroutines to populate all
+// authenticated user metadata in the HTML state. This is extracted
+// from renderHTMLWithState to reduce nesting complexity.
+func (h *Handler) populateHTMLState(
+	ctx context.Context,
+	state *htmlState,
+	af appearance.Fetcher,
+	actor *rbac.Subject,
+	user database.User,
+	orgIDs []uuid.UUID,
+	userOrgs []database.Organization,
+	themePreference string,
+	terminalFont string,
+) {
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		data, err := json.Marshal(db2sdk.User(user, orgIDs))
+		if err == nil {
+			state.User = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		data, err := json.Marshal(codersdk.UserAppearanceSettings{
+			ThemePreference: themePreference,
+			TerminalFont:    codersdk.TerminalFontName(terminalFont),
+		})
+		if err == nil {
+			state.UserAppearance = html.EscapeString(string(data))
+		}
+	})
+	if h.Entitlements != nil {
+		wg.Go(func() {
+			state.Entitlements = html.EscapeString(string(h.Entitlements.AsJSON()))
+		})
+	}
+	wg.Go(func() {
+		cfg, err := af.Fetch(ctx)
+		if err == nil {
+			appr, err := json.Marshal(cfg)
+			if err == nil {
+				state.Appearance = html.EscapeString(string(appr))
+				state.ApplicationName = applicationNameOrDefault(cfg)
+				state.LogoURL = cfg.LogoURL
+			}
+		}
+	})
+	if h.RegionsFetcher != nil {
+		wg.Go(func() {
+			regions, err := h.RegionsFetcher(ctx)
+			if err == nil {
+				data, err := json.Marshal(regions)
+				if err == nil {
+					state.Regions = html.EscapeString(string(data))
+				}
+			}
+		})
+	}
+	experiments := h.Experiments.Load()
+	if experiments != nil {
+		wg.Go(func() {
+			data, err := json.Marshal(experiments)
+			if err == nil {
+				state.Experiments = html.EscapeString(string(data))
+			}
+		})
+	}
+	wg.Go(func() {
+		data, err := json.Marshal(!h.opts.HideAITasks)
+		if err == nil {
+			state.TasksTabVisible = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		agentsTabVisible := false
+		if experiments != nil {
+			agentsTabVisible = experiments.Enabled(codersdk.ExperimentAgents)
+		}
+		data, err := json.Marshal(agentsTabVisible)
+		if err == nil {
+			state.AgentsTabVisible = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		sdkOrgs := slice.List(userOrgs, db2sdk.Organization)
+		data, err := json.Marshal(sdkOrgs)
+		if err == nil {
+			state.Organizations = html.EscapeString(string(data))
+		}
+	})
+	if h.opts.Authorizer != nil {
+		wg.Go(func() {
+			state.Permissions = h.renderPermissions(ctx, *actor)
+		})
+	}
+	wg.Wait()
+}
+
+// permissionChecks is the single source of truth for site-wide
+// permission checks, shared with the TypeScript frontend via
+// permissions.json.
+//
+//go:embed permissions.json
+var permissionChecksJSON []byte
+
+var permissionChecks map[string]codersdk.AuthorizationCheck
+
+func init() {
+	if err := json.Unmarshal(permissionChecksJSON, &permissionChecks); err != nil {
+		panic("failed to parse permissions.json: " + err.Error())
+	}
+}
+
+// renderPermissions checks all the site-wide permissions for the
+// given actor and returns an HTML-escaped JSON string suitable for
+// embedding in a meta tag.
+func (h *Handler) renderPermissions(ctx context.Context, actor rbac.Subject) string {
+	response := make(codersdk.AuthorizationResponse)
+	for k, v := range permissionChecks {
+		obj := rbac.Object{
+			ID:          v.Object.ResourceID,
+			Owner:       v.Object.OwnerID,
+			OrgID:       v.Object.OrganizationID,
+			AnyOrgOwner: v.Object.AnyOrgOwner,
+			Type:        string(v.Object.ResourceType),
+		}
+		err := h.opts.Authorizer.Authorize(ctx, actor, policy.Action(v.Action), obj)
+		response[k] = err == nil
+	}
+	data, err := json.Marshal(response)
+	if err != nil {
+		return ""
+	}
+	return html.EscapeString(string(data))
 }
 
 // noopResponseWriter is a response writer that does nothing.

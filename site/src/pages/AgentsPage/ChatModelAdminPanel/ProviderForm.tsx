@@ -2,12 +2,13 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { Input } from "components/Input/Input";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ChevronLeftIcon, InfoIcon, Loader2Icon } from "lucide-react";
+import { ChevronLeftIcon, InfoIcon } from "lucide-react";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { formatProviderLabel } from "../modelOptions";
 import type { ProviderState } from "./ChatModelAdminPanel";
@@ -275,9 +276,9 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 										onClick={() => void onDeleteProvider(providerConfig.id)}
 									>
 										{isProviderMutationPending && (
-											<Loader2Icon className="h-4 w-4 animate-spin" />
+											<Spinner className="h-4 w-4" loading />
 										)}
-										Delete provider
+										Delete provider{" "}
 									</Button>
 								</div>
 							</div>
@@ -299,9 +300,11 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								)}
 								<Button size="lg" type="submit" disabled={!canSave}>
 									{isProviderMutationPending && (
-										<Loader2Icon className="h-4 w-4 animate-spin" />
+										<Spinner className="h-4 w-4" loading />
 									)}
-									{providerConfig ? "Save changes" : "Create provider config"}
+									{providerConfig
+										? "Save changes"
+										: "Create provider config"}{" "}
 								</Button>
 							</div>
 						)}

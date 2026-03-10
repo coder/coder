@@ -12770,7 +12770,7 @@ const getProvisionerJobsByIDsWithQueuePosition = `-- name: GetProvisionerJobsByI
 WITH filtered_provisioner_jobs AS (
 	-- Step 1: Filter provisioner_jobs
 	SELECT
-		id, created_at
+		id, created_at, tags
 	FROM
 		provisioner_jobs
 	WHERE
@@ -12785,21 +12785,32 @@ pending_jobs AS (
 	WHERE
 		job_status = 'pending'
 ),
-online_provisioner_daemons AS (
-	SELECT id, tags FROM provisioner_daemons pd
-	WHERE pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - ($2::bigint || ' ms')::interval)
+unique_daemon_tags AS (
+	SELECT DISTINCT tags FROM provisioner_daemons pd
+	WHERE pd.last_seen_at IS NOT NULL
+	  AND pd.last_seen_at >= (NOW() - ($2::bigint || ' ms')::interval)
+),
+relevant_daemon_tags AS (
+	SELECT udt.tags
+	FROM unique_daemon_tags udt
+	WHERE EXISTS (
+		SELECT 1 FROM filtered_provisioner_jobs fpj
+		WHERE provisioner_tagset_contains(udt.tags, fpj.tags)
+	)
 ),
 ranked_jobs AS (
 	-- Step 3: Rank only pending jobs based on provisioner availability
 	SELECT
 		pj.id,
 		pj.created_at,
-		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, pj.created_at ASC) AS queue_position,
-		COUNT(*) OVER (PARTITION BY opd.id) AS queue_size
+		ROW_NUMBER() OVER (PARTITION BY rdt.tags ORDER BY pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, pj.created_at ASC) AS queue_position,
+		COUNT(*) OVER (PARTITION BY rdt.tags) AS queue_size
 	FROM
 		pending_jobs pj
-			INNER JOIN online_provisioner_daemons opd
-					ON provisioner_tagset_contains(opd.tags, pj.tags) -- Join only on the small pending set
+	INNER JOIN
+		relevant_daemon_tags rdt
+	ON
+		provisioner_tagset_contains(rdt.tags, pj.tags)
 ),
 final_jobs AS (
 	-- Step 4: Compute best queue position and max queue size per job
@@ -14580,6 +14591,18 @@ func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getChatSystemPrompt = `-- name: GetChatSystemPrompt :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt
+`
+
+func (q *sqlQuerier) GetChatSystemPrompt(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatSystemPrompt)
+	var chat_system_prompt string
+	err := row.Scan(&chat_system_prompt)
+	return chat_system_prompt, err
+}
+
 const getCoordinatorResumeTokenSigningKey = `-- name: GetCoordinatorResumeTokenSigningKey :one
 SELECT value FROM site_configs WHERE key = 'coordinator_resume_token_signing_key'
 `
@@ -14791,6 +14814,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 
 func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertApplicationName, value)
+	return err
+}
+
+const upsertChatSystemPrompt = `-- name: UpsertChatSystemPrompt :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_system_prompt', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_system_prompt'
+`
+
+func (q *sqlQuerier) UpsertChatSystemPrompt(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatSystemPrompt, value)
 	return err
 }
 

@@ -357,7 +357,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 				// search domain expansion, which can add 20-30s of
 				// delay on corporate networks with search domains
 				// configured.
-				exists, _ := workspacesdk.ExistsViaCoderConnect(ctx, coderConnectHost+".")
+				exists, ccErr := workspacesdk.ExistsViaCoderConnect(ctx, coderConnectHost+".")
+				if ccErr != nil {
+					logger.Debug(ctx, "failed to check coder connect",
+						slog.F("hostname", coderConnectHost),
+						slog.Error(ccErr),
+					)
+				}
 				if exists {
 					defer cancel()
 

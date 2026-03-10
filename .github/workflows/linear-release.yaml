@@ -1,0 +1,65 @@
+name: Linear Release
+
+on:
+  push:
+    branches:
+      - main
+  # This event reads the workflow from the default branch (main), not the
+  # release branch. No cherry-pick needed.
+  # https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#release
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Sync issues to Linear release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Sync issues
+        id: sync
+        uses: linear/linear-release-action@f64cdc603e6eb7a7ef934bc5492ae929f88c8d1a # v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: sync
+
+      - name: Print release URL
+        if: steps.sync.outputs.release-url
+        run: echo "Synced to $RELEASE_URL"
+        env:
+          RELEASE_URL: ${{ steps.sync.outputs.release-url }}
+
+  complete:
+    name: Complete Linear release
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Complete release
+        id: complete
+        uses: linear/linear-release-action@f64cdc603e6eb7a7ef934bc5492ae929f88c8d1a # v0
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          command: complete
+          version: ${{ github.event.release.tag_name }}
+
+      - name: Print release URL
+        if: steps.complete.outputs.release-url
+        run: echo "Completed $RELEASE_URL"
+        env:
+          RELEASE_URL: ${{ steps.complete.outputs.release-url }}

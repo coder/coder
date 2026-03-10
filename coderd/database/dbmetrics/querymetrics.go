@@ -1119,6 +1119,14 @@ func (m queryMetricsStore) GetChatQueuedMessages(ctx context.Context, chatID uui
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatSystemPrompt(ctx)
+	m.queryLatencies.WithLabelValues("GetChatSystemPrompt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSystemPrompt").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatsByOwnerID(ctx context.Context, ownerID database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatsByOwnerID(ctx, ownerID)
@@ -4540,6 +4548,14 @@ func (m queryMetricsStore) UpsertChatDiffStatusReference(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("UpsertChatDiffStatusReference").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatDiffStatusReference").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertChatSystemPrompt(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatSystemPrompt(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatSystemPrompt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatSystemPrompt").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
