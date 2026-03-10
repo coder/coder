@@ -11,6 +11,7 @@ import {
 	AgentDetailLoadingView,
 	AgentDetailNotFoundView,
 	AgentDetailView,
+	RIGHT_PANEL_OPEN_KEY,
 } from "./AgentDetailView";
 
 // ---------------------------------------------------------------------------
@@ -191,6 +192,10 @@ export const SubmissionPending: Story = {
 
 /** Right sidebar panel is open with diff status data. */
 export const WithSidebarPanel: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
 	args: {
 		prNumber: 123,
 		diffStatusData: {

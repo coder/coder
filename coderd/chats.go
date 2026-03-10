@@ -179,8 +179,18 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
+	paginationParams, ok := ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
 	params := database.GetChatsByOwnerIDParams{
 		OwnerID: apiKey.UserID,
+		AfterID: paginationParams.AfterID,
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(paginationParams.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(paginationParams.Limit),
 	}
 	if v := r.URL.Query().Get("archived"); v != "" {
 		b, err := strconv.ParseBool(v)
@@ -422,14 +432,6 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Watch git changes for a chat.
-// @ID watch-chat-git
-// @Security CoderSessionToken
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 101
-// @Router /chats/{chat}/git/watch [get]
-//
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -578,11 +580,6 @@ proxyLoop:
 	_ = clientStream.Close(websocket.StatusGoingAway)
 }
 
-// @Summary Archive a chat
-// @ID archive-chat
-// @Tags Chats
-// @Success 204
-// @Router /chats/{chat}/archive [post]
 func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -614,11 +611,6 @@ func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Unarchive a chat
-// @ID unarchive-chat
-// @Tags Chats
-// @Success 204
-// @Router /chats/{chat}/unarchive [post]
 func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -2309,6 +2301,72 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	customPrompt, err := api.Database.GetUserChatCustomPrompt(ctx, apiKey.UserID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user chat custom prompt.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		customPrompt = ""
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPromptResponse{
+		CustomPrompt: customPrompt,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	var params codersdk.UpdateUserChatCustomPromptRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	trimmedPrompt := strings.TrimSpace(params.CustomPrompt)
+	// Apply the same 128 KiB limit as the deployment system prompt.
+	if len(trimmedPrompt) > maxSystemPromptLenBytes {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Custom prompt exceeds maximum length.",
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(trimmedPrompt)),
+		})
+		return
+	}
+
+	updatedConfig, err := api.Database.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
+		UserID:           apiKey.UserID,
+		ChatCustomPrompt: trimmedPrompt,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error updating user chat custom prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPromptResponse{
+		CustomPrompt: updatedConfig.Value,
+	})
+}
+
 func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 	custom, err := api.Database.GetChatSystemPrompt(ctx)
 	if err != nil {
@@ -2323,20 +2381,6 @@ func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 	return chatd.DefaultSystemPrompt
 }
 
-// @Summary Upload a chat file
-// @ID upload-chat-file
-// @Security CoderSessionToken
-// @Accept application/octet-stream
-// @Produce json
-// @Tags Chats
-// @Param Content-Type header string true "Content-Type must be an image type (image/png, image/jpeg, image/gif, image/webp)"
-// @Param organization query string true "Organization ID" format(uuid)
-// @Success 201 {object} codersdk.UploadChatFileResponse
-// @Failure 400 {object} codersdk.Response
-// @Failure 401 {object} codersdk.Response
-// @Failure 413 {object} codersdk.Response
-// @Failure 500 {object} codersdk.Response
-// @Router /chats/files [post]
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -2463,17 +2507,6 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Get a chat file
-// @ID get-chat-file
-// @Security CoderSessionToken
-// @Tags Chats
-// @Param file path string true "File ID" format(uuid)
-// @Success 200
-// @Failure 400 {object} codersdk.Response
-// @Failure 401 {object} codersdk.Response
-// @Failure 404 {object} codersdk.Response
-// @Failure 500 {object} codersdk.Response
-// @Router /chats/files/{file} [get]
 func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

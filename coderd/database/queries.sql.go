@@ -3454,17 +3454,51 @@ WHERE
         WHEN $2 :: boolean IS NULL THEN true
         ELSE chats.archived = $2 :: boolean
     END
+    AND CASE
+        -- This allows using the last element on a page as effectively a cursor.
+        -- This is an important option for scripts that need to paginate without
+        -- duplicating or missing data.
+        WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+            -- The pagination cursor is the last ID of the previous page.
+            -- The query is ordered by the updated_at field, so select all
+            -- rows before the cursor.
+            (updated_at, id) < (
+                SELECT
+                    updated_at, id
+                FROM
+                    chats
+                WHERE
+                    id = $3
+            )
+        )
+        ELSE true
+    END
 ORDER BY
-    updated_at DESC
+    -- Deterministic and consistent ordering of all rows, even if they share
+    -- a timestamp. This is to ensure consistent pagination.
+    (updated_at, id) DESC OFFSET $4
+LIMIT
+    -- The chat list is unbounded and expected to grow large.
+    -- Default to 50 to prevent accidental excessively large queries.
+    COALESCE(NULLIF($5 :: int, 0), 50)
 `
 
 type GetChatsByOwnerIDParams struct {
-	OwnerID  uuid.UUID    `db:"owner_id" json:"owner_id"`
-	Archived sql.NullBool `db:"archived" json:"archived"`
+	OwnerID   uuid.UUID    `db:"owner_id" json:"owner_id"`
+	Archived  sql.NullBool `db:"archived" json:"archived"`
+	AfterID   uuid.UUID    `db:"after_id" json:"after_id"`
+	OffsetOpt int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, arg GetChatsByOwnerIDParams) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, getChatsByOwnerID, arg.OwnerID, arg.Archived)
+	rows, err := q.db.QueryContext(ctx, getChatsByOwnerID,
+		arg.OwnerID,
+		arg.Archived,
+		arg.AfterID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -3500,6 +3534,48 @@ func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, arg GetChatsByOwnerI
 		return nil, err
 	}
 	return items, nil
+}
+
+const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND role = $2::text
+ORDER BY
+    created_at DESC, id DESC
+LIMIT
+    1
+`
+
+type GetLastChatMessageByRoleParams struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Role   string    `db:"role" json:"role"`
+}
+
+func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, getLastChatMessageByRole, arg.ChatID, arg.Role)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.ModelConfigID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+		&i.Visibility,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.Compressed,
+	)
+	return i, err
 }
 
 const getStaleChats = `-- name: GetStaleChats :many
@@ -18668,6 +18744,23 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 	return i, err
 }
 
+const getUserChatCustomPrompt = `-- name: GetUserChatCustomPrompt :one
+SELECT
+	value as chat_custom_prompt
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'chat_custom_prompt'
+`
+
+func (q *sqlQuerier) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserChatCustomPrompt, userID)
+	var chat_custom_prompt string
+	err := row.Scan(&chat_custom_prompt)
+	return chat_custom_prompt, err
+}
+
 const getUserCount = `-- name: GetUserCount :one
 SELECT
 	COUNT(*)
@@ -19113,6 +19206,33 @@ func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, arg Updat
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateUserChatCustomPrompt = `-- name: UpdateUserChatCustomPrompt :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'chat_custom_prompt', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'chat_custom_prompt'
+RETURNING user_id, key, value
+`
+
+type UpdateUserChatCustomPromptParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	ChatCustomPrompt string    `db:"chat_custom_prompt" json:"chat_custom_prompt"`
+}
+
+func (q *sqlQuerier) UpdateUserChatCustomPrompt(ctx context.Context, arg UpdateUserChatCustomPromptParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserChatCustomPrompt, arg.UserID, arg.ChatCustomPrompt)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec
@@ -23728,7 +23848,7 @@ JOIN workspaces w ON wb.workspace_id = w.id
 JOIN templates t ON w.template_id = t.id
 JOIN organizations o ON t.organization_id = o.id
 JOIN workspace_resources wr ON wr.job_id = wb.job_id
-JOIN workspace_agents wa ON wa.resource_id = wr.id
+JOIN workspace_agents wa ON wa.resource_id = wr.id AND wa.parent_id IS NULL
 WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
 GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id
 `

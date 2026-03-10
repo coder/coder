@@ -3,7 +3,8 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useState } from "react";
+import { type FC, type RefObject, useCallback, useMemo, useState } from "react";
+import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
@@ -12,7 +13,7 @@ import type { useChatStore } from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import { GitPanel } from "./GitPanel";
 import { RightPanel } from "./RightPanel";
-import { type SidebarTab, SidebarTabView } from "./SidebarTabView";
+import { SidebarTabView } from "./SidebarTabView";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -110,7 +111,12 @@ interface AgentDetailViewProps {
 
 	// Scroll container ref.
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
+
+	urlTransform?: UrlTransform;
 }
+
+/** localStorage key controlling whether the right panel is visible. */
+export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	agentId,
@@ -154,39 +160,49 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
 	scrollContainerRef,
+	urlTransform,
 }) => {
 	// Panel/sidebar UI state – purely visual, no data-fetching
-	// implications.
-	const [showSidebarPanel, setShowSidebarPanel] = useState(false);
+	// implications. The open/closed state is persisted to localStorage
+	// so users get a consistent layout when switching between chats.
+	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
+		if (typeof window === "undefined") return false;
+		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
+	});
+	const handleSetShowSidebarPanel = useCallback(
+		(next: boolean | ((prev: boolean) => boolean)) => {
+			setShowSidebarPanel((prev) => {
+				const value = typeof next === "function" ? next(prev) : next;
+				if (typeof window !== "undefined") {
+					localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
+				}
+				return value;
+			});
+		},
+		[],
+	);
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
 
-	// Derive trivial booleans the View can compute itself.
-	const hasDiffStatus = Boolean(diffStatusData?.url);
-	const hasGitRepos = gitWatcher.repositories.size > 0;
-
-	// Auto-open the diff panel when diff status first appears.
-	// See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-	const [prevHasDiffStatus, setPrevHasDiffStatus] = useState(false);
-	if (hasDiffStatus !== prevHasDiffStatus) {
-		setPrevHasDiffStatus(hasDiffStatus);
-		if (hasDiffStatus && !window.matchMedia("(max-width: 767px)").matches) {
-			setShowSidebarPanel(true);
+	// Compute local diff stats from git watcher unified diffs.
+	const localDiffStats = useMemo(() => {
+		let additions = 0;
+		let deletions = 0;
+		for (const repo of gitWatcher.repositories.values()) {
+			if (!repo.unified_diff) continue;
+			for (const line of repo.unified_diff.split("\n")) {
+				if (line.startsWith("+") && !line.startsWith("+++")) {
+					additions++;
+				} else if (line.startsWith("-") && !line.startsWith("---")) {
+					deletions++;
+				}
+			}
 		}
-	}
-
-	// Auto-open sidebar when git watcher receives its first non-empty
-	// repositories update.
-	const [prevHasGitRepos, setPrevHasGitRepos] = useState(false);
-	if (hasGitRepos !== prevHasGitRepos) {
-		setPrevHasGitRepos(hasGitRepos);
-		if (hasGitRepos && !window.matchMedia("(max-width: 767px)").matches) {
-			setShowSidebarPanel(true);
-		}
-	}
+		return { additions, deletions, changed_files: 0 };
+	}, [gitWatcher.repositories]);
 
 	const titleElement = (
 		<title>
@@ -218,7 +234,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						onOpenParentChat={(chatId) => onNavigateToChat(chatId)}
 						panel={{
 							showSidebarPanel,
-							onToggleSidebar: () => setShowSidebarPanel((prev) => !prev),
+							onToggleSidebar: () => handleSetShowSidebarPanel((prev) => !prev),
 						}}
 						workspace={{
 							canOpenEditors,
@@ -267,6 +283,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
+							urlTransform={urlTransform}
 						/>
 					</div>
 				</div>
@@ -304,36 +321,35 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 				isOpen={shouldShowSidebar}
 				isExpanded={isRightPanelExpanded}
 				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-				onClose={() => setShowSidebarPanel(false)}
+				onClose={() => handleSetShowSidebarPanel(false)}
 				onVisualExpandedChange={setDragVisualExpanded}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			>
 				<SidebarTabView
-					tabs={
-						[
-							(hasDiffStatus || hasGitRepos) && {
-								id: "git",
-								label: "Git",
-								content: (
-									<GitPanel
-										prTab={
-											prNumber && agentId
-												? { prNumber, chatId: agentId }
-												: undefined
-										}
-										repositories={gitWatcher.repositories}
-										onRefresh={gitWatcher.refresh}
-										onCommit={handleCommit}
-										isExpanded={visualExpanded}
-										remoteDiffStats={diffStatusData}
-										chatInputRef={editing.chatInputRef}
-									/>
-								),
-							},
-						].filter(Boolean) as SidebarTab[]
-					}
-					onClose={() => setShowSidebarPanel(false)}
+					tabs={[
+						{
+							id: "git",
+							label: "Git",
+							content: (
+								<GitPanel
+									prTab={
+										prNumber && agentId
+											? { prNumber, chatId: agentId }
+											: undefined
+									}
+									repositories={gitWatcher.repositories}
+									onRefresh={gitWatcher.refresh}
+									onCommit={handleCommit}
+									isExpanded={visualExpanded}
+									remoteDiffStats={diffStatusData}
+									localDiffStats={localDiffStats}
+									chatInputRef={editing.chatInputRef}
+								/>
+							),
+						},
+					]}
+					onClose={() => handleSetShowSidebarPanel(false)}
 					isExpanded={visualExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 					isSidebarCollapsed={isSidebarCollapsed}

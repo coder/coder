@@ -218,12 +218,12 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 									role="tab"
 									aria-selected={isActive}
 									onClick={() => setActiveTabId(tab.id)}
-									variant="outline"
+									variant="subtle"
 									size="lg"
 									className={cn(
-										"shrink-0 h-6 min-w-0 gap-3 px-2 py-0 bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+										"shrink-0 h-6 border border-solid border-transparent min-w-0 gap-3 px-2 py-0 bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
 										isActive &&
-											"bg-surface-quaternary/25 hover:bg-surface-quaternary/50",
+											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 										tab.badge && "pr-0",
 									)}
 								>
@@ -232,7 +232,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 									{tab.badge && (
 										<span
 											className={cn(
-												"flex h-full items-center self-stretch transition-opacity",
+												"flex -my-px items-center self-stretch transition-opacity",
 												!isActive && "opacity-50",
 											)}
 										>

@@ -1,5 +1,5 @@
 import { watchChat } from "api/api";
-import { chatKey, chatsKey } from "api/queries/chats";
+import { chatKey, updateInfiniteChatsCache } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
 import {
@@ -454,6 +454,13 @@ export const useChatStore = (
 	const storeRef = useRef<ChatStore>(createChatStore());
 	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
+	// Tracks whether the WebSocket has delivered a queue_update for the
+	// current chat. When true, the stream is the authoritative source
+	// and REST re-fetches must not overwrite the store. When false,
+	// REST data is allowed to re-hydrate so stale cached queued
+	// messages are corrected when switching back to a chat whose
+	// queue was drained while the user was away.
+	const wsQueueUpdateReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 
@@ -475,23 +482,17 @@ export const useChatStore = (
 			if (!chatID) {
 				return;
 			}
-			queryClient.setQueryData<readonly TypesGen.Chat[] | undefined>(
-				chatsKey,
-				(currentChats) => {
-					if (!currentChats) {
-						return currentChats;
+			updateInfiniteChatsCache(queryClient, (chats) => {
+				let didUpdate = false;
+				const nextChats = chats.map((chat) => {
+					if (chat.id !== chatID) {
+						return chat;
 					}
-					let didUpdate = false;
-					const nextChats = currentChats.map((chat) => {
-						if (chat.id !== chatID) {
-							return chat;
-						}
-						didUpdate = true;
-						return updater(chat);
-					});
-					return didUpdate ? nextChats : currentChats;
-				},
-			);
+					didUpdate = true;
+					return updater(chat);
+				});
+				return didUpdate ? nextChats : chats;
+			});
 		},
 		[chatID, queryClient],
 	);
@@ -559,6 +560,7 @@ export const useChatStore = (
 
 	useEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
+		wsQueueUpdateReceivedRef.current = false;
 		store.setQueuedMessages([]);
 		if (!chatID) {
 			return;
@@ -569,7 +571,15 @@ export const useChatStore = (
 		if (!chatID || !chatData) {
 			return;
 		}
-		if (queuedMessagesHydratedChatIDRef.current === chatID) {
+		// Allow re-hydration from REST as long as the WebSocket hasn't
+		// delivered a queue_update yet (which would be fresher). This
+		// ensures that when the user navigates back to a chat whose
+		// queued messages were drained server-side while they were
+		// away, the REST refetch corrects the stale cached state.
+		if (
+			queuedMessagesHydratedChatIDRef.current === chatID &&
+			wsQueueUpdateReceivedRef.current
+		) {
 			return;
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
@@ -694,6 +704,7 @@ export const useChatStore = (
 								continue;
 							}
 						}
+						wsQueueUpdateReceivedRef.current = true;
 						store.setQueuedMessages(streamEvent.queued_messages);
 						updateChatQueuedMessages(streamEvent.queued_messages);
 						continue;

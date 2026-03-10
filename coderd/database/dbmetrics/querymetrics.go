@@ -1407,6 +1407,14 @@ func (m queryMetricsStore) GetInboxNotificationsByUserID(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetLastChatMessageByRole(ctx context.Context, arg database.GetLastChatMessageByRoleParams) (database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLastChatMessageByRole(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetLastChatMessageByRole").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastChatMessageByRole").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetLastUpdateCheck(ctx)
@@ -2284,6 +2292,14 @@ func (m queryMetricsStore) GetUserByID(ctx context.Context, id uuid.UUID) (datab
 	r0, r1 := m.s.GetUserByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetUserByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserChatCustomPrompt(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserChatCustomPrompt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserChatCustomPrompt").Inc()
 	return r0, r1
 }
 
@@ -4148,6 +4164,14 @@ func (m queryMetricsStore) UpdateUsageEventsPostPublish(ctx context.Context, arg
 	m.queryLatencies.WithLabelValues("UpdateUsageEventsPostPublish").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUsageEventsPostPublish").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateUserChatCustomPrompt(ctx context.Context, arg database.UpdateUserChatCustomPromptParams) (database.UserConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserChatCustomPrompt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserChatCustomPrompt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserChatCustomPrompt").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {

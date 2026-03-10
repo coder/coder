@@ -19,6 +19,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { ImageThumbnail } from "../AgentChatInput";
 import { ImageLightbox } from "../ImageLightbox";
@@ -36,22 +37,32 @@ const ReasoningDisclosure: FC<{
 	title?: string;
 	text: string;
 	isStreaming?: boolean;
-}> = ({ id, title, text, isStreaming = false }) => {
+	urlTransform?: UrlTransform;
+}> = ({ id, title, text, isStreaming = false, urlTransform }) => {
 	const [isOpen, setIsOpen] = useState(false);
-	const hasText = text.trim().length > 0;
+	const { visibleText } = useSmoothStreamingText({
+		fullText: text,
+		isStreaming,
+		bypassSmoothing: !isStreaming,
+		streamKey: id,
+	});
+	const displayText = isStreaming ? visibleText : text;
+	const hasText = displayText.trim().length > 0;
 	const label = title ?? "Thinking";
 	const showStreamingPlaceholder = isStreaming && !hasText;
 
 	if (!title && hasText) {
 		return (
 			<div className="w-full">
-				<Response className="text-[11px] text-content-secondary">
-					{text}
+				<Response
+					className="text-[11px] text-content-secondary"
+					urlTransform={urlTransform}
+				>
+					{displayText}
 				</Response>
 			</div>
 		);
 	}
-
 	const labelContent = (
 		<span className="text-sm">
 			{showStreamingPlaceholder ? (
@@ -87,8 +98,11 @@ const ReasoningDisclosure: FC<{
 			)}
 			{isOpen && hasText ? (
 				<div id={id} className="mt-1.5">
-					<Response className="text-[11px] text-content-secondary">
-						{text}
+					<Response
+						className="text-[11px] text-content-secondary"
+						urlTransform={urlTransform}
+					>
+						{displayText}
 					</Response>
 				</div>
 			) : null}
@@ -107,6 +121,7 @@ type RenderBlockListParams = {
 	subagentTitles?: Map<string, string>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	onImageClick?: (src: string) => void;
+	urlTransform?: UrlTransform;
 };
 
 // Wrapper that runs the smooth-streaming jitter buffer on a single
@@ -115,14 +130,15 @@ type RenderBlockListParams = {
 const SmoothedResponse: FC<{
 	text: string;
 	streamKey: string;
-}> = ({ text, streamKey }) => {
+	urlTransform?: UrlTransform;
+}> = ({ text, streamKey, urlTransform }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming: true,
 		bypassSmoothing: false,
 		streamKey,
 	});
-	return <Response>{visibleText}</Response>;
+	return <Response urlTransform={urlTransform}>{visibleText}</Response>;
 };
 
 type RenderBlockListResult = {
@@ -138,6 +154,7 @@ function renderBlockList({
 	subagentTitles,
 	subagentStatusOverrides,
 	onImageClick,
+	urlTransform,
 }: RenderBlockListParams): RenderBlockListResult {
 	const renderedToolIDs = new Set<string>();
 	const elements = blocks
@@ -149,9 +166,13 @@ function renderBlockList({
 							key={`${keyPrefix}-response-${index}`}
 							text={block.text}
 							streamKey={keyPrefix}
+							urlTransform={urlTransform}
 						/>
 					) : (
-						<Response key={`${keyPrefix}-response-${index}`}>
+						<Response
+							key={`${keyPrefix}-response-${index}`}
+							urlTransform={urlTransform}
+						>
 							{block.text}
 						</Response>
 					);
@@ -163,6 +184,7 @@ function renderBlockList({
 							title={block.title}
 							text={block.text}
 							isStreaming={isStreaming}
+							urlTransform={urlTransform}
 						/>
 					);
 				case "file-reference":
@@ -267,6 +289,7 @@ const ChatMessageItem = memo<{
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
+	urlTransform?: UrlTransform;
 }>(
 	({
 		message,
@@ -275,6 +298,7 @@ const ChatMessageItem = memo<{
 		editingMessageId,
 		savingMessageId,
 		fadeFromBottom = false,
+		urlTransform,
 	}) => {
 		const isUser = message.role === "user";
 		const isSavingMessage = savingMessageId === message.id;
@@ -300,6 +324,7 @@ const ChatMessageItem = memo<{
 			toolByID,
 			keyPrefix: String(message.id),
 			onImageClick: setPreviewImage,
+			urlTransform,
 		});
 		const remainingTools = parsed.tools.filter(
 			(tool) => !renderedToolIDs.has(tool.id),
@@ -483,6 +508,7 @@ export const StreamingOutput = memo<{
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	showInitialPlaceholder?: boolean;
 	retryState?: { attempt: number; error: string } | null;
+	urlTransform?: UrlTransform;
 }>(
 	({
 		streamState,
@@ -491,6 +517,7 @@ export const StreamingOutput = memo<{
 		subagentStatusOverrides,
 		showInitialPlaceholder = false,
 		retryState,
+		urlTransform,
 	}) => {
 		const conversationItemProps = { role: "assistant" as const };
 		const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
@@ -502,6 +529,7 @@ export const StreamingOutput = memo<{
 			isStreaming: true,
 			subagentTitles,
 			subagentStatusOverrides,
+			urlTransform,
 		});
 		const remainingTools = streamTools.filter(
 			(tool) => !renderedToolIDs.has(tool.id),
@@ -824,6 +852,7 @@ interface ConversationTimelineProps {
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
+	urlTransform?: UrlTransform;
 }
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
@@ -842,6 +871,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
+	urlTransform,
 }) => {
 	const shouldRenderStreamInLastSection =
 		hasStreamOutput && parsedSections.length > 0;
@@ -888,6 +918,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 											message={message}
 											parsed={parsed}
 											savingMessageId={savingMessageId}
+											urlTransform={urlTransform}
 										/>
 									),
 								)}
@@ -900,6 +931,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 											subagentStatusOverrides={subagentStatusOverrides}
 											showInitialPlaceholder={isAwaitingFirstStreamChunk}
 											retryState={retryState}
+											urlTransform={urlTransform}
 										/>
 									)}
 							</div>
@@ -913,6 +945,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 							subagentStatusOverrides={subagentStatusOverrides}
 							showInitialPlaceholder={isAwaitingFirstStreamChunk}
 							retryState={retryState}
+							urlTransform={urlTransform}
 						/>
 					)}
 				</div>

@@ -15,6 +15,7 @@ import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { useProxy } from "contexts/ProxyContext";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -32,7 +33,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
+import type { UrlTransform } from "streamdown";
 import { pageTitle } from "utils/page";
+import { portForwardURL } from "utils/portForward";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -80,6 +83,8 @@ import {
 import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
 
+const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
@@ -100,6 +105,7 @@ interface AgentDetailTimelineProps {
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
+	urlTransform?: UrlTransform;
 }
 
 export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
@@ -109,6 +115,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
+	urlTransform,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -177,6 +184,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 			onEditUserMessage={onEditUserMessage}
 			editingMessageId={editingMessageId}
 			savingMessageId={savingMessageId}
+			urlTransform={urlTransform}
 		/>
 	);
 };
@@ -608,6 +616,36 @@ const AgentDetail: FC = () => {
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
+	const { proxy } = useProxy();
+
+	const urlTransform = useCallback<UrlTransform>(
+		(url) => {
+			const host = proxy.preferredWildcardHostname;
+			if (!host || !workspaceAgent || !workspace) {
+				return url;
+			}
+			try {
+				const parsed = new URL(url);
+				if (!localHosts.has(parsed.hostname)) {
+					return url;
+				}
+				return portForwardURL(
+					host,
+					Number.parseInt(parsed.port, 10),
+					workspaceAgent.name,
+					workspace.name,
+					workspace.owner_name,
+					"http",
+					parsed.pathname,
+					parsed.search,
+				);
+			} catch {
+				return url;
+			}
+		},
+		[proxy.preferredWildcardHostname, workspaceAgent, workspace],
+	);
+
 	const chatData = chatQuery.data;
 	const chatRecord = chatData?.chat;
 	const isArchived = chatRecord?.archived ?? false;
@@ -1084,6 +1122,7 @@ const AgentDetail: FC = () => {
 			handleArchiveAndDeleteWorkspaceAction={
 				handleArchiveAndDeleteWorkspaceAction
 			}
+			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
 		/>
 	);

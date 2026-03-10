@@ -11,7 +11,7 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
-import { AgentCreateForm } from "./AgentsPage";
+import { AgentCreateForm } from "./AgentCreateForm";
 
 const modelOptions = [
 	{

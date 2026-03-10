@@ -1482,6 +1482,12 @@ func (m *mockWebpushDispatcher) Dispatch(_ context.Context, userID uuid.UUID, ms
 	return nil
 }
 
+func (m *mockWebpushDispatcher) getLastMessage() codersdk.WebpushMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastMessage
+}
+
 func (*mockWebpushDispatcher) Test(_ context.Context, _ codersdk.WebpushSubscription) error {
 	return nil
 }
@@ -1571,6 +1577,12 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 	var requestCount atomic.Int32
 	streamStarted := make(chan struct{})
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		// Ignore non-streaming requests (e.g. title generation) so
+		// they don't interfere with the request counter used to
+		// coordinate the streaming chat flow.
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("shutdown-retry")
+		}
 		if requestCount.Add(1) == 1 {
 			chunks := make(chan chattest.OpenAIChunk, 1)
 			go func() {
@@ -1667,4 +1679,67 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 			!fromDB.WorkerID.Valid &&
 			!fromDB.LastError.Valid
 	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const assistantText = "I have completed the task successfully and all tests are passing now."
+	const summaryText = "Completed task and verified all tests pass."
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			// Non-streaming calls are used for title
+			// generation and push summary generation.
+			// Return the summary text for both — the title
+			// result is irrelevant to this test.
+			return chattest.OpenAINonStreamingResponse(summaryText)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks(assistantText)...,
+		)
+	})
+
+	mockPush := &mockWebpushDispatcher{}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		WebpushDispatcher:          mockPush,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	_, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "summary-push-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "do the thing"}},
+	})
+	require.NoError(t, err)
+
+	// The push notification is dispatched asynchronously after the
+	// chat finishes, so we poll for it rather than checking
+	// immediately after the status transitions to waiting.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return mockPush.dispatchCount.Load() >= 1
+	}, testutil.IntervalFast)
+
+	msg := mockPush.getLastMessage()
+	require.Equal(t, summaryText, msg.Body,
+		"push body should be the LLM-generated summary")
+	require.NotEqual(t, "Agent has finished running.", msg.Body,
+		"push body should not use the default fallback text")
 }
