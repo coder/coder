@@ -193,8 +193,10 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 					{activeSection === "prompts" && (
 						<>
-							<SectionHeader label="Prompts" />
-
+								<SectionHeader
+									label="Prompts"
+									description="Custom instructions that shape how the agent responds in your chats."
+								/>
 							{/* ── User custom prompt (always visible) ── */}
 							<form
 								className="space-y-2"
@@ -300,20 +302,20 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 					)}
 					{activeSection === "providers" && canManageChatModelConfigs && (
 						<>
-							<SectionHeader
-								label="Providers"
-								action={<AdminBadge />}
-							/>
-							<ChatModelAdminPanel section="providers" />
+								<SectionHeader
+									label="Providers"
+									description="Connect third-party LLM services like OpenAI, Anthropic, or Google. Each provider supplies models that users can select for their chats."
+									action={<AdminBadge />}
+								/>							<ChatModelAdminPanel section="providers" />
 						</>
 					)}
 					{activeSection === "models" && canManageChatModelConfigs && (
 						<>
-							<SectionHeader
-								label="Models"
-								action={<AdminBadge />}
-							/>
-							<ChatModelAdminPanel section="models" />
+								<SectionHeader
+									label="Models"
+									description="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
+									action={<AdminBadge />}
+								/>							<ChatModelAdminPanel section="models" />
 						</>
 					)}
 				</div>
