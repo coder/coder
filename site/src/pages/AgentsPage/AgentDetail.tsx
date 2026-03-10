@@ -16,7 +16,8 @@ import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
-import { ArchiveIcon } from "lucide-react";
+import { useAuthenticated } from "hooks";
+import { ArchiveIcon, EyeIcon } from "lucide-react";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -637,6 +638,16 @@ const AgentDetail: FC = () => {
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const chatData = chatQuery.data;
 	const chatRecord = chatData?.chat;
+	const { user: currentUser } = useAuthenticated();
+	const isViewingOtherChat = Boolean(
+		chatRecord && chatRecord.owner_id !== currentUser.id,
+	);
+	const chatOwnerQuery = useQuery({
+		queryKey: ["users", chatRecord?.owner_id],
+		queryFn: () => API.getUsers({ q: `id:${chatRecord?.owner_id}`, limit: 1 }),
+		enabled: isViewingOtherChat && Boolean(chatRecord?.owner_id),
+		select: (data) => data.users[0],
+	});
 	const isArchived = chatRecord?.archived ?? false;
 	const chatMessages = chatData?.messages;
 	const chatQueuedMessages = chatData?.queued_messages;
@@ -805,7 +816,7 @@ const AgentDetail: FC = () => {
 		sendMutation.isPending ||
 		editMutation.isPending ||
 		interruptMutation.isPending;
-	const isInputDisabled = !hasModelOptions || isArchived;
+	const isInputDisabled = !hasModelOptions || isArchived || isViewingOtherChat;
 
 	const handleSend = async (
 		message: string,
@@ -1086,6 +1097,7 @@ const AgentDetail: FC = () => {
 					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+					chatOwner={undefined}
 				/>
 				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
 					<div className="px-4">
@@ -1160,6 +1172,7 @@ const AgentDetail: FC = () => {
 					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+					chatOwner={undefined}
 				/>
 				<div className="flex flex-1 items-center justify-center text-content-secondary">
 					Chat not found
@@ -1206,11 +1219,18 @@ const AgentDetail: FC = () => {
 						isArchived={isArchived}
 						isSidebarCollapsed={isSidebarCollapsed}
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+						chatOwner={chatOwnerQuery.data}
 					/>
 					{isArchived && (
 						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
 							<ArchiveIcon className="h-4 w-4 shrink-0" />
 							This agent has been archived and is read-only.
+						</div>
+					)}
+					{isViewingOtherChat && !isArchived && (
+						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+							<EyeIcon className="h-4 w-4 shrink-0" />
+							You are viewing someone else&apos;s agent. This chat is read-only.
 						</div>
 					)}
 					<div
@@ -1235,7 +1255,9 @@ const AgentDetail: FC = () => {
 							persistedErrorReason={
 								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
 							}
-							onEditUserMessage={editing.handleEditUserMessage}
+							onEditUserMessage={
+								isViewingOtherChat ? undefined : editing.handleEditUserMessage
+							}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
 						/>

@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -42,6 +43,7 @@ interface WorkspaceActions {
 
 type AgentDetailTopBarProps = {
 	chatTitle?: string;
+	chatOwner?: TypesGen.MinimalUser;
 	parentChat?: TypesGen.Chat;
 	onOpenParentChat: (chatId: string) => void;
 	panel: SidebarPanelState;
@@ -57,6 +59,7 @@ type AgentDetailTopBarProps = {
 
 export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	chatTitle,
+	chatOwner,
 	parentChat,
 	onOpenParentChat,
 	panel,
@@ -118,6 +121,17 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						{isArchived && (
 							<span className="shrink-0 rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary">
 								Archived
+							</span>
+						)}
+						{chatOwner && (
+							<span className="flex shrink-0 items-center gap-1 rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary">
+								<Avatar
+									src={chatOwner.avatar_url}
+									fallback={chatOwner.username}
+									size="sm"
+									className="size-4"
+								/>
+								@{chatOwner.username}&apos;s chat
 							</span>
 						)}
 					</div>
