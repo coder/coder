@@ -640,12 +640,12 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 										type="button"
 										variant="outline"
 										size="icon"
-										className="size-7 shrink-0 rounded-full [&>svg]:p-0"
+										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
 										onClick={() => fileInputRef.current?.click()}
 										disabled={isDisabled}
 										aria-label="Attach files"
 									>
-										<ImageIcon className="h-4 w-4" />
+										<ImageIcon />
 									</Button>
 								</>
 							)}
@@ -653,11 +653,11 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								<Button
 									size="icon"
 									variant="default"
-									className="size-7 rounded-full transition-colors [&>svg]:p-0"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
 									onClick={onInterrupt}
 									disabled={isInterruptPending}
 								>
-									<Square className="h-3 w-3 fill-current" />
+									<Square className="fill-current" />
 									<span className="sr-only">Stop</span>
 								</Button>
 							)}
@@ -665,7 +665,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								<Button
 									size="icon"
 									variant="default"
-									className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
 									onClick={handleSubmit}
 									disabled={!canSend}
 								>
