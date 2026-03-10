@@ -2216,14 +2216,21 @@ func (p *Server) runChat(
 	modelConfigContextLimit := modelConfig.ContextLimit
 
 	persistStep := func(persistCtx context.Context, step chatloop.PersistedStep) error {
-		// If the chat context has been canceled (e.g. by an
-		// EditMessage call), bail out before inserting any
-		// messages. This closes the race window between
-		// EditMessage committing its transaction (which deletes
-		// messages after the edit point) and the cancellation
-		// propagating to the processing loop.
+		// If the chat context has been canceled, bail out before
+		// inserting any messages. We distinguish the cause so that
+		// the caller can tell an intentional interruption (e.g.
+		// EditMessage, user stop) from a server shutdown:
+		//   - ErrInterrupted cause → return ErrInterrupted
+		//     (processChat sets status = waiting).
+		//   - Any other cause (e.g. context.Canceled during
+		//     Close()) → return the original context error so
+		//     isShutdownCancellation can match and set status =
+		//     pending, allowing another replica to retry.
 		if persistCtx.Err() != nil {
-			return chatloop.ErrInterrupted
+			if errors.Is(context.Cause(persistCtx), chatloop.ErrInterrupted) {
+				return chatloop.ErrInterrupted
+			}
+			return persistCtx.Err()
 		}
 
 		// Split the step content into assistant blocks and tool
