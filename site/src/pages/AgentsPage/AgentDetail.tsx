@@ -1,4 +1,5 @@
 import { API, watchWorkspace } from "api/api";
+import { getErrorMessage } from "api/errors";
 import {
 	chat,
 	chatDiffStatus,
@@ -69,6 +70,7 @@ import { buildStreamTools } from "./AgentDetail/streamState";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import { useWorkspaceCreationWatcher } from "./AgentDetail/useWorkspaceCreationWatcher";
 import {
+	AgentDetailErrorView,
 	AgentDetailLoadingView,
 	AgentDetailNotFoundView,
 	AgentDetailView,
@@ -862,6 +864,8 @@ const AgentDetail: FC = () => {
 					messageId: editedMessageID,
 					req: request,
 				});
+			} catch (error) {
+				toast.error(getErrorMessage(error, "Failed to edit message."));
 			} finally {
 				setPendingEditMessageId(null);
 			}
@@ -885,22 +889,26 @@ const AgentDetail: FC = () => {
 		// timeline when the server confirms via the POST response or
 		// via the SSE stream.
 		store.clearStreamState();
-		const response = await sendMutation.mutateAsync(request);
-		// When the server accepts the message immediately (not
-		// queued), insert it into the store so it appears in the
-		// timeline without waiting for the SSE stream.
-		if (!response.queued && response.message) {
-			store.upsertDurableMessage(response.message);
-		}
-		if (typeof window !== "undefined") {
-			if (selectedModelConfigID) {
-				localStorage.setItem(
-					lastModelConfigIDStorageKey,
-					selectedModelConfigID,
-				);
-			} else {
-				localStorage.removeItem(lastModelConfigIDStorageKey);
+		try {
+			const response = await sendMutation.mutateAsync(request);
+			// When the server accepts the message immediately (not
+			// queued), insert it into the store so it appears in the
+			// timeline without waiting for the SSE stream.
+			if (!response.queued && response.message) {
+				store.upsertDurableMessage(response.message);
 			}
+			if (typeof window !== "undefined") {
+				if (selectedModelConfigID) {
+					localStorage.setItem(
+						lastModelConfigIDStorageKey,
+						selectedModelConfigID,
+					);
+				} else {
+					localStorage.removeItem(lastModelConfigIDStorageKey);
+				}
+			}
+		} catch (error) {
+			toast.error(getErrorMessage(error, "Failed to send message."));
 		}
 	};
 
@@ -908,7 +916,11 @@ const AgentDetail: FC = () => {
 		if (!agentId || interruptMutation.isPending) {
 			return;
 		}
-		void interruptMutation.mutateAsync();
+		interruptMutation.mutate(undefined, {
+			onError: (error) => {
+				toast.error(getErrorMessage(error, "Failed to interrupt agent."));
+			},
+		});
 	};
 
 	const handleDeleteQueuedMessage = useCallback(
@@ -921,7 +933,7 @@ const AgentDetail: FC = () => {
 				await deleteQueuedMutation.mutateAsync(id);
 			} catch (error) {
 				store.setQueuedMessages(previousQueuedMessages);
-				throw error;
+				toast.error(getErrorMessage(error, "Failed to delete queued message."));
 			}
 		},
 		[deleteQueuedMutation, store],
@@ -943,7 +955,9 @@ const AgentDetail: FC = () => {
 			} catch (error) {
 				store.setQueuedMessages(previousQueuedMessages);
 				store.setChatStatus(previousChatStatus);
-				throw error;
+				toast.error(
+					getErrorMessage(error, "Failed to promote queued message."),
+				);
 			}
 		},
 		[promoteQueuedMutation, store],
@@ -1063,6 +1077,18 @@ const AgentDetail: FC = () => {
 				hasModelOptions={hasModelOptions}
 				inputStatusText={inputStatusText}
 				modelCatalogStatusMessage={modelCatalogStatusMessage}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+			/>
+		);
+	}
+
+	if (chatQuery.error) {
+		return (
+			<AgentDetailErrorView
+				titleElement={titleElement}
+				error={chatQuery.error}
+				onRetry={() => void chatQuery.refetch()}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			/>

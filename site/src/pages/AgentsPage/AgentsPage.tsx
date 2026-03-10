@@ -614,7 +614,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const {
 		mutate: saveSystemPrompt,
 		isPending: isSavingSystemPrompt,
-		isError: isSaveSystemPromptError,
+		error: saveSystemPromptError,
 	} = useMutation(updateChatSystemPrompt(queryClient));
 	const [initialLastModelConfigID] = useState(() => {
 		if (typeof window === "undefined") {
@@ -914,7 +914,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					onSystemPromptDraftChange={setLocalEdit}
 					onSaveSystemPrompt={handleSaveSystemPrompt}
 					isSystemPromptDirty={isSystemPromptDirty}
-					saveSystemPromptError={isSaveSystemPromptError}
+					saveSystemPromptError={saveSystemPromptError}
 					isDisabled={isCreating || isSavingSystemPrompt}
 				/>
 			)}
