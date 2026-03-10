@@ -53,9 +53,6 @@ jobs:
       ) &&
       (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
     timeout-minutes: 30
-    env:
-      CODER_URL: ${{ secrets.DOC_CHECK_CODER_URL }}
-      CODER_SESSION_TOKEN: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
     permissions:
       contents: read
       pull-requests: write
