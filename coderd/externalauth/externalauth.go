@@ -883,7 +883,8 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 
 	// Set default API base URL for providers that need one.
 	if config.APIBaseURL == "" {
-		switch codersdk.EnhancedExternalAuthProvider(config.Type) {
+		normType := strings.ToLower(config.Type)
+		switch codersdk.EnhancedExternalAuthProvider(normType) {
 		case codersdk.EnhancedExternalAuthProviderGitHub:
 			config.APIBaseURL = "https://api.github.com"
 		case codersdk.EnhancedExternalAuthProviderGitLab:
