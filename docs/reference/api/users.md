@@ -614,6 +614,90 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get user chat custom prompt
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/chat-prompt \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/{user}/chat-prompt`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description          |
+|--------|------|--------|----------|----------------------|
+| `user` | path | string | true     | User ID, name, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "custom_prompt": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                   |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserChatCustomPromptResponse](schemas.md#codersdkuserchatcustompromptresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update user chat custom prompt
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/chat-prompt \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /users/{user}/chat-prompt`
+
+> Body parameter
+
+```json
+{
+  "custom_prompt": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                               | Required | Description                       |
+|--------|------|----------------------------------------------------------------------------------------------------|----------|-----------------------------------|
+| `user` | path | string                                                                                             | true     | User ID, name, or me              |
+| `body` | body | [codersdk.UpdateUserChatCustomPromptRequest](schemas.md#codersdkupdateuserchatcustompromptrequest) | true     | Update chat custom prompt request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "custom_prompt": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                   |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserChatCustomPromptResponse](schemas.md#codersdkuserchatcustompromptresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get user Git SSH key
 
 ### Code samples

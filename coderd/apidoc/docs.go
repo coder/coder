@@ -8282,6 +8282,84 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/{user}/chat-prompt": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get user chat custom prompt",
+                "operationId": "get-user-chat-custom-prompt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCustomPromptResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update user chat custom prompt",
+                "operationId": "update-user-chat-custom-prompt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, name, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update chat custom prompt request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserChatCustomPromptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatCustomPromptResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}/convert-login": {
             "post": {
                 "security": [
@@ -20318,6 +20396,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateUserChatCustomPromptRequest": {
+            "type": "object",
+            "properties": {
+                "custom_prompt": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateUserNotificationPreferences": {
             "type": "object",
             "properties": {
@@ -20689,6 +20775,14 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
                 "theme_preference": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UserChatCustomPromptResponse": {
+            "type": "object",
+            "properties": {
+                "custom_prompt": {
                     "type": "string"
                 }
             }

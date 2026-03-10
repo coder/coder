@@ -227,6 +227,18 @@ type UpdateUserPreferenceSettingsRequest struct {
 	TaskNotificationAlertDismissed bool `json:"task_notification_alert_dismissed"`
 }
 
+// UserChatCustomPromptResponse is the response for getting a user's
+// custom chat prompt.
+type UserChatCustomPromptResponse struct {
+	CustomPrompt string `json:"custom_prompt"`
+}
+
+// UpdateUserChatCustomPromptRequest is the request to update a user's
+// custom chat prompt.
+type UpdateUserChatCustomPromptRequest struct {
+	CustomPrompt string `json:"custom_prompt"`
+}
+
 type UpdateUserPasswordRequest struct {
 	OldPassword string `json:"old_password" validate:""`
 	Password    string `json:"password" validate:"required"`
@@ -549,6 +561,34 @@ func (c *Client) UpdateUserPreferenceSettings(ctx context.Context, user string, 
 		return UserPreferenceSettings{}, ReadBodyAsError(res)
 	}
 	var resp UserPreferenceSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetUserChatCustomPrompt fetches the custom chat prompt for a user.
+func (c *Client) GetUserChatCustomPrompt(ctx context.Context, user string) (UserChatCustomPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/chat-prompt", user), nil)
+	if err != nil {
+		return UserChatCustomPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCustomPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserChatCustomPrompt updates the custom chat prompt for a user.
+func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, user string, req UpdateUserChatCustomPromptRequest) (UserChatCustomPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/chat-prompt", user), req)
+	if err != nil {
+		return UserChatCustomPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCustomPromptResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
