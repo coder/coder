@@ -78,6 +78,30 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	await page.getByLabel("Email").fill(options.email);
 	await page.getByLabel("Password").fill(options.password);
 	await page.getByRole("button", { name: "Sign In" }).click();
+
+	// The login API call can fail due to transient network errors
+	// (ERR_NETWORK_CHANGED) during parallel test execution. When
+	// that happens the page stays on /login and shows an error
+	// alert. Race the redirect against the alert and retry once.
+	const signInResult = await Promise.race([
+		page
+			.waitForURL((url) => url.pathname === "/workspaces", {
+				timeout: 10_000,
+			})
+			.then(() => "ok" as const)
+			.catch(() => "timeout" as const),
+		page
+			.getByRole("alert")
+			.waitFor({ state: "visible", timeout: 10_000 })
+			.then(() => "error" as const)
+			.catch(() => "timeout" as const),
+	]);
+	if (signInResult !== "ok") {
+		await page.getByLabel("Email").fill(options.email);
+		await page.getByLabel("Password").fill(options.password);
+		await page.getByRole("button", { name: "Sign In" }).click();
+	}
+
 	await expectUrl(page).toHavePathName("/workspaces");
 	// biome-ignore lint/suspicious/noExplicitAny: update once logged in
 	(ctx as any)[Symbol.for("currentUser")] = options;
