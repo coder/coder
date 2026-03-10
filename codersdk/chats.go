@@ -538,8 +538,8 @@ type chatStreamEnvelope struct {
 
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
-	Archived   *bool
-	Pagination Pagination
+	Archived *bool
+	Pagination
 }
 
 // ListChats returns all chats for the authenticated user.
