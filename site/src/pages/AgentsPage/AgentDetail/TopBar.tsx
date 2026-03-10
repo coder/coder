@@ -49,7 +49,7 @@ type AgentDetailTopBarProps = {
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
-	hasWorkspace?: boolean;
+	workspaceName?: string;
 	isArchived?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
@@ -64,7 +64,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
-	hasWorkspace,
+	workspaceName,
 	isArchived,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
@@ -201,18 +201,18 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 									<ArchiveIcon className="h-3.5 w-3.5" />
 									Archive Agent
 								</DropdownMenuItem>
-								{hasWorkspace && (
+								{workspaceName && (
 									<DropdownMenuItem
 										className="text-content-destructive focus:text-content-destructive"
 										onSelect={onArchiveAndDeleteWorkspace}
 									>
 										<Trash2Icon className="h-3.5 w-3.5" />
-										Archive & Delete Workspace
+										Archive & delete workspace "{workspaceName}"
 									</DropdownMenuItem>
 								)}
 							</>
 						)}
-					</DropdownMenuContent>
+					</DropdownMenuContent>{" "}
 				</DropdownMenu>
 				<Button
 					variant="subtle"

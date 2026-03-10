@@ -1086,7 +1086,7 @@ const AgentDetail: FC = () => {
 			chatErrorReasons={chatErrorReasons}
 			chatRecord={chatRecord}
 			isArchived={isArchived}
-			hasWorkspace={Boolean(workspaceId)}
+			workspaceName={workspace?.name}
 			store={store}
 			editing={editing}
 			pendingEditMessageId={pendingEditMessageId}
