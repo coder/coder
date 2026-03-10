@@ -623,32 +623,33 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 							)}
 						</div>
 						<div className="flex items-center gap-2">
-								{onAttach && (
-									<>
-										<input
-											ref={fileInputRef}
-											type="file"
-											multiple
-											accept="image/*"
-											onChange={handleFileSelect}
-											className="hidden"
-										/>
-										<Button
-											type="button"
-											variant="subtle"
-											size="icon"
-											className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
-											onClick={() => fileInputRef.current?.click()}
-											disabled={isDisabled}
-											aria-label="Attach files"
-										>
-											<ImageIcon />
-										</Button>
-									</>
-								)}
-								{contextUsage !== undefined && (
-									<ContextUsageIndicator usage={contextUsage} />
-								)}							{isStreaming && onInterrupt && (
+							{onAttach && (
+								<>
+									<input
+										ref={fileInputRef}
+										type="file"
+										multiple
+										accept="image/*"
+										onChange={handleFileSelect}
+										className="hidden"
+									/>
+									<Button
+										type="button"
+										variant="subtle"
+										size="icon"
+										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+										onClick={() => fileInputRef.current?.click()}
+										disabled={isDisabled}
+										aria-label="Attach files"
+									>
+										<ImageIcon />
+									</Button>
+								</>
+							)}
+							{contextUsage !== undefined && (
+								<ContextUsageIndicator usage={contextUsage} />
+							)}{" "}
+							{isStreaming && onInterrupt && (
 								<Button
 									size="icon"
 									variant="default"

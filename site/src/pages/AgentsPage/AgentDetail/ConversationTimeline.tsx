@@ -54,15 +54,15 @@ const ReasoningDisclosure: FC<{
 	if (!title && hasText) {
 		return (
 			<div className="w-full">
-						<Response
-							className="text-[11px] text-content-secondary"
-							urlTransform={urlTransform}
-						>
-							{displayText}				</Response>
+				<Response
+					className="text-[11px] text-content-secondary"
+					urlTransform={urlTransform}
+				>
+					{displayText}
+				</Response>
 			</div>
 		);
 	}
-
 	const labelContent = (
 		<span className="text-sm">
 			{showStreamingPlaceholder ? (
