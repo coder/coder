@@ -108,6 +108,7 @@ func TestUserLinks(t *testing.T) {
 		err := crypt.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
 			OAuthRefreshToken:      "",
 			OAuthRefreshTokenKeyID: link.OAuthRefreshTokenKeyID.String,
+			OldOauthRefreshToken:   link.OAuthRefreshToken,
 			UpdatedAt:              dbtime.Now(),
 			ProviderID:             link.ProviderID,
 			UserID:                 link.UserID,
