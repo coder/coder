@@ -4,6 +4,7 @@ import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { ArchiveIcon } from "lucide-react";
 import { type FC, type RefObject, useState } from "react";
+import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
@@ -110,6 +111,8 @@ interface AgentDetailViewProps {
 
 	// Scroll container ref.
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
+
+	urlTransform?: UrlTransform;
 }
 
 export const AgentDetailView: FC<AgentDetailViewProps> = ({
@@ -154,6 +157,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
 	scrollContainerRef,
+	urlTransform,
 }) => {
 	// Panel/sidebar UI state – purely visual, no data-fetching
 	// implications.
@@ -267,6 +271,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
+							urlTransform={urlTransform}
 						/>
 					</div>
 				</div>

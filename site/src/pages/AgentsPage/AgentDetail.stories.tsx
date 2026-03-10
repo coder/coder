@@ -6,6 +6,7 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withProxyProvider,
 	withWebSocket,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
@@ -177,7 +178,12 @@ const wrapSSE = (payload: unknown): string =>
 const meta: Meta<typeof AgentDetailLayout> = {
 	title: "pages/AgentsPage/AgentDetail",
 	component: AgentDetailLayout,
-	decorators: [withAuthProvider, withDashboardProvider, withWebSocket],
+	decorators: [
+		withAuthProvider,
+		withDashboardProvider,
+		withProxyProvider(),
+		withWebSocket,
+	],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
