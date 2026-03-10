@@ -2285,21 +2285,21 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
+	trimmedPrompt := strings.TrimSpace(req.SystemPrompt)
 	// 128 KiB is generous for a system prompt while still
 	// preventing abuse or accidental pastes of large content.
-	if len(req.SystemPrompt) > maxSystemPromptLenBytes {
+	if len(trimmedPrompt) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(req.SystemPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(trimmedPrompt)),
 		})
 		return
 	}
-	err := api.Database.UpsertChatSystemPrompt(ctx, req.SystemPrompt)
-	if err != nil {
-		if rbac.IsUnauthorizedError(err) {
-			httpapi.Forbidden(rw)
-			return
-		}
+	err := api.Database.UpsertChatSystemPrompt(ctx, trimmedPrompt)
+	if httpapi.Is404Error(err) { // also catches authz error
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating chat system prompt.",
 			Detail:  err.Error(),

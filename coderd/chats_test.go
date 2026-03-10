@@ -3161,13 +3161,13 @@ func TestChatSystemPrompt(t *testing.T) {
 		require.Equal(t, "", resp.SystemPrompt)
 	})
 
-	t.Run("NonAdminForbidden", func(t *testing.T) {
+	t.Run("NonAdminFails", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := memberClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt: "This should fail.",
 		})
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("UnauthenticatedFails", func(t *testing.T) {
