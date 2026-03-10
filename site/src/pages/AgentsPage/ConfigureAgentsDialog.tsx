@@ -181,7 +181,18 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								<span className="flex items-center gap-2 text-sm font-medium">
 									{section.label}
 									{section.adminOnly && (
-										<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span className="inline-flex">
+														<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
+													</span>
+												</TooltipTrigger>
+												<TooltipContent side="right">
+													Admin only
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
 									)}
 								</span>
 							</Button>
@@ -189,7 +200,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 					})}
 				</nav>
 
-				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5">
+				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 					{activeSection === "user-prompt" && (
 						<>
 							<SectionHeader label="Custom Prompt" />
