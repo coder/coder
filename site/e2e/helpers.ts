@@ -222,8 +222,18 @@ export const verifyParameters = async (
 					case "bool":
 						{
 							const parameterField = parameterLabel.locator("input");
-							const value = await parameterField.isChecked();
-							expect(value.toString()).toEqual(buildParameter.value);
+							// Dynamic parameters can hydrate after initial render
+							// and reset checkbox state. Use auto-retrying assertions
+							// instead of a one-shot isChecked() snapshot.
+							if (buildParameter.value === "true") {
+								await expect(parameterField).toBeChecked({
+									timeout: 15_000,
+								});
+							} else {
+								await expect(parameterField).not.toBeChecked({
+									timeout: 15_000,
+								});
+							}
 						}
 						break;
 					case "string":
