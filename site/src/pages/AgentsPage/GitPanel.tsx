@@ -93,7 +93,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 			{/* Toolbar */}
 			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
 				{/* Remote / Local segmented control */}
-				<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default text-xs">
+				<div className="flex h-6 items-stretch overflow-hidden rounded-md text-xs">
 					<button
 						type="button"
 						onClick={() => setView("remote")}
