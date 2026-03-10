@@ -102,3 +102,26 @@ export const ArchivedWithUnarchive: Story = {
 		).not.toBeInTheDocument();
 	},
 };
+
+export const ViewingOtherUsersChat: Story = {
+	args: {
+		chatOwner: {
+			id: "other-user-id",
+			username: "alice",
+			avatar_url: "",
+			name: "Alice Smith",
+		},
+	},
+};
+
+export const ViewingOtherUsersChatArchived: Story = {
+	args: {
+		isArchived: true,
+		chatOwner: {
+			id: "other-user-id",
+			username: "alice",
+			avatar_url: "",
+			name: "Alice Smith",
+		},
+	},
+};
