@@ -2262,14 +2262,6 @@ func detectChatFileType(data []byte) string {
 	return http.DetectContentType(data)
 }
 
-// @Summary Get the chat system prompt
-// @ID get-chat-system-prompt
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Success 200 {object} codersdk.ChatSystemPromptResponse
-// @Router /chats/system-prompt [get]
-//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -2286,14 +2278,6 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Update the chat system prompt
-// @ID update-chat-system-prompt
-// @Security CoderSessionToken
-// @Accept json
-// @Tags Chats
-// @Param request body codersdk.UpdateChatSystemPromptRequest true "Update chat system prompt request"
-// @Success 204
-// @Router /chats/system-prompt [put]
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req codersdk.UpdateChatSystemPromptRequest
