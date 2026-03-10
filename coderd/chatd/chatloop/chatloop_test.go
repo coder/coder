@@ -2,6 +2,7 @@ package chatloop //nolint:testpackage // Uses internal symbols.
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"strings"
 	"sync"
@@ -403,6 +404,90 @@ func TestRun_PersistStepErrorPropagates(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.ErrorContains(t, err, "database write failed")
+}
+
+// TestRun_ShutdownDuringToolExecutionReturnsContextCanceled verifies that
+// when the parent context is canceled (simulating server shutdown) while
+// a tool is blocked, Run returns context.Canceled — not ErrInterrupted.
+// This matters because the caller uses the error type to decide whether
+// to set chat status to "pending" (retryable on another worker) vs
+// "waiting" (stuck forever).
+func TestRun_ShutdownDuringToolExecutionReturnsContextCanceled(t *testing.T) {
+	t.Parallel()
+
+	toolStarted := make(chan struct{})
+
+	// Model returns a single tool call, then finishes.
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-block", ToolCallName: "blocking_tool"},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-block", Delta: `{}`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-block"},
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "tc-block",
+					ToolCallName:  "blocking_tool",
+					ToolCallInput: `{}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			}), nil
+		},
+	}
+
+	// Tool that blocks until its context is canceled, simulating
+	// a long-running operation like wait_agent.
+	blockingTool := fantasy.NewAgentTool(
+		"blocking_tool",
+		"blocks until context canceled",
+		func(ctx context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			close(toolStarted)
+			<-ctx.Done()
+			return fantasy.ToolResponse{}, ctx.Err()
+		},
+	)
+
+	// Simulate the server context (parent) and chat context
+	// (child). Canceling the parent simulates graceful shutdown.
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	defer serverCancel()
+
+	go func() {
+		<-toolStarted
+		serverCancel()
+	}()
+
+	// persistStep mirrors the FIXED chatd.go code: it only returns
+	// ErrInterrupted when the context was actually canceled due to
+	// an interruption (cause is ErrInterrupted). For shutdown
+	// (plain context.Canceled), it returns the original error so
+	// callers can distinguish the two.
+	persistStep := func(persistCtx context.Context, _ PersistedStep) error {
+		if persistCtx.Err() != nil {
+			if errors.Is(context.Cause(persistCtx), ErrInterrupted) {
+				return ErrInterrupted
+			}
+			return persistCtx.Err()
+		}
+		return nil
+	}
+
+	err := Run(serverCtx, RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "run the blocking tool"),
+		},
+		Tools:    []fantasy.AgentTool{blockingTool},
+		MaxSteps: 3,
+		PersistStep: persistStep,
+	})
+	require.Error(t, err)
+	// The error must NOT be ErrInterrupted — it should propagate
+	// as context.Canceled so the caller can distinguish shutdown
+	// from user interruption.
+	require.NotErrorIs(t, err, ErrInterrupted, "shutdown cancellation must not be converted to ErrInterrupted")
+	require.ErrorIs(t, err, context.Canceled, "shutdown should propagate as context.Canceled")
 }
 
 func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
