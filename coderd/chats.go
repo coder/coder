@@ -55,6 +55,7 @@ const (
 	defaultChatContextCompressionThreshold        = int32(70)
 	minChatContextCompressionThreshold            = int32(0)
 	maxChatContextCompressionThreshold            = int32(100)
+	maxSystemPromptLenBytes                       = 131072 // 128 KiB
 )
 
 // chatDiffRefreshBackoffSchedule defines the delays between successive
@@ -2286,11 +2287,10 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	}
 	// 128 KiB is generous for a system prompt while still
 	// preventing abuse or accidental pastes of large content.
-	const maxSystemPromptLen = 131072 // 128 KiB
-	if len(req.SystemPrompt) > maxSystemPromptLen {
+	if len(req.SystemPrompt) > maxSystemPromptLenBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLen, len(req.SystemPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(req.SystemPrompt)),
 		})
 		return
 	}
