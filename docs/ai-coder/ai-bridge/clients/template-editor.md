@@ -11,7 +11,7 @@ provider.
 ## Prerequisites
 
 - [AI Bridge](../setup.md) is enabled and configured with at least one provider.
-- The `ai-template-editor` [experiment](../../../admin/setup/index.md#experiments)
+- The `ai-template-editor` [experiment](../../../install/releases/feature-stages.md#early-access-features)
   is enabled on your Coder deployment.
 
 ## How to use
