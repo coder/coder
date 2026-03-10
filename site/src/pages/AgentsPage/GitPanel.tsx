@@ -70,18 +70,22 @@ export const GitPanel: FC<GitPanelProps> = ({
 	localDiffStats,
 	chatInputRef,
 }) => {
-	const [view, setView] = useState<GitView>("remote");
-
-	// Diff style is managed here for the local view only.
-	// FilesChangedPanel manages its own diff style internally.
-	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
-
 	const hasRemoteStats =
 		!!remoteDiffStats &&
 		(remoteDiffStats.additions > 0 || remoteDiffStats.deletions > 0);
 	const hasLocalStats =
 		!!localDiffStats &&
 		(localDiffStats.additions > 0 || localDiffStats.deletions > 0);
+
+	// Default to "local" when there are only local changes and no
+	// remote stats, so the user sees content immediately.
+	const [view, setView] = useState<GitView>(
+		!hasRemoteStats && hasLocalStats ? "local" : "remote",
+	);
+
+	// Diff style is managed here for the local view only.
+	// FilesChangedPanel manages its own diff style internally.
+	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
 	const handleDiffStyleChange = useCallback((style: DiffStyle) => {
 		saveDiffStyle(style);
