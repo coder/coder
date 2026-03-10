@@ -41,40 +41,38 @@ type Store interface {
 }
 
 // EventPublisher notifies the frontend of diff status changes.
-type EventPublisher interface {
-	PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) error
-}
+type PublishDiffStatusChangeFunc func(ctx context.Context, chatID uuid.UUID) error
 
 // Worker is a background loop that periodically refreshes stale
 // chat diff statuses by delegating to a Refresher.
 type Worker struct {
-	store     Store
-	refresher *Refresher
-	publisher EventPublisher
-	clock     quartz.Clock
-	logger    slog.Logger
-	batchSize int32
-	interval  time.Duration
-	done      chan struct{}
+	store                     Store
+	refresher                 *Refresher
+	publishDiffStatusChangeFn PublishDiffStatusChangeFunc
+	clock                     quartz.Clock
+	logger                    slog.Logger
+	batchSize                 int32
+	interval                  time.Duration
+	done                      chan struct{}
 }
 
 // NewWorker creates a Worker with default batch size and interval.
 func NewWorker(
 	store Store,
 	refresher *Refresher,
-	publisher EventPublisher,
+	publisher PublishDiffStatusChangeFunc,
 	clock quartz.Clock,
 	logger slog.Logger,
 ) *Worker {
 	return &Worker{
-		store:     store,
-		refresher: refresher,
-		publisher: publisher,
-		clock:     clock,
-		logger:    logger,
-		batchSize: defaultBatchSize,
-		interval:  defaultInterval,
-		done:      make(chan struct{}),
+		store:                     store,
+		refresher:                 refresher,
+		publishDiffStatusChangeFn: publisher,
+		clock:                     clock,
+		logger:                    logger,
+		batchSize:                 defaultBatchSize,
+		interval:                  defaultInterval,
+		done:                      make(chan struct{}),
 	}
 }
 
@@ -174,10 +172,12 @@ func (w *Worker) tick(ctx context.Context) {
 				slog.Error(err))
 			continue
 		}
-		if err := w.publisher.PublishDiffStatusChange(ctx, res.Request.Row.ChatID); err != nil {
-			w.logger.Debug(ctx, "publish diff status change",
-				slog.F("chat_id", res.Request.Row.ChatID),
-				slog.Error(err))
+		if w.publishDiffStatusChangeFn != nil {
+			if err := w.publishDiffStatusChangeFn(ctx, res.Request.Row.ChatID); err != nil {
+				w.logger.Debug(ctx, "publish diff status change",
+					slog.F("chat_id", res.Request.Row.ChatID),
+					slog.Error(err))
+			}
 		}
 	}
 }
@@ -224,9 +224,11 @@ func (w *Worker) MarkStale(
 		}
 		// Notify the frontend immediately so the UI shows the
 		// branch info even before the worker refreshes PR data.
-		if pubErr := w.publisher.PublishDiffStatusChange(ctx, chat.ID); pubErr != nil {
-			w.logger.Debug(ctx, "publish diff status after mark stale",
-				slog.F("chat_id", chat.ID), slog.Error(pubErr))
+		if w.publishDiffStatusChangeFn != nil {
+			if pubErr := w.publishDiffStatusChangeFn(ctx, chat.ID); pubErr != nil {
+				w.logger.Debug(ctx, "publish diff status after mark stale",
+					slog.F("chat_id", chat.ID), slog.Error(pubErr))
+			}
 		}
 	}
 }

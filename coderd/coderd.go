@@ -781,7 +781,7 @@ func New(options *Options) *API {
 	)
 	api.gitSyncWorker = gitsync.NewWorker(options.Database,
 		refresher,
-		api.chatDaemon,
+		api.chatDaemon.PublishDiffStatusChange,
 		quartz.NewReal(),
 		options.Logger.Named("gitsync"),
 	)
