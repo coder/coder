@@ -206,8 +206,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 									Personal Instructions
 								</h3>
 									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-										Personal instructions appended to all your new chats. Only
-										visible to you.
+										Appended to all your new chats. Only visible to you.
 									</p>								<TextareaAutosize
 									className={textareaClassName}
 									placeholder="Additional behavior, style, and tone preferences"
