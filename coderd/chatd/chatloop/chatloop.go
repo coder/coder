@@ -161,6 +161,7 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 			toolParts = append(toolParts, fantasy.ToolResultPart{
 				ToolCallID:      result.ToolCallID,
 				Output:          result.Result,
+				ProviderExecuted: result.ProviderExecuted,
 				ProviderOptions: fantasy.ProviderOptions(result.ProviderMetadata),
 			})
 		default:

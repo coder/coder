@@ -2672,6 +2672,7 @@ func (p *Server) persistChatContextSummary(
 		"chat_summarized",
 		summaryResult,
 		false,
+		false,
 	)
 	if err != nil {
 		return xerrors.Errorf("encode summary tool result: %w", err)
