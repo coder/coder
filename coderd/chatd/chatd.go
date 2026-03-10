@@ -286,8 +286,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			}
 		}
 
-		userContent, err := chatprompt.MarshalUserContent(opts.Content)
-		if err != nil {
+			userContent, err := chatprompt.MarshalParts(opts.Content)
+			if err != nil {
 			return xerrors.Errorf("marshal initial user content: %w", err)
 		}
 		_, err = insertChatMessageWithStore(ctx, tx, database.InsertChatMessageParams{
@@ -353,11 +353,10 @@ func (p *Server) SendMessage(
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
 
-	content, err := chatprompt.MarshalUserContent(opts.Content)
-	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
-	}
-
+		content, err := chatprompt.MarshalParts(opts.Content)
+		if err != nil {
+			return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
+		}
 	var (
 		result            SendMessageResult
 		queuedMessagesSDK []codersdk.ChatQueuedMessage
@@ -486,11 +485,10 @@ func (p *Server) EditMessage(
 		return EditMessageResult{}, xerrors.New("content is required")
 	}
 
-	content, err := chatprompt.MarshalUserContent(opts.Content)
-	if err != nil {
-		return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
-	}
-
+		content, err := chatprompt.MarshalParts(opts.Content)
+		if err != nil {
+			return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
+		}
 	var result EditMessageResult
 	txErr := p.db.InTx(func(tx database.Store) error {
 		_, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
@@ -2221,44 +2219,39 @@ func (p *Server) runChat(
 			return chatloop.ErrInterrupted
 		}
 
-		// Split the step content into assistant blocks and tool
-		// result blocks so they can be stored as separate messages
-		// with the appropriate roles.
-		var assistantBlocks []fantasy.Content
-		var toolResults []fantasy.ToolResultContent
-		for _, block := range step.Content {
-			if tr, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok {
-				toolResults = append(toolResults, tr)
-				continue
-			}
-			if trPtr, ok := fantasy.AsContentType[*fantasy.ToolResultContent](block); ok && trPtr != nil {
-				toolResults = append(toolResults, *trPtr)
-				continue
-			}
-			assistantBlocks = append(assistantBlocks, block)
-		}
-
-		var insertedMessages []database.ChatMessage
-		err := p.db.InTx(func(tx database.Store) error {
-			// Verify this worker still owns the chat before
-			// inserting messages. This closes the race where
-			// EditMessage truncates history and clears worker_id
-			// while persistInterruptedStep (which uses an
-			// uncancelable context) is still running.
-			lockedChat, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
-			if lockErr != nil {
-				return xerrors.Errorf("lock chat for persist: %w", lockErr)
-			}
-			if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != p.workerID {
-				return chatloop.ErrInterrupted
+			// Split the step content into assistant blocks and tool
+			// result blocks so they can be stored as separate messages
+			// with the appropriate roles.
+			var assistantParts []codersdk.ChatMessagePart
+			var toolResultParts []codersdk.ChatMessagePart
+			for _, part := range step.Content {
+				if part.Type == codersdk.ChatMessagePartTypeToolResult {
+					toolResultParts = append(toolResultParts, part)
+					continue
+				}
+				assistantParts = append(assistantParts, part)
 			}
 
-			if len(assistantBlocks) > 0 {
-				assistantContent, marshalErr := chatprompt.MarshalContent(assistantBlocks, nil)
-				if marshalErr != nil {
-					return marshalErr
+			var insertedMessages []database.ChatMessage
+			err := p.db.InTx(func(tx database.Store) error {
+				// Verify this worker still owns the chat before
+				// inserting messages. This closes the race where
+				// EditMessage truncates history and clears worker_id
+				// while persistInterruptedStep (which uses an
+				// uncancelable context) is still running.
+				lockedChat, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
+				if lockErr != nil {
+					return xerrors.Errorf("lock chat for persist: %w", lockErr)
+				}
+				if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != p.workerID {
+					return chatloop.ErrInterrupted
 				}
 
+				if len(assistantParts) > 0 {
+					assistantContent, marshalErr := chatprompt.MarshalParts(assistantParts)
+					if marshalErr != nil {
+						return marshalErr
+					}
 				hasUsage := step.Usage != (fantasy.Usage{})
 				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 					ChatID:        chat.ID,
@@ -2287,9 +2280,9 @@ func (p *Server) runChat(
 				insertedMessages = append(insertedMessages, assistantMessage)
 			}
 
-			for _, tr := range toolResults {
-				resultContent, marshalErr := chatprompt.MarshalToolResultContent(tr)
-				if marshalErr != nil {
+				for _, tr := range toolResultParts {
+					resultContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{tr})
+					if marshalErr != nil {
 					return marshalErr
 				}
 
@@ -2539,13 +2532,13 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("encode summary tool args: %w", err)
 	}
 
-	assistantContent, err := chatprompt.MarshalContent([]fantasy.Content{
-		fantasy.ToolCallContent{
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		chatprompt.PartFromContent(fantasy.ToolCallContent{
 			ToolCallID: toolCallID,
 			ToolName:   "chat_summarized",
 			Input:      string(args),
-		},
-	}, nil)
+		}),
+	})
 	if err != nil {
 		return xerrors.Errorf("encode summary tool call: %w", err)
 	}

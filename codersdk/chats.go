@@ -106,6 +106,14 @@ type ChatMessagePart struct {
 	EndLine   int    `json:"end_line,omitempty"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content,omitempty"`
+	// ProviderMetadata stores opaque provider-specific metadata from
+	// the LLM response. It is persisted for round-trip fidelity when
+	// replaying conversation history but is NOT sent to API clients.
+	// This field is stripped in db2sdk before returning to callers.
+	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty"`
+	// ProviderExecuted indicates whether a tool call was executed by
+	// the provider. Only relevant for tool-call parts.
+	ProviderExecuted bool `json:"provider_executed,omitempty"`
 }
 
 // ChatInputPartType represents an input part type for user chat input.
@@ -129,6 +137,14 @@ type ChatInputPart struct {
 	EndLine   int    `json:"end_line,omitempty"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content,omitempty"`
+	// ProviderMetadata stores opaque provider-specific metadata from
+	// the LLM response. It is persisted for round-trip fidelity when
+	// replaying conversation history but is NOT sent to API clients.
+	// This field is stripped in db2sdk before returning to callers.
+	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty"`
+	// ProviderExecuted indicates whether a tool call was executed by
+	// the provider. Only relevant for tool-call parts.
+	ProviderExecuted bool `json:"provider_executed,omitempty"`
 }
 
 // CreateChatRequest is the request to create a new chat.

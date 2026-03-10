@@ -11,6 +11,8 @@ import (
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const activeToolName = "read_file"
@@ -129,7 +131,7 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 	}()
 
 	persistedAssistantCtxErr := xerrors.New("unset")
-	var persistedContent []fantasy.Content
+	var persistedContent []codersdk.ChatMessagePart
 
 	err := Run(ctx, RunOptions{
 		Model: model,
@@ -142,9 +144,8 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 		MaxSteps: 3,
 		PersistStep: func(persistCtx context.Context, step PersistedStep) error {
 			persistedAssistantCtxErr = persistCtx.Err()
-			persistedContent = append([]fantasy.Content(nil), step.Content...)
-			return nil
-		},
+				persistedContent = append([]codersdk.ChatMessagePart(nil), step.Content...)
+				return nil		},
 	})
 	require.ErrorIs(t, err, ErrInterrupted)
 	require.NoError(t, persistedAssistantCtxErr)
@@ -156,25 +157,21 @@ func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 		foundToolResult bool
 	)
 	for _, block := range persistedContent {
-		if text, ok := fantasy.AsContentType[fantasy.TextContent](block); ok {
-			if strings.Contains(text.Text, "partial assistant output") {
+		switch {
+		case block.Type == codersdk.ChatMessagePartTypeText:
+			if strings.Contains(block.Text, "partial assistant output") {
 				foundText = true
 			}
-			continue
-		}
-		if toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block); ok {
-			if toolCall.ToolCallID == "interrupt-tool-1" &&
-				toolCall.ToolName == "read_file" &&
-				strings.Contains(toolCall.Input, `"path":"main.go"`) {
+		case block.Type == codersdk.ChatMessagePartTypeToolCall:
+			if block.ToolCallID == "interrupt-tool-1" &&
+				block.ToolName == "read_file" &&
+				strings.Contains(string(block.Args), `"path":"main.go"`) {
 				foundToolCall = true
 			}
-			continue
-		}
-		if toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok {
-			if toolResult.ToolCallID == "interrupt-tool-1" &&
-				toolResult.ToolName == "read_file" {
-				_, isErr := toolResult.Result.(fantasy.ToolResultOutputContentError)
-				require.True(t, isErr, "interrupted tool result should be an error")
+		case block.Type == codersdk.ChatMessagePartTypeToolResult:
+			if block.ToolCallID == "interrupt-tool-1" &&
+				block.ToolName == "read_file" {
+				require.True(t, block.IsError, "interrupted tool result should be an error")
 				foundToolResult = true
 			}
 		}

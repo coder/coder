@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
 
@@ -158,9 +159,8 @@ func generateTitle(
 		return "", xerrors.Errorf("generate title text: %w", err)
 	}
 
-	title := normalizeTitleOutput(contentBlocksToText(response.Content))
-	if title == "" {
-		return "", xerrors.New("generated title was empty")
+		title := normalizeTitleOutput(responseContentToText(response.Content))
+		if title == "" {		return "", xerrors.New("generated title was empty")
 	}
 	return title, nil
 }
@@ -252,7 +252,25 @@ func fallbackChatTitle(message string) string {
 
 // contentBlocksToText concatenates the text parts of content blocks
 // into a single space-separated string.
-func contentBlocksToText(content []fantasy.Content) string {
+func contentBlocksToText(content []codersdk.ChatMessagePart) string {
+	parts := make([]string, 0, len(content))
+	for _, block := range content {
+		if block.Type != codersdk.ChatMessagePartTypeText {
+			continue
+		}
+		text := strings.TrimSpace(block.Text)
+		if text == "" {
+			continue
+		}
+		parts = append(parts, text)
+	}
+	return strings.Join(parts, " ")
+}
+
+// responseContentToText extracts text from a fantasy response
+// content slice. Used for title generation where the response
+// comes directly from fantasy.Response, not from persisted parts.
+func responseContentToText(content []fantasy.Content) string {
 	parts := make([]string, 0, len(content))
 	for _, block := range content {
 		textBlock, ok := fantasy.AsContentType[fantasy.TextContent](block)

@@ -38,7 +38,7 @@ var ErrInterrupted = xerrors.New("chat interrupted")
 // persistence layer is responsible for splitting these into
 // separate database messages by role.
 type PersistedStep struct {
-	Content      []fantasy.Content
+	Content      []codersdk.ChatMessagePart
 	Usage        fantasy.Usage
 	ContextLimit sql.NullInt64
 }
@@ -85,7 +85,7 @@ type RunOptions struct {
 // step. Since we own the stream consumer, all content is tracked
 // directly here — no shadow draft state needed.
 type stepResult struct {
-	content          []fantasy.Content
+	content          []codersdk.ChatMessagePart
 	usage            fantasy.Usage
 	providerMetadata fantasy.ProviderMetadata
 	finishReason     fantasy.FinishReason
@@ -96,85 +96,118 @@ type stepResult struct {
 // toResponseMessages converts step content into messages suitable
 // for appending to the conversation. Mirrors fantasy's
 // toResponseMessages logic.
-func (r stepResult) toResponseMessages() []fantasy.Message {
-	var assistantParts []fantasy.MessagePart
-	var toolParts []fantasy.MessagePart
-
-	for _, c := range r.content {
-		switch c.GetType() {
-		case fantasy.ContentTypeText:
-			text, ok := fantasy.AsContentType[fantasy.TextContent](c)
-			if !ok {
-				continue
-			}
-			assistantParts = append(assistantParts, fantasy.TextPart{
-				Text:            text.Text,
-				ProviderOptions: fantasy.ProviderOptions(text.ProviderMetadata),
+func (r *stepResult) toResponseMessages() []fantasy.Message {
+	parts := make([]fantasy.MessagePart, 0, len(r.content))
+	for _, part := range r.content {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeText:
+			parts = append(parts, fantasy.TextPart{
+				Text:            part.Text,
+				ProviderOptions: providerMetadataToOptions(part.ProviderMetadata),
 			})
-		case fantasy.ContentTypeReasoning:
-			reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](c)
-			if !ok {
-				continue
-			}
-			assistantParts = append(assistantParts, fantasy.ReasoningPart{
-				Text:            reasoning.Text,
-				ProviderOptions: fantasy.ProviderOptions(reasoning.ProviderMetadata),
+		case codersdk.ChatMessagePartTypeReasoning:
+			parts = append(parts, fantasy.ReasoningPart{
+				Text:            part.Text,
+				ProviderOptions: providerMetadataToOptions(part.ProviderMetadata),
 			})
-		case fantasy.ContentTypeToolCall:
-			toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](c)
-			if !ok {
-				continue
-			}
-			assistantParts = append(assistantParts, fantasy.ToolCallPart{
-				ToolCallID:       toolCall.ToolCallID,
-				ToolName:         toolCall.ToolName,
-				Input:            toolCall.Input,
-				ProviderExecuted: toolCall.ProviderExecuted,
-				ProviderOptions:  fantasy.ProviderOptions(toolCall.ProviderMetadata),
+		case codersdk.ChatMessagePartTypeToolCall:
+			parts = append(parts, fantasy.ToolCallPart{
+				ToolCallID:       part.ToolCallID,
+				ToolName:         part.ToolName,
+				Input:            string(part.Args),
+				ProviderExecuted: part.ProviderExecuted,
+				ProviderOptions:  providerMetadataToOptions(part.ProviderMetadata),
 			})
-		case fantasy.ContentTypeFile:
-			file, ok := fantasy.AsContentType[fantasy.FileContent](c)
-			if !ok {
-				continue
-			}
-			assistantParts = append(assistantParts, fantasy.FilePart{
-				Data:            file.Data,
-				MediaType:       file.MediaType,
-				ProviderOptions: fantasy.ProviderOptions(file.ProviderMetadata),
+		case codersdk.ChatMessagePartTypeFile:
+			parts = append(parts, fantasy.FilePart{
+				Data:            part.Data,
+				MediaType:       part.MediaType,
+				ProviderOptions: providerMetadataToOptions(part.ProviderMetadata),
 			})
-		case fantasy.ContentTypeSource:
+		case codersdk.ChatMessagePartTypeToolResult:
+			p := fantasy.ToolResultPart{
+				ToolCallID:      part.ToolCallID,
+				ProviderOptions: providerMetadataToOptions(part.ProviderMetadata),
+			}
+			if part.IsError {
+				errMsg := string(part.Result)
+				p.Output = fantasy.ToolResultOutputContentError{Error: xerrors.New(errMsg)}
+			} else if len(part.Result) > 0 {
+				p.Output = fantasy.ToolResultOutputContentText{Text: string(part.Result)}
+			}
+			parts = append(parts, p)
+		case codersdk.ChatMessagePartTypeSource:
 			// Sources are metadata about references; they don't
 			// need to be included in conversation messages.
-			continue
-		case fantasy.ContentTypeToolResult:
-			result, ok := fantasy.AsContentType[fantasy.ToolResultContent](c)
-			if !ok {
-				continue
-			}
-			toolParts = append(toolParts, fantasy.ToolResultPart{
-				ToolCallID:      result.ToolCallID,
-				Output:          result.Result,
-				ProviderOptions: fantasy.ProviderOptions(result.ProviderMetadata),
-			})
-		default:
 			continue
 		}
 	}
 
-	var messages []fantasy.Message
-	if len(assistantParts) > 0 {
+	messages := make([]fantasy.Message, 0, 2)
+	if assistantParts := filterAssistantParts(parts); len(assistantParts) > 0 {
 		messages = append(messages, fantasy.Message{
 			Role:    fantasy.MessageRoleAssistant,
 			Content: assistantParts,
 		})
 	}
-	if len(toolParts) > 0 {
+	if toolParts := filterToolParts(parts); len(toolParts) > 0 {
 		messages = append(messages, fantasy.Message{
 			Role:    fantasy.MessageRoleTool,
 			Content: toolParts,
 		})
 	}
 	return messages
+}
+
+// filterAssistantParts returns only the message parts that belong
+// in an assistant message (text, reasoning, tool calls, files).
+func filterAssistantParts(parts []fantasy.MessagePart) []fantasy.MessagePart {
+	var out []fantasy.MessagePart
+	for _, p := range parts {
+		switch p.(type) {
+		case fantasy.TextPart, fantasy.ReasoningPart,
+			fantasy.ToolCallPart, fantasy.FilePart:
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// filterToolParts returns only the tool-result parts.
+func filterToolParts(parts []fantasy.MessagePart) []fantasy.MessagePart {
+	var out []fantasy.MessagePart
+	for _, p := range parts {
+		if _, ok := p.(fantasy.ToolResultPart); ok {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// marshalProviderMetadata converts fantasy ProviderMetadata to JSON
+// for storage in SDK parts.
+func marshalProviderMetadata(metadata fantasy.ProviderMetadata) json.RawMessage {
+	if len(metadata) == 0 {
+		return nil
+	}
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+// providerMetadataToOptions converts stored JSON provider metadata
+// back to fantasy ProviderOptions for LLM dispatch.
+func providerMetadataToOptions(raw json.RawMessage) fantasy.ProviderOptions {
+	if len(raw) == 0 {
+		return nil
+	}
+	var opts fantasy.ProviderOptions
+	if err := json.Unmarshal(raw, &opts); err != nil {
+		return nil
+	}
+	return opts
 }
 
 // reasoningState accumulates reasoning content and provider
@@ -303,7 +336,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 					)
 				})
 				for _, tr := range toolResults {
-					result.content = append(result.content, tr)
+					result.content = append(result.content, chatprompt.PartFromContent(tr))
 				}
 			}
 
@@ -428,28 +461,6 @@ func processStepStream(
 	activeReasoningContent := make(map[string]reasoningState)
 	// Track tool names by ID for input delta publishing.
 	toolNames := make(map[string]string)
-	// Track reasoning text/titles for title extraction.
-	reasoningTitles := make(map[string]string)
-	reasoningText := make(map[string]string)
-
-	setReasoningTitleFromText := func(id string, text string) {
-		if id == "" || strings.TrimSpace(text) == "" {
-			return
-		}
-		if reasoningTitles[id] != "" {
-			return
-		}
-		reasoningText[id] += text
-		if !strings.ContainsAny(reasoningText[id], "\r\n") {
-			return
-		}
-		title := chatprompt.ReasoningTitleFromFirstLine(reasoningText[id])
-		if title == "" {
-			return
-		}
-		reasoningTitles[id] = title
-	}
-
 	for part := range stream {
 		switch part.Type {
 		case fantasy.StreamPartTypeTextStart:
@@ -466,9 +477,10 @@ func processStepStream(
 
 		case fantasy.StreamPartTypeTextEnd:
 			if text, exists := activeTextContent[part.ID]; exists {
-				result.content = append(result.content, fantasy.TextContent{
+				result.content = append(result.content, codersdk.ChatMessagePart{
+					Type:             codersdk.ChatMessagePartTypeText,
 					Text:             text,
-					ProviderMetadata: part.ProviderMetadata,
+					ProviderMetadata: marshalProviderMetadata(part.ProviderMetadata),
 				})
 				delete(activeTextContent, part.ID)
 			}
@@ -485,12 +497,9 @@ func processStepStream(
 				active.options = part.ProviderMetadata
 				activeReasoningContent[part.ID] = active
 			}
-			setReasoningTitleFromText(part.ID, part.Delta)
-			title := reasoningTitles[part.ID]
 			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type:  codersdk.ChatMessagePartTypeReasoning,
-				Text:  part.Delta,
-				Title: title,
+				Type: codersdk.ChatMessagePartTypeReasoning,
+				Text: part.Delta,
 			})
 
 		case fantasy.StreamPartTypeReasoningEnd:
@@ -498,27 +507,12 @@ func processStepStream(
 				if part.ProviderMetadata != nil {
 					active.options = part.ProviderMetadata
 				}
-				content := fantasy.ReasoningContent{
+				result.content = append(result.content, codersdk.ChatMessagePart{
+					Type:             codersdk.ChatMessagePartTypeReasoning,
 					Text:             active.text,
-					ProviderMetadata: active.options,
-				}
-				result.content = append(result.content, content)
+					ProviderMetadata: marshalProviderMetadata(active.options),
+				})
 				delete(activeReasoningContent, part.ID)
-
-				// Derive reasoning title at end of reasoning
-				// block if we haven't yet.
-				if reasoningTitles[part.ID] == "" {
-					reasoningTitles[part.ID] = chatprompt.ReasoningTitleFromFirstLine(
-						reasoningText[part.ID],
-					)
-				}
-				title := reasoningTitles[part.ID]
-				if title != "" {
-					publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-						Type:  codersdk.ChatMessagePartTypeReasoning,
-						Title: title,
-					})
-				}
 			}
 		case fantasy.StreamPartTypeToolInputStart:
 			activeToolCalls[part.ID] = &fantasy.ToolCallContent{
@@ -556,7 +550,14 @@ func processStepStream(
 				ProviderMetadata: part.ProviderMetadata,
 			}
 			result.toolCalls = append(result.toolCalls, tc)
-			result.content = append(result.content, tc)
+			result.content = append(result.content, codersdk.ChatMessagePart{
+				Type:             codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID:       tc.ToolCallID,
+				ToolName:         tc.ToolName,
+				Args:             json.RawMessage(tc.Input),
+				ProviderExecuted: tc.ProviderExecuted,
+				ProviderMetadata: marshalProviderMetadata(tc.ProviderMetadata),
+			})
 			if strings.TrimSpace(part.ToolCallName) != "" {
 				toolNames[part.ID] = part.ToolCallName
 			}
@@ -569,17 +570,21 @@ func processStepStream(
 			)
 
 		case fantasy.StreamPartTypeSource:
-			sourceContent := fantasy.SourceContent{
-				SourceType:       part.SourceType,
-				ID:               part.ID,
+			result.content = append(result.content, codersdk.ChatMessagePart{
+				Type:             codersdk.ChatMessagePartTypeSource,
+				SourceID:         part.ID,
 				URL:              part.URL,
 				Title:            part.Title,
-				ProviderMetadata: part.ProviderMetadata,
-			}
-			result.content = append(result.content, sourceContent)
+				ProviderMetadata: marshalProviderMetadata(part.ProviderMetadata),
+			})
 			publishMessagePart(
 				fantasy.MessageRoleAssistant,
-				chatprompt.PartFromContent(sourceContent),
+				codersdk.ChatMessagePart{
+					Type:     codersdk.ChatMessagePartTypeSource,
+					SourceID: part.ID,
+					URL:      part.URL,
+					Title:    part.Title,
+				},
 			)
 
 		case fantasy.StreamPartTypeFinish:
@@ -712,16 +717,20 @@ func flushActiveState(
 	// Flush partial text content.
 	for _, text := range activeText {
 		if text != "" {
-			result.content = append(result.content, fantasy.TextContent{Text: text})
+			result.content = append(result.content, codersdk.ChatMessagePart{
+				Type: codersdk.ChatMessagePartTypeText,
+				Text: text,
+			})
 		}
 	}
 
 	// Flush partial reasoning content.
 	for _, rs := range activeReasoning {
 		if rs.text != "" {
-			result.content = append(result.content, fantasy.ReasoningContent{
+			result.content = append(result.content, codersdk.ChatMessagePart{
+				Type:             codersdk.ChatMessagePartTypeReasoning,
 				Text:             rs.text,
-				ProviderMetadata: rs.options,
+				ProviderMetadata: marshalProviderMetadata(rs.options),
 			})
 		}
 	}
@@ -747,7 +756,13 @@ func flushActiveState(
 			Input:            tc.Input,
 			ProviderExecuted: tc.ProviderExecuted,
 		}
-		result.content = append(result.content, flushed)
+		result.content = append(result.content, codersdk.ChatMessagePart{
+			Type:             codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:       flushed.ToolCallID,
+			ToolName:         flushed.ToolName,
+			Args:             json.RawMessage(flushed.Input),
+			ProviderExecuted: flushed.ProviderExecuted,
+		})
 		result.toolCalls = append(result.toolCalls, flushed)
 	}
 }
@@ -767,15 +782,14 @@ func persistInterruptedStep(
 	// Track which tool calls already have results in the content.
 	answeredToolCalls := make(map[string]struct{})
 	for _, c := range result.content {
-		tr, ok := fantasy.AsContentType[fantasy.ToolResultContent](c)
-		if ok && tr.ToolCallID != "" {
-			answeredToolCalls[tr.ToolCallID] = struct{}{}
+		if c.Type == codersdk.ChatMessagePartTypeToolResult && c.ToolCallID != "" {
+			answeredToolCalls[c.ToolCallID] = struct{}{}
 		}
 	}
 
 	// Build combined content: all accumulated content + synthetic
 	// interrupted results for any unanswered tool calls.
-	content := make([]fantasy.Content, 0, len(result.content))
+	content := make([]codersdk.ChatMessagePart, 0, len(result.content))
 	content = append(content, result.content...)
 
 	for _, tc := range result.toolCalls {
@@ -785,12 +799,13 @@ func persistInterruptedStep(
 		if _, exists := answeredToolCalls[tc.ToolCallID]; exists {
 			continue
 		}
-		content = append(content, fantasy.ToolResultContent{
+		errResult, _ := json.Marshal(map[string]any{"error": interruptedToolResultErrorMessage})
+		content = append(content, codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
 			ToolCallID: tc.ToolCallID,
 			ToolName:   tc.ToolName,
-			Result: fantasy.ToolResultOutputContentError{
-				Error: xerrors.New(interruptedToolResultErrorMessage),
-			},
+			Result:     errResult,
+			IsError:    true,
 		})
 		answeredToolCalls[tc.ToolCallID] = struct{}{}
 	}

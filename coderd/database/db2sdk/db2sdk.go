@@ -1136,161 +1136,57 @@ func ChatQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQu
 }
 
 func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	switch role {
-	case string(fantasy.MessageRoleSystem):
-		content, err := parseSystemContent(raw)
-		if err != nil {
-			return nil, err
+	// All roles now use chatprompt.ParseContent which handles both
+	// the new SDK format and legacy fantasy envelope format. For
+	// tool messages, we also try the legacy toolResultRow format.
+	parts, err := chatprompt.ParseContent(role, raw)
+	if err != nil {
+		// Tool messages may use the legacy [{"tool_call_id":...}]
+		// format which ParseContent doesn't handle.
+		if role == string(fantasy.MessageRoleTool) {
+			return parseToolResultsAsSDKParts(raw)
 		}
-		if strings.TrimSpace(content) == "" {
-			return nil, nil
-		}
-		return []codersdk.ChatMessagePart{{
-			Type: codersdk.ChatMessagePartTypeText,
-			Text: content,
-		}}, nil
-	case string(fantasy.MessageRoleUser), string(fantasy.MessageRoleAssistant):
-		// User messages may be stored in SDK format (new) or
-		// fantasy envelope format (legacy). Try SDK format first
-		// for user messages.
-		if role == string(fantasy.MessageRoleUser) {
-			if parts, ok := tryParseSDKParts(raw); ok {
-				return parts, nil
-			}
-		}
-
-		// Fall back to fantasy envelope format (legacy user
-		// messages and all assistant messages).
-		var rawBlocks []json.RawMessage
-		_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
-
-		content, err := parseContentBlocks(role, raw)
-		if err != nil {
-			return nil, err
-		}
-
-		parts := make([]codersdk.ChatMessagePart, 0, len(content))
-		for i, block := range content {
-			part := contentBlockToPart(block)
-			if part.Type == "" {
-				continue
-			}
-			if i < len(rawBlocks) {
-				switch part.Type {
-				case codersdk.ChatMessagePartTypeReasoning:
-					part.Title = reasoningStoredTitle(rawBlocks[i])
-				case codersdk.ChatMessagePartTypeFile:
-					if fid, err := chatprompt.ExtractFileID(rawBlocks[i]); err == nil {
-						part.FileID = uuid.NullUUID{UUID: fid, Valid: true}
-					}
-					// When a file_id is present, omit inline data
-					// from the response. Clients fetch content via
-					// the GET /chats/files/{id} endpoint instead.
-					if part.FileID.Valid {
-						part.Data = nil
-					}
-				}
-			}
-			parts = append(parts, part)
-		}
-		return parts, nil
-	case string(fantasy.MessageRoleTool):
-		results, err := parseToolResults(raw)
-		if err != nil {
-			return nil, err
-		}
-		parts := make([]codersdk.ChatMessagePart, 0, len(results))
-		for _, result := range results {
-			parts = append(parts, codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolResult,
-				ToolCallID: result.ToolCallID,
-				ToolName:   result.ToolName,
-				Result:     result.Result,
-				IsError:    result.IsError,
-			})
-		}
-		return parts, nil
-	default:
-		return nil, nil
+		return nil, err
 	}
-}
-
-// tryParseSDKParts attempts to parse content as
-// []codersdk.ChatMessagePart (new SDK storage format for user
-// messages). Returns false if the content uses the legacy fantasy
-// envelope format.
-func tryParseSDKParts(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, bool) {
-	if !raw.Valid || len(raw.RawMessage) == 0 {
-		return nil, false
+	if len(parts) == 0 && role == string(fantasy.MessageRoleTool) {
+		// ParseContent returns nil for tool messages stored in the
+		// legacy toolResultRow format. Try that format.
+		return parseToolResultsAsSDKParts(raw)
 	}
 
-	// Plain string is handled by parseContentBlocks, not here.
-	if raw.RawMessage[0] == '"' {
-		return nil, false
-	}
-
-	// Check if this is fantasy envelope format (has "data" object
-	// wrapper). If so, fall through to legacy parsing.
-	if chatprompt.IsFantasyEnvelopeFormat(raw.RawMessage) {
-		return nil, false
-	}
-
-	var parts []codersdk.ChatMessagePart
-	if err := json.Unmarshal(raw.RawMessage, &parts); err != nil {
-		return nil, false
-	}
-
-	// Strip inline file data — clients fetch via the files endpoint.
+	// Strip provider_metadata and inline file data from API
+	// responses. Provider metadata is internal; file data is
+	// fetched via the files endpoint.
 	for i := range parts {
+		parts[i].ProviderMetadata = nil
 		if parts[i].Type == codersdk.ChatMessagePartTypeFile && parts[i].FileID.Valid {
 			parts[i].Data = nil
 		}
 	}
-
-	return parts, true
+	return parts, nil
 }
 
-func parseSystemContent(raw pqtype.NullRawMessage) (string, error) {
-	if !raw.Valid || len(raw.RawMessage) == 0 {
-		return "", nil
+// parseToolResultsAsSDKParts parses tool results stored in the
+// legacy [{"tool_call_id":...}] format into SDK parts.
+func parseToolResultsAsSDKParts(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
+	results, err := parseToolResults(raw)
+	if err != nil {
+		return nil, err
 	}
-	var content string
-	if err := json.Unmarshal(raw.RawMessage, &content); err != nil {
-		return "", xerrors.Errorf("parse system content: %w", err)
+	parts := make([]codersdk.ChatMessagePart, 0, len(results))
+	for _, result := range results {
+		parts = append(parts, codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolResult,
+			ToolCallID: result.ToolCallID,
+			ToolName:   result.ToolName,
+			Result:     result.Result,
+			IsError:    result.IsError,
+		})
 	}
-	return content, nil
+	return parts, nil
 }
 
-func parseContentBlocks(role string, raw pqtype.NullRawMessage) ([]fantasy.Content, error) {
-	if !raw.Valid || len(raw.RawMessage) == 0 {
-		return nil, nil
-	}
 
-	if role == string(fantasy.MessageRoleUser) {
-		var text string
-		if err := json.Unmarshal(raw.RawMessage, &text); err == nil {
-			return []fantasy.Content{
-				fantasy.TextContent{Text: text},
-			}, nil
-		}
-	}
-
-	var blocks []json.RawMessage
-	if err := json.Unmarshal(raw.RawMessage, &blocks); err != nil {
-		return nil, xerrors.Errorf("parse content blocks: %w", err)
-	}
-
-	content := make([]fantasy.Content, 0, len(blocks))
-	for _, block := range blocks {
-		decoded, err := fantasy.UnmarshalContent(block)
-		if err != nil {
-			return nil, xerrors.Errorf("parse content block: %w", err)
-		}
-		content = append(content, decoded)
-	}
-
-	return content, nil
-}
 
 // toolResultRow is used only for extracting top-level fields from
 // persisted tool result JSON. The result payload is kept as raw JSON.
@@ -1313,134 +1209,8 @@ func parseToolResults(raw pqtype.NullRawMessage) ([]toolResultRow, error) {
 	return results, nil
 }
 
-func reasoningStoredTitle(raw json.RawMessage) string {
-	var envelope struct {
-		Type string `json:"type"`
-		Data struct {
-			Title string `json:"title"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return ""
-	}
-	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeReasoning)) {
-		return ""
-	}
-	return strings.TrimSpace(envelope.Data.Title)
-}
 
-func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
-	switch value := block.(type) {
-	case fantasy.TextContent:
-		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeText,
-			Text: value.Text,
-		}
-	case *fantasy.TextContent:
-		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeText,
-			Text: value.Text,
-		}
-	case fantasy.ReasoningContent:
-		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeReasoning,
-			Text: value.Text,
-		}
-	case *fantasy.ReasoningContent:
-		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeReasoning,
-			Text: value.Text,
-		}
-	case fantasy.ToolCallContent:
-		return codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: value.ToolCallID,
-			ToolName:   value.ToolName,
-			Args:       []byte(value.Input),
-		}
-	case *fantasy.ToolCallContent:
-		return codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: value.ToolCallID,
-			ToolName:   value.ToolName,
-			Args:       []byte(value.Input),
-		}
-	case fantasy.SourceContent:
-		return codersdk.ChatMessagePart{
-			Type:     codersdk.ChatMessagePartTypeSource,
-			SourceID: value.ID,
-			URL:      value.URL,
-			Title:    value.Title,
-		}
-	case *fantasy.SourceContent:
-		return codersdk.ChatMessagePart{
-			Type:     codersdk.ChatMessagePartTypeSource,
-			SourceID: value.ID,
-			URL:      value.URL,
-			Title:    value.Title,
-		}
-	case fantasy.FileContent:
-		return codersdk.ChatMessagePart{
-			Type:      codersdk.ChatMessagePartTypeFile,
-			MediaType: value.MediaType,
-			Data:      value.Data,
-		}
-	case *fantasy.FileContent:
-		return codersdk.ChatMessagePart{
-			Type:      codersdk.ChatMessagePartTypeFile,
-			MediaType: value.MediaType,
-			Data:      value.Data,
-		}
-	case fantasy.ToolResultContent:
-		return chatprompt.ToolResultToPart(
-			value.ToolCallID,
-			value.ToolName,
-			toolResultOutputToRawJSON(value.Result),
-			toolResultOutputIsError(value.Result),
-		)
-	case *fantasy.ToolResultContent:
-		return chatprompt.ToolResultToPart(
-			value.ToolCallID,
-			value.ToolName,
-			toolResultOutputToRawJSON(value.Result),
-			toolResultOutputIsError(value.Result),
-		)
-	default:
-		return codersdk.ChatMessagePart{}
-	}
-}
 
-func toolResultOutputToRawJSON(output fantasy.ToolResultOutputContent) json.RawMessage {
-	switch v := output.(type) {
-	case fantasy.ToolResultOutputContentError:
-		if v.Error != nil {
-			data, _ := json.Marshal(map[string]any{"error": v.Error.Error()})
-			return data
-		}
-		return json.RawMessage(`{"error":""}`)
-	case fantasy.ToolResultOutputContentText:
-		raw := json.RawMessage(v.Text)
-		if json.Valid(raw) {
-			return raw
-		}
-		data, _ := json.Marshal(map[string]any{"output": v.Text})
-		return data
-	case fantasy.ToolResultOutputContentMedia:
-		data, _ := json.Marshal(map[string]any{
-			"data":      v.Data,
-			"mime_type": v.MediaType,
-			"text":      v.Text,
-		})
-		return data
-	default:
-		return json.RawMessage(`{}`)
-	}
-}
-
-func toolResultOutputIsError(output fantasy.ToolResultOutputContent) bool {
-	_, ok := output.(fantasy.ToolResultOutputContentError)
-	return ok
-}
 
 func nullInt64Ptr(v sql.NullInt64) *int64 {
 	if !v.Valid {

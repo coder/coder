@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
@@ -49,13 +50,13 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			assistantContent, err := chatprompt.MarshalContent([]fantasy.Content{
-				fantasy.ToolCallContent{
+			assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				chatprompt.PartFromContent(fantasy.ToolCallContent{
 					ToolCallID: "toolu_01C4PqN6F2493pi7Ebag8Vg7",
 					ToolName:   "execute",
 					Input:      tc.input,
-				},
-			}, nil)
+				}),
+			})
 			require.NoError(t, err)
 
 			toolContent, err := chatprompt.MarshalToolResult(
@@ -183,43 +184,6 @@ func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
 	require.True(t, ok, "expected FilePart")
 	require.Equal(t, inlineData, filePart.Data)
-}
-
-func TestInjectFileID_StripsInlineData(t *testing.T) {
-	t.Parallel()
-
-	fileID := uuid.New()
-	imageData := []byte("raw-image-bytes")
-
-	// Marshal a file content block with inline data, then inject
-	// a file_id. The result should have file_id but no data.
-	content, err := chatprompt.MarshalContent([]fantasy.Content{
-		fantasy.FileContent{
-			MediaType: "image/png",
-			Data:      imageData,
-		},
-	}, map[int]uuid.UUID{0: fileID})
-	require.NoError(t, err)
-
-	// Parse the stored content to verify shape.
-	var blocks []json.RawMessage
-	require.NoError(t, json.Unmarshal(content.RawMessage, &blocks))
-	require.Len(t, blocks, 1)
-
-	var envelope struct {
-		Type string `json:"type"`
-		Data struct {
-			MediaType string           `json:"media_type"`
-			Data      *json.RawMessage `json:"data,omitempty"`
-			FileID    string           `json:"file_id"`
-		} `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(blocks[0], &envelope))
-	require.Equal(t, "file", envelope.Type)
-	require.Equal(t, "image/png", envelope.Data.MediaType)
-	require.Equal(t, fileID.String(), envelope.Data.FileID)
-	// Data should be nil (omitted) since injectFileID strips it.
-	require.Nil(t, envelope.Data.Data, "inline data should be stripped")
 }
 
 func mustJSON(t *testing.T, v any) json.RawMessage {

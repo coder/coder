@@ -438,9 +438,12 @@ func TestAIBridgeInterception(t *testing.T) {
 	}
 }
 
-func TestChatMessage_ReasoningPartWithoutPersistedTitleIsEmpty(t *testing.T) {
+func TestChatMessage_ReasoningPartLegacyEnvelope(t *testing.T) {
 	t.Parallel()
 
+	// Legacy fantasy envelope format for reasoning content.
+	// Title extraction has been removed — we only verify the
+	// reasoning text is preserved.
 	assistantContent, err := json.Marshal([]fantasy.Content{
 		fantasy.ReasoningContent{
 			Text: "Plan migration",
@@ -468,12 +471,14 @@ func TestChatMessage_ReasoningPartWithoutPersistedTitleIsEmpty(t *testing.T) {
 	require.Len(t, message.Content, 1)
 	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
 	require.Equal(t, "Plan migration", message.Content[0].Text)
-	require.Empty(t, message.Content[0].Title)
 }
 
-func TestChatMessage_ReasoningPartPrefersPersistedTitle(t *testing.T) {
+func TestChatMessage_ReasoningPartLegacyPersistedTitle(t *testing.T) {
 	t.Parallel()
 
+	// Legacy format with a "title" field injected into the
+	// fantasy envelope. Since title extraction is removed, the
+	// title field is ignored and only the text is preserved.
 	reasoningContent, err := json.Marshal(fantasy.ReasoningContent{
 		Text: "Verify schema updates, then apply changes in order.",
 		ProviderMetadata: fantasy.ProviderMetadata{
@@ -511,7 +516,9 @@ func TestChatMessage_ReasoningPartPrefersPersistedTitle(t *testing.T) {
 
 	require.Len(t, message.Content, 1)
 	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
-	require.Equal(t, "Persisted stream title", message.Content[0].Title)
+	require.Equal(t, "Verify schema updates, then apply changes in order.", message.Content[0].Text)
+	// Title extraction removed — persisted title is not surfaced.
+	require.Empty(t, message.Content[0].Title)
 }
 
 func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
