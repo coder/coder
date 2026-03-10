@@ -11,8 +11,10 @@ import {
 	chatsKey,
 	createChat,
 	infiniteChats,
+	readInfiniteChatsCache,
 	unarchiveChat,
 	updateChatSystemPrompt,
+	updateInfiniteChatsCache,
 } from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
@@ -380,12 +382,10 @@ const AgentsPage: FC = () => {
 					// is synchronously updated by both the per-chat WebSocket
 					// (via updateSidebarChat) and this handler. This avoids
 					// the async-lag of a useEffect-based status map.
-					const currentChats =
-						queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+					const currentChats = readInfiniteChatsCache(queryClient);
 					const prevStatus = currentChats?.find(
 						(c) => c.id === updatedChat.id,
-					)?.status;
-					// Only play the chime for top-level chats, not sub-agents.
+					)?.status; // Only play the chime for top-level chats, not sub-agents.
 					if (!updatedChat.parent_chat_id) {
 						maybePlayChime(
 							prevStatus,
@@ -396,14 +396,11 @@ const AgentsPage: FC = () => {
 					}
 
 					if (chatEvent.kind === "deleted") {
-						queryClient.setQueryData(
-							chatsKey,
-							(prev: TypesGen.Chat[] | undefined) =>
-								prev?.filter(
-									(c) =>
-										c.id !== updatedChat.id &&
-										c.root_chat_id !== updatedChat.id,
-								),
+						updateInfiniteChatsCache(queryClient, (chats) =>
+							chats.filter(
+								(c) =>
+									c.id !== updatedChat.id && c.root_chat_id !== updatedChat.id,
+							),
 						);
 						queryClient.removeQueries({
 							queryKey: chatKey(updatedChat.id),
@@ -435,31 +432,27 @@ const AgentsPage: FC = () => {
 					const isTitleEvent = chatEvent.kind === "title_change";
 					const isStatusEvent = chatEvent.kind === "status_change";
 
-					queryClient.setQueryData(
-						chatsKey,
-						(prev: TypesGen.Chat[] | undefined) => {
-							if (!prev) return prev;
-							const exists = prev.some((c) => c.id === updatedChat.id);
-							if (exists) {
-								return prev.map((c) => {
-									if (c.id !== updatedChat.id) return c;
-									return {
-										...c,
-										...(isStatusEvent && { status: updatedChat.status }),
-										...(isTitleEvent && { title: updatedChat.title }),
-										updated_at:
-											c.updated_at > updatedChat.updated_at
-												? c.updated_at
-												: updatedChat.updated_at,
-									};
-								});
-							}
-							if (chatEvent.kind === "created") {
-								return [updatedChat, ...prev];
-							}
-							return prev;
-						},
-					);
+					updateInfiniteChatsCache(queryClient, (chats) => {
+						const exists = chats.some((c) => c.id === updatedChat.id);
+						if (exists) {
+							return chats.map((c) => {
+								if (c.id !== updatedChat.id) return c;
+								return {
+									...c,
+									...(isStatusEvent && { status: updatedChat.status }),
+									...(isTitleEvent && { title: updatedChat.title }),
+									updated_at:
+										c.updated_at > updatedChat.updated_at
+											? c.updated_at
+											: updatedChat.updated_at,
+								};
+							});
+						}
+						if (chatEvent.kind === "created") {
+							return [updatedChat, ...chats];
+						}
+						return chats;
+					});
 					queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
 						chatKey(updatedChat.id),
 						(previousChat) => {
