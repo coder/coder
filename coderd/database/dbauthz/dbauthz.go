@@ -1543,7 +1543,7 @@ func (q *querier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int
 	// This is a system-level batch operation used by the gitsync
 	// background worker. Per-object authorization is impractical
 	// for a SKIP LOCKED acquisition query; callers must use
-	// AsChatd or AsSystemRestricted context.
+	// AsChatd context.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
