@@ -3,6 +3,7 @@ package gitsync_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -16,7 +17,9 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/gitsync"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -736,4 +739,96 @@ func TestWorker_MarkStale_EmptyBranchOrOrigin(t *testing.T) {
 			worker.MarkStale(ctx, uuid.New(), uuid.New(), tc.branch, tc.origin)
 		})
 	}
+}
+
+// TestWorker exercises the worker tick against a
+// real PostgreSQL database to verify that the SQL queries, foreign key
+// constraints, and upsert logic work end-to-end.
+func TestWorker(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// 1. Real database store.
+	db, _ := dbtestutil.NewDB(t)
+
+	// 2. Create a user (FK for chats).
+	user := dbgen.User(t, db, database.User{})
+
+	// 3. Set up FK chain: chat_providers -> chat_model_configs -> chats.
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		Enabled:              true,
+		ContextLimit:         100000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage("{}"),
+	})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "integration-test",
+	})
+	require.NoError(t, err)
+
+	// 4. Seed a stale diff status row so the worker picks it up.
+	_, err = db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+		ChatID:          chat.ID,
+		GitBranch:       "feature",
+		GitRemoteOrigin: "https://github.com/o/r",
+		StaleAt:         time.Now().Add(-time.Minute),
+		Url:             sql.NullString{},
+	})
+	require.NoError(t, err)
+
+	// 5. Mock refresher returns a canned PR status.
+	mClock := quartz.NewMock(t)
+	refresher := newTestRefresher(t, mClock)
+
+	// 6. Track publish calls.
+	var publishCount atomic.Int32
+	tickDone := make(chan struct{})
+	pub := func(_ context.Context, chatID uuid.UUID) error {
+		assert.Equal(t, chat.ID, chatID)
+		if publishCount.Add(1) == 1 {
+			close(tickDone)
+		}
+		return nil
+	}
+
+	// 7. Create and run the worker for one tick.
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	worker := gitsync.NewWorker(db, refresher, pub, mClock, logger)
+
+	tickOnce(ctx, t, mClock, worker, tickDone)
+
+	// 8. Assert publisher was called.
+	require.Equal(t, int32(1), publishCount.Load())
+
+	// 9. Read back and verify persisted fields.
+	status, err := db.GetChatDiffStatusByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	// The mock resolveBranchPR returns PRRef{Owner: "o", Repo: "r", Number: 1}
+	// and buildPullRequestURL formats it as https://github.com/o/r/pull/1.
+	assert.Equal(t, "https://github.com/o/r/pull/1", status.Url.String)
+	assert.True(t, status.Url.Valid)
+	assert.Equal(t, string(gitprovider.PRStateOpen), status.PullRequestState.String)
+	assert.True(t, status.PullRequestState.Valid)
+	assert.Equal(t, int32(10), status.Additions)
+	assert.Equal(t, int32(3), status.Deletions)
+	assert.Equal(t, int32(2), status.ChangedFiles)
+	assert.True(t, status.RefreshedAt.Valid, "refreshed_at should be set")
+	// The mock clock's Now() + DiffStatusTTL determines stale_at.
+	expectedStaleAt := mClock.Now().Add(gitsync.DiffStatusTTL)
+	assert.WithinDuration(t, expectedStaleAt, status.StaleAt, time.Second)
 }
