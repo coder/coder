@@ -1,7 +1,7 @@
 # Early Access
 
-Coder Agents is available through Early Access for selected
-customers to evaluate while the product is under active development.
+Coder Agents is available through Early Access for the community
+to evaluate while the product is under active development.
 Participation comes with important expectations and limitations described
 below.
 
