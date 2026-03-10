@@ -51,6 +51,12 @@ const meta: Meta<typeof AgentCreateForm> = {
 			system_prompt: "",
 		});
 		spyOn(API, "updateChatSystemPrompt").mockResolvedValue();
+		spyOn(API, "getUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "",
+		});
+		spyOn(API, "updateUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "",
+		});
 	},
 };
 
@@ -180,12 +186,20 @@ export const SavesBehaviorPromptAndRestores: Story = {
 	},
 	play: async () => {
 		const dialog = await screen.findByRole("dialog");
-		const textarea = await within(dialog).findByPlaceholderText(
-			"Optional. Set deployment-wide instructions for all new chats.",
+
+		// Find the System Instructions textarea by its unique placeholder.
+		const textareas = await within(dialog).findAllByPlaceholderText(
+			"Additional behavior, style, and tone preferences for all users",
 		);
+		const textarea = textareas[0];
 
 		await userEvent.type(textarea, "You are a focused coding assistant.");
-		await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		// Click the Save button inside the System Instructions form.
+		// There are multiple Save buttons (one per form), so grab all and
+		// pick the last one which belongs to the system prompt section.
+		const saveButtons = within(dialog).getAllByRole("button", { name: "Save" });
+		await userEvent.click(saveButtons[saveButtons.length - 1]);
 
 		await waitFor(() => {
 			expect(API.updateChatSystemPrompt).toHaveBeenCalledWith({
