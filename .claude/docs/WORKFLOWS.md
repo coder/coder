@@ -109,7 +109,6 @@
 
 - Run full test suite: `make test`
 - Run specific test: `make test RUN=TestFunctionName`
-- Run with Postgres: `make test-postgres`
 - Run with race detector: `make test-race`
 - Run end-to-end tests: `make test-e2e`
 

@@ -3021,7 +3021,7 @@ func TestUserTailnetTelemetry(t *testing.T) {
 			q.Set("version", "2.0")
 			u.RawQuery = q.Encode()
 
-			predialTime := time.Now()
+			predialTime := dbtime.Now()
 
 			//nolint:bodyclose // websocket package closes this for you
 			wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{

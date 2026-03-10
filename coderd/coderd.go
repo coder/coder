@@ -662,6 +662,7 @@ func New(options *Options) *API {
 	api.SiteHandler, err = site.New(&site.Options{
 		CacheDir:          siteCacheDir,
 		Database:          options.Database,
+		Authorizer:        options.Authorizer,
 		SiteFS:            site.FS(),
 		OAuth2Configs:     oauthConfigs,
 		DocsURL:           options.DeploymentValues.DocsURL.String(),

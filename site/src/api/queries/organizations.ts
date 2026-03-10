@@ -6,11 +6,13 @@ import {
 import type {
 	CreateOrganizationRequest,
 	GroupSyncSettings,
+	Organization,
 	PaginatedMembersRequest,
 	PaginatedMembersResponse,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
+import type { MetadataState } from "hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "hooks/usePaginatedQuery";
 import {
 	type OrganizationPermissionName,
@@ -24,6 +26,7 @@ import {
 } from "modules/permissions/workspaces";
 import type { QueryClient, UseQueryOptions } from "react-query";
 import { meKey } from "./users";
+import { cachedQuery } from "./util";
 
 export const createOrganization = (queryClient: QueryClient) => {
 	return {
@@ -160,11 +163,14 @@ export const updateOrganizationMemberRoles = (
 
 export const organizationsKey = ["organizations"] as const;
 
-export const organizations = () => {
-	return {
+const notAvailable = { available: false, value: undefined } as const;
+
+export const organizations = (metadata?: MetadataState<Organization[]>) => {
+	return cachedQuery({
+		metadata: metadata ?? notAvailable,
 		queryKey: organizationsKey,
 		queryFn: () => API.getOrganizations(),
-	};
+	});
 };
 
 export const getProvisionerDaemonsKey = (
