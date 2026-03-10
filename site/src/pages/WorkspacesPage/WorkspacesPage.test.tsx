@@ -273,7 +273,7 @@ describe("WorkspacesPage", () => {
 			workspaces,
 			count: workspaces.length,
 		});
-		const startWorkspace = vi.spyOn(API, "startWorkspace");
+		const retryWorkspace = vi.spyOn(API, "retryWorkspace");
 		const user = userEvent.setup();
 		renderWithAuth(<WorkspacesPage />);
 		await waitForLoaderToBeRemoved();
@@ -285,14 +285,14 @@ describe("WorkspacesPage", () => {
 		await user.click(startButton);
 
 		await waitFor(() => {
-			expect(startWorkspace).toHaveBeenCalledTimes(2);
+			expect(retryWorkspace).toHaveBeenCalledTimes(2);
 		});
-		expect(startWorkspace).toHaveBeenCalledWith(
-			workspaces[0].id,
+		expect(retryWorkspace).toHaveBeenCalledWith(
+			workspaces[0],
 			MockStoppedWorkspace.latest_build.template_version_id,
 		);
-		expect(startWorkspace).toHaveBeenCalledWith(
-			workspaces[1].id,
+		expect(retryWorkspace).toHaveBeenCalledWith(
+			workspaces[1],
 			MockStoppedWorkspace.latest_build.template_version_id,
 		);
 	});
