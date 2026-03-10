@@ -9116,6 +9116,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		require.Contains(t, gotIDs, postUser.ID)
 	})
 }
+
 func TestGetWorkspaceBuildMetricsByResourceID(t *testing.T) {
 	t.Parallel()
 
@@ -9235,4 +9236,3 @@ func TestGetWorkspaceBuildMetricsByResourceID(t *testing.T) {
 		require.Equal(t, "success", row.WorstStatus)
 	})
 }
-
