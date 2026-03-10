@@ -478,8 +478,8 @@ func TestRun_ShutdownDuringToolExecutionReturnsContextCanceled(t *testing.T) {
 		Messages: []fantasy.Message{
 			textMessage(fantasy.MessageRoleUser, "run the blocking tool"),
 		},
-		Tools:    []fantasy.AgentTool{blockingTool},
-		MaxSteps: 3,
+		Tools:       []fantasy.AgentTool{blockingTool},
+		MaxSteps:    3,
 		PersistStep: persistStep,
 	})
 	require.Error(t, err)
