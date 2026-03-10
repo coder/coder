@@ -197,13 +197,13 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 									label="Prompts"
 									description="Custom instructions that shape how the agent responds in your chats."
 								/>
-							{/* ── User custom prompt (always visible) ── */}
+							{/* ── Personal prompt (always visible) ── */}
 							<form
 								className="space-y-2"
 								onSubmit={(event) => void onSaveUserPrompt(event)}
 							>
 								<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-									Custom Prompt
+									Personal Prompt
 								</h3>
 								<p className="m-0 text-xs text-content-secondary">
 									Personal instructions appended to all your new chats. Only
@@ -239,7 +239,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								</div>
 								{saveUserPromptError && (
 									<p className="m-0 text-xs text-content-destructive">
-										Failed to save custom prompt.
+										Failed to save personal prompt.
 									</p>
 								)}
 							</form>

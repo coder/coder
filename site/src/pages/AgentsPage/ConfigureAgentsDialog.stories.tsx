@@ -91,10 +91,10 @@ const meta: Meta<typeof ConfigureAgentsDialog> = {
 export default meta;
 type Story = StoryObj<typeof ConfigureAgentsDialog>;
 
-/** Regular user sees only the Custom Prompt section. */
+/** Regular user sees only the Personal Prompt section. */
 export const UserOnly: Story = {};
 
-/** Admin sees Custom Prompt + System Prompt in the same Prompts tab. */
+/** Admin sees Personal Prompt + System Prompt in the same Prompts tab. */
 export const AdminPrompts: Story = {
 	args: {
 		canSetSystemPrompt: true,
