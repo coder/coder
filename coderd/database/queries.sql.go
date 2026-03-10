@@ -3026,6 +3026,102 @@ func (q *sqlQuerier) AcquireChat(ctx context.Context, arg AcquireChatParams) (Ch
 	return i, err
 }
 
+const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many
+WITH acquired AS (
+    UPDATE
+        chat_diff_statuses
+    SET
+        -- Claim for 5 minutes. The worker sets the real stale_at
+        -- after refresh. If the worker crashes, rows become eligible
+        -- again after this interval.
+        stale_at = NOW() + INTERVAL '5 minutes',
+        updated_at = NOW()
+    WHERE
+        chat_id IN (
+            SELECT
+                cds.chat_id
+            FROM
+                chat_diff_statuses cds
+            INNER JOIN
+                chats c ON c.id = cds.chat_id
+            WHERE
+                cds.stale_at <= NOW()
+                AND cds.git_remote_origin != ''
+                AND cds.git_branch != ''
+                AND c.archived = FALSE
+            ORDER BY
+                cds.stale_at ASC
+            FOR UPDATE OF cds
+                SKIP LOCKED
+            LIMIT
+                $1::int
+        )
+    RETURNING chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
+)
+SELECT
+    acquired.chat_id, acquired.url, acquired.pull_request_state, acquired.changes_requested, acquired.additions, acquired.deletions, acquired.changed_files, acquired.refreshed_at, acquired.stale_at, acquired.created_at, acquired.updated_at, acquired.git_branch, acquired.git_remote_origin,
+    c.owner_id
+FROM
+    acquired
+INNER JOIN
+    chats c ON c.id = acquired.chat_id
+`
+
+type AcquireStaleChatDiffStatusesRow struct {
+	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
+	Url              sql.NullString `db:"url" json:"url"`
+	PullRequestState sql.NullString `db:"pull_request_state" json:"pull_request_state"`
+	ChangesRequested bool           `db:"changes_requested" json:"changes_requested"`
+	Additions        int32          `db:"additions" json:"additions"`
+	Deletions        int32          `db:"deletions" json:"deletions"`
+	ChangedFiles     int32          `db:"changed_files" json:"changed_files"`
+	RefreshedAt      sql.NullTime   `db:"refreshed_at" json:"refreshed_at"`
+	StaleAt          time.Time      `db:"stale_at" json:"stale_at"`
+	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
+	GitBranch        string         `db:"git_branch" json:"git_branch"`
+	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
+	OwnerID          uuid.UUID      `db:"owner_id" json:"owner_id"`
+}
+
+func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]AcquireStaleChatDiffStatusesRow, error) {
+	rows, err := q.db.QueryContext(ctx, acquireStaleChatDiffStatuses, limitVal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AcquireStaleChatDiffStatusesRow
+	for rows.Next() {
+		var i AcquireStaleChatDiffStatusesRow
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.Url,
+			&i.PullRequestState,
+			&i.ChangesRequested,
+			&i.Additions,
+			&i.Deletions,
+			&i.ChangedFiles,
+			&i.RefreshedAt,
+			&i.StaleAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GitBranch,
+			&i.GitRemoteOrigin,
+			&i.OwnerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const archiveChatByID = `-- name: ArchiveChatByID :exec
 UPDATE chats SET archived = true, updated_at = NOW()
 WHERE id = $1 OR root_chat_id = $1
@@ -3033,6 +3129,26 @@ WHERE id = $1 OR root_chat_id = $1
 
 func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, archiveChatByID, id)
+	return err
+}
+
+const backoffChatDiffStatus = `-- name: BackoffChatDiffStatus :exec
+UPDATE
+    chat_diff_statuses
+SET
+    stale_at = $1::timestamptz,
+    updated_at = NOW()
+WHERE
+    chat_id = $2::uuid
+`
+
+type BackoffChatDiffStatusParams struct {
+	StaleAt time.Time `db:"stale_at" json:"stale_at"`
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+func (q *sqlQuerier) BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error {
+	_, err := q.db.ExecContext(ctx, backoffChatDiffStatus, arg.StaleAt, arg.ChatID)
 	return err
 }
 

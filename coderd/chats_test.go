@@ -2605,7 +2605,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, cachedStatusChat.ID, cachedStatus.ChatID)
 		require.NotNil(t, cachedStatus.URL)
-		require.Equal(t, "https://github.com/coder/coder/tree/feature%2Fdiff-status", *cachedStatus.URL)
+		require.Equal(t, "https://github.com/coder/coder/tree/feature/diff-status", *cachedStatus.URL)
 		require.NotNil(t, cachedStatus.PullRequestState)
 		require.Equal(t, "open", *cachedStatus.PullRequestState)
 		require.True(t, cachedStatus.ChangesRequested)
