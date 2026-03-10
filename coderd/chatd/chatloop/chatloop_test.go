@@ -10,6 +10,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 )
@@ -453,8 +454,11 @@ func TestRun_ShutdownDuringToolExecutionReturnsContextCanceled(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
+	serverCancelDone := make(chan struct{})
 	go func() {
+		defer close(serverCancelDone)
 		<-toolStarted
+		t.Logf("tool started, canceling server context to simulate shutdown")
 		serverCancel()
 	}()
 
@@ -482,12 +486,17 @@ func TestRun_ShutdownDuringToolExecutionReturnsContextCanceled(t *testing.T) {
 		MaxSteps:    3,
 		PersistStep: persistStep,
 	})
+	// Wait for the cancel goroutine to finish to aid flake
+	// diagnosis if the test ever hangs.
+	<-serverCancelDone
+
 	require.Error(t, err)
 	// The error must NOT be ErrInterrupted — it should propagate
 	// as context.Canceled so the caller can distinguish shutdown
-	// from user interruption.
-	require.NotErrorIs(t, err, ErrInterrupted, "shutdown cancellation must not be converted to ErrInterrupted")
-	require.ErrorIs(t, err, context.Canceled, "shutdown should propagate as context.Canceled")
+	// from user interruption. Use assert (not require) so both
+	// checks are evaluated even if the first fails.
+	assert.NotErrorIs(t, err, ErrInterrupted, "shutdown cancellation must not be converted to ErrInterrupted")
+	assert.ErrorIs(t, err, context.Canceled, "shutdown should propagate as context.Canceled")
 }
 
 func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
