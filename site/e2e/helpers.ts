@@ -74,7 +74,13 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	// biome-ignore lint/suspicious/noExplicitAny: reset the current user
 	(ctx as any)[Symbol.for("currentUser")] = undefined;
 	await ctx.clearCookies();
-	await page.goto("/login");
+	await page.goto("/login", { waitUntil: "domcontentloaded" });
+
+	// Dynamic imports can fail with ERR_NETWORK_CHANGED during
+	// parallel test execution. Reload the page if the error
+	// boundary appears instead of the login form.
+	await reloadPageIfDynamicImportFailed(page, "form");
+
 	await page.getByLabel("Email").fill(options.email);
 	await page.getByLabel("Password").fill(options.password);
 	await page.getByRole("button", { name: "Sign In" }).click();
