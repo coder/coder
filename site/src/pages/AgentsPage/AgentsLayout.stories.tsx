@@ -7,7 +7,7 @@ import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { fn, spyOn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { AgentsPageView } from "./AgentsPageView";
+import { AgentsLayout } from "./AgentsLayout";
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
@@ -57,9 +57,9 @@ const agentsRouting = [
 	...{ path: string; useStoryElement: boolean }[],
 ];
 
-const meta: Meta<typeof AgentsPageView> = {
-	title: "pages/AgentsPage/AgentsPageView",
-	component: AgentsPageView,
+const meta: Meta<typeof AgentsLayout> = {
+	title: "pages/AgentsPage/AgentsLayout",
+	component: AgentsLayout,
 	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		layout: "fullscreen",
@@ -112,7 +112,7 @@ const meta: Meta<typeof AgentsPageView> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof AgentsPageView>;
+type Story = StoryObj<typeof AgentsLayout>;
 
 export const EmptyState: Story = {};
 

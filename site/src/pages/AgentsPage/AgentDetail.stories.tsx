@@ -29,7 +29,7 @@ import {
 } from "storybook-addon-remix-react-router";
 import AgentDetail from "./AgentDetail";
 import { RIGHT_PANEL_OPEN_KEY } from "./AgentDetailView";
-import type { AgentsOutletContext } from "./AgentsPage";
+import type { AgentsOutletContext } from "./AgentsLayout";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper – provides outlet context for the child route.

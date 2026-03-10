@@ -39,8 +39,8 @@ import {
 	emptyInputStorageKey,
 } from "./AgentCreateForm";
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
-import type { AgentsOutletContext } from "./AgentsPageView";
-import { AgentsPageView } from "./AgentsPageView";
+import type { AgentsOutletContext } from "./AgentsLayout";
+import { AgentsLayout } from "./AgentsLayout";
 import { getModelOptionsFromCatalog } from "./modelOptions";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
@@ -62,7 +62,7 @@ function isChatListSSEEvent(
 	);
 }
 
-export type { AgentsOutletContext } from "./AgentsPageView";
+export type { AgentsOutletContext } from "./AgentsLayout";
 
 const AgentsPage: FC = () => {
 	useAgentsPWA();
@@ -74,49 +74,6 @@ const AgentsPage: FC = () => {
 	const isAgentsAdmin =
 		permissions.editDeploymentConfig ||
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
-
-	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
-	// layout shift on pages that toggle scrollbars. The agents page
-	// uses its own internal scroll containers so the reserved gutter
-	// space is unnecessary and wastes horizontal room.
-	//
-	// Removing the gutter requires three things:
-	//
-	// 1. overflow:hidden on both <html> and <body> so neither element
-	//    can produce a scrollbar.
-	// 2. scrollbar-gutter:auto on <html> so the browser stops
-	//    reserving space for a scrollbar that will never appear.
-	//    This is what makes react-remove-scroll-bar measure a gap of
-	//    0 when a Radix dropdown opens, so it injects no padding or
-	//    margin compensation.
-	// 3. An injected <style> that overrides the global
-	//    `overflow-y: scroll !important` on body[data-scroll-locked].
-	//    Without this, opening any Radix dropdown would force a
-	//    scrollbar onto <body>, re-introducing the layout shift.
-	useEffect(() => {
-		const html = document.documentElement;
-		const body = document.body;
-
-		const prevHtmlOverflow = html.style.overflow;
-		const prevHtmlScrollbarGutter = html.style.scrollbarGutter;
-		const prevBodyOverflow = body.style.overflow;
-
-		html.style.overflow = "hidden";
-		html.style.scrollbarGutter = "auto";
-		body.style.overflow = "hidden";
-
-		const style = document.createElement("style");
-		style.textContent =
-			"html body[data-scroll-locked] { overflow-y: hidden !important; }";
-		document.head.appendChild(style);
-
-		return () => {
-			html.style.overflow = prevHtmlOverflow;
-			html.style.scrollbarGutter = prevHtmlScrollbarGutter;
-			body.style.overflow = prevBodyOverflow;
-			style.remove();
-		};
-	}, []);
 
 	const chatsQuery = useInfiniteQuery(infiniteChats());
 	const chatModelsQuery = useQuery(chatModels());
@@ -458,7 +415,7 @@ const AgentsPage: FC = () => {
 	});
 
 	return (
-		<AgentsPageView
+		<AgentsLayout
 			agentId={agentId}
 			chatList={chatList}
 			catalogModelOptions={catalogModelOptions}

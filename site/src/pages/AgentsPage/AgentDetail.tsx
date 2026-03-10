@@ -73,7 +73,7 @@ import {
 	AgentDetailNotFoundView,
 	AgentDetailView,
 } from "./AgentDetailView";
-import type { AgentsOutletContext } from "./AgentsPage";
+import type { AgentsOutletContext } from "./AgentsLayout";
 import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
