@@ -16,6 +16,7 @@ import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { useAuthenticated } from "hooks";
 import { ArchiveIcon, EyeIcon } from "lucide-react";
 import {
 	getTerminalHref,
@@ -34,7 +35,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
-import { useAuthenticated } from "hooks";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import {
@@ -639,7 +639,9 @@ const AgentDetail: FC = () => {
 	const chatData = chatQuery.data;
 	const chatRecord = chatData?.chat;
 	const { user: currentUser } = useAuthenticated();
-	const isViewingOtherChat = Boolean(chatRecord && chatRecord.owner_id !== currentUser.id);
+	const isViewingOtherChat = Boolean(
+		chatRecord && chatRecord.owner_id !== currentUser.id,
+	);
 	const chatOwnerQuery = useQuery({
 		queryKey: ["users", chatRecord?.owner_id],
 		queryFn: () => API.getUsers({ q: `id:${chatRecord?.owner_id}`, limit: 1 }),
@@ -1253,7 +1255,9 @@ const AgentDetail: FC = () => {
 							persistedErrorReason={
 								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
 							}
-							onEditUserMessage={isViewingOtherChat ? undefined : editing.handleEditUserMessage}
+							onEditUserMessage={
+								isViewingOtherChat ? undefined : editing.handleEditUserMessage
+							}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
 						/>

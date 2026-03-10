@@ -125,7 +125,12 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						)}
 						{chatOwner && (
 							<span className="flex shrink-0 items-center gap-1 rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary">
-								<Avatar src={chatOwner.avatar_url} fallback={chatOwner.username} size="sm" className="size-4" />
+								<Avatar
+									src={chatOwner.avatar_url}
+									fallback={chatOwner.username}
+									size="sm"
+									className="size-4"
+								/>
 								@{chatOwner.username}&apos;s chat
 							</span>
 						)}
