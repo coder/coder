@@ -213,6 +213,20 @@ func TestGenerator(t *testing.T) {
 		require.Equal(t, exp, must(db.GetUserByID(context.Background(), exp.ID)))
 	})
 
+	t.Run("ServiceAccountUser", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		exp := dbgen.User(t, db, database.User{
+			IsServiceAccount: true,
+			Email:            "should-be-overridden@coder.com",
+			LoginType:        database.LoginTypePassword,
+		})
+		require.True(t, exp.IsServiceAccount)
+		require.Empty(t, exp.Email)
+		require.Equal(t, exp.LoginType, database.LoginTypeNone)
+		require.Equal(t, exp, must(db.GetUserByID(context.Background(), exp.ID)))
+	})
+
 	t.Run("SSHKey", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
