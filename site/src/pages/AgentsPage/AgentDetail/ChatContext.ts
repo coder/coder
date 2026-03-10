@@ -1,5 +1,5 @@
 import { watchChat } from "api/api";
-import { chatKey, chatsKey } from "api/queries/chats";
+import { chatKey, updateInfiniteChatsCache } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
 import {
@@ -475,23 +475,17 @@ export const useChatStore = (
 			if (!chatID) {
 				return;
 			}
-			queryClient.setQueryData<readonly TypesGen.Chat[] | undefined>(
-				chatsKey,
-				(currentChats) => {
-					if (!currentChats) {
-						return currentChats;
+			updateInfiniteChatsCache(queryClient, (chats) => {
+				let didUpdate = false;
+				const nextChats = chats.map((chat) => {
+					if (chat.id !== chatID) {
+						return chat;
 					}
-					let didUpdate = false;
-					const nextChats = currentChats.map((chat) => {
-						if (chat.id !== chatID) {
-							return chat;
-						}
-						didUpdate = true;
-						return updater(chat);
-					});
-					return didUpdate ? nextChats : currentChats;
-				},
-			);
+					didUpdate = true;
+					return updater(chat);
+				});
+				return didUpdate ? nextChats : chats;
+			});
 		},
 		[chatID, queryClient],
 	);
