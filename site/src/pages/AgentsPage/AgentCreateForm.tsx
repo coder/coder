@@ -1,7 +1,4 @@
-import {
-	chatSystemPrompt,
-	updateChatSystemPrompt,
-} from "api/queries/chats";
+import { chatSystemPrompt, updateChatSystemPrompt } from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
