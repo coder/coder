@@ -89,6 +89,7 @@ function extractDiffContent(
 	const file = parsedFiles.find((f) => f.name === fileName);
 	if (!file) return "";
 
+	const lines = side === "additions" ? file.additionLines : file.deletionLines;
 	const collected: string[] = [];
 	for (const hunk of file.hunks) {
 		let addLine = hunk.additionStart;
@@ -96,10 +97,14 @@ function extractDiffContent(
 
 		for (const block of hunk.hunkContent) {
 			if (block.type === "context") {
-				for (const line of block.lines) {
+				for (let i = 0; i < block.lines; i++) {
 					const ln = side === "additions" ? addLine : delLine;
 					if (ln >= startLine && ln <= endLine) {
-						collected.push(line);
+						const idx =
+							side === "additions"
+								? block.additionLineIndex + i
+								: block.deletionLineIndex + i;
+						if (lines[idx] != null) collected.push(lines[idx]);
 					}
 					addLine++;
 					delLine++;
@@ -107,23 +112,25 @@ function extractDiffContent(
 			} else {
 				// ChangeContent block.
 				if (side === "deletions") {
-					for (const line of block.deletions) {
+					for (let i = 0; i < block.deletions; i++) {
 						if (delLine >= startLine && delLine <= endLine) {
-							collected.push(line);
+							const line = lines[block.deletionLineIndex + i];
+							if (line != null) collected.push(line);
 						}
 						delLine++;
 					}
 					// Addition lines in a change block still advance
 					// the addition counter.
-					addLine += block.additions.length;
+					addLine += block.additions;
 				} else {
 					// side === "additions"
 					// Deletion lines in a change block still advance
 					// the deletion counter.
-					delLine += block.deletions.length;
-					for (const line of block.additions) {
+					delLine += block.deletions;
+					for (let i = 0; i < block.additions; i++) {
 						if (addLine >= startLine && addLine <= endLine) {
-							collected.push(line);
+							const line = lines[block.additionLineIndex + i];
+							if (line != null) collected.push(line);
 						}
 						addLine++;
 					}

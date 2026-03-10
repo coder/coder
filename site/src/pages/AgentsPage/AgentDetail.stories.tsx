@@ -6,6 +6,7 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withProxyProvider,
 	withWebSocket,
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
@@ -27,6 +28,7 @@ import {
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
 import AgentDetail from "./AgentDetail";
+import { RIGHT_PANEL_OPEN_KEY } from "./AgentDetailView";
 import type { AgentsOutletContext } from "./AgentsPage";
 
 // ---------------------------------------------------------------------------
@@ -177,7 +179,12 @@ const wrapSSE = (payload: unknown): string =>
 const meta: Meta<typeof AgentDetailLayout> = {
 	title: "pages/AgentsPage/AgentDetail",
 	component: AgentDetailLayout,
-	decorators: [withAuthProvider, withDashboardProvider, withWebSocket],
+	decorators: [
+		withAuthProvider,
+		withDashboardProvider,
+		withProxyProvider(),
+		withWebSocket,
+	],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
@@ -299,6 +306,10 @@ export const Loading: Story = {};
 
 /** Full layout with actions menu and diff panel portaled to the right slot. */
 export const CompletedWithDiffPanel: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
 	parameters: {
 		queries: buildQueries(
 			{
@@ -511,6 +522,10 @@ export const StreamedSubagentTitle: Story = {
  * the PR tab.
  */
 export const SidebarWithPRAndRepos: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
 	parameters: {
 		queries: buildQueries(
 			{
@@ -691,6 +706,10 @@ export const SidebarWithPRAndRepos: Story = {
  * the tab bar is hidden and the repo panel is rendered directly.
  */
 export const SidebarWithSingleRepo: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
 	parameters: {
 		queries: buildQueries(
 			{
@@ -800,6 +819,8 @@ export const StreamedReasoningCollapsed: Story = {
 		await user.click(reasoningToggle);
 
 		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
-		expect(canvas.getByText("Streaming reasoning body")).toBeInTheDocument();
+		await expect(
+			canvas.findByText("Streaming reasoning body"),
+		).resolves.toBeInTheDocument();
 	},
 };

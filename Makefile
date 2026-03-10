@@ -19,6 +19,16 @@ SHELL := bash
 .SHELLFLAGS := -ceu
 .ONESHELL:
 
+# When MAKE_TIMED=1, replace SHELL with a wrapper that prints
+# elapsed wall-clock time for each recipe. pre-commit and pre-push
+# set this on their sub-makes so every parallel job reports its
+# duration. Ad-hoc usage: make MAKE_TIMED=1 test
+ifdef MAKE_TIMED
+SHELL := $(CURDIR)/scripts/lib/timed-shell.sh
+.SHELLFLAGS = $@ -ceu
+export MAKE_TIMED
+endif
+
 # This doesn't work on directories.
 # See https://stackoverflow.com/questions/25752543/make-delete-on-error-for-directory-targets
 .DELETE_ON_ERROR:
@@ -108,11 +118,14 @@ POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(P
 # parallelism. Override: make pre-push PARALLEL_JOBS=8
 PARALLEL_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8); echo $$(( n / 4 > 2 ? n / 4 : 2 )))
 
-# Use the highest ZSTD compression level in CI.
-ifdef CI
+# Use the highest ZSTD compression level in release builds to
+# minimize artifact size. For non-release CI builds (e.g. main
+# branch preview), use multithreaded level 6 which is ~99% faster
+# at the cost of ~30% larger archives.
+ifeq ($(CODER_RELEASE),true)
 ZSTDFLAGS := -22 --ultra
 else
-ZSTDFLAGS := -6
+ZSTDFLAGS := -6 -T0
 endif
 
 # Common paths to exclude from find commands, this rule is written so
@@ -626,7 +639,7 @@ lint/ts: site/node_modules/.installed
 lint/go:
 	./scripts/check_enterprise_imports.sh
 	./scripts/check_codersdk_imports.sh
-	linter_ver=$(shell egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
+	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
 	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
 .PHONY: lint/go
@@ -753,10 +766,10 @@ endef
 pre-commit:
 	start=$$(date +%s)
 	echo "=== Phase 1/2: gen + fmt ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target gen fmt
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 gen fmt
 	$(check-unstaged)
 	echo "=== Phase 2/2: lint + build ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target \
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
@@ -767,10 +780,10 @@ pre-commit:
 pre-push:
 	start=$$(date +%s)
 	echo "=== Phase 1/2: gen + fmt + postgres ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target gen fmt test-postgres-docker
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 gen fmt test-postgres-docker
 	$(check-unstaged)
 	echo "=== Phase 2/2: lint + build + test ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target \
+	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT) \

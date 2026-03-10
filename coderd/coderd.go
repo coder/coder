@@ -1127,6 +1127,13 @@ func New(options *Options) *API {
 				r.Post("/", api.postChatFile)
 				r.Get("/{file}", api.chatFileByID)
 			})
+			r.Route("/config", func(r chi.Router) {
+				r.Get("/system-prompt", api.getChatSystemPrompt)
+				r.Put("/system-prompt", api.putChatSystemPrompt)
+				r.Get("/user-prompt", api.getUserChatCustomPrompt)
+				r.Put("/user-prompt", api.putUserChatCustomPrompt)
+			})
+			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {
 				r.Get("/", api.listChatProviders)
 				r.Post("/", api.createChatProvider)
@@ -1135,6 +1142,7 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatProvider)
 				})
 			})
+			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/model-configs", func(r chi.Router) {
 				r.Get("/", api.listChatModelConfigs)
 				r.Post("/", api.createChatModelConfig)
@@ -1457,6 +1465,7 @@ func New(options *Options) *API {
 						r.Put("/appearance", api.putUserAppearanceSettings)
 						r.Get("/preferences", api.userPreferenceSettings)
 						r.Put("/preferences", api.putUserPreferenceSettings)
+
 						r.Route("/password", func(r chi.Router) {
 							r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 							r.Put("/", api.putUserPassword)

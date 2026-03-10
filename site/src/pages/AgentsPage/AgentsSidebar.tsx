@@ -72,6 +72,8 @@ interface AgentsSidebarProps {
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
+	hasNextPage?: boolean;
+	onLoadMore?: () => void;
 	onCollapse?: () => void;
 }
 
@@ -417,7 +419,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								<div className="flex min-w-0 items-center gap-1.5">
 									{hasLinkedDiffStatus && hasLineStats && (
 										<span
-											className="inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-medium leading-none tabular-nums"
+											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
 											<span className="text-green-700 dark:text-green-500">
@@ -537,6 +539,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isLoading = false,
 		loadError,
 		onRetryLoad,
+		hasNextPage,
+		onLoadMore,
 		onCollapse,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -791,6 +795,18 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											</CollapsibleContent>
 										</Collapsible>
 									)}
+								</div>
+							)}
+							{hasNextPage && (
+								<div className="px-2 py-2">
+									<Button
+										size="sm"
+										variant="outline"
+										className="w-full"
+										onClick={onLoadMore}
+									>
+										Show more
+									</Button>
 								</div>
 							)}
 						</ChatTreeContext.Provider>

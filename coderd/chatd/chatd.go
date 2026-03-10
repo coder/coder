@@ -1020,8 +1020,30 @@ func (p *Server) start(ctx context.Context) {
 }
 
 func (p *Server) processOnce(ctx context.Context) {
-	// Try to acquire a pending chat.
-	chat, err := p.db.AcquireChat(ctx, database.AcquireChatParams{
+	// Bail out early if the server is shutting down. The main
+	// loop's select can randomly pick the ticker over ctx.Done(),
+	// so we must guard against acquiring a chat we cannot process.
+	if ctx.Err() != nil {
+		return
+	}
+
+	// Try to acquire a pending chat. We detach from the server
+	// lifetime to prevent a phantom-acquire race: when the server
+	// context is canceled, the pq driver's watchCancel goroutine
+	// races with the actual query on the wire. The UPDATE can
+	// commit in Postgres (setting the chat to "running") before
+	// the cancel request arrives via a second TCP connection, yet
+	// the Go driver still returns context.Canceled to the caller
+	// because the awaitDone goroutine in database/sql closes the
+	// Rows before Scan reads them. This leaves the chat stuck as
+	// "running" with no goroutine to process it. Using a context
+	// that cannot be canceled ensures the driver sees the query
+	// result if Postgres executed it.
+	acquireCtx, acquireCancel := context.WithTimeout(
+		context.WithoutCancel(ctx), 10*time.Second,
+	)
+	defer acquireCancel()
+	chat, err := p.db.AcquireChat(acquireCtx, database.AcquireChatParams{
 		StartedAt: time.Now(),
 		WorkerID:  p.workerID,
 	})
@@ -1030,6 +1052,29 @@ func (p *Server) processOnce(ctx context.Context) {
 			p.logger.Error(ctx, "failed to acquire chat", slog.Error(err))
 		}
 		// No pending chats or error.
+		return
+	}
+
+	// If the server context was canceled while we were acquiring,
+	// release the chat back to pending immediately so another
+	// replica can pick it up.
+	if ctx.Err() != nil {
+		releaseCtx, releaseCancel := context.WithTimeout(
+			context.WithoutCancel(ctx), 10*time.Second,
+		)
+		defer releaseCancel()
+		_, updateErr := p.db.UpdateChatStatus(releaseCtx, database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusPending,
+			WorkerID:    uuid.NullUUID{},
+			StartedAt:   sql.NullTime{},
+			HeartbeatAt: sql.NullTime{},
+			LastError:   sql.NullString{},
+		})
+		if updateErr != nil {
+			p.logger.Error(ctx, "failed to release chat acquired during shutdown",
+				slog.F("chat_id", chat.ID), slog.Error(updateErr))
+		}
 		return
 	}
 
@@ -1977,33 +2022,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		chat.Status = status
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
 
-		// Send a web push notification when the agent finishes
-		// processing. We only notify for terminal states (waiting
-		// = success, error = failure) and skip sub-agent chats
-		// and user-interrupted chats to avoid unnecessary
-		// notifications.
-		if p.webpushDispatcher != nil && p.webpushDispatcher.PublicKey() != "" && !chat.ParentChatID.Valid && !wasInterrupted {
-			if status == database.ChatStatusWaiting || status == database.ChatStatusError {
-				pushMsg := codersdk.WebpushMessage{
-					Title: chat.Title,
-					Body:  "Agent has finished running.",
-					Icon:  "/favicon.ico",
-					Data:  map[string]string{"url": fmt.Sprintf("/agents/%s", chat.ID)},
-				}
-				if status == database.ChatStatusError {
-					pushMsg.Body = "Agent encountered an error."
-					if lastError != "" {
-						pushMsg.Body = lastError
-					}
-				}
-				if err := p.webpushDispatcher.Dispatch(cleanupCtx, chat.OwnerID, pushMsg); err != nil {
-					logger.Warn(cleanupCtx, "failed to send chat completion web push",
-						slog.F("chat_id", chat.ID),
-						slog.F("status", status),
-						slog.Error(err),
-					)
-				}
-			}
+		if !wasInterrupted {
+			p.maybeSendPushNotification(cleanupCtx, chat, status, lastError, logger)
 		}
 	}()
 
@@ -2209,21 +2229,30 @@ func (p *Server) runChat(
 	if instruction := p.resolveInstructions(ctx, chat, getWorkspaceConn); instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
 	}
+	if userPrompt := p.resolveUserPrompt(ctx, chat.OwnerID); userPrompt != "" {
+		prompt = chatprompt.InsertSystem(prompt, userPrompt)
+	}
 
-	// Use the model config's context_limit as a fallback when the LLM
-	// provider doesn't include context_limit in its response metadata
+	// Use the model config's context_limit as a fallback when the LLM	// provider doesn't include context_limit in its response metadata
 	// (which is the common case).
 	modelConfigContextLimit := modelConfig.ContextLimit
 
 	persistStep := func(persistCtx context.Context, step chatloop.PersistedStep) error {
-		// If the chat context has been canceled (e.g. by an
-		// EditMessage call), bail out before inserting any
-		// messages. This closes the race window between
-		// EditMessage committing its transaction (which deletes
-		// messages after the edit point) and the cancellation
-		// propagating to the processing loop.
+		// If the chat context has been canceled, bail out before
+		// inserting any messages. We distinguish the cause so that
+		// the caller can tell an intentional interruption (e.g.
+		// EditMessage, user stop) from a server shutdown:
+		//   - ErrInterrupted cause → return ErrInterrupted
+		//     (processChat sets status = waiting).
+		//   - Any other cause (e.g. context.Canceled during
+		//     Close()) → return the original context error so
+		//     isShutdownCancellation can match and set status =
+		//     pending, allowing another replica to retry.
 		if persistCtx.Err() != nil {
-			return chatloop.ErrInterrupted
+			if errors.Is(context.Cause(persistCtx), chatloop.ErrInterrupted) {
+				return chatloop.ErrInterrupted
+			}
+			return persistCtx.Err()
 		}
 
 		// Split the step content into assistant blocks and tool
@@ -2482,6 +2511,9 @@ func (p *Server) runChat(
 			}
 			if instruction := p.resolveInstructions(reloadCtx, chat, getWorkspaceConn); instruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			}
+			if userPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID); userPrompt != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, userPrompt)
 			}
 			return reloadedPrompt, nil
 		},
@@ -2857,6 +2889,22 @@ func (p *Server) resolveInstructions(
 	return instruction
 }
 
+// resolveUserPrompt fetches the user's custom chat prompt from the
+// database and wraps it in <user-instructions> tags. Returns empty
+// string if no prompt is set.
+func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string {
+	raw, err := p.db.GetUserChatCustomPrompt(ctx, userID)
+	if err != nil {
+		// sql.ErrNoRows is the normal "not set" case.
+		return ""
+	}
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
+}
+
 func (p *Server) recoverStaleChats(ctx context.Context) {
 	staleAfter := time.Now().Add(-p.inFlightChatStaleAfter)
 	staleChats, err := p.db.GetStaleChats(ctx, staleAfter)
@@ -2922,6 +2970,90 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 
 	if recovered > 0 {
 		p.logger.Info(ctx, "recovered stale chats", slog.F("count", recovered))
+	}
+}
+
+// maybeSendPushNotification sends a web push notification when an
+// agent chat reaches a terminal state. For errors it dispatches
+// synchronously; for successful completions it spawns a goroutine
+// that generates a short LLM summary before dispatching. The caller
+// is responsible for skipping interrupted chats.
+func (p *Server) maybeSendPushNotification(
+	ctx context.Context,
+	chat database.Chat,
+	status database.ChatStatus,
+	lastError string,
+	logger slog.Logger,
+) {
+	if p.webpushDispatcher == nil || p.webpushDispatcher.PublicKey() == "" {
+		return
+	}
+	if chat.ParentChatID.Valid {
+		return
+	}
+
+	switch status {
+	case database.ChatStatusError:
+		pushBody := "Agent encountered an error."
+		if lastError != "" {
+			pushBody = lastError
+		}
+		p.dispatchPush(ctx, chat, pushBody, status, logger)
+
+	case database.ChatStatusWaiting:
+		// Generate a push notification summary asynchronously
+		// using a cheap LLM model. This avoids blocking the
+		// deferred cleanup path while still providing a
+		// meaningful notification body.
+		p.inflight.Add(1)
+		go func() {
+			defer p.inflight.Done()
+			pushCtx := context.WithoutCancel(ctx)
+			pushBody := "Agent has finished running."
+
+			msg, err := p.db.GetLastChatMessageByRole(pushCtx, database.GetLastChatMessageByRoleParams{
+				ChatID: chat.ID,
+				Role:   "assistant",
+			})
+			if err == nil {
+				content, parseErr := chatprompt.ParseContent(msg.Role, msg.Content)
+				if parseErr == nil {
+					assistantText := strings.TrimSpace(contentBlocksToText(content))
+					if assistantText != "" {
+						model, _, keys, resolveErr := p.resolveChatModel(pushCtx, chat)
+						if resolveErr == nil {
+							if summary := generatePushSummary(pushCtx, chat.Title, assistantText, model, keys, logger); summary != "" {
+								pushBody = summary
+							}
+						}
+					}
+				}
+			}
+
+			p.dispatchPush(pushCtx, chat, pushBody, status, logger)
+		}()
+	}
+}
+
+func (p *Server) dispatchPush(
+	ctx context.Context,
+	chat database.Chat,
+	body string,
+	status database.ChatStatus,
+	logger slog.Logger,
+) {
+	pushMsg := codersdk.WebpushMessage{
+		Title: chat.Title,
+		Body:  body,
+		Icon:  "/favicon.ico",
+		Data:  map[string]string{"url": fmt.Sprintf("/agents/%s", chat.ID)},
+	}
+	if err := p.webpushDispatcher.Dispatch(ctx, chat.OwnerID, pushMsg); err != nil {
+		logger.Warn(ctx, "failed to send chat completion web push",
+			slog.F("chat_id", chat.ID),
+			slog.F("status", status),
+			slog.Error(err),
+		)
 	}
 }
 

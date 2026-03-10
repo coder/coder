@@ -139,8 +139,6 @@ func IsInvalidTokenError(err error) bool {
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
-// If an error is returned, the token is either invalid, or an error occurred.
-// Use 'IsInvalidTokenError(err)' to determine the difference.
 func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, error) {
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
@@ -196,6 +194,9 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 				UpdatedAt:              dbtime.Now(),
 				ProviderID:             externalAuthLink.ProviderID,
 				UserID:                 externalAuthLink.UserID,
+				// Optimistic lock: only clear the token if it hasn't been
+				// updated by a concurrent caller that won the refresh race.
+				OldOauthRefreshToken: externalAuthLink.OAuthRefreshToken,
 			})
 			if dbExecErr != nil {
 				// This error should be rare.

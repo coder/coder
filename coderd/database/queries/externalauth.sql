@@ -48,6 +48,10 @@ UPDATE external_auth_links SET
 WHERE provider_id = $1 AND user_id = $2 RETURNING *;
 
 -- name: UpdateExternalAuthLinkRefreshToken :exec
+-- Optimistic lock: only update the row if the refresh token in the database
+-- still matches the one we read before attempting the refresh. This prevents
+-- a concurrent caller that lost a token-refresh race from overwriting a valid
+-- token stored by the winner.
 UPDATE
 	external_auth_links
 SET
@@ -60,6 +64,8 @@ WHERE
     provider_id = @provider_id
 AND
     user_id = @user_id
+AND
+    oauth_refresh_token = @old_oauth_refresh_token
 AND
     -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
     @oauth_refresh_token_key_id :: text = @oauth_refresh_token_key_id :: text;

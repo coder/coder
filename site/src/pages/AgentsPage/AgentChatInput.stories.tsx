@@ -137,6 +137,28 @@ export const LoadingDisablesSend: Story = {
 	},
 };
 
+export const Streaming: Story = {
+	args: {
+		isStreaming: true,
+		onInterrupt: fn(),
+		isInterruptPending: false,
+		initialValue: "",
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+};
+
+export const StreamingInterruptPending: Story = {
+	args: {
+		isStreaming: true,
+		onInterrupt: fn(),
+		isInterruptPending: true,
+		initialValue: "",
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+};
+
 const longContent = Array.from(
 	{ length: 60 },
 	(_, i) =>

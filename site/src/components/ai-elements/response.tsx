@@ -5,11 +5,12 @@ import {
 } from "@pierre/diffs/react";
 import type { ComponentPropsWithRef, ReactNode } from "react";
 import { useMemo } from "react";
-import { type Components, Streamdown } from "streamdown";
+import { type Components, Streamdown, type UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
+	urlTransform?: UrlTransform;
 }
 
 const fileViewerCSS =
@@ -127,6 +128,7 @@ export const Response = ({
 	className,
 	children,
 	ref,
+	urlTransform,
 	...props
 }: ResponseProps) => {
 	const theme = useTheme();
@@ -147,7 +149,11 @@ export const Response = ({
 			)}
 			{...props}
 		>
-			<Streamdown controls={false} components={components}>
+			<Streamdown
+				controls={false}
+				components={components}
+				urlTransform={urlTransform}
+			>
 				{children}
 			</Streamdown>
 		</div>

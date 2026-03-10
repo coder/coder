@@ -7,7 +7,6 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -200,6 +199,28 @@ type ChatModelProvider struct {
 // ChatModelsResponse is the catalog returned from chat model discovery.
 type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
+}
+
+// ChatSystemPromptResponse is the response for getting the chat system prompt.
+type ChatSystemPromptResponse struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
+// UpdateChatSystemPromptRequest is the request to update the chat system prompt.
+type UpdateChatSystemPromptRequest struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
+// UserChatCustomPromptResponse is the response for getting a user's
+// custom chat prompt.
+type UserChatCustomPromptResponse struct {
+	CustomPrompt string `json:"custom_prompt"`
+}
+
+// UpdateUserChatCustomPromptRequest is the request to update a user's
+// custom chat prompt.
+type UpdateUserChatCustomPromptRequest struct {
+	CustomPrompt string `json:"custom_prompt"`
 }
 
 // ChatProviderConfigSource describes how a provider entry is sourced.
@@ -530,15 +551,23 @@ type chatStreamEnvelope struct {
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
 	Archived *bool
+	Pagination
 }
 
 // ListChats returns all chats for the authenticated user.
 func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat, error) {
-	qp := url.Values{}
-	if opts != nil && opts.Archived != nil {
-		qp.Set("archived", fmt.Sprintf("%t", *opts.Archived))
+	var reqOpts []RequestOption
+	if opts != nil {
+		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
+		if opts.Archived != nil {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("archived", fmt.Sprintf("%t", *opts.Archived))
+				r.URL.RawQuery = q.Encode()
+			})
+		}
 	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats?%s", qp.Encode()), nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats", nil, reqOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -679,6 +708,61 @@ func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.U
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// GetChatSystemPrompt returns the deployment-wide chat system prompt.
+func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/system-prompt", nil)
+	if err != nil {
+		return ChatSystemPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatSystemPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatSystemPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
+func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSystemPromptRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/system-prompt", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetUserChatCustomPrompt fetches the user's custom chat prompt.
+func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-prompt", nil)
+	if err != nil {
+		return UserChatCustomPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCustomPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserChatCustomPrompt updates the user's custom chat prompt.
+func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, req UpdateUserChatCustomPromptRequest) (UserChatCustomPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-prompt", req)
+	if err != nil {
+		return UserChatCustomPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCustomPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // CreateChat creates a new chat.

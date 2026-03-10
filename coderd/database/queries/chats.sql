@@ -113,8 +113,33 @@ WHERE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
         ELSE chats.archived = sqlc.narg('archived') :: boolean
     END
+    AND CASE
+        -- This allows using the last element on a page as effectively a cursor.
+        -- This is an important option for scripts that need to paginate without
+        -- duplicating or missing data.
+        WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+            -- The pagination cursor is the last ID of the previous page.
+            -- The query is ordered by the updated_at field, so select all
+            -- rows before the cursor.
+            (updated_at, id) < (
+                SELECT
+                    updated_at, id
+                FROM
+                    chats
+                WHERE
+                    id = @after_id
+            )
+        )
+        ELSE true
+    END
 ORDER BY
-    updated_at DESC;
+    -- Deterministic and consistent ordering of all rows, even if they share
+    -- a timestamp. This is to ensure consistent pagination.
+    (updated_at, id) DESC OFFSET @offset_opt
+LIMIT
+    -- The chat list is unbounded and expected to grow large.
+    -- Default to 50 to prevent accidental excessively large queries.
+    COALESCE(NULLIF(@limit_opt :: int, 0), 50);
 
 -- name: ListChildChatsByParentID :many
 SELECT
@@ -407,6 +432,19 @@ WHERE id = (
     LIMIT 1
 )
 RETURNING *;
+
+-- name: GetLastChatMessageByRole :one
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND role = @role::text
+ORDER BY
+    created_at DESC, id DESC
+LIMIT
+    1;
 
 -- name: GetChatByIDForUpdate :one
 SELECT * FROM chats WHERE id = @id::uuid FOR UPDATE;
