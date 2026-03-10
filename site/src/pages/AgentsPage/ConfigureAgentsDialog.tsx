@@ -18,6 +18,12 @@ import {
 } from "lucide-react";
 import { type FC, type FormEvent, useEffect, useMemo, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { cn } from "utils/cn";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { SectionHeader } from "./SectionHeader";
@@ -159,7 +165,16 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 							<span className="flex items-center gap-2 text-sm font-medium">
 								{section.label}
 								{section.adminOnly && (
-									<ShieldIcon className="h-3 w-3 shrink-0 text-content-secondary" />
+									<TooltipProvider>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<ShieldIcon className="h-3 w-3 shrink-0 text-content-secondary" />
+											</TooltipTrigger>
+											<TooltipContent side="right">
+												Admin only
+											</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
 								)}
 							</span>							</Button>
 						);
