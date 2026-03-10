@@ -1,13 +1,19 @@
 package coderd
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime"
+	"runtime/pprof"
+	"runtime/trace"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -328,6 +334,249 @@ func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger sl
 		logger.Error(ctx, "unable to fetch health settings", slog.Error(err))
 	}
 	return dismissedHealthchecks
+}
+
+// defaultProfiles is the set of profiles collected when none are specified.
+var defaultProfiles = []string{"cpu", "heap", "allocs", "block", "mutex", "goroutine"}
+
+// allValidProfiles enumerates every profile name accepted by the endpoint.
+var allValidProfiles = map[string]bool{
+	"cpu":          true,
+	"heap":         true,
+	"allocs":       true,
+	"block":        true,
+	"mutex":        true,
+	"goroutine":    true,
+	"threadcreate": true,
+	"trace":        true,
+}
+
+const (
+	// profileDurationDefault is used when no ?duration is supplied.
+	profileDurationDefault = 10 * time.Second
+	// profileDurationMax prevents callers from asking for arbitrarily long
+	// collections that tie up the runtime-global CPU profiler.
+	profileDurationMax = 60 * time.Second
+)
+
+// @Summary Collect debug profiles
+// @ID debug-collect-profile
+// @Security CoderSessionToken
+// @Produce application/gzip
+// @Tags Debug
+// @Param duration query string false "Profile collection duration" default(10s)
+// @Param profiles query string false "Comma-separated list of profile types to collect" default(cpu,heap,allocs,block,mutex,goroutine)
+// @Success 200 {file} binary "tar.gz archive of collected profiles"
+// @Failure 409 {object} codersdk.Response "Profile collection already in progress"
+// @Router /debug/profile [get]
+func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Parse duration.
+	duration := profileDurationDefault
+	if v := r.URL.Query().Get("duration"); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid duration parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if d <= 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Duration must be positive.",
+			})
+			return
+		}
+		if d > profileDurationMax {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Duration cannot exceed %s.", profileDurationMax),
+			})
+			return
+		}
+		duration = d
+	}
+
+	// Parse requested profiles.
+	profiles := defaultProfiles
+	if v := r.URL.Query().Get("profiles"); v != "" {
+		profiles = strings.Split(v, ",")
+		for _, p := range profiles {
+			if !allValidProfiles[p] {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: fmt.Sprintf("Unknown profile type: %q.", p),
+					Detail:  fmt.Sprintf("Valid types: cpu, heap, allocs, block, mutex, goroutine, threadcreate, trace"),
+				})
+				return
+			}
+		}
+	}
+
+	// Only one profile collection can run at a time because the CPU
+	// profiler is process-global.
+	if !api.ProfileCollecting.CompareAndSwap(false, true) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "A profile collection is already in progress. Try again later.",
+		})
+		return
+	}
+	defer api.ProfileCollecting.Store(false)
+
+	// Temporarily enable block and mutex profiling so those profiles are
+	// actually populated. Restore previous values when we are done.
+	// SetBlockProfileRate does not return the previous value, so we
+	// simply disable it again after collection (the default is 0).
+	runtime.SetBlockProfileRate(1)
+	prevMutexFraction := runtime.SetMutexProfileFraction(1)
+	defer runtime.SetBlockProfileRate(0)
+	defer runtime.SetMutexProfileFraction(prevMutexFraction)
+
+	// Determine which profiles need the timed collection (cpu, trace) vs
+	// instant snapshots.
+	wantCPU := false
+	wantTrace := false
+	for _, p := range profiles {
+		switch p {
+		case "cpu":
+			wantCPU = true
+		case "trace":
+			wantTrace = true
+		}
+	}
+
+	// Collect timed profiles (cpu and/or trace) for the requested
+	// duration.
+	var cpuBuf, traceBuf bytes.Buffer
+	if wantCPU {
+		if err := pprof.StartCPUProfile(&cpuBuf); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to start CPU profile.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+	if wantTrace {
+		if err := trace.Start(&traceBuf); err != nil {
+			if wantCPU {
+				pprof.StopCPUProfile()
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to start trace.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	if wantCPU || wantTrace {
+		timer := time.NewTimer(duration)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			if wantCPU {
+				pprof.StopCPUProfile()
+			}
+			if wantTrace {
+				trace.Stop()
+			}
+			// Client disconnected; nothing to write.
+			return
+		case <-timer.C:
+		}
+		if wantCPU {
+			pprof.StopCPUProfile()
+		}
+		if wantTrace {
+			trace.Stop()
+		}
+	}
+
+	// Build the tar.gz archive.
+	var archive bytes.Buffer
+	gzw := gzip.NewWriter(&archive)
+	tw := tar.NewWriter(gzw)
+
+	addFile := func(name string, data []byte) error {
+		hdr := &tar.Header{
+			Name: name,
+			Mode: 0o644,
+			Size: int64(len(data)),
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			return xerrors.Errorf("write tar header for %s: %w", name, err)
+		}
+		if _, err := tw.Write(data); err != nil {
+			return xerrors.Errorf("write tar data for %s: %w", name, err)
+		}
+		return nil
+	}
+
+	for _, p := range profiles {
+		switch p {
+		case "cpu":
+			if err := addFile("cpu.prof", cpuBuf.Bytes()); err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to write CPU profile to archive.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		case "trace":
+			if err := addFile("trace.out", traceBuf.Bytes()); err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to write trace to archive.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+		default:
+			// Snapshot profiles: heap, allocs, block, mutex, goroutine,
+			// threadcreate.
+			prof := pprof.Lookup(p)
+			if prof == nil {
+				// Should not happen because we validated above.
+				continue
+			}
+			var buf bytes.Buffer
+			if err := prof.WriteTo(&buf, 0); err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: fmt.Sprintf("Failed to collect %s profile.", p),
+					Detail:  err.Error(),
+				})
+				return
+			}
+			if err := addFile(p+".prof", buf.Bytes()); err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: fmt.Sprintf("Failed to write %s profile to archive.", p),
+					Detail:  err.Error(),
+				})
+				return
+			}
+		}
+	}
+
+	if err := tw.Close(); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to finalize tar archive.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if err := gzw.Close(); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to finalize gzip archive.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	filename := fmt.Sprintf("coderd-profile-%d.tar.gz", time.Now().Unix())
+	rw.Header().Set("Content-Type", "application/gzip")
+	rw.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	rw.WriteHeader(http.StatusOK)
+	_, _ = rw.Write(archive.Bytes())
 }
 
 // @Summary Debug pprof index

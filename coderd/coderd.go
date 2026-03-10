@@ -1731,6 +1731,8 @@ func New(options *Options) *API {
 			}
 			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
 
+			r.Get("/profile", api.debugCollectProfile)
+
 			r.Route("/pprof", func(r chi.Router) {
 				r.Use(func(next http.Handler) http.Handler {
 					// Some of the pprof handlers strip the `/debug/pprof`
@@ -2018,6 +2020,11 @@ type API struct {
 	// gitSyncWorker refreshes stale chat diff statuses in the
 	// background.
 	gitSyncWorker *gitsync.Worker
+
+	// ProfileCollecting is used as a concurrency guard so that only one
+	// profile collection (via /debug/profile) can run at a time. The CPU
+	// profiler is process-global, so concurrent collections would fail.
+	ProfileCollecting atomic.Bool
 }
 
 // Close waits for all WebSocket connections to drain before returning.

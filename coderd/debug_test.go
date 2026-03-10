@@ -1,6 +1,9 @@
 package coderd_test
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
@@ -369,4 +372,207 @@ func TestDebugWebsocket(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 	})
+}
+
+func TestDebugCollectProfile(t *testing.T) {
+	t.Parallel()
+
+	// Note: Tests that use CPU profiling or tracing are NOT marked
+	// t.Parallel() because runtime.pprof.StartCPUProfile and
+	// runtime/trace.Start are process-global. Running them concurrently
+	// causes one to fail with "already in progress".
+
+	t.Run("Defaults", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
+			// Use a very short duration so the test finishes quickly.
+			Duration: 1 * time.Second,
+		})
+		require.NoError(t, err)
+		defer body.Close()
+
+		data, err := io.ReadAll(body)
+		require.NoError(t, err)
+		require.NotEmpty(t, data, "archive should not be empty")
+
+		// Verify that the response is a valid tar.gz archive containing
+		// the expected profile files.
+		files := extractTarGzFiles(t, data)
+		require.Contains(t, files, "cpu.prof")
+		require.Contains(t, files, "heap.prof")
+		require.Contains(t, files, "allocs.prof")
+		require.Contains(t, files, "block.prof")
+		require.Contains(t, files, "mutex.prof")
+		require.Contains(t, files, "goroutine.prof")
+	})
+
+	t.Run("CustomProfiles", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
+			Duration: 1 * time.Second,
+			Profiles: []string{"heap", "goroutine"},
+		})
+		require.NoError(t, err)
+		defer body.Close()
+
+		data, err := io.ReadAll(body)
+		require.NoError(t, err)
+
+		files := extractTarGzFiles(t, data)
+		require.Contains(t, files, "heap.prof")
+		require.Contains(t, files, "goroutine.prof")
+		// Should NOT contain profiles we didn't ask for.
+		require.NotContains(t, files, "cpu.prof")
+		require.NotContains(t, files, "allocs.prof")
+	})
+
+	t.Run("WithTraceAndCPU", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
+			Duration: 1 * time.Second,
+			Profiles: []string{"cpu", "trace"},
+		})
+		require.NoError(t, err)
+		defer body.Close()
+
+		data, err := io.ReadAll(body)
+		require.NoError(t, err)
+
+		files := extractTarGzFiles(t, data)
+		require.Contains(t, files, "cpu.prof")
+		require.Contains(t, files, "trace.out")
+	})
+
+	t.Run("DurationTooLong", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		res, err := client.Request(ctx, "GET", "/api/v2/debug/profile?duration=5m", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("InvalidDuration", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		res, err := client.Request(ctx, "GET", "/api/v2/debug/profile?duration=notaduration", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("InvalidProfile", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		res, err := client.Request(ctx, "GET", "/api/v2/debug/profile?profiles=nonexistent", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		client := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Create a non-admin user.
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		res, err := memberClient.Request(ctx, "GET", "/api/v2/debug/profile", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusForbidden, res.StatusCode)
+	})
+
+	t.Run("Conflict", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// Start a long profile collection in the background.
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
+				Duration: 5 * time.Second,
+			})
+			if err == nil {
+				body.Close()
+			}
+		}()
+
+		// Give the first request a moment to start.
+		time.Sleep(500 * time.Millisecond)
+
+		// The second request should get 409 Conflict.
+		res, err := client.Request(ctx, "GET", "/api/v2/debug/profile?duration=1s", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusConflict, res.StatusCode)
+
+		// Wait for the first collection to finish.
+		<-done
+	})
+}
+
+// extractTarGzFiles extracts file names from a tar.gz archive.
+func extractTarGzFiles(t *testing.T, data []byte) map[string]bool {
+	t.Helper()
+
+	gr, err := gzip.NewReader(bytes.NewReader(data))
+	require.NoError(t, err)
+	defer gr.Close()
+
+	tr := tar.NewReader(gr)
+	files := make(map[string]bool)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		files[hdr.Name] = true
+	}
+	return files
 }
