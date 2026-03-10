@@ -1278,30 +1278,30 @@ func TestArchiveChat(t *testing.T) {
 		err = client.ArchiveChat(ctx, chatToArchive.ID)
 		require.NoError(t, err)
 
-			// Default (no filter) returns only non-archived chats.
-			allChats, err := client.ListChats(ctx, nil)
-			require.NoError(t, err)
-			require.Len(t, allChats, 1)
-			require.Equal(t, chatToKeep.ID, allChats[0].ID)
+		// Default (no filter) returns only non-archived chats.
+		allChats, err := client.ListChats(ctx, nil)
+		require.NoError(t, err)
+		require.Len(t, allChats, 1)
+		require.Equal(t, chatToKeep.ID, allChats[0].ID)
 
-			// archived:false returns only non-archived chats.
-			activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-				Q: "archived:false",
-			})
-			require.NoError(t, err)
-			require.Len(t, activeChats, 1)
-			require.Equal(t, chatToKeep.ID, activeChats[0].ID)
-			require.False(t, activeChats[0].Archived)
-
-			// archived:true returns only archived chats.
-			archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-				Q: "archived:true",
-			})
-			require.NoError(t, err)
-			require.Len(t, archivedChats, 1)
-			require.Equal(t, chatToArchive.ID, archivedChats[0].ID)
-			require.True(t, archivedChats[0].Archived)
+		// archived:false returns only non-archived chats.
+		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Q: "archived:false",
 		})
+		require.NoError(t, err)
+		require.Len(t, activeChats, 1)
+		require.Equal(t, chatToKeep.ID, activeChats[0].ID)
+		require.False(t, activeChats[0].Archived)
+
+		// archived:true returns only archived chats.
+		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Q: "archived:true",
+		})
+		require.NoError(t, err)
+		require.Len(t, archivedChats, 1)
+		require.Equal(t, chatToArchive.ID, archivedChats[0].ID)
+		require.True(t, archivedChats[0].Archived)
+	})
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
@@ -1355,12 +1355,13 @@ func TestArchiveChat(t *testing.T) {
 		err = client.ArchiveChat(ctx, parentChat.ID)
 		require.NoError(t, err)
 
-			// archived:false should exclude the entire archived family.
-			activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-				Q: "archived:false",
-			})
-			require.NoError(t, err)
-			for _, c := range activeChats {			require.NotEqual(t, parentChat.ID, c.ID, "parent should not appear")
+		// archived:false should exclude the entire archived family.
+		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Q: "archived:false",
+		})
+		require.NoError(t, err)
+		for _, c := range activeChats {
+			require.NotEqual(t, parentChat.ID, c.ID, "parent should not appear")
 			require.NotEqual(t, child1.ID, c.ID, "child1 should not appear")
 			require.NotEqual(t, child2.ID, c.ID, "child2 should not appear")
 		}
@@ -1401,32 +1402,33 @@ func TestUnarchiveChat(t *testing.T) {
 		err = client.ArchiveChat(ctx, chat.ID)
 		require.NoError(t, err)
 
-			// Verify it's archived.
-			archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-				Q: "archived:true",
-			})
-			require.NoError(t, err)
-			require.Len(t, archivedChats, 1)
-			require.True(t, archivedChats[0].Archived)
+		// Verify it's archived.
+		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Q: "archived:true",
+		})
+		require.NoError(t, err)
+		require.Len(t, archivedChats, 1)
+		require.True(t, archivedChats[0].Archived)
 		// Unarchive the chat.
 		err = client.UnarchiveChat(ctx, chat.ID)
 		require.NoError(t, err)
 
-			// Verify it's no longer archived.
-			activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-				Q: "archived:false",
-			})
-			require.NoError(t, err)
-			require.Len(t, activeChats, 1)
-			require.Equal(t, chat.ID, activeChats[0].ID)
-			require.False(t, activeChats[0].Archived)
+		// Verify it's no longer archived.
+		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Q: "archived:false",
+		})
+		require.NoError(t, err)
+		require.Len(t, activeChats, 1)
+		require.Equal(t, chat.ID, activeChats[0].ID)
+		require.False(t, activeChats[0].Archived)
 
-			// No archived chats remain.
-			archivedChats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
-				Q: "archived:true",
-			})
-			require.NoError(t, err)
-			require.Empty(t, archivedChats)	})
+		// No archived chats remain.
+		archivedChats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Q: "archived:true",
+		})
+		require.NoError(t, err)
+		require.Empty(t, archivedChats)
+	})
 
 	t.Run("NotArchived", func(t *testing.T) {
 		t.Parallel()
