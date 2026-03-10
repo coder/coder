@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/gitsync"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -145,26 +146,24 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	queryStr := r.URL.Query().Get("q")
+	searchParams, errs := searchquery.Chats(queryStr)
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid chat search query.",
+			Validations: errs,
+		})
+		return
+	}
+
 	params := database.GetChatsByOwnerIDParams{
-		OwnerID: apiKey.UserID,
-		AfterID: paginationParams.AfterID,
+		OwnerID:  apiKey.UserID,
+		Archived: searchParams.Archived,
+		AfterID:  paginationParams.AfterID,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
 		LimitOpt: int32(paginationParams.Limit),
-	}
-	if v := r.URL.Query().Get("archived"); v != "" {
-		b, err := strconv.ParseBool(v)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid query parameter.",
-				Validations: []codersdk.ValidationError{
-					{Field: "archived", Detail: "Must be a valid boolean"},
-				},
-			})
-			return
-		}
-		params.Archived = sql.NullBool{Bool: b, Valid: true}
 	}
 
 	chats, err := api.Database.GetChatsByOwnerID(ctx, params)
