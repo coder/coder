@@ -5284,8 +5284,10 @@ WHERE
 AND
     user_id = $5
 AND
+    oauth_refresh_token = $6
+AND
     -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
-    $6 :: text = $6 :: text
+    $7 :: text = $7 :: text
 `
 
 type UpdateExternalAuthLinkRefreshTokenParams struct {
@@ -5294,9 +5296,14 @@ type UpdateExternalAuthLinkRefreshTokenParams struct {
 	UpdatedAt                 time.Time `db:"updated_at" json:"updated_at"`
 	ProviderID                string    `db:"provider_id" json:"provider_id"`
 	UserID                    uuid.UUID `db:"user_id" json:"user_id"`
+	OldOauthRefreshToken      string    `db:"old_oauth_refresh_token" json:"old_oauth_refresh_token"`
 	OAuthRefreshTokenKeyID    string    `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 }
 
+// Optimistic lock: only update the row if the refresh token in the database
+// still matches the one we read before attempting the refresh. This prevents
+// a concurrent caller that lost a token-refresh race from overwriting a valid
+// token stored by the winner.
 func (q *sqlQuerier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg UpdateExternalAuthLinkRefreshTokenParams) error {
 	_, err := q.db.ExecContext(ctx, updateExternalAuthLinkRefreshToken,
 		arg.OauthRefreshFailureReason,
@@ -5304,6 +5311,7 @@ func (q *sqlQuerier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg
 		arg.UpdatedAt,
 		arg.ProviderID,
 		arg.UserID,
+		arg.OldOauthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 	)
 	return err
