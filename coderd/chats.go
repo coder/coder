@@ -432,14 +432,6 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Watch git changes for a chat.
-// @ID watch-chat-git
-// @Security CoderSessionToken
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 101
-// @Router /chats/{chat}/git/watch [get]
-//
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -588,11 +580,6 @@ proxyLoop:
 	_ = clientStream.Close(websocket.StatusGoingAway)
 }
 
-// @Summary Archive a chat
-// @ID archive-chat
-// @Tags Chats
-// @Success 204
-// @Router /chats/{chat}/archive [post]
 func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -624,11 +611,6 @@ func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Unarchive a chat
-// @ID unarchive-chat
-// @Tags Chats
-// @Success 204
-// @Router /chats/{chat}/unarchive [post]
 func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -2333,20 +2315,6 @@ func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 	return chatd.DefaultSystemPrompt
 }
 
-// @Summary Upload a chat file
-// @ID upload-chat-file
-// @Security CoderSessionToken
-// @Accept application/octet-stream
-// @Produce json
-// @Tags Chats
-// @Param Content-Type header string true "Content-Type must be an image type (image/png, image/jpeg, image/gif, image/webp)"
-// @Param organization query string true "Organization ID" format(uuid)
-// @Success 201 {object} codersdk.UploadChatFileResponse
-// @Failure 400 {object} codersdk.Response
-// @Failure 401 {object} codersdk.Response
-// @Failure 413 {object} codersdk.Response
-// @Failure 500 {object} codersdk.Response
-// @Router /chats/files [post]
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -2473,17 +2441,6 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Get a chat file
-// @ID get-chat-file
-// @Security CoderSessionToken
-// @Tags Chats
-// @Param file path string true "File ID" format(uuid)
-// @Success 200
-// @Failure 400 {object} codersdk.Response
-// @Failure 401 {object} codersdk.Response
-// @Failure 404 {object} codersdk.Response
-// @Failure 500 {object} codersdk.Response
-// @Router /chats/files/{file} [get]
 func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
