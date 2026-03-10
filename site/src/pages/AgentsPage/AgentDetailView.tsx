@@ -3,7 +3,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useMemo, useState } from "react";
+import { type FC, type RefObject, useCallback, useMemo, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -115,6 +115,9 @@ interface AgentDetailViewProps {
 	urlTransform?: UrlTransform;
 }
 
+/** localStorage key controlling whether the right panel is visible. */
+export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
+
 export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	agentId,
 	chatTitle,
@@ -160,37 +163,29 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	urlTransform,
 }) => {
 	// Panel/sidebar UI state – purely visual, no data-fetching
-	// implications.
-	const [showSidebarPanel, setShowSidebarPanel] = useState(false);
+	// implications. The open/closed state is persisted to localStorage
+	// so users get a consistent layout when switching between chats.
+	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
+		if (typeof window === "undefined") return false;
+		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
+	});
+	const handleSetShowSidebarPanel = useCallback(
+		(next: boolean | ((prev: boolean) => boolean)) => {
+			setShowSidebarPanel((prev) => {
+				const value = typeof next === "function" ? next(prev) : next;
+				if (typeof window !== "undefined") {
+					localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
+				}
+				return value;
+			});
+		},
+		[],
+	);
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
-
-	// Derive trivial booleans the View can compute itself.
-	const hasDiffStatus = Boolean(diffStatusData?.url);
-	const hasGitRepos = gitWatcher.repositories.size > 0;
-
-	// Auto-open the diff panel when diff status first appears.
-	// See: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-	const [prevHasDiffStatus, setPrevHasDiffStatus] = useState(false);
-	if (hasDiffStatus !== prevHasDiffStatus) {
-		setPrevHasDiffStatus(hasDiffStatus);
-		if (hasDiffStatus && !window.matchMedia("(max-width: 767px)").matches) {
-			setShowSidebarPanel(true);
-		}
-	}
-
-	// Auto-open sidebar when git watcher receives its first non-empty
-	// repositories update.
-	const [prevHasGitRepos, setPrevHasGitRepos] = useState(false);
-	if (hasGitRepos !== prevHasGitRepos) {
-		setPrevHasGitRepos(hasGitRepos);
-		if (hasGitRepos && !window.matchMedia("(max-width: 767px)").matches) {
-			setShowSidebarPanel(true);
-		}
-	}
 
 	// Compute local diff stats from git watcher unified diffs.
 	const localDiffStats = useMemo(() => {
@@ -239,7 +234,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						onOpenParentChat={(chatId) => onNavigateToChat(chatId)}
 						panel={{
 							showSidebarPanel,
-							onToggleSidebar: () => setShowSidebarPanel((prev) => !prev),
+							onToggleSidebar: () => handleSetShowSidebarPanel((prev) => !prev),
 						}}
 						workspace={{
 							canOpenEditors,
@@ -326,7 +321,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 				isOpen={shouldShowSidebar}
 				isExpanded={isRightPanelExpanded}
 				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-				onClose={() => setShowSidebarPanel(false)}
+				onClose={() => handleSetShowSidebarPanel(false)}
 				onVisualExpandedChange={setDragVisualExpanded}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
@@ -354,7 +349,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							),
 						},
 					]}
-					onClose={() => setShowSidebarPanel(false)}
+					onClose={() => handleSetShowSidebarPanel(false)}
 					isExpanded={visualExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 					isSidebarCollapsed={isSidebarCollapsed}
