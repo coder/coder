@@ -91,23 +91,19 @@ const meta: Meta<typeof ConfigureAgentsDialog> = {
 export default meta;
 type Story = StoryObj<typeof ConfigureAgentsDialog>;
 
-export const SystemPromptOnly: Story = {
+/** Regular user sees only the Custom Prompt section. */
+export const UserOnly: Story = {};
+
+/** Admin sees Custom Prompt + System Prompt in the same Prompts tab. */
+export const AdminPrompts: Story = {
 	args: {
 		canSetSystemPrompt: true,
-		canManageChatModelConfigs: false,
 		systemPromptDraft: "You are a helpful coding assistant.",
 	},
 };
 
-export const ModelConfigOnly: Story = {
-	args: {
-		canSetSystemPrompt: false,
-		canManageChatModelConfigs: true,
-	},
-	parameters: { queries: chatQueries },
-};
-
-export const BothEnabled: Story = {
+/** Admin with model config permissions sees Providers/Models tabs. */
+export const AdminFull: Story = {
 	args: {
 		canSetSystemPrompt: true,
 		canManageChatModelConfigs: true,
