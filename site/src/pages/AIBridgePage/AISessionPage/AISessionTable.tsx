@@ -1,22 +1,22 @@
+import type { MinimalUser } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { Badge } from "components/Badge/Badge";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import type { MinimalUser } from "api/typesGenerated";
+import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import type { FC } from "react";
 import { formatDateTime } from "utils/time";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
+import { AIBridgeClientIcon } from "../RequestLogsPage/icons/AIBridgeClientIcon";
+import { AIBridgeProviderIcon } from "../RequestLogsPage/icons/AIBridgeProviderIcon";
 import {
 	getProviderDisplayName,
 	getProviderIconName,
 	roundTokenDisplay,
 } from "../utils";
-import { AIBridgeProviderIcon } from "../RequestLogsPage/icons/AIBridgeProviderIcon";
-import { AIBridgeClientIcon } from "../RequestLogsPage/icons/AIBridgeClientIcon";
 
 const SeparatorRow: FC = () => (
 	<tr>

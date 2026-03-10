@@ -10,8 +10,8 @@ import {
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import type { FC, PropsWithChildren } from "react";
 import { Link as RouterLink } from "react-router";
-import { roundTokenDisplay } from "../utils";
-import { AISessionTable, type AISessionTableProps } from "./AISessionTable";
+import { AISessionTable } from "./AISessionTable";
+import { AISessionTimeline } from "./AISessionTimeline";
 
 const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	<TooltipProvider>
@@ -65,8 +65,8 @@ export const AISessionPageView: FC<AISessionPageViewProps> = ({
 					</RouterLink>
 				</Button>
 			</nav>
-			<main className="flex flex-col md:flex-row gap-6">
-				<aside className="md:w-72 md:shrink-0 p-4 border border-solid rounded-md">
+			<div className="flex flex-col md:flex-row gap-6">
+				<aside className="md:w-72 md:shrink-0 p-4 border border-solid rounded-md sticky top-4 self-start">
 					<h4 className="text-md flex items-center m-0 mb-4">
 						Session summary
 						<SessionSummaryTooltip>
@@ -94,16 +94,10 @@ export const AISessionPageView: FC<AISessionPageViewProps> = ({
 						/>
 					)}
 				</aside>
-				<div className="">
-					Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-					eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad
-					minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-					aliquip ex ea commodo consequat. Duis aute irure dolor in
-					reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
-					pariatur. Excepteur sint occaecat cupidatat non proident, sunt in
-					culpa qui officia deserunt mollit anim id est laborum.
-				</div>
-			</main>
+				<main className="flex-1 min-w-0">
+					{session && <AISessionTimeline session={session} />}
+				</main>
+			</div>
 		</>
 	);
 };
