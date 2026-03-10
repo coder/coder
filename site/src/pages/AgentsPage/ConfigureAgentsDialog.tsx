@@ -12,6 +12,7 @@ import {
 	BoxesIcon,
 	KeyRoundIcon,
 	MessageSquareTextIcon,
+	ShieldIcon,
 	UserIcon,
 	XIcon,
 } from "lucide-react";
@@ -31,6 +32,7 @@ type ConfigureAgentsSectionOption = {
 	id: ConfigureAgentsSection;
 	label: string;
 	icon: LucideIcon;
+	adminOnly?: boolean;
 };
 
 interface ConfigureAgentsDialogProps {
@@ -82,11 +84,13 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				id: "providers",
 				label: "Providers",
 				icon: KeyRoundIcon,
+				adminOnly: true,
 			});
 			options.push({
 				id: "models",
 				label: "Models",
 				icon: BoxesIcon,
+				adminOnly: true,
 			});
 		}
 		if (canSetSystemPrompt) {
@@ -94,6 +98,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				id: "system-prompt",
 				label: "Behavior",
 				icon: UserIcon,
+				adminOnly: true,
 			});
 		}
 		return options;
@@ -150,9 +155,13 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								)}
 								onClick={() => setUserActiveSection(section.id)}
 							>
-								<SectionIcon className="h-5 w-5 shrink-0" />
-								<span className="text-sm font-medium">{section.label}</span>
-							</Button>
+							<SectionIcon className="h-5 w-5 shrink-0" />
+							<span className="flex items-center gap-2 text-sm font-medium">
+								{section.label}
+								{section.adminOnly && (
+									<ShieldIcon className="h-3 w-3 shrink-0 text-content-secondary" />
+								)}
+							</span>							</Button>
 						);
 					})}
 				</nav>
