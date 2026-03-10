@@ -63,6 +63,12 @@ type RunOptions struct {
 	// of the provider, which lives in chatd, not chatloop.
 	ProviderOptions fantasy.ProviderOptions
 
+	// ProviderTools are provider-native tools (like web search)
+	// that are executed server-side by the provider. These are
+	// passed directly into the Call.Tools alongside function
+	// tool definitions.
+	ProviderTools []fantasy.Tool
+
 	PersistStep        func(context.Context, PersistedStep) error
 	PublishMessagePart func(
 		role fantasy.MessageRole,
@@ -205,7 +211,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 		opts.PublishMessagePart(role, part)
 	}
 
-	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools)
+	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(opts.Model)
 
 	messages := opts.Messages
@@ -571,7 +577,14 @@ func processStepStream(
 		}
 	}
 
-	result.shouldContinue = len(result.toolCalls) > 0 &&
+	hasLocalToolCalls := false
+	for _, tc := range result.toolCalls {
+		if !tc.ProviderExecuted {
+			hasLocalToolCalls = true
+			break
+		}
+	}
+	result.shouldContinue = hasLocalToolCalls &&
 		result.finishReason == fantasy.FinishReasonToolCalls
 	return result, nil
 }
@@ -590,43 +603,56 @@ func executeTools(
 		return nil
 	}
 
+	// Filter out provider-executed tool calls. These were
+	// handled server-side by the LLM provider (e.g., web
+	// search) and their results are already in the stream
+	// content.
+	localToolCalls := make([]fantasy.ToolCallContent, 0, len(toolCalls))
+	for _, tc := range toolCalls {
+		if !tc.ProviderExecuted {
+			localToolCalls = append(localToolCalls, tc)
+		}
+	}
+	if len(localToolCalls) == 0 {
+		return nil
+	}
+
 	toolMap := make(map[string]fantasy.AgentTool, len(allTools))
 	for _, t := range allTools {
 		toolMap[t.Info().Name] = t
 	}
 
-	results := make([]fantasy.ToolResultContent, len(toolCalls))
-	var wg sync.WaitGroup
-	wg.Add(len(toolCalls))
-	for i, tc := range toolCalls {
-		go func(i int, tc fantasy.ToolCallContent) {
-			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					results[i] = fantasy.ToolResultContent{
-						ToolCallID: tc.ToolCallID,
-						ToolName:   tc.ToolName,
-						Result: fantasy.ToolResultOutputContentError{
-							Error: xerrors.Errorf("tool panicked: %v", r),
-						},
+		results := make([]fantasy.ToolResultContent, len(localToolCalls))
+		var wg sync.WaitGroup
+		wg.Add(len(localToolCalls))
+		for i, tc := range localToolCalls {
+			go func(i int, tc fantasy.ToolCallContent) {
+				defer wg.Done()
+				defer func() {
+					if r := recover(); r != nil {
+						results[i] = fantasy.ToolResultContent{
+							ToolCallID: tc.ToolCallID,
+							ToolName:   tc.ToolName,
+							Result: fantasy.ToolResultOutputContentError{
+								Error: xerrors.Errorf("tool panicked: %v", r),
+							},
+						}
 					}
-				}
-			}()
-			results[i] = executeSingleTool(ctx, toolMap, tc)
-		}(i, tc)
-	}
-	wg.Wait()
-
-	// Publish results in the original tool-call order so SSE
-	// subscribers see a deterministic event sequence.
-	if onResult != nil {
-		for _, tr := range results {
-			onResult(tr)
+				}()
+				results[i] = executeSingleTool(ctx, toolMap, tc)
+			}(i, tc)
 		}
-	}
-	return results
-}
+		wg.Wait()
 
+		// Publish results in the original tool-call order so SSE
+		// subscribers see a deterministic event sequence.
+		if onResult != nil {
+			for _, tr := range results {
+				onResult(tr)
+			}
+		}
+		return results
+	}
 // executeSingleTool executes one tool call and converts the
 // response into a ToolResultContent.
 func executeSingleTool(
@@ -793,7 +819,7 @@ func persistInterruptedStep(
 // fantasy.Tool slice expected by fantasy.Call. When activeTools
 // is non-empty, only tools whose name appears in the list are
 // included. This mirrors fantasy's agent.prepareTools filtering.
-func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string) []fantasy.Tool {
+func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, providerTools []fantasy.Tool) []fantasy.Tool {
 	prepared := make([]fantasy.Tool, 0, len(tools))
 	for _, tool := range tools {
 		info := tool.Info()
@@ -813,6 +839,7 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string) []fan
 			ProviderOptions: tool.ProviderOptions(),
 		})
 	}
+	prepared = append(prepared, providerTools...)
 	return prepared
 }
 

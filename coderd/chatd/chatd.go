@@ -2492,6 +2492,13 @@ func (p *Server) runChat(
 		})...)
 	}
 
+	// Build provider-native tools (e.g., web search) based on
+	// the model configuration.
+	var providerTools []fantasy.Tool
+	if callConfig.ProviderOptions != nil {
+		providerTools = buildProviderTools(model.Provider(), callConfig.ProviderOptions)
+	}
+
 	err = chatloop.Run(ctx, chatloop.RunOptions{
 		Model:    model,
 		Messages: prompt,
@@ -2500,6 +2507,7 @@ func (p *Server) runChat(
 
 		ModelConfig:     callConfig,
 		ProviderOptions: chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions),
+		ProviderTools:   providerTools,
 
 		ContextLimitFallback: modelConfigContextLimit,
 
@@ -2562,6 +2570,52 @@ func (p *Server) runChat(
 		},
 	})
 	return err
+}
+
+// buildProviderTools creates provider-native tool definitions
+// (like web search) based on the model configuration. These
+// tools are executed server-side by the LLM provider.
+func buildProviderTools(provider string, options *codersdk.ChatModelProviderOptions) []fantasy.Tool {
+	var tools []fantasy.Tool
+
+	if options.Anthropic != nil && options.Anthropic.WebSearchEnabled != nil && *options.Anthropic.WebSearchEnabled {
+		args := map[string]any{}
+		if len(options.Anthropic.AllowedDomains) > 0 {
+			args["allowed_domains"] = options.Anthropic.AllowedDomains
+		}
+		if len(options.Anthropic.BlockedDomains) > 0 {
+			args["blocked_domains"] = options.Anthropic.BlockedDomains
+		}
+		tools = append(tools, fantasy.ProviderDefinedTool{
+			ID:   "web_search",
+			Name: "web_search",
+			Args: args,
+		})
+	}
+
+	if options.OpenAI != nil && options.OpenAI.WebSearchEnabled != nil && *options.OpenAI.WebSearchEnabled {
+		args := map[string]any{}
+		if options.OpenAI.SearchContextSize != nil && *options.OpenAI.SearchContextSize != "" {
+			args["search_context_size"] = *options.OpenAI.SearchContextSize
+		}
+		if len(options.OpenAI.AllowedDomains) > 0 {
+			args["allowed_domains"] = options.OpenAI.AllowedDomains
+		}
+		tools = append(tools, fantasy.ProviderDefinedTool{
+			ID:   "web_search",
+			Name: "web_search",
+			Args: args,
+		})
+	}
+
+	if options.Google != nil && options.Google.WebSearchEnabled != nil && *options.Google.WebSearchEnabled {
+		tools = append(tools, fantasy.ProviderDefinedTool{
+			ID:   "web_search",
+			Name: "web_search",
+		})
+	}
+
+	return tools
 }
 
 // persistChatContextSummary persists a chat context summary to the database.
