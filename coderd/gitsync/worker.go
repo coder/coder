@@ -118,6 +118,11 @@ func chatDiffStatusFromRow(row database.AcquireStaleChatDiffStatusesRow) databas
 }
 
 func (w *Worker) tick(ctx context.Context) {
+	// Set a context equal to w.interval so that we do not hold up processing due to
+	// random unicorn-related events.
+	ctx, cancel := context.WithTimeout(ctx, w.interval)
+	defer cancel()
+
 	acquiredRows, err := w.store.AcquireStaleChatDiffStatuses(ctx, w.batchSize)
 	if err != nil {
 		w.logger.Warn(ctx, "acquire stale chat diff statuses",
