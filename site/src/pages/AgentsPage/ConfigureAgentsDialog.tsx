@@ -27,7 +27,7 @@ import { cn } from "utils/cn";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { SectionHeader } from "./SectionHeader";
 
-type ConfigureAgentsSection = "providers" | "models" | "prompts";
+type ConfigureAgentsSection = "providers" | "models" | "behavior";
 
 type ConfigureAgentsSectionOption = {
 	id: ConfigureAgentsSection;
@@ -95,8 +95,8 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	>(() => {
 		const options: ConfigureAgentsSectionOption[] = [];
 		options.push({
-			id: "prompts",
-			label: "Prompts",
+			id: "behavior",
+			label: "Behavior",
 			icon: MessageSquareTextIcon,
 		});
 		if (canManageChatModelConfigs) {
@@ -117,17 +117,17 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	}, [canManageChatModelConfigs]);
 
 	const [userActiveSection, setUserActiveSection] =
-		useState<ConfigureAgentsSection>("prompts");
+		useState<ConfigureAgentsSection>("behavior");
 
 	const activeSection = configureSectionOptions.some(
 		(s) => s.id === userActiveSection,
 	)
 		? userActiveSection
-		: (configureSectionOptions[0]?.id ?? "prompts");
+		: (configureSectionOptions[0]?.id ?? "behavior");
 
 	useEffect(() => {
 		if (open) {
-			setUserActiveSection("prompts");
+			setUserActiveSection("behavior");
 		}
 	}, [open]);
 
@@ -191,10 +191,10 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				</nav>
 
 				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
-					{activeSection === "prompts" && (
+					{activeSection === "behavior" && (
 						<>
 								<SectionHeader
-									label="Prompts"
+									label="Behavior"
 									description="Custom instructions that shape how the agent responds in your chats."
 								/>
 							{/* ── Personal prompt (always visible) ── */}
