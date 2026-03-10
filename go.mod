@@ -622,3 +622,5 @@ replace github.com/anthropics/anthropic-sdk-go v1.19.0 => github.com/dannykoppin
 
 // https://github.com/openai/openai-go/pull/602
 replace github.com/openai/openai-go/v3 => github.com/SasSwart/openai-go/v3 v3.0.0-20260204134041-fb987b42a728
+
+replace github.com/hashicorp/go-reap => github.com/coder/go-reap v0.0.0-20260310125653-03afbd91857d

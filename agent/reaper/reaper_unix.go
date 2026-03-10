@@ -69,8 +69,13 @@ func ForkReap(opt ...Option) (int, error) {
 		o(opts)
 	}
 
+	// Buffered so the reaper won't block on send between our
+	// child exiting and the reaper stopping.
+	statuses := make(reap.StatusCh, 8)
+
 	go func() {
-		reap.ReapChildren(opts.PIDs, nil, opts.ReaperStop, opts.ReapLock)
+		reap.ReapChildrenWithStatus(statuses, nil, opts.ReaperStop, nil)
+		close(statuses)
 		if opts.ReaperStopped != nil {
 			close(opts.ReaperStopped)
 		}
@@ -102,23 +107,26 @@ func ForkReap(opt ...Option) (int, error) {
 
 	startSignalForwarding(opts.Logger, pid, opts.CatchSignals)
 
-	var wstatus syscall.WaitStatus
-	_, err = syscall.Wait4(pid, &wstatus, 0, nil)
-	for xerrors.Is(err, syscall.EINTR) {
-		_, err = syscall.Wait4(pid, &wstatus, 0, nil)
+	for cs := range statuses {
+		if opts.PIDs != nil && cs.Pid != pid {
+			opts.PIDs <- cs.Pid
+		}
+		if cs.Pid != pid {
+			continue
+		}
+		// Convert wait status to exit code using standard Unix conventions:
+		// - Normal exit: use the exit code
+		// - Signal termination: use 128 + signal number
+		ws := syscall.WaitStatus(cs.Status)
+		switch {
+		case ws.Exited():
+			return ws.ExitStatus(), nil
+		case ws.Signaled():
+			return 128 + int(ws.Signal()), nil
+		default:
+			return 1, nil
+		}
 	}
 
-	// Convert wait status to exit code using standard Unix conventions:
-	// - Normal exit: use the exit code
-	// - Signal termination: use 128 + signal number
-	var exitCode int
-	switch {
-	case wstatus.Exited():
-		exitCode = wstatus.ExitStatus()
-	case wstatus.Signaled():
-		exitCode = 128 + int(wstatus.Signal())
-	default:
-		exitCode = 1
-	}
-	return exitCode, err
+	return 1, xerrors.New("reaper exited before child process was reaped")
 }

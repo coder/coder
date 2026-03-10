@@ -327,6 +327,8 @@ github.com/coder/flog v1.1.0 h1:kbAes1ai8fIS5OeV+QAnKBQE22ty1jRF/mcAwHpLBa4=
 github.com/coder/flog v1.1.0/go.mod h1:UQlQvrkJBvnRGo69Le8E24Tcl5SJleAAR7gYEHzAmdQ=
 github.com/coder/go-httpstat v0.0.0-20230801153223-321c88088322 h1:m0lPZjlQ7vdVpRBPKfYIFlmgevoTkBxB10wv6l2gOaU=
 github.com/coder/go-httpstat v0.0.0-20230801153223-321c88088322/go.mod h1:rOLFDDVKVFiDqZFXoteXc97YXx7kFi9kYqR+2ETPkLQ=
+github.com/coder/go-reap v0.0.0-20260310125653-03afbd91857d h1:RXVQcJgSaZcuz3/dimDRr3j/7lszysBT8VphrzCYjG0=
+github.com/coder/go-reap v0.0.0-20260310125653-03afbd91857d/go.mod h1:TGNW2TJmp3wSQ8K4E1mrjS1d70xPL40mAFttt8UAyA0=
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs24WOxc3PBvygSNTQurm0PYPujJjLLOzs0=
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
 github.com/coder/guts v1.6.1 h1:bMVBtDNP/1gW58NFRBdzStAQzXlveMrLAnORpwE9tYo=
@@ -682,8 +684,6 @@ github.com/hashicorp/go-multierror v1.1.1 h1:H5DkEtf6CXdFp0N0Em5UCwQpXMWke8IA0+l
 github.com/hashicorp/go-multierror v1.1.1/go.mod h1:iw975J/qwKPdAO1clOe2L8331t/9/fmwbPZ6JB6eMoM=
 github.com/hashicorp/go-plugin v1.7.0 h1:YghfQH/0QmPNc/AZMTFE3ac8fipZyZECHdDPshfk+mA=
 github.com/hashicorp/go-plugin v1.7.0/go.mod h1:BExt6KEaIYx804z8k4gRzRLEvxKVb+kn0NMcihqOqb8=
-github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b h1:3GrpnZQBxcMj1gCXQLelfjCT1D5MPGTuGMKHVzSIH6A=
-github.com/hashicorp/go-reap v0.0.0-20170704170343-bf58d8a43e7b/go.mod h1:qIFzeFcJU3OIFk/7JreWXcUjFmcCaeHTH9KoNyHYVCs=
 github.com/hashicorp/go-retryablehttp v0.7.8 h1:ylXZWnqa7Lhqpk0L1P1LzDtGcCR0rPVUrx/c8Unxc48=
 github.com/hashicorp/go-retryablehttp v0.7.8/go.mod h1:rjiScheydd+CxvumBsIrFKlx3iS0jrZ7LvzFGFmuKbw=
 github.com/hashicorp/go-terraform-address v0.0.0-20240523040243-ccea9d309e0c h1:5v6L/m/HcAZYbrLGYBpPkcCVtDWwIgFxq2+FUmfPxPk=

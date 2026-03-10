@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -83,20 +82,19 @@ func TestReap(t *testing.T) {
 	}
 
 	pids := make(reap.PidCh, 1)
-	var reapLock sync.RWMutex
 	opts := append([]reaper.Option{
 		reaper.WithPIDCallback(pids),
-		reaper.WithExecArgs("/bin/sh", "-c", "exit 0"),
-		reaper.WithReapLock(&reapLock),
+		reaper.WithExecArgs("/bin/sh", "-c", "exec sleep inf >/dev/null 2>&1"),
 	}, withDone(t)...)
-	reapLock.RLock()
-	exitCode, err := reaper.ForkReap(opts...)
-	reapLock.RUnlock()
-	require.NoError(t, err)
-	require.Equal(t, 0, exitCode)
+
+	// Run ForkReap in the background so the child stays alive
+	// while we verify that the reaper forwards other PIDs.
+	go func() {
+		_, _ = reaper.ForkReap(opts...)
+	}()
 
 	cmd := exec.Command("tail", "-f", "/dev/null")
-	err = cmd.Start()
+	err := cmd.Start()
 	require.NoError(t, err)
 
 	cmd2 := exec.Command("tail", "-f", "/dev/null")
@@ -119,6 +117,10 @@ func TestReap(t *testing.T) {
 			require.Contains(t, expectedPIDs, pid)
 		}
 	}
+
+	// Test cleanup stops the reaper, which terminates ForkReap.
+	// The child's stdout/stderr are redirected to /dev/null so
+	// CombinedOutput won't hang on inherited pipes.
 }
 
 //nolint:tparallel // Subtests must be sequential, each starts its own reaper.
@@ -144,14 +146,10 @@ func TestForkReapExitCodes(t *testing.T) {
 	//nolint:paralleltest // Subtests must be sequential, each starts its own reaper.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var reapLock sync.RWMutex
 			opts := append([]reaper.Option{
 				reaper.WithExecArgs("/bin/sh", "-c", tt.command),
-				reaper.WithReapLock(&reapLock),
 			}, withDone(t)...)
-			reapLock.RLock()
 			exitCode, err := reaper.ForkReap(opts...)
-			reapLock.RUnlock()
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedCode, exitCode, "exit code mismatch for %q", tt.command)
 		})
