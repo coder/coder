@@ -14466,7 +14466,7 @@ func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
 
 const getChatSystemPrompt = `-- name: GetChatSystemPrompt :one
 SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'chat_system_prompt'), '') :: text AS chat_system_prompt
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt
 `
 
 func (q *sqlQuerier) GetChatSystemPrompt(ctx context.Context) (string, error) {
@@ -14691,8 +14691,8 @@ func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) er
 }
 
 const upsertChatSystemPrompt = `-- name: UpsertChatSystemPrompt :exec
-INSERT INTO site_configs (key, value) VALUES ('chat_system_prompt', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'chat_system_prompt'
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_system_prompt', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_system_prompt'
 `
 
 func (q *sqlQuerier) UpsertChatSystemPrompt(ctx context.Context, value string) error {
