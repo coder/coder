@@ -181,6 +181,13 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				}
 				case "tool-call":
 				case "toolcall": {
+					// Provider-executed tool calls (e.g. web_search) are
+					// handled by the provider itself — hide them from the
+					// tool card UI and let the sources component render
+					// their results.
+					if (typedBlock.provider_executed) {
+						break;
+					}
 					const name =
 						asString(typedBlock.tool_name) || asString(typedBlock.name);
 					const id =
@@ -215,6 +222,10 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				}
 				case "tool-result":
 				case "toolresult": {
+					// Skip synthetic results for provider-executed tools.
+					if (typedBlock.provider_executed) {
+						break;
+					}
 					const name =
 						asString(typedBlock.tool_name) || asString(typedBlock.name);
 					const id =

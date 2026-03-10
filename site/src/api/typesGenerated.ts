@@ -1175,6 +1175,7 @@ export interface ChatMessagePart {
 	readonly result?: Record<string, string>;
 	readonly result_delta?: string;
 	readonly is_error?: boolean;
+	readonly provider_executed?: boolean;
 	readonly source_id?: string;
 	readonly url?: string;
 	readonly title?: string;

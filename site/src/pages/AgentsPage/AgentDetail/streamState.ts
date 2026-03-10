@@ -58,6 +58,12 @@ export const applyMessagePartToStreamState = (
 		}
 		case "tool-call":
 		case "toolcall": {
+			// Provider-executed tool calls (e.g. web_search) are
+			// handled natively by the provider — skip rendering them
+			// as tool cards.
+			if (part.provider_executed) {
+				return prev;
+			}
 			const toolName = asString(part.tool_name);
 			const existingByName = Object.values(nextState.toolCalls).find(
 				(call) => call.name === toolName,
@@ -90,6 +96,10 @@ export const applyMessagePartToStreamState = (
 		}
 		case "tool-result":
 		case "toolresult": {
+			// Skip synthetic results for provider-executed tools.
+			if (part.provider_executed) {
+				return prev;
+			}
 			const toolName = asString(part.tool_name);
 			const existingByName = Object.values(nextState.toolResults).find(
 				(result) => result.name === toolName,

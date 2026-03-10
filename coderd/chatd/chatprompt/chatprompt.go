@@ -685,17 +685,19 @@ func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
 		}
 	case fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: value.ToolCallID,
-			ToolName:   value.ToolName,
-			Args:       []byte(value.Input),
+			Type:             codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:       value.ToolCallID,
+			ToolName:         value.ToolName,
+			Args:             []byte(value.Input),
+			ProviderExecuted: value.ProviderExecuted,
 		}
 	case *fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: value.ToolCallID,
-			ToolName:   value.ToolName,
-			Args:       []byte(value.Input),
+			Type:             codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:       value.ToolCallID,
+			ToolName:         value.ToolName,
+			Args:             []byte(value.Input),
+			ProviderExecuted: value.ProviderExecuted,
 		}
 	case fantasy.SourceContent:
 		return codersdk.ChatMessagePart{
@@ -775,7 +777,9 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 		result = []byte(`{}`)
 	}
 
-	return ToolResultToPart(content.ToolCallID, content.ToolName, result, isError)
+	part := ToolResultToPart(content.ToolCallID, content.ToolName, result, isError)
+	part.ProviderExecuted = content.ProviderExecuted
+	return part
 }
 
 func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
