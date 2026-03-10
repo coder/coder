@@ -13,35 +13,9 @@ export const asNonEmptyString = (value: unknown): string | undefined => {
 	return next.length > 0 ? next : undefined;
 };
 
-export const mergeThinkingTitles = (
-	currentTitle: string | undefined,
-	nextTitle: string | undefined,
-): { shouldMerge: boolean; title: string | undefined } => {
-	if (!currentTitle && !nextTitle) {
-		return { shouldMerge: true, title: undefined };
-	}
-	if (!currentTitle) {
-		return { shouldMerge: true, title: nextTitle };
-	}
-	if (!nextTitle) {
-		return { shouldMerge: true, title: currentTitle };
-	}
-	if (currentTitle === nextTitle) {
-		return { shouldMerge: true, title: currentTitle };
-	}
-	if (nextTitle.startsWith(currentTitle)) {
-		return { shouldMerge: true, title: nextTitle };
-	}
-	if (currentTitle.startsWith(nextTitle)) {
-		return { shouldMerge: true, title: currentTitle };
-	}
-	return { shouldMerge: false, title: nextTitle };
-};
-
 /**
  * Append a text or thinking block to a render block list, merging
- * with the previous block when the types match (and thinking titles
- * are compatible).
+ * with the previous block when the types match.
  *
  * @param joinText Controls how existing and new text are concatenated
  *   when merging into an existing block. Callers that process
@@ -61,23 +35,14 @@ export const appendTextBlock = (
 	const nextBlocks = [...blocks];
 	const last = nextBlocks[nextBlocks.length - 1];
 	if (last && last.type === type) {
-		const shouldMerge =
-			type === "response" ||
-			(type === "thinking" &&
-				last.type === "thinking" &&
-				mergeThinkingTitles(last.title, title).shouldMerge);
-		if (shouldMerge) {
-			const mergedTitle =
-				type === "thinking" && last.type === "thinking"
-					? mergeThinkingTitles(last.title, title).title
-					: undefined;
-			nextBlocks[nextBlocks.length - 1] = createBlock(
-				type,
-				joinText(last.text, text),
-				mergedTitle,
-			);
-			return nextBlocks;
-		}
+		nextBlocks[nextBlocks.length - 1] = createBlock(
+			type,
+			joinText(last.text, text),
+			type === "thinking" && last.type === "thinking"
+				? (title ?? last.title)
+				: undefined,
+		);
+		return nextBlocks;
 	}
 	nextBlocks.push(createBlock(type, text, title));
 	return nextBlocks;

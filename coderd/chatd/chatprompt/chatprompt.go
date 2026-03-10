@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -588,8 +587,7 @@ func MarshalContent(blocks []fantasy.Content, fileIDs map[int]uuid.UUID) (pqtype
 }
 
 // injectFileID adds a file_id field into the data sub-object of a
-// serialized content block envelope. This follows the same pattern
-// as the reasoning title injection in marshalContentBlock.
+// serialized content block envelope.
 func injectFileID(encoded json.RawMessage, fileID uuid.UUID) (json.RawMessage, error) {
 	var envelope struct {
 		Type string `json:"type"`
@@ -673,15 +671,13 @@ func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
 		}
 	case fantasy.ReasoningContent:
 		return codersdk.ChatMessagePart{
-			Type:  codersdk.ChatMessagePartTypeReasoning,
-			Text:  value.Text,
-			Title: reasoningSummaryTitle(value.ProviderMetadata),
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
 		}
 	case *fantasy.ReasoningContent:
 		return codersdk.ChatMessagePart{
-			Type:  codersdk.ChatMessagePartTypeReasoning,
-			Text:  value.Text,
-			Title: reasoningSummaryTitle(value.ProviderMetadata),
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
 		}
 	case fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
@@ -776,43 +772,6 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 	}
 
 	return ToolResultToPart(content.ToolCallID, content.ToolName, result, isError)
-}
-
-// ReasoningTitleFromFirstLine extracts a compact markdown title.
-func ReasoningTitleFromFirstLine(text string) string {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return ""
-	}
-
-	firstLine := text
-	if idx := strings.IndexAny(firstLine, "\r\n"); idx >= 0 {
-		firstLine = firstLine[:idx]
-	}
-	firstLine = strings.TrimSpace(firstLine)
-	if firstLine == "" || !strings.HasPrefix(firstLine, "**") {
-		return ""
-	}
-
-	rest := firstLine[2:]
-	end := strings.Index(rest, "**")
-	if end < 0 {
-		return ""
-	}
-
-	title := strings.TrimSpace(rest[:end])
-	if title == "" {
-		return ""
-	}
-
-	// Require the first line to be exactly "**title**" (ignoring
-	// surrounding whitespace) so providers without this format don't
-	// accidentally emit a title.
-	if strings.TrimSpace(rest[end+2:]) != "" {
-		return ""
-	}
-
-	return compactReasoningSummaryTitle(title)
 }
 
 func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
@@ -1019,136 +978,7 @@ func sanitizeToolCallID(id string) string {
 }
 
 func marshalContentBlock(block fantasy.Content) (json.RawMessage, error) {
-	encoded, err := json.Marshal(block)
-	if err != nil {
-		return nil, err
-	}
-
-	title, ok := reasoningTitleFromContent(block)
-	if !ok || title == "" {
-		return encoded, nil
-	}
-
-	var envelope struct {
-		Type string         `json:"type"`
-		Data map[string]any `json:"data"`
-	}
-	if err := json.Unmarshal(encoded, &envelope); err != nil {
-		return nil, err
-	}
-
-	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeReasoning)) {
-		return encoded, nil
-	}
-	if envelope.Data == nil {
-		envelope.Data = map[string]any{}
-	}
-	envelope.Data["title"] = title
-
-	encodedWithTitle, err := json.Marshal(envelope)
-	if err != nil {
-		return nil, err
-	}
-	return encodedWithTitle, nil
-}
-
-func reasoningTitleFromContent(block fantasy.Content) (string, bool) {
-	switch value := block.(type) {
-	case fantasy.ReasoningContent:
-		return ReasoningTitleFromFirstLine(value.Text), true
-	case *fantasy.ReasoningContent:
-		if value == nil {
-			return "", false
-		}
-		return ReasoningTitleFromFirstLine(value.Text), true
-	default:
-		return "", false
-	}
-}
-
-func reasoningSummaryTitle(metadata fantasy.ProviderMetadata) string {
-	if len(metadata) == 0 {
-		return ""
-	}
-
-	reasoningMetadata := fantasyopenai.GetReasoningMetadata(
-		fantasy.ProviderOptions(metadata),
-	)
-	if reasoningMetadata == nil {
-		return ""
-	}
-
-	for _, summary := range reasoningMetadata.Summary {
-		if title := compactReasoningSummaryTitle(summary); title != "" {
-			return title
-		}
-	}
-
-	return ""
-}
-
-func compactReasoningSummaryTitle(summary string) string {
-	const maxWords = 8
-	const maxRunes = 80
-
-	summary = strings.TrimSpace(summary)
-	if summary == "" {
-		return ""
-	}
-
-	summary = strings.Trim(summary, "\"'`")
-	summary = reasoningSummaryHeadline(summary)
-	words := strings.Fields(summary)
-	if len(words) == 0 {
-		return ""
-	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-
-	title := strings.Join(words, " ")
-	if truncated {
-		title += "…"
-	}
-	return truncateRunes(title, maxRunes)
-}
-
-func reasoningSummaryHeadline(summary string) string {
-	summary = strings.TrimSpace(summary)
-	if summary == "" {
-		return ""
-	}
-
-	// OpenAI summary_text may be markdown like:
-	// "**Title**\n\nLonger explanation ...".
-	// Keep only the heading segment for UI titles.
-	if idx := strings.Index(summary, "\n\n"); idx >= 0 {
-		summary = summary[:idx]
-	}
-
-	if idx := strings.IndexAny(summary, "\r\n"); idx >= 0 {
-		summary = summary[:idx]
-	}
-
-	summary = strings.TrimSpace(summary)
-	if summary == "" {
-		return ""
-	}
-
-	if strings.HasPrefix(summary, "**") {
-		rest := summary[2:]
-		if end := strings.Index(rest, "**"); end >= 0 {
-			bold := strings.TrimSpace(rest[:end])
-			if bold != "" {
-				summary = bold
-			}
-		}
-	}
-
-	return strings.TrimSpace(strings.Trim(summary, "\"'`"))
+	return json.Marshal(block)
 }
 
 func truncateRunes(value string, maxLen int) string {

@@ -1,5 +1,5 @@
 import { asString } from "components/ai-elements/runtimeTypeUtils";
-import { appendTextBlock, mergeThinkingTitles } from "./blockUtils";
+import { appendTextBlock } from "./blockUtils";
 import {
 	asOptionalTitle,
 	ensureToolBlock,
@@ -7,7 +7,7 @@ import {
 	parseToolResultIsError,
 } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
-import type { MergedTool, RenderBlock, StreamState } from "./types";
+import type { MergedTool, StreamState } from "./types";
 
 let nextFallbackID = 0;
 
@@ -19,32 +19,6 @@ export const createEmptyStreamState = (): StreamState => ({
 
 /** Streaming variant — uses direct concatenation (the default joinText). */
 const appendStreamTextBlock = appendTextBlock;
-
-export const applyStreamThinkingTitle = (
-	blocks: RenderBlock[],
-	title?: string,
-): RenderBlock[] => {
-	if (!title) {
-		return blocks;
-	}
-	const nextBlocks = [...blocks];
-	const last = nextBlocks[nextBlocks.length - 1];
-	if (last && last.type === "thinking") {
-		const merged = mergeThinkingTitles(last.title, title);
-		nextBlocks[nextBlocks.length - 1] = {
-			type: "thinking",
-			text: last.text,
-			title: merged.title,
-		};
-		return nextBlocks;
-	}
-	nextBlocks.push({
-		type: "thinking",
-		text: "",
-		title,
-	});
-	return nextBlocks;
-};
 
 export const applyMessagePartToStreamState = (
 	prev: StreamState | null,
@@ -67,16 +41,18 @@ export const applyMessagePartToStreamState = (
 		case "reasoning":
 		case "thinking": {
 			const text = asString(part.text);
-			const title = asOptionalTitle(part.title);
-			if (!text && !title) {
+			if (!text) {
 				return prev;
 			}
-			const nextBlocks = text
-				? appendStreamTextBlock(nextState.blocks, "thinking", text, title)
-				: applyStreamThinkingTitle(nextState.blocks, title);
+			const title = asOptionalTitle(part.title);
 			return {
 				...nextState,
-				blocks: nextBlocks,
+				blocks: appendStreamTextBlock(
+					nextState.blocks,
+					"thinking",
+					text,
+					title,
+				),
 			};
 		}
 		case "tool-call":

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -436,82 +435,6 @@ func TestAIBridgeInterception(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestChatMessage_ReasoningPartWithoutPersistedTitleIsEmpty(t *testing.T) {
-	t.Parallel()
-
-	assistantContent, err := json.Marshal([]fantasy.Content{
-		fantasy.ReasoningContent{
-			Text: "Plan migration",
-			ProviderMetadata: fantasy.ProviderMetadata{
-				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
-					ItemID:  "reasoning-1",
-					Summary: []string{"Plan migration"},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	message := db2sdk.ChatMessage(database.ChatMessage{
-		ID:        1,
-		ChatID:    uuid.New(),
-		CreatedAt: time.Now(),
-		Role:      string(fantasy.MessageRoleAssistant),
-		Content: pqtype.NullRawMessage{
-			RawMessage: assistantContent,
-			Valid:      true,
-		},
-	})
-
-	require.Len(t, message.Content, 1)
-	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
-	require.Equal(t, "Plan migration", message.Content[0].Text)
-	require.Empty(t, message.Content[0].Title)
-}
-
-func TestChatMessage_ReasoningPartPrefersPersistedTitle(t *testing.T) {
-	t.Parallel()
-
-	reasoningContent, err := json.Marshal(fantasy.ReasoningContent{
-		Text: "Verify schema updates, then apply changes in order.",
-		ProviderMetadata: fantasy.ProviderMetadata{
-			fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
-				ItemID: "reasoning-1",
-				Summary: []string{
-					"**Metadata-derived title**\n\nLonger explanation.",
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	var envelope map[string]any
-	require.NoError(t, json.Unmarshal(reasoningContent, &envelope))
-	dataValue, ok := envelope["data"].(map[string]any)
-	require.True(t, ok)
-	dataValue["title"] = "Persisted stream title"
-
-	encodedReasoning, err := json.Marshal(envelope)
-	require.NoError(t, err)
-	assistantContent, err := json.Marshal([]json.RawMessage{encodedReasoning})
-	require.NoError(t, err)
-
-	message := db2sdk.ChatMessage(database.ChatMessage{
-		ID:        1,
-		ChatID:    uuid.New(),
-		CreatedAt: time.Now(),
-		Role:      string(fantasy.MessageRoleAssistant),
-		Content: pqtype.NullRawMessage{
-			RawMessage: assistantContent,
-			Valid:      true,
-		},
-	})
-
-	require.Len(t, message.Content, 1)
-	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
-	require.Equal(t, "Persisted stream title", message.Content[0].Title)
 }
 
 func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
