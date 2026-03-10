@@ -171,7 +171,6 @@ const AgentsPage: FC = () => {
 		...archiveChatBase,
 		onSuccess: (_data, chatId) => {
 			clearChatErrorReason(chatId);
-			toast.success("Agent archived.");
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -194,8 +193,6 @@ const AgentsPage: FC = () => {
 			clearChatErrorReason(chatId);
 			await queryClient.invalidateQueries({ queryKey: chatsKey });
 			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
-			toast.success("Agent archived.");
-			toast.success("Workspace deletion initiated.");
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
@@ -204,9 +201,6 @@ const AgentsPage: FC = () => {
 	const unarchiveChatBase = unarchiveChat(queryClient);
 	const unarchiveAgentMutation = useMutation({
 		...unarchiveChatBase,
-		onSuccess: () => {
-			toast.success("Agent unarchived.");
-		},
 		onError: (error, chatId, context) => {
 			unarchiveChatBase.onError(error, chatId, context);
 			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
