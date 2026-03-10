@@ -76,6 +76,7 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	toolResults: [],
 	tools: [],
 	blocks: [],
+	sources: [],
 });
 
 /** Wraps appendTextBlock with newline-joining for complete message blocks. */
@@ -248,6 +249,17 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 								fileId: fileId || undefined,
 							},
 						];
+					}
+					break;
+				}
+				case "source": {
+					const url = asString(typedBlock.url);
+					const title = asString(typedBlock.title);
+					if (url) {
+						// Deduplicate by URL.
+						if (!parsed.sources.some((s) => s.url === url)) {
+							parsed.sources.push({ url, title: title || url });
+						}
 					}
 					break;
 				}

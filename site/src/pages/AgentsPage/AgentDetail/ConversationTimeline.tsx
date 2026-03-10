@@ -7,6 +7,7 @@ import {
 	Shimmer,
 	Tool,
 } from "components/ai-elements";
+import { WebSearchSources } from "components/ai-elements/tool";
 import { FileIcon } from "components/FileIcon/FileIcon";
 import { Spinner } from "components/Spinner/Spinner";
 import { ChevronDownIcon } from "lucide-react";
@@ -315,7 +316,9 @@ const ChatMessageItem = memo<{
 		}
 
 		const hasRenderableContent =
-			parsed.blocks.length > 0 || parsed.tools.length > 0;
+			parsed.blocks.length > 0 ||
+			parsed.tools.length > 0 ||
+			parsed.sources.length > 0;
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
@@ -479,6 +482,9 @@ const ChatMessageItem = memo<{
 											isError={tool.isError}
 										/>
 									))}
+									{parsed.sources.length > 0 && (
+										<WebSearchSources sources={parsed.sources} />
+									)}
 									{!hasRenderableContent && (
 										<div className="text-xs text-content-secondary">
 											Message has no renderable content.
@@ -573,7 +579,10 @@ export const StreamingOutput = memo<{
 									subagentStatusOverrides={subagentStatusOverrides}
 								/>
 							))}
-						</div>
+							{streamState && streamState.sources.length > 0 && (
+								<WebSearchSources sources={streamState.sources} />
+							)}
+						</div>{" "}
 					</MessageContent>
 				</Message>
 			</ConversationItem>

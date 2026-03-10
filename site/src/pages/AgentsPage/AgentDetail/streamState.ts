@@ -15,6 +15,7 @@ export const createEmptyStreamState = (): StreamState => ({
 	blocks: [],
 	toolCalls: {},
 	toolResults: {},
+	sources: [],
 });
 
 /** Streaming variant — uses direct concatenation (the default joinText). */
@@ -148,6 +149,21 @@ export const applyMessagePartToStreamState = (
 						fileId: fileId || undefined,
 					},
 				],
+			};
+		}
+		case "source": {
+			const url = asString(part.url);
+			const title = asString(part.title);
+			if (!url) {
+				return prev;
+			}
+			// Deduplicate by URL.
+			if (nextState.sources.some((s) => s.url === url)) {
+				return prev;
+			}
+			return {
+				...nextState,
+				sources: [...nextState.sources, { url, title: title || url }],
 			};
 		}
 		default:
