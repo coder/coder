@@ -3478,8 +3478,9 @@ ORDER BY
     -- a timestamp. This is to ensure consistent pagination.
     (updated_at, id) DESC OFFSET $4
 LIMIT
-    -- A null limit means "no limit", so 0 means return all
-    NULLIF($5 :: int, 0)
+    -- The chat list is unbounded and expected to grow large.
+    -- Default to 50 to prevent accidental excessively large queries.
+    COALESCE(NULLIF($5 :: int, 0), 50)
 `
 
 type GetChatsByOwnerIDParams struct {

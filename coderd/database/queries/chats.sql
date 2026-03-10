@@ -137,8 +137,9 @@ ORDER BY
     -- a timestamp. This is to ensure consistent pagination.
     (updated_at, id) DESC OFFSET @offset_opt
 LIMIT
-    -- A null limit means "no limit", so 0 means return all
-    NULLIF(@limit_opt :: int, 0);
+    -- The chat list is unbounded and expected to grow large.
+    -- Default to 50 to prevent accidental excessively large queries.
+    COALESCE(NULLIF(@limit_opt :: int, 0), 50);
 
 -- name: ListChildChatsByParentID :many
 SELECT
