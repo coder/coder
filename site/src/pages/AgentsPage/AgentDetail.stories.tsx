@@ -806,6 +806,8 @@ export const StreamedReasoningCollapsed: Story = {
 		await user.click(reasoningToggle);
 
 		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
-		expect(canvas.getByText("Streaming reasoning body")).toBeInTheDocument();
+		await expect(
+			canvas.findByText("Streaming reasoning body"),
+		).resolves.toBeInTheDocument();
 	},
 };
