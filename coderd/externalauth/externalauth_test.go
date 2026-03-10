@@ -92,6 +92,7 @@ func TestRefreshToken(t *testing.T) {
 
 		// Zero time used
 		link.OAuthExpiry = time.Time{}
+
 		_, err := config.RefreshToken(ctx, nil, link)
 		require.NoError(t, err)
 		require.True(t, validated, "token should have been validated")
@@ -106,6 +107,7 @@ func TestRefreshToken(t *testing.T) {
 				},
 			},
 		}
+
 		_, err := config.RefreshToken(context.Background(), nil, database.ExternalAuthLink{
 			OAuthExpiry: expired,
 		})
@@ -343,7 +345,6 @@ func TestRefreshToken(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, updated.OAuthAccessToken, dbLink.OAuthAccessToken, "token is updated in the DB")
 	})
-
 	t.Run("WithExtra", func(t *testing.T) {
 		t.Parallel()
 
