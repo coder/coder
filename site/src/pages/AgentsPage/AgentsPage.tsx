@@ -12,7 +12,6 @@ import {
 	infiniteChats,
 	readInfiniteChatsCache,
 	unarchiveChat,
-	updateChatSystemPrompt,
 	updateInfiniteChatsCache,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
@@ -35,13 +34,14 @@ import {
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
-import { type CreateChatOptions, emptyInputStorageKey } from "./AgentCreateForm";
+import {
+	type CreateChatOptions,
+	emptyInputStorageKey,
+} from "./AgentCreateForm";
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import type { AgentsOutletContext } from "./AgentsPageView";
 import { AgentsPageView } from "./AgentsPageView";
-import {
-	getModelOptionsFromCatalog,
-} from "./modelOptions";
+import { getModelOptionsFromCatalog } from "./modelOptions";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
 
