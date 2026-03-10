@@ -11,7 +11,7 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
-import { AgentsEmptyState } from "./AgentsPage";
+import { AgentCreateForm } from "./AgentsPage";
 
 const modelOptions = [
 	{
@@ -22,9 +22,9 @@ const modelOptions = [
 	},
 ] as const;
 
-const meta: Meta<typeof AgentsEmptyState> = {
-	title: "pages/AgentsPage/AgentsEmptyState",
-	component: AgentsEmptyState,
+const meta: Meta<typeof AgentCreateForm> = {
+	title: "pages/AgentsPage/AgentCreateForm",
+	component: AgentCreateForm,
 	decorators: [withDashboardProvider],
 	args: {
 		onCreateChat: fn(),
@@ -55,7 +55,7 @@ const meta: Meta<typeof AgentsEmptyState> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof AgentsEmptyState>;
+type Story = StoryObj<typeof AgentCreateForm>;
 
 export const Default: Story = {};
 
