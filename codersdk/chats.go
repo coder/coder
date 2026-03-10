@@ -693,7 +693,7 @@ func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.U
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.
 func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/system-prompt", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/system-prompt", nil)
 	if err != nil {
 		return ChatSystemPromptResponse{}, err
 	}
@@ -707,7 +707,7 @@ func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptRespo
 
 // UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
 func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSystemPromptRequest) error {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/system-prompt", req)
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/system-prompt", req)
 	if err != nil {
 		return err
 	}
