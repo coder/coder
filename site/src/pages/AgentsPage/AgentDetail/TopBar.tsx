@@ -203,11 +203,16 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								</DropdownMenuItem>
 								{workspaceName && (
 									<DropdownMenuItem
-										className="text-content-destructive focus:text-content-destructive"
+										className="items-start text-content-destructive focus:text-content-destructive"
 										onSelect={onArchiveAndDeleteWorkspace}
 									>
-										<Trash2Icon className="h-3.5 w-3.5" />
-										Archive & delete workspace "{workspaceName}"
+										<Trash2Icon className="mt-0.5 h-3.5 w-3.5" />
+										<div className="flex flex-col">
+											<span>Archive & delete workspace</span>
+											<span className="text-xs font-normal opacity-60">
+												{workspaceName}
+											</span>
+										</div>
 									</DropdownMenuItem>
 								)}
 							</>
