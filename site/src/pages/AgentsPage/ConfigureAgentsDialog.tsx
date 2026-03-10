@@ -7,6 +7,12 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "components/Dialog/Dialog";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import type { LucideIcon } from "lucide-react";
 import {
 	BoxesIcon,
@@ -18,12 +24,6 @@ import {
 } from "lucide-react";
 import { type FC, type FormEvent, useEffect, useMemo, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { cn } from "utils/cn";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { SectionHeader } from "./SectionHeader";
@@ -40,6 +40,22 @@ type ConfigureAgentsSectionOption = {
 	icon: LucideIcon;
 	adminOnly?: boolean;
 };
+
+const AdminBadge: FC = () => (
+	<TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span className="inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-1.5 py-0.5 text-[11px] font-medium text-content-secondary">
+					<ShieldIcon className="h-3 w-3" />
+					Admin
+				</span>
+			</TooltipTrigger>
+			<TooltipContent side="right">
+				Only visible to deployment administrators.
+			</TooltipContent>
+		</Tooltip>
+	</TooltipProvider>
+);
 
 interface ConfigureAgentsDialogProps {
 	open: boolean;
@@ -161,22 +177,14 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								)}
 								onClick={() => setUserActiveSection(section.id)}
 							>
-							<SectionIcon className="h-5 w-5 shrink-0" />
-							<span className="flex items-center gap-2 text-sm font-medium">
-								{section.label}
-								{section.adminOnly && (
-									<TooltipProvider>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<ShieldIcon className="h-3 w-3 shrink-0 text-content-secondary" />
-											</TooltipTrigger>
-											<TooltipContent side="right">
-												Admin only
-											</TooltipContent>
-										</Tooltip>
-									</TooltipProvider>
-								)}
-							</span>							</Button>
+								<SectionIcon className="h-5 w-5 shrink-0" />
+								<span className="flex items-center gap-2 text-sm font-medium">
+									{section.label}
+									{section.adminOnly && (
+										<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
+									)}
+								</span>
+							</Button>
 						);
 					})}
 				</nav>
@@ -235,11 +243,20 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 						</>
 					)}
 					{activeSection === "providers" && canManageChatModelConfigs && (
-						<ChatModelAdminPanel section="providers" sectionLabel="Providers" />
+						<>
+							<SectionHeader
+								label="Providers"
+								action={<AdminBadge />}
+							/>
+							<ChatModelAdminPanel section="providers" />
+						</>
 					)}
 					{activeSection === "system-prompt" && canSetSystemPrompt && (
 						<>
-							<SectionHeader label="Behavior" />
+							<SectionHeader
+								label="Behavior"
+								action={<AdminBadge />}
+							/>
 							<form
 								className="space-y-4"
 								onSubmit={(event) => void onSaveSystemPrompt(event)}
@@ -290,7 +307,13 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 						</>
 					)}
 					{activeSection === "models" && canManageChatModelConfigs && (
-						<ChatModelAdminPanel section="models" sectionLabel="Models" />
+						<>
+							<SectionHeader
+								label="Models"
+								action={<AdminBadge />}
+							/>
+							<ChatModelAdminPanel section="models" />
+						</>
 					)}
 				</div>
 			</DialogContent>
