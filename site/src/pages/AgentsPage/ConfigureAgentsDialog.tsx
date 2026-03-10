@@ -53,7 +53,7 @@ const AdminBadge: FC = () => (
 );
 
 const textareaClassName =
-	"max-h-[240px] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]";
+	"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]";
 
 interface ConfigureAgentsDialogProps {
 	open: boolean;
@@ -261,7 +261,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 												user. When empty, the built-in default is used.
 											</p>										<TextareaAutosize
 											className={textareaClassName}
-											placeholder="Additional behavior, style, and tone preferences"
+											placeholder="Additional behavior, style, and tone preferences for all users"
 											value={systemPromptDraft}
 											onChange={(event) =>
 												onSystemPromptDraftChange(event.target.value)
