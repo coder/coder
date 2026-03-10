@@ -211,6 +211,18 @@ type UpdateChatSystemPromptRequest struct {
 	SystemPrompt string `json:"system_prompt"`
 }
 
+// UserChatCustomPromptResponse is the response for getting a user's
+// custom chat prompt.
+type UserChatCustomPromptResponse struct {
+	CustomPrompt string `json:"custom_prompt"`
+}
+
+// UpdateUserChatCustomPromptRequest is the request to update a user's
+// custom chat prompt.
+type UpdateUserChatCustomPromptRequest struct {
+	CustomPrompt string `json:"custom_prompt"`
+}
+
 // ChatProviderConfigSource describes how a provider entry is sourced.
 type ChatProviderConfigSource string
 
@@ -723,6 +735,34 @@ func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSyste
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// GetUserChatCustomPrompt fetches the user's custom chat prompt.
+func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-prompt", nil)
+	if err != nil {
+		return UserChatCustomPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCustomPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserChatCustomPrompt updates the user's custom chat prompt.
+func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, req UpdateUserChatCustomPromptRequest) (UserChatCustomPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-prompt", req)
+	if err != nil {
+		return UserChatCustomPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCustomPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // CreateChat creates a new chat.

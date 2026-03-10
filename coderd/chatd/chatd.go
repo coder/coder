@@ -2229,9 +2229,11 @@ func (p *Server) runChat(
 	if instruction := p.resolveInstructions(ctx, chat, getWorkspaceConn); instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
 	}
+	if userPrompt := p.resolveUserPrompt(ctx, chat.OwnerID); userPrompt != "" {
+		prompt = chatprompt.InsertSystem(prompt, userPrompt)
+	}
 
-	// Use the model config's context_limit as a fallback when the LLM
-	// provider doesn't include context_limit in its response metadata
+	// Use the model config's context_limit as a fallback when the LLM	// provider doesn't include context_limit in its response metadata
 	// (which is the common case).
 	modelConfigContextLimit := modelConfig.ContextLimit
 
@@ -2509,6 +2511,9 @@ func (p *Server) runChat(
 			}
 			if instruction := p.resolveInstructions(reloadCtx, chat, getWorkspaceConn); instruction != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			}
+			if userPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID); userPrompt != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, userPrompt)
 			}
 			return reloadedPrompt, nil
 		},
@@ -2882,6 +2887,22 @@ func (p *Server) resolveInstructions(
 	p.instructionCacheMu.Unlock()
 
 	return instruction
+}
+
+// resolveUserPrompt fetches the user's custom chat prompt from the
+// database and wraps it in <user-instructions> tags. Returns empty
+// string if no prompt is set.
+func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string {
+	raw, err := p.db.GetUserChatCustomPrompt(ctx, userID)
+	if err != nil {
+		// sql.ErrNoRows is the normal "not set" case.
+		return ""
+	}
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
 }
 
 func (p *Server) recoverStaleChats(ctx context.Context) {
