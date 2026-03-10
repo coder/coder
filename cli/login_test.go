@@ -542,8 +542,10 @@ func TestLogin(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
+		// Using --token with CODER_SESSION_TOKEN set should succeed.
+		// This is the standard pattern used by coder/setup-action.
 		root, _ := clitest.New(t, "login", client.URL.String(), "--token", client.SessionToken())
-		root.Environ.Set("CODER_SESSION_TOKEN", "invalid-token")
+		root.Environ.Set("CODER_SESSION_TOKEN", client.SessionToken())
 		err := root.Run()
 		require.NoError(t, err)
 	})
