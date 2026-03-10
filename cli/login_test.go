@@ -528,6 +528,16 @@ func TestLogin(t *testing.T) {
 		require.Contains(t, err.Error(), "unset CODER_SESSION_TOKEN")
 	})
 
+	t.Run("SessionTokenEnvVarWithUseTokenAsSession", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		root, _ := clitest.New(t, "login", client.URL.String(), "--use-token-as-session")
+		root.Environ.Set("CODER_SESSION_TOKEN", client.SessionToken())
+		err := root.Run()
+		require.NoError(t, err)
+	})
+
 	t.Run("KeepOrganizationContext", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

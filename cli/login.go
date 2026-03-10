@@ -356,12 +356,12 @@ func (r *RootCmd) login() *serpent.Command {
 				return nil
 			}
 
-			// If CODER_SESSION_TOKEN is set in the environment, abort login.
-			// The env var takes precedence over a token stored on disk, so
-			// even if we complete login and write a new token to the session
-			// file, subsequent CLI commands would still use the environment
-			// variable value.
-			if inv.Environ.Get(envSessionToken) != "" {
+			// If CODER_SESSION_TOKEN is set in the environment, abort login
+			// unless --use-token-as-session is specified. The env var takes
+			// precedence over a token stored on disk, so even if we complete
+			// login and write a new token to the session file, subsequent CLI
+			// commands would still use the environment variable value.
+			if inv.Environ.Get(envSessionToken) != "" && !useTokenForSession {
 				return xerrors.Errorf(
 					"%s is set. This environment variable takes precedence over any session token stored on disk.\n\n"+
 						"To log in, unset the environment variable and re-run this command:\n\n"+
