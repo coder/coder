@@ -651,7 +651,14 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 							<TopbarIconButton
 								title="AI Assistant"
 								onClick={() => {
-									setAIPanelOpen((v) => !v);
+									setAIPanelOpen((prev) => {
+										// Stop any in-flight stream when hiding
+										// the panel so it doesn't run unseen.
+										if (prev) {
+											templateAgent.stop();
+										}
+										return !prev;
+									});
 								}}
 								className={aiPanelOpen ? "text-content-link" : undefined}
 							>
