@@ -53,7 +53,7 @@ const AdminBadge: FC = () => (
 );
 
 const textareaClassName =
-	"max-h-[240px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]";
+	"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]";
 
 interface ConfigureAgentsDialogProps {
 	open: boolean;
@@ -203,7 +203,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								onSubmit={(event) => void onSaveUserPrompt(event)}
 							>
 								<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-									Personal Prompt
+									Personal Instructions
 								</h3>
 								<p className="m-0 text-xs text-content-secondary">
 									Personal instructions appended to all your new chats. Only
@@ -211,13 +211,13 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								</p>
 								<TextareaAutosize
 									className={textareaClassName}
-									placeholder="Optional. Set personal instructions for your chats."
+									placeholder="Additional behavior, style, and tone preferences"
 									value={userPromptDraft}
 									onChange={(event) =>
 										onUserPromptDraftChange(event.target.value)
 									}
 									disabled={isDisabled}
-									minRows={4}
+									minRows={1}
 								/>
 								<div className="flex justify-end gap-2">
 									<Button
@@ -239,7 +239,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								</div>
 								{saveUserPromptError && (
 									<p className="m-0 text-xs text-content-destructive">
-										Failed to save personal prompt.
+										Failed to save personal instructions.
 									</p>
 								)}
 							</form>
@@ -254,7 +254,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 									>
 										<div className="flex items-center gap-2">
 											<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-												System Prompt
+												System Instructions
 											</h3>
 											<AdminBadge />
 										</div>
@@ -264,13 +264,13 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 										</p>
 										<TextareaAutosize
 											className={textareaClassName}
-											placeholder="Optional. Set deployment-wide instructions for all new chats."
+											placeholder="Additional behavior, style, and tone preferences"
 											value={systemPromptDraft}
 											onChange={(event) =>
 												onSystemPromptDraftChange(event.target.value)
 											}
 											disabled={isDisabled}
-											minRows={4}
+											minRows={1}
 										/>
 										<div className="flex justify-end gap-2">
 											<Button
