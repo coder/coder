@@ -159,10 +159,10 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 				continue
 			}
 			toolParts = append(toolParts, fantasy.ToolResultPart{
-				ToolCallID:      result.ToolCallID,
-				Output:          result.Result,
+				ToolCallID:       result.ToolCallID,
+				Output:           result.Result,
 				ProviderExecuted: result.ProviderExecuted,
-				ProviderOptions: fantasy.ProviderOptions(result.ProviderMetadata),
+				ProviderOptions:  fantasy.ProviderOptions(result.ProviderMetadata),
 			})
 		default:
 			continue
@@ -315,6 +315,32 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 			}
 
+			// Synthesize tool results for provider-executed tool
+			// calls (e.g. web search). The provider handles
+			// these server-side so there is no local execution,
+			// but we still need a ToolResultContent in the
+			// persisted content so the DB has matching
+			// tool_call / tool_result pairs. Without this,
+			// reloading the conversation and sending it back to
+			// the provider fails because the provider sees a
+			// tool_call with no tool_result. The
+			// ProviderExecuted flag ensures these synthetic
+			// results are filtered out by the provider
+			// adapter's toPrompt().
+			for _, tc := range result.toolCalls {
+				if !tc.ProviderExecuted {
+					continue
+				}
+				result.content = append(result.content, fantasy.ToolResultContent{
+					ToolCallID:       tc.ToolCallID,
+					ToolName:         tc.ToolName,
+					ProviderExecuted: true,
+					Result: fantasy.ToolResultOutputContentText{
+						Text: "provider-executed tool result",
+					},
+				})
+			}
+
 			// Extract context limit from provider metadata.
 			contextLimit := extractContextLimit(result.providerMetadata)
 			if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
@@ -323,7 +349,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 					Valid: true,
 				}
 			}
-
 			// Persist the step — errors propagate directly.
 			if err := opts.PersistStep(ctx, PersistedStep{
 				Content:      result.content,
@@ -797,8 +822,9 @@ func persistInterruptedStep(
 			continue
 		}
 		content = append(content, fantasy.ToolResultContent{
-			ToolCallID: tc.ToolCallID,
-			ToolName:   tc.ToolName,
+			ToolCallID:       tc.ToolCallID,
+			ToolName:         tc.ToolName,
+			ProviderExecuted: tc.ProviderExecuted,
 			Result: fantasy.ToolResultOutputContentError{
 				Error: xerrors.New(interruptedToolResultErrorMessage),
 			},
