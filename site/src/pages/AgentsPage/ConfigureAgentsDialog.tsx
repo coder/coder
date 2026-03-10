@@ -17,8 +17,8 @@ import type { LucideIcon } from "lucide-react";
 import {
 	BoxesIcon,
 	KeyRoundIcon,
-	MessageSquareTextIcon,
 	ShieldIcon,
+	UserIcon,
 	XIcon,
 } from "lucide-react";
 import { type FC, type FormEvent, useEffect, useMemo, useState } from "react";
@@ -97,7 +97,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 		options.push({
 			id: "behavior",
 			label: "Behavior",
-			icon: MessageSquareTextIcon,
+			icon: UserIcon,
 		});
 		if (canManageChatModelConfigs) {
 			options.push({
