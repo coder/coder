@@ -305,7 +305,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								<SectionHeader
 									label="Providers"
 									description="Connect third-party LLM services like OpenAI, Anthropic, or Google. Each provider supplies models that users can select for their chats."
-									action={<AdminBadge />}
+									badge={<AdminBadge />}
 								/>							<ChatModelAdminPanel section="providers" />
 						</>
 					)}
@@ -314,7 +314,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								<SectionHeader
 									label="Models"
 									description="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
-									action={<AdminBadge />}
+									badge={<AdminBadge />}
 								/>							<ChatModelAdminPanel section="models" />
 						</>
 					)}
