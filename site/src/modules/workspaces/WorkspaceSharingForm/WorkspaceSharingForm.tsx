@@ -144,7 +144,6 @@ interface WorkspaceSharingFormProps {
 	organizationId: string;
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
-	isTaskWorkspace: boolean;
 	error: unknown;
 	onUpdateUser: (user: WorkspaceUser, role: WorkspaceRole) => void;
 	updatingUserId: WorkspaceUser["id"] | undefined;
@@ -161,7 +160,6 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 	organizationId,
 	workspaceACL,
 	canUpdatePermissions,
-	isTaskWorkspace,
 	error,
 	updatingUserId,
 	onUpdateUser,
@@ -231,17 +229,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 
 	const tableBody = (
 		<TableBody>
-			{isTaskWorkspace ? (
-				<TableRow>
-					<TableCell colSpan={999}>
-						<EmptyState
-							message="Task workspaces cannot be shared"
-							description="This workspace is managed by a task. Task sharing has not yet been implemented."
-							isCompact={isCompact}
-						/>
-					</TableCell>
-				</TableRow>
-			) : !workspaceACL ? (
+			{!workspaceACL ? (
 				<TableLoader />
 			) : isEmpty ? (
 				<TableRow>
