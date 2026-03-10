@@ -1571,6 +1571,12 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 	var requestCount atomic.Int32
 	streamStarted := make(chan struct{})
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		// Ignore non-streaming requests (e.g. title generation) so
+		// they don't interfere with the request counter used to
+		// coordinate the streaming chat flow.
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("shutdown-retry")
+		}
 		if requestCount.Add(1) == 1 {
 			chunks := make(chan chattest.OpenAIChunk, 1)
 			go func() {
