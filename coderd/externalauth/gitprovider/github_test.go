@@ -446,7 +446,7 @@ func TestGitHubRatelimit_403WithResetHeader(t *testing.T) {
 
 	var rlErr *gitprovider.RateLimitError
 	require.True(t, errors.As(err, &rlErr), "error should be *RateLimitError, got: %T", err)
-	assert.WithinDuration(t, resetTime, rlErr.RetryAfter, 2*time.Second)
+	assert.WithinDuration(t, resetTime.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 2*time.Second)
 }
 
 func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
@@ -474,7 +474,7 @@ func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
 
 	// Retry-After: 120 means ~120s from now.
 	expected := time.Now().Add(120 * time.Second)
-	assert.WithinDuration(t, expected, rlErr.RetryAfter, 5*time.Second)
+	assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
 }
 
 func TestGitHubRatelimit_403NormalError(t *testing.T) {
@@ -594,7 +594,7 @@ func TestFetchPullRequestDiff_Ratelimit(t *testing.T) {
 	var rlErr *gitprovider.RateLimitError
 	require.True(t, errors.As(err, &rlErr), "error should be *RateLimitError, got: %T", err)
 	expected := time.Now().Add(60 * time.Second)
-	assert.WithinDuration(t, expected, rlErr.RetryAfter, 5*time.Second)
+	assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
 }
 
 func TestFetchBranchDiff_Ratelimit(t *testing.T) {
@@ -627,7 +627,7 @@ func TestFetchBranchDiff_Ratelimit(t *testing.T) {
 	var rlErr *gitprovider.RateLimitError
 	require.True(t, errors.As(err, &rlErr), "error should be *RateLimitError, got: %T", err)
 	expected := time.Now().Add(60 * time.Second)
-	assert.WithinDuration(t, expected, rlErr.RetryAfter, 5*time.Second)
+	assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
 }
 
 func TestFetchPullRequestStatus(t *testing.T) {

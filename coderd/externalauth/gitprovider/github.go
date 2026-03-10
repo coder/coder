@@ -17,7 +17,11 @@ import (
 	"github.com/coder/quartz"
 )
 
-const defaultGitHubAPIBaseURL = "https://api.github.com"
+const (
+	defaultGitHubAPIBaseURL = "https://api.github.com"
+	// Adding padding to our retry times to guard against over-consumption of request quotas.
+	RateLimitPadding = 5 * time.Minute
+)
 
 type githubProvider struct {
 	apiBaseURL string
@@ -388,7 +392,7 @@ func (g *githubProvider) decodeJSON(
 		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
 			retryAfter := ParseRetryAfter(resp.Header, g.clock)
 			if retryAfter > 0 {
-				return &RateLimitError{RetryAfter: g.clock.Now().Add(retryAfter)}
+				return &RateLimitError{RetryAfter: g.clock.Now().Add(retryAfter + RateLimitPadding)}
 			}
 			// No rate-limit headers — fall through to generic error.
 		}
@@ -438,7 +442,7 @@ func (g *githubProvider) fetchDiff(
 		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
 			retryAfter := ParseRetryAfter(resp.Header, g.clock)
 			if retryAfter > 0 {
-				return "", &RateLimitError{RetryAfter: g.clock.Now().Add(retryAfter)}
+				return "", &RateLimitError{RetryAfter: g.clock.Now().Add(retryAfter + RateLimitPadding)}
 			}
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
