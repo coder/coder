@@ -6479,7 +6479,7 @@ export interface UpdateUserAppearanceSettingsRequest {
 	readonly terminal_font: TerminalFontName;
 }
 
-// From codersdk/users.go
+// From codersdk/chats.go
 /**
  * UpdateUserChatCustomPromptRequest is the request to update a user's
  * custom chat prompt.
@@ -6712,7 +6712,7 @@ export interface UserAppearanceSettings {
 	readonly terminal_font: TerminalFontName;
 }
 
-// From codersdk/users.go
+// From codersdk/chats.go
 /**
  * UserChatCustomPromptResponse is the response for getting a user's
  * custom chat prompt.

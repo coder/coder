@@ -1130,6 +1130,8 @@ func New(options *Options) *API {
 			r.Route("/config", func(r chi.Router) {
 				r.Get("/system-prompt", api.getChatSystemPrompt)
 				r.Put("/system-prompt", api.putChatSystemPrompt)
+				r.Get("/user-prompt", api.getUserChatCustomPrompt)
+				r.Put("/user-prompt", api.putUserChatCustomPrompt)
 			})
 			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {
@@ -1463,8 +1465,7 @@ func New(options *Options) *API {
 						r.Put("/appearance", api.putUserAppearanceSettings)
 						r.Get("/preferences", api.userPreferenceSettings)
 						r.Put("/preferences", api.putUserPreferenceSettings)
-						r.Get("/chat-prompt", api.userChatCustomPrompt)
-						r.Put("/chat-prompt", api.putUserChatCustomPrompt)
+
 						r.Route("/password", func(r chi.Router) {
 							r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 							r.Put("/", api.putUserPassword)

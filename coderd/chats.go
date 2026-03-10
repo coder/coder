@@ -2319,6 +2319,72 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	customPrompt, err := api.Database.GetUserChatCustomPrompt(ctx, apiKey.UserID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Error reading user chat custom prompt.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		customPrompt = ""
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPromptResponse{
+		CustomPrompt: customPrompt,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	var params codersdk.UpdateUserChatCustomPromptRequest
+	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	trimmedPrompt := strings.TrimSpace(params.CustomPrompt)
+	// Apply the same 128 KiB limit as the deployment system prompt.
+	if len(trimmedPrompt) > maxSystemPromptLenBytes {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Custom prompt exceeds maximum length.",
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(trimmedPrompt)),
+		})
+		return
+	}
+
+	updatedConfig, err := api.Database.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
+		UserID:           apiKey.UserID,
+		ChatCustomPrompt: trimmedPrompt,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error updating user chat custom prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPromptResponse{
+		CustomPrompt: updatedConfig.Value,
+	})
+}
+
 func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
 	custom, err := api.Database.GetChatSystemPrompt(ctx)
 	if err != nil {

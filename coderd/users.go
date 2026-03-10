@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -1076,87 +1075,6 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
 		ThemePreference: updatedThemePreference.Value,
 		TerminalFont:    codersdk.TerminalFontName(updatedTerminalFont.Value),
-	})
-}
-
-// @Summary Get user chat custom prompt
-// @ID get-user-chat-custom-prompt
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Success 200 {object} codersdk.UserChatCustomPromptResponse
-// @Router /users/{user}/chat-prompt [get]
-func (api *API) userChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx  = r.Context()
-		user = httpmw.UserParam(r)
-	)
-
-	customPrompt, err := api.Database.GetUserChatCustomPrompt(ctx, user.ID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading user chat custom prompt.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		customPrompt = ""
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPromptResponse{
-		CustomPrompt: customPrompt,
-	})
-}
-
-// @Summary Update user chat custom prompt
-// @ID update-user-chat-custom-prompt
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Users
-// @Param user path string true "User ID, name, or me"
-// @Param request body codersdk.UpdateUserChatCustomPromptRequest true "Update chat custom prompt request"
-// @Success 200 {object} codersdk.UserChatCustomPromptResponse
-// @Router /users/{user}/chat-prompt [put]
-func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx  = r.Context()
-		user = httpmw.UserParam(r)
-	)
-
-	var params codersdk.UpdateUserChatCustomPromptRequest
-	if !httpapi.Read(ctx, rw, r, &params) {
-		return
-	}
-
-	trimmedPrompt := strings.TrimSpace(params.CustomPrompt)
-	// Apply the same 128 KiB limit as the deployment system prompt.
-	const maxCustomPromptLen = 131072
-	if len(trimmedPrompt) > maxCustomPromptLen {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Custom prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxCustomPromptLen, len(trimmedPrompt)),
-		})
-		return
-	}
-
-	updatedConfig, err := api.Database.UpdateUserChatCustomPrompt(ctx, database.UpdateUserChatCustomPromptParams{
-		UserID:           user.ID,
-		ChatCustomPrompt: trimmedPrompt,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Error updating user chat custom prompt.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPromptResponse{
-		CustomPrompt: updatedConfig.Value,
 	})
 }
 

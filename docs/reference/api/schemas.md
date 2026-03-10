@@ -9643,20 +9643,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
 | `theme_preference` | string                                                 | true     |              |             |
 
-## codersdk.UpdateUserChatCustomPromptRequest
-
-```json
-{
-  "custom_prompt": "string"
-}
-```
-
-### Properties
-
-| Name            | Type   | Required | Restrictions | Description |
-|-----------------|--------|----------|--------------|-------------|
-| `custom_prompt` | string | false    |              |             |
-
 ## codersdk.UpdateUserNotificationPreferences
 
 ```json
@@ -10116,20 +10102,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------------------|--------------------------------------------------------|----------|--------------|-------------|
 | `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
 | `theme_preference` | string                                                 | false    |              |             |
-
-## codersdk.UserChatCustomPromptResponse
-
-```json
-{
-  "custom_prompt": "string"
-}
-```
-
-### Properties
-
-| Name            | Type   | Required | Restrictions | Description |
-|-----------------|--------|----------|--------------|-------------|
-| `custom_prompt` | string | false    |              |             |
 
 ## codersdk.UserLatency
 
