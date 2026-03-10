@@ -387,6 +387,90 @@ func TestListChats(t *testing.T) {
 		_, err := unauthenticatedClient.ListChats(ctx, nil)
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// Create 5 chats.
+		const totalChats = 5
+		createdChats := make([]codersdk.Chat, 0, totalChats)
+		for i := 0; i < totalChats; i++ {
+			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				Content: []codersdk.ChatInputPart{
+					{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: fmt.Sprintf("chat-%d", i),
+					},
+				},
+			})
+			require.NoError(t, err)
+			createdChats = append(createdChats, chat)
+		}
+
+		// Fetch first page with limit=2.
+		page1, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{Limit: 2},
+		})
+		require.NoError(t, err)
+		require.Len(t, page1, 2)
+
+		// Fetch second page using after_id from last item of page 1.
+		page2, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{
+				AfterID: uuid.MustParse(page1[len(page1)-1].ID.String()),
+				Limit:   2,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, page2, 2)
+
+		// Ensure page1 and page2 have no overlap.
+		page1IDs := make(map[uuid.UUID]struct{})
+		for _, c := range page1 {
+			page1IDs[c.ID] = struct{}{}
+		}
+		for _, c := range page2 {
+			_, overlap := page1IDs[c.ID]
+			require.False(t, overlap, "page2 should not contain items from page1")
+		}
+
+		// Fetch third page — should have 1 remaining chat.
+		page3, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{
+				AfterID: uuid.MustParse(page2[len(page2)-1].ID.String()),
+				Limit:   2,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, page3, 1)
+
+		// All 5 chats should be accounted for.
+		allIDs := make(map[uuid.UUID]struct{})
+		for _, c := range append(append(page1, page2...), page3...) {
+			allIDs[c.ID] = struct{}{}
+		}
+		for _, c := range createdChats {
+			_, found := allIDs[c.ID]
+			require.True(t, found, "chat %s should appear in paginated results", c.ID)
+		}
+
+		// Fetch with offset=3, limit=2 — should return 2 chats.
+		offsetPage, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{Offset: 3, Limit: 2},
+		})
+		require.NoError(t, err)
+		require.Len(t, offsetPage, 2)
+
+		// No limit should return all chats.
+		allChats, err := client.ListChats(ctx, nil)
+		require.NoError(t, err)
+		require.Len(t, allChats, totalChats)
+	})
 }
 
 func TestListChatModels(t *testing.T) {

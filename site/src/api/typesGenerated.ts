@@ -1048,6 +1048,12 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 	readonly one_time_passcode: string;
 }
 
+// This is not generated from the Go code, but follows the same pattern
+// as WorkspaceBuildsRequest for consistency.
+export interface GetChatsRequest extends Pagination {
+	readonly archived?: string;
+}
+
 // From codersdk/chats.go
 /**
  * Chat represents a chat session with an AI agent.

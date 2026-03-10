@@ -8,9 +8,9 @@ import {
 	chatModelConfigs,
 	chatModels,
 	chatSystemPrompt,
-	chats,
 	chatsKey,
 	createChat,
+	infiniteChats,
 	unarchiveChat,
 	updateChatSystemPrompt,
 } from "api/queries/chats";
@@ -40,7 +40,12 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
@@ -144,7 +149,7 @@ const AgentsPage: FC = () => {
 		};
 	}, []);
 
-	const chatsQuery = useQuery(chats());
+	const chatsQuery = useInfiniteQuery(infiniteChats());
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const createMutation = useMutation(createChat(queryClient));
@@ -247,7 +252,7 @@ const AgentsPage: FC = () => {
 			return next;
 		});
 	}, []);
-	const chatList = chatsQuery.data ?? [];
+	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
 	const archivingChatId =
@@ -517,6 +522,8 @@ const AgentsPage: FC = () => {
 			isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 			modelCatalogError={chatModelsQuery.error}
 			isAgentsAdmin={isAgentsAdmin}
+			hasNextPage={chatsQuery.hasNextPage}
+			onLoadMore={() => void chatsQuery.fetchNextPage()}
 		/>
 	);
 };

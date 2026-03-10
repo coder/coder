@@ -72,6 +72,8 @@ interface AgentsSidebarProps {
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
+	hasNextPage?: boolean;
+	onLoadMore?: () => void;
 	onCollapse?: () => void;
 }
 
@@ -537,6 +539,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isLoading = false,
 		loadError,
 		onRetryLoad,
+		hasNextPage,
+		onLoadMore,
 		onCollapse,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -791,6 +795,18 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											</CollapsibleContent>
 										</Collapsible>
 									)}
+								</div>
+							)}
+							{hasNextPage && (
+								<div className="px-2 py-2">
+									<Button
+										size="sm"
+										variant="outline"
+										className="w-full"
+										onClick={onLoadMore}
+									>
+										Show more
+									</Button>
 								</div>
 							)}
 						</ChatTreeContext.Provider>

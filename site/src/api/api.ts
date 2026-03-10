@@ -2937,9 +2937,11 @@ class ApiMethods {
 	};
 
 	// Chat API methods
-	getChats = async (): Promise<TypesGen.Chat[]> => {
+	getChats = async (
+		req?: TypesGen.GetChatsRequest,
+	): Promise<TypesGen.Chat[]> => {
 		const response = await this.axios.get<TypesGen.Chat[]>(
-			"/api/experimental/chats",
+			getURLWithSearchParams("/api/experimental/chats", req),
 		);
 		return response.data;
 	};

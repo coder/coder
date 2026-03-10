@@ -1,9 +1,37 @@
 import { API, type ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
-import type { QueryClient } from "react-query";
+import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
+
+const DEFAULT_CHAT_PAGE_LIMIT = 50;
+
+export const infiniteChats = (opts?: { archived?: boolean }) => {
+	const limit = DEFAULT_CHAT_PAGE_LIMIT;
+
+	return {
+		queryKey: [...chatsKey, opts],
+		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
+			if (lastPage.length < limit) {
+				return undefined;
+			}
+			return pages.length + 1;
+		},
+		initialPageParam: 0,
+		queryFn: ({ pageParam }: { pageParam: unknown }) => {
+			if (typeof pageParam !== "number") {
+				throw new Error("pageParam must be a number");
+			}
+			return API.getChats({
+				limit,
+				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
+				archived: opts?.archived?.toString(),
+			});
+		},
+		refetchOnWindowFocus: true as const,
+	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
+};
 
 export const chats = () => ({
 	queryKey: chatsKey,
