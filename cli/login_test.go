@@ -558,10 +558,33 @@ func TestLoginToken(t *testing.T) {
 
 	t.Run("NoTokenStored", func(t *testing.T) {
 		t.Parallel()
-		inv, _ := clitest.New(t, "login", "token")
+		client := coderdtest.New(t, nil)
+		inv, _ := clitest.New(t, "login", "token", "--url", client.URL.String())
 		ctx := testutil.Context(t, testutil.WaitShort)
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "no session token found")
+	})
+
+	t.Run("NoURLProvided", func(t *testing.T) {
+		t.Parallel()
+		inv, _ := clitest.New(t, "login", "token")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "You are not logged in")
+	})
+
+	t.Run("URLMismatchFileBackend", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", "token", "--url", "https://other.example.com")
+		clitest.SetupConfig(t, client, root)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "file session token storage only supports one server")
 	})
 }
