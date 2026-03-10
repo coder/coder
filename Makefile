@@ -118,11 +118,14 @@ POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(P
 # parallelism. Override: make pre-push PARALLEL_JOBS=8
 PARALLEL_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8); echo $$(( n / 4 > 2 ? n / 4 : 2 )))
 
-# Use the highest ZSTD compression level in CI.
-ifdef CI
+# Use the highest ZSTD compression level in release builds to
+# minimize artifact size. For non-release CI builds (e.g. main
+# branch preview), use multithreaded level 6 which is ~99% faster
+# at the cost of ~30% larger archives.
+ifeq ($(CODER_RELEASE),true)
 ZSTDFLAGS := -22 --ultra
 else
-ZSTDFLAGS := -6
+ZSTDFLAGS := -6 -T0
 endif
 
 # Common paths to exclude from find commands, this rule is written so
