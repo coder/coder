@@ -270,6 +270,22 @@ export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatUserCustomPromptKey = ["chat-user-custom-prompt"] as const;
+
+export const chatUserCustomPrompt = () => ({
+	queryKey: chatUserCustomPromptKey,
+	queryFn: () => API.getUserChatCustomPrompt(),
+});
+
+export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
+	mutationFn: API.updateUserChatCustomPrompt,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUserCustomPromptKey,
+		});
+	},
+});
+
 export const chatModelsKey = ["chat-models"] as const;
 
 export const chatModels = () => ({

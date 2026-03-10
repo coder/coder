@@ -8,14 +8,24 @@ import {
 	DialogTitle,
 } from "components/Dialog/Dialog";
 import type { LucideIcon } from "lucide-react";
-import { BoxesIcon, KeyRoundIcon, UserIcon, XIcon } from "lucide-react";
+import {
+	BoxesIcon,
+	KeyRoundIcon,
+	MessageSquareTextIcon,
+	UserIcon,
+	XIcon,
+} from "lucide-react";
 import { type FC, type FormEvent, useEffect, useMemo, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { cn } from "utils/cn";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { SectionHeader } from "./SectionHeader";
 
-type ConfigureAgentsSection = "providers" | "system-prompt" | "models";
+type ConfigureAgentsSection =
+	| "providers"
+	| "system-prompt"
+	| "models"
+	| "user-prompt";
 
 type ConfigureAgentsSectionOption = {
 	id: ConfigureAgentsSection;
@@ -33,6 +43,11 @@ interface ConfigureAgentsDialogProps {
 	onSaveSystemPrompt: (event: FormEvent) => void;
 	isSystemPromptDirty: boolean;
 	saveSystemPromptError: boolean;
+	userPromptDraft: string;
+	onUserPromptDraftChange: (value: string) => void;
+	onSaveUserPrompt: (event: FormEvent) => void;
+	isUserPromptDirty: boolean;
+	saveUserPromptError: boolean;
 	isDisabled: boolean;
 }
 
@@ -46,12 +61,22 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	onSaveSystemPrompt,
 	isSystemPromptDirty,
 	saveSystemPromptError,
+	userPromptDraft,
+	onUserPromptDraftChange,
+	onSaveUserPrompt,
+	isUserPromptDirty,
+	saveUserPromptError,
 	isDisabled,
 }) => {
 	const configureSectionOptions = useMemo<
 		readonly ConfigureAgentsSectionOption[]
 	>(() => {
 		const options: ConfigureAgentsSectionOption[] = [];
+		options.push({
+			id: "user-prompt",
+			label: "Custom Prompt",
+			icon: MessageSquareTextIcon,
+		});
 		if (canManageChatModelConfigs) {
 			options.push({
 				id: "providers",
@@ -75,35 +100,30 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	}, [canManageChatModelConfigs, canSetSystemPrompt]);
 
 	const [userActiveSection, setUserActiveSection] =
-		useState<ConfigureAgentsSection>("providers");
+		useState<ConfigureAgentsSection>("user-prompt");
 
-	// Derive the effective section — validated against current options
-	// every render so we never show an unavailable tab.
 	const activeSection = configureSectionOptions.some(
 		(s) => s.id === userActiveSection,
 	)
 		? userActiveSection
-		: (configureSectionOptions[0]?.id ?? "providers");
+		: (configureSectionOptions[0]?.id ?? "user-prompt");
 
-	// Reset to the preferred initial section each time the dialog opens.
 	useEffect(() => {
 		if (open) {
-			setUserActiveSection("providers");
+			setUserActiveSection("user-prompt");
 		}
 	}, [open]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="grid h-[min(88dvh,720px)] max-w-4xl grid-cols-1 gap-0 overflow-hidden p-0 md:grid-cols-[220px_minmax(0,1fr)]">
-				{/* Visually hidden for accessibility */}
 				<DialogHeader className="sr-only">
-					<DialogTitle>Configure Agents</DialogTitle>
+					<DialogTitle>Settings</DialogTitle>
 					<DialogDescription>
-						Manage providers, system prompt, and available models.
+						Manage your personal preferences and agent configuration.
 					</DialogDescription>
 				</DialogHeader>
 
-				{/* Sidebar */}
 				<nav className="flex flex-row gap-0.5 overflow-x-auto border-b border-border bg-surface-secondary/40 p-2 md:flex-col md:gap-0.5 md:overflow-x-visible md:border-b-0 md:border-r md:p-4">
 					<DialogClose asChild>
 						<Button
@@ -137,8 +157,59 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 					})}
 				</nav>
 
-				{/* Content */}
 				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5">
+					{activeSection === "user-prompt" && (
+						<>
+							<SectionHeader label="Custom Prompt" />
+							<form
+								className="space-y-4"
+								onSubmit={(event) => void onSaveUserPrompt(event)}
+							>
+								<div className="space-y-2">
+									<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+										Custom Prompt
+									</h3>
+									<p className="m-0 text-xs text-content-secondary">
+										Personal instructions applied to all your new chats. This is
+										only visible to you.
+									</p>
+									<TextareaAutosize
+										className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
+										placeholder="Optional. Set personal instructions for your chats."
+										value={userPromptDraft}
+										onChange={(event) =>
+											onUserPromptDraftChange(event.target.value)
+										}
+										disabled={isDisabled}
+										minRows={7}
+									/>
+									<div className="flex justify-end gap-2">
+										<Button
+											size="sm"
+											variant="outline"
+											type="button"
+											onClick={() => onUserPromptDraftChange("")}
+											disabled={isDisabled || !userPromptDraft}
+										>
+											Clear
+										</Button>
+										<Button
+											size="sm"
+											type="submit"
+											disabled={isDisabled || !isUserPromptDirty}
+										>
+											Save
+										</Button>
+									</div>
+									{saveUserPromptError && (
+										<p className="m-0 text-xs text-content-destructive">
+											Failed to save custom prompt.
+										</p>
+									)}
+								</div>
+							</form>
+						</>
+					)}
 					{activeSection === "providers" && canManageChatModelConfigs && (
 						<ChatModelAdminPanel section="providers" sectionLabel="Providers" />
 					)}

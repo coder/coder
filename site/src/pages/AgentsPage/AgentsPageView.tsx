@@ -123,6 +123,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					hasNextPage={hasNextPage}
 					onLoadMore={onLoadMore}
 					onCollapse={onCollapseSidebar}
+					onOpenSettings={() => setConfigureAgentsDialogOpen(true)}
 				/>
 			</div>
 
@@ -162,16 +163,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 							<div className="flex items-center gap-2">
 								<ChimeButton />
 								<WebPushButton />
-								{isAgentsAdmin && (
-									<Button
-										variant="subtle"
-										disabled={isCreating}
-										className="h-8 gap-1.5 border-none bg-transparent px-1 text-[13px] shadow-none hover:bg-transparent"
-										onClick={() => setConfigureAgentsDialogOpen(true)}
-									>
-										Admin
-									</Button>
-								)}
 							</div>
 						</div>
 						<AgentCreateForm
