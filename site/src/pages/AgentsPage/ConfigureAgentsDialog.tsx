@@ -7,21 +7,53 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "components/Dialog/Dialog";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import type { LucideIcon } from "lucide-react";
-import { BoxesIcon, KeyRoundIcon, UserIcon, XIcon } from "lucide-react";
+import {
+	BoxesIcon,
+	KeyRoundIcon,
+	ShieldIcon,
+	UserIcon,
+	XIcon,
+} from "lucide-react";
 import { type FC, type FormEvent, useEffect, useMemo, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { cn } from "utils/cn";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { SectionHeader } from "./SectionHeader";
 
-type ConfigureAgentsSection = "providers" | "system-prompt" | "models";
+type ConfigureAgentsSection = "providers" | "models" | "behavior";
 
 type ConfigureAgentsSectionOption = {
 	id: ConfigureAgentsSection;
 	label: string;
 	icon: LucideIcon;
+	adminOnly?: boolean;
 };
+
+const AdminBadge: FC = () => (
+	<TooltipProvider delayDuration={0}>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span className="inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-1.5 py-px text-[11px] font-medium text-content-secondary">
+					<ShieldIcon className="h-3 w-3" />
+					Admin
+				</span>
+			</TooltipTrigger>
+			<TooltipContent side="right">
+				Only visible to deployment administrators.
+			</TooltipContent>
+		</Tooltip>
+	</TooltipProvider>
+);
+
+const textareaClassName =
+	"max-h-[240px] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]";
 
 interface ConfigureAgentsDialogProps {
 	open: boolean;
@@ -33,6 +65,11 @@ interface ConfigureAgentsDialogProps {
 	onSaveSystemPrompt: (event: FormEvent) => void;
 	isSystemPromptDirty: boolean;
 	saveSystemPromptError: boolean;
+	userPromptDraft: string;
+	onUserPromptDraftChange: (value: string) => void;
+	onSaveUserPrompt: (event: FormEvent) => void;
+	isUserPromptDirty: boolean;
+	saveUserPromptError: boolean;
 	isDisabled: boolean;
 }
 
@@ -46,64 +83,64 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	onSaveSystemPrompt,
 	isSystemPromptDirty,
 	saveSystemPromptError,
+	userPromptDraft,
+	onUserPromptDraftChange,
+	onSaveUserPrompt,
+	isUserPromptDirty,
+	saveUserPromptError,
 	isDisabled,
 }) => {
 	const configureSectionOptions = useMemo<
 		readonly ConfigureAgentsSectionOption[]
 	>(() => {
 		const options: ConfigureAgentsSectionOption[] = [];
+		options.push({
+			id: "behavior",
+			label: "Behavior",
+			icon: UserIcon,
+		});
 		if (canManageChatModelConfigs) {
 			options.push({
 				id: "providers",
 				label: "Providers",
 				icon: KeyRoundIcon,
+				adminOnly: true,
 			});
 			options.push({
 				id: "models",
 				label: "Models",
 				icon: BoxesIcon,
-			});
-		}
-		if (canSetSystemPrompt) {
-			options.push({
-				id: "system-prompt",
-				label: "Behavior",
-				icon: UserIcon,
+				adminOnly: true,
 			});
 		}
 		return options;
-	}, [canManageChatModelConfigs, canSetSystemPrompt]);
+	}, [canManageChatModelConfigs]);
 
 	const [userActiveSection, setUserActiveSection] =
-		useState<ConfigureAgentsSection>("providers");
+		useState<ConfigureAgentsSection>("behavior");
 
-	// Derive the effective section — validated against current options
-	// every render so we never show an unavailable tab.
 	const activeSection = configureSectionOptions.some(
 		(s) => s.id === userActiveSection,
 	)
 		? userActiveSection
-		: (configureSectionOptions[0]?.id ?? "providers");
+		: (configureSectionOptions[0]?.id ?? "behavior");
 
-	// Reset to the preferred initial section each time the dialog opens.
 	useEffect(() => {
 		if (open) {
-			setUserActiveSection("providers");
+			setUserActiveSection("behavior");
 		}
 	}, [open]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="grid h-[min(88dvh,720px)] max-w-4xl grid-cols-1 gap-0 overflow-hidden p-0 md:grid-cols-[220px_minmax(0,1fr)]">
-				{/* Visually hidden for accessibility */}
 				<DialogHeader className="sr-only">
-					<DialogTitle>Configure Agents</DialogTitle>
+					<DialogTitle>Settings</DialogTitle>
 					<DialogDescription>
-						Manage providers, system prompt, and available models.
+						Manage your personal preferences and agent configuration.
 					</DialogDescription>
 				</DialogHeader>
 
-				{/* Sidebar */}
 				<nav className="flex flex-row gap-0.5 overflow-x-auto border-b border-border bg-surface-secondary/40 p-2 md:flex-col md:gap-0.5 md:overflow-x-visible md:border-b-0 md:border-r md:p-4">
 					<DialogClose asChild>
 						<Button
@@ -131,71 +168,154 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								onClick={() => setUserActiveSection(section.id)}
 							>
 								<SectionIcon className="h-5 w-5 shrink-0" />
-								<span className="text-sm font-medium">{section.label}</span>
+								<span className="flex items-center gap-2 text-sm font-medium">
+									{section.label}
+									{section.adminOnly && (
+										<TooltipProvider delayDuration={0}>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span className="inline-flex">
+														<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
+													</span>
+												</TooltipTrigger>
+												<TooltipContent side="right">Admin only</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									)}
+								</span>
 							</Button>
 						);
 					})}
 				</nav>
 
-				{/* Content */}
-				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5">
-					{activeSection === "providers" && canManageChatModelConfigs && (
-						<ChatModelAdminPanel section="providers" sectionLabel="Providers" />
-					)}
-					{activeSection === "system-prompt" && canSetSystemPrompt && (
+				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+					{activeSection === "behavior" && (
 						<>
-							<SectionHeader label="Behavior" />
+							<SectionHeader
+								label="Behavior"
+								description="Custom instructions that shape how the agent responds in your chats."
+							/>
+							{/* ── Personal prompt (always visible) ── */}
 							<form
-								className="space-y-4"
-								onSubmit={(event) => void onSaveSystemPrompt(event)}
+								className="space-y-2"
+								onSubmit={(event) => void onSaveUserPrompt(event)}
 							>
-								<div className="space-y-2">
-									<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-										System Prompt
-									</h3>
-									<p className="m-0 text-xs text-content-secondary">
-										Admin-only instruction applied to all new chats. When empty,
-										the built-in default prompt is used.
-									</p>
-									<TextareaAutosize
-										className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
-										placeholder="Optional. Set deployment-wide instructions for all new chats."
-										value={systemPromptDraft}
-										onChange={(event) =>
-											onSystemPromptDraftChange(event.target.value)
-										}
-										disabled={isDisabled}
-										minRows={7}
-									/>
-									<div className="flex justify-end gap-2">
-										<Button
-											size="sm"
-											variant="outline"
-											type="button"
-											onClick={() => onSystemPromptDraftChange("")}
-											disabled={isDisabled || !systemPromptDraft}
-										>
-											Clear
-										</Button>
-										<Button
-											size="sm"
-											type="submit"
-											disabled={isDisabled || !isSystemPromptDirty}
-										>
-											Save
-										</Button>
-									</div>
-									{saveSystemPromptError && (
-										<p className="m-0 text-xs text-content-destructive">
-											Failed to save system prompt.
-										</p>
-									)}
+								<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+									Personal Instructions
+								</h3>
+								<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+									Applied to all your chats. Only visible to you.
+								</p>{" "}
+								<TextareaAutosize
+									className={textareaClassName}
+									placeholder="Additional behavior, style, and tone preferences"
+									value={userPromptDraft}
+									onChange={(event) =>
+										onUserPromptDraftChange(event.target.value)
+									}
+									disabled={isDisabled}
+									minRows={1}
+								/>
+								<div className="flex justify-end gap-2">
+									<Button
+										size="sm"
+										variant="outline"
+										type="button"
+										onClick={() => onUserPromptDraftChange("")}
+										disabled={isDisabled || !userPromptDraft}
+									>
+										Clear
+									</Button>
+									<Button
+										size="sm"
+										type="submit"
+										disabled={isDisabled || !isUserPromptDirty}
+									>
+										Save
+									</Button>
 								</div>
+								{saveUserPromptError && (
+									<p className="m-0 text-xs text-content-destructive">
+										Failed to save personal instructions.
+									</p>
+								)}
 							</form>
+
+							{/* ── Admin system prompt (admin only) ── */}
+							{canSetSystemPrompt && (
+								<>
+									<hr className="my-5 border-0 border-t border-solid border-border" />
+									<form
+										className="space-y-2"
+										onSubmit={(event) => void onSaveSystemPrompt(event)}
+									>
+										<div className="flex items-center gap-2">
+											<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+												System Instructions
+											</h3>
+											<AdminBadge />
+										</div>
+										<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+											Applied to all chats for every user. When empty, the
+											built-in default is used.
+										</p>{" "}
+										<TextareaAutosize
+											className={textareaClassName}
+											placeholder="Additional behavior, style, and tone preferences for all users"
+											value={systemPromptDraft}
+											onChange={(event) =>
+												onSystemPromptDraftChange(event.target.value)
+											}
+											disabled={isDisabled}
+											minRows={1}
+										/>
+										<div className="flex justify-end gap-2">
+											<Button
+												size="sm"
+												variant="outline"
+												type="button"
+												onClick={() => onSystemPromptDraftChange("")}
+												disabled={isDisabled || !systemPromptDraft}
+											>
+												Clear
+											</Button>
+											<Button
+												size="sm"
+												type="submit"
+												disabled={isDisabled || !isSystemPromptDirty}
+											>
+												Save
+											</Button>
+										</div>
+										{saveSystemPromptError && (
+											<p className="m-0 text-xs text-content-destructive">
+												Failed to save system prompt.
+											</p>
+										)}
+									</form>
+								</>
+							)}
+						</>
+					)}
+					{activeSection === "providers" && canManageChatModelConfigs && (
+						<>
+							<SectionHeader
+								label="Providers"
+								description="Connect third-party LLM services like OpenAI, Anthropic, or Google. Each provider supplies models that users can select for their chats."
+								badge={<AdminBadge />}
+							/>{" "}
+							<ChatModelAdminPanel section="providers" />
 						</>
 					)}
 					{activeSection === "models" && canManageChatModelConfigs && (
-						<ChatModelAdminPanel section="models" sectionLabel="Models" />
+						<>
+							<SectionHeader
+								label="Models"
+								description="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
+								badge={<AdminBadge />}
+							/>{" "}
+							<ChatModelAdminPanel section="models" />
+						</>
 					)}
 				</div>
 			</DialogContent>

@@ -1,4 +1,9 @@
-import { chatSystemPrompt, updateChatSystemPrompt } from "api/queries/chats";
+import {
+	chatSystemPrompt,
+	chatUserCustomPrompt,
+	updateChatSystemPrompt,
+	updateUserChatCustomPrompt,
+} from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -144,6 +149,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		isPending: isSavingSystemPrompt,
 		isError: isSaveSystemPromptError,
 	} = useMutation(updateChatSystemPrompt(queryClient));
+	const userPromptQuery = useQuery(chatUserCustomPrompt());
+	const {
+		mutate: saveUserPrompt,
+		isPending: isSavingUserPrompt,
+		isError: isSaveUserPromptError,
+	} = useMutation(updateUserChatCustomPrompt(queryClient));
 	const [initialLastModelConfigID] = useState(() => {
 		if (typeof window === "undefined") {
 			return "";
@@ -206,6 +217,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
 	const [localEdit, setLocalEdit] = useState<string | null>(null);
 	const systemPromptDraft = localEdit ?? serverPrompt;
+	const serverUserPrompt = userPromptQuery.data?.custom_prompt ?? "";
+	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
+	const userPromptDraft = localUserEdit ?? serverUserPrompt;
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -215,7 +229,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
 	const autoCreateWorkspaceValue = "__auto_create_workspace__";
-	const hasAdminControls = canSetSystemPrompt || canManageChatModelConfigs;
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -264,6 +277,22 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
 	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
+	const isUserPromptDirty =
+		localUserEdit !== null && localUserEdit !== serverUserPrompt;
+
+	const handleSaveUserPrompt = useCallback(
+		(event: FormEvent) => {
+			event.preventDefault();
+			if (!isUserPromptDirty) {
+				return;
+			}
+			saveUserPrompt(
+				{ custom_prompt: userPromptDraft },
+				{ onSuccess: () => setLocalUserEdit(null) },
+			);
+		},
+		[isUserPromptDirty, userPromptDraft, saveUserPrompt],
+	);
 
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
@@ -432,20 +461,23 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				/>
 			</div>
 
-			{hasAdminControls && (
-				<ConfigureAgentsDialog
-					open={isConfigureAgentsDialogOpen}
-					onOpenChange={onConfigureAgentsDialogOpenChange}
-					canManageChatModelConfigs={canManageChatModelConfigs}
-					canSetSystemPrompt={canSetSystemPrompt}
-					systemPromptDraft={systemPromptDraft}
-					onSystemPromptDraftChange={setLocalEdit}
-					onSaveSystemPrompt={handleSaveSystemPrompt}
-					isSystemPromptDirty={isSystemPromptDirty}
-					saveSystemPromptError={isSaveSystemPromptError}
-					isDisabled={isCreating || isSavingSystemPrompt}
-				/>
-			)}
+			<ConfigureAgentsDialog
+				open={isConfigureAgentsDialogOpen}
+				onOpenChange={onConfigureAgentsDialogOpenChange}
+				canManageChatModelConfigs={canManageChatModelConfigs}
+				canSetSystemPrompt={canSetSystemPrompt}
+				systemPromptDraft={systemPromptDraft}
+				onSystemPromptDraftChange={setLocalEdit}
+				onSaveSystemPrompt={handleSaveSystemPrompt}
+				isSystemPromptDirty={isSystemPromptDirty}
+				saveSystemPromptError={isSaveSystemPromptError}
+				userPromptDraft={userPromptDraft}
+				onUserPromptDraftChange={setLocalUserEdit}
+				onSaveUserPrompt={handleSaveUserPrompt}
+				isUserPromptDirty={isUserPromptDirty}
+				saveUserPromptError={isSaveUserPromptError}
+				isDisabled={isCreating || isSavingSystemPrompt || isSavingUserPrompt}
+			/>
 		</div>
 	);
 };

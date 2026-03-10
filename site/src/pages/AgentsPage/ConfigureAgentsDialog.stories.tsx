@@ -79,6 +79,11 @@ const meta: Meta<typeof ConfigureAgentsDialog> = {
 		onSaveSystemPrompt: fn(),
 		isSystemPromptDirty: false,
 		saveSystemPromptError: false,
+		userPromptDraft: "",
+		onUserPromptDraftChange: fn(),
+		onSaveUserPrompt: fn(),
+		isUserPromptDirty: false,
+		saveUserPromptError: false,
 		isDisabled: false,
 	},
 };
@@ -86,23 +91,19 @@ const meta: Meta<typeof ConfigureAgentsDialog> = {
 export default meta;
 type Story = StoryObj<typeof ConfigureAgentsDialog>;
 
-export const SystemPromptOnly: Story = {
+/** Regular user sees only the Personal Prompt section. */
+export const UserOnly: Story = {};
+
+/** Admin sees Personal Prompt + System Prompt in the same Prompts tab. */
+export const AdminPrompts: Story = {
 	args: {
 		canSetSystemPrompt: true,
-		canManageChatModelConfigs: false,
 		systemPromptDraft: "You are a helpful coding assistant.",
 	},
 };
 
-export const ModelConfigOnly: Story = {
-	args: {
-		canSetSystemPrompt: false,
-		canManageChatModelConfigs: true,
-	},
-	parameters: { queries: chatQueries },
-};
-
-export const BothEnabled: Story = {
+/** Admin with model config permissions sees Providers/Models tabs. */
+export const AdminFull: Story = {
 	args: {
 		canSetSystemPrompt: true,
 		canManageChatModelConfigs: true,
