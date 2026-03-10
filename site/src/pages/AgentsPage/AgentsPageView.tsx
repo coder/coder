@@ -8,7 +8,7 @@ import { type FC, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-import { AgentCreateForm, type CreateChatOptions } from "./AgentsPage";
+import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ChimeButton } from "./ChimeButton";
 import { WebPushButton } from "./WebPushButton";
