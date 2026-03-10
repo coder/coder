@@ -751,6 +751,23 @@ const AgentDetail: FC = () => {
 	}
 
 	// Extract PR number from diff status URL.
+	// Compute local diff stats from git watcher unified diffs.
+	const localDiffStats = useMemo(() => {
+		let additions = 0;
+		let deletions = 0;
+		for (const repo of gitWatcher.repositories.values()) {
+			if (!repo.unified_diff) continue;
+			for (const line of repo.unified_diff.split("\n")) {
+				if (line.startsWith("+") && !line.startsWith("+++")) {
+					additions++;
+				} else if (line.startsWith("-") && !line.startsWith("---")) {
+					deletions++;
+				}
+			}
+		}
+		return { additions, deletions, changed_files: 0 };
+	}, [gitWatcher.repositories]);
+
 	const prMatch = diffStatusQuery.data?.url?.match(/\/pull\/(\d+)/)?.[1];
 	const prNumber = prMatch ? Number(prMatch) : undefined;
 	// Compute an effective selected model by validating the user's
@@ -1297,6 +1314,7 @@ const AgentDetail: FC = () => {
 									onCommit={handleCommit}
 									isExpanded={visualExpanded}
 									remoteDiffStats={diffStatusQuery.data}
+									localDiffStats={localDiffStats}
 									chatInputRef={editing.chatInputRef}
 								/>
 							),

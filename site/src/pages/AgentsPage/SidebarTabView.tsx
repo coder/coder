@@ -232,7 +232,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 									{tab.badge && (
 										<span
 											className={cn(
-												"flex h-full items-center self-stretch transition-opacity",
+												"flex -my-px items-center self-stretch transition-opacity",
 												!isActive && "opacity-50",
 											)}
 										>
