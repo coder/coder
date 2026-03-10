@@ -872,7 +872,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 									disabled={isCreating || workspacesQuery.isLoading}
 									className="group flex h-8 items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:bg-transparent hover:text-content-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
 								>
-									<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+									<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary transition-colors group-hover:text-content-primary" />
 									<span>{selectedWorkspaceLabel ?? "Workspace"}</span>
 									<ChevronDownIcon className="size-icon-sm text-content-secondary transition-colors group-hover:text-content-primary" />
 								</button>

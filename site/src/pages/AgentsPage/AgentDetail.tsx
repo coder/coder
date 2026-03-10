@@ -114,7 +114,7 @@ interface AgentDetailTimelineProps {
 	savingMessageId?: number | null;
 }
 
-const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
+export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	store,
 	chatID,
 	persistedErrorReason,
@@ -229,7 +229,7 @@ interface AgentDetailInputProps {
 	}[];
 }
 
-const AgentDetailInput: FC<AgentDetailInputProps> = ({
+export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	store,
 	compressionThreshold,
 	onSend,
