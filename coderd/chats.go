@@ -179,8 +179,18 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
+	paginationParams, ok := ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
 	params := database.GetChatsByOwnerIDParams{
 		OwnerID: apiKey.UserID,
+		AfterID: paginationParams.AfterID,
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(paginationParams.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(paginationParams.Limit),
 	}
 	if v := r.URL.Query().Get("archived"); v != "" {
 		b, err := strconv.ParseBool(v)

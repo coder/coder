@@ -53,6 +53,8 @@ interface AgentsPageViewProps {
 	isModelCatalogLoading: boolean;
 	isModelConfigsLoading: boolean;
 	modelCatalogError: unknown;
+	hasNextPage: boolean | undefined;
+	onLoadMore: () => void;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -79,6 +81,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isModelCatalogLoading,
 	isModelConfigsLoading,
 	modelCatalogError,
+	hasNextPage,
+	onLoadMore,
 }) => {
 	const {
 		chatErrorReasons,
@@ -116,6 +120,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					isLoading={isChatsLoading}
 					loadError={chatsLoadError}
 					onRetryLoad={onRetryChatsLoad}
+					hasNextPage={hasNextPage}
+					onLoadMore={onLoadMore}
 					onCollapse={onCollapseSidebar}
 				/>
 			</div>

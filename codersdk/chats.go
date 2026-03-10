@@ -7,7 +7,6 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -540,15 +539,23 @@ type chatStreamEnvelope struct {
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
 	Archived *bool
+	Pagination
 }
 
 // ListChats returns all chats for the authenticated user.
 func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat, error) {
-	qp := url.Values{}
-	if opts != nil && opts.Archived != nil {
-		qp.Set("archived", fmt.Sprintf("%t", *opts.Archived))
+	var reqOpts []RequestOption
+	if opts != nil {
+		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
+		if opts.Archived != nil {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("archived", fmt.Sprintf("%t", *opts.Archived))
+				r.URL.RawQuery = q.Encode()
+			})
+		}
 	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats?%s", qp.Encode()), nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats", nil, reqOpts...)
 	if err != nil {
 		return nil, err
 	}

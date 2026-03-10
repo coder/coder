@@ -3454,17 +3454,51 @@ WHERE
         WHEN $2 :: boolean IS NULL THEN true
         ELSE chats.archived = $2 :: boolean
     END
+    AND CASE
+        -- This allows using the last element on a page as effectively a cursor.
+        -- This is an important option for scripts that need to paginate without
+        -- duplicating or missing data.
+        WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+            -- The pagination cursor is the last ID of the previous page.
+            -- The query is ordered by the updated_at field, so select all
+            -- rows before the cursor.
+            (updated_at, id) < (
+                SELECT
+                    updated_at, id
+                FROM
+                    chats
+                WHERE
+                    id = $3
+            )
+        )
+        ELSE true
+    END
 ORDER BY
-    updated_at DESC
+    -- Deterministic and consistent ordering of all rows, even if they share
+    -- a timestamp. This is to ensure consistent pagination.
+    (updated_at, id) DESC OFFSET $4
+LIMIT
+    -- The chat list is unbounded and expected to grow large.
+    -- Default to 50 to prevent accidental excessively large queries.
+    COALESCE(NULLIF($5 :: int, 0), 50)
 `
 
 type GetChatsByOwnerIDParams struct {
-	OwnerID  uuid.UUID    `db:"owner_id" json:"owner_id"`
-	Archived sql.NullBool `db:"archived" json:"archived"`
+	OwnerID   uuid.UUID    `db:"owner_id" json:"owner_id"`
+	Archived  sql.NullBool `db:"archived" json:"archived"`
+	AfterID   uuid.UUID    `db:"after_id" json:"after_id"`
+	OffsetOpt int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, arg GetChatsByOwnerIDParams) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, getChatsByOwnerID, arg.OwnerID, arg.Archived)
+	rows, err := q.db.QueryContext(ctx, getChatsByOwnerID,
+		arg.OwnerID,
+		arg.Archived,
+		arg.AfterID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
