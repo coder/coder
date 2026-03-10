@@ -797,8 +797,8 @@ github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab h1:5UMY
 github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab/go.mod h1:hqlYqR7uPKOKfnNeicUbZp0Ps0GeYFlKYtwh5HGDCx8=
 github.com/kylecarbs/chroma/v2 v2.0.0-20240401211003-9e036e0631f3 h1:Z9/bo5PSeMutpdiKYNt/TTSfGM1Ll0naj3QzYX9VxTc=
 github.com/kylecarbs/chroma/v2 v2.0.0-20240401211003-9e036e0631f3/go.mod h1:BUGjjsD+ndS6eX37YgTchSEG+Jg9Jv1GiZs9sqPqztk=
-github.com/kylecarbs/fantasy v0.0.0-20260310161301-382f8418bb78 h1:5O95/B/AZJhbb+q3Ygx5yrYR9MFvk0Tu9UZ+tM8Si0w=
-github.com/kylecarbs/fantasy v0.0.0-20260310161301-382f8418bb78/go.mod h1:Ro/xRzPtU/+P178CMzGBn8XsEFp/X/nr7meQ1pjX7eI=
+github.com/kylecarbs/fantasy v0.0.0-20260310195810-b98874971e5b h1:3rcb/A2+L9488hm67r41bGvktJQ3b4r6fXciSJDPCDM=
+github.com/kylecarbs/fantasy v0.0.0-20260310195810-b98874971e5b/go.mod h1:Ro/xRzPtU/+P178CMzGBn8XsEFp/X/nr7meQ1pjX7eI=
 github.com/kylecarbs/spinner v1.18.2-0.20220329160715-20702b5af89e h1:OP0ZMFeZkUnOzTFRfpuK3m7Kp4fNvC6qN+exwj7aI4M=
 github.com/kylecarbs/spinner v1.18.2-0.20220329160715-20702b5af89e/go.mod h1:mQak9GHqbspjC/5iUx3qMlIho8xBS/ppAL/hX5SmPJU=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
