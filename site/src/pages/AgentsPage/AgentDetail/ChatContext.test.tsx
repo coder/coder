@@ -797,6 +797,80 @@ describe("useChatStore", () => {
 		});
 	});
 
+	it("corrects stale queued messages from cache when switching back to a chat", async () => {
+		const chatID = "chat-1";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		// Start with queued messages from a stale React Query cache.
+		// This simulates coming back to a chat whose queue was drained
+		// server-side while the user was viewing a different chat.
+		const staleOptions = {
+			chatID,
+			chatMessages: [existingMessage],
+			chatRecord: makeChat(chatID),
+			chatData: {
+				chat: makeChat(chatID),
+				messages: [existingMessage],
+				queued_messages: [queuedMessage],
+			},
+			chatQueuedMessages: [queuedMessage],
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
+				};
+			},
+			{
+				initialProps: staleOptions,
+				wrapper,
+			},
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+		// Initially shows the stale queued message from cache.
+		expect(result.current.queuedMessages.map((m) => m.id)).toEqual([
+			queuedMessage.id,
+		]);
+
+		// Simulate the REST query refetching and returning fresh
+		// data with an empty queue (no queue_update from WS yet).
+		rerender({
+			...staleOptions,
+			chatData: {
+				chat: {
+					...makeChat(chatID),
+					updated_at: "2025-01-01T00:00:02.000Z",
+				},
+				messages: [existingMessage],
+				queued_messages: [],
+			},
+			chatQueuedMessages: [],
+		});
+
+		// The store should accept the fresh REST data because the
+		// WebSocket hasn't sent a queue_update yet.
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([]);
+		});
+	});
+
 	it("writes queue_update snapshots into the chat query cache", async () => {
 		const chatID = "chat-1";
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");
