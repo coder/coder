@@ -205,11 +205,10 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								<h3 className="m-0 text-[13px] font-semibold text-content-primary">
 									Personal Instructions
 								</h3>
-								<p className="m-0 text-xs text-content-secondary">
-									Personal instructions appended to all your new chats. Only
-									visible to you.
-								</p>
-								<TextareaAutosize
+									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+										Personal instructions appended to all your new chats. Only
+										visible to you.
+									</p>								<TextareaAutosize
 									className={textareaClassName}
 									placeholder="Additional behavior, style, and tone preferences"
 									value={userPromptDraft}
@@ -258,11 +257,10 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 											</h3>
 											<AdminBadge />
 										</div>
-										<p className="m-0 text-xs text-content-secondary">
-											Default instructions prepended to all new chats for every
-											user. When empty, the built-in default is used.
-										</p>
-										<TextareaAutosize
+											<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+												Default instructions prepended to all new chats for every
+												user. When empty, the built-in default is used.
+											</p>										<TextareaAutosize
 											className={textareaClassName}
 											placeholder="Additional behavior, style, and tone preferences"
 											value={systemPromptDraft}
