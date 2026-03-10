@@ -417,7 +417,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								<div className="flex min-w-0 items-center gap-1.5">
 									{hasLinkedDiffStatus && hasLineStats && (
 										<span
-											className="inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-medium leading-none tabular-nums"
+											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
 											<span className="text-green-700 dark:text-green-500">

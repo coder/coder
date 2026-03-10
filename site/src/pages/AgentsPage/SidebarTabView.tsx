@@ -223,7 +223,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 									className={cn(
 										"shrink-0 h-6 min-w-0 gap-3 px-2 py-0 bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
 										isActive &&
-											"bg-surface-quaternary/25 hover:bg-surface-quaternary/50",
+											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 										tab.badge && "pr-0",
 									)}
 								>

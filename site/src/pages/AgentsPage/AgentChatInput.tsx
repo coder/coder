@@ -638,7 +638,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									/>
 									<Button
 										type="button"
-										variant="outline"
+										variant="subtle"
 										size="icon"
 										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
 										onClick={() => fileInputRef.current?.click()}
