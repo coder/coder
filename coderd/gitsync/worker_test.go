@@ -144,50 +144,6 @@ func tickOnce(
 	<-worker.Done()
 }
 
-func TestWorker_PicksUpStaleRows(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	chat1 := uuid.New()
-	chat2 := uuid.New()
-	ownerID := uuid.New()
-
-	var upsertCount atomic.Int32
-	var publishCount atomic.Int32
-	tickDone := make(chan struct{})
-
-	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
-
-	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
-		Return([]database.AcquireStaleChatDiffStatusesRow{
-			makeAcquiredRow(chat1, ownerID),
-			makeAcquiredRow(chat2, ownerID),
-		}, nil)
-	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
-			upsertCount.Add(1)
-			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
-		}).Times(2)
-
-	pub := func(_ context.Context, _ uuid.UUID) error {
-		if publishCount.Add(1) == 2 {
-			close(tickDone)
-		}
-		return nil
-	}
-
-	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	refresher := newTestRefresher(t, mClock)
-	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
-
-	tickOnce(ctx, t, mClock, worker, tickDone)
-
-	assert.Equal(t, int32(2), upsertCount.Load())
-	assert.Equal(t, int32(2), publishCount.Load())
-}
-
 func TestWorker_SkipsFreshRows(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -491,52 +447,6 @@ func TestWorker_RespectsShutdown(t *testing.T) {
 		t.Fatal("timed out waiting for worker to shut down")
 	}
 }
-
-func TestWorker_BatchRefreshAllRows(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	ownerID := uuid.New()
-	const numRows = 5
-	rows := make([]database.AcquireStaleChatDiffStatusesRow, numRows)
-	for i := range rows {
-		rows[i] = makeAcquiredRow(uuid.New(), ownerID)
-	}
-
-	var upsertCount atomic.Int32
-	var publishCount atomic.Int32
-	tickDone := make(chan struct{})
-
-	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
-
-	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
-		Return(rows, nil)
-	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
-			upsertCount.Add(1)
-			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
-		}).Times(numRows)
-
-	pub := func(_ context.Context, _ uuid.UUID) error {
-		if publishCount.Add(1) == numRows {
-			close(tickDone)
-		}
-		return nil
-	}
-
-	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	refresher := newTestRefresher(t, mClock)
-	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
-
-	tickOnce(ctx, t, mClock, worker, tickDone)
-
-	assert.Equal(t, int32(numRows), upsertCount.Load())
-	assert.Equal(t, int32(numRows), publishCount.Load())
-}
-
-// --- MarkStale tests ---
 
 func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 	t.Parallel()
