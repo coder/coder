@@ -19,6 +19,9 @@ on:
         default: ""
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   classify-severity:
     name: AI Severity Classification
@@ -32,7 +35,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-      actions: write
 
     steps:
       - name: Determine Issue Context
