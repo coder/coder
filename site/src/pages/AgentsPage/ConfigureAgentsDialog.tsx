@@ -178,9 +178,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 														<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
 													</span>
 												</TooltipTrigger>
-												<TooltipContent side="right">
-													Admin only
-												</TooltipContent>
+												<TooltipContent side="right">Admin only</TooltipContent>
 											</Tooltip>
 										</TooltipProvider>
 									)}
@@ -193,10 +191,10 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 					{activeSection === "behavior" && (
 						<>
-								<SectionHeader
-									label="Behavior"
-									description="Custom instructions that shape how the agent responds in your chats."
-								/>
+							<SectionHeader
+								label="Behavior"
+								description="Custom instructions that shape how the agent responds in your chats."
+							/>
 							{/* ── Personal prompt (always visible) ── */}
 							<form
 								className="space-y-2"
@@ -205,9 +203,10 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								<h3 className="m-0 text-[13px] font-semibold text-content-primary">
 									Personal Instructions
 								</h3>
-									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-										Applied to all your chats. Only visible to you.
-									</p>								<TextareaAutosize
+								<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+									Applied to all your chats. Only visible to you.
+								</p>{" "}
+								<TextareaAutosize
 									className={textareaClassName}
 									placeholder="Additional behavior, style, and tone preferences"
 									value={userPromptDraft}
@@ -256,10 +255,11 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 											</h3>
 											<AdminBadge />
 										</div>
-											<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-												Applied to all chats for every user. When empty, the
-												built-in default is used.
-											</p>										<TextareaAutosize
+										<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+											Applied to all chats for every user. When empty, the
+											built-in default is used.
+										</p>{" "}
+										<TextareaAutosize
 											className={textareaClassName}
 											placeholder="Additional behavior, style, and tone preferences for all users"
 											value={systemPromptDraft}
@@ -299,20 +299,22 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 					)}
 					{activeSection === "providers" && canManageChatModelConfigs && (
 						<>
-								<SectionHeader
-									label="Providers"
-									description="Connect third-party LLM services like OpenAI, Anthropic, or Google. Each provider supplies models that users can select for their chats."
-									badge={<AdminBadge />}
-								/>							<ChatModelAdminPanel section="providers" />
+							<SectionHeader
+								label="Providers"
+								description="Connect third-party LLM services like OpenAI, Anthropic, or Google. Each provider supplies models that users can select for their chats."
+								badge={<AdminBadge />}
+							/>{" "}
+							<ChatModelAdminPanel section="providers" />
 						</>
 					)}
 					{activeSection === "models" && canManageChatModelConfigs && (
 						<>
-								<SectionHeader
-									label="Models"
-									description="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
-									badge={<AdminBadge />}
-								/>							<ChatModelAdminPanel section="models" />
+							<SectionHeader
+								label="Models"
+								description="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
+								badge={<AdminBadge />}
+							/>{" "}
+							<ChatModelAdminPanel section="models" />
 						</>
 					)}
 				</div>

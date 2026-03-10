@@ -479,5 +479,5 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				isDisabled={isCreating || isSavingSystemPrompt || isSavingUserPrompt}
 			/>
 		</div>
-		);
+	);
 };
