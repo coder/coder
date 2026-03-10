@@ -173,7 +173,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						value={displayName || formatProviderLabel(provider)}
 						onChange={(e) => setDisplayName(e.target.value)}
 						disabled={isDisabled || isAPIKeyEnvManaged}
-						className="m-0 w-full border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
+						className="m-0 w-full border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-offset-0"
 						placeholder={formatProviderLabel(provider)}
 					/>
 				</div>

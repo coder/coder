@@ -260,7 +260,7 @@ const FileTreeNodeView: FC<{
 				<button
 					type="button"
 					onClick={() => setExpanded((v) => !v)}
-					className="flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left text-content-secondary hover:bg-surface-secondary cursor-pointer outline-none"
+					className="flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left text-content-secondary hover:bg-surface-secondary cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset"
 					style={{ paddingLeft: 4 + depth * 8, fontSize: 13 }}
 					aria-expanded={expanded}
 				>
@@ -293,7 +293,7 @@ const FileTreeNodeView: FC<{
 			type="button"
 			onClick={() => onFileClick(node.fullPath)}
 			className={cn(
-				"flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left cursor-pointer outline-none border-0 border-r-2 border-solid border-transparent",
+				"flex w-full items-center gap-1.5 rounded-none border-none bg-transparent py-1 text-left cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset border-0 border-r-2 border-solid border-transparent",
 				"hover:bg-surface-secondary",
 				isActive && "bg-surface-secondary border-content-link",
 			)}

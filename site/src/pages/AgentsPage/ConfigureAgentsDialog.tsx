@@ -9,7 +9,7 @@ import {
 } from "components/Dialog/Dialog";
 import type { LucideIcon } from "lucide-react";
 import { BoxesIcon, KeyRoundIcon, UserIcon, XIcon } from "lucide-react";
-import { type FC, type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FC, type FormEvent, useEffect, useId, useMemo, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { cn } from "utils/cn";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
@@ -48,6 +48,8 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	saveSystemPromptError,
 	isDisabled,
 }) => {
+	const systemPromptLabelId = useId();
+
 	const configureSectionOptions = useMemo<
 		readonly ConfigureAgentsSectionOption[]
 	>(() => {
@@ -150,7 +152,10 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								onSubmit={(event) => void onSaveSystemPrompt(event)}
 							>
 								<div className="space-y-2">
-									<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+									<h3
+										id={systemPromptLabelId}
+										className="m-0 text-[13px] font-semibold text-content-primary"
+									>
 										System Prompt
 									</h3>
 									<p className="m-0 text-xs text-content-secondary">
@@ -158,6 +163,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 										the built-in default prompt is used.
 									</p>
 									<TextareaAutosize
+										aria-labelledby={systemPromptLabelId}
 										className="min-h-[220px] w-full resize-y rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30"
 										placeholder="Optional. Set deployment-wide instructions for all new chats."
 										value={systemPromptDraft}

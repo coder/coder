@@ -191,7 +191,7 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 								fill="none"
 								strokeWidth={RING_STROKE}
 								strokeLinecap="round"
-								className="stroke-current transition-all duration-300 ease-out"
+								className="stroke-current transition-[stroke-dashoffset] duration-300 ease-out"
 								style={{
 									strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
 									strokeDashoffset: dashOffset,
