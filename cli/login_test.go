@@ -516,6 +516,18 @@ func TestLogin(t *testing.T) {
 		require.NotEqual(t, client.SessionToken(), sessionFile)
 	})
 
+	t.Run("SessionTokenEnvVar", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		root, _ := clitest.New(t, "login", client.URL.String())
+		root.Environ.Set("CODER_SESSION_TOKEN", "invalid-token")
+		err := root.Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "CODER_SESSION_TOKEN is set")
+		require.Contains(t, err.Error(), "unset CODER_SESSION_TOKEN")
+	})
+
 	t.Run("KeepOrganizationContext", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
