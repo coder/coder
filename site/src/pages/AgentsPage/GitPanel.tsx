@@ -98,7 +98,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						type="button"
 						onClick={() => setView("remote")}
 						className={cn(
-							"flex cursor-pointer items-center gap-3 border-none font-medium transition-colors",
+							"flex cursor-pointer items-stretch gap-3 border-none font-medium transition-colors",
 							view === "remote"
 								? "bg-surface-quaternary/25 text-content-primary"
 								: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -124,7 +124,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						type="button"
 						onClick={() => setView("local")}
 						className={cn(
-							"flex cursor-pointer items-center gap-3 border-0 border-l border-solid border-border-default font-medium transition-colors",
+							"flex cursor-pointer items-stretch gap-3 border-0 border-l border-solid border-border-default font-medium transition-colors",
 							view === "local"
 								? "bg-surface-quaternary/25 text-content-primary"
 								: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
