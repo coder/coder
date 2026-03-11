@@ -411,8 +411,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	}, nil)
 	if errors.Is(err, errRunningWorkspaceLimitExceeded) {
 		maxRunning := api.DeploymentValues.MaxRunningWorkspacesPerUser.Value()
+		message := fmt.Sprintf("Running workspace limit reached (max %d per user). Stop one or more workspaces to start another.", maxRunning)
+		if createBuild.TemplateVersionID != uuid.Nil {
+			message = fmt.Sprintf("Running workspace limit reached (max %d per user). Stop one or more workspaces to update this workspace.", maxRunning)
+		}
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("Running workspace limit reached (max %d per user). Stop one or more workspaces to start another.", maxRunning),
+			Message: message,
 		})
 		return
 	}
