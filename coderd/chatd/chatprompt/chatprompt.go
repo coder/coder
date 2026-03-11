@@ -302,17 +302,28 @@ func parseSystemRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, err
 	}}, nil
 }
 
-// parseAssistantRole tries SDK parts first, then falls back to
-// legacy fantasy envelope format.
+// parseAssistantRole uses the structural heuristic to distinguish
+// legacy fantasy envelope from new SDK parts. We don't use
+// try/fallback here because json.Unmarshal of a fantasy envelope
+// into []ChatMessagePart can partially succeed (Type gets set from
+// the envelope's "type" field) while silently losing content. The
+// only thing preventing that today is that Data ([]byte) rejects
+// the envelope's "data" JSON object, but that's a brittle
+// invariant tied to Go's json decoder behavior for []byte.
 func parseAssistantRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	// Try SDK parts.
-	var parts []codersdk.ChatMessagePart
-	if err := json.Unmarshal(raw.RawMessage, &parts); err == nil && hasNonEmptyType(parts) {
-		return parts, nil
+	if isFantasyEnvelopeFormat(raw.RawMessage) {
+		return parseLegacyFantasyBlocks("assistant", raw)
 	}
 
-	// Fall back to legacy fantasy envelope.
-	return parseLegacyFantasyBlocks("assistant", raw)
+	// New SDK format.
+	var parts []codersdk.ChatMessagePart
+	if err := json.Unmarshal(raw.RawMessage, &parts); err != nil {
+		return nil, xerrors.Errorf("parse assistant content: %w", err)
+	}
+	if !hasNonEmptyType(parts) {
+		return nil, nil
+	}
+	return parts, nil
 }
 
 // parseToolRole tries SDK parts first, then falls back to legacy
@@ -359,7 +370,7 @@ func parseUserRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error
 		}}, nil
 	}
 
-	if isLegacyUserContentFormat(raw.RawMessage) {
+	if isFantasyEnvelopeFormat(raw.RawMessage) {
 		return parseLegacyUserBlocks(raw)
 	}
 
@@ -992,7 +1003,7 @@ func MarshalParts(parts []codersdk.ChatMessagePart) (pqtype.NullRawMessage, erro
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }
 
-// isLegacyUserContentFormat checks whether raw message content uses
+// isFantasyEnvelopeFormat checks whether raw message content uses
 // the fantasy envelope format (legacy) vs SDK parts (new). It
 // examines the first array element for a "data" field containing a
 // JSON object (starts with '{'). Fantasy always serializes Data
@@ -1001,7 +1012,7 @@ func MarshalParts(parts []codersdk.ChatMessagePart) (pqtype.NullRawMessage, erro
 // string or is omitted via omitempty. This structural invariant
 // means a "data" field starting with '{' can only come from
 // fantasy.
-func isLegacyUserContentFormat(raw json.RawMessage) bool {
+func isFantasyEnvelopeFormat(raw json.RawMessage) bool {
 	var arr []json.RawMessage
 	if err := json.Unmarshal(raw, &arr); err != nil || len(arr) == 0 {
 		return false

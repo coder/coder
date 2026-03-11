@@ -1,6 +1,7 @@
 package chatprompt_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"testing"
@@ -8,11 +9,13 @@ import (
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
@@ -601,6 +604,44 @@ func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
 	// Tool message should only contain the exec result, not the PE one.
 	toolIDs := extractToolResultIDs(t, prompt[1])
 	require.Equal(t, []string{"toolu_exec"}, toolIDs)
+}
+
+// TestSDKPartsNeverProduceFantasyEnvelopeShape guards the structural
+// invariant that isFantasyEnvelopeFormat relies on: no SDK part type
+// serializes with a top-level "data" field containing a JSON object
+// (starting with '{'). Fantasy envelopes always have
+// "data":{object}, while ChatMessagePart.Data is []byte which
+// serializes to a base64 string or is omitted. If this test fails,
+// the format discriminator can no longer distinguish legacy fantasy
+// content from SDK parts, and parseAssistantRole / parseUserRole
+// would silently lose data on legacy rows.
+func TestSDKPartsNeverProduceFantasyEnvelopeShape(t *testing.T) {
+	t.Parallel()
+
+	parts := []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeText, Text: "hello"},
+		{Type: codersdk.ChatMessagePartTypeFile, FileID: uuid.NullUUID{UUID: uuid.New(), Valid: true}, MediaType: "image/png"},
+		{Type: codersdk.ChatMessagePartTypeFile, MediaType: "image/png", Data: []byte("fake-image-data")},
+		{Type: codersdk.ChatMessagePartTypeFileReference, FileName: "main.go", StartLine: 1, EndLine: 10, Content: "func main() {}"},
+		{Type: codersdk.ChatMessagePartTypeReasoning, Text: "thinking..."},
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "abc", ToolName: "read_file", Args: json.RawMessage(`{"path":"main.go"}`)},
+		{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "abc", ToolName: "read_file", Result: json.RawMessage(`{"output":"code"}`)},
+		{Type: codersdk.ChatMessagePartTypeSource, SourceID: "s1", URL: "https://example.com", Title: "Example"},
+	}
+	for _, part := range parts {
+		raw, err := json.Marshal(part)
+		require.NoError(t, err)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(raw, &fields))
+		if data, ok := fields["data"]; ok {
+			trimmed := bytes.TrimSpace(data)
+			require.NotEmpty(t, trimmed)
+			assert.NotEqual(t, byte('{'), trimmed[0],
+				"SDK part type %q serializes with data field starting with '{', "+
+					"would be misidentified as fantasy envelope by isFantasyEnvelopeFormat",
+				part.Type)
+		}
+	}
 }
 
 func mustJSON(t *testing.T, v any) json.RawMessage {
