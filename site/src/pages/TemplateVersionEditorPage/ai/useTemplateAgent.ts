@@ -173,26 +173,36 @@ Rules:
 - For publishTemplate: omit name to keep the current version name.
   Generate a short changelog message from the changes you made.`;
 
-const getSystemPrompt = (currentFilePath?: string): string => {
+const getSystemPrompt = (
+	currentFilePath?: string,
+	docsVersion?: string,
+): string => {
 	const currentFileInstructions =
 		currentFilePath !== undefined && currentFilePath.length > 0
 			? `Current editor context:
 - The user is currently viewing "${currentFilePath}".
 - If you have not already inspected "${currentFilePath}" in this conversation, read it before making assumptions, answering questions, or proposing edits whenever the request could plausibly refer to code already in that file.
 - If you already inspected "${currentFilePath}" and nothing indicates it changed, reuse that content instead of rereading it just because a new user turn started.
-- Requests about changing existing local code, variables, resources, or values in the current template should start with local tools (listFiles, readFile, editFile), not coder_registry_ tools, unless the user is clearly asking about another file or you truly need external registry information.
+- Requests about changing existing local code, variables, resources, or values in the current template should start with local tools (listFiles, readFile, editFile), not coder_docs or coder_registry_ tools, unless the user is clearly asking about another file or you truly need external documentation.
 - If you choose to work in a different file first, briefly explain why that file is more relevant.`
 			: `Current editor context:
 - The user does not currently have a file open.
 - Choose and read the most relevant local file before making assumptions, answering questions, or proposing edits if you have not already inspected that file in this conversation.
 - Reuse earlier file reads when nothing indicates the file changed, instead of rereading files on every follow-up turn.
-- Requests about changing existing local code, variables, resources, or values in the current template should start with local tools (listFiles, readFile, editFile), not coder_registry_ tools, unless local files are insufficient and you genuinely need external registry information.`;
+- Requests about changing existing local code, variables, resources, or values in the current template should start with local tools (listFiles, readFile, editFile), not coder_docs or coder_registry_ tools, unless local files are insufficient and you genuinely need external documentation.`;
+
+	const docsToolInstructions =
+		docsVersion !== undefined && docsVersion.length > 0
+			? `- Use coder_docs_outline and coder_docs for official Coder product documentation that matches deployment version ${docsVersion} when you need authoritative guidance about Coder template authoring, parameters, product behavior, or examples that are not already clear from the local files.
+- Start with coder_docs_outline to discover relevant markdown paths, then call coder_docs with an exact path from that outline.`
+			: "- coder_docs_outline and coder_docs may be unavailable if the deployment build version could not be determined.";
 
 	return `${BASE_SYSTEM_PROMPT}
 
 Additional guidance:
-- If the user asks to modify existing local template code, variables, resources, module blocks, or values, inspect the relevant local file(s) and make the change with listFiles/readFile/editFile before considering coder_registry_ tools.
-- A request like "turn that enable_fuse variable into a Coder parameter" is a local edit request, so if you have not already read the current template file in this conversation, read it first. Otherwise, reuse the most recent known file state. Do not search the registry unless the local files are insufficient.
+- If the user asks to modify existing local template code, variables, resources, module blocks, or values, inspect the relevant local file(s) and make the change with listFiles/readFile/editFile before considering coder_docs or coder_registry_ tools.
+- A request like "turn that enable_fuse variable into a Coder parameter" is a local edit request, so if you have not already read the current template file in this conversation, read it first. Otherwise, reuse the most recent known file state. Do not search the docs or registry unless the local files are insufficient.
+${docsToolInstructions}
 - Use coder_registry_ tools for external registry modules, published examples, or authoritative configuration details that are not already available in the local files.
 - Use coder_registry_ tool results to confirm module inputs, outputs, examples, and supported settings before you recommend changes based on external registry content.
 
@@ -204,6 +214,7 @@ const createTemplateAgent = (
 	getFileTree: () => FileTree,
 	setFileTree: (updater: (prev: FileTree) => FileTree) => void,
 	hasBuiltInCurrentRunRef: { current: boolean },
+	docsVersion: string | undefined,
 	callbacks: {
 		onFileEdited?: (path: string) => void;
 		onFileDeleted?: (path: string) => void;
@@ -247,6 +258,7 @@ const createTemplateAgent = (
 		setFileTree,
 		hasBuiltInCurrentRunRef,
 		callbacks,
+		docsVersion,
 	);
 	assertValidExternalToolNames(localTools, externalTools);
 
@@ -274,6 +286,8 @@ interface UseTemplateAgentOptions {
 	onFileEdited?: (path: string) => void;
 	/** Called after a file is deleted so the editor can clear the active path if needed. */
 	onFileDeleted?: (path: string) => void;
+	/** Build-info version used to select the matching Coder docs tag. */
+	docsVersion?: string;
 	/** Triggers a template build (uploads files, creates version). */
 	onBuildRequested?: () => Promise<void>;
 	/** Returns a promise that resolves when the current build reaches a terminal state. */
@@ -573,6 +587,7 @@ export const useTemplateAgent = ({
 	currentFilePath,
 	onFileEdited,
 	onFileDeleted,
+	docsVersion,
 	onBuildRequested,
 	waitForBuildComplete,
 	getBuildOutput,
@@ -689,6 +704,7 @@ export const useTemplateAgent = ({
 				getFileTree,
 				setFileTree,
 				hasBuiltInCurrentRunRef,
+				docsVersion,
 				{
 					onFileEdited: (path) => toolCallbacksRef.current.onFileEdited?.(path),
 					onFileDeleted: (path) =>
@@ -719,7 +735,7 @@ export const useTemplateAgent = ({
 								})
 						: undefined,
 				},
-				getSystemPrompt(currentFilePath),
+				getSystemPrompt(currentFilePath, docsVersion),
 				mcpToolsRef.current,
 			);
 
@@ -781,6 +797,7 @@ export const useTemplateAgent = ({
 		},
 		[
 			currentFilePath,
+			docsVersion,
 			getFileTree,
 			modelConfig,
 			setConversationMessages,

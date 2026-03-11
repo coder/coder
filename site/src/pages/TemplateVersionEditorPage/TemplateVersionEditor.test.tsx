@@ -1,4 +1,8 @@
-import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
+import {
+	MockBuildInfo,
+	MockTemplate,
+	MockTemplateVersion,
+} from "testHelpers/entities";
 import { render } from "@testing-library/react";
 import type { ProvisionerJobLog, TemplateVersion } from "api/typesGenerated";
 import type { ReactNode } from "react";
@@ -50,7 +54,12 @@ vi.mock("react-router", () => ({
 }));
 
 vi.mock("hooks/useEmbeddedMetadata", () => ({
-	useEmbeddedMetadata: () => ({ metadata: { experiments: [] } }),
+	useEmbeddedMetadata: () => ({
+		metadata: {
+			experiments: { value: [], available: true },
+			"build-info": { value: MockBuildInfo, available: true },
+		},
+	}),
 }));
 
 vi.mock("modules/navigation", () => ({

@@ -51,6 +51,135 @@ interface TemplateAgentToolCallbacks {
 	) => Promise<PublishResult>;
 }
 
+type CoderDocsRoute = {
+	title: string;
+	description?: string;
+	path?: string;
+	children?: CoderDocsRoute[];
+};
+
+const coderDocsRouteSchema: z.ZodType<CoderDocsRoute> = z.lazy(() =>
+	z
+		.object({
+			title: z.string(),
+			description: z.string().optional(),
+			path: z.string().optional(),
+			children: z.array(coderDocsRouteSchema).optional(),
+		})
+		.passthrough(),
+);
+
+const coderDocsManifestSchema = z
+	.object({
+		versions: z.array(z.string()).optional(),
+		routes: z.array(coderDocsRouteSchema),
+	})
+	.passthrough();
+
+type CoderDocsManifest = z.infer<typeof coderDocsManifestSchema>;
+
+const CODER_DOCS_RAW_BASE_URL =
+	"https://raw.githubusercontent.com/coder/coder/refs/tags";
+
+const normalizeCoderDocsVersionTag = (version: string): string => {
+	const trimmed = version.trim();
+	if (trimmed.length === 0) {
+		throw new Error("Coder docs version cannot be empty.");
+	}
+
+	// Build versions can include prerelease/build metadata
+	// (for example v2.31.4-devel+abc123) while release docs are tagged
+	// on the base semver. Strip any suffix when present.
+	const baseSemverMatch = trimmed.match(/^v\d+\.\d+\.\d+/);
+	return baseSemverMatch?.[0] ?? trimmed;
+};
+
+const buildCoderDocsManifestURL = (docsTag: string): string =>
+	`${CODER_DOCS_RAW_BASE_URL}/${encodeURIComponent(docsTag)}/docs/manifest.json`;
+
+const normalizeCoderDocsPath = (path: string): string => {
+	const withoutFragment = path.trim().split("#")[0]?.split("?")[0] ?? "";
+	const withoutPrefix = withoutFragment.startsWith("./")
+		? withoutFragment.slice(2)
+		: withoutFragment;
+	if (withoutPrefix.length === 0) {
+		throw new Error("Docs path cannot be empty.");
+	}
+	if (withoutPrefix.startsWith("/") || withoutPrefix.includes("..")) {
+		throw new Error(
+			"Docs path must be a relative markdown file from coder_docs_outline.",
+		);
+	}
+	if (!withoutPrefix.endsWith(".md")) {
+		throw new Error(
+			"Docs path must point to a markdown file from coder_docs_outline.",
+		);
+	}
+	return withoutPrefix;
+};
+
+const buildCoderDocsFileURL = (
+	docsTag: string,
+	normalizedPath: string,
+): string =>
+	`${CODER_DOCS_RAW_BASE_URL}/${encodeURIComponent(docsTag)}/docs/${normalizedPath}`;
+
+const collectCoderDocsMarkdownPaths = (
+	routes: CoderDocsRoute[],
+	result = new Map<string, string>(),
+): Map<string, string> => {
+	for (const route of routes) {
+		if (route.path?.endsWith(".md")) {
+			result.set(normalizeCoderDocsPath(route.path), route.path);
+		}
+		if (route.children) {
+			collectCoderDocsMarkdownPaths(route.children, result);
+		}
+	}
+	return result;
+};
+
+const renderCoderDocsOutline = (
+	routes: CoderDocsRoute[],
+	depth = 0,
+): string[] => {
+	const lines: string[] = [];
+	const indent = "  ".repeat(depth);
+	for (const route of routes) {
+		const suffix = route.path?.endsWith(".md") ? ` (${route.path})` : "";
+		lines.push(`${indent}- ${route.title}${suffix}`);
+		if (route.children) {
+			lines.push(...renderCoderDocsOutline(route.children, depth + 1));
+		}
+	}
+	return lines;
+};
+
+const fetchJSON = async (url: string): Promise<unknown> => {
+	if (typeof globalThis.fetch !== "function") {
+		throw new Error("Fetch API is unavailable in this browser.");
+	}
+	const response = await globalThis.fetch(url);
+	if (!response.ok) {
+		throw new Error(
+			`Failed to fetch ${url}: ${response.status} ${response.statusText || "request failed"}.`,
+		);
+	}
+	return response.json();
+};
+
+const fetchText = async (url: string): Promise<string> => {
+	if (typeof globalThis.fetch !== "function") {
+		throw new Error("Fetch API is unavailable in this browser.");
+	}
+	const response = await globalThis.fetch(url);
+	if (!response.ok) {
+		throw new Error(
+			`Failed to fetch ${url}: ${response.status} ${response.statusText || "request failed"}.`,
+		);
+	}
+	return response.text();
+};
 /**
  * Creates the set of AI tools that operate on the template editor's
  * in-memory FileTree. Tools use the provided callbacks to read and
@@ -61,8 +190,62 @@ export function createTemplateAgentTools(
 	setFileTree: (updater: (prev: FileTree) => FileTree) => void,
 	hasBuiltInCurrentRunRef: { current: boolean },
 	callbacks: TemplateAgentToolCallbacks = {},
+	docsVersion?: string,
 ) {
 	const { onFileEdited, onFileDeleted } = callbacks;
+	const docsManifestCache = new Map<string, Promise<CoderDocsManifest>>();
+	const docsMarkdownCache = new Map<string, Promise<string>>();
+
+	const getDocsVersionInfo = () => {
+		if (docsVersion === undefined || docsVersion.trim().length === 0) {
+			return {
+				error:
+					"Coder docs are unavailable because the deployment build version is unknown.",
+			} as const;
+		}
+		return {
+			buildVersion: docsVersion,
+			docsTag: normalizeCoderDocsVersionTag(docsVersion),
+		} as const;
+	};
+
+	const getDocsManifest = async (
+		docsTag: string,
+	): Promise<CoderDocsManifest> => {
+		const cached = docsManifestCache.get(docsTag);
+		if (cached) {
+			return cached;
+		}
+
+		const manifestPromise = fetchJSON(buildCoderDocsManifestURL(docsTag))
+			.then((value) => coderDocsManifestSchema.parse(value))
+			.catch((error) => {
+				docsManifestCache.delete(docsTag);
+				throw error;
+			});
+		docsManifestCache.set(docsTag, manifestPromise);
+		return manifestPromise;
+	};
+
+	const getDocsMarkdown = async (
+		docsTag: string,
+		normalizedPath: string,
+	): Promise<string> => {
+		const cacheKey = `${docsTag}:${normalizedPath}`;
+		const cached = docsMarkdownCache.get(cacheKey);
+		if (cached) {
+			return cached;
+		}
+
+		const markdownPromise = fetchText(
+			buildCoderDocsFileURL(docsTag, normalizedPath),
+		).catch((error) => {
+			docsMarkdownCache.delete(cacheKey);
+			throw error;
+		});
+		docsMarkdownCache.set(cacheKey, markdownPromise);
+		return markdownPromise;
+	};
 
 	return {
 		listFiles: tool({
@@ -154,6 +337,95 @@ export function createTemplateAgentTools(
 					onFileDeleted?.(path);
 				}
 				return result;
+			},
+		}),
+
+		coder_docs_outline: tool({
+			description:
+				"Get an outline of the official Coder documentation for this deployment version. " +
+				"Use this to discover relevant markdown file paths before calling coder_docs.",
+			inputSchema: z.object({}),
+			execute: async () => {
+				const versionInfo = getDocsVersionInfo();
+				if ("error" in versionInfo) {
+					return versionInfo;
+				}
+				try {
+					const manifest = await getDocsManifest(versionInfo.docsTag);
+					return {
+						buildVersion: versionInfo.buildVersion,
+						docsTag: versionInfo.docsTag,
+						outline: [
+							`Coder docs outline for build version ${versionInfo.buildVersion} (docs tag ${versionInfo.docsTag}).`,
+							"Use the exact markdown paths in parentheses with coder_docs.",
+							...renderCoderDocsOutline(manifest.routes),
+						].join("\n"),
+					};
+				} catch (err) {
+					const message =
+						err instanceof Error
+							? err.message
+							: "Failed to load the Coder docs outline.";
+					return { error: message };
+				}
+			},
+		}),
+
+		coder_docs: tool({
+			description:
+				"Read a markdown file from the official Coder documentation for this deployment version. " +
+				"Call coder_docs_outline first to discover valid paths.",
+			inputSchema: z.object({
+				path: z
+					.string()
+					.min(1, "Path cannot be empty.")
+					.describe(
+						"Markdown file path from coder_docs_outline, e.g. './admin/templates/managing-templates/index.md'",
+					),
+			}),
+			execute: async ({ path }) => {
+				const versionInfo = getDocsVersionInfo();
+				if ("error" in versionInfo) {
+					return versionInfo;
+				}
+				let normalizedPath: string;
+				try {
+					normalizedPath = normalizeCoderDocsPath(path);
+				} catch (err) {
+					const message =
+						err instanceof Error ? err.message : "Invalid docs path.";
+					return { error: message };
+				}
+
+				try {
+					const manifest = await getDocsManifest(versionInfo.docsTag);
+					const markdownPaths = collectCoderDocsMarkdownPaths(manifest.routes);
+					const manifestPath = markdownPaths.get(normalizedPath);
+					if (!manifestPath) {
+						return {
+							error: `Docs file not found in the outline: ${path}. Call coder_docs_outline first and use one of the listed markdown paths.`,
+						};
+					}
+					return {
+						buildVersion: versionInfo.buildVersion,
+						docsTag: versionInfo.docsTag,
+						path: manifestPath,
+						sourceURL: buildCoderDocsFileURL(
+							versionInfo.docsTag,
+							normalizedPath,
+						),
+						markdown: await getDocsMarkdown(
+							versionInfo.docsTag,
+							normalizedPath,
+						),
+					};
+				} catch (err) {
+					const message =
+						err instanceof Error
+							? err.message
+							: "Failed to load the Coder docs page.";
+					return { error: message };
+				}
 			},
 		}),
 

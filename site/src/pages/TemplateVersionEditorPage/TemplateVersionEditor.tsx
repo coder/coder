@@ -5,6 +5,7 @@ import {
 	type AIModelConfig,
 	aiBridgeModels,
 } from "api/queries/aiBridge";
+import { buildInfo } from "api/queries/buildInfo";
 import { experiments } from "api/queries/experiments";
 import type {
 	ProvisionerJobLog,
@@ -251,6 +252,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const { data: enabledExperiments = [] } = useQuery(
 		experiments(metadata.experiments),
 	);
+	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const aiExperimentEnabled = enabledExperiments.includes("ai-template-editor");
 	const { data: aiModels = [] } = useQuery({
 		...aiBridgeModels(),
@@ -464,6 +466,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 				onActivePathChange(undefined);
 			}
 		},
+		docsVersion: buildInfoQuery.data?.version,
 		onBuildRequested: triggerBuild,
 		waitForBuildComplete,
 		getBuildOutput,

@@ -13,6 +13,7 @@ type ToolSet = ReturnType<typeof createTemplateAgentTools>;
 const makeTools = (
 	overrides: Record<string, unknown> = {},
 	hasBuiltInCurrentRunRef: { current: boolean } = { current: false },
+	docsVersion = "v2.99.99",
 ): ToolSet => {
 	const fileTree: FileTree = { "main.tf": 'resource "null" {}' };
 	return createTemplateAgentTools(
@@ -20,6 +21,7 @@ const makeTools = (
 		() => {},
 		hasBuiltInCurrentRunRef,
 		overrides,
+		docsVersion,
 	);
 };
 
@@ -36,6 +38,12 @@ const executeBuild = (tools: ToolSet) =>
 const executeGetBuildLogs = (tools: ToolSet) =>
 	tools.getBuildLogs.execute!({}, toolContext);
 
+const executeDocsOutline = (tools: ToolSet) =>
+	tools.coder_docs_outline.execute!({}, toolContext);
+
+const executeDocs = (tools: ToolSet, path: string) =>
+	tools.coder_docs.execute!({ path }, toolContext);
+
 const createDeferred = <T>() => {
 	let resolve!: (value: T) => void;
 	const promise = new Promise<T>((resolvePromise) => {
@@ -43,6 +51,28 @@ const createDeferred = <T>() => {
 	});
 	return { promise, resolve };
 };
+
+const makeJSONResponse = (body: unknown, status = 200, statusText = "OK") =>
+	({
+		ok: status >= 200 && status < 300,
+		status,
+		statusText,
+		json: vi.fn().mockResolvedValue(body),
+		text: vi.fn(),
+	}) as unknown as Response;
+
+const makeTextResponse = (body: string, status = 200, statusText = "OK") =>
+	({
+		ok: status >= 200 && status < 300,
+		status,
+		statusText,
+		json: vi.fn(),
+		text: vi.fn().mockResolvedValue(body),
+	}) as unknown as Response;
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
 
 describe("buildTemplate tool", () => {
 	it("returns error when onBuildRequested callback is not provided", async () => {
@@ -170,6 +200,119 @@ describe("getBuildLogs tool", () => {
 		});
 		const result = await executeGetBuildLogs(tools);
 		expect(result).toEqual(output);
+	});
+});
+
+describe("coder_docs_outline tool", () => {
+	it("returns an outline fetched from the docs manifest for the build version", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			makeJSONResponse({
+				routes: [
+					{
+						title: "About",
+						path: "./README.md",
+						children: [
+							{
+								title: "Quickstart",
+								path: "./tutorials/quickstart.md",
+							},
+						],
+					},
+				],
+			}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const tools = makeTools();
+
+		const result = await executeDocsOutline(tools);
+
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://raw.githubusercontent.com/coder/coder/refs/tags/v2.99.99/docs/manifest.json",
+		);
+		expect(result).toMatchObject({
+			buildVersion: "v2.99.99",
+			docsTag: "v2.99.99",
+		});
+		expect((result as { outline: string }).outline).toContain(
+			"- About (./README.md)",
+		);
+		expect((result as { outline: string }).outline).toContain(
+			"- Quickstart (./tutorials/quickstart.md)",
+		);
+	});
+
+	it("returns an error when the build version is unavailable", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+		const tools = makeTools({}, { current: false }, "");
+
+		const result = await executeDocsOutline(tools);
+
+		expect(result).toEqual({
+			error:
+				"Coder docs are unavailable because the deployment build version is unknown.",
+		});
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("coder_docs tool", () => {
+	it("reads a markdown file referenced by the manifest", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				makeJSONResponse({
+					routes: [
+						{
+							title: "Template Management",
+							path: "./admin/templates/managing-templates/index.md",
+						},
+					],
+				}),
+			)
+			.mockResolvedValueOnce(
+				makeTextResponse("# Managing templates\n\nUseful content."),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+		const tools = makeTools();
+
+		const result = await executeDocs(
+			tools,
+			"./admin/templates/managing-templates/index.md",
+		);
+
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			1,
+			"https://raw.githubusercontent.com/coder/coder/refs/tags/v2.99.99/docs/manifest.json",
+		);
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			"https://raw.githubusercontent.com/coder/coder/refs/tags/v2.99.99/docs/admin/templates/managing-templates/index.md",
+		);
+		expect(result).toMatchObject({
+			buildVersion: "v2.99.99",
+			docsTag: "v2.99.99",
+			path: "./admin/templates/managing-templates/index.md",
+			markdown: "# Managing templates\n\nUseful content.",
+		});
+	});
+
+	it("returns an error when the requested path is not in the manifest", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			makeJSONResponse({
+				routes: [{ title: "About", path: "./README.md" }],
+			}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const tools = makeTools();
+
+		const result = await executeDocs(tools, "./missing.md");
+
+		expect(result).toEqual({
+			error:
+				"Docs file not found in the outline: ./missing.md. Call coder_docs_outline first and use one of the listed markdown paths.",
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 });
 

@@ -141,6 +141,7 @@ const completedMessage: UIMessage = {
 type RenderTemplateAgentHookOptions = {
 	currentFilePath?: string;
 	enabled?: boolean;
+	docsVersion?: string;
 };
 
 const renderTemplateAgentHook = (
@@ -163,6 +164,7 @@ const renderTemplateAgentHook = (
 						provider: "openai",
 					},
 				},
+				docsVersion: "v2.99.99",
 				...options,
 			}),
 		{ initialProps: initialOptions },
@@ -299,6 +301,12 @@ describe("useTemplateAgent prompt guidance", () => {
 		);
 		expect(instructions).toContain(
 			'If you already inspected "main.tf" and nothing indicates it changed, reuse that content',
+		);
+		expect(instructions).toContain(
+			"Use coder_docs_outline and coder_docs for official Coder product documentation that matches deployment version v2.99.99",
+		);
+		expect(instructions).toContain(
+			"Start with coder_docs_outline to discover relevant markdown paths",
 		);
 	});
 });
