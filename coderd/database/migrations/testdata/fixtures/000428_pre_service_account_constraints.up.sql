@@ -1,4 +1,4 @@
--- Fixture for migration 000430_add_is_service_account_to_users.
+-- Fixture for migration 000433_add_is_service_account_to_users.
 -- Inserts a user with an empty email to ensure the migration
 -- correctly marks them as a service account before adding the
 -- users_email_not_empty constraint.

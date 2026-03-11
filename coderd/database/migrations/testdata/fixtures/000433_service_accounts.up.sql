@@ -1,4 +1,4 @@
--- Fixture for migration 000430_add_is_service_account_to_users.
+-- Fixture for migration 000433_add_is_service_account_to_users.
 -- Inserts multiple service accounts with empty emails to help test
 -- the down migration, which must assign each a unique placeholder
 -- email before restoring the original unique index on email.
