@@ -45,17 +45,7 @@ func TestCreateTarFromZip(t *testing.T) {
 	err = os.WriteFile(tempFilePath, tarBytes, 0o600)
 	require.NoError(t, err, "failed to write converted tar file")
 
-	cmd := exec.CommandContext(
-		ctx,
-		"tar",
-		"--extract",
-		"--verbose",
-		"--same-permissions",
-		"--file",
-		tempFilePath,
-		"--directory",
-		tempDir,
-	)
+	cmd := exec.CommandContext(ctx, "tar", "--extract", "--verbose", "--file", tempFilePath, "--directory", tempDir)
 	require.NoError(t, cmd.Run(), "failed to extract converted tar file")
 	assertExtractedFiles(t, tempDir, true)
 }

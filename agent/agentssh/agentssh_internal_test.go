@@ -33,13 +33,7 @@ echo "done"
 func Test_sessionStart_orphan(t *testing.T) {
 	t.Parallel()
 
-	// This test intentionally starts a command that may take a while to unwind
-	// under `go test -race`, so leave extra headroom for the handler to exit
-	// after the session context is canceled.
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		testutil.WaitSuperLong+testutil.WaitLong,
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 	logger := testutil.Logger(t)
 	s, err := NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)

@@ -225,13 +225,9 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 		return s, wg.Wait
 	}
 
-	// The test shell traps SIGTERM and sleeps for 60s before exiting, so the
-	// shutdown timeout must leave headroom for process startup and teardown.
-	closeActiveConnectionsTimeout := testutil.WaitSuperLong + testutil.WaitMedium
-
 	t.Run("Close", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, closeActiveConnectionsTimeout)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		s, wait := prepare(ctx, t)
 		err := s.Close()
 		require.NoError(t, err)
@@ -240,7 +236,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 
 	t.Run("Shutdown", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, closeActiveConnectionsTimeout)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		s, wait := prepare(ctx, t)
 		err := s.Shutdown(ctx)
 		require.NoError(t, err)
@@ -249,7 +245,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 
 	t.Run("Shutdown Early", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, closeActiveConnectionsTimeout)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		s, wait := prepare(ctx, t)
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()

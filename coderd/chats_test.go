@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
