@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/chatd"
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -840,6 +841,98 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	require.Equal(t, codersdk.ChatStreamEventTypeStatus, snapshot[0].Type)
 	require.NotNil(t, snapshot[0].Status)
 	require.Equal(t, codersdk.ChatStatusPending, snapshot[0].Status.Status)
+}
+
+func TestPersistToolResultWithBinaryData(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	_ = newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		Title:             "binary-tool-result",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	cases := []struct {
+		name         string
+		binaryOutput string
+	}{
+		{"null byte", "has\x00null"},
+		{"multiple null bytes", "ELF\x00\x00\x00binary\x00data"},
+		{"control char 0x01", "start\x01end"},
+		{"control char 0x1F", "before\x1Fafter"},
+		{"DEL 0x7F", "see\x7Fhere"},
+		{"invalid UTF-8 bare 0x80", "bad\x80utf8"},
+		{"invalid UTF-8 0xFE 0xFF", "bytes\xFE\xFF!"},
+		{"overlong null 0xC0 0x80", "over\xC0\x80long"},
+		{"high byte 0xFF", "high\xFFbyte"},
+		{"surrogate byte pattern U+D800", "surr\xED\xA0\x80ogate"},
+		{"surrogate byte pattern U+DFFF", "surr\xED\xBF\xBFend"},
+		{
+			"ELF binary header",
+			"\x7FELF\x00\x00\x00\x00\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+		},
+		{"mixed invalid UTF-8 without nulls", "hello\x80world\xFE\xC0\x80end"},
+		{
+			"all control chars 0x01-0x1F",
+			"\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F" +
+				"\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// Simulate the execute tool: json.Marshal encodes the
+			// binary output into a JSON string, then
+			// MarshalToolResultContent wraps it for storage.
+			execResult, err := json.Marshal(map[string]any{
+				"success":          true,
+				"output":           tc.binaryOutput,
+				"exit_code":        0,
+				"wall_duration_ms": 42,
+			})
+			require.NoError(t, err)
+
+			resultContent, err := chatprompt.MarshalToolResultContent(
+				fantasy.ToolResultContent{
+					ToolCallID: fmt.Sprintf("toolu_%s", tc.name),
+					ToolName:   "execute",
+					Result: fantasy.ToolResultOutputContentText{
+						Text: string(execResult),
+					},
+				},
+			)
+			require.NoError(t, err)
+
+			_, err = db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+				ChatID:              chat.ID,
+				ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+				Role:                string(fantasy.MessageRoleTool),
+				Content:             resultContent,
+				Visibility:          database.ChatMessageVisibilityBoth,
+				InputTokens:         sql.NullInt64{},
+				OutputTokens:        sql.NullInt64{},
+				TotalTokens:         sql.NullInt64{},
+				ReasoningTokens:     sql.NullInt64{},
+				CacheCreationTokens: sql.NullInt64{},
+				CacheReadTokens:     sql.NullInt64{},
+				ContextLimit:        sql.NullInt64{},
+				Compressed:          sql.NullBool{},
+			})
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {

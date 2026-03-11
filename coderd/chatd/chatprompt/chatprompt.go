@@ -1,6 +1,7 @@
 package chatprompt
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"regexp"
@@ -613,7 +614,7 @@ func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isEr
 	row := toolResultRaw{
 		ToolCallID: toolCallID,
 		ToolName:   toolName,
-		Result:     result,
+		Result:     sanitizeJSONNullEscape(result),
 		IsError:    isError,
 	}
 	data, err := json.Marshal([]toolResultRaw{row})
@@ -978,5 +979,18 @@ func sanitizeToolCallID(id string) string {
 }
 
 func marshalContentBlock(block fantasy.Content) (json.RawMessage, error) {
-	return json.Marshal(block)
+	data, err := json.Marshal(block)
+	if err != nil {
+		return nil, err
+	}
+	return sanitizeJSONNullEscape(data), nil
+}
+
+// sanitizeJSONNullEscape removes \u0000 escape sequences from
+// JSON data. PostgreSQL's jsonb type rejects this escape even
+// though it is valid JSON per RFC 8259. Go's json.Marshal
+// produces \u0000 when encoding strings containing null bytes,
+// which can occur when tools return binary command output.
+func sanitizeJSONNullEscape(data json.RawMessage) json.RawMessage {
+	return bytes.ReplaceAll(data, []byte(`\u0000`), nil)
 }
