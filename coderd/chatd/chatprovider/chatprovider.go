@@ -557,39 +557,39 @@ func normalizedEnumValue(value string, allowed ...string) *string {
 // profile default config.
 func MergeMissingCallConfig(
 	dst *codersdk.ChatModelCallConfig,
-	defaultCallConfig codersdk.ChatModelCallConfig,
+	defaults codersdk.ChatModelCallConfig,
 ) {
 	if dst.MaxOutputTokens == nil {
-		dst.MaxOutputTokens = defaultCallConfig.MaxOutputTokens
+		dst.MaxOutputTokens = defaults.MaxOutputTokens
 	}
 	if dst.Temperature == nil {
-		dst.Temperature = defaultCallConfig.Temperature
+		dst.Temperature = defaults.Temperature
 	}
 	if dst.TopP == nil {
-		dst.TopP = defaultCallConfig.TopP
+		dst.TopP = defaults.TopP
 	}
 	if dst.TopK == nil {
-		dst.TopK = defaultCallConfig.TopK
+		dst.TopK = defaults.TopK
 	}
 	if dst.PresencePenalty == nil {
-		dst.PresencePenalty = defaultCallConfig.PresencePenalty
+		dst.PresencePenalty = defaults.PresencePenalty
 	}
 	if dst.FrequencyPenalty == nil {
-		dst.FrequencyPenalty = defaultCallConfig.FrequencyPenalty
+		dst.FrequencyPenalty = defaults.FrequencyPenalty
 	}
 	if dst.InputPricePerMillionTokens == nil {
-		dst.InputPricePerMillionTokens = defaultCallConfig.InputPricePerMillionTokens
+		dst.InputPricePerMillionTokens = defaults.InputPricePerMillionTokens
 	}
 	if dst.OutputPricePerMillionTokens == nil {
-		dst.OutputPricePerMillionTokens = defaultCallConfig.OutputPricePerMillionTokens
+		dst.OutputPricePerMillionTokens = defaults.OutputPricePerMillionTokens
 	}
 	if dst.CacheReadPricePerMillionTokens == nil {
-		dst.CacheReadPricePerMillionTokens = defaultCallConfig.CacheReadPricePerMillionTokens
+		dst.CacheReadPricePerMillionTokens = defaults.CacheReadPricePerMillionTokens
 	}
 	if dst.CacheWritePricePerMillionTokens == nil {
-		dst.CacheWritePricePerMillionTokens = defaultCallConfig.CacheWritePricePerMillionTokens
+		dst.CacheWritePricePerMillionTokens = defaults.CacheWritePricePerMillionTokens
 	}
-	MergeMissingProviderOptions(&dst.ProviderOptions, defaultCallConfig.ProviderOptions)
+	MergeMissingProviderOptions(&dst.ProviderOptions, defaults.ProviderOptions)
 }
 
 // MergeMissingProviderOptions fills unset provider option fields from defaults.
