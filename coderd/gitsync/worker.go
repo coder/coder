@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -236,6 +237,52 @@ func (w *Worker) MarkStale(
 			}
 		}
 	}
+}
+
+// RefreshChat synchronously refreshes a single chat's diff
+// status using the same Refresher pipeline as the background
+// worker. Returns nil, nil when no PR exists yet for the
+// branch. Called from HTTP handlers for instant feedback.
+func (w *Worker) RefreshChat(
+	ctx context.Context,
+	row database.ChatDiffStatus,
+	ownerID uuid.UUID,
+) (*database.ChatDiffStatus, error) {
+	requests := []RefreshRequest{{
+		Row:     row,
+		OwnerID: ownerID,
+	}}
+
+	results, err := w.refresher.Refresh(ctx, requests)
+	if err != nil {
+		return nil, xerrors.Errorf("refresh chat diff status: %w", err)
+	}
+
+	if len(results) == 0 {
+		return nil, nil
+	}
+	res := results[0]
+	if res.Error != nil {
+		return nil, xerrors.Errorf("refresh chat diff status: %w", res.Error)
+	}
+	if res.Params == nil {
+		return nil, nil
+	}
+
+	upserted, err := w.store.UpsertChatDiffStatus(ctx, *res.Params)
+	if err != nil {
+		return nil, xerrors.Errorf("upsert chat diff status: %w", err)
+	}
+
+	if w.publishDiffStatusChangeFn != nil {
+		if err := w.publishDiffStatusChangeFn(ctx, row.ChatID); err != nil {
+			w.logger.Debug(ctx, "publish diff status change",
+				slog.F("chat_id", row.ChatID),
+				slog.Error(err))
+		}
+	}
+
+	return &upserted, nil
 }
 
 // filterChatsByWorkspaceID returns only chats associated with
