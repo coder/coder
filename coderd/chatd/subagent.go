@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
@@ -261,9 +262,12 @@ func (p *Server) createChildSubagentChat(
 			UUID:  rootChatID,
 			Valid: true,
 		},
-		ModelConfigID:      parent.LastModelConfigID,
-		Title:              title,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: prompt}},
+		ModelConfigID: parent.LastModelConfigID,
+		Title:         title,
+		InitialUserContent: []codersdk.ChatMessagePart{{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: prompt,
+		}},
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
@@ -299,9 +303,12 @@ func (p *Server) sendSubagentMessage(
 	}
 
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
-		ChatID:       targetChatID,
-		CreatedBy:    targetChat.OwnerID,
-		Content:      []fantasy.Content{fantasy.TextContent{Text: message}},
+		ChatID:    targetChatID,
+		CreatedBy: targetChat.OwnerID,
+		Content: []codersdk.ChatMessagePart{{
+			Type: codersdk.ChatMessagePartTypeText,
+			Text: message,
+		}},
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {
