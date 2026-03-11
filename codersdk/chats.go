@@ -82,24 +82,30 @@ const (
 )
 
 // ChatMessagePart is a structured chunk of a chat message.
+//
+// WARNING: This type is both an API wire type and a database
+// persistence format. Its JSON layout is stored in the
+// chat_messages.content column. Field additions, renames, type
+// changes, and omitempty behavior all affect backward-compatible
+// deserialization of stored rows. Treat changes to this struct
+// with the same care as a database migration.
 type ChatMessagePart struct {
-	Type             ChatMessagePartType `json:"type"`
-	Text             string              `json:"text,omitempty"`
-	Signature        string              `json:"signature,omitempty"`
-	ToolCallID       string              `json:"tool_call_id,omitempty"`
-	ToolName         string              `json:"tool_name,omitempty"`
-	Args             json.RawMessage     `json:"args,omitempty"`
-	ArgsDelta        string              `json:"args_delta,omitempty"`
-	Result           json.RawMessage     `json:"result,omitempty"`
-	ResultDelta      string              `json:"result_delta,omitempty"`
-	IsError          bool                `json:"is_error,omitempty"`
-	ProviderExecuted bool                `json:"provider_executed,omitempty"`
-	SourceID         string              `json:"source_id,omitempty"`
-	URL              string              `json:"url,omitempty"`
-	Title            string              `json:"title,omitempty"`
-	MediaType        string              `json:"media_type,omitempty"`
-	Data             []byte              `json:"data,omitempty"`
-	FileID           uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
+	Type        ChatMessagePartType `json:"type"`
+	Text        string              `json:"text,omitempty"`
+	Signature   string              `json:"signature,omitempty"`
+	ToolCallID  string              `json:"tool_call_id,omitempty"`
+	ToolName    string              `json:"tool_name,omitempty"`
+	Args        json.RawMessage     `json:"args,omitempty"`
+	ArgsDelta   string              `json:"args_delta,omitempty"`
+	Result      json.RawMessage     `json:"result,omitempty"`
+	ResultDelta string              `json:"result_delta,omitempty"`
+	IsError     bool                `json:"is_error,omitempty"`
+	SourceID    string              `json:"source_id,omitempty"`
+	URL         string              `json:"url,omitempty"`
+	Title       string              `json:"title,omitempty"`
+	MediaType   string              `json:"media_type,omitempty"`
+	Data        []byte              `json:"data,omitempty"`
+	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
 	// The following fields are only set when Type is
 	// ChatInputPartTypeFileReference.
 	FileName  string `json:"file_name,omitempty"`
@@ -107,6 +113,13 @@ type ChatMessagePart struct {
 	EndLine   int    `json:"end_line,omitempty"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content,omitempty"`
+	// ProviderMetadata holds provider-specific response metadata
+	// (e.g. Anthropic cache control hints) as raw JSON. Internal
+	// only: stripped by db2sdk before API responses.
+	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	// ProviderExecuted indicates the tool call was executed by
+	// the provider (e.g. Anthropic computer use).
+	ProviderExecuted bool `json:"provider_executed,omitempty"`
 }
 
 // ChatInputPartType represents an input part type for user chat input.

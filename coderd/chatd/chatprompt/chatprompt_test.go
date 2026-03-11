@@ -153,21 +153,36 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 	t.Parallel()
 
-	// A message with inline data and a file_id should use the
-	// inline data even when the resolver returns nothing.
+	// A legacy message with inline data and a file_id: ParseContent
+	// extracts the file_id and clears inline data (resolved at LLM
+	// dispatch time). When a resolver provides data, the file part
+	// in the LLM prompt should contain the resolved data.
 	fileID := uuid.New()
-	inlineData := []byte("inline-image-data")
+	resolvedData := []byte("resolved-image-data")
 
 	rawContent := mustJSON(t, []json.RawMessage{
 		mustJSON(t, map[string]any{
 			"type": "file",
 			"data": map[string]any{
 				"media_type": "image/png",
-				"data":       inlineData,
+				"data":       []byte("inline-image-data"),
 				"file_id":    fileID.String(),
 			},
 		}),
 	})
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		result := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == fileID {
+				result[id] = chatprompt.FileData{
+					Data:      resolvedData,
+					MediaType: "image/png",
+				}
+			}
+		}
+		return result, nil
+	}
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
 		context.Background(),
@@ -178,7 +193,7 @@ func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 				Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
 			},
 		},
-		nil, // No resolver.
+		resolver,
 		slogtest.Make(t, nil),
 	)
 	require.NoError(t, err)
@@ -187,7 +202,8 @@ func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 
 	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[0].Content[0])
 	require.True(t, ok, "expected FilePart")
-	require.Equal(t, inlineData, filePart.Data)
+	require.Equal(t, resolvedData, filePart.Data)
+	require.Equal(t, "image/png", filePart.MediaType)
 }
 
 func TestInjectFileID_StripsInlineData(t *testing.T) {

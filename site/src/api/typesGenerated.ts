@@ -1163,6 +1163,13 @@ export interface ChatMessage {
 // From codersdk/chats.go
 /**
  * ChatMessagePart is a structured chunk of a chat message.
+ *
+ * WARNING: This type is both an API wire type and a database
+ * persistence format. Its JSON layout is stored in the
+ * chat_messages.content column. Field additions, renames, type
+ * changes, and omitempty behavior all affect backward-compatible
+ * deserialization of stored rows. Treat changes to this struct
+ * with the same care as a database migration.
  */
 export interface ChatMessagePart {
 	readonly type: ChatMessagePartType;
@@ -1175,7 +1182,6 @@ export interface ChatMessagePart {
 	readonly result?: Record<string, string>;
 	readonly result_delta?: string;
 	readonly is_error?: boolean;
-	readonly provider_executed?: boolean;
 	readonly source_id?: string;
 	readonly url?: string;
 	readonly title?: string;
@@ -1193,6 +1199,17 @@ export interface ChatMessagePart {
 	 * The code content from the diff that was commented on.
 	 */
 	readonly content?: string;
+	/**
+	 * ProviderMetadata holds provider-specific response metadata
+	 * (e.g. Anthropic cache control hints) as raw JSON. Internal
+	 * only: stripped by db2sdk before API responses.
+	 */
+	readonly provider_metadata?: Record<string, string>;
+	/**
+	 * ProviderExecuted indicates the tool call was executed by
+	 * the provider (e.g. Anthropic computer use). Internal only.
+	 */
+	readonly provider_executed?: boolean;
 }
 
 // From codersdk/chats.go
