@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	applyMessagePartToStreamState,
-	applyStreamThinkingTitle,
 	buildStreamTools,
 	createEmptyStreamState,
 } from "./streamState";
@@ -13,33 +12,6 @@ describe("createEmptyStreamState", () => {
 		expect(state.blocks).toEqual([]);
 		expect(state.toolCalls).toEqual({});
 		expect(state.toolResults).toEqual({});
-	});
-});
-
-describe("applyStreamThinkingTitle", () => {
-	it("returns blocks unchanged when title is undefined", () => {
-		const blocks = [{ type: "response" as const, text: "hello" }];
-		expect(applyStreamThinkingTitle(blocks, undefined)).toBe(blocks);
-	});
-
-	it("creates a new thinking block when last block is not thinking", () => {
-		const blocks = [{ type: "response" as const, text: "hello" }];
-		const result = applyStreamThinkingTitle(blocks, "Plan");
-		expect(result).toHaveLength(2);
-		expect(result[1]).toEqual({ type: "thinking", text: "", title: "Plan" });
-	});
-
-	it("merges title into existing thinking block", () => {
-		const blocks = [
-			{ type: "thinking" as const, text: "some thought", title: "Old" },
-		];
-		const result = applyStreamThinkingTitle(blocks, "Old and more");
-		expect(result).toHaveLength(1);
-		expect(result[0]).toEqual({
-			type: "thinking",
-			text: "some thought",
-			title: "Old and more",
-		});
 	});
 });
 
@@ -105,6 +77,16 @@ describe("applyMessagePartToStreamState", () => {
 		const result = applyMessagePartToStreamState(prev, {
 			type: "thinking",
 			text: "",
+		});
+		expect(result).toBe(prev);
+	});
+
+	it("returns prev for thinking part with only title and no text", () => {
+		const prev = createEmptyStreamState();
+		const result = applyMessagePartToStreamState(prev, {
+			type: "thinking",
+			text: "",
+			title: "Some Title",
 		});
 		expect(result).toBe(prev);
 	});

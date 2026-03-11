@@ -72,7 +72,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	const navigate = useNavigate();
 
 	return (
-		<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
+		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
 			{/* Mobile back button */}
 			<Button
 				variant="subtle"
@@ -104,22 +104,17 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								<Button
 									size="sm"
 									variant="subtle"
-									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-xs text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
+									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-sm text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
 									onClick={() => onOpenParentChat(parentChat.id)}
 								>
 									<span className="truncate">{parentChat.title}</span>
 								</Button>
-								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70" />
+								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
-						{isArchived && (
-							<span className="shrink-0 rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary">
-								Archived
-							</span>
-						)}
 					</div>
 				)}
 			</div>

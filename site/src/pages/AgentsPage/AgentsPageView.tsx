@@ -11,6 +11,7 @@ import { pageTitle } from "utils/page";
 import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ChimeButton } from "./ChimeButton";
+import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 import { WebPushButton } from "./WebPushButton";
 
 type ChatModelOption = ModelSelectorOption;
@@ -175,14 +176,17 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 							isModelCatalogLoading={isModelCatalogLoading}
 							isModelConfigsLoading={isModelConfigsLoading}
 							modelCatalogError={modelCatalogError}
-							canSetSystemPrompt={isAgentsAdmin}
-							canManageChatModelConfigs={isAgentsAdmin}
-							isConfigureAgentsDialogOpen={isConfigureAgentsDialogOpen}
-							onConfigureAgentsDialogOpenChange={setConfigureAgentsDialogOpen}
 						/>
 					</>
 				)}
 			</div>
+
+			<ConfigureAgentsDialog
+				open={isConfigureAgentsDialogOpen}
+				onOpenChange={setConfigureAgentsDialogOpen}
+				canManageChatModelConfigs={isAgentsAdmin}
+				canSetSystemPrompt={isAgentsAdmin}
+			/>
 		</div>
 	);
 };
