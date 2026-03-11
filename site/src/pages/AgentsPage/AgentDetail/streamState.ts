@@ -7,7 +7,7 @@ import {
 	parseToolResultIsError,
 } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
-import type { MergedTool, StreamState } from "./types";
+import type { MergedTool, RenderBlock, StreamState } from "./types";
 
 let nextFallbackID = 0;
 

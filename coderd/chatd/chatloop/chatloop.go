@@ -642,37 +642,38 @@ func executeTools(
 		toolMap[t.Info().Name] = t
 	}
 
-		results := make([]fantasy.ToolResultContent, len(localToolCalls))
-		var wg sync.WaitGroup
-		wg.Add(len(localToolCalls))
-		for i, tc := range localToolCalls {
-			go func(i int, tc fantasy.ToolCallContent) {
-				defer wg.Done()
-				defer func() {
-					if r := recover(); r != nil {
-						results[i] = fantasy.ToolResultContent{
-							ToolCallID: tc.ToolCallID,
-							ToolName:   tc.ToolName,
-							Result: fantasy.ToolResultOutputContentError{
-								Error: xerrors.Errorf("tool panicked: %v", r),
-							},
-						}
+	results := make([]fantasy.ToolResultContent, len(localToolCalls))
+	var wg sync.WaitGroup
+	wg.Add(len(localToolCalls))
+	for i, tc := range localToolCalls {
+		go func(i int, tc fantasy.ToolCallContent) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					results[i] = fantasy.ToolResultContent{
+						ToolCallID: tc.ToolCallID,
+						ToolName:   tc.ToolName,
+						Result: fantasy.ToolResultOutputContentError{
+							Error: xerrors.Errorf("tool panicked: %v", r),
+						},
 					}
-				}()
-				results[i] = executeSingleTool(ctx, toolMap, tc)
-			}(i, tc)
-		}
-		wg.Wait()
-
-		// Publish results in the original tool-call order so SSE
-		// subscribers see a deterministic event sequence.
-		if onResult != nil {
-			for _, tr := range results {
-				onResult(tr)
-			}
-		}
-		return results
+				}
+			}()
+			results[i] = executeSingleTool(ctx, toolMap, tc)
+		}(i, tc)
 	}
+	wg.Wait()
+
+	// Publish results in the original tool-call order so SSE
+	// subscribers see a deterministic event sequence.
+	if onResult != nil {
+		for _, tr := range results {
+			onResult(tr)
+		}
+	}
+	return results
+}
+
 // executeSingleTool executes one tool call and converts the
 // response into a ToolResultContent.
 func executeSingleTool(
