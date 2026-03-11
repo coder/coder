@@ -27,8 +27,11 @@ func HeartbeatClose(ctx context.Context, logger slog.Logger, exit func(), conn *
 		}
 		err := pingWithTimeout(ctx, conn, HeartbeatInterval)
 		if err != nil {
-			// context.DeadlineExceeded is expected when the client disconnects without sending a close frame
-			if !errors.Is(err, context.DeadlineExceeded) {
+			// context.DeadlineExceeded is expected when the client disconnects without sending a close frame.
+			// context.Canceled is expected when the request context is canceled.
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				logger.Debug(ctx, "heartbeat ping stopped", slog.Error(err))
+			} else {
 				logger.Error(ctx, "failed to heartbeat ping", slog.Error(err))
 			}
 			_ = conn.Close(websocket.StatusGoingAway, "Ping failed")
