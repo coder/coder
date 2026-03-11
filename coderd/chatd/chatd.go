@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -2579,18 +2580,10 @@ func buildProviderTools(_ string, options *codersdk.ChatModelProviderOptions) []
 	var tools []fantasy.Tool
 
 	if options.Anthropic != nil && options.Anthropic.WebSearchEnabled != nil && *options.Anthropic.WebSearchEnabled {
-		args := map[string]any{}
-		if len(options.Anthropic.AllowedDomains) > 0 {
-			args["allowed_domains"] = options.Anthropic.AllowedDomains
-		}
-		if len(options.Anthropic.BlockedDomains) > 0 {
-			args["blocked_domains"] = options.Anthropic.BlockedDomains
-		}
-		tools = append(tools, fantasy.ProviderDefinedTool{
-			ID:   "web_search",
-			Name: "web_search",
-			Args: args,
-		})
+		tools = append(tools, anthropic.WebSearchTool(&anthropic.WebSearchToolOptions{
+			AllowedDomains: options.Anthropic.AllowedDomains,
+			BlockedDomains: options.Anthropic.BlockedDomains,
+		}))
 	}
 
 	if options.OpenAI != nil && options.OpenAI.WebSearchEnabled != nil && *options.OpenAI.WebSearchEnabled {
