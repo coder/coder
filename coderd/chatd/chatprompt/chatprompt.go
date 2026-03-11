@@ -321,6 +321,7 @@ func parseContentV1(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) ([
 	if err := json.Unmarshal(raw.RawMessage, &parts); err != nil {
 		return nil, xerrors.Errorf("parse %s content: %w", role, err)
 	}
+	decodeNulInParts(parts)
 	return parts, nil
 }
 
@@ -1018,11 +1019,16 @@ func sanitizeToolCallID(id string) string {
 }
 
 // MarshalParts encodes SDK chat message parts for persistence.
+// NUL characters in string fields are encoded as PUA sentinel
+// pairs (U+E000 U+E001) before marshaling so the resulting JSON
+// never contains \u0000 (rejected by PostgreSQL jsonb). The
+// encoding operates on Go string values, not JSON bytes, so it
+// survives jsonb text normalization.
 func MarshalParts(parts []codersdk.ChatMessagePart) (pqtype.NullRawMessage, error) {
 	if len(parts) == 0 {
 		return pqtype.NullRawMessage{}, nil
 	}
-	data, err := json.Marshal(parts)
+	data, err := json.Marshal(encodeNulInParts(parts))
 	if err != nil {
 		return pqtype.NullRawMessage{}, xerrors.Errorf("encode chat message parts: %w", err)
 	}
@@ -1215,4 +1221,187 @@ func partsToMessageParts(
 		}
 	}
 	return result
+}
+
+// encodeNulInString replaces NUL (U+0000) characters in s with
+// the sentinel pair U+E000 U+E001, and doubles any pre-existing
+// U+E000 to U+E000 U+E000 so the encoding is reversible.
+// Operates on Unicode code points, not JSON escape sequences,
+// making it safe through jsonb round-trips (jsonb stores parsed
+// characters, not original escape text).
+func encodeNulInString(s string) string {
+	if !strings.ContainsRune(s, 0) && !strings.ContainsRune(s, '\uE000') {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch r {
+		case '\uE000':
+			_, _ = b.WriteRune('\uE000')
+			_, _ = b.WriteRune('\uE000')
+		case 0:
+			_, _ = b.WriteRune('\uE000')
+			_, _ = b.WriteRune('\uE001')
+		default:
+			_, _ = b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// decodeNulInString reverses encodeNulInString: U+E000 U+E000
+// becomes U+E000, and U+E000 U+E001 becomes NUL.
+func decodeNulInString(s string) string {
+	if !strings.ContainsRune(s, '\uE000') {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	runes := []rune(s)
+	for i := 0; i < len(runes); i++ {
+		if runes[i] == '\uE000' && i+1 < len(runes) {
+			switch runes[i+1] {
+			case '\uE000':
+				_, _ = b.WriteRune('\uE000')
+				i++
+			case '\uE001':
+				_, _ = b.WriteRune(0)
+				i++
+			default:
+				// Unpaired sentinel — preserve as-is.
+				_, _ = b.WriteRune(runes[i])
+			}
+		} else {
+			_, _ = b.WriteRune(runes[i])
+		}
+	}
+	return b.String()
+}
+
+// encodeNulInValue recursively walks a JSON value (as produced
+// by json.Unmarshal with UseNumber) and applies
+// encodeNulInString to every string, including map keys.
+func encodeNulInValue(v any) any {
+	switch val := v.(type) {
+	case string:
+		return encodeNulInString(val)
+	case map[string]any:
+		out := make(map[string]any, len(val))
+		for k, elem := range val {
+			out[encodeNulInString(k)] = encodeNulInValue(elem)
+		}
+		return out
+	case []any:
+		out := make([]any, len(val))
+		for i, elem := range val {
+			out[i] = encodeNulInValue(elem)
+		}
+		return out
+	default:
+		return v // numbers, bools, nil
+	}
+}
+
+// decodeNulInValue recursively walks a JSON value and applies
+// decodeNulInString to every string, including map keys.
+func decodeNulInValue(v any) any {
+	switch val := v.(type) {
+	case string:
+		return decodeNulInString(val)
+	case map[string]any:
+		out := make(map[string]any, len(val))
+		for k, elem := range val {
+			out[decodeNulInString(k)] = decodeNulInValue(elem)
+		}
+		return out
+	case []any:
+		out := make([]any, len(val))
+		for i, elem := range val {
+			out[i] = decodeNulInValue(elem)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+// encodeNulInJSON walks all string values (and keys) inside a
+// json.RawMessage and applies encodeNulInString. Returns the
+// original unchanged when the raw message does not contain NUL
+// escapes or U+E000 bytes, or when parsing fails.
+func encodeNulInJSON(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return raw
+	}
+	// Quick exit: no \u0000 escape and no U+E000 UTF-8 bytes.
+	if !bytes.Contains(raw, []byte(`\u0000`)) &&
+		!bytes.Contains(raw, []byte{0xEE, 0x80, 0x80}) {
+		return raw
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return raw
+	}
+	result, err := json.Marshal(encodeNulInValue(v))
+	if err != nil {
+		return raw
+	}
+	return result
+}
+
+// decodeNulInJSON walks all string values (and keys) inside a
+// json.RawMessage and applies decodeNulInString.
+func decodeNulInJSON(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 {
+		return raw
+	}
+	// U+E000 encoded as UTF-8 is 0xEE 0x80 0x80.
+	if !bytes.Contains(raw, []byte{0xEE, 0x80, 0x80}) {
+		return raw
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return raw
+	}
+	result, err := json.Marshal(decodeNulInValue(v))
+	if err != nil {
+		return raw
+	}
+	return result
+}
+
+// encodeNulInParts returns a shallow copy of parts with all
+// string and json.RawMessage fields NUL-encoded. The caller's
+// slice is not modified.
+func encodeNulInParts(parts []codersdk.ChatMessagePart) []codersdk.ChatMessagePart {
+	encoded := make([]codersdk.ChatMessagePart, len(parts))
+	copy(encoded, parts)
+	for i := range encoded {
+		p := &encoded[i]
+		p.Text = encodeNulInString(p.Text)
+		p.Content = encodeNulInString(p.Content)
+		p.Args = encodeNulInJSON(p.Args)
+		p.ArgsDelta = encodeNulInString(p.ArgsDelta)
+		p.Result = encodeNulInJSON(p.Result)
+		p.ResultDelta = encodeNulInString(p.ResultDelta)
+	}
+	return encoded
+}
+
+// decodeNulInParts reverses encodeNulInParts in place.
+func decodeNulInParts(parts []codersdk.ChatMessagePart) {
+	for i := range parts {
+		p := &parts[i]
+		p.Text = decodeNulInString(p.Text)
+		p.Content = decodeNulInString(p.Content)
+		p.Args = decodeNulInJSON(p.Args)
+		p.ArgsDelta = decodeNulInString(p.ArgsDelta)
+		p.Result = decodeNulInJSON(p.Result)
+		p.ResultDelta = decodeNulInString(p.ResultDelta)
+	}
 }

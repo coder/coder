@@ -3,6 +3,7 @@ package chatd_test
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -143,8 +144,13 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 			)
 		}
 		// Subsequent calls (including the subagent): just reply.
+		// Include literal \u0000 in the response text, which is
+		// what a real LLM writes when explaining binary output.
+		// json.Marshal encodes the backslash as \\, producing
+		// \\u0000 in the JSON bytes. The sanitizer must not
+		// corrupt this into invalid JSON.
 		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("Done.")...,
+			chattest.OpenAITextChunks("The file contains \\u0000 null bytes.")...,
 		)
 	})
 
@@ -1479,6 +1485,179 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 	require.Equal(t, codersdk.ChatStatusPending, snapshot[0].Status.Status)
 }
 
+func TestPersistToolResultWithBinaryData(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const binaryOutputBase64 = "SEVBREVSAAAAc29tZSBkYXRhAABtb3JlIGRhdGEARU5E"
+	binaryOutput, err := io.ReadAll(base64.NewDecoder(
+		base64.StdEncoding,
+		strings.NewReader(binaryOutputBase64),
+	))
+	require.NoError(t, err)
+
+	var streamedCallCount atomic.Int32
+	var streamedCallsMu sync.Mutex
+	streamedCalls := make([][]chattest.OpenAIMessage, 0, 2)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Binary tool result test")
+		}
+
+		streamedCallsMu.Lock()
+		streamedCalls = append(streamedCalls, append([]chattest.OpenAIMessage(nil), req.Messages...))
+		streamedCallsMu.Unlock()
+
+		if streamedCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(
+					"execute",
+					`{"command":"cat /home/coder/binary_file.bin"}`,
+				),
+			)
+		}
+		// Include literal \u0000 in the response text, which is
+		// what a real LLM writes when explaining binary output.
+		// json.Marshal encodes the backslash as \\, producing
+		// \\u0000 in the JSON bytes. The sanitizer must not
+		// corrupt this into invalid JSON.
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("The file contains \\u0000 null bytes.")...,
+		)
+	})
+
+	// Use "openai-compat" provider so the chatd framework uses the
+	// /chat/completions endpoint, where the mock server supports
+	// streaming tool calls. The default "openai" provider routes to
+	// /responses which only handles text deltas in the mock.
+	user, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().
+		SetExtraHeaders(gomock.Any()).
+		AnyTimes()
+	mockConn.EXPECT().
+		LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{}, nil).
+		AnyTimes()
+	mockConn.EXPECT().
+		ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(io.NopCloser(strings.NewReader("")), "", nil).
+		AnyTimes()
+	mockConn.EXPECT().
+		StartProcess(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+			require.Equal(t, "cat /home/coder/binary_file.bin", req.Command)
+			return workspacesdk.StartProcessResponse{ID: "proc-binary", Started: true}, nil
+		}).
+		Times(1)
+	mockConn.EXPECT().
+		ProcessOutput(gomock.Any(), "proc-binary").
+		Return(workspacesdk.ProcessOutputResponse{
+			Output:   string(binaryOutput),
+			Running:  false,
+			ExitCode: ptrRef(0),
+		}, nil).
+		AnyTimes()
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "binary-tool-result",
+		ModelConfigID: model.ID,
+		WorkspaceID:   uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Read /home/coder/binary_file.bin."),
+		},
+	})
+	require.NoError(t, err)
+
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatResult.LastError.String)
+	}
+
+	var toolMessage *database.ChatMessage
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if dbErr != nil {
+			return false
+		}
+		for i := range messages {
+			if messages[i].Role == database.ChatMessageRoleTool {
+				toolMessage = &messages[i]
+				return true
+			}
+		}
+		return false
+	}, testutil.IntervalFast)
+	require.NotNil(t, toolMessage)
+
+	parts, err := chatprompt.ParseContent(*toolMessage)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
+	require.Equal(t, "execute", parts[0].ToolName)
+
+	var result chattool.ExecuteResult
+	require.NoError(t, json.Unmarshal(parts[0].Result, &result))
+	require.True(t, result.Success)
+	require.Equal(t, string(binaryOutput), result.Output)
+	require.Equal(t, 0, result.ExitCode)
+
+	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
+	streamedCallsMu.Lock()
+	recordedStreamCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
+	streamedCallsMu.Unlock()
+	require.GreaterOrEqual(t, len(recordedStreamCalls), 2)
+
+	var foundToolResultInSecondCall bool
+	for _, message := range recordedStreamCalls[1] {
+		if message.Role != "tool" {
+			continue
+		}
+		if !json.Valid([]byte(message.Content)) {
+			continue
+		}
+		var result chattool.ExecuteResult
+		if err := json.Unmarshal([]byte(message.Content), &result); err != nil {
+			continue
+		}
+		if result.Output == string(binaryOutput) {
+			foundToolResultInSecondCall = true
+			break
+		}
+	}
+	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include execute tool output")
+}
+
+func ptrRef[T any](v T) *T {
+	return &v
+}
+
 func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	t.Parallel()
 
@@ -2172,26 +2351,69 @@ func newTestServer(
 	return server
 }
 
+// newActiveTestServer creates a chatd server that actively polls for
+// and processes pending chats. Use this instead of newTestServer when
+// the test needs the chat loop to actually run. Optional config
+// overrides are applied after the defaults.
+func newActiveTestServer(
+	t *testing.T,
+	db database.Store,
+	ps dbpubsub.Pubsub,
+	overrides ...func(*chatd.Config),
+) *chatd.Server {
+	t.Helper()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	cfg := chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	}
+	for _, o := range overrides {
+		o(&cfg)
+	}
+	server := chatd.New(cfg)
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+	return server
+}
+
 func seedChatDependencies(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 ) (database.User, database.ChatModelConfig) {
 	t.Helper()
+	return seedChatDependenciesWithProvider(ctx, t, db, "openai", "")
+}
+
+// seedChatDependenciesWithProvider creates a user, chat provider, and
+// model config for the given provider type and base URL.
+func seedChatDependenciesWithProvider(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	provider string,
+	baseURL string,
+) (database.User, database.ChatModelConfig) {
+	t.Helper()
 
 	user := dbgen.User(t, db, database.User{})
 	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
+		Provider:    provider,
+		DisplayName: provider,
 		APIKey:      "test-key",
-		BaseUrl:     "",
-		ApiKeyKeyID: sql.NullString{},
+		BaseUrl:     baseURL,
 		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		Enabled:     true,
 	})
 	require.NoError(t, err)
 	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
+		Provider:             provider,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -2204,6 +2426,50 @@ func seedChatDependencies(
 	})
 	require.NoError(t, err)
 	return user, model
+}
+
+// seedWorkspaceWithAgent creates a full workspace chain with a connected
+// agent. This is the common setup needed by tests that exercise tool
+// execution against a workspace.
+func seedWorkspaceWithAgent(
+	t *testing.T,
+	db database.Store,
+	userID uuid.UUID,
+) (database.WorkspaceTable, database.WorkspaceAgent) {
+	t.Helper()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      userID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		CreatedBy:       userID,
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     tpl.ID,
+		OwnerID:        userID,
+		OrganizationID: org.ID,
+	})
+	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		InitiatorID:    userID,
+		OrganizationID: org.ID,
+	})
+	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		TemplateVersionID: tv.ID,
+		WorkspaceID:       ws.ID,
+		JobID:             pj.ID,
+	})
+	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		Transition: database.WorkspaceTransitionStart,
+		JobID:      pj.ID,
+	})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: res.ID,
+	})
+	return ws, agent
 }
 
 func setOpenAIProviderBaseURL(
@@ -2782,38 +3048,21 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 				),
 			)
 		}
+		// Include literal \u0000 in the response text, which is
+		// what a real LLM writes when explaining binary output.
+		// json.Marshal encodes the backslash as \\, producing
+		// \\u0000 in the JSON bytes. The sanitizer must not
+		// corrupt this into invalid JSON.
 		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("Done.")...,
+			chattest.OpenAITextChunks("The file contains \\u0000 null bytes.")...,
 		)
 	})
 
 	// Seed the DB: user, openai-compat provider, model config.
-	user := dbgen.User(t, db, database.User{})
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:    "openai-compat",
-		DisplayName: "OpenAI Compat",
-		APIKey:      "test-key",
-		BaseUrl:     openAIURL,
-		CreatedBy:   uuid.NullUUID{},
-		Enabled:     true,
-	})
-	require.NoError(t, err)
-	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai-compat",
-		Model:                "gpt-4o-mini",
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{},
-		UpdatedBy:            uuid.NullUUID{},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
-	})
-	require.NoError(t, err)
+	user, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
 
 	// Add an Anthropic provider pointing to our mock server.
-	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
 		Provider:    "anthropic",
 		DisplayName: "Anthropic",
 		APIKey:      "test-anthropic-key",
@@ -2828,37 +3077,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 
 	// Build workspace + agent records so getWorkspaceConn can
 	// resolve the agent for the computer use child.
-	org := dbgen.Organization(t, db, database.Organization{})
-	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-	tpl := dbgen.Template(t, db, database.Template{
-		CreatedBy:       user.ID,
-		OrganizationID:  org.ID,
-		ActiveVersionID: tv.ID,
-	})
-	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
-		TemplateID:     tpl.ID,
-		OwnerID:        user.ID,
-		OrganizationID: org.ID,
-	})
-	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		InitiatorID:    user.ID,
-		OrganizationID: org.ID,
-	})
-	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		TemplateVersionID: tv.ID,
-		WorkspaceID:       ws.ID,
-		JobID:             pj.ID,
-	})
-	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-		Transition: database.WorkspaceTransitionStart,
-		JobID:      pj.ID,
-	})
-	dbAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-		ResourceID: res.ID,
-	})
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 	// Mock agent connection that returns valid display dimensions
 	// for the initial screenshot check in the computer use path.
@@ -2880,25 +3099,11 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 		Return(workspacesdk.LSResponse{}, xerrors.New("not found")).
 		AnyTimes()
 
-	agentConnFn := func(
-		_ context.Context, agentID uuid.UUID,
-	) (workspacesdk.AgentConn, func(), error) {
-		require.Equal(t, dbAgent.ID, agentID)
-		return mockConn, func() {}, nil
-	}
-
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(chatd.Config{
-		Logger:                     logger,
-		Database:                   db,
-		ReplicaID:                  uuid.New(),
-		Pubsub:                     ps,
-		PendingChatAcquireInterval: 10 * time.Millisecond,
-		InFlightChatStaleAfter:     testutil.WaitSuperLong,
-		AgentConn:                  agentConnFn,
-	})
-	t.Cleanup(func() {
-		require.NoError(t, server.Close())
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
 	})
 
 	// Create a root chat with a workspace so the child inherits it.
