@@ -1,4 +1,4 @@
-import { createWebSocket } from "api/api";
+import { API } from "api/api";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
@@ -65,17 +65,16 @@ const TemplateEmbedPageExperimental: FC = () => {
 
 		const dispose = createReconnectingWebSocket({
 			connect() {
-				const socket = createWebSocket(
-					`/api/v2/templateversions/${template.active_version_id}/dynamic-parameters`,
-					new URLSearchParams({ user_id: me.id }),
+				const socket = API.templateVersionDynamicParameters(
+					template.active_version_id,
+					me.id,
+					{
+						onMessage,
+						// Lifecycle is managed by createReconnectingWebSocket.
+						onError: () => {},
+						onClose: () => {},
+					},
 				);
-
-				socket.addEventListener("message", (event) => {
-					const response = JSON.parse(
-						event.data as string,
-					) as DynamicParametersResponse;
-					onMessage(response);
-				});
 
 				ws.current = socket;
 				return socket;

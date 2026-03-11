@@ -3237,7 +3237,7 @@ function getConfiguredAxiosInstance(): AxiosInstance {
 /**
  * Utility function to help create a WebSocket connection with Coder's API.
  */
-export function createWebSocket(
+function createWebSocket(
 	path: string,
 	params: URLSearchParams = new URLSearchParams(),
 ) {

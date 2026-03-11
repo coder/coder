@@ -1,4 +1,4 @@
-import { API, createWebSocket } from "api/api";
+import { API } from "api/api";
 import { checkAuthorization } from "api/queries/authCheck";
 import type {
 	DynamicParametersRequest,
@@ -119,17 +119,16 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 		const dispose = createReconnectingWebSocket({
 			connect() {
-				const socket = createWebSocket(
-					`/api/v2/templateversions/${versionId}/dynamic-parameters`,
-					new URLSearchParams({ user_id: workspace.owner_id }),
+				const socket = API.templateVersionDynamicParameters(
+					versionId,
+					workspace.owner_id,
+					{
+						onMessage,
+						// Lifecycle is managed by createReconnectingWebSocket.
+						onError: () => {},
+						onClose: () => {},
+					},
 				);
-
-				socket.addEventListener("message", (event) => {
-					const response = JSON.parse(
-						event.data as string,
-					) as DynamicParametersResponse;
-					onMessage(response);
-				});
 
 				ws.current = socket;
 				return socket;
