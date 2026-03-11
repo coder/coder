@@ -151,12 +151,7 @@ const createComponents = (
 				</span>
 			);
 		},
-		// Task-list items: remove the default bullet marker.
-		li: ({ className, children }: MarkdownComponentProps) => {
-			const isTask =
-				typeof className === "string" && className.includes("task-list-item");
-			return <li className={isTask ? "list-none" : undefined}>{children}</li>;
-		},
+
 		// Horizontal rule: reset browser default inset/ridge border
 		// (preflight is disabled) to a clean 1px solid line.
 		hr: () => (
