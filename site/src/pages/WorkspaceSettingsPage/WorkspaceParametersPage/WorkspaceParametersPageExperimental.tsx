@@ -24,6 +24,7 @@ import { useMutation, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import {
 	type WorkspacePermissions,
@@ -114,33 +115,36 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		if (!templateVersionId && !workspace.latest_build.template_version_id)
 			return;
 
-		const socket = API.templateVersionDynamicParameters(
-			templateVersionId ?? workspace.latest_build.template_version_id,
-			workspace.owner_id,
-			{
-				onMessage,
-				onError: (error) => {
-					if (ws.current === socket) {
-						setWsError(error);
-					}
-				},
-				onClose: () => {
-					if (ws.current === socket) {
-						setWsError(
-							new DetailedError(
-								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
-							),
-						);
-					}
-				},
-			},
-		);
+		const versionId =
+			templateVersionId ?? workspace.latest_build.template_version_id;
 
-		ws.current = socket;
+		const dispose = createReconnectingWebSocket({
+			connect() {
+				const socket = API.templateVersionDynamicParameters(
+					versionId,
+					workspace.owner_id,
+					{ onMessage },
+				);
+
+				ws.current = socket;
+				return socket;
+			},
+			onOpen() {
+				setWsError(null);
+				initialParamsSentRef.current = false;
+			},
+			onDisconnect() {
+				setWsError(
+					new DetailedError(
+						"WebSocket connection for dynamic parameters lost.",
+						"Attempting to reconnect...",
+					),
+				);
+			},
+		});
 
 		return () => {
-			socket.close();
+			dispose();
 		};
 	}, [
 		templateVersionId,

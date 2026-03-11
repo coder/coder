@@ -24,6 +24,7 @@ import {
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { pageTitle } from "utils/page";
+import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 
 type ButtonValues = Record<string, string>;
 
@@ -63,33 +64,32 @@ const TemplateEmbedPageExperimental: FC = () => {
 			return;
 		}
 
-		const socket = API.templateVersionDynamicParameters(
-			template.active_version_id,
-			me.id,
-			{
-				onMessage,
-				onError: (error) => {
-					if (ws.current === socket) {
-						setWsError(error);
-					}
-				},
-				onClose: () => {
-					if (ws.current === socket) {
-						setWsError(
-							new DetailedError(
-								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
-							),
-						);
-					}
-				},
-			},
-		);
+		const dispose = createReconnectingWebSocket({
+			connect() {
+				const socket = API.templateVersionDynamicParameters(
+					template.active_version_id,
+					me.id,
+					{ onMessage },
+				);
 
-		ws.current = socket;
+				ws.current = socket;
+				return socket;
+			},
+			onOpen() {
+				setWsError(null);
+			},
+			onDisconnect() {
+				setWsError(
+					new DetailedError(
+						"WebSocket connection for dynamic parameters lost.",
+						"Attempting to reconnect...",
+					),
+				);
+			},
+		});
 
 		return () => {
-			socket.close();
+			dispose();
 		};
 	}, [template.active_version_id, onMessage, me]);
 
