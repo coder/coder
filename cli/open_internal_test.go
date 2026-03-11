@@ -10,6 +10,71 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func Test_buildPortURL(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name         string
+		baseURL      string
+		workspace    codersdk.Workspace
+		agent        codersdk.WorkspaceAgent
+		port         uint16
+		appsHost     string
+		expectedLink string
+	}{
+		{
+			name:    "basic port",
+			baseURL: "https://coder.tld",
+			workspace: codersdk.Workspace{
+				Name:      "my-workspace",
+				OwnerName: "username",
+			},
+			agent: codersdk.WorkspaceAgent{
+				Name: "dev",
+			},
+			port:         8080,
+			appsHost:     "*.apps-host.tld",
+			expectedLink: "https://8080--dev--my-workspace--username.apps-host.tld",
+		},
+		{
+			name:    "different port and scheme",
+			baseURL: "http://localhost:3000",
+			workspace: codersdk.Workspace{
+				Name:      "test-ws",
+				OwnerName: "alice",
+			},
+			agent: codersdk.WorkspaceAgent{
+				Name: "main",
+			},
+			port:         3000,
+			appsHost:     "*.test.coder.com",
+			expectedLink: "http://3000--main--test-ws--alice.test.coder.com",
+		},
+		{
+			name:    "with suffix in wildcard host",
+			baseURL: "https://coder.tld",
+			workspace: codersdk.Workspace{
+				Name:      "ws",
+				OwnerName: "bob",
+			},
+			agent: codersdk.WorkspaceAgent{
+				Name: "agent",
+			},
+			port:         443,
+			appsHost:     "*--suffix.proxy.example.com",
+			expectedLink: "https://443--agent--ws--bob--suffix.proxy.example.com",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			baseURL, err := url.Parse(tt.baseURL)
+			require.NoError(t, err)
+			actual := buildPortURL(baseURL, tt.workspace, tt.agent, tt.port, tt.appsHost)
+			assert.Equal(t, tt.expectedLink, actual)
+		})
+	}
+}
+
 func Test_resolveAgentAbsPath(t *testing.T) {
 	t.Parallel()
 

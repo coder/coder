@@ -21,6 +21,8 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -627,7 +629,7 @@ func TestOpenApp(t *testing.T) {
 
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()
-		w.RequireContains("app not found")
+		w.RequireContains("not a known app or valid port")
 	})
 
 	t.Run("RegionNotFound", func(t *testing.T) {
@@ -677,5 +679,94 @@ func TestOpenApp(t *testing.T) {
 		w.RequireError()
 		w.RequireContains("test.open-error")
 		w.RequireContains(client.SessionToken())
+	})
+
+	t.Run("PortOK", func(t *testing.T) {
+		t.Parallel()
+
+		// Inline setup: we need AppHostname configured for port forwarding.
+		client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			AppHostname: "*.test.coder.com",
+		})
+		client.SetLogger(testutil.Logger(t).Named("client"))
+		first := coderdtest.CreateFirstUser(t, client)
+		userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+			r.Username = "myuser"
+		})
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "myworkspace",
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent().Do()
+
+		inv, root := clitest.New(t, "open", "app", r.Workspace.Name, "12345", "--test.open-error")
+		clitest.SetupConfig(t, userClient, root)
+		var sb strings.Builder
+		inv.Stdout = &sb
+		inv.Stderr = &sb
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireError()
+		w.RequireContains("test.open-error")
+		require.Contains(t, sb.String(), "12345--dev--myworkspace--myuser.test.coder.com")
+	})
+
+	t.Run("PortNotNumeric", func(t *testing.T) {
+		t.Parallel()
+
+		client, ws, _ := setupWorkspaceForAgent(t)
+
+		inv, root := clitest.New(t, "open", "app", ws.Name, "not-an-app")
+		clitest.SetupConfig(t, client, root)
+		var sb strings.Builder
+		inv.Stdout = &sb
+		inv.Stderr = &sb
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireError()
+		w.RequireContains("not a known app or valid port")
+	})
+
+	t.Run("PortZero", func(t *testing.T) {
+		t.Parallel()
+
+		client, ws, _ := setupWorkspaceForAgent(t)
+
+		inv, root := clitest.New(t, "open", "app", ws.Name, "0")
+		clitest.SetupConfig(t, client, root)
+		var sb strings.Builder
+		inv.Stdout = &sb
+		inv.Stderr = &sb
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireError()
+		w.RequireContains("not a known app or valid port")
+	})
+
+	t.Run("PortPrefersApp", func(t *testing.T) {
+		t.Parallel()
+
+		// An app with a numeric slug should be treated as an app, not a port.
+		client, ws, _ := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Apps = []*proto.App{
+				{
+					Slug: "8080",
+					Url:  "https://example.com/app-8080",
+				},
+			}
+			return agents
+		})
+
+		inv, root := clitest.New(t, "open", "app", ws.Name, "8080", "--test.open-error")
+		clitest.SetupConfig(t, client, root)
+		var sb strings.Builder
+		inv.Stdout = &sb
+		inv.Stderr = &sb
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireError()
+		w.RequireContains("test.open-error")
+		// Should open the app URL, not a port-forward URL.
+		require.Contains(t, sb.String(), "/@myuser/myworkspace.dev/apps/8080/")
 	})
 }

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -308,8 +310,8 @@ func (r *RootCmd) openApp() *serpent.Command {
 
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
-		Use:         "app <workspace> <app slug>",
-		Short:       "Open a workspace application.",
+		Use:         "app <workspace> <app slug or port>",
+		Short:       "Open a workspace application or port.",
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
 			if err != nil {
@@ -349,15 +351,26 @@ func (r *RootCmd) openApp() *serpent.Command {
 			}
 
 			appSlug := inv.Args[1]
-			var foundApp codersdk.WorkspaceApp
+			var (
+				foundApp codersdk.WorkspaceApp
+				portNum  uint16
+				isPort   bool
+			)
 			appIdx := slices.IndexFunc(agt.Apps, func(a codersdk.WorkspaceApp) bool {
 				return a.Slug == appSlug
 			})
-			if appIdx == -1 {
-				cliui.Errorf(inv.Stderr, "App %q not found in workspace %q!\nAvailable apps: %v", appSlug, workspaceName, allAppSlugs)
-				return xerrors.Errorf("app not found")
+			if appIdx != -1 {
+				foundApp = agt.Apps[appIdx]
+			} else {
+				// Fallback: treat as a port number.
+				p, err := strconv.ParseUint(appSlug, 10, 16)
+				if err != nil || p == 0 {
+					cliui.Errorf(inv.Stderr, "%q is not a known app or valid port in workspace %q\nAvailable apps: %v", appSlug, workspaceName, allAppSlugs)
+					return xerrors.Errorf("%q is not a known app or valid port", appSlug)
+				}
+				portNum = uint16(p)
+				isPort = true
 			}
-			foundApp = agt.Apps[appIdx]
 
 			// To build the app URL, we need to know the wildcard hostname
 			// and path app URL for the region.
@@ -379,37 +392,48 @@ func (r *RootCmd) openApp() *serpent.Command {
 			}
 			region = regions[preferredIdx]
 
-			baseURL, err := url.Parse(region.PathAppURL)
-			if err != nil {
-				return xerrors.Errorf("failed to parse proxy URL: %w", err)
-			}
-			baseURL.Path = ""
-			pathAppURL := strings.TrimPrefix(region.PathAppURL, baseURL.String())
-			appURL := buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
+			var openURL string
+			if isPort {
+				if region.WildcardHostname == "" {
+					return xerrors.Errorf("no wildcard access URL configured for region %q, which is required for port forwarding", region.Name)
+				}
+				baseURL, err := url.Parse(region.PathAppURL)
+				if err != nil {
+					return xerrors.Errorf("failed to parse proxy URL: %w", err)
+				}
+				openURL = buildPortURL(baseURL, ws, agt, portNum, region.WildcardHostname)
+			} else {
+				baseURL, err := url.Parse(region.PathAppURL)
+				if err != nil {
+					return xerrors.Errorf("failed to parse proxy URL: %w", err)
+				}
+				baseURL.Path = ""
+				pathAppURL := strings.TrimPrefix(region.PathAppURL, baseURL.String())
+				openURL = buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
 
-			if foundApp.External {
-				appURL = replacePlaceholderExternalSessionTokenString(client, appURL)
+				if foundApp.External {
+					openURL = replacePlaceholderExternalSessionTokenString(client, openURL)
+				}
 			}
 
-			// Check if we're inside a workspace.  Generally, we know
+			// Check if we're inside a workspace. Generally, we know
 			// that if we're inside a workspace, `open` can't be used.
 			insideAWorkspace := inv.Environ.Get("CODER") == "true"
 			if insideAWorkspace {
 				_, _ = fmt.Fprintf(inv.Stderr, "Please open the following URI on your local machine:\n\n")
-				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", openURL)
 				return nil
 			}
-			_, _ = fmt.Fprintf(inv.Stderr, "Opening %s\n", appURL)
+			_, _ = fmt.Fprintf(inv.Stderr, "Opening %s\n", openURL)
 
 			if !testOpenError {
-				err = open.Run(appURL)
+				err = open.Run(openURL)
 			} else {
-				err = xerrors.New("test.open-error: " + appURL)
+				err = xerrors.New("test.open-error: " + openURL)
 			}
 			return err
 		},
 	}
-
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag: "region",
@@ -679,4 +703,17 @@ func replacePlaceholderExternalSessionTokenString(client *codersdk.Client, appUR
 
 	// We will just re-use the existing session token we're already using.
 	return strings.ReplaceAll(appURL, "$SESSION_TOKEN", client.SessionToken())
+}
+
+// buildPortURL constructs a URL to access a port-forwarded service
+// on a workspace agent via the wildcard hostname. This is the same
+// URL pattern that the frontend uses in the "Open Ports" UI.
+func buildPortURL(baseURL *url.URL, ws codersdk.Workspace, agt codersdk.WorkspaceAgent, port uint16, appsHost string) string {
+	appURL := appurl.ApplicationURL{
+		AppSlugOrPort: strconv.FormatUint(uint64(port), 10),
+		AgentName:     agt.Name,
+		WorkspaceName: ws.Name,
+		Username:      ws.OwnerName,
+	}
+	return baseURL.Scheme + "://" + strings.Replace(appsHost, "*", appURL.String(), 1)
 }
