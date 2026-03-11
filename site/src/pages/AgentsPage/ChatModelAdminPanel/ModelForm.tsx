@@ -95,6 +95,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	onDeleteModel,
 }) => {
 	const isEditing = Boolean(editingModel);
+	const [showPricing, setShowPricing] = useState(false);
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -403,25 +404,38 @@ export const ModelForm: FC<ModelFormProps> = ({
 						</div>
 					</div>
 
+					{/* Pricing — toggle */}
 					<div>
-						<div>
-							<h3 className="m-0 text-sm font-medium text-content-primary">
-								Pricing
-							</h3>
-							<p className="mt-1 mb-0 text-xs text-content-secondary">
-								Optional USD pricing metadata per 1M tokens. Leave any field
-								blank to use the default price: input $5, output $20, cache
-								write $5, and cache read $0.50.
-							</p>
-						</div>
-						<div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-							<PricingModelConfigFields
-								provider={selectedProviderState.provider}
-								form={form}
-								fieldErrors={modelConfigFormBuildResult.fieldErrors}
-								disabled={isSaving}
-							/>
-						</div>
+						<button
+							type="button"
+							onClick={() => setShowPricing((v) => !v)}
+							className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
+						>
+							{showPricing ? (
+								<ChevronDownIcon className="h-4 w-4" />
+							) : (
+								<ChevronRightIcon className="h-4 w-4" />
+							)}
+							Pricing
+						</button>{" "}
+						{showPricing && (
+							<div className="mt-4 space-y-3">
+								<div>
+									<p className="m-0 text-xs text-content-secondary">
+										Optional USD pricing metadata per 1M tokens. Leave any field
+										blank to use the default price.
+									</p>
+								</div>
+								<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+									<PricingModelConfigFields
+										provider={selectedProviderState.provider}
+										form={form}
+										fieldErrors={modelConfigFormBuildResult.fieldErrors}
+										disabled={isSaving}
+									/>
+								</div>
+							</div>
+						)}
 					</div>
 
 					{/* Provider-specific model config fields */}
