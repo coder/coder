@@ -63,6 +63,12 @@ type RunOptions struct {
 	// of the provider, which lives in chatd, not chatloop.
 	ProviderOptions fantasy.ProviderOptions
 
+	// ProviderTools are provider-native tools (like web search)
+	// that are passed directly to the provider API alongside
+	// function tool definitions. These are not necessarily
+	// executed server-side; handling is provider-specific.
+	ProviderTools []fantasy.Tool
+
 	PersistStep        func(context.Context, PersistedStep) error
 	PublishMessagePart func(
 		role fantasy.MessageRole,
@@ -153,9 +159,10 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 				continue
 			}
 			toolParts = append(toolParts, fantasy.ToolResultPart{
-				ToolCallID:      result.ToolCallID,
-				Output:          result.Result,
-				ProviderOptions: fantasy.ProviderOptions(result.ProviderMetadata),
+				ToolCallID:       result.ToolCallID,
+				Output:           result.Result,
+				ProviderExecuted: result.ProviderExecuted,
+				ProviderOptions:  fantasy.ProviderOptions(result.ProviderMetadata),
 			})
 		default:
 			continue
@@ -205,7 +212,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 		opts.PublishMessagePart(role, part)
 	}
 
-	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools)
+	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(opts.Model)
 
 	messages := opts.Messages
@@ -316,7 +323,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 					Valid: true,
 				}
 			}
-
 			// Persist the step — errors propagate directly.
 			if err := opts.PersistStep(ctx, PersistedStep{
 				Content:      result.content,
@@ -494,17 +500,19 @@ func processStepStream(
 			}
 
 		case fantasy.StreamPartTypeToolInputDelta:
+			var providerExecuted bool
 			if toolCall, exists := activeToolCalls[part.ID]; exists {
 				toolCall.Input += part.Delta
+				providerExecuted = toolCall.ProviderExecuted
 			}
 			toolName := toolNames[part.ID]
 			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: part.ID,
-				ToolName:   toolName,
-				ArgsDelta:  part.Delta,
+				Type:             codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID:       part.ID,
+				ToolName:         toolName,
+				ArgsDelta:        part.Delta,
+				ProviderExecuted: providerExecuted,
 			})
-
 		case fantasy.StreamPartTypeToolInputEnd:
 			// No callback needed; the full tool call arrives in
 			// StreamPartTypeToolCall.
@@ -544,6 +552,24 @@ func processStepStream(
 				chatprompt.PartFromContent(sourceContent),
 			)
 
+		case fantasy.StreamPartTypeToolResult:
+			// Provider-executed tool results (e.g. web search)
+			// are emitted by the provider and added directly
+			// to the step content for multi-turn round-tripping.
+			// This mirrors fantasy's agent.go accumulation logic.
+			if part.ProviderExecuted {
+				tr := fantasy.ToolResultContent{
+					ToolCallID:       part.ID,
+					ToolName:         part.ToolCallName,
+					ProviderExecuted: part.ProviderExecuted,
+					ProviderMetadata: part.ProviderMetadata,
+				}
+				result.content = append(result.content, tr)
+				publishMessagePart(
+					fantasy.MessageRoleTool,
+					chatprompt.PartFromContent(tr),
+				)
+			}
 		case fantasy.StreamPartTypeFinish:
 			result.usage = part.Usage
 			result.finishReason = part.FinishReason
@@ -571,7 +597,14 @@ func processStepStream(
 		}
 	}
 
-	result.shouldContinue = len(result.toolCalls) > 0 &&
+	hasLocalToolCalls := false
+	for _, tc := range result.toolCalls {
+		if !tc.ProviderExecuted {
+			hasLocalToolCalls = true
+			break
+		}
+	}
+	result.shouldContinue = hasLocalToolCalls &&
 		result.finishReason == fantasy.FinishReasonToolCalls
 	return result, nil
 }
@@ -590,15 +623,29 @@ func executeTools(
 		return nil
 	}
 
+	// Filter out provider-executed tool calls. These were
+	// handled server-side by the LLM provider (e.g., web
+	// search) and their results are already in the stream
+	// content.
+	localToolCalls := make([]fantasy.ToolCallContent, 0, len(toolCalls))
+	for _, tc := range toolCalls {
+		if !tc.ProviderExecuted {
+			localToolCalls = append(localToolCalls, tc)
+		}
+	}
+	if len(localToolCalls) == 0 {
+		return nil
+	}
+
 	toolMap := make(map[string]fantasy.AgentTool, len(allTools))
 	for _, t := range allTools {
 		toolMap[t.Info().Name] = t
 	}
 
-	results := make([]fantasy.ToolResultContent, len(toolCalls))
+	results := make([]fantasy.ToolResultContent, len(localToolCalls))
 	var wg sync.WaitGroup
-	wg.Add(len(toolCalls))
-	for i, tc := range toolCalls {
+	wg.Add(len(localToolCalls))
+	for i, tc := range localToolCalls {
 		go func(i int, tc fantasy.ToolCallContent) {
 			defer wg.Done()
 			defer func() {
@@ -770,8 +817,9 @@ func persistInterruptedStep(
 			continue
 		}
 		content = append(content, fantasy.ToolResultContent{
-			ToolCallID: tc.ToolCallID,
-			ToolName:   tc.ToolName,
+			ToolCallID:       tc.ToolCallID,
+			ToolName:         tc.ToolName,
+			ProviderExecuted: tc.ProviderExecuted,
 			Result: fantasy.ToolResultOutputContentError{
 				Error: xerrors.New(interruptedToolResultErrorMessage),
 			},
@@ -791,9 +839,10 @@ func persistInterruptedStep(
 
 // buildToolDefinitions converts AgentTool definitions into the
 // fantasy.Tool slice expected by fantasy.Call. When activeTools
-// is non-empty, only tools whose name appears in the list are
-// included. This mirrors fantasy's agent.prepareTools filtering.
-func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string) []fantasy.Tool {
+// is non-empty, only function tools whose name appears in the
+// list are included. Provider tools bypass this filter and are
+// always appended unconditionally.
+func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, providerTools []fantasy.Tool) []fantasy.Tool {
 	prepared := make([]fantasy.Tool, 0, len(tools))
 	for _, tool := range tools {
 		info := tool.Info()
@@ -813,6 +862,7 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string) []fan
 			ProviderOptions: tool.ProviderOptions(),
 		})
 	}
+	prepared = append(prepared, providerTools...)
 	return prepared
 }
 

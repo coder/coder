@@ -7,6 +7,7 @@ import {
 	Shimmer,
 	Tool,
 } from "components/ai-elements";
+import { WebSearchSources } from "components/ai-elements/tool";
 import { FileIcon } from "components/FileIcon/FileIcon";
 import { Spinner } from "components/Spinner/Spinner";
 import { ChevronDownIcon } from "lucide-react";
@@ -267,6 +268,13 @@ function renderBlockList({
 						);
 					}
 					return null;
+				case "sources":
+					return (
+						<WebSearchSources
+							key={`${keyPrefix}-sources-${index}`}
+							sources={block.sources}
+						/>
+					);
 				default:
 					return null;
 			}
@@ -314,8 +322,22 @@ const ChatMessageItem = memo<{
 			return null;
 		}
 
+		// Hide messages that consist entirely of provider-executed
+		// tool results. The parser skips these parts, so the parsed
+		// output is empty and would show a "no renderable content"
+		// fallback.
+		const parts = message.content ?? [];
+		if (
+			parts.length > 0 &&
+			parts.every((p) => p.type === "tool-result" && p.provider_executed)
+		) {
+			return null;
+		}
+
 		const hasRenderableContent =
-			parsed.blocks.length > 0 || parsed.tools.length > 0;
+			parsed.blocks.length > 0 ||
+			parsed.tools.length > 0 ||
+			parsed.sources.length > 0;
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};

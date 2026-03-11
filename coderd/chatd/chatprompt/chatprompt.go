@@ -11,6 +11,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -110,7 +111,7 @@ func patchFileContent(
 func ConvertMessages(
 	messages []database.ChatMessage,
 ) ([]fantasy.Message, error) {
-	return ConvertMessagesWithFiles(context.Background(), messages, nil)
+	return ConvertMessagesWithFiles(context.Background(), messages, nil, slog.Logger{})
 }
 
 // ConvertMessagesWithFiles converts persisted chat messages into LLM
@@ -121,6 +122,7 @@ func ConvertMessagesWithFiles(
 	ctx context.Context,
 	messages []database.ChatMessage,
 	resolver FileResolver,
+	logger slog.Logger,
 ) ([]fantasy.Message, error) {
 	// Phase 1: Pre-scan user messages for file_id references.
 	var allFileIDs []uuid.UUID
@@ -229,7 +231,7 @@ func ConvertMessagesWithFiles(
 				if row.ToolCallID != "" && row.ToolName != "" {
 					toolNameByCallID[sanitizeToolCallID(row.ToolCallID)] = row.ToolName
 				}
-				parts = append(parts, row.toToolResultPart())
+				parts = append(parts, row.toToolResultPart(logger))
 			}
 			prompt = append(prompt, fantasy.Message{
 				Role:    fantasy.MessageRoleTool,
@@ -359,10 +361,12 @@ func ParseContent(role string, raw pqtype.NullRawMessage) ([]fantasy.Content, er
 // result row. We intentionally avoid a strict Go struct so that
 // historical shapes are never rejected.
 type toolResultRaw struct {
-	ToolCallID string          `json:"tool_call_id"`
-	ToolName   string          `json:"tool_name"`
-	Result     json.RawMessage `json:"result"`
-	IsError    bool            `json:"is_error,omitempty"`
+	ToolCallID       string          `json:"tool_call_id"`
+	ToolName         string          `json:"tool_name"`
+	Result           json.RawMessage `json:"result"`
+	IsError          bool            `json:"is_error,omitempty"`
+	ProviderExecuted bool            `json:"provider_executed,omitempty"`
+	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty"`
 }
 
 // parseToolResultRows decodes persisted tool result rows.
@@ -378,7 +382,7 @@ func parseToolResultRows(raw pqtype.NullRawMessage) ([]toolResultRaw, error) {
 	return rows, nil
 }
 
-func (r toolResultRaw) toToolResultPart() fantasy.ToolResultPart {
+func (r toolResultRaw) toToolResultPart(logger slog.Logger) fantasy.ToolResultPart {
 	toolCallID := sanitizeToolCallID(r.ToolCallID)
 	resultText := string(r.Result)
 	if resultText == "" || resultText == "null" {
@@ -391,7 +395,9 @@ func (r toolResultRaw) toToolResultPart() fantasy.ToolResultPart {
 			message = extracted
 		}
 		return fantasy.ToolResultPart{
-			ToolCallID: toolCallID,
+			ToolCallID:       toolCallID,
+			ProviderExecuted: r.ProviderExecuted,
+			ProviderOptions:  r.providerOptions(logger),
 			Output: fantasy.ToolResultOutputContentError{
 				Error: xerrors.New(message),
 			},
@@ -399,11 +405,41 @@ func (r toolResultRaw) toToolResultPart() fantasy.ToolResultPart {
 	}
 
 	return fantasy.ToolResultPart{
-		ToolCallID: toolCallID,
+		ToolCallID:       toolCallID,
+		ProviderExecuted: r.ProviderExecuted,
+		ProviderOptions:  r.providerOptions(logger),
 		Output: fantasy.ToolResultOutputContentText{
 			Text: resultText,
 		},
 	}
+}
+
+// providerOptions deserializes the stored provider metadata
+// JSON into a ProviderOptions map using the fantasy type
+// registry. Returns nil when no metadata is stored.
+func (r toolResultRaw) providerOptions(logger slog.Logger) fantasy.ProviderOptions {
+	if len(r.ProviderMetadata) == 0 {
+		return nil
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(r.ProviderMetadata, &raw); err != nil {
+		logger.Warn(context.Background(),
+			"failed to unmarshal provider metadata JSON",
+			slog.F("tool_call_id", r.ToolCallID),
+			slog.Error(err),
+		)
+		return nil
+	}
+	opts, err := fantasy.UnmarshalProviderOptions(raw)
+	if err != nil {
+		logger.Warn(context.Background(),
+			"failed to deserialize provider metadata",
+			slog.F("tool_call_id", r.ToolCallID),
+			slog.Error(err),
+		)
+		return nil
+	}
+	return opts
 }
 
 // extractErrorString pulls the "error" field from a JSON object if
@@ -609,12 +645,22 @@ func injectFileID(encoded json.RawMessage, fileID uuid.UUID) (json.RawMessage, e
 // MarshalToolResult encodes a single tool result for persistence as
 // an opaque JSON blob. The stored shape is
 // [{"tool_call_id":…,"tool_name":…,"result":…,"is_error":…}].
-func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isError bool) (pqtype.NullRawMessage, error) {
+func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isError bool, providerExecuted bool, providerMetadata fantasy.ProviderMetadata) (pqtype.NullRawMessage, error) {
+	var metaJSON json.RawMessage
+	if len(providerMetadata) > 0 {
+		var err error
+		metaJSON, err = json.Marshal(providerMetadata)
+		if err != nil {
+			return pqtype.NullRawMessage{}, xerrors.Errorf("encode provider metadata: %w", err)
+		}
+	}
 	row := toolResultRaw{
-		ToolCallID: toolCallID,
-		ToolName:   toolName,
-		Result:     result,
-		IsError:    isError,
+		ToolCallID:       toolCallID,
+		ToolName:         toolName,
+		Result:           result,
+		IsError:          isError,
+		ProviderExecuted: providerExecuted,
+		ProviderMetadata: metaJSON,
 	}
 	data, err := json.Marshal([]toolResultRaw{row})
 	if err != nil {
@@ -653,7 +699,7 @@ func MarshalToolResultContent(content fantasy.ToolResultContent) (pqtype.NullRaw
 		result = []byte(`{}`)
 	}
 
-	return MarshalToolResult(content.ToolCallID, content.ToolName, result, isError)
+	return MarshalToolResult(content.ToolCallID, content.ToolName, result, isError, content.ProviderExecuted, content.ProviderMetadata)
 }
 
 // PartFromContent converts fantasy content into a SDK chat message part.
@@ -681,17 +727,19 @@ func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
 		}
 	case fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: value.ToolCallID,
-			ToolName:   value.ToolName,
-			Args:       []byte(value.Input),
+			Type:             codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:       value.ToolCallID,
+			ToolName:         value.ToolName,
+			Args:             []byte(value.Input),
+			ProviderExecuted: value.ProviderExecuted,
 		}
 	case *fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: value.ToolCallID,
-			ToolName:   value.ToolName,
-			Args:       []byte(value.Input),
+			Type:             codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:       value.ToolCallID,
+			ToolName:         value.ToolName,
+			Args:             []byte(value.Input),
+			ProviderExecuted: value.ProviderExecuted,
 		}
 	case fantasy.SourceContent:
 		return codersdk.ChatMessagePart{
@@ -771,7 +819,9 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 		result = []byte(`{}`)
 	}
 
-	return ToolResultToPart(content.ToolCallID, content.ToolName, result, isError)
+	part := ToolResultToPart(content.ToolCallID, content.ToolName, result, isError)
+	part.ProviderExecuted = content.ProviderExecuted
+	return part
 }
 
 func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {

@@ -7,7 +7,7 @@ import {
 	parseToolResultIsError,
 } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
-import type { MergedTool, StreamState } from "./types";
+import type { MergedTool, RenderBlock, StreamState } from "./types";
 
 let nextFallbackID = 0;
 
@@ -15,6 +15,7 @@ export const createEmptyStreamState = (): StreamState => ({
 	blocks: [],
 	toolCalls: {},
 	toolResults: {},
+	sources: [],
 });
 
 /** Streaming variant — uses direct concatenation (the default joinText). */
@@ -57,6 +58,12 @@ export const applyMessagePartToStreamState = (
 		}
 		case "tool-call":
 		case "toolcall": {
+			// Provider-executed tool calls (e.g. web_search) are
+			// handled natively by the provider — skip rendering them
+			// as tool cards.
+			if (part.provider_executed) {
+				return prev;
+			}
 			const toolName = asString(part.tool_name);
 			const existingByName = Object.values(nextState.toolCalls).find(
 				(call) => call.name === toolName,
@@ -89,6 +96,10 @@ export const applyMessagePartToStreamState = (
 		}
 		case "tool-result":
 		case "toolresult": {
+			// Skip synthetic results for provider-executed tools.
+			if (part.provider_executed) {
+				return prev;
+			}
 			const toolName = asString(part.tool_name);
 			const existingByName = Object.values(nextState.toolResults).find(
 				(result) => result.name === toolName,
@@ -148,6 +159,41 @@ export const applyMessagePartToStreamState = (
 						fileId: fileId || undefined,
 					},
 				],
+			};
+		}
+		case "source": {
+			const url = asString(part.url);
+			const title = asString(part.title);
+			if (!url) {
+				return prev;
+			}
+			const source = { url, title: title || url };
+			// Still populate the flat list for backward compat.
+			if (nextState.sources.some((s) => s.url === url)) {
+				return prev;
+			}
+			const newSources = [...nextState.sources, source];
+			// Group consecutive sources into a single inline
+			// block at the current position in the block list.
+			const lastBlock = nextState.blocks[nextState.blocks.length - 1];
+			let newBlocks: RenderBlock[];
+			if (lastBlock && lastBlock.type === "sources") {
+				// Append to existing sources block.
+				newBlocks = [...nextState.blocks];
+				newBlocks[newBlocks.length - 1] = {
+					type: "sources",
+					sources: [...lastBlock.sources, source],
+				};
+			} else {
+				newBlocks = [
+					...nextState.blocks,
+					{ type: "sources", sources: [source] },
+				];
+			}
+			return {
+				...nextState,
+				sources: newSources,
+				blocks: newBlocks,
 			};
 		}
 		default:

@@ -86,6 +86,30 @@
 					"description": "Whether to disable parallel tool execution",
 					"required": false,
 					"input_type": "select"
+				},
+				{
+					"json_name": "web_search_enabled",
+					"go_name": "WebSearchEnabled",
+					"type": "boolean",
+					"description": "Enable Anthropic web search tool for grounding responses with real-time information",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "allowed_domains",
+					"go_name": "AllowedDomains",
+					"type": "array",
+					"description": "Restrict web search to these domains (cannot be used with blocked_domains)",
+					"required": false,
+					"input_type": "json"
+				},
+				{
+					"json_name": "blocked_domains",
+					"go_name": "BlockedDomains",
+					"type": "array",
+					"description": "Block web search on these domains (cannot be used with allowed_domains)",
+					"required": false,
+					"input_type": "json"
 				}
 			]
 		},
@@ -132,6 +156,14 @@
 					"required": false,
 					"input_type": "input",
 					"hidden": true
+				},
+				{
+					"json_name": "web_search_enabled",
+					"go_name": "WebSearchEnabled",
+					"type": "boolean",
+					"description": "Enable Google Search grounding for real-time information",
+					"required": false,
+					"input_type": "select"
 				}
 			]
 		},
@@ -311,6 +343,31 @@
 					"required": false,
 					"input_type": "select",
 					"hidden": true
+				},
+				{
+					"json_name": "web_search_enabled",
+					"go_name": "WebSearchEnabled",
+					"type": "boolean",
+					"description": "Enable OpenAI web search tool for grounding responses with real-time information",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "search_context_size",
+					"go_name": "SearchContextSize",
+					"type": "string",
+					"description": "Amount of search context to use",
+					"required": false,
+					"enum": ["low", "medium", "high"],
+					"input_type": "select"
+				},
+				{
+					"json_name": "allowed_domains",
+					"go_name": "AllowedDomains",
+					"type": "array",
+					"description": "Restrict web search to these domains",
+					"required": false,
+					"input_type": "json"
 				}
 			]
 		},

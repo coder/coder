@@ -30,6 +30,7 @@ describe("applyMessagePartToStreamState", () => {
 			blocks: [{ type: "response", text: "Hello" }],
 			toolCalls: {},
 			toolResults: {},
+			sources: [],
 		};
 		const result = applyMessagePartToStreamState(prev, {
 			type: "text",
@@ -254,6 +255,7 @@ describe("buildStreamTools", () => {
 				"tc-1": { id: "tc-1", name: "bash", args: { cmd: "ls" } },
 			},
 			toolResults: {},
+			sources: [],
 		};
 		const tools = buildStreamTools(state);
 		expect(tools).toHaveLength(1);
@@ -274,6 +276,7 @@ describe("buildStreamTools", () => {
 					isError: false,
 				},
 			},
+			sources: [],
 		};
 		const tools = buildStreamTools(state);
 		expect(tools[0].status).toBe("completed");
@@ -291,6 +294,7 @@ describe("buildStreamTools", () => {
 					isError: false,
 				},
 			},
+			sources: [],
 		};
 		const tools = buildStreamTools(state);
 		expect(tools).toHaveLength(1);
