@@ -68,6 +68,8 @@ const meta: Meta<typeof AgentsSidebar> = {
 		onArchiveAndDeleteWorkspace: fn(),
 		onNewAgent: fn(),
 		isCreating: false,
+		archivedFilter: "active" as const,
+		onArchivedFilterChange: fn(),
 	},
 	parameters: {
 		layout: "fullscreen",
@@ -309,7 +311,7 @@ export const ActiveChatAncestryExpanded: Story = {
 
 const todayTimestamp = new Date().toISOString();
 
-export const ArchivedAgentsCollapsed: Story = {
+export const ActiveFilterShowsActiveAgents: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -322,17 +324,8 @@ export const ArchivedAgentsCollapsed: Story = {
 				title: "Active agent two",
 				updated_at: todayTimestamp,
 			}),
-			buildChat({
-				id: "archived-1",
-				title: "Archived agent one",
-				archived: true,
-			}),
-			buildChat({
-				id: "archived-2",
-				title: "Archived agent two",
-				archived: true,
-			}),
 		],
+		archivedFilter: "active",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -345,37 +338,28 @@ export const ArchivedAgentsCollapsed: Story = {
 		await waitFor(() => {
 			expect(canvas.getByText("Active agent one")).toBeInTheDocument();
 			expect(canvas.getByText("Active agent two")).toBeInTheDocument();
-			expect(canvas.getByText("Archived (2)")).toBeInTheDocument();
 		});
-		expect(canvas.queryByText("Archived agent one")).not.toBeInTheDocument();
-		expect(canvas.queryByText("Archived agent two")).not.toBeInTheDocument();
+		expect(canvas.getByText("Active")).toBeInTheDocument();
 	},
 };
 
-export const ArchivedAgentsExpanded: Story = {
+export const ArchivedFilterShowsArchivedAgents: Story = {
 	args: {
 		chats: [
-			buildChat({
-				id: "active-1",
-				title: "Active agent one",
-				updated_at: todayTimestamp,
-			}),
-			buildChat({
-				id: "active-2",
-				title: "Active agent two",
-				updated_at: todayTimestamp,
-			}),
 			buildChat({
 				id: "archived-1",
 				title: "Archived agent one",
 				archived: true,
+				updated_at: todayTimestamp,
 			}),
 			buildChat({
 				id: "archived-2",
 				title: "Archived agent two",
 				archived: true,
+				updated_at: todayTimestamp,
 			}),
 		],
+		archivedFilter: "archived",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -386,13 +370,10 @@ export const ArchivedAgentsExpanded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			expect(canvas.getByText("Archived (2)")).toBeInTheDocument();
-		});
-		await userEvent.click(canvas.getByText("Archived (2)"));
-		await waitFor(() => {
 			expect(canvas.getByText("Archived agent one")).toBeInTheDocument();
 			expect(canvas.getByText("Archived agent two")).toBeInTheDocument();
 		});
+		expect(canvas.getByText("Archived")).toBeInTheDocument();
 	},
 };
 
@@ -720,8 +701,10 @@ export const ArchivedAgentUnarchiveOption: Story = {
 				id: "archived-unarchive",
 				title: "Archived agent with unarchive",
 				archived: true,
+				updated_at: todayTimestamp,
 			}),
 		],
+		archivedFilter: "archived",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -731,11 +714,6 @@ export const ArchivedAgentUnarchiveOption: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Expand archived section
-		await waitFor(() => {
-			expect(canvas.getByText("Archived (1)")).toBeInTheDocument();
-		});
-		await userEvent.click(canvas.getByText("Archived (1)"));
 		await waitFor(() => {
 			expect(
 				canvas.getByText("Archived agent with unarchive"),

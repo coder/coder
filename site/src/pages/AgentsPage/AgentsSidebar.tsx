@@ -9,11 +9,6 @@ import { Avatar } from "components/Avatar/Avatar";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "components/Collapsible/Collapsible";
-import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -33,6 +28,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisIcon,
+	FilterIcon,
 	GitMergeIcon,
 	GitPullRequestArrowIcon,
 	GitPullRequestClosedIcon,
@@ -54,6 +50,7 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { NavLink, useParams } from "react-router";
@@ -79,6 +76,9 @@ interface AgentsSidebarProps {
 	onRetryLoad?: () => void;
 	hasNextPage?: boolean;
 	onLoadMore?: () => void;
+	isFetchingNextPage?: boolean;
+	archivedFilter: "active" | "archived";
+	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
 	onOpenSettings?: () => void;
 }
@@ -583,6 +583,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onRetryLoad,
 		hasNextPage,
 		onLoadMore,
+		isFetchingNextPage,
+		archivedFilter,
+		onArchivedFilterChange,
 		onCollapse,
 		onOpenSettings,
 	} = props;
@@ -595,7 +598,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const { appearance, buildInfo } = useDashboard();
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
-	const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
 
 	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
 	const chatById = useMemo(() => {
@@ -614,24 +616,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
 		[chatTree.rootIds, visibleChatIDs],
 	);
-	const activeRootIDs = useMemo(
-		() =>
-			visibleRootIDs.filter((id) => {
-				const chat = chatById.get(id);
-				return chat && !chat.archived;
-			}),
-		[visibleRootIDs, chatById],
-	);
-	const archivedRootIDs = useMemo(
-		() =>
-			visibleRootIDs.filter((id) => {
-				const chat = chatById.get(id);
-				return chat?.archived;
-			}),
-		[visibleRootIDs, chatById],
-	);
-	const effectiveArchivedExpanded =
-		normalizedSearch && archivedRootIDs.length > 0 ? true : isArchivedExpanded;
 
 	// Auto-expand ancestors of the active chat so it's always visible.
 	useEffect(() => {
@@ -728,143 +712,129 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					<SquarePenIcon className="!h-[18px] !w-[18px] shrink-0" />
 					New Agent
 				</Button>
-			</div>
-			<ScrollArea
-				className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
-				scrollBarClassName="w-1.5"
-			>
-				<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
-					{loadError ? (
-						<div className="space-y-3 px-1">
-							<ErrorAlert error={loadError} />
-							{onRetryLoad && (
-								<Button size="sm" variant="outline" onClick={onRetryLoad}>
-									Retry
-								</Button>
-							)}
-						</div>
-					) : isLoading ? (
-						<>
-							<Skeleton className="ml-2.5 h-3.5 w-16" />
-							<div className="flex flex-col gap-0.5">
-								{Array.from({ length: 6 }, (_, i) => (
-									<div
-										key={i}
-										className="flex items-start gap-2 rounded-md px-2 py-1"
-									>
-										<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
-										<div className="min-w-0 flex-1 space-y-1.5">
-											<Skeleton
-												className="h-3.5"
-												style={{ width: `${55 + ((i * 17) % 35)}%` }}
-											/>
-											<Skeleton className="h-3 w-20" />
-										</div>
-									</div>
-								))}
-							</div>
-						</>
-					) : (
-						<ChatTreeContext.Provider value={chatTreeCtx}>
-							{activeRootIDs.length === 0 && archivedRootIDs.length === 0 ? (
-								<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-									{normalizedSearch ? "No matching agents" : "No agents yet"}
-								</div>
-							) : (
-								<div className="divide-y divide-border">
-									{activeRootIDs.length > 0 && (
-										<div className="pb-2">
-											{TIME_GROUPS.map((group) => {
-												const groupChats = activeRootIDs
-													.map((id) => chatById.get(id))
-													.filter(
-														(chat): chat is Chat =>
-															chat !== undefined &&
-															getTimeGroup(chat.updated_at) === group,
-													);
-												if (groupChats.length === 0) return null;
-												return (
-													<div
-														key={group}
-														className="[&:not(:first-child)]:mt-3"
-													>
-														<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-															<span>{group}</span>
-														</div>
-														<div className="flex flex-col gap-0.5">
-															{groupChats.map((chat) => (
-																<ChatTreeNode
-																	key={chat.id}
-																	chat={chat}
-																	isChildNode={false}
-																/>
-															))}
-														</div>
-													</div>
-												);
-											})}
-										</div>
-									)}
-									{archivedRootIDs.length > 0 && (
-										<Collapsible
-											className="pt-2"
-											open={effectiveArchivedExpanded}
-											onOpenChange={setIsArchivedExpanded}
-										>
-											<CollapsibleTrigger asChild>
-												<div className="mb-1 ml-2.5 flex cursor-pointer items-center justify-between text-xs font-medium text-content-secondary">
-													<span>Archived ({archivedRootIDs.length})</span>
-													{effectiveArchivedExpanded ? (
-														<ChevronDownIcon className="h-3 w-3" />
-													) : (
-														<ChevronRightIcon className="h-3 w-3" />
-													)}
-												</div>
-											</CollapsibleTrigger>
-											<CollapsibleContent>
-												<div className="flex flex-col gap-0.5">
-													{archivedRootIDs.map((id) => {
-														const chat = chatById.get(id);
-														if (!chat) return null;
-														return (
-															<ChatTreeNode
-																key={chat.id}
-																chat={chat}
-																isChildNode={false}
-															/>
-														);
-													})}
-												</div>
-											</CollapsibleContent>
-										</Collapsible>
-									)}
-								</div>
-							)}
-							{hasNextPage && (
-								<div className="px-2 py-2">
-									<Button
-										size="sm"
-										variant="outline"
-										className="w-full"
-										onClick={onLoadMore}
-									>
-										Show more
-									</Button>
-								</div>
-							)}
-						</ChatTreeContext.Provider>
-					)}
 				</div>
-			</ScrollArea>
-			<div className="hidden border-0 border-t border-solid md:block">
-				<div className="flex items-center">
+				<div className="flex items-center gap-1 px-3 md:px-3.5">
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<button
-								type="button"
-								className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
+							<Button
+								variant="subtle"
+								size="sm"
+								className="gap-1.5 text-xs text-content-secondary"
 							>
-								<Avatar
+								<FilterIcon className="!h-3.5 !w-3.5" />
+								{archivedFilter === "archived" ? "Archived" : "Active"}
+								<ChevronDownIcon className="!h-3 !w-3" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="start">
+							<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
+								Active
+								{archivedFilter === "active" && <CheckIcon className="ml-auto h-3.5 w-3.5" />}
+							</DropdownMenuItem>
+							<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("archived")}>
+								Archived
+								{archivedFilter === "archived" && <CheckIcon className="ml-auto h-3.5 w-3.5" />}
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+				<ScrollArea
+					className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
+					scrollBarClassName="w-1.5"
+				>
+					<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
+						{loadError ? (
+							<div className="space-y-3 px-1">
+								<ErrorAlert error={loadError} />
+								{onRetryLoad && (
+									<Button size="sm" variant="outline" onClick={onRetryLoad}>
+										Retry
+									</Button>
+								)}
+							</div>
+						) : isLoading ? (
+							<>
+								<Skeleton className="ml-2.5 h-3.5 w-16" />
+								<div className="flex flex-col gap-0.5">
+									{Array.from({ length: 6 }, (_, i) => (
+										<div
+											key={i}
+											className="flex items-start gap-2 rounded-md px-2 py-1"
+										>
+											<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
+											<div className="min-w-0 flex-1 space-y-1.5">
+												<Skeleton
+													className="h-3.5"
+													style={{ width: `${55 + ((i * 17) % 35)}%` }}
+												/>
+												<Skeleton className="h-3 w-20" />
+											</div>
+										</div>
+									))}
+								</div>
+							</>
+						) : (
+							<ChatTreeContext.Provider value={chatTreeCtx}>
+								{visibleRootIDs.length === 0 ? (
+									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+										{normalizedSearch
+											? "No matching agents"
+											: archivedFilter === "archived"
+												? "No archived agents"
+												: "No agents yet"}
+									</div>
+								) : (
+									<div>
+										{visibleRootIDs.length > 0 && (
+											<div className="pb-2">
+												{TIME_GROUPS.map((group) => {
+													const groupChats = visibleRootIDs
+														.map((id) => chatById.get(id))
+														.filter(
+															(chat): chat is Chat =>
+																chat !== undefined &&
+																getTimeGroup(chat.updated_at) === group,
+														);
+													if (groupChats.length === 0) return null;
+													return (
+														<div
+															key={group}
+															className="[&:not(:first-child)]:mt-3"
+														>
+															<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																<span>{group}</span>
+															</div>
+															<div className="flex flex-col gap-0.5">
+																{groupChats.map((chat) => (
+																	<ChatTreeNode
+																		key={chat.id}
+																		chat={chat}
+																		isChildNode={false}
+																	/>
+																))}
+															</div>
+														</div>
+													);
+												})}
+											</div>
+										)}
+									</div>
+								)}
+								{(hasNextPage || isFetchingNextPage) && (
+									<LoadMoreSentinel onLoadMore={onLoadMore} isFetchingNextPage={isFetchingNextPage} />
+								)}
+							</ChatTreeContext.Provider>
+						)}
+					</div>
+				</ScrollArea>
+				<div className="hidden border-0 border-t border-solid md:block">
+					<div className="flex items-center">
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<button
+									type="button"
+									className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
+								>								<Avatar
 									fallback={user.username}
 									src={user.avatar_url}
 									size="sm"
@@ -900,6 +870,37 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					)}
 				</div>
 			</div>
+		</div>
+	);
+};
+
+const LoadMoreSentinel: FC<{
+	onLoadMore?: () => void;
+	isFetchingNextPage?: boolean;
+}> = ({ onLoadMore, isFetchingNextPage }) => {
+	const sentinelRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const el = sentinelRef.current;
+		if (!el || !onLoadMore) return;
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0]?.isIntersecting) {
+					onLoadMore();
+				}
+			},
+			{ threshold: 0 },
+		);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [onLoadMore]);
+
+	return (
+		<div ref={sentinelRef} className="flex items-center justify-center py-2">
+			{isFetchingNextPage && (
+				<Spinner className="h-4 w-4 text-content-secondary" loading />
+			)}
 		</div>
 	);
 };
