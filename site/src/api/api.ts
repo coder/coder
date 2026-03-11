@@ -2942,7 +2942,6 @@ class ApiMethods {
 		limit?: number;
 		offset?: number;
 		q?: string;
-		archived?: boolean;
 	}): Promise<TypesGen.Chat[]> => {
 		const response = await this.axios.get<TypesGen.Chat[]>(
 			getURLWithSearchParams("/api/experimental/chats", req),
