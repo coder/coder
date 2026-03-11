@@ -10,6 +10,7 @@ import type { FC } from "react";
 import { formatDate } from "utils/time";
 import { AIBridgeModelIcon } from "../RequestLogsPage/icons/AIBridgeModelIcon";
 import { roundDurationDisplay } from "../utils";
+import { cn } from "utils/cn";
 
 interface TokenBadgesProps {
 	inputTokens: number;
@@ -97,6 +98,7 @@ interface AgenticLoopDetailsTableProps {
 	toolCalls: number;
 	inputTokens: number;
 	outputTokens: number;
+	className?: string;
 }
 
 export const AgenticLoopDetailsTable: FC<AgenticLoopDetailsTableProps> = ({
@@ -104,9 +106,10 @@ export const AgenticLoopDetailsTable: FC<AgenticLoopDetailsTableProps> = ({
 	toolCalls,
 	inputTokens,
 	outputTokens,
+	className,
 }) => {
 	return (
-		<div className="w-64 text-sm text-content-secondary">
+		<div className={cn(className, "w-64 text-sm text-content-secondary")}>
 			<div className="flex items-center justify-between">
 				<span className="pr-4">In / out tokens</span>
 				<TokenBadges inputTokens={inputTokens} outputTokens={outputTokens} />
