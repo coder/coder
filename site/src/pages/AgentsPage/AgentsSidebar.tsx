@@ -690,18 +690,53 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<CoderIcon className="h-6 w-6 fill-content-primary" />
 						)}
 					</NavLink>
-					{onCollapse && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={onCollapse}
-							aria-label="Collapse sidebar"
-							className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
-						>
-							<PanelLeftCloseIcon />
-						</Button>
-					)}
-				</div>
+					<div className="flex items-center gap-0.5">
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									aria-label="Filter agents"
+									className={cn(
+										"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+										archivedFilter === "archived" && "text-content-primary",
+									)}
+								>
+									<FilterIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onSelect={() => onArchivedFilterChange?.("active")}
+								>
+									Active
+									{archivedFilter === "active" && (
+										<CheckIcon className="ml-auto h-3.5 w-3.5" />
+									)}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onSelect={() => onArchivedFilterChange?.("archived")}
+								>
+									Archived
+									{archivedFilter === "archived" && (
+										<CheckIcon className="ml-auto h-3.5 w-3.5" />
+									)}
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+						{onCollapse && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={onCollapse}
+								aria-label="Collapse sidebar"
+								className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+							>
+								<PanelLeftCloseIcon />
+							</Button>
+						)}
+					</div>
+				</div>{" "}
 				<Button
 					size="sm"
 					variant="subtle"
@@ -712,39 +747,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					<SquarePenIcon className="!h-[18px] !w-[18px] shrink-0" />
 					New Agent
 				</Button>
-			</div>
-			<div className="flex items-center gap-1 px-3 md:px-3.5">
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							variant="subtle"
-							size="sm"
-							className="gap-1.5 text-xs text-content-secondary"
-						>
-							<FilterIcon className="!h-3.5 !w-3.5" />
-							{archivedFilter === "archived" ? "Archived" : "Active"}
-							<ChevronDownIcon className="!h-3 !w-3" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start">
-						<DropdownMenuItem
-							onSelect={() => onArchivedFilterChange?.("active")}
-						>
-							Active
-							{archivedFilter === "active" && (
-								<CheckIcon className="ml-auto h-3.5 w-3.5" />
-							)}
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							onSelect={() => onArchivedFilterChange?.("archived")}
-						>
-							Archived
-							{archivedFilter === "archived" && (
-								<CheckIcon className="ml-auto h-3.5 w-3.5" />
-							)}
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
 			</div>
 			<ScrollArea
 				className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
