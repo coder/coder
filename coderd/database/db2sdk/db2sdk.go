@@ -1165,8 +1165,7 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 				continue
 			}
 			if i < len(rawBlocks) {
-				switch part.Type {
-				case codersdk.ChatMessagePartTypeFile:
+				if part.Type == codersdk.ChatMessagePartTypeFile {
 					if fid, err := chatprompt.ExtractFileID(rawBlocks[i]); err == nil {
 						part.FileID = uuid.NullUUID{UUID: fid, Valid: true}
 					}

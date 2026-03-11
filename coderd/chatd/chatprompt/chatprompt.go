@@ -981,15 +981,4 @@ func marshalContentBlock(block fantasy.Content) (json.RawMessage, error) {
 	return json.Marshal(block)
 }
 
-func truncateRunes(value string, maxLen int) string {
-	if maxLen <= 0 {
-		return ""
-	}
 
-	runes := []rune(value)
-	if len(runes) <= maxLen {
-		return value
-	}
-
-	return string(runes[:maxLen])
-}
