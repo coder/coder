@@ -141,7 +141,9 @@
             python312Packages.setuptools # Needed for node-gyp
           ]
           ++ (lib.optionals stdenv.targetPlatform.isDarwin [
-            darwin.apple_sdk.frameworks.Foundation
+            darwin.apple_sdk_12_3.frameworks.CoreFoundation
+            darwin.apple_sdk_12_3.frameworks.Foundation
+            darwin.apple_sdk_12_3.frameworks.Security
             xcbuild
           ]);
 
