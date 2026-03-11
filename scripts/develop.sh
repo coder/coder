@@ -135,7 +135,7 @@ fi
 if curl --fail "${web_url}" >/dev/null 2>&1; then
 	# Check if this is the Coder development frontend.
 	if curl --silent --fail "${web_url}/api/v2/buildinfo" 2>&1 | jq -r '.version' >/dev/null 2>&1; then
-		echo "== INFO: Coder development frontend is already running on port ${web_port}!" && exit 0
+		echo "== ERROR: Coder development frontend is already running on port ${web_port}, but the requested API on port ${api_port} is not already running. Stop the frontend and re-run this script." && exit 1
 	else
 		echo "== ERROR: something is listening on port ${web_port}. Kill it and re-run this script." && exit 1
 	fi
