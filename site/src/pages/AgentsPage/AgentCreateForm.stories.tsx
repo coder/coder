@@ -2,15 +2,7 @@ import { MockWorkspace } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
-import {
-	expect,
-	fn,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { AgentCreateForm } from "./AgentCreateForm";
 
 const modelOptions = [
@@ -36,26 +28,12 @@ const meta: Meta<typeof AgentCreateForm> = {
 		modelConfigs: [],
 		isModelConfigsLoading: false,
 		modelCatalogError: undefined,
-		canSetSystemPrompt: true,
-		canManageChatModelConfigs: false,
-		isConfigureAgentsDialogOpen: false,
-		onConfigureAgentsDialogOpenChange: fn(),
 	},
 	beforeEach: () => {
 		localStorage.clear();
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
 			count: 0,
-		});
-		spyOn(API, "getChatSystemPrompt").mockResolvedValue({
-			system_prompt: "",
-		});
-		spyOn(API, "updateChatSystemPrompt").mockResolvedValue();
-		spyOn(API, "getUserChatCustomPrompt").mockResolvedValue({
-			custom_prompt: "",
-		});
-		spyOn(API, "updateUserChatCustomPrompt").mockResolvedValue({
-			custom_prompt: "",
 		});
 	},
 };
@@ -176,35 +154,6 @@ export const SelectWorkspaceViaSearch: Story = {
 		// The trigger should now show the selected workspace.
 		await waitFor(() => {
 			expect(canvas.getByText("janedoe/my-project")).toBeInTheDocument();
-		});
-	},
-};
-
-export const SavesBehaviorPromptAndRestores: Story = {
-	args: {
-		isConfigureAgentsDialogOpen: true,
-	},
-	play: async () => {
-		const dialog = await screen.findByRole("dialog");
-
-		// Find the System Instructions textarea by its unique placeholder.
-		const textareas = await within(dialog).findAllByPlaceholderText(
-			"Additional behavior, style, and tone preferences for all users",
-		);
-		const textarea = textareas[0];
-
-		await userEvent.type(textarea, "You are a focused coding assistant.");
-
-		// Click the Save button inside the System Instructions form.
-		// There are multiple Save buttons (one per form), so grab all and
-		// pick the last one which belongs to the system prompt section.
-		const saveButtons = within(dialog).getAllByRole("button", { name: "Save" });
-		await userEvent.click(saveButtons[saveButtons.length - 1]);
-
-		await waitFor(() => {
-			expect(API.updateChatSystemPrompt).toHaveBeenCalledWith({
-				system_prompt: "You are a focused coding assistant.",
-			});
 		});
 	},
 };

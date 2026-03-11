@@ -1,3 +1,9 @@
+import {
+	chatSystemPrompt,
+	chatUserCustomPrompt,
+	updateChatSystemPrompt,
+	updateUserChatCustomPrompt,
+} from "api/queries/chats";
 import { Button } from "components/Button/Button";
 import {
 	Dialog,
@@ -21,7 +27,15 @@ import {
 	UserIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, type FormEvent, useEffect, useMemo, useState } from "react";
+import {
+	type FC,
+	type FormEvent,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
 import { cn } from "utils/cn";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
@@ -60,17 +74,6 @@ interface ConfigureAgentsDialogProps {
 	onOpenChange: (open: boolean) => void;
 	canManageChatModelConfigs: boolean;
 	canSetSystemPrompt: boolean;
-	systemPromptDraft: string;
-	onSystemPromptDraftChange: (value: string) => void;
-	onSaveSystemPrompt: (event: FormEvent) => void;
-	isSystemPromptDirty: boolean;
-	saveSystemPromptError: boolean;
-	userPromptDraft: string;
-	onUserPromptDraftChange: (value: string) => void;
-	onSaveUserPrompt: (event: FormEvent) => void;
-	isUserPromptDirty: boolean;
-	saveUserPromptError: boolean;
-	isDisabled: boolean;
 }
 
 export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
@@ -78,18 +81,59 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	onOpenChange,
 	canManageChatModelConfigs,
 	canSetSystemPrompt,
-	systemPromptDraft,
-	onSystemPromptDraftChange,
-	onSaveSystemPrompt,
-	isSystemPromptDirty,
-	saveSystemPromptError,
-	userPromptDraft,
-	onUserPromptDraftChange,
-	onSaveUserPrompt,
-	isUserPromptDirty,
-	saveUserPromptError,
-	isDisabled,
 }) => {
+	const queryClient = useQueryClient();
+
+	const systemPromptQuery = useQuery(chatSystemPrompt());
+	const {
+		mutate: saveSystemPrompt,
+		isPending: isSavingSystemPrompt,
+		isError: isSaveSystemPromptError,
+	} = useMutation(updateChatSystemPrompt(queryClient));
+
+	const userPromptQuery = useQuery(chatUserCustomPrompt());
+	const {
+		mutate: saveUserPrompt,
+		isPending: isSavingUserPrompt,
+		isError: isSaveUserPromptError,
+	} = useMutation(updateUserChatCustomPrompt(queryClient));
+
+	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
+	const [localEdit, setLocalEdit] = useState<string | null>(null);
+	const systemPromptDraft = localEdit ?? serverPrompt;
+
+	const serverUserPrompt = userPromptQuery.data?.custom_prompt ?? "";
+	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
+	const userPromptDraft = localUserEdit ?? serverUserPrompt;
+
+	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
+	const isUserPromptDirty =
+		localUserEdit !== null && localUserEdit !== serverUserPrompt;
+	const isDisabled = isSavingSystemPrompt || isSavingUserPrompt;
+
+	const handleSaveSystemPrompt = useCallback(
+		(event: FormEvent) => {
+			event.preventDefault();
+			if (!isSystemPromptDirty) return;
+			saveSystemPrompt(
+				{ system_prompt: systemPromptDraft },
+				{ onSuccess: () => setLocalEdit(null) },
+			);
+		},
+		[isSystemPromptDirty, systemPromptDraft, saveSystemPrompt],
+	);
+
+	const handleSaveUserPrompt = useCallback(
+		(event: FormEvent) => {
+			event.preventDefault();
+			if (!isUserPromptDirty) return;
+			saveUserPrompt(
+				{ custom_prompt: userPromptDraft },
+				{ onSuccess: () => setLocalUserEdit(null) },
+			);
+		},
+		[isUserPromptDirty, userPromptDraft, saveUserPrompt],
+	);
 	const configureSectionOptions = useMemo<
 		readonly ConfigureAgentsSectionOption[]
 	>(() => {
@@ -198,10 +242,10 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 							{/* ── Personal prompt (always visible) ── */}
 							<form
 								className="space-y-2"
-								onSubmit={(event) => void onSaveUserPrompt(event)}
+								onSubmit={(event) => void handleSaveUserPrompt(event)}
 							>
 								<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-									Personal Instructions
+									Personal Instructions{" "}
 								</h3>
 								<p className="!mt-0.5 m-0 text-xs text-content-secondary">
 									Applied to all your chats. Only visible to you.
@@ -210,9 +254,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 									className={textareaClassName}
 									placeholder="Additional behavior, style, and tone preferences"
 									value={userPromptDraft}
-									onChange={(event) =>
-										onUserPromptDraftChange(event.target.value)
-									}
+									onChange={(event) => setLocalUserEdit(event.target.value)}
 									disabled={isDisabled}
 									minRows={1}
 								/>
@@ -221,11 +263,11 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 										size="sm"
 										variant="outline"
 										type="button"
-										onClick={() => onUserPromptDraftChange("")}
+										onClick={() => setLocalUserEdit("")}
 										disabled={isDisabled || !userPromptDraft}
 									>
 										Clear
-									</Button>
+									</Button>{" "}
 									<Button
 										size="sm"
 										type="submit"
@@ -234,7 +276,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 										Save
 									</Button>
 								</div>
-								{saveUserPromptError && (
+								{isSaveUserPromptError && (
 									<p className="m-0 text-xs text-content-destructive">
 										Failed to save personal instructions.
 									</p>
@@ -247,7 +289,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 									<hr className="my-5 border-0 border-t border-solid border-border" />
 									<form
 										className="space-y-2"
-										onSubmit={(event) => void onSaveSystemPrompt(event)}
+										onSubmit={(event) => void handleSaveSystemPrompt(event)}
 									>
 										<div className="flex items-center gap-2">
 											<h3 className="m-0 text-[13px] font-semibold text-content-primary">
@@ -263,9 +305,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 											className={textareaClassName}
 											placeholder="Additional behavior, style, and tone preferences for all users"
 											value={systemPromptDraft}
-											onChange={(event) =>
-												onSystemPromptDraftChange(event.target.value)
-											}
+											onChange={(event) => setLocalEdit(event.target.value)}
 											disabled={isDisabled}
 											minRows={1}
 										/>
@@ -274,11 +314,11 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 												size="sm"
 												variant="outline"
 												type="button"
-												onClick={() => onSystemPromptDraftChange("")}
+												onClick={() => setLocalEdit("")}
 												disabled={isDisabled || !systemPromptDraft}
 											>
 												Clear
-											</Button>
+											</Button>{" "}
 											<Button
 												size="sm"
 												type="submit"
@@ -287,7 +327,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 												Save
 											</Button>
 										</div>
-										{saveSystemPromptError && (
+										{isSaveSystemPromptError && (
 											<p className="m-0 text-xs text-content-destructive">
 												Failed to save system prompt.
 											</p>
