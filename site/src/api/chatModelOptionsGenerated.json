@@ -61,7 +61,7 @@
 				"json_name": "output_price_per_million_tokens",
 				"go_name": "OutputPricePerMillionTokens",
 				"type": "number",
-				"description": "Output token price in USD per 1M tokens, including reasoning tokens",
+				"description": "Output token price in USD per 1M tokens",
 				"required": false,
 				"input_type": "input"
 			},

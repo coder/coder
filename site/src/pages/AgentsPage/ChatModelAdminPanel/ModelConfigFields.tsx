@@ -24,7 +24,10 @@ import type {
 	ModelConfigFormBuildResult,
 	ModelFormValues,
 } from "./modelConfigFormLogic";
-import { pricingFieldNames } from "./pricingFields";
+import {
+	getPricingPlaceholderForField,
+	pricingFieldNames,
+} from "./pricingFields";
 
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
@@ -50,6 +53,11 @@ function snakeToPrettyLabel(jsonName: string): string {
  * Derive a sensible placeholder from the field schema type.
  */
 function placeholderForField(field: FieldSchema): string {
+	const pricingPlaceholder = getPricingPlaceholderForField(field.json_name);
+	if (pricingPlaceholder !== undefined) {
+		return pricingPlaceholder;
+	}
+
 	switch (field.type) {
 		case "integer":
 		case "number":

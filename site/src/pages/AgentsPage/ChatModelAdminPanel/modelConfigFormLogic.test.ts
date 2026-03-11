@@ -7,6 +7,7 @@ import {
 	type ModelConfigFormState,
 	parsePositiveInteger,
 	parseThresholdInteger,
+	withDefaultPricingModelConfig,
 } from "./modelConfigFormLogic";
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -558,6 +559,32 @@ describe("buildModelConfigFromForm", () => {
 			expect(result.modelConfig).toBeUndefined();
 		});
 	});
+	describe("withDefaultPricingModelConfig", () => {
+		it("fills in default pricing when fields are left blank", () => {
+			expect(withDefaultPricingModelConfig()).toEqual({
+				input_price_per_million_tokens: 5,
+				output_price_per_million_tokens: 20,
+				cache_read_price_per_million_tokens: 0.5,
+				cache_write_price_per_million_tokens: 5,
+			});
+		});
+
+		it("preserves explicit pricing values while filling missing defaults", () => {
+			expect(
+				withDefaultPricingModelConfig({
+					output_price_per_million_tokens: 8,
+					provider_options: { openai: { reasoning_effort: "high" } },
+				}),
+			).toEqual({
+				input_price_per_million_tokens: 5,
+				output_price_per_million_tokens: 8,
+				cache_read_price_per_million_tokens: 0.5,
+				cache_write_price_per_million_tokens: 5,
+				provider_options: { openai: { reasoning_effort: "high" } },
+			});
+		});
+	});
+
 	describe("OpenAI / Azure provider", () => {
 		it("builds OpenAI provider options with reasoning effort", () => {
 			const result = buildModelConfigFromForm(

@@ -424,7 +424,7 @@ type ChatModelCallConfig struct {
 	// round-trip cleanly through the API and admin UI. If we later use these
 	// values for billing-grade arithmetic, switch to a fixed-point type.
 	InputPricePerMillionTokens      *float64                  `json:"input_price_per_million_tokens,omitempty" description:"Input token price in USD per 1M tokens"`
-	OutputPricePerMillionTokens     *float64                  `json:"output_price_per_million_tokens,omitempty" description:"Output token price in USD per 1M tokens, including reasoning tokens"`
+	OutputPricePerMillionTokens     *float64                  `json:"output_price_per_million_tokens,omitempty" description:"Output token price in USD per 1M tokens"`
 	CacheReadPricePerMillionTokens  *float64                  `json:"cache_read_price_per_million_tokens,omitempty" description:"Cache read token price in USD per 1M tokens"`
 	CacheWritePricePerMillionTokens *float64                  `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
 	ProviderOptions                 *ChatModelProviderOptions `json:"provider_options,omitempty" description:"Provider-specific option overrides"`

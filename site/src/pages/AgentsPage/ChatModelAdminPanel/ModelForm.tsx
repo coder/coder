@@ -33,6 +33,7 @@ import {
 	type ModelFormValues,
 	parsePositiveInteger,
 	parseThresholdInteger,
+	withDefaultPricingModelConfig,
 } from "./modelConfigFormLogic";
 import { ProviderIcon } from "./ProviderIcon";
 
@@ -125,7 +126,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 			if (Object.keys(buildResult.fieldErrors).length > 0) return;
 
 			const trimmedDisplayName = values.displayName.trim();
-			const builtModelConfig = buildResult.modelConfig;
+			const builtModelConfig = withDefaultPricingModelConfig(
+				buildResult.modelConfig,
+			);
 
 			if (isEditing && editingModel) {
 				const req: TypesGen.UpdateChatModelConfigRequest = {
@@ -400,18 +403,18 @@ export const ModelForm: FC<ModelFormProps> = ({
 						</div>
 					</div>
 
-					<div className="space-y-3">
+					<div>
 						<div>
 							<h3 className="m-0 text-sm font-medium text-content-primary">
 								Pricing
 							</h3>
 							<p className="mt-1 mb-0 text-xs text-content-secondary">
-								Optional USD pricing metadata per 1M tokens. Reasoning tokens
-								use the output token price. Leave blank for costs you do not
-								want to define yet.
+								Optional USD pricing metadata per 1M tokens. Leave any field
+								blank to use the default price: input $5, output $20, cache
+								write $5, and cache read $0.50.
 							</p>
 						</div>
-						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+						<div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
 							<PricingModelConfigFields
 								provider={selectedProviderState.provider}
 								form={form}
