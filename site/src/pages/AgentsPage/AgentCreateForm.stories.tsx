@@ -1,16 +1,9 @@
 import { MockWorkspace } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
-import {
-	expect,
-	fn,
-	screen,
-	spyOn,
-	userEvent,
-	waitFor,
-	within,
-} from "storybook/test";
-import { AgentsEmptyState } from "./AgentsPage";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { AgentCreateForm } from "./AgentCreateForm";
 
 const modelOptions = [
 	{
@@ -21,11 +14,10 @@ const modelOptions = [
 	},
 ] as const;
 
-const behaviorStorageKey = "agents.system-prompt";
-
-const meta: Meta<typeof AgentsEmptyState> = {
-	title: "pages/AgentsPage/AgentsEmptyState",
-	component: AgentsEmptyState,
+const meta: Meta<typeof AgentCreateForm> = {
+	title: "pages/AgentsPage/AgentCreateForm",
+	component: AgentCreateForm,
+	decorators: [withDashboardProvider],
 	args: {
 		onCreateChat: fn(),
 		isCreating: false,
@@ -36,10 +28,6 @@ const meta: Meta<typeof AgentsEmptyState> = {
 		modelConfigs: [],
 		isModelConfigsLoading: false,
 		modelCatalogError: undefined,
-		canSetSystemPrompt: true,
-		canManageChatModelConfigs: false,
-		isConfigureAgentsDialogOpen: false,
-		onConfigureAgentsDialogOpenChange: fn(),
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -51,7 +39,7 @@ const meta: Meta<typeof AgentsEmptyState> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof AgentsEmptyState>;
+type Story = StoryObj<typeof AgentCreateForm>;
 
 export const Default: Story = {};
 
@@ -166,27 +154,6 @@ export const SelectWorkspaceViaSearch: Story = {
 		// The trigger should now show the selected workspace.
 		await waitFor(() => {
 			expect(canvas.getByText("janedoe/my-project")).toBeInTheDocument();
-		});
-	},
-};
-
-export const SavesBehaviorPromptAndRestores: Story = {
-	args: {
-		isConfigureAgentsDialogOpen: true,
-	},
-	play: async () => {
-		const dialog = await screen.findByRole("dialog");
-		const textarea = await within(dialog).findByPlaceholderText(
-			"Optional. Set deployment-wide instructions for all new chats.",
-		);
-
-		await userEvent.type(textarea, "You are a focused coding assistant.");
-		await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-
-		await waitFor(() => {
-			expect(localStorage.getItem(behaviorStorageKey)).toBe(
-				"You are a focused coding assistant.",
-			);
 		});
 	},
 };

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -49,6 +49,7 @@ type Chat struct {
 type ChatMessage struct {
 	ID            int64             `json:"id"`
 	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
+	CreatedBy     *uuid.UUID        `json:"created_by,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
 	Role          string            `json:"role"`
@@ -71,12 +72,13 @@ type ChatMessageUsage struct {
 type ChatMessagePartType string
 
 const (
-	ChatMessagePartTypeText       ChatMessagePartType = "text"
-	ChatMessagePartTypeReasoning  ChatMessagePartType = "reasoning"
-	ChatMessagePartTypeToolCall   ChatMessagePartType = "tool-call"
-	ChatMessagePartTypeToolResult ChatMessagePartType = "tool-result"
-	ChatMessagePartTypeSource     ChatMessagePartType = "source"
-	ChatMessagePartTypeFile       ChatMessagePartType = "file"
+	ChatMessagePartTypeText          ChatMessagePartType = "text"
+	ChatMessagePartTypeReasoning     ChatMessagePartType = "reasoning"
+	ChatMessagePartTypeToolCall      ChatMessagePartType = "tool-call"
+	ChatMessagePartTypeToolResult    ChatMessagePartType = "tool-result"
+	ChatMessagePartTypeSource        ChatMessagePartType = "source"
+	ChatMessagePartTypeFile          ChatMessagePartType = "file"
+	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 )
 
 // ChatMessagePart is a structured chunk of a chat message.
@@ -96,19 +98,37 @@ type ChatMessagePart struct {
 	Title       string              `json:"title,omitempty"`
 	MediaType   string              `json:"media_type,omitempty"`
 	Data        []byte              `json:"data,omitempty"`
+	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeFileReference.
+	FileName  string `json:"file_name,omitempty"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+	// The code content from the diff that was commented on.
+	Content string `json:"content,omitempty"`
 }
 
 // ChatInputPartType represents an input part type for user chat input.
 type ChatInputPartType string
 
 const (
-	ChatInputPartTypeText ChatInputPartType = "text"
+	ChatInputPartTypeText          ChatInputPartType = "text"
+	ChatInputPartTypeFile          ChatInputPartType = "file"
+	ChatInputPartTypeFileReference ChatInputPartType = "file-reference"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
 type ChatInputPart struct {
-	Type ChatInputPartType `json:"type"`
-	Text string            `json:"text,omitempty"`
+	Type   ChatInputPartType `json:"type"`
+	Text   string            `json:"text,omitempty"`
+	FileID uuid.UUID         `json:"file_id,omitempty" format:"uuid"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeFileReference.
+	FileName  string `json:"file_name,omitempty"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+	// The code content from the diff that was commented on.
+	Content string `json:"content,omitempty"`
 }
 
 // CreateChatRequest is the request to create a new chat.
@@ -139,6 +159,11 @@ type CreateChatMessageResponse struct {
 	Message       *ChatMessage       `json:"message,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
+}
+
+// UploadChatFileResponse is the response from uploading a chat file.
+type UploadChatFileResponse struct {
+	ID uuid.UUID `json:"id" format:"uuid"`
 }
 
 // ChatWithMessages is a chat along with its messages.
@@ -175,6 +200,28 @@ type ChatModelProvider struct {
 // ChatModelsResponse is the catalog returned from chat model discovery.
 type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
+}
+
+// ChatSystemPromptResponse is the response for getting the chat system prompt.
+type ChatSystemPromptResponse struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
+// UpdateChatSystemPromptRequest is the request to update the chat system prompt.
+type UpdateChatSystemPromptRequest struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
+// UserChatCustomPromptResponse is the response for getting a user's
+// custom chat prompt.
+type UserChatCustomPromptResponse struct {
+	CustomPrompt string `json:"custom_prompt"`
+}
+
+// UpdateUserChatCustomPromptRequest is the request to update a user's
+// custom chat prompt.
+type UpdateUserChatCustomPromptRequest struct {
+	CustomPrompt string `json:"custom_prompt"`
 }
 
 // ChatProviderConfigSource describes how a provider entry is sourced.
@@ -504,16 +551,24 @@ type chatStreamEnvelope struct {
 
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
-	Archived *bool
+	Query string
+	Pagination
 }
 
 // ListChats returns all chats for the authenticated user.
 func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat, error) {
-	qp := url.Values{}
-	if opts != nil && opts.Archived != nil {
-		qp.Set("archived", fmt.Sprintf("%t", *opts.Archived))
+	var reqOpts []RequestOption
+	if opts != nil {
+		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
+		if opts.Query != "" {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("q", opts.Query)
+				r.URL.RawQuery = q.Encode()
+			})
+		}
 	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats?%s", qp.Encode()), nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats", nil, reqOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -654,6 +709,61 @@ func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.U
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// GetChatSystemPrompt returns the deployment-wide chat system prompt.
+func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/system-prompt", nil)
+	if err != nil {
+		return ChatSystemPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatSystemPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatSystemPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
+func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSystemPromptRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/system-prompt", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetUserChatCustomPrompt fetches the user's custom chat prompt.
+func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-prompt", nil)
+	if err != nil {
+		return UserChatCustomPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCustomPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserChatCustomPrompt updates the user's custom chat prompt.
+func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, req UpdateUserChatCustomPromptRequest) (UserChatCustomPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-prompt", req)
+	if err != nil {
+		return UserChatCustomPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCustomPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // CreateChat creates a new chat.
@@ -802,7 +912,7 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamC
 
 	return events, closeFunc(func() error {
 		streamCancel()
-		return conn.Close(websocket.StatusNormalClosure, "")
+		return nil
 	}), nil
 }
 
@@ -936,6 +1046,42 @@ func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (Cha
 	}
 	var diff ChatDiffContents
 	return diff, json.NewDecoder(res.Body).Decode(&diff)
+}
+
+// UploadChatFile uploads a file for use in chat messages.
+func (c *Client) UploadChatFile(ctx context.Context, organizationID uuid.UUID, contentType string, filename string, rd io.Reader) (UploadChatFileResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/files?organization=%s", organizationID), rd, func(r *http.Request) {
+		r.Header.Set("Content-Type", contentType)
+		if filename != "" {
+			r.Header.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
+		}
+	})
+	if err != nil {
+		return UploadChatFileResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return UploadChatFileResponse{}, ReadBodyAsError(res)
+	}
+	var resp UploadChatFileResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatFile retrieves a previously uploaded chat file by ID.
+func (c *Client) GetChatFile(ctx context.Context, fileID uuid.UUID) ([]byte, string, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/files/%s", fileID), nil)
+	if err != nil {
+		return nil, "", err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, "", ReadBodyAsError(res)
+	}
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, "", err
+	}
+	return data, res.Header.Get("Content-Type"), nil
 }
 
 func formatChatStreamResponseError(response Response) string {

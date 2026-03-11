@@ -46,6 +46,8 @@ interface RightPanelProps {
 	 * null when the drag ends so the parent falls back to the
 	 * committed isExpanded prop. */
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
+	isSidebarCollapsed?: boolean;
+	onToggleSidebarCollapsed?: () => void;
 	children: ReactNode;
 }
 
@@ -61,6 +63,8 @@ function useResizableDrag({
 	isOpen,
 	onSnapCommit,
 	onVisualExpandedChange,
+	isSidebarCollapsed,
+	onToggleSidebarCollapsed,
 }: {
 	isExpanded: boolean;
 	width: number;
@@ -68,10 +72,13 @@ function useResizableDrag({
 	isOpen: boolean;
 	onSnapCommit: (snap: "normal" | "expanded" | "closed") => void;
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
+	isSidebarCollapsed?: boolean;
+	onToggleSidebarCollapsed?: () => void;
 }) {
 	const isDragging = useRef(false);
 	const startX = useRef(0);
 	const startWidth = useRef(0);
+	const sidebarCollapsedByDrag = useRef(false);
 	// Track snap state during a drag. This is state (not a ref) so
 	// the panel visually updates as the user drags across thresholds.
 	const [dragSnap, setDragSnap] = useState<
@@ -83,6 +90,7 @@ function useResizableDrag({
 			e.preventDefault();
 			isDragging.current = true;
 			setDragSnap(null);
+			sidebarCollapsedByDrag.current = false;
 			startX.current = e.clientX;
 			startWidth.current = isExpanded
 				? ((e.target as HTMLElement).closest(
@@ -103,6 +111,23 @@ function useResizableDrag({
 			const raw = startWidth.current + delta;
 			const maxWidth = getMaxWidth();
 
+			// Collapse/uncollapse the sidebar live when the pointer
+			// reaches the left edge of the viewport.
+			if (e.clientX < SNAP_THRESHOLD && !sidebarCollapsedByDrag.current) {
+				if (!isSidebarCollapsed && onToggleSidebarCollapsed) {
+					onToggleSidebarCollapsed();
+					sidebarCollapsedByDrag.current = true;
+				}
+			} else if (
+				e.clientX >= SNAP_THRESHOLD &&
+				sidebarCollapsedByDrag.current
+			) {
+				if (onToggleSidebarCollapsed) {
+					onToggleSidebarCollapsed();
+					sidebarCollapsedByDrag.current = false;
+				}
+			}
+
 			let nextSnap: "normal" | "expanded" | "closed";
 			if (raw > maxWidth + SNAP_THRESHOLD) {
 				nextSnap = "expanded";
@@ -121,7 +146,13 @@ function useResizableDrag({
 				(nextSnap !== "normal" && nextSnap !== "closed" && isExpanded);
 			onVisualExpandedChange?.(nextVisualExpanded);
 		},
-		[setWidth, isExpanded, onVisualExpandedChange],
+		[
+			setWidth,
+			isExpanded,
+			onVisualExpandedChange,
+			isSidebarCollapsed,
+			onToggleSidebarCollapsed,
+		],
 	);
 
 	const handlePointerUp = useCallback(
@@ -169,6 +200,8 @@ export const RightPanel = ({
 	onToggleExpanded,
 	onClose,
 	onVisualExpandedChange,
+	isSidebarCollapsed,
+	onToggleSidebarCollapsed,
 	children,
 }: RightPanelProps) => {
 	const [width, setWidth] = useState(loadPersistedWidth);
@@ -213,6 +246,8 @@ export const RightPanel = ({
 		isOpen,
 		onSnapCommit: handleSnapCommit,
 		onVisualExpandedChange,
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
 	});
 
 	useEffect(() => {
@@ -235,18 +270,18 @@ export const RightPanel = ({
 					: cn(
 							"relative min-h-0 min-w-0",
 							visualOpen
-								? "flex h-[42dvh] min-h-[260px] max-h-[56dvh] flex-col xl:h-auto xl:max-h-none xl:w-[var(--panel-width)] xl:min-w-[360px] xl:max-w-[70vw] xl:border-0 xl:border-l xl:border-solid xl:border-border-default"
+								? "flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[var(--panel-width)] sm:min-w-[360px] sm:max-w-[70vw]"
 								: "hidden",
 						),
 			)}
 		>
-			{/* Drag handle (xl+ only, on the left edge of the panel) */}
+			{/* Drag handle (sm+, on the left edge of the panel) */}
 			<div
 				onPointerDown={handlePointerDown}
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerUp}
 				className={cn(
-					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link xl:block",
+					"absolute top-0 left-0 z-20 hidden h-full w-1 cursor-col-resize select-none transition-colors hover:bg-content-link sm:block",
 					visualExpanded && "-left-1",
 				)}
 			/>

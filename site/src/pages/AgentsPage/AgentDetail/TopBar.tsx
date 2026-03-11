@@ -1,4 +1,3 @@
-import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
@@ -26,14 +25,8 @@ import {
 import type { FC } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { DiffStatsInline } from "../DiffStats";
 
 interface SidebarPanelState {
-	hasDiffStatus: boolean;
-	diffStatus: ChatDiffStatusResponse | undefined;
-	hasGitRepos: boolean;
-	gitRepoCount: number;
-	gitRepositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 	showSidebarPanel: boolean;
 	onToggleSidebar: () => void;
 }
@@ -51,7 +44,7 @@ type AgentDetailTopBarProps = {
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
 	onOpenParentChat: (chatId: string) => void;
-	diff: SidebarPanelState;
+	panel: SidebarPanelState;
 	workspace: WorkspaceActions;
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
@@ -66,7 +59,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	chatTitle,
 	parentChat,
 	onOpenParentChat,
-	diff,
+	panel,
 	workspace,
 	onArchiveAgent,
 	onUnarchiveAgent,
@@ -79,7 +72,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	const navigate = useNavigate();
 
 	return (
-		<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
+		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
 			{/* Mobile back button */}
 			<Button
 				variant="subtle"
@@ -111,32 +104,17 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								<Button
 									size="sm"
 									variant="subtle"
-									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-xs text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
+									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-sm text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
 									onClick={() => onOpenParentChat(parentChat.id)}
 								>
 									<span className="truncate">{parentChat.title}</span>
 								</Button>
-								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70" />
+								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
-						{diff.hasDiffStatus &&
-							diff.diffStatus &&
-							!diff.showSidebarPanel && (
-								<span className="ml-3">
-									<DiffStatsInline
-										status={diff.diffStatus}
-										onClick={diff.onToggleSidebar}
-									/>
-								</span>
-							)}
-						{isArchived && (
-							<span className="shrink-0 rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary">
-								Archived
-							</span>
-						)}
 					</div>
 				)}
 			</div>
@@ -231,22 +209,20 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
-				{diff.hasDiffStatus && diff.diffStatus && (
-					<Button
-						variant="subtle"
-						size="icon"
-						onClick={diff.onToggleSidebar}
-						className="h-7 w-7 text-content-secondary hover:text-content-primary"
-						aria-label="Toggle files changed"
-					>
-						{diff.showSidebarPanel ? (
-							<PanelRightCloseIcon className="h-4 w-4" />
-						) : (
-							<PanelRightOpenIcon className="h-4 w-4" />
-						)}
-					</Button>
-				)}
-			</div>{" "}
+				<Button
+					variant="subtle"
+					size="icon"
+					onClick={panel.onToggleSidebar}
+					className="h-7 w-7 text-content-secondary hover:text-content-primary"
+					aria-label="Toggle panel"
+				>
+					{panel.showSidebarPanel ? (
+						<PanelRightCloseIcon className="h-4 w-4" />
+					) : (
+						<PanelRightOpenIcon className="h-4 w-4" />
+					)}
+				</Button>
+			</div>
 		</div>
 	);
 };

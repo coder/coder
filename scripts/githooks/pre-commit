@@ -16,4 +16,8 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 unset GIT_DIR
 
+# In linked worktrees, set worktree-scoped hooksPath to override shared config.
+if [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then
+	git config --worktree core.hooksPath scripts/githooks
+fi
 exec make pre-commit

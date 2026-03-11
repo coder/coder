@@ -111,7 +111,7 @@ func (c MultiReplicaSubscribeConfig) clock() quartz.Clock {
 func NewMultiReplicaSubscribeFn(
 	cfg MultiReplicaSubscribeConfig,
 ) osschatd.SubscribeFn {
-	return func(ctx context.Context, params osschatd.SubscribeFnParams) (<-chan codersdk.ChatStreamEvent, func()) {
+	return func(ctx context.Context, params osschatd.SubscribeFnParams) <-chan codersdk.ChatStreamEvent {
 		chatID := params.ChatID
 		requestHeader := params.RequestHeader
 		logger := params.Logger
@@ -149,18 +149,13 @@ func NewMultiReplicaSubscribeFn(
 
 		// Merge all event sources.
 		mergedEvents := make(chan codersdk.ChatStreamEvent, 128)
-		var allCancels []func()
-		if relayCancel != nil {
-			allCancels = append(allCancels, relayCancel)
-		}
-
 		// Channel for async relay establishment.
 		type relayResult struct {
 			parts    <-chan codersdk.ChatStreamEvent
 			cancel   func()
 			workerID uuid.UUID // the worker this dial targeted
 		}
-		relayReadyCh := make(chan relayResult, 1)
+		relayReadyCh := make(chan relayResult, 4)
 
 		// Per-dial context so in-flight dials can be canceled when
 		// a new dial is initiated or the relay is closed.
@@ -182,15 +177,18 @@ func NewMultiReplicaSubscribeFn(
 				dialCancel()
 				dialCancel = nil
 			}
-			// Drain any buffered relay result from a canceled
-			// dial.
-			select {
-			case result := <-relayReadyCh:
-				if result.cancel != nil {
-					result.cancel()
+			// Drain all buffered relay results from canceled dials.
+			for {
+				select {
+				case result := <-relayReadyCh:
+					if result.cancel != nil {
+						result.cancel()
+					}
+				default:
+					goto drained
 				}
-			default:
 			}
+		drained:
 			expectedWorkerID = uuid.Nil
 			if relayCancel != nil {
 				relayCancel()
@@ -403,19 +401,11 @@ func NewMultiReplicaSubscribeFn(
 			}
 		}()
 
-		// The cancel function tears down the relay state
-		// indirectly: the merge goroutine owns all relay state
-		// (reconnectTimer, relayCancel, dialCancel, etc.) and
-		// cleans it up via its defer closeRelay() when ctx is
-		// canceled.
-		cancel := func() {
-			for _, cancelFn := range allCancels {
-				if cancelFn != nil {
-					cancelFn()
-				}
-			}
-		}
-		return mergedEvents, cancel
+		// Cleanup is driven by ctx cancellation: the merge
+		// goroutine owns all relay state (reconnectTimer,
+		// relayCancel, dialCancel, etc.) and tears it down
+		// via defer closeRelay() when ctx is done.
+		return mergedEvents
 	}
 }
 

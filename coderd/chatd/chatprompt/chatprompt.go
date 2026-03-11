@@ -1,12 +1,13 @@
 package chatprompt
 
 import (
+	"context"
 	"encoding/json"
 	"regexp"
 	"strings"
 
 	"charm.land/fantasy"
-	fantasyopenai "charm.land/fantasy/providers/openai"
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
@@ -16,12 +17,156 @@ import (
 
 var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
+// FileData holds resolved file content for LLM prompt building.
+type FileData struct {
+	Data      []byte
+	MediaType string
+}
+
+// FileResolver fetches file content by ID for LLM prompt building.
+type FileResolver func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]FileData, error)
+
+// ExtractFileID parses the file_id from a serialized file content
+// block envelope. Returns uuid.Nil and an error when the block is
+// not a file-type block or has no file_id.
+func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
+	var envelope struct {
+		Type string `json:"type"`
+		Data struct {
+			FileID string `json:"file_id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return uuid.Nil, xerrors.Errorf("unmarshal content block: %w", err)
+	}
+	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeFile)) {
+		return uuid.Nil, xerrors.Errorf("not a file content block: %s", envelope.Type)
+	}
+	if envelope.Data.FileID == "" {
+		return uuid.Nil, xerrors.New("no file_id")
+	}
+	return uuid.Parse(envelope.Data.FileID)
+}
+
+// extractFileIDs scans raw message content for file_id references.
+// Returns a map of block index to file ID. Returns nil for
+// non-array content or content with no file references.
+func extractFileIDs(raw pqtype.NullRawMessage) map[int]uuid.UUID {
+	if !raw.Valid || len(raw.RawMessage) == 0 {
+		return nil
+	}
+	var rawBlocks []json.RawMessage
+	if err := json.Unmarshal(raw.RawMessage, &rawBlocks); err != nil {
+		return nil
+	}
+	var result map[int]uuid.UUID
+	for i, block := range rawBlocks {
+		fid, err := ExtractFileID(block)
+		if err == nil {
+			if result == nil {
+				result = make(map[int]uuid.UUID)
+			}
+			result[i] = fid
+		}
+	}
+	return result
+}
+
+// patchFileContent fills in empty Data on FileContent blocks from
+// resolved file data. Blocks that already have inline data (backward
+// compat) or have no resolved data are left unchanged.
+func patchFileContent(
+	content []fantasy.Content,
+	fileIDs map[int]uuid.UUID,
+	resolved map[uuid.UUID]FileData,
+) {
+	for blockIdx, fid := range fileIDs {
+		if blockIdx >= len(content) {
+			continue
+		}
+		switch fc := content[blockIdx].(type) {
+		case fantasy.FileContent:
+			if len(fc.Data) > 0 {
+				continue
+			}
+			if data, found := resolved[fid]; found {
+				fc.Data = data.Data
+				content[blockIdx] = fc
+			}
+		case *fantasy.FileContent:
+			if len(fc.Data) > 0 {
+				continue
+			}
+			if data, found := resolved[fid]; found {
+				fc.Data = data.Data
+			}
+		}
+	}
+}
+
+// ConvertMessages converts persisted chat messages into LLM prompt
+// messages without resolving file references from storage. Inline
+// file data is preserved when present (backward compat).
 func ConvertMessages(
 	messages []database.ChatMessage,
 ) ([]fantasy.Message, error) {
+	return ConvertMessagesWithFiles(context.Background(), messages, nil)
+}
+
+// ConvertMessagesWithFiles converts persisted chat messages into LLM
+// prompt messages, resolving file references via the provided
+// resolver. When resolver is nil, file blocks without inline data
+// are passed through as-is (same behavior as ConvertMessages).
+func ConvertMessagesWithFiles(
+	ctx context.Context,
+	messages []database.ChatMessage,
+	resolver FileResolver,
+) ([]fantasy.Message, error) {
+	// Phase 1: Pre-scan user messages for file_id references.
+	var allFileIDs []uuid.UUID
+	seenFileIDs := make(map[uuid.UUID]struct{})
+	fileIDsByMsg := make(map[int]map[int]uuid.UUID)
+
+	if resolver != nil {
+		for i, msg := range messages {
+			visibility := msg.Visibility
+			if visibility == "" {
+				visibility = database.ChatMessageVisibilityBoth
+			}
+			if visibility != database.ChatMessageVisibilityModel &&
+				visibility != database.ChatMessageVisibilityBoth {
+				continue
+			}
+			if msg.Role != string(fantasy.MessageRoleUser) {
+				continue
+			}
+			fids := extractFileIDs(msg.Content)
+			if len(fids) > 0 {
+				fileIDsByMsg[i] = fids
+				for _, fid := range fids {
+					if _, seen := seenFileIDs[fid]; !seen {
+						seenFileIDs[fid] = struct{}{}
+						allFileIDs = append(allFileIDs, fid)
+					}
+				}
+			}
+		}
+	}
+
+	// Phase 2: Batch resolve file data.
+	var resolved map[uuid.UUID]FileData
+	if len(allFileIDs) > 0 {
+		var err error
+		resolved, err = resolver(ctx, allFileIDs)
+		if err != nil {
+			return nil, xerrors.Errorf("resolve chat files: %w", err)
+		}
+	}
+
+	// Phase 3: Convert messages, patching file content as needed.
 	prompt := make([]fantasy.Message, 0, len(messages))
 	toolNameByCallID := make(map[string]string)
-	for _, message := range messages {
+	for i, message := range messages {
 		visibility := message.Visibility
 		if visibility == "" {
 			visibility = database.ChatMessageVisibilityBoth
@@ -50,6 +195,9 @@ func ConvertMessages(
 			content, err := ParseContent(string(fantasy.MessageRoleUser), message.Content)
 			if err != nil {
 				return nil, err
+			}
+			if fids, ok := fileIDsByMsg[i]; ok {
+				patchFileContent(content, fids, resolved)
 			}
 			prompt = append(prompt, fantasy.Message{
 				Role:    fantasy.MessageRoleUser,
@@ -400,7 +548,10 @@ func ExtractToolCalls(parts []fantasy.MessagePart) []fantasy.ToolCallContent {
 }
 
 // MarshalContent encodes message content blocks for persistence.
-func MarshalContent(blocks []fantasy.Content) (pqtype.NullRawMessage, error) {
+// fileIDs optionally maps block indices to chat_files IDs, which
+// are injected into the JSON envelope for file-type blocks so
+// the reference survives round-trips through storage.
+func MarshalContent(blocks []fantasy.Content, fileIDs map[int]uuid.UUID) (pqtype.NullRawMessage, error) {
 	if len(blocks) == 0 {
 		return pqtype.NullRawMessage{}, nil
 	}
@@ -415,6 +566,16 @@ func MarshalContent(blocks []fantasy.Content) (pqtype.NullRawMessage, error) {
 				err,
 			)
 		}
+		if fid, ok := fileIDs[i]; ok {
+			encoded, err = injectFileID(encoded, fid)
+			if err != nil {
+				return pqtype.NullRawMessage{}, xerrors.Errorf(
+					"inject file_id into content block %d: %w",
+					i,
+					err,
+				)
+			}
+		}
 		encodedBlocks = append(encodedBlocks, encoded)
 	}
 
@@ -423,6 +584,26 @@ func MarshalContent(blocks []fantasy.Content) (pqtype.NullRawMessage, error) {
 		return pqtype.NullRawMessage{}, xerrors.Errorf("encode content blocks: %w", err)
 	}
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
+}
+
+// injectFileID adds a file_id field into the data sub-object of a
+// serialized content block envelope.
+func injectFileID(encoded json.RawMessage, fileID uuid.UUID) (json.RawMessage, error) {
+	var envelope struct {
+		Type string `json:"type"`
+		Data struct {
+			MediaType        string           `json:"media_type"`
+			Data             json.RawMessage  `json:"data,omitempty"`
+			FileID           string           `json:"file_id,omitempty"`
+			ProviderMetadata *json.RawMessage `json:"provider_metadata,omitempty"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(encoded, &envelope); err != nil {
+		return encoded, err
+	}
+	envelope.Data.FileID = fileID.String()
+	envelope.Data.Data = nil // Strip inline data; resolved at LLM dispatch time.
+	return json.Marshal(envelope)
 }
 
 // MarshalToolResult encodes a single tool result for persistence as
@@ -490,15 +671,13 @@ func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
 		}
 	case fantasy.ReasoningContent:
 		return codersdk.ChatMessagePart{
-			Type:  codersdk.ChatMessagePartTypeReasoning,
-			Text:  value.Text,
-			Title: reasoningSummaryTitle(value.ProviderMetadata),
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
 		}
 	case *fantasy.ReasoningContent:
 		return codersdk.ChatMessagePart{
-			Type:  codersdk.ChatMessagePartTypeReasoning,
-			Text:  value.Text,
-			Title: reasoningSummaryTitle(value.ProviderMetadata),
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: value.Text,
 		}
 	case fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
@@ -593,43 +772,6 @@ func toolResultContentToPart(content fantasy.ToolResultContent) codersdk.ChatMes
 	}
 
 	return ToolResultToPart(content.ToolCallID, content.ToolName, result, isError)
-}
-
-// ReasoningTitleFromFirstLine extracts a compact markdown title.
-func ReasoningTitleFromFirstLine(text string) string {
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return ""
-	}
-
-	firstLine := text
-	if idx := strings.IndexAny(firstLine, "\r\n"); idx >= 0 {
-		firstLine = firstLine[:idx]
-	}
-	firstLine = strings.TrimSpace(firstLine)
-	if firstLine == "" || !strings.HasPrefix(firstLine, "**") {
-		return ""
-	}
-
-	rest := firstLine[2:]
-	end := strings.Index(rest, "**")
-	if end < 0 {
-		return ""
-	}
-
-	title := strings.TrimSpace(rest[:end])
-	if title == "" {
-		return ""
-	}
-
-	// Require the first line to be exactly "**title**" (ignoring
-	// surrounding whitespace) so providers without this format don't
-	// accidentally emit a title.
-	if strings.TrimSpace(rest[end+2:]) != "" {
-		return ""
-	}
-
-	return compactReasoningSummaryTitle(title)
 }
 
 func injectMissingToolResults(prompt []fantasy.Message) []fantasy.Message {
@@ -836,147 +978,5 @@ func sanitizeToolCallID(id string) string {
 }
 
 func marshalContentBlock(block fantasy.Content) (json.RawMessage, error) {
-	encoded, err := json.Marshal(block)
-	if err != nil {
-		return nil, err
-	}
-
-	title, ok := reasoningTitleFromContent(block)
-	if !ok || title == "" {
-		return encoded, nil
-	}
-
-	var envelope struct {
-		Type string         `json:"type"`
-		Data map[string]any `json:"data"`
-	}
-	if err := json.Unmarshal(encoded, &envelope); err != nil {
-		return nil, err
-	}
-
-	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeReasoning)) {
-		return encoded, nil
-	}
-	if envelope.Data == nil {
-		envelope.Data = map[string]any{}
-	}
-	envelope.Data["title"] = title
-
-	encodedWithTitle, err := json.Marshal(envelope)
-	if err != nil {
-		return nil, err
-	}
-	return encodedWithTitle, nil
-}
-
-func reasoningTitleFromContent(block fantasy.Content) (string, bool) {
-	switch value := block.(type) {
-	case fantasy.ReasoningContent:
-		return ReasoningTitleFromFirstLine(value.Text), true
-	case *fantasy.ReasoningContent:
-		if value == nil {
-			return "", false
-		}
-		return ReasoningTitleFromFirstLine(value.Text), true
-	default:
-		return "", false
-	}
-}
-
-func reasoningSummaryTitle(metadata fantasy.ProviderMetadata) string {
-	if len(metadata) == 0 {
-		return ""
-	}
-
-	reasoningMetadata := fantasyopenai.GetReasoningMetadata(
-		fantasy.ProviderOptions(metadata),
-	)
-	if reasoningMetadata == nil {
-		return ""
-	}
-
-	for _, summary := range reasoningMetadata.Summary {
-		if title := compactReasoningSummaryTitle(summary); title != "" {
-			return title
-		}
-	}
-
-	return ""
-}
-
-func compactReasoningSummaryTitle(summary string) string {
-	const maxWords = 8
-	const maxRunes = 80
-
-	summary = strings.TrimSpace(summary)
-	if summary == "" {
-		return ""
-	}
-
-	summary = strings.Trim(summary, "\"'`")
-	summary = reasoningSummaryHeadline(summary)
-	words := strings.Fields(summary)
-	if len(words) == 0 {
-		return ""
-	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-
-	title := strings.Join(words, " ")
-	if truncated {
-		title += "…"
-	}
-	return truncateRunes(title, maxRunes)
-}
-
-func reasoningSummaryHeadline(summary string) string {
-	summary = strings.TrimSpace(summary)
-	if summary == "" {
-		return ""
-	}
-
-	// OpenAI summary_text may be markdown like:
-	// "**Title**\n\nLonger explanation ...".
-	// Keep only the heading segment for UI titles.
-	if idx := strings.Index(summary, "\n\n"); idx >= 0 {
-		summary = summary[:idx]
-	}
-
-	if idx := strings.IndexAny(summary, "\r\n"); idx >= 0 {
-		summary = summary[:idx]
-	}
-
-	summary = strings.TrimSpace(summary)
-	if summary == "" {
-		return ""
-	}
-
-	if strings.HasPrefix(summary, "**") {
-		rest := summary[2:]
-		if end := strings.Index(rest, "**"); end >= 0 {
-			bold := strings.TrimSpace(rest[:end])
-			if bold != "" {
-				summary = bold
-			}
-		}
-	}
-
-	return strings.TrimSpace(strings.Trim(summary, "\"'`"))
-}
-
-func truncateRunes(value string, maxLen int) string {
-	if maxLen <= 0 {
-		return ""
-	}
-
-	runes := []rune(value)
-	if len(runes) <= maxLen {
-		return value
-	}
-
-	return string(runes[:maxLen])
+	return json.Marshal(block)
 }

@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
-import { fn } from "storybook/test";
 import { RepoChangesPanel } from "./RepoChangesPanel";
 
 const sampleDiff = `--- a/src/main.ts
@@ -35,8 +34,7 @@ const meta: Meta<typeof RepoChangesPanel> = {
 	component: RepoChangesPanel,
 	args: {
 		repo: baseRepo,
-		onRefresh: fn(),
-		onCommit: fn(),
+		diffStyle: "unified",
 	},
 };
 export default meta;
@@ -53,35 +51,9 @@ export const NoChanges: Story = {
 	},
 };
 
-export const LongRepoName: Story = {
+export const SplitDiffStyle: Story = {
 	args: {
-		repo: {
-			...baseRepo,
-			repo_root:
-				"/home/coder/very-long-repository-name-that-should-be-truncated-in-the-header",
-		},
+		repo: baseRepo,
+		diffStyle: "split",
 	},
 };
-
-export const LongBranchName: Story = {
-	args: {
-		repo: {
-			...baseRepo,
-			branch:
-				"feature/TICKET-12345-implement-very-long-branch-name-for-testing-truncation-behavior",
-		},
-	},
-};
-
-export const EmptyBranchName: Story = {
-	args: {
-		repo: {
-			...baseRepo,
-			branch: "",
-		},
-	},
-};
-
-export const ManyFiles: Story = {};
-
-export const UntrackedFiles: Story = {};
