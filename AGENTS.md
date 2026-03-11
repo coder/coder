@@ -119,15 +119,12 @@ no matter how long they take.
 git config core.hooksPath scripts/githooks
 ```
 
-Two hooks run automatically:
+A pre-commit hook runs automatically:
 
 - **pre-commit**: `make pre-commit` (gen, fmt, lint, typos, build).
   Fast checks that catch most CI failures. Allow at least 5 minutes.
-- **pre-push**: `make pre-commit` (gen, fmt, lint, typos, build).
-  Same fast checks as pre-commit. The full test suite runs in CI.
-  To run the full suite locally: `make pre-push`.
 
-`git commit` and `git push` will appear to hang while hooks run.
+`git commit` will appear to hang while the hook runs.
 This is normal. Do not interrupt, retry, or reduce the timeout.
 
 NEVER run `git config core.hooksPath` to change or disable hooks.
