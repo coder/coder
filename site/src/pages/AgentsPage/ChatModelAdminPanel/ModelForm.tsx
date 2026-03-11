@@ -412,7 +412,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						disabled={isSaving}
 					/>
 
-					<div className="grid items-start gap-5 lg:grid-cols-2">
+					<div className="space-y-5">
 						{/* Pricing — toggle */}
 						<div>
 							<button
