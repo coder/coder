@@ -551,7 +551,7 @@ type chatStreamEnvelope struct {
 
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
-	Archived *bool
+	Query string
 	Pagination
 }
 
@@ -560,10 +560,10 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 	var reqOpts []RequestOption
 	if opts != nil {
 		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
-		if opts.Archived != nil {
+		if opts.Query != "" {
 			reqOpts = append(reqOpts, func(r *http.Request) {
 				q := r.URL.Query()
-				q.Set("archived", fmt.Sprintf("%t", *opts.Archived))
+				q.Set("q", opts.Query)
 				r.URL.RawQuery = q.Encode()
 			})
 		}
