@@ -89,7 +89,13 @@ validate_port() {
 	local port=$1
 	local flag=$2
 
-	if ! [[ "${port}" =~ ^[0-9]+$ ]] || [ "${port}" -lt 1 ] || [ "${port}" -gt 65535 ]; then
+	if ! [[ "${port}" =~ ^[0-9]+$ ]]; then
+		error "${flag} must be an integer between 1 and 65535"
+	fi
+	if [ "${#port}" -gt 5 ]; then
+		error "${flag} must be an integer between 1 and 65535"
+	fi
+	if ((10#${port} < 1 || 10#${port} > 65535)); then
 		error "${flag} must be an integer between 1 and 65535"
 	fi
 }
