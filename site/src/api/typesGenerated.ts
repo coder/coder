@@ -1200,12 +1200,6 @@ export interface ChatMessagePart {
 	 */
 	readonly content?: string;
 	/**
-	 * ProviderMetadata holds provider-specific response metadata
-	 * (e.g. Anthropic cache control hints) as raw JSON. Internal
-	 * only: stripped by db2sdk before API responses.
-	 */
-	readonly provider_metadata?: Record<string, string>;
-	/**
 	 * ProviderExecuted indicates the tool call was executed by
 	 * the provider (e.g. Anthropic computer use).
 	 */
