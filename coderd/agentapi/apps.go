@@ -24,7 +24,7 @@ import (
 )
 
 type AppsAPI struct {
-	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
+	AgentID                  uuid.UUID
 	Database                 database.Store
 	Log                      slog.Logger
 	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
@@ -33,13 +33,8 @@ type AppsAPI struct {
 }
 
 func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
-	workspaceAgent, err := a.AgentFn(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	a.Log.Debug(ctx, "got batch app health update",
-		slog.F("agent_id", workspaceAgent.ID.String()),
+		slog.F("agent_id", a.AgentID.String()),
 		slog.F("updates", req.Updates),
 	)
 
@@ -47,9 +42,9 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 		return &agentproto.BatchUpdateAppHealthResponse{}, nil
 	}
 
-	apps, err := a.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
+	apps, err := a.Database.GetWorkspaceAppsByAgentID(ctx, a.AgentID)
 	if err != nil {
-		return nil, xerrors.Errorf("get workspace apps by agent ID %q: %w", workspaceAgent.ID, err)
+		return nil, xerrors.Errorf("get workspace apps by agent ID %q: %w", a.AgentID, err)
 	}
 
 	var newApps []database.WorkspaceApp
@@ -110,7 +105,8 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil && len(newApps) > 0 {
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAppHealthUpdate)
+		agent := database.WorkspaceAgent{ID: a.AgentID}
+		err = a.PublishWorkspaceUpdateFn(ctx, &agent, wspubsub.WorkspaceEventKindAppHealthUpdate)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
@@ -149,12 +145,8 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		})
 	}
 
-	workspaceAgent, err := a.AgentFn(ctx)
-	if err != nil {
-		return nil, err
-	}
 	app, err := a.Database.GetWorkspaceAppByAgentIDAndSlug(ctx, database.GetWorkspaceAppByAgentIDAndSlugParams{
-		AgentID: workspaceAgent.ID,
+		AgentID: a.AgentID,
 		Slug:    req.Slug,
 	})
 	if err != nil {
@@ -164,7 +156,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		})
 	}
 
-	workspace, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	workspace, err := a.Database.GetWorkspaceByAgentID(ctx, a.AgentID)
 	if err != nil {
 		return nil, codersdk.NewError(http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to get workspace.",
@@ -191,7 +183,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		ID:          uuid.New(),
 		CreatedAt:   dbtime.Now(),
 		WorkspaceID: workspace.ID,
-		AgentID:     workspaceAgent.ID,
+		AgentID:     a.AgentID,
 		AppID:       app.ID,
 		State:       dbState,
 		Message:     cleaned,
@@ -208,7 +200,8 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
+		agent := database.WorkspaceAgent{ID: a.AgentID}
+		err = a.PublishWorkspaceUpdateFn(ctx, &agent, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
 		if err != nil {
 			return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to publish workspace update.",
@@ -218,7 +211,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 
 	// Notify on state change to Working/Idle for AI tasks
-	a.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, dbState, workspace, workspaceAgent)
+	a.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, dbState, workspace, database.WorkspaceAgent{ID: a.AgentID})
 
 	if shouldBump(dbState, latestAppStatus) {
 		// We pass time.Time{} for nextAutostart since we don't have access to

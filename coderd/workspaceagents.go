@@ -315,9 +315,7 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	// compatibility with older agents. We'll translate the request into the protobuf so there is only one primary
 	// implementation.
 	appAPI := &agentapi.AppsAPI{
-		AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-			return workspaceAgent, nil
-		},
+		AgentID: workspaceAgent.ID,
 		Database: api.Database,
 		Log:      api.Logger,
 		PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {

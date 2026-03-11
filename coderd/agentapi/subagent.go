@@ -25,8 +25,7 @@ import (
 type SubAgentAPI struct {
 	OwnerID        uuid.UUID
 	OrganizationID uuid.UUID
-	AgentID        uuid.UUID
-	AgentFn        func(context.Context) (database.WorkspaceAgent, error)
+	Agent          database.WorkspaceAgent
 
 	Log      slog.Logger
 	Clock    quartz.Clock
@@ -64,10 +63,7 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 		displayApps = append(displayApps, app)
 	}
 
-	parentAgent, err := a.AgentFn(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get parent agent: %w", err)
-	}
+	parentAgent := a.Agent
 
 	// An ID is only given in the request when it is a terraform-defined devcontainer
 	// that has attached resources. These subagents are pre-provisioned by terraform
@@ -295,7 +291,7 @@ func (a *SubAgentAPI) ListSubAgents(ctx context.Context, _ *agentproto.ListSubAg
 	//nolint:gocritic // This gives us only the permissions required to do the job.
 	ctx = dbauthz.AsSubAgentAPI(ctx, a.OrganizationID, a.OwnerID)
 
-	workspaceAgents, err := a.Database.GetWorkspaceAgentsByParentID(ctx, a.AgentID)
+	workspaceAgents, err := a.Database.GetWorkspaceAgentsByParentID(ctx, a.Agent.ID)
 	if err != nil {
 		return nil, err
 	}

@@ -322,9 +322,7 @@ func TestGetManifest(t *testing.T) {
 			DisableDirectConnections: true,
 			DerpForceWebSockets:      true,
 
-			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent: agent,
 			WorkspaceID: workspace.ID,
 			Database:    mDB,
 			DerpMapFn:   derpMapFn,
@@ -389,9 +387,7 @@ func TestGetManifest(t *testing.T) {
 			DisableDirectConnections: true,
 			DerpForceWebSockets:      true,
 
-			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
-				return childAgent, nil
-			},
+			Agent: childAgent,
 			WorkspaceID: workspace.ID,
 			Database:    mDB,
 			DerpMapFn:   derpMapFn,
@@ -512,9 +508,7 @@ func TestGetManifest(t *testing.T) {
 			DisableDirectConnections: true,
 			DerpForceWebSockets:      true,
 
-			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			Agent: agent,
 			WorkspaceID: workspace.ID,
 			Database:    mDB,
 			DerpMapFn:   derpMapFn,
