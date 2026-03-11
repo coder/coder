@@ -980,5 +980,3 @@ func sanitizeToolCallID(id string) string {
 func marshalContentBlock(block fantasy.Content) (json.RawMessage, error) {
 	return json.Marshal(block)
 }
-
-
