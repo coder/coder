@@ -338,24 +338,20 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 						</>
 					)}
 					{activeSection === "providers" && canManageChatModelConfigs && (
-						<>
-							<SectionHeader
-								label="Providers"
-								description="Connect third-party LLM services like OpenAI, Anthropic, or Google. Each provider supplies models that users can select for their chats."
-								badge={<AdminBadge />}
-							/>{" "}
-							<ChatModelAdminPanel section="providers" />
-						</>
+						<ChatModelAdminPanel
+							section="providers"
+							sectionLabel="Providers"
+							sectionDescription="Connect third-party LLM services like OpenAI, Anthropic, or Google. Each provider supplies models that users can select for their chats."
+							sectionBadge={<AdminBadge />}
+						/>
 					)}
 					{activeSection === "models" && canManageChatModelConfigs && (
-						<>
-							<SectionHeader
-								label="Models"
-								description="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
-								badge={<AdminBadge />}
-							/>{" "}
-							<ChatModelAdminPanel section="models" />
-						</>
+						<ChatModelAdminPanel
+							section="models"
+							sectionLabel="Models"
+							sectionDescription="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
+							sectionBadge={<AdminBadge />}
+						/>
 					)}
 				</div>
 			</DialogContent>
