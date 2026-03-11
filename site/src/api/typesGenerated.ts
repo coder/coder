@@ -1269,6 +1269,11 @@ export interface ChatModelCallConfig {
 	readonly top_k?: number;
 	readonly presence_penalty?: number;
 	readonly frequency_penalty?: number;
+	readonly input_price_per_million_tokens?: number;
+	readonly output_price_per_million_tokens?: number;
+	readonly cache_read_price_per_million_tokens?: number;
+	readonly cache_write_price_per_million_tokens?: number;
+	readonly reasoning_price_per_million_tokens?: number;
 	readonly provider_options?: ChatModelProviderOptions;
 }
 

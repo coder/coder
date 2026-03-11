@@ -292,8 +292,7 @@
         },
         "after_unknown": {
           "agent_id": true,
-          "id": true,
-          "subagent_id": true
+          "id": true
         },
         "before_sensitive": false,
         "after_sensitive": {}
@@ -316,8 +315,7 @@
         },
         "after_unknown": {
           "agent_id": true,
-          "id": true,
-          "subagent_id": true
+          "id": true
         },
         "before_sensitive": false,
         "after_sensitive": {}
@@ -421,8 +419,8 @@
           "expressions": {
             "agent_id": {
               "references": [
-                "coder_devcontainer.dev.subagent_id",
-                "coder_devcontainer.dev"
+                "coder_agent.main.id",
+                "coder_agent.main"
               ]
             },
             "slug": {
@@ -499,12 +497,6 @@
       "resource": "coder_agent.main",
       "attribute": [
         "id"
-      ]
-    },
-    {
-      "resource": "coder_devcontainer.dev",
-      "attribute": [
-        "subagent_id"
       ]
     }
   ],

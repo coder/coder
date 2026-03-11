@@ -3095,11 +3095,39 @@ func marshalChatModelCallConfig(
 		return json.RawMessage("{}"), nil
 	}
 
+	if err := validateChatModelCallConfig(modelConfig); err != nil {
+		return nil, err
+	}
+
 	encoded, err := json.Marshal(modelConfig)
 	if err != nil {
 		return nil, xerrors.Errorf("encode model config: %w", err)
 	}
 	return encoded, nil
+}
+
+func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) error {
+	if modelConfig == nil {
+		return nil
+	}
+
+	pricingFields := []struct {
+		name  string
+		value *float64
+	}{
+		{name: "input_price_per_million_tokens", value: modelConfig.InputPricePerMillionTokens},
+		{name: "output_price_per_million_tokens", value: modelConfig.OutputPricePerMillionTokens},
+		{name: "cache_read_price_per_million_tokens", value: modelConfig.CacheReadPricePerMillionTokens},
+		{name: "cache_write_price_per_million_tokens", value: modelConfig.CacheWritePricePerMillionTokens},
+		{name: "reasoning_price_per_million_tokens", value: modelConfig.ReasoningPricePerMillionTokens},
+	}
+	for _, field := range pricingFields {
+		if field.value != nil && *field.value < 0 {
+			return xerrors.Errorf("%s must be greater than or equal to zero", field.name)
+		}
+	}
+
+	return nil
 }
 
 func unmarshalChatModelCallConfig(
@@ -3130,6 +3158,11 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 		config.TopK == nil &&
 		config.PresencePenalty == nil &&
 		config.FrequencyPenalty == nil &&
+		config.InputPricePerMillionTokens == nil &&
+		config.OutputPricePerMillionTokens == nil &&
+		config.CacheReadPricePerMillionTokens == nil &&
+		config.CacheWritePricePerMillionTokens == nil &&
+		config.ReasoningPricePerMillionTokens == nil &&
 		isZeroChatModelProviderOptions(config.ProviderOptions)
 }
 

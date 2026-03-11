@@ -37,7 +37,7 @@ resource "coder_devcontainer" "other" {
 # When iterating devcontainers, dependsOnDevcontainer should return
 # false for "other" and true for "dev".
 resource "coder_app" "devcontainer-app" {
-  agent_id = coder_devcontainer.dev.subagent_id
+  agent_id = coder_agent.main.id
   slug     = "devcontainer-app"
 }
 

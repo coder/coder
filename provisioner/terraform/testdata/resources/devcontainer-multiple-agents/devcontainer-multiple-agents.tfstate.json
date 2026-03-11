@@ -102,7 +102,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "523258bd-d830-4ff4-b3d0-a665496d8075",
+            "agent_id": "37a1bd80-851e-48cf-bd36-af4aab414203",
             "command": null,
             "display_name": null,
             "external": false,
@@ -123,8 +123,7 @@
             "healthcheck": []
           },
           "depends_on": [
-            "coder_agent.main",
-            "coder_devcontainer.dev"
+            "coder_agent.main"
           ]
         },
         {
@@ -138,7 +137,6 @@
             "agent_id": "37a1bd80-851e-48cf-bd36-af4aab414203",
             "config_path": null,
             "id": "bb802ac6-f83a-4687-9103-87f551c6f144",
-            "subagent_id": "523258bd-d830-4ff4-b3d0-a665496d8075",
             "workspace_folder": "/workspace"
           },
           "sensitive_values": {},
@@ -157,7 +155,6 @@
             "agent_id": "37a1bd80-851e-48cf-bd36-af4aab414203",
             "config_path": null,
             "id": "8e5a16da-e98c-4a6f-b24c-3c0cbd6bb9df",
-            "subagent_id": "cfa0a8fc-29cf-44e8-8ae2-42637057826a",
             "workspace_folder": "/other"
           },
           "sensitive_values": {},

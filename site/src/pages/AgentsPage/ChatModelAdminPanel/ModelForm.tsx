@@ -25,6 +25,7 @@ import type { ProviderState } from "./ChatModelAdminPanel";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
+	PricingModelConfigFields,
 } from "./ModelConfigFields";
 import {
 	buildInitialModelFormValues,
@@ -396,6 +397,26 @@ export const ModelForm: FC<ModelFormProps> = ({
 									{contextLimitField.helperText}
 								</p>
 							)}
+						</div>
+					</div>
+
+					<div className="space-y-3">
+						<div>
+							<h3 className="m-0 text-sm font-medium text-content-primary">
+								Pricing
+							</h3>
+							<p className="mt-1 mb-0 text-xs text-content-secondary">
+								Optional USD pricing metadata per 1M tokens. Leave blank for
+								costs you do not want to define yet.
+							</p>
+						</div>
+						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+							<PricingModelConfigFields
+								provider={selectedProviderState.provider}
+								form={form}
+								fieldErrors={modelConfigFormBuildResult.fieldErrors}
+								disabled={isSaving}
+							/>
 						</div>
 					</div>
 

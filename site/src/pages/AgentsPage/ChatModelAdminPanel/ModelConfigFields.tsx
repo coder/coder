@@ -28,6 +28,17 @@ import type {
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
 
+const pricingFieldNames = new Set<string>([
+	"input_price_per_million_tokens",
+	"output_price_per_million_tokens",
+	"cache_read_price_per_million_tokens",
+	"cache_write_price_per_million_tokens",
+	"reasoning_price_per_million_tokens",
+]);
+
+const isPricingField = (field: FieldSchema): boolean =>
+	pricingFieldNames.has(field.json_name);
+
 // ── Helpers ────────────────────────────────────────────────────
 
 /**
@@ -364,19 +375,15 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 };
 
 /**
- * General model config fields (max output tokens, temperature,
- * top P, etc.) intended to be shown under an "Advanced" section.
- *
- * Fields are driven by the auto-generated schema in
- * `api/chatModelOptions`.
+ * Shared renderer for general model config fields backed by the
+ * top-level ChatModelCallConfig schema.
  */
-export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
-	form,
-	fieldErrors,
-	disabled,
-}) => {
+const GeneralFieldsGroup: FC<
+	ModelConfigFieldsProps & {
+		fields: FieldSchema[];
+	}
+> = ({ form, fieldErrors, disabled, fields }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
-	const fields = getVisibleGeneralFields();
 
 	return (
 		<>
@@ -401,5 +408,52 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 				);
 			})}
 		</>
+	);
+};
+
+/**
+ * General pricing fields shown in the main form body so admins can
+ * define optional pricing metadata without opening the advanced section.
+ */
+export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
+	form,
+	fieldErrors,
+	disabled,
+}) => {
+	return (
+		<GeneralFieldsGroup
+			provider={provider}
+			form={form}
+			fieldErrors={fieldErrors}
+			disabled={disabled}
+			fields={getVisibleGeneralFields().filter(isPricingField)}
+		/>
+	);
+};
+
+/**
+ * General model config fields (max output tokens, temperature,
+ * top P, etc.) intended to be shown under an "Advanced" section.
+ *
+ * Fields are driven by the auto-generated schema in
+ * `api/chatModelOptions`.
+ */
+export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
+	form,
+	fieldErrors,
+	disabled,
+}) => {
+	return (
+		<GeneralFieldsGroup
+			provider={provider}
+			form={form}
+			fieldErrors={fieldErrors}
+			disabled={disabled}
+			fields={getVisibleGeneralFields().filter(
+				(field) => !isPricingField(field),
+			)}
+		/>
 	);
 };

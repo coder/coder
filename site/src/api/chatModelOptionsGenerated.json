@@ -48,6 +48,46 @@
 				"description": "Penalty for tokens based on their frequency in the output",
 				"required": false,
 				"input_type": "input"
+			},
+			{
+				"json_name": "input_price_per_million_tokens",
+				"go_name": "InputPricePerMillionTokens",
+				"type": "number",
+				"description": "Input token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "output_price_per_million_tokens",
+				"go_name": "OutputPricePerMillionTokens",
+				"type": "number",
+				"description": "Output token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "cache_read_price_per_million_tokens",
+				"go_name": "CacheReadPricePerMillionTokens",
+				"type": "number",
+				"description": "Cache read token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "cache_write_price_per_million_tokens",
+				"go_name": "CacheWritePricePerMillionTokens",
+				"type": "number",
+				"description": "Cache write or cache creation token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "reasoning_price_per_million_tokens",
+				"go_name": "ReasoningPricePerMillionTokens",
+				"type": "number",
+				"description": "Reasoning token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
 			}
 		]
 	},

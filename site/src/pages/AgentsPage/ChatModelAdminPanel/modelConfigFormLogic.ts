@@ -48,6 +48,17 @@ export const parseThresholdInteger = (value: string): number | null => {
 	return parsed;
 };
 
+const pricingFieldNames = new Set<string>([
+	"input_price_per_million_tokens",
+	"output_price_per_million_tokens",
+	"cache_read_price_per_million_tokens",
+	"cache_write_price_per_million_tokens",
+	"reasoning_price_per_million_tokens",
+]);
+
+const isPricingField = (field: FieldSchema): boolean =>
+	pricingFieldNames.has(field.json_name);
+
 // ── Internal helpers ───────────────────────────────────────────
 
 /**
@@ -258,11 +269,20 @@ function yupTestForField(field: FieldSchema): Yup.StringSchema {
 		case "number":
 			return Yup.string().test(
 				"optional-number",
-				`${label} must be a valid number.`,
+				isPricingField(field)
+					? `${label} must be zero or greater.`
+					: `${label} must be a valid number.`,
 				(value) => {
 					const trimmed = value?.trim();
 					if (!trimmed) return true;
-					return Number.isFinite(Number(trimmed));
+					const parsed = Number(trimmed);
+					if (!Number.isFinite(parsed)) {
+						return false;
+					}
+					if (isPricingField(field)) {
+						return parsed >= 0;
+					}
+					return true;
 				},
 			);
 

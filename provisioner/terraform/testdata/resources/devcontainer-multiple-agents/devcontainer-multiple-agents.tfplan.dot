@@ -13,7 +13,7 @@ digraph {
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"]" [label = "provider[\"registry.terraform.io/hashicorp/null\"]", shape = "diamond"]
 		"[root] coder_agent.main (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
 		"[root] coder_agent.secondary (expand)" -> "[root] provider[\"registry.terraform.io/coder/coder\"]"
-		"[root] coder_app.devcontainer-app (expand)" -> "[root] coder_devcontainer.dev (expand)"
+		"[root] coder_app.devcontainer-app (expand)" -> "[root] coder_agent.main (expand)"
 		"[root] coder_devcontainer.dev (expand)" -> "[root] coder_agent.main (expand)"
 		"[root] coder_devcontainer.other (expand)" -> "[root] coder_agent.main (expand)"
 		"[root] null_resource.dev (expand)" -> "[root] coder_agent.main (expand)"
@@ -22,6 +22,7 @@ digraph {
 		"[root] null_resource.secondary (expand)" -> "[root] provider[\"registry.terraform.io/hashicorp/null\"]"
 		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_agent.secondary (expand)"
 		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_app.devcontainer-app (expand)"
+		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_devcontainer.dev (expand)"
 		"[root] provider[\"registry.terraform.io/coder/coder\"] (close)" -> "[root] coder_devcontainer.other (expand)"
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.dev (expand)"
 		"[root] provider[\"registry.terraform.io/hashicorp/null\"] (close)" -> "[root] null_resource.secondary (expand)"

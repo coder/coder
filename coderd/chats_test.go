@@ -946,11 +946,19 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		contextLimit := int64(4096)
 		isDefault := true
+		pricing := &codersdk.ChatModelCallConfig{
+			InputPricePerMillionTokens:      ptr.Ref(0.15),
+			OutputPricePerMillionTokens:     ptr.Ref(0.6),
+			CacheReadPricePerMillionTokens:  ptr.Ref(0.03),
+			CacheWritePricePerMillionTokens: ptr.Ref(0.3),
+			ReasoningPricePerMillionTokens:  ptr.Ref(1.2),
+		}
 		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:     "openai",
 			Model:        "gpt-4o-mini",
 			ContextLimit: &contextLimit,
 			IsDefault:    &isDefault,
+			ModelConfig:  pricing,
 		})
 		require.NoError(t, err)
 		require.NotEqual(t, uuid.Nil, modelConfig.ID)
@@ -958,6 +966,43 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.Equal(t, "gpt-4o-mini", modelConfig.Model)
 		require.EqualValues(t, 4096, modelConfig.ContextLimit)
 		require.True(t, modelConfig.IsDefault)
+		requireChatModelPricing(t, modelConfig.ModelConfig, pricing)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		requireChatModelPricing(t, configs[0].ModelConfig, pricing)
+	})
+
+	t.Run("RejectsNegativePricing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "openai",
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				InputPricePerMillionTokens: ptr.Ref(-0.01),
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model config.", sdkErr.Message)
+		require.Equal(
+			t,
+			"input_price_per_million_tokens must be greater than or equal to zero",
+			sdkErr.Detail,
+		)
 	})
 
 	t.Run("MissingContextLimit", func(t *testing.T) {
@@ -1028,14 +1073,50 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		modelConfig := createChatModelConfig(t, client)
 
 		contextLimit := int64(8192)
+		pricing := &codersdk.ChatModelCallConfig{
+			InputPricePerMillionTokens:      ptr.Ref(0.2),
+			OutputPricePerMillionTokens:     ptr.Ref(0.8),
+			CacheReadPricePerMillionTokens:  ptr.Ref(0.04),
+			CacheWritePricePerMillionTokens: ptr.Ref(0.4),
+			ReasoningPricePerMillionTokens:  ptr.Ref(1.6),
+		}
 		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			DisplayName:  "GPT-4o Mini Updated",
 			ContextLimit: &contextLimit,
+			ModelConfig:  pricing,
 		})
 		require.NoError(t, err)
 		require.Equal(t, modelConfig.ID, updated.ID)
 		require.Equal(t, "GPT-4o Mini Updated", updated.DisplayName)
 		require.EqualValues(t, 8192, updated.ContextLimit)
+		requireChatModelPricing(t, updated.ModelConfig, pricing)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		requireChatModelPricing(t, configs[0].ModelConfig, pricing)
+	})
+
+	t.Run("RejectsNegativePricing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningPricePerMillionTokens: ptr.Ref(-1.0),
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model config.", sdkErr.Message)
+		require.Equal(
+			t,
+			"reasoning_price_per_million_tokens must be greater than or equal to zero",
+			sdkErr.Detail,
+		)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -3301,6 +3382,28 @@ func TestGetChatFile(t *testing.T) {
 		_, _, err = otherClient.GetChatFile(ctx, uploaded.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
+}
+
+func requireChatModelPricing(
+	t *testing.T,
+	actual *codersdk.ChatModelCallConfig,
+	expected *codersdk.ChatModelCallConfig,
+) {
+	t.Helper()
+	require.NotNil(t, actual)
+	require.NotNil(t, expected)
+
+	require.NotNil(t, actual.InputPricePerMillionTokens)
+	require.NotNil(t, actual.OutputPricePerMillionTokens)
+	require.NotNil(t, actual.CacheReadPricePerMillionTokens)
+	require.NotNil(t, actual.CacheWritePricePerMillionTokens)
+	require.NotNil(t, actual.ReasoningPricePerMillionTokens)
+
+	require.Equal(t, *expected.InputPricePerMillionTokens, *actual.InputPricePerMillionTokens)
+	require.Equal(t, *expected.OutputPricePerMillionTokens, *actual.OutputPricePerMillionTokens)
+	require.Equal(t, *expected.CacheReadPricePerMillionTokens, *actual.CacheReadPricePerMillionTokens)
+	require.Equal(t, *expected.CacheWritePricePerMillionTokens, *actual.CacheWritePricePerMillionTokens)
+	require.Equal(t, *expected.ReasoningPricePerMillionTokens, *actual.ReasoningPricePerMillionTokens)
 }
 
 func createChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.ChatModelConfig {

@@ -414,13 +414,18 @@ type ChatModelVercelProviderOptions struct {
 
 // ChatModelCallConfig configures per-call model behavior defaults.
 type ChatModelCallConfig struct {
-	MaxOutputTokens  *int64                    `json:"max_output_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
-	Temperature      *float64                  `json:"temperature,omitempty" description:"Sampling temperature between 0 and 2"`
-	TopP             *float64                  `json:"top_p,omitempty" description:"Nucleus sampling probability cutoff"`
-	TopK             *int64                    `json:"top_k,omitempty" description:"Number of highest-probability tokens to keep for sampling"`
-	PresencePenalty  *float64                  `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
-	FrequencyPenalty *float64                  `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
-	ProviderOptions  *ChatModelProviderOptions `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
+	MaxOutputTokens                 *int64                    `json:"max_output_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
+	Temperature                     *float64                  `json:"temperature,omitempty" description:"Sampling temperature between 0 and 2"`
+	TopP                            *float64                  `json:"top_p,omitempty" description:"Nucleus sampling probability cutoff"`
+	TopK                            *int64                    `json:"top_k,omitempty" description:"Number of highest-probability tokens to keep for sampling"`
+	PresencePenalty                 *float64                  `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
+	FrequencyPenalty                *float64                  `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
+	InputPricePerMillionTokens      *float64                  `json:"input_price_per_million_tokens,omitempty" description:"Input token price in USD per 1M tokens"`
+	OutputPricePerMillionTokens     *float64                  `json:"output_price_per_million_tokens,omitempty" description:"Output token price in USD per 1M tokens"`
+	CacheReadPricePerMillionTokens  *float64                  `json:"cache_read_price_per_million_tokens,omitempty" description:"Cache read token price in USD per 1M tokens"`
+	CacheWritePricePerMillionTokens *float64                  `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
+	ReasoningPricePerMillionTokens  *float64                  `json:"reasoning_price_per_million_tokens,omitempty" description:"Reasoning token price in USD per 1M tokens"`
+	ProviderOptions                 *ChatModelProviderOptions `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
 }
 
 // CreateChatModelConfigRequest creates a chat model config.
