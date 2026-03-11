@@ -1286,7 +1286,7 @@ func TestArchiveChat(t *testing.T) {
 
 		// archived:false returns only non-archived chats.
 		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Q: "archived:false",
+			Query: "archived:false",
 		})
 		require.NoError(t, err)
 		require.Len(t, activeChats, 1)
@@ -1295,7 +1295,7 @@ func TestArchiveChat(t *testing.T) {
 
 		// archived:true returns only archived chats.
 		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Q: "archived:true",
+			Query: "archived:true",
 		})
 		require.NoError(t, err)
 		require.Len(t, archivedChats, 1)
@@ -1357,7 +1357,7 @@ func TestArchiveChat(t *testing.T) {
 
 		// archived:false should exclude the entire archived family.
 		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Q: "archived:false",
+			Query: "archived:false",
 		})
 		require.NoError(t, err)
 		for _, c := range activeChats {
@@ -1404,7 +1404,7 @@ func TestUnarchiveChat(t *testing.T) {
 
 		// Verify it's archived.
 		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Q: "archived:true",
+			Query: "archived:true",
 		})
 		require.NoError(t, err)
 		require.Len(t, archivedChats, 1)
@@ -1415,7 +1415,7 @@ func TestUnarchiveChat(t *testing.T) {
 
 		// Verify it's no longer archived.
 		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Q: "archived:false",
+			Query: "archived:false",
 		})
 		require.NoError(t, err)
 		require.Len(t, activeChats, 1)
@@ -1424,7 +1424,7 @@ func TestUnarchiveChat(t *testing.T) {
 
 		// No archived chats remain.
 		archivedChats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Q: "archived:true",
+			Query: "archived:true",
 		})
 		require.NoError(t, err)
 		require.Empty(t, archivedChats)

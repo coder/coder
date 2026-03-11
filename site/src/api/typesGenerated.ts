@@ -3267,7 +3267,7 @@ export interface LinkConfig {
  * ListChatsOptions are optional parameters for ListChats.
  */
 export interface ListChatsOptions extends Pagination {
-	readonly Q: string;
+	readonly Query: string;
 }
 
 // From codersdk/inboxnotification.go

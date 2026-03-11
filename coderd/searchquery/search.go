@@ -491,7 +491,7 @@ func Chats(query string) (database.GetChatsByOwnerIDParams, []codersdk.Validatio
 	}
 
 	parser := httpapi.NewQueryParamParser()
-	filter.Archived = parser.NullableBoolean(values, sql.NullBool{Bool: false, Valid: true}, "archived")
+	filter.Archived = parser.NullableBoolean(values, filter.Archived, "archived")
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
