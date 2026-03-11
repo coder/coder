@@ -217,6 +217,77 @@ func TestServer(t *testing.T) {
 			return err == nil && rawURL != ""
 		}, superDuperLong, testutil.IntervalFast, "failed to get access URL")
 	})
+	t.Run("BuiltinPostgresSharedGlobalConfigReuse", func(t *testing.T) {
+		t.Parallel()
+		if testing.Short() {
+			t.SkipNow()
+		}
+
+		assertHealthy := func(t *testing.T, serverURL *url.URL) {
+			t.Helper()
+
+			healthzURL := serverURL.ResolveReference(&url.URL{Path: "/healthz"})
+			require.Eventually(t, func() bool {
+				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+				defer cancel()
+
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, healthzURL.String(), nil)
+				if err != nil {
+					return false
+				}
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					return false
+				}
+				defer resp.Body.Close()
+				return resp.StatusCode == http.StatusOK
+			}, testutil.WaitLong, testutil.IntervalFast, "expected %s to become healthy", healthzURL)
+		}
+
+		sharedConfig := config.Root(t.TempDir())
+		const superDuperLong = testutil.WaitSuperLong * 3
+
+		invA, _ := clitest.New(t,
+			"server",
+			"--global-config", string(sharedConfig),
+			"--http-address", ":0",
+			"--access-url", "http://example-a.com",
+			"--cache-dir", t.TempDir(),
+		)
+		clitest.Start(t, invA.WithContext(testutil.Context(t, superDuperLong)))
+
+		serverAURL := waitAccessURL(t, sharedConfig)
+		assertHealthy(t, serverAURL)
+
+		persistedPort, err := sharedConfig.PostgresPort().Read()
+		require.NoError(t, err)
+
+		invB, _ := clitest.New(t,
+			"server",
+			"--global-config", string(sharedConfig),
+			"--http-address", "127.0.0.1:0",
+			"--access-url", "http://example-b.com",
+			"--cache-dir", t.TempDir(),
+		)
+		clitest.Start(t, invB.WithContext(testutil.Context(t, superDuperLong)))
+
+		var rawServerBURL string
+		//nolint:gocritic // Embedded postgres takes a while to fire up.
+		require.Eventually(t, func() bool {
+			var readErr error
+			rawServerBURL, readErr = sharedConfig.URL().Read()
+			return readErr == nil && rawServerBURL != "" && rawServerBURL != serverAURL.String()
+		}, superDuperLong, testutil.IntervalFast, "expected server B to publish a distinct local URL")
+
+		serverBURL, err := url.Parse(rawServerBURL)
+		require.NoError(t, err)
+		assertHealthy(t, serverBURL)
+		assertHealthy(t, serverAURL)
+
+		persistedPortAfter, err := sharedConfig.PostgresPort().Read()
+		require.NoError(t, err)
+		require.Equal(t, persistedPort, persistedPortAfter)
+	})
 	t.Run("EphemeralDeployment", func(t *testing.T) {
 		t.Parallel()
 		if testing.Short() {

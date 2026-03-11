@@ -4,7 +4,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"net"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -14,6 +18,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -396,4 +401,97 @@ func TestEscapePostgresURLUserInfo(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStartBuiltinPostgres(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	reservePort := func(t *testing.T) string {
+		t.Helper()
+
+		listener, err := net.Listen("tcp4", "127.0.0.1:0")
+		require.NoError(t, err)
+		defer listener.Close()
+
+		tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+		require.True(t, ok)
+		return strconv.Itoa(tcpAddr.Port)
+	}
+
+	t.Run("FreePersistedPortStartsFresh", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.Root(t.TempDir())
+		port := reservePort(t)
+		require.NoError(t, cfg.PostgresPort().Write(port))
+
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		connectionURL, closeFunc, err := startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, closeFunc())
+		})
+
+		require.Contains(t, connectionURL, ":"+port+"/")
+		require.NoError(t, verifyBuiltinPostgresInstance(ctx, cfg, connectionURL))
+	})
+
+	t.Run("ReusesMatchingBuiltinInstance", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.Root(t.TempDir())
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+		connectionURL, closeFunc, err := startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, closeFunc())
+		})
+
+		reusedURL, reusedCloseFunc, err := startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "")
+		require.NoError(t, err)
+		require.Equal(t, connectionURL, reusedURL)
+		require.NoError(t, reusedCloseFunc())
+		require.NoError(t, verifyBuiltinPostgresInstance(ctx, cfg, connectionURL))
+	})
+
+	t.Run("BusyPersistedPortReturnsNonMatchingProcessError", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.Root(t.TempDir())
+		port := reservePort(t)
+		require.NoError(t, cfg.PostgresPort().Write(port))
+
+		sentinelPath := filepath.Join(cfg.PostgresPath(), "data", "sentinel")
+		require.NoError(t, os.MkdirAll(filepath.Dir(sentinelPath), 0o700))
+		require.NoError(t, os.WriteFile(sentinelPath, []byte("keep"), 0o600))
+
+		listener, err := net.Listen("tcp4", "127.0.0.1:"+port)
+		require.NoError(t, err)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for {
+				conn, acceptErr := listener.Accept()
+				if acceptErr != nil {
+					return
+				}
+				_ = conn.Close()
+			}
+		}()
+		t.Cleanup(func() {
+			require.NoError(t, listener.Close())
+			<-done
+		})
+
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		_, _, err = startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "")
+		require.Error(t, err)
+		require.ErrorIs(t, err, errBuiltinPostgresNonMatchingProcess)
+		require.FileExists(t, sentinelPath)
+
+		persistedPort, readErr := cfg.PostgresPort().Read()
+		require.NoError(t, readErr)
+		require.Equal(t, port, persistedPort)
+	})
 }
