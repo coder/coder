@@ -387,6 +387,90 @@ func TestListChats(t *testing.T) {
 		_, err := unauthenticatedClient.ListChats(ctx, nil)
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// Create 5 chats.
+		const totalChats = 5
+		createdChats := make([]codersdk.Chat, 0, totalChats)
+		for i := 0; i < totalChats; i++ {
+			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				Content: []codersdk.ChatInputPart{
+					{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: fmt.Sprintf("chat-%d", i),
+					},
+				},
+			})
+			require.NoError(t, err)
+			createdChats = append(createdChats, chat)
+		}
+
+		// Fetch first page with limit=2.
+		page1, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{Limit: 2},
+		})
+		require.NoError(t, err)
+		require.Len(t, page1, 2)
+
+		// Fetch second page using after_id from last item of page 1.
+		page2, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{
+				AfterID: uuid.MustParse(page1[len(page1)-1].ID.String()),
+				Limit:   2,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, page2, 2)
+
+		// Ensure page1 and page2 have no overlap.
+		page1IDs := make(map[uuid.UUID]struct{})
+		for _, c := range page1 {
+			page1IDs[c.ID] = struct{}{}
+		}
+		for _, c := range page2 {
+			_, overlap := page1IDs[c.ID]
+			require.False(t, overlap, "page2 should not contain items from page1")
+		}
+
+		// Fetch third page — should have 1 remaining chat.
+		page3, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{
+				AfterID: uuid.MustParse(page2[len(page2)-1].ID.String()),
+				Limit:   2,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, page3, 1)
+
+		// All 5 chats should be accounted for.
+		allIDs := make(map[uuid.UUID]struct{})
+		for _, c := range append(append(page1, page2...), page3...) {
+			allIDs[c.ID] = struct{}{}
+		}
+		for _, c := range createdChats {
+			_, found := allIDs[c.ID]
+			require.True(t, found, "chat %s should appear in paginated results", c.ID)
+		}
+
+		// Fetch with offset=3, limit=2 — should return 2 chats.
+		offsetPage, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{Offset: 3, Limit: 2},
+		})
+		require.NoError(t, err)
+		require.Len(t, offsetPage, 2)
+
+		// No limit should return all chats.
+		allChats, err := client.ListChats(ctx, nil)
+		require.NoError(t, err)
+		require.Len(t, allChats, totalChats)
+	})
 }
 
 func TestListChatModels(t *testing.T) {
@@ -2521,7 +2605,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, cachedStatusChat.ID, cachedStatus.ChatID)
 		require.NotNil(t, cachedStatus.URL)
-		require.Equal(t, "https://github.com/coder/coder/tree/feature%2Fdiff-status", *cachedStatus.URL)
+		require.Equal(t, "https://github.com/coder/coder/tree/feature/diff-status", *cachedStatus.URL)
 		require.NotNil(t, cachedStatus.PullRequestState)
 		require.Equal(t, "open", *cachedStatus.PullRequestState)
 		require.True(t, cachedStatus.ChangesRequested)
@@ -3116,6 +3200,81 @@ func createChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.ChatM
 	})
 	require.NoError(t, err)
 	return modelConfig
+}
+
+//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
+func TestChatSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	adminClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	t.Run("ReturnsEmptyWhenUnset", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp, err := adminClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "", resp.SystemPrompt)
+	})
+
+	t.Run("AdminCanSet", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "You are a helpful coding assistant.",
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "You are a helpful coding assistant.", resp.SystemPrompt)
+	})
+
+	t.Run("AdminCanUnset", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Unset by sending an empty string.
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "",
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "", resp.SystemPrompt)
+	})
+
+	t.Run("NonAdminFails", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := memberClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "This should fail.",
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("UnauthenticatedFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		anonClient := codersdk.New(adminClient.URL)
+		_, err := anonClient.GetChatSystemPrompt(ctx)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
+
+	t.Run("TooLong", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		tooLong := strings.Repeat("a", 131073)
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: tooLong,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
+	})
 }
 
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {

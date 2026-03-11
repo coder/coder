@@ -410,171 +410,6 @@
 				}
 			}
 		},
-		"/chats/files": {
-			"post": {
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
-				"consumes": ["application/octet-stream"],
-				"produces": ["application/json"],
-				"tags": ["Chats"],
-				"summary": "Upload a chat file",
-				"operationId": "upload-chat-file",
-				"parameters": [
-					{
-						"type": "string",
-						"description": "Content-Type must be an image type (image/png, image/jpeg, image/gif, image/webp)",
-						"name": "Content-Type",
-						"in": "header",
-						"required": true
-					},
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Organization ID",
-						"name": "organization",
-						"in": "query",
-						"required": true
-					}
-				],
-				"responses": {
-					"201": {
-						"description": "Created",
-						"schema": {
-							"$ref": "#/definitions/codersdk.UploadChatFileResponse"
-						}
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Response"
-						}
-					},
-					"401": {
-						"description": "Unauthorized",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Response"
-						}
-					},
-					"413": {
-						"description": "Request Entity Too Large",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Response"
-						}
-					},
-					"500": {
-						"description": "Internal Server Error",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Response"
-						}
-					}
-				}
-			}
-		},
-		"/chats/files/{file}": {
-			"get": {
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
-				"tags": ["Chats"],
-				"summary": "Get a chat file",
-				"operationId": "get-chat-file",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "File ID",
-						"name": "file",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK"
-					},
-					"400": {
-						"description": "Bad Request",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Response"
-						}
-					},
-					"401": {
-						"description": "Unauthorized",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Response"
-						}
-					},
-					"404": {
-						"description": "Not Found",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Response"
-						}
-					},
-					"500": {
-						"description": "Internal Server Error",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Response"
-						}
-					}
-				}
-			}
-		},
-		"/chats/{chat}/archive": {
-			"post": {
-				"tags": ["Chats"],
-				"summary": "Archive a chat",
-				"operationId": "archive-chat",
-				"responses": {
-					"204": {
-						"description": "No Content"
-					}
-				}
-			}
-		},
-		"/chats/{chat}/git/watch": {
-			"get": {
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
-				"tags": ["Chats"],
-				"summary": "Watch git changes for a chat.",
-				"operationId": "watch-chat-git",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Chat ID",
-						"name": "chat",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"101": {
-						"description": "Switching Protocols"
-					}
-				}
-			}
-		},
-		"/chats/{chat}/unarchive": {
-			"post": {
-				"tags": ["Chats"],
-				"summary": "Unarchive a chat",
-				"operationId": "unarchive-chat",
-				"responses": {
-					"204": {
-						"description": "No Content"
-					}
-				}
-			}
-		},
 		"/connectionlog": {
 			"get": {
 				"security": [
@@ -13957,6 +13792,10 @@
 		"codersdk.ExternalAuthConfig": {
 			"type": "object",
 			"properties": {
+				"api_base_url": {
+					"description": "APIBaseURL is the base URL for provider REST API calls\n(e.g., \"https://api.github.com\" for GitHub). Derived from\ndefaults when not explicitly configured.",
+					"type": "string"
+				},
 				"app_install_url": {
 					"type": "string"
 				},
@@ -18761,15 +18600,6 @@
 			"properties": {
 				"ttl_ms": {
 					"type": "integer"
-				}
-			}
-		},
-		"codersdk.UploadChatFileResponse": {
-			"type": "object",
-			"properties": {
-				"id": {
-					"type": "string",
-					"format": "uuid"
 				}
 			}
 		},

@@ -168,6 +168,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'terminal_font'
 RETURNING *;
 
+-- name: GetUserChatCustomPrompt :one
+SELECT
+	value as chat_custom_prompt
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'chat_custom_prompt';
+
+-- name: UpdateUserChatCustomPrompt :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'chat_custom_prompt', @chat_custom_prompt)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @chat_custom_prompt
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'chat_custom_prompt'
+RETURNING *;
+
 -- name: GetUserTaskNotificationAlertDismissed :one
 SELECT
 	value::boolean as task_notification_alert_dismissed

@@ -169,10 +169,10 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 					<button
 						type="button"
 						aria-label={ariaLabel}
-						className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+						className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 					>
 						<svg
-							className={cn("h-5 w-5 -rotate-90", toneClassName)}
+							className={cn("size-icon-sm -rotate-90", toneClassName)}
 							viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
 							aria-hidden
 						>
@@ -623,9 +623,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 							)}
 						</div>
 						<div className="flex items-center gap-2">
-							{contextUsage !== undefined && (
-								<ContextUsageIndicator usage={contextUsage} />
-							)}
 							{onAttach && (
 								<>
 									<input
@@ -638,7 +635,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									/>
 									<Button
 										type="button"
-										variant="outline"
+										variant="subtle"
 										size="icon"
 										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
 										onClick={() => fileInputRef.current?.click()}
@@ -649,6 +646,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									</Button>
 								</>
 							)}
+							{contextUsage !== undefined && (
+								<ContextUsageIndicator usage={contextUsage} />
+							)}{" "}
 							{isStreaming && onInterrupt && (
 								<Button
 									size="icon"
