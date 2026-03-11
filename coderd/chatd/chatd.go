@@ -15,6 +15,7 @@ import (
 	"charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -2100,21 +2101,38 @@ func (p *Server) runChat(
 	chat database.Chat,
 	logger slog.Logger,
 ) error {
-	model, modelConfig, providerKeys, err := p.resolveChatModel(ctx, chat)
-	if err != nil {
-		return err
-	}
+	var (
+		model        fantasy.LanguageModel
+		modelConfig  database.ChatModelConfig
+		providerKeys chatprovider.ProviderAPIKeys
+		callConfig   codersdk.ChatModelCallConfig
+		messages     []database.ChatMessage
+	)
 
-	var callConfig codersdk.ChatModelCallConfig
-	if len(modelConfig.Options) > 0 {
-		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return xerrors.Errorf("parse model call config: %w", err)
+	var g errgroup.Group
+	g.Go(func() error {
+		var err error
+		model, modelConfig, providerKeys, err = p.resolveChatModel(ctx, chat)
+		if err != nil {
+			return err
 		}
-	}
-
-	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
-	if err != nil {
-		return xerrors.Errorf("get chat messages: %w", err)
+		if len(modelConfig.Options) > 0 {
+			if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
+				return xerrors.Errorf("parse model call config: %w", err)
+			}
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		messages, err = p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("get chat messages: %w", err)
+		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return err
 	}
 	// Fire title generation asynchronously so it doesn't block the
 	// chat response. It uses a detached context so it can finish
@@ -2237,11 +2255,23 @@ func (p *Server) runChat(
 		return currentConn, nil
 	}
 
-	if instruction := p.resolveInstructions(ctx, chat, getWorkspaceConn); instruction != "" {
+	var instruction, resolvedUserPrompt string
+	var g2 errgroup.Group
+	g2.Go(func() error {
+		instruction = p.resolveInstructions(ctx, chat, getWorkspaceConn)
+		return nil
+	})
+	g2.Go(func() error {
+		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
+		return nil
+	})
+	_ = g2.Wait()
+
+	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
 	}
-	if userPrompt := p.resolveUserPrompt(ctx, chat.OwnerID); userPrompt != "" {
-		prompt = chatprompt.InsertSystem(prompt, userPrompt)
+	if resolvedUserPrompt != "" {
+		prompt = chatprompt.InsertSystem(prompt, resolvedUserPrompt)
 	}
 
 	// Use the model config's context_limit as a fallback when the LLM	// provider doesn't include context_limit in its response metadata
@@ -2532,11 +2562,23 @@ func (p *Server) runChat(
 			if chat.ParentChatID.Valid {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, defaultSubagentInstruction)
 			}
-			if instruction := p.resolveInstructions(reloadCtx, chat, getWorkspaceConn); instruction != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, instruction)
+			var reloadInstruction, reloadUserPrompt string
+			var rg errgroup.Group
+			rg.Go(func() error {
+				reloadInstruction = p.resolveInstructions(reloadCtx, chat, getWorkspaceConn)
+				return nil
+			})
+			rg.Go(func() error {
+				reloadUserPrompt = p.resolveUserPrompt(reloadCtx, chat.OwnerID)
+				return nil
+			})
+			_ = rg.Wait()
+
+			if reloadInstruction != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadInstruction)
 			}
-			if userPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID); userPrompt != "" {
-				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, userPrompt)
+			if reloadUserPrompt != "" {
+				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadUserPrompt)
 			}
 			return reloadedPrompt, nil
 		},
@@ -2764,18 +2806,30 @@ func (p *Server) resolveChatModel(
 	ctx context.Context,
 	chat database.Chat,
 ) (fantasy.LanguageModel, database.ChatModelConfig, chatprovider.ProviderAPIKeys, error) {
-	dbConfig, err := p.resolveModelConfig(ctx, chat)
-	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
-			"resolve model config: %w", err,
-		)
-	}
+	var (
+		dbConfig  database.ChatModelConfig
+		providers []database.ChatProvider
+	)
 
-	providers, err := p.db.GetEnabledChatProviders(ctx)
-	if err != nil {
-		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
-			"get enabled chat providers: %w", err,
-		)
+	var g errgroup.Group
+	g.Go(func() error {
+		var err error
+		dbConfig, err = p.resolveModelConfig(ctx, chat)
+		if err != nil {
+			return xerrors.Errorf("resolve model config: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		providers, err = p.db.GetEnabledChatProviders(ctx)
+		if err != nil {
+			return xerrors.Errorf("get enabled chat providers: %w", err)
+		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, err
 	}
 	dbProviders := make(
 		[]chatprovider.ConfiguredProvider, 0, len(providers),

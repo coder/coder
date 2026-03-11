@@ -707,6 +707,7 @@ var (
 					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceWorkspace.Type:        {policy.ActionRead},
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
+					rbac.ResourceUser.Type:             {policy.ActionReadPersonal},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
