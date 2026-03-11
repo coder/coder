@@ -52,6 +52,16 @@ const DEFAULT_CHAT_PAGE_LIMIT = 50;
 export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
 
+	// Build the search query string including the archived filter.
+	const qParts: string[] = [];
+	if (opts?.q) {
+		qParts.push(opts.q);
+	}
+	if (opts?.archived !== undefined) {
+		qParts.push(`archived:${opts.archived}`);
+	}
+	const q = qParts.length > 0 ? qParts.join(" ") : undefined;
+
 	return {
 		queryKey: [...chatsKey, opts],
 		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
@@ -68,8 +78,7 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 			return API.getChats({
 				limit,
 				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
-				q: opts?.q,
-				archived: opts?.archived,
+				q,
 			});
 		},
 		refetchOnWindowFocus: true as const,
