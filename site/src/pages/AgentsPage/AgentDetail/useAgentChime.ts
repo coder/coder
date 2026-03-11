@@ -28,7 +28,7 @@ export function setChimeEnabled(enabled: boolean): void {
  */
 let chimeAudio: HTMLAudioElement | null = null;
 
-function playChime(): void {
+function playChimeAudio(): void {
 	try {
 		if (!chimeAudio) {
 			chimeAudio = new Audio("/chime.mp3");
@@ -42,6 +42,65 @@ function playChime(): void {
 		// Silently ignore playback errors (e.g. autoplay policy
 		// blocks, missing file, etc.).
 	}
+}
+
+// -- Cross-tab chime deduplication via Web Locks API ----------
+//
+// When multiple tabs are open on /agents, every tab receives the
+// same WebSocket status transitions and would independently
+// decide to play the chime. We use navigator.locks to acquire a
+// short-lived, per-chatID lock. Only the tab that successfully
+// acquires the lock plays the sound. The lock is held for a
+// short duration to prevent other tabs from acquiring it for the
+// same event.
+//
+// Falls back to always playing (original single-tab behavior)
+// when the Web Locks API is unavailable.
+
+/**
+ * How long to hold the lock after playing the chime (ms). This
+ * prevents other tabs whose WebSocket event arrives slightly
+ * later from also acquiring the lock for the same transition.
+ */
+export const LOCK_HOLD_MS = 2000;
+
+/**
+ * Coordinate across tabs so that only one tab plays the chime
+ * for a given chatID. Uses navigator.locks.request() with
+ * ifAvailable: true — the first tab to acquire the lock plays,
+ * all others silently skip. The lock is held for LOCK_HOLD_MS
+ * to cover the window in which other tabs receive the same
+ * WebSocket event.
+ *
+ * Falls back to playing immediately when the Web Locks API is
+ * not available (preserving the original single-tab behavior).
+ */
+function playChime(chatID: string): void {
+	if (typeof navigator === "undefined" || !navigator.locks) {
+		playChimeAudio();
+		return;
+	}
+
+	const lockName = `coder-agent-chime:${chatID}`;
+
+	void navigator.locks.request(
+		lockName,
+		{ ifAvailable: true },
+		async (lock) => {
+			if (!lock) {
+				// Another tab already holds the lock for this
+				// chatID — skip playback.
+				return;
+			}
+
+			playChimeAudio();
+
+			// Hold the lock briefly so that tabs receiving the
+			// WebSocket event a bit later will see the lock as
+			// held and skip.
+			await new Promise((resolve) => setTimeout(resolve, LOCK_HOLD_MS));
+		},
+	);
 }
 
 /**
@@ -90,5 +149,5 @@ export function maybePlayChime(
 		return;
 	}
 
-	playChime();
+	playChime(chatID);
 }
