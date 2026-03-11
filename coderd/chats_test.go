@@ -2565,9 +2565,8 @@ func TestGetChatDiffStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		refreshedAt := time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC)
-		staleAt := time.Date(2026, time.January, 15, 13, 0, 0, 0, time.UTC)
-
+		refreshedAt := time.Now().UTC().Truncate(time.Second)
+		staleAt := refreshedAt.Add(time.Hour)
 		_, err = db.UpsertChatDiffStatusReference(
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusReferenceParams{
