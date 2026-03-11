@@ -287,6 +287,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			AgentID: agent.ID,
 			Slug:    "vscode",
 		}).Times(1).Return(app, nil)
+		mDB.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agent.ID).Times(1).Return(agent, nil)
 		task := database.Task{
 			ID: uuid.UUID{7},
 			WorkspaceAppID: uuid.NullUUID{

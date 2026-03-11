@@ -164,6 +164,14 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		})
 	}
 
+	agent, err := a.Database.GetWorkspaceAgentByID(ctx, a.AgentID)
+	if err != nil {
+		return nil, codersdk.NewError(http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to get workspace agent.",
+			Detail:  err.Error(),
+		})
+	}
+
 	// Treat the message as untrusted input.
 	cleaned := strutil.UISanitize(req.Message)
 
@@ -200,7 +208,6 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
-		agent := database.WorkspaceAgent{ID: a.AgentID}
 		err = a.PublishWorkspaceUpdateFn(ctx, &agent, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
 		if err != nil {
 			return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
@@ -211,7 +218,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 
 	// Notify on state change to Working/Idle for AI tasks
-	a.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, dbState, workspace, database.WorkspaceAgent{ID: a.AgentID})
+	a.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, dbState, workspace, agent)
 
 	if shouldBump(dbState, latestAppStatus) {
 		// We pass time.Time{} for nextAutostart since we don't have access to
