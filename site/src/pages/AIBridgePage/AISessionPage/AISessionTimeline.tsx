@@ -19,6 +19,7 @@ import {
 	PromptDetailsTable,
 	TokenBadges,
 } from "./AISessionDetailsTable";
+import { formatToolCalInput } from "../utils";
 
 type Thread = AIBridgeSessionResponse["threads"][number];
 type AgenticAction = Thread["agentic_actions"][number];
@@ -73,14 +74,6 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({ action }) => {
 
 	const { tool_call } = action;
 
-	let formattedInput = tool_call.input;
-
-	try {
-		formattedInput = JSON.stringify(JSON.parse(tool_call.input), null, 2);
-	} catch {
-		// not JSON, use as-is
-	}
-
 	return (
 		<div className="flex flex-col items-start justify-start gap-2">
 			{/* Thinking blocks */}
@@ -95,7 +88,6 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({ action }) => {
 						onClick={() => setToolCallOpen(!toolCallOpen)}
 					>
 						<span>Tool call</span>
-
 						<Badge size="xs" className="font-mono">
 							{tool_call.tool}
 						</Badge>
@@ -117,7 +109,7 @@ const AgenticActionItem: FC<AgenticActionItemProps> = ({ action }) => {
 							</div>
 						</div>
 						<pre className="bg-surface-secondary rounded-md m-4 p-4 text-xs font-mono text-content-primary overflow-x-auto m-0">
-							{formattedInput}
+							{formatToolCalInput(tool_call.input)}
 						</pre>
 					</>
 				)}

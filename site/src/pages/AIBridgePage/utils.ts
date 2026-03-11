@@ -35,3 +35,15 @@ export const getProviderIconName = (provider: string) => {
 	}
 	return provider;
 };
+
+export const formatToolCalInput = (input: string) => {
+	let formattedInput = input;
+
+	try {
+		formattedInput = JSON.stringify(JSON.parse(input), null, 2);
+	} catch {
+		// not JSON, use as-is
+	}
+
+	return formattedInput;
+};
