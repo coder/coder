@@ -1273,7 +1273,6 @@ export interface ChatModelCallConfig {
 	readonly output_price_per_million_tokens?: number;
 	readonly cache_read_price_per_million_tokens?: number;
 	readonly cache_write_price_per_million_tokens?: number;
-	readonly reasoning_price_per_million_tokens?: number;
 	readonly provider_options?: ChatModelProviderOptions;
 }
 

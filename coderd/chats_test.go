@@ -951,7 +951,6 @@ func TestCreateChatModelConfig(t *testing.T) {
 			OutputPricePerMillionTokens:     ptr.Ref(0.6),
 			CacheReadPricePerMillionTokens:  ptr.Ref(0.03),
 			CacheWritePricePerMillionTokens: ptr.Ref(0.3),
-			ReasoningPricePerMillionTokens:  ptr.Ref(1.2),
 		}
 		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:     "openai",
@@ -1078,7 +1077,6 @@ func TestUpdateChatModelConfig(t *testing.T) {
 			OutputPricePerMillionTokens:     ptr.Ref(0.8),
 			CacheReadPricePerMillionTokens:  ptr.Ref(0.04),
 			CacheWritePricePerMillionTokens: ptr.Ref(0.4),
-			ReasoningPricePerMillionTokens:  ptr.Ref(1.6),
 		}
 		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			DisplayName:  "GPT-4o Mini Updated",
@@ -1107,14 +1105,14 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			ModelConfig: &codersdk.ChatModelCallConfig{
-				ReasoningPricePerMillionTokens: ptr.Ref(-1.0),
+				OutputPricePerMillionTokens: ptr.Ref(-1.0),
 			},
 		})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Invalid model config.", sdkErr.Message)
 		require.Equal(
 			t,
-			"reasoning_price_per_million_tokens must be greater than or equal to zero",
+			"output_price_per_million_tokens must be greater than or equal to zero",
 			sdkErr.Detail,
 		)
 	})
@@ -3397,13 +3395,11 @@ func requireChatModelPricing(
 	require.NotNil(t, actual.OutputPricePerMillionTokens)
 	require.NotNil(t, actual.CacheReadPricePerMillionTokens)
 	require.NotNil(t, actual.CacheWritePricePerMillionTokens)
-	require.NotNil(t, actual.ReasoningPricePerMillionTokens)
 
 	require.Equal(t, *expected.InputPricePerMillionTokens, *actual.InputPricePerMillionTokens)
 	require.Equal(t, *expected.OutputPricePerMillionTokens, *actual.OutputPricePerMillionTokens)
 	require.Equal(t, *expected.CacheReadPricePerMillionTokens, *actual.CacheReadPricePerMillionTokens)
 	require.Equal(t, *expected.CacheWritePricePerMillionTokens, *actual.CacheWritePricePerMillionTokens)
-	require.Equal(t, *expected.ReasoningPricePerMillionTokens, *actual.ReasoningPricePerMillionTokens)
 }
 
 func createChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.ChatModelConfig {

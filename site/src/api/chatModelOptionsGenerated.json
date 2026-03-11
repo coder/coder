@@ -61,7 +61,7 @@
 				"json_name": "output_price_per_million_tokens",
 				"go_name": "OutputPricePerMillionTokens",
 				"type": "number",
-				"description": "Output token price in USD per 1M tokens",
+				"description": "Output token price in USD per 1M tokens, including reasoning tokens",
 				"required": false,
 				"input_type": "input"
 			},
@@ -78,14 +78,6 @@
 				"go_name": "CacheWritePricePerMillionTokens",
 				"type": "number",
 				"description": "Cache write or cache creation token price in USD per 1M tokens",
-				"required": false,
-				"input_type": "input"
-			},
-			{
-				"json_name": "reasoning_price_per_million_tokens",
-				"go_name": "ReasoningPricePerMillionTokens",
-				"type": "number",
-				"description": "Reasoning token price in USD per 1M tokens",
 				"required": false,
 				"input_type": "input"
 			}

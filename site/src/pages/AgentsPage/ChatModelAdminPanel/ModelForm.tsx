@@ -406,8 +406,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 								Pricing
 							</h3>
 							<p className="mt-1 mb-0 text-xs text-content-secondary">
-								Optional USD pricing metadata per 1M tokens. Leave blank for
-								costs you do not want to define yet.
+								Optional USD pricing metadata per 1M tokens. Reasoning tokens
+								use the output token price. Leave blank for costs you do not
+								want to define yet.
 							</p>
 						</div>
 						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

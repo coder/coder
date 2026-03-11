@@ -3119,7 +3119,6 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 		{name: "output_price_per_million_tokens", value: modelConfig.OutputPricePerMillionTokens},
 		{name: "cache_read_price_per_million_tokens", value: modelConfig.CacheReadPricePerMillionTokens},
 		{name: "cache_write_price_per_million_tokens", value: modelConfig.CacheWritePricePerMillionTokens},
-		{name: "reasoning_price_per_million_tokens", value: modelConfig.ReasoningPricePerMillionTokens},
 	}
 	for _, field := range pricingFields {
 		if field.value != nil && *field.value < 0 {
@@ -3162,7 +3161,6 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 		config.OutputPricePerMillionTokens == nil &&
 		config.CacheReadPricePerMillionTokens == nil &&
 		config.CacheWritePricePerMillionTokens == nil &&
-		config.ReasoningPricePerMillionTokens == nil &&
 		isZeroChatModelProviderOptions(config.ProviderOptions)
 }
 

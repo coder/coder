@@ -33,7 +33,6 @@ const pricingFieldNames = new Set<string>([
 	"output_price_per_million_tokens",
 	"cache_read_price_per_million_tokens",
 	"cache_write_price_per_million_tokens",
-	"reasoning_price_per_million_tokens",
 ]);
 
 const isPricingField = (field: FieldSchema): boolean =>
