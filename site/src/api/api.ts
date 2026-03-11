@@ -2078,6 +2078,19 @@ class ApiMethods {
 			throw new MissingBuildParameters(missingParameters, activeVersionId);
 		}
 
+		// If the workspace is currently running, stop it first so that the
+		// running workspace limit check on the server passes when we update
+		// with the new version.
+		if (workspace.latest_build.status === "running") {
+			const stopBuild = await this.stopWorkspace(workspace.id);
+			const awaitedStopBuild = await this.waitForBuild(stopBuild);
+			if (awaitedStopBuild?.status === "canceled") {
+				throw new Error(
+					"Workspace stop was canceled before the update could be applied.",
+				);
+			}
+		}
+
 		return this.postWorkspaceBuild(workspace.id, {
 			transition: "start",
 			template_version_id: activeVersionId,
