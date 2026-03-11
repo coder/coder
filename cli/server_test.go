@@ -31,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/go-chi/chi/v5"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
@@ -254,13 +255,46 @@ func TestServer(t *testing.T) {
 			"--access-url", "http://example-a.com",
 			"--cache-dir", t.TempDir(),
 		)
-		clitest.Start(t, invA.WithContext(testutil.Context(t, superDuperLong)))
+		waiterA := clitest.StartWithWaiter(t, invA.WithContext(testutil.Context(t, superDuperLong)))
 
 		serverAURL := waitAccessURL(t, sharedConfig)
 		assertHealthy(t, serverAURL)
 
 		persistedPort, err := sharedConfig.PostgresPort().Read()
 		require.NoError(t, err)
+		pgPassword, err := sharedConfig.PostgresPassword().Read()
+		require.NoError(t, err)
+		pgPort, err := strconv.ParseUint(persistedPort, 10, 16)
+		require.NoError(t, err)
+
+		waiterA.Cancel()
+		require.Eventually(t, func() bool {
+			conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", persistedPort), testutil.IntervalFast)
+			if dialErr == nil {
+				_ = conn.Close()
+				return false
+			}
+			return true
+		}, testutil.WaitLong, testutil.IntervalFast, "expected the first server to stop postgres before reusing it")
+
+		externalPostgres := embeddedpostgres.NewDatabase(
+			embeddedpostgres.DefaultConfig().
+				Version(embeddedpostgres.V13).
+				BinariesPath(filepath.Join(sharedConfig.PostgresPath(), "bin")).
+				BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
+				DataPath(filepath.Join(sharedConfig.PostgresPath(), "data")).
+				RuntimePath(filepath.Join(sharedConfig.PostgresPath(), "runtime")).
+				CachePath(filepath.Join(sharedConfig.PostgresPath(), "cache")).
+				Username("coder").
+				Password(pgPassword).
+				Database("coder").
+				Encoding("UTF8").
+				Port(uint32(pgPort)),
+		)
+		require.NoError(t, externalPostgres.Start())
+		defer func() {
+			require.NoError(t, externalPostgres.Stop())
+		}()
 
 		invB, _ := clitest.New(t,
 			"server",
@@ -282,7 +316,6 @@ func TestServer(t *testing.T) {
 		serverBURL, err := url.Parse(rawServerBURL)
 		require.NoError(t, err)
 		assertHealthy(t, serverBURL)
-		assertHealthy(t, serverAURL)
 
 		persistedPortAfter, err := sharedConfig.PostgresPort().Read()
 		require.NoError(t, err)
