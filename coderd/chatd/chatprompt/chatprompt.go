@@ -550,10 +550,10 @@ func ExtractToolCalls(parts []fantasy.MessagePart) []fantasy.ToolCallContent {
 	return toolCalls
 }
 
-// MarshalContent encodes message content blocks for persistence.
-// fileIDs optionally maps block indices to chat_files IDs, which
-// are injected into the JSON envelope for file-type blocks so
-// the reference survives round-trips through storage.
+// MarshalContent encodes message content blocks in legacy fantasy
+// envelope format. Retained for backward-compatible test fixtures
+// that create legacy-format DB rows. Production write paths use
+// MarshalParts instead.
 func MarshalContent(blocks []fantasy.Content, fileIDs map[int]uuid.UUID) (pqtype.NullRawMessage, error) {
 	if len(blocks) == 0 {
 		return pqtype.NullRawMessage{}, nil
@@ -561,7 +561,7 @@ func MarshalContent(blocks []fantasy.Content, fileIDs map[int]uuid.UUID) (pqtype
 
 	encodedBlocks := make([]json.RawMessage, 0, len(blocks))
 	for i, block := range blocks {
-		encoded, err := marshalContentBlock(block)
+		encoded, err := json.Marshal(block)
 		if err != nil {
 			return pqtype.NullRawMessage{}, xerrors.Errorf(
 				"encode content block %d: %w",
@@ -570,13 +570,23 @@ func MarshalContent(blocks []fantasy.Content, fileIDs map[int]uuid.UUID) (pqtype
 			)
 		}
 		if fid, ok := fileIDs[i]; ok {
-			encoded, err = injectFileID(encoded, fid)
-			if err != nil {
-				return pqtype.NullRawMessage{}, xerrors.Errorf(
-					"inject file_id into content block %d: %w",
-					i,
-					err,
-				)
+			// Inline file_id injection into the fantasy envelope's
+			// data sub-object, stripping inline data.
+			var envelope struct {
+				Type string `json:"type"`
+				Data struct {
+					MediaType        string           `json:"media_type"`
+					Data             json.RawMessage  `json:"data,omitempty"`
+					FileID           string           `json:"file_id,omitempty"`
+					ProviderMetadata *json.RawMessage `json:"provider_metadata,omitempty"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(encoded, &envelope); err == nil {
+				envelope.Data.FileID = fid.String()
+				envelope.Data.Data = nil
+				if patched, err := json.Marshal(envelope); err == nil {
+					encoded = patched
+				}
 			}
 		}
 		encodedBlocks = append(encodedBlocks, encoded)
@@ -587,26 +597,6 @@ func MarshalContent(blocks []fantasy.Content, fileIDs map[int]uuid.UUID) (pqtype
 		return pqtype.NullRawMessage{}, xerrors.Errorf("encode content blocks: %w", err)
 	}
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
-}
-
-// injectFileID adds a file_id field into the data sub-object of a
-// serialized content block envelope.
-func injectFileID(encoded json.RawMessage, fileID uuid.UUID) (json.RawMessage, error) {
-	var envelope struct {
-		Type string `json:"type"`
-		Data struct {
-			MediaType        string           `json:"media_type"`
-			Data             json.RawMessage  `json:"data,omitempty"`
-			FileID           string           `json:"file_id,omitempty"`
-			ProviderMetadata *json.RawMessage `json:"provider_metadata,omitempty"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(encoded, &envelope); err != nil {
-		return encoded, err
-	}
-	envelope.Data.FileID = fileID.String()
-	envelope.Data.Data = nil // Strip inline data; resolved at LLM dispatch time.
-	return json.Marshal(envelope)
 }
 
 // MarshalToolResult encodes a single tool result for persistence as
@@ -634,39 +624,6 @@ func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isEr
 		return pqtype.NullRawMessage{}, xerrors.Errorf("encode tool result: %w", err)
 	}
 	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
-}
-
-// MarshalToolResultContent encodes a fantasy tool result content
-// block for persistence. It extracts the raw fields and delegates
-// to MarshalToolResult.
-func MarshalToolResultContent(content fantasy.ToolResultContent) (pqtype.NullRawMessage, error) {
-	var result json.RawMessage
-	var isError bool
-
-	switch output := content.Result.(type) {
-	case fantasy.ToolResultOutputContentError:
-		isError = true
-		if output.Error != nil {
-			result, _ = json.Marshal(map[string]any{"error": output.Error.Error()})
-		} else {
-			result = []byte(`{"error":""}`)
-		}
-	case fantasy.ToolResultOutputContentText:
-		result = json.RawMessage(output.Text)
-		if !json.Valid(result) {
-			result, _ = json.Marshal(map[string]any{"output": output.Text})
-		}
-	case fantasy.ToolResultOutputContentMedia:
-		result, _ = json.Marshal(map[string]any{
-			"data":      output.Data,
-			"mime_type": output.MediaType,
-			"text":      output.Text,
-		})
-	default:
-		result = []byte(`{}`)
-	}
-
-	return MarshalToolResult(content.ToolCallID, content.ToolName, result, isError, content.ProviderExecuted, content.ProviderMetadata)
 }
 
 // PartFromContent converts fantasy content into a SDK chat message
@@ -1021,10 +978,6 @@ func sanitizeToolCallID(id string) string {
 		return ""
 	}
 	return toolCallIDSanitizer.ReplaceAllString(id, "_")
-}
-
-func marshalContentBlock(block fantasy.Content) (json.RawMessage, error) {
-	return json.Marshal(block)
 }
 
 // MarshalParts encodes SDK chat message parts for persistence.

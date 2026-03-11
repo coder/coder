@@ -2331,7 +2331,11 @@ func (p *Server) runChat(
 			}
 
 			if len(assistantBlocks) > 0 {
-				assistantContent, marshalErr := chatprompt.MarshalContent(assistantBlocks, nil)
+				sdkParts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks))
+				for _, block := range assistantBlocks {
+					sdkParts = append(sdkParts, chatprompt.PartFromContent(block))
+				}
+				assistantContent, marshalErr := chatprompt.MarshalParts(sdkParts)
 				if marshalErr != nil {
 					return marshalErr
 				}
@@ -2366,7 +2370,8 @@ func (p *Server) runChat(
 			}
 
 			for _, tr := range toolResults {
-				resultContent, marshalErr := chatprompt.MarshalToolResultContent(tr)
+				trPart := chatprompt.PartFromContent(tr)
+				resultContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{trPart})
 				if marshalErr != nil {
 					return marshalErr
 				}
@@ -2681,13 +2686,12 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("encode summary tool args: %w", err)
 	}
 
-	assistantContent, err := chatprompt.MarshalContent([]fantasy.Content{
-		fantasy.ToolCallContent{
-			ToolCallID: toolCallID,
-			ToolName:   "chat_summarized",
-			Input:      string(args),
-		},
-	}, nil)
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolCall,
+		ToolCallID: toolCallID,
+		ToolName:   "chat_summarized",
+		Args:       args,
+	}})
 	if err != nil {
 		return xerrors.Errorf("encode summary tool call: %w", err)
 	}
@@ -2703,14 +2707,12 @@ func (p *Server) persistChatContextSummary(
 	if err != nil {
 		return xerrors.Errorf("encode summary result payload: %w", err)
 	}
-	toolResult, err := chatprompt.MarshalToolResult(
-		toolCallID,
-		"chat_summarized",
-		summaryResult,
-		false,
-		false,
-		nil,
-	)
+	toolResult, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolResult,
+		ToolCallID: toolCallID,
+		ToolName:   "chat_summarized",
+		Result:     summaryResult,
+	}})
 	if err != nil {
 		return xerrors.Errorf("encode summary tool result: %w", err)
 	}
