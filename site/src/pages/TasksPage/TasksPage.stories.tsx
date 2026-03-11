@@ -195,7 +195,7 @@ export const LoadedTasksWaitingForInputTab: Story = {
 		const canvas = within(canvasElement);
 
 		await step("Switch to 'Waiting for input' tab", async () => {
-			const waitingForInputTab = await canvas.findByRole("button", {
+			const waitingForInputTab = await canvas.findByRole("switch", {
 				name: /waiting for input/i,
 			});
 			await userEvent.click(waitingForInputTab);

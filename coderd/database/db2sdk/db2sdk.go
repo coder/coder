@@ -1059,9 +1059,14 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 	if !m.ModelConfigID.Valid {
 		modelConfigID = nil
 	}
+	createdBy := &m.CreatedBy.UUID
+	if !m.CreatedBy.Valid {
+		createdBy = nil
+	}
 	msg := codersdk.ChatMessage{
 		ID:            m.ID,
 		ChatID:        m.ChatID,
+		CreatedBy:     createdBy,
 		ModelConfigID: modelConfigID,
 		CreatedAt:     m.CreatedAt,
 		Role:          m.Role,
@@ -1165,10 +1170,7 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 				continue
 			}
 			if i < len(rawBlocks) {
-				switch part.Type {
-				case codersdk.ChatMessagePartTypeReasoning:
-					part.Title = reasoningStoredTitle(rawBlocks[i])
-				case codersdk.ChatMessagePartTypeFile:
+				if part.Type == codersdk.ChatMessagePartTypeFile {
 					if fid, err := chatprompt.ExtractFileID(rawBlocks[i]); err == nil {
 						part.FileID = uuid.NullUUID{UUID: fid, Valid: true}
 					}
@@ -1265,22 +1267,6 @@ func parseToolResults(raw pqtype.NullRawMessage) ([]toolResultRow, error) {
 		return nil, xerrors.Errorf("parse tool results: %w", err)
 	}
 	return results, nil
-}
-
-func reasoningStoredTitle(raw json.RawMessage) string {
-	var envelope struct {
-		Type string `json:"type"`
-		Data struct {
-			Title string `json:"title"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return ""
-	}
-	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeReasoning)) {
-		return ""
-	}
-	return strings.TrimSpace(envelope.Data.Title)
 }
 
 func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {

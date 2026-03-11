@@ -6,8 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -103,13 +104,22 @@ func TestSyncCommands_Golden(t *testing.T) {
 		require.NoError(t, err)
 		client.Close()
 
-		// Start a goroutine to complete the dependency after a short delay
-		// This simulates the dependency being satisfied while start is waiting
-		// The delay ensures the "Waiting..." message appears in the output
+		// Use a writer that signals when the "Waiting" message has been
+		// written, so the goroutine can complete the dependency at the
+		// right time without relying on time.Sleep.
+		outBuf := newSyncWriter("Waiting")
+
+		// Start a goroutine to complete the dependency once the start
+		// command has printed its waiting message.
 		done := make(chan error, 1)
 		go func() {
-			// Wait a moment to let the start command begin waiting and print the message
-			time.Sleep(100 * time.Millisecond)
+			// Block until the command prints the waiting message.
+			select {
+			case <-outBuf.matched:
+			case <-ctx.Done():
+				done <- ctx.Err()
+				return
+			}
 
 			compCtx := context.Background()
 			compClient, err := agentsocket.NewClient(compCtx, agentsocket.WithPath(path))
@@ -119,7 +129,7 @@ func TestSyncCommands_Golden(t *testing.T) {
 			}
 			defer compClient.Close()
 
-			// Start and complete the dependency unit
+			// Start and complete the dependency unit.
 			err = compClient.SyncStart(compCtx, "dep-unit")
 			if err != nil {
 				done <- err
@@ -129,21 +139,20 @@ func TestSyncCommands_Golden(t *testing.T) {
 			done <- err
 		}()
 
-		var outBuf bytes.Buffer
 		inv, _ := clitest.New(t, "exp", "sync", "start", "test-unit", "--socket-path", path)
-		inv.Stdout = &outBuf
-		inv.Stderr = &outBuf
+		inv.Stdout = outBuf
+		inv.Stderr = outBuf
 
-		// Run the start command - it should wait for the dependency
+		// Run the start command - it should wait for the dependency.
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		// Ensure the completion goroutine finished
+		// Ensure the completion goroutine finished.
 		select {
 		case err := <-done:
 			require.NoError(t, err, "complete dependency")
-		case <-time.After(time.Second):
-			// Goroutine should have finished by now
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for dependency completion goroutine")
 		}
 
 		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/start_with_dependencies", outBuf.Bytes(), nil)
@@ -329,4 +338,37 @@ func TestSyncCommands_Golden(t *testing.T) {
 
 		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_json_format", outBuf.Bytes(), nil)
 	})
+}
+
+// syncWriter is a thread-safe io.Writer that wraps a bytes.Buffer and
+// closes a channel when the written content contains a signal string.
+type syncWriter struct {
+	mu        sync.Mutex
+	buf       bytes.Buffer
+	signal    string
+	matched   chan struct{}
+	closeOnce sync.Once
+}
+
+func newSyncWriter(signal string) *syncWriter {
+	return &syncWriter{
+		signal:  signal,
+		matched: make(chan struct{}),
+	}
+}
+
+func (w *syncWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	n, err := w.buf.Write(p)
+	if w.signal != "" && strings.Contains(w.buf.String(), w.signal) {
+		w.closeOnce.Do(func() { close(w.matched) })
+	}
+	return n, err
+}
+
+func (w *syncWriter) Bytes() []byte {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.buf.Bytes()
 }

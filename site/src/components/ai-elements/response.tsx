@@ -35,6 +35,10 @@ type MarkdownComponentProps = {
 	href?: string;
 	children?: ReactNode;
 	node?: HastNode;
+	type?: string;
+	checked?: boolean;
+	disabled?: boolean;
+	className?: string;
 };
 
 type FileViewerThemeType = "light" | "dark";
@@ -79,10 +83,94 @@ const createComponents = (
 				{children}
 			</a>
 		),
+		// Headings scaled for a 13px base using a tight,
+		// Apple-like progression.
+		h1: ({ children }: MarkdownComponentProps) => (
+			<h1 className="mb-3 mt-5 text-xl font-semibold leading-snug first:mt-0">
+				{children}
+			</h1>
+		),
+		h2: ({ children }: MarkdownComponentProps) => (
+			<h2 className="mb-2 mt-4 text-base font-semibold leading-snug first:mt-0">
+				{children}
+			</h2>
+		),
+		h3: ({ children }: MarkdownComponentProps) => (
+			<h3 className="mb-1.5 mt-3 text-[15px] font-semibold leading-snug first:mt-0">
+				{children}
+			</h3>
+		),
+		h4: ({ children }: MarkdownComponentProps) => (
+			<h4 className="mb-1 mt-3 text-sm font-semibold leading-snug first:mt-0">
+				{children}
+			</h4>
+		),
+		h5: ({ children }: MarkdownComponentProps) => (
+			<h5 className="mb-1 mt-2 text-[13px] font-semibold leading-snug first:mt-0">
+				{children}
+			</h5>
+		),
+		h6: ({ children }: MarkdownComponentProps) => (
+			<h6 className="mb-1 mt-2 text-xs font-semibold leading-snug text-content-secondary first:mt-0">
+				{children}
+			</h6>
+		),
+		// GFM task-list checkboxes: render a styled replacement
+		// for the native <input type="checkbox" disabled> element.
+		input: ({ type, checked, disabled }: MarkdownComponentProps) => {
+			if (type !== "checkbox") {
+				return <input type={type} disabled={disabled} />;
+			}
+			return (
+				<span
+					aria-hidden="true"
+					className={cn(
+						"mr-2 inline-flex size-4 shrink-0 items-center justify-center",
+						"rounded-sm border border-solid",
+						"align-middle relative -top-px",
+						checked
+							? "border-content-link bg-content-link text-white"
+							: "border-border-default bg-surface-primary",
+					)}
+				>
+					{checked && (
+						<svg
+							className="size-3"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							strokeWidth={3}
+						>
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								d="M5 13l4 4L19 7"
+							/>
+						</svg>
+					)}
+				</span>
+			);
+		},
+
+		// Horizontal rule: reset browser default inset/ridge border
+		// (preflight is disabled) to a clean 1px solid line.
+		hr: () => (
+			<hr className="my-6 border-0 border-t border-solid border-border-default" />
+		),
+		// Table cells: streamdown defaults to text-sm (14px).
+		// Drop the explicit size so cells inherit the 13px base.
+		th: ({ children }: MarkdownComponentProps) => (
+			<th className="whitespace-nowrap px-4 py-2 text-left font-semibold">
+				{children}
+			</th>
+		),
+		td: ({ children }: MarkdownComponentProps) => (
+			<td className="px-4 py-2">{children}</td>
+		),
 		// Inline code only — fenced blocks are handled by the pre override.
 		code: ({ children }: MarkdownComponentProps) => (
 			<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-content-primary">
-				{children}
+				{children}{" "}
 			</code>
 		),
 		// Fenced code blocks: extract language and content from the HAST

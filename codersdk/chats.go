@@ -49,6 +49,7 @@ type Chat struct {
 type ChatMessage struct {
 	ID            int64             `json:"id"`
 	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
+	CreatedBy     *uuid.UUID        `json:"created_by,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
 	Role          string            `json:"role"`
@@ -464,6 +465,8 @@ type ChatDiffStatus struct {
 	ChatID           uuid.UUID  `json:"chat_id" format:"uuid"`
 	URL              *string    `json:"url,omitempty"`
 	PullRequestState *string    `json:"pull_request_state,omitempty"`
+	PullRequestTitle string     `json:"pull_request_title"`
+	PullRequestDraft bool       `json:"pull_request_draft"`
 	ChangesRequested bool       `json:"changes_requested"`
 	Additions        int32      `json:"additions"`
 	Deletions        int32      `json:"deletions"`
@@ -550,7 +553,7 @@ type chatStreamEnvelope struct {
 
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
-	Archived *bool
+	Query string
 	Pagination
 }
 
@@ -559,10 +562,10 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 	var reqOpts []RequestOption
 	if opts != nil {
 		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
-		if opts.Archived != nil {
+		if opts.Query != "" {
 			reqOpts = append(reqOpts, func(r *http.Request) {
 				q := r.URL.Query()
-				q.Set("archived", fmt.Sprintf("%t", *opts.Archived))
+				q.Set("q", opts.Query)
 				r.URL.RawQuery = q.Encode()
 			})
 		}

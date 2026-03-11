@@ -49,7 +49,7 @@ export const readInfiniteChatsCache = (
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
 
-export const infiniteChats = (opts?: { archived?: boolean }) => {
+export const infiniteChats = (opts?: { q?: string }) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
 
 	return {
@@ -68,7 +68,7 @@ export const infiniteChats = (opts?: { archived?: boolean }) => {
 			return API.getChats({
 				limit,
 				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
-				archived: opts?.archived?.toString(),
+				q: opts?.q,
 			});
 		},
 		refetchOnWindowFocus: true as const,
@@ -266,6 +266,22 @@ export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatSystemPromptKey,
+		});
+	},
+});
+
+const chatUserCustomPromptKey = ["chat-user-custom-prompt"] as const;
+
+export const chatUserCustomPrompt = () => ({
+	queryKey: chatUserCustomPromptKey,
+	queryFn: () => API.getUserChatCustomPrompt(),
+});
+
+export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
+	mutationFn: API.updateUserChatCustomPrompt,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUserCustomPromptKey,
 		});
 	},
 });

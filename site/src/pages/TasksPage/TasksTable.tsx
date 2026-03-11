@@ -209,7 +209,9 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
 	// Discard role, breaks Chromatic.
 	const { role, ...clickableRowProps } = useClickableTableRow({
-		onClick: () => navigate(taskPageLink),
+		onClick: () => {
+			navigate(taskPageLink);
+		},
 	});
 
 	return (

@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
@@ -1279,30 +1278,30 @@ func TestArchiveChat(t *testing.T) {
 		err = client.ArchiveChat(ctx, chatToArchive.ID)
 		require.NoError(t, err)
 
-		// Default (no filter) returns all chats including archived.
+		// Default (no filter) returns only non-archived chats.
 		allChats, err := client.ListChats(ctx, nil)
 		require.NoError(t, err)
-		require.Len(t, allChats, 2)
+		require.Len(t, allChats, 1)
+		require.Equal(t, chatToKeep.ID, allChats[0].ID)
 
-		// archived=false returns only non-archived chats.
+		// archived:false returns only non-archived chats.
 		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(false),
+			Query: "archived:false",
 		})
 		require.NoError(t, err)
 		require.Len(t, activeChats, 1)
 		require.Equal(t, chatToKeep.ID, activeChats[0].ID)
 		require.False(t, activeChats[0].Archived)
 
-		// archived=true returns only archived chats.
+		// archived:true returns only archived chats.
 		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(true),
+			Query: "archived:true",
 		})
 		require.NoError(t, err)
 		require.Len(t, archivedChats, 1)
 		require.Equal(t, chatToArchive.ID, archivedChats[0].ID)
 		require.True(t, archivedChats[0].Archived)
 	})
-
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
@@ -1356,9 +1355,9 @@ func TestArchiveChat(t *testing.T) {
 		err = client.ArchiveChat(ctx, parentChat.ID)
 		require.NoError(t, err)
 
-		// archived=false should exclude the entire archived family.
+		// archived:false should exclude the entire archived family.
 		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(false),
+			Query: "archived:false",
 		})
 		require.NoError(t, err)
 		for _, c := range activeChats {
@@ -1405,19 +1404,18 @@ func TestUnarchiveChat(t *testing.T) {
 
 		// Verify it's archived.
 		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(true),
+			Query: "archived:true",
 		})
 		require.NoError(t, err)
 		require.Len(t, archivedChats, 1)
 		require.True(t, archivedChats[0].Archived)
-
 		// Unarchive the chat.
 		err = client.UnarchiveChat(ctx, chat.ID)
 		require.NoError(t, err)
 
 		// Verify it's no longer archived.
 		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(false),
+			Query: "archived:false",
 		})
 		require.NoError(t, err)
 		require.Len(t, activeChats, 1)
@@ -1426,7 +1424,7 @@ func TestUnarchiveChat(t *testing.T) {
 
 		// No archived chats remain.
 		archivedChats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(true),
+			Query: "archived:true",
 		})
 		require.NoError(t, err)
 		require.Empty(t, archivedChats)
@@ -2605,7 +2603,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, cachedStatusChat.ID, cachedStatus.ChatID)
 		require.NotNil(t, cachedStatus.URL)
-		require.Equal(t, "https://github.com/coder/coder/tree/feature%2Fdiff-status", *cachedStatus.URL)
+		require.Equal(t, "https://github.com/coder/coder/tree/feature/diff-status", *cachedStatus.URL)
 		require.NotNil(t, cachedStatus.PullRequestState)
 		require.Equal(t, "open", *cachedStatus.PullRequestState)
 		require.True(t, cachedStatus.ChangesRequested)

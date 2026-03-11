@@ -226,6 +226,8 @@ index 1234567..abcdef0 100644
 
 const defaultDiffStatus: ChatDiffStatusResponse = {
 	chat_id: "test-chat",
+	pull_request_title: "",
+	pull_request_draft: false,
 	changes_requested: false,
 	additions: 0,
 	deletions: 0,

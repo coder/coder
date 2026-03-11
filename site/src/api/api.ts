@@ -2941,7 +2941,7 @@ class ApiMethods {
 		after_id?: string;
 		limit?: number;
 		offset?: number;
-		archived?: string;
+		q?: string;
 	}): Promise<TypesGen.Chat[]> => {
 		const response = await this.axios.get<TypesGen.Chat[]>(
 			getURLWithSearchParams("/api/experimental/chats", req),
@@ -3068,6 +3068,26 @@ class ApiMethods {
 		req: TypesGen.UpdateChatSystemPromptRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
+	};
+
+	getUserChatCustomPrompt =
+		async (): Promise<TypesGen.UserChatCustomPromptResponse> => {
+			const response =
+				await this.axios.get<TypesGen.UserChatCustomPromptResponse>(
+					"/api/experimental/chats/config/user-prompt",
+				);
+			return response.data;
+		};
+
+	updateUserChatCustomPrompt = async (
+		req: TypesGen.UpdateUserChatCustomPromptRequest,
+	): Promise<TypesGen.UserChatCustomPromptResponse> => {
+		const response =
+			await this.axios.put<TypesGen.UserChatCustomPromptResponse>(
+				"/api/experimental/chats/config/user-prompt",
+				req,
+			);
+		return response.data;
 	};
 
 	getChatProviderConfigs = async (): Promise<TypesGen.ChatProviderConfig[]> => {
