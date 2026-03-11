@@ -123,9 +123,9 @@ Two hooks run automatically:
 
 - **pre-commit**: `make pre-commit` (gen, fmt, lint, typos, build).
   Fast checks that catch most CI failures. Allow at least 5 minutes.
-- **pre-push**: `make pre-push` (full CI suite including tests).
-  Runs before pushing to catch everything CI would. Allow at least
-  15 minutes (race tests are slow without cache).
+- **pre-push**: `make pre-commit` (gen, fmt, lint, typos, build).
+  Same fast checks as pre-commit. The full test suite runs in CI.
+  To run the full suite locally: `make pre-push`.
 
 `git commit` and `git push` will appear to hang while hooks run.
 This is normal. Do not interrupt, retry, or reduce the timeout.

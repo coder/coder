@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 #
-# Pre-push hook that runs the full CI suite locally.
-# Runs `make pre-push` (gen, fmt, lint, typos, build, tests)
-# to catch issues before they reach CI.
+# Pre-push hook that runs the same lite checks as pre-commit
+# (gen, fmt, lint, typos, build) to catch issues before they
+# reach CI.
 #
-# The pre-commit hook already runs the lite checks on each commit.
-# This hook adds the heavier checks (test-postgres, test-js,
-# test-e2e, sqlc-vet, offlinedocs) before pushing.
+# The full test suite is intentionally omitted here; it runs
+# in CI after pushing.
+#
+# To run the full suite locally, use: make pre-push
 #
 # Installation (worktree-compatible):
 #
@@ -23,4 +24,4 @@ unset GIT_DIR
 if [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then
 	git config --worktree core.hooksPath scripts/githooks
 fi
-exec make pre-push
+exec make pre-commit
