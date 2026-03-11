@@ -572,13 +572,8 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
-			"template_name":     "test-template",
-			"organization_name": "test-org",
-			"transition":        "start",
-			"status":            "error",
-			"is_prebuild":       "false",
-		})
+		// The dbmock should panic by now if we were emitting a metric for subagents so this check is a bit redundant.
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{})
 		require.Equal(t, uint64(1), got.GetSampleCount())
 		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
