@@ -1150,6 +1150,7 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 export interface ChatMessage {
 	readonly id: number;
 	readonly chat_id: string;
+	readonly created_by?: string;
 	readonly model_config_id?: string;
 	readonly created_at: string;
 	readonly role: string;
@@ -3267,7 +3268,7 @@ export interface LinkConfig {
  * ListChatsOptions are optional parameters for ListChats.
  */
 export interface ListChatsOptions extends Pagination {
-	readonly Archived: boolean | null;
+	readonly Query: string;
 }
 
 // From codersdk/inboxnotification.go

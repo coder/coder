@@ -559,13 +559,20 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		try {
 			// The cacheKeyPrefix enables the worker pool's LRU cache
 			// so highlighted ASTs are reused across re-renders instead
-			// of being re-computed on every render cycle.
-			const patches = parsePatchFiles(diff, `chat-${chatId}`);
+			// of being re-computed on every render cycle. We include
+			// dataUpdatedAt so that when the diff content changes
+			// (e.g. new commits pushed) the old cached highlight AST
+			// is not reused with mismatched line indices, which would
+			// cause DiffHunksRenderer.processDiffResult to throw.
+			const patches = parsePatchFiles(
+				diff,
+				`chat-${chatId}-${diffContentsQuery.dataUpdatedAt}`,
+			);
 			return patches.flatMap((p) => p.files);
 		} catch {
 			return [];
 		}
-	}, [diffContentsQuery.data?.diff, chatId]);
+	}, [diffContentsQuery.data?.diff, diffContentsQuery.dataUpdatedAt, chatId]);
 
 	const handleSubmitComment = useCallback(
 		(text: string) => {

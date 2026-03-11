@@ -1,6 +1,5 @@
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	CheckIcon,
 	ColumnsIcon,
@@ -276,35 +275,34 @@ const LocalContent: FC<{
 	}
 
 	return (
-		<ScrollArea className="h-full">
-			<div className="flex flex-col">
-				{repoEntries.map(([repoRoot, repo], index) => {
-					const showSeparator = index > 0;
+		<div className="flex h-full flex-col">
+			{repoEntries.map(([repoRoot, repo], index) => {
+				const showSeparator = index > 0;
 
-					return (
-						<section
-							key={repoRoot}
-							className={cn(
-								showSeparator &&
-									"border-0 border-t border-solid border-border-default",
-							)}
-						>
-							<RepoHeader
-								repoRoot={repoRoot}
-								repo={repo}
-								onRefresh={onRefresh}
-								onCommit={() => onCommit(repoRoot)}
-							/>
-							<RepoChangesPanel
-								repo={repo}
-								isExpanded={isExpanded}
-								diffStyle={diffStyle}
-							/>
-						</section>
-					);
-				})}
-			</div>
-		</ScrollArea>
+				return (
+					<section
+						key={repoRoot}
+						className={cn(
+							"flex min-h-0 flex-1 flex-col",
+							showSeparator &&
+								"border-0 border-t border-solid border-border-default",
+						)}
+					>
+						<RepoHeader
+							repoRoot={repoRoot}
+							repo={repo}
+							onRefresh={onRefresh}
+							onCommit={() => onCommit(repoRoot)}
+						/>
+						<RepoChangesPanel
+							repo={repo}
+							isExpanded={isExpanded}
+							diffStyle={diffStyle}
+						/>
+					</section>
+				);
+			})}
+		</div>
 	);
 };
 
@@ -329,7 +327,7 @@ const RepoHeader: FC<{
 	}, [onRefresh]);
 
 	return (
-		<div className="flex items-center gap-2 bg-surface-secondary px-3 py-2">
+		<div className="flex shrink-0 items-center gap-2 bg-surface-secondary px-3 py-2">
 			{/* Repo identity */}
 			<div className="flex min-w-0 flex-1 items-center gap-2">
 				<GitBranchIcon className="size-3.5 shrink-0 text-content-secondary" />
