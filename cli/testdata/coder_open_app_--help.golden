@@ -1,7 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder open app [flags] <workspace> [<app slug>]
+  coder open app [flags] <workspace> <app slug>
 
   Open a workspace application.
 

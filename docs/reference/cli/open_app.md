@@ -6,7 +6,7 @@ Open a workspace application.
 ## Usage
 
 ```console
-coder open app [flags] <workspace> [<app slug>]
+coder open app [flags] <workspace> <app slug>
 ```
 
 ## Options

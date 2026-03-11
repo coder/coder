@@ -627,7 +627,7 @@ func TestOpenApp(t *testing.T) {
 
 		w := clitest.StartWithWaiter(t, inv)
 		w.RequireError()
-		w.RequireContains("not found")
+		w.RequireContains("app not found")
 	})
 
 	t.Run("RegionNotFound", func(t *testing.T) {

@@ -308,7 +308,7 @@ func (r *RootCmd) openApp() *serpent.Command {
 
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
-		Use:         "app <workspace> [<app slug>]",
+		Use:         "app <workspace> <app slug>",
 		Short:       "Open a workspace application.",
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
@@ -354,8 +354,8 @@ func (r *RootCmd) openApp() *serpent.Command {
 				return a.Slug == appSlug
 			})
 			if appIdx == -1 {
-				cliui.Errorf(inv.Stderr, "app %q not found in workspace %q\nAvailable apps: %v", appSlug, workspaceName, allAppSlugs)
-				return xerrors.Errorf("app %q not found, available: %s", appSlug, strings.Join(allAppSlugs, ", "))
+				cliui.Errorf(inv.Stderr, "App %q not found in workspace %q!\nAvailable apps: %v", appSlug, workspaceName, allAppSlugs)
+				return xerrors.Errorf("app not found")
 			}
 			foundApp = agt.Apps[appIdx]
 
@@ -385,30 +385,31 @@ func (r *RootCmd) openApp() *serpent.Command {
 			}
 			baseURL.Path = ""
 			pathAppURL := strings.TrimPrefix(region.PathAppURL, baseURL.String())
-			openURL := buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
+			appURL := buildAppLinkURL(baseURL, ws, agt, foundApp, region.WildcardHostname, pathAppURL)
 
 			if foundApp.External {
-				openURL = replacePlaceholderExternalSessionTokenString(client, openURL)
+				appURL = replacePlaceholderExternalSessionTokenString(client, appURL)
 			}
 
-			// Check if we're inside a workspace. Generally, we know
+			// Check if we're inside a workspace.  Generally, we know
 			// that if we're inside a workspace, `open` can't be used.
 			insideAWorkspace := inv.Environ.Get("CODER") == "true"
 			if insideAWorkspace {
 				_, _ = fmt.Fprintf(inv.Stderr, "Please open the following URI on your local machine:\n\n")
-				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", openURL)
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", appURL)
 				return nil
 			}
-			_, _ = fmt.Fprintf(inv.Stderr, "Opening %s\n", openURL)
+			_, _ = fmt.Fprintf(inv.Stderr, "Opening %s\n", appURL)
 
 			if !testOpenError {
-				err = open.Run(openURL)
+				err = open.Run(appURL)
 			} else {
-				err = xerrors.New("test.open-error: " + openURL)
+				err = xerrors.New("test.open-error: " + appURL)
 			}
 			return err
 		},
 	}
+
 	cmd.Options = serpent.OptionSet{
 		{
 			Flag: "region",
