@@ -205,6 +205,22 @@ describe("extractModelConfigFormState", () => {
 		expect(result.frequencyPenalty).toBe("0.3");
 	});
 
+	it("extracts pricing fields", () => {
+		const model: TypesGen.ChatModelConfig = {
+			...baseChatModelConfig,
+			model_config: {
+				input_price_per_million_tokens: 0.15,
+				output_price_per_million_tokens: 0.6,
+				cache_read_price_per_million_tokens: 0.03,
+				cache_write_price_per_million_tokens: 0.3,
+			},
+		};
+		const result = extractModelConfigFormState(model);
+		expect(result.inputPricePerMillionTokens).toBe("0.15");
+		expect(result.outputPricePerMillionTokens).toBe("0.6");
+		expect(result.cacheReadPricePerMillionTokens).toBe("0.03");
+		expect(result.cacheWritePricePerMillionTokens).toBe("0.3");
+	});
 	it("extracts OpenAI provider options", () => {
 		const model: TypesGen.ChatModelConfig = {
 			...baseChatModelConfig,
@@ -511,6 +527,37 @@ describe("buildModelConfigFromForm", () => {
 		});
 	});
 
+	describe("pricing fields", () => {
+		it("builds config with valid pricing fields", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({
+					inputPricePerMillionTokens: "0.15",
+					outputPricePerMillionTokens: "0.6",
+					cacheReadPricePerMillionTokens: "0.03",
+					cacheWritePricePerMillionTokens: "0.3",
+				}),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig).toMatchObject({
+				input_price_per_million_tokens: 0.15,
+				output_price_per_million_tokens: 0.6,
+				cache_read_price_per_million_tokens: 0.03,
+				cache_write_price_per_million_tokens: 0.3,
+			});
+		});
+
+		it("reports error for negative pricing fields", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({ inputPricePerMillionTokens: "-0.5" }),
+			);
+			expect(result.fieldErrors.inputPricePerMillionTokens).toContain(
+				"must be zero or greater",
+			);
+			expect(result.modelConfig).toBeUndefined();
+		});
+	});
 	describe("OpenAI / Azure provider", () => {
 		it("builds OpenAI provider options with reasoning effort", () => {
 			const result = buildModelConfigFromForm(

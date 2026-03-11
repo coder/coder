@@ -576,6 +576,18 @@ func MergeMissingCallConfig(
 	if dst.FrequencyPenalty == nil {
 		dst.FrequencyPenalty = defaults.FrequencyPenalty
 	}
+	if dst.InputPricePerMillionTokens == nil {
+		dst.InputPricePerMillionTokens = defaults.InputPricePerMillionTokens
+	}
+	if dst.OutputPricePerMillionTokens == nil {
+		dst.OutputPricePerMillionTokens = defaults.OutputPricePerMillionTokens
+	}
+	if dst.CacheReadPricePerMillionTokens == nil {
+		dst.CacheReadPricePerMillionTokens = defaults.CacheReadPricePerMillionTokens
+	}
+	if dst.CacheWritePricePerMillionTokens == nil {
+		dst.CacheWritePricePerMillionTokens = defaults.CacheWritePricePerMillionTokens
+	}
 	MergeMissingProviderOptions(&dst.ProviderOptions, defaults.ProviderOptions)
 }
 

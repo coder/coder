@@ -141,7 +141,8 @@ func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
 	t.Parallel()
 
 	dst := codersdk.ChatModelCallConfig{
-		Temperature: float64Ptr(0.2),
+		Temperature:                 float64Ptr(0.2),
+		OutputPricePerMillionTokens: float64Ptr(0.7),
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
 				User: stringPtr("alice"),
@@ -149,9 +150,13 @@ func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
 		},
 	}
 	defaults := codersdk.ChatModelCallConfig{
-		MaxOutputTokens: int64Ptr(512),
-		Temperature:     float64Ptr(0.9),
-		TopP:            float64Ptr(0.8),
+		MaxOutputTokens:                 int64Ptr(512),
+		Temperature:                     float64Ptr(0.9),
+		TopP:                            float64Ptr(0.8),
+		InputPricePerMillionTokens:      float64Ptr(0.15),
+		OutputPricePerMillionTokens:     float64Ptr(0.9),
+		CacheReadPricePerMillionTokens:  float64Ptr(0.03),
+		CacheWritePricePerMillionTokens: float64Ptr(0.3),
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
 				User:            stringPtr("bob"),
@@ -168,6 +173,14 @@ func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
 	require.Equal(t, 0.2, *dst.Temperature)
 	require.NotNil(t, dst.TopP)
 	require.Equal(t, 0.8, *dst.TopP)
+	require.NotNil(t, dst.InputPricePerMillionTokens)
+	require.Equal(t, 0.15, *dst.InputPricePerMillionTokens)
+	require.NotNil(t, dst.OutputPricePerMillionTokens)
+	require.Equal(t, 0.7, *dst.OutputPricePerMillionTokens)
+	require.NotNil(t, dst.CacheReadPricePerMillionTokens)
+	require.Equal(t, 0.03, *dst.CacheReadPricePerMillionTokens)
+	require.NotNil(t, dst.CacheWritePricePerMillionTokens)
+	require.Equal(t, 0.3, *dst.CacheWritePricePerMillionTokens)
 	require.NotNil(t, dst.ProviderOptions)
 	require.NotNil(t, dst.ProviderOptions.OpenAI)
 	require.Equal(t, "alice", *dst.ProviderOptions.OpenAI.User)

@@ -1004,6 +1004,91 @@ func TestCreateChatModelConfig(t *testing.T) {
 		)
 	})
 
+	t.Run("RejectsInvalidGeneralModelConfigFields", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "openai",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(4096)
+		testCases := []struct {
+			name        string
+			modelSuffix string
+			config      *codersdk.ChatModelCallConfig
+			detail      string
+		}{
+			{
+				name:        "MaxOutputTokens",
+				modelSuffix: "max-output-tokens",
+				config: &codersdk.ChatModelCallConfig{
+					MaxOutputTokens: ptr.Ref(int64(0)),
+				},
+				detail: "max_output_tokens must be greater than zero",
+			},
+			{
+				name:        "Temperature",
+				modelSuffix: "temperature",
+				config: &codersdk.ChatModelCallConfig{
+					Temperature: ptr.Ref(2.1),
+				},
+				detail: "temperature must be between 0 and 2",
+			},
+			{
+				name:        "TopP",
+				modelSuffix: "top-p",
+				config: &codersdk.ChatModelCallConfig{
+					TopP: ptr.Ref(1.1),
+				},
+				detail: "top_p must be between 0 and 1",
+			},
+			{
+				name:        "TopK",
+				modelSuffix: "top-k",
+				config: &codersdk.ChatModelCallConfig{
+					TopK: ptr.Ref(int64(0)),
+				},
+				detail: "top_k must be greater than zero",
+			},
+			{
+				name:        "PresencePenalty",
+				modelSuffix: "presence-penalty",
+				config: &codersdk.ChatModelCallConfig{
+					PresencePenalty: ptr.Ref(2.1),
+				},
+				detail: "presence_penalty must be between -2 and 2",
+			},
+			{
+				name:        "FrequencyPenalty",
+				modelSuffix: "frequency-penalty",
+				config: &codersdk.ChatModelCallConfig{
+					FrequencyPenalty: ptr.Ref(-2.1),
+				},
+				detail: "frequency_penalty must be between -2 and 2",
+			},
+		}
+
+		for _, tc := range testCases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+					Provider:     "openai",
+					Model:        fmt.Sprintf("gpt-4o-mini-%s", tc.modelSuffix),
+					ContextLimit: &contextLimit,
+					ModelConfig:  tc.config,
+				})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid model config.", sdkErr.Message)
+				require.Equal(t, tc.detail, sdkErr.Detail)
+			})
+		}
+	})
 	t.Run("MissingContextLimit", func(t *testing.T) {
 		t.Parallel()
 
@@ -1115,6 +1200,24 @@ func TestUpdateChatModelConfig(t *testing.T) {
 			"output_price_per_million_tokens must be greater than or equal to zero",
 			sdkErr.Detail,
 		)
+	})
+
+	t.Run("RejectsInvalidGeneralModelConfigFields", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				Temperature: ptr.Ref(2.1),
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid model config.", sdkErr.Message)
+		require.Equal(t, "temperature must be between 0 and 2", sdkErr.Detail)
 	})
 
 	t.Run("NotFound", func(t *testing.T) {

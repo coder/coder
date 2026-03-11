@@ -8,6 +8,7 @@ import {
 } from "api/chatModelOptions";
 import type * as TypesGen from "api/typesGenerated";
 import * as Yup from "yup";
+import { isPricingField } from "./pricingFields";
 
 // ── Preserved public types ─────────────────────────────────────
 
@@ -47,16 +48,6 @@ export const parseThresholdInteger = (value: string): number | null => {
 	if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) return null;
 	return parsed;
 };
-
-const pricingFieldNames = new Set<string>([
-	"input_price_per_million_tokens",
-	"output_price_per_million_tokens",
-	"cache_read_price_per_million_tokens",
-	"cache_write_price_per_million_tokens",
-]);
-
-const isPricingField = (field: FieldSchema): boolean =>
-	pricingFieldNames.has(field.json_name);
 
 // ── Internal helpers ───────────────────────────────────────────
 

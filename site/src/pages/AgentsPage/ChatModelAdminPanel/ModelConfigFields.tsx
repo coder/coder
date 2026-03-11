@@ -24,19 +24,10 @@ import type {
 	ModelConfigFormBuildResult,
 	ModelFormValues,
 } from "./modelConfigFormLogic";
+import { isPricingField } from "./pricingFields";
 
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
-
-const pricingFieldNames = new Set<string>([
-	"input_price_per_million_tokens",
-	"output_price_per_million_tokens",
-	"cache_read_price_per_million_tokens",
-	"cache_write_price_per_million_tokens",
-]);
-
-const isPricingField = (field: FieldSchema): boolean =>
-	pricingFieldNames.has(field.json_name);
 
 // ── Helpers ────────────────────────────────────────────────────
 
