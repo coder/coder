@@ -209,3 +209,38 @@ export const AssistantMessageWithImage: Story = {
 		expect(images).toHaveLength(1);
 	},
 };
+
+/** Images and file-references coexist without interfering. */
+export const UserMessageWithImagesAndFileRefs: Story = {
+	args: {
+		...defaultArgs,
+		parsedSections: buildSections([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Look at these files" },
+					{
+						type: "file",
+						media_type: "image/png",
+						data: TEST_PNG_B64,
+					},
+					{
+						type: "file-reference",
+						file_name: "src/main.go",
+						start_line: 10,
+						end_line: 25,
+						text: "main function",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		expect(images).toHaveLength(1);
+		expect(canvas.getByText(/main\.go/)).toBeInTheDocument();
+	},
+};
