@@ -65,6 +65,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 					<TemplateFileTree
 						fileTree={fileTree}
 						onSelect={(path: string) => {
+							window.location.hash = path;
 							document.getElementById(path)?.scrollIntoView({
 								behavior: "smooth",
 								block: "start",
