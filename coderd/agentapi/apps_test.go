@@ -284,6 +284,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			},
 			Database:  mDB,
 			Log:       testutil.Logger(t),
+			TaskID:    workspace.TaskID,
 			Workspace: cachedWs,
 			PublishWorkspaceUpdateFn: func(_ context.Context, agnt uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				assert.Equal(t, agnt, agent.ID)
@@ -309,9 +310,6 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			},
 		}
 		mDB.EXPECT().GetTaskByID(gomock.Any(), task.ID).Times(1).Return(task, nil)
-		// GetWorkspaceByAgentID is called inside enqueueAITaskStateNotification
-		// to fetch the full workspace (including TaskID).
-		mDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Times(1).Return(workspace, nil)
 		appStatus := database.WorkspaceAppStatus{
 			ID: uuid.UUID{6},
 		}

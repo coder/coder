@@ -318,6 +318,7 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		Agent:    workspaceAgent,
 		Database: api.Database,
 		Log:      api.Logger,
+		TaskID:   workspace.TaskID,
 		AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 			return api.Database.GetWorkspaceAgentByID(ctx, workspaceAgent.ID)
 		},

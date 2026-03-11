@@ -179,6 +179,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		AgentFn:                  api.agent,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
+		TaskID:                   workspace.TaskID,
 		Workspace:                api.cachedWorkspaceFields,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
 		Clock:                    opts.Clock,

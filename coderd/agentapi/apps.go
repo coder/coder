@@ -28,6 +28,7 @@ type AppsAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
 	Database                 database.Store
 	Log                      slog.Logger
+	TaskID                   uuid.NullUUID
 	Workspace                *CachedWorkspaceFields
 	PublishWorkspaceUpdateFn func(context.Context, uuid.UUID, wspubsub.WorkspaceEventKind) error
 	NotificationsEnqueuer    notifications.Enqueuer
@@ -277,16 +278,7 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 		return
 	}
 
-	// Fetch the workspace to check if it's a task workspace. This is
-	// only called for notifiable state transitions, so the extra DB
-	// call is acceptable.
-	workspace, err := a.Database.GetWorkspaceByAgentID(ctx, a.Agent.ID)
-	if err != nil {
-		a.Log.Warn(ctx, "failed to get workspace for AI task notification", slog.Error(err))
-		return
-	}
-
-	if !workspace.TaskID.Valid {
+	if !a.TaskID.Valid {
 		// Workspace has no task ID, do nothing.
 		return
 	}
@@ -311,7 +303,7 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 		return
 	}
 
-	task, err := a.Database.GetTaskByID(ctx, workspace.TaskID.UUID)
+	task, err := a.Database.GetTaskByID(ctx, a.TaskID.UUID)
 	if err != nil {
 		a.Log.Warn(ctx, "failed to get task", slog.Error(err))
 		return
@@ -336,14 +328,20 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 		return
 	}
 
+	ws, ok := a.Workspace.AsWorkspaceIdentity()
+	if !ok {
+		a.Log.Warn(ctx, "failed to get workspace identity for AI task notification")
+		return
+	}
+
 	if _, err := a.NotificationsEnqueuer.EnqueueWithData(
 		// nolint:gocritic // Need notifier actor to enqueue notifications
 		dbauthz.AsNotifier(ctx),
-		workspace.OwnerID,
+		ws.OwnerID,
 		notificationTemplate,
 		map[string]string{
 			"task":      task.Name,
-			"workspace": workspace.Name,
+			"workspace": ws.Name,
 		},
 		map[string]any{
 			// Use a 1-minute bucketed timestamp to bypass per-day dedupe,
@@ -353,7 +351,7 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 		},
 		"api-workspace-agent-app-status",
 		// Associate this notification with related entities
-		workspace.ID, workspace.OwnerID, workspace.OrganizationID, appID,
+		ws.ID, ws.OwnerID, ws.OrganizationID, appID,
 	); err != nil {
 		a.Log.Warn(ctx, "failed to notify of task state", slog.Error(err))
 		return
