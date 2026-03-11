@@ -128,11 +128,12 @@ fields appear dynamically in the admin UI when you select a provider.
 
 #### OpenAI
 
-| Option                | Description                                                           |
-|-----------------------|-----------------------------------------------------------------------|
-| Reasoning Effort      | How much effort the model spends reasoning (`low`, `medium`, `high`). |
-| Max Completion Tokens | Cap on completion tokens for reasoning models.                        |
-| Parallel Tool Calls   | Whether the model can call multiple tools at once.                    |
+| Option                | Description                                                                                            |
+|-----------------------|--------------------------------------------------------------------------------------------------------|
+| API Mode              | Force `responses` or `chat_completions`, or leave it unset to use Coder's automatic routing heuristic. |
+| Reasoning Effort      | How much effort the model spends reasoning (`low`, `medium`, `high`).                                  |
+| Max Completion Tokens | Cap on completion tokens for reasoning models.                                                         |
+| Parallel Tool Calls   | Whether the model can call multiple tools at once.                                                     |
 
 #### Google
 

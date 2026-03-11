@@ -46,6 +46,11 @@ var providerDisplayNameByName = map[string]string{
 	fantasyvercel.Name:       "Vercel AI Gateway",
 }
 
+const (
+	openAIAPIModeResponses       = "responses"
+	openAIAPIModeChatCompletions = "chat_completions"
+)
+
 // SupportedProviders returns all chat providers supported by Fantasy.
 func SupportedProviders() []string {
 	return append([]string(nil), supportedProviderNames...)
@@ -638,6 +643,9 @@ func MergeMissingProviderOptions(
 			if dstOpenAI.User == nil {
 				dstOpenAI.User = defaultOpenAI.User
 			}
+			if dstOpenAI.APIMode == nil {
+				dstOpenAI.APIMode = defaultOpenAI.APIMode
+			}
 			if dstOpenAI.ReasoningEffort == nil {
 				dstOpenAI.ReasoningEffort = defaultOpenAI.ReasoningEffort
 			}
@@ -1050,7 +1058,7 @@ func openAIProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelOpenAIProviderOptions,
 ) fantasy.ProviderOptionsData {
 	reasoningEffort := openAIReasoningEffortFromChat(options.ReasoningEffort)
-	if useOpenAIResponsesOptions(model) {
+	if openAIProviderUsesResponsesAPI(model, options) {
 		include := ensureOpenAIResponseIncludes(openAIIncludeFromChat(options.Include))
 		providerOptions := &fantasyopenai.ResponsesProviderOptions{
 			Include:           include,
@@ -1248,6 +1256,24 @@ func ensureOpenAIResponseIncludes(
 		}
 	}
 	return append(values, required)
+}
+
+// openAIProviderUsesResponsesAPI keeps the existing model heuristic as the
+// default while allowing admins to override stale allowlist decisions.
+func openAIProviderUsesResponsesAPI(
+	model fantasy.LanguageModel,
+	options *codersdk.ChatModelOpenAIProviderOptions,
+) bool {
+	if options != nil && options.APIMode != nil {
+		switch strings.ToLower(strings.TrimSpace(*options.APIMode)) {
+		case openAIAPIModeResponses:
+			return true
+		case openAIAPIModeChatCompletions:
+			return false
+		}
+	}
+
+	return useOpenAIResponsesOptions(model)
 }
 
 func useOpenAIResponsesOptions(model fantasy.LanguageModel) bool {

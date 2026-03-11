@@ -1,8 +1,10 @@
 package chatprovider_test
 
 import (
+	"context"
 	"testing"
 
+	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
@@ -73,6 +75,75 @@ func TestReasoningEffortFromChat(t *testing.T) {
 
 			got := chatprovider.ReasoningEffortFromChat(tt.provider, tt.input)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestProviderOptionsFromChatModelConfig_OpenAIAPIMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		provider      string
+		model         string
+		apiMode       *string
+		wantResponses bool
+	}{
+		{
+			name:          "UnknownModelUsesChatCompletionsHeuristicByDefault",
+			provider:      "openai",
+			model:         "gpt-5.4",
+			wantResponses: false,
+		},
+		{
+			name:          "UnknownModelCanForceResponses",
+			provider:      "openai",
+			model:         "gpt-5.4",
+			apiMode:       stringPtr("responses"),
+			wantResponses: true,
+		},
+		{
+			name:          "KnownResponsesModelUsesResponsesHeuristicByDefault",
+			provider:      "openai",
+			model:         "gpt-5.2",
+			wantResponses: true,
+		},
+		{
+			name:          "KnownResponsesModelCanForceChatCompletions",
+			provider:      "openai",
+			model:         "gpt-5.2",
+			apiMode:       stringPtr("chat_completions"),
+			wantResponses: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
+				fakeLanguageModel{provider: tt.provider, model: tt.model},
+				&codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+						APIMode: tt.apiMode,
+					},
+				},
+			)
+			require.NotNil(t, providerOptions)
+
+			openAIOptions, ok := providerOptions[fantasyopenai.Name]
+			require.True(t, ok)
+			require.NotNil(t, openAIOptions)
+
+			if tt.wantResponses {
+				_, ok = openAIOptions.(*fantasyopenai.ResponsesProviderOptions)
+				require.True(t, ok)
+				return
+			}
+
+			_, ok = openAIOptions.(*fantasyopenai.ProviderOptions)
+			require.True(t, ok)
 		})
 	}
 }
@@ -155,6 +226,7 @@ func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
 				User:            stringPtr("bob"),
+				APIMode:         stringPtr("responses"),
 				ReasoningEffort: stringPtr("medium"),
 			},
 		},
@@ -171,7 +243,37 @@ func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
 	require.NotNil(t, dst.ProviderOptions)
 	require.NotNil(t, dst.ProviderOptions.OpenAI)
 	require.Equal(t, "alice", *dst.ProviderOptions.OpenAI.User)
+	require.Equal(t, "responses", *dst.ProviderOptions.OpenAI.APIMode)
 	require.Equal(t, "medium", *dst.ProviderOptions.OpenAI.ReasoningEffort)
+}
+
+type fakeLanguageModel struct {
+	provider string
+	model    string
+}
+
+func (fakeLanguageModel) Generate(context.Context, fantasy.Call) (*fantasy.Response, error) {
+	panic("unexpected Generate call")
+}
+
+func (fakeLanguageModel) Stream(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+	panic("unexpected Stream call")
+}
+
+func (fakeLanguageModel) GenerateObject(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	panic("unexpected GenerateObject call")
+}
+
+func (fakeLanguageModel) StreamObject(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
+	panic("unexpected StreamObject call")
+}
+
+func (f fakeLanguageModel) Provider() string {
+	return f.provider
+}
+
+func (f fakeLanguageModel) Model() string {
+	return f.model
 }
 
 func stringPtr(value string) *string {
