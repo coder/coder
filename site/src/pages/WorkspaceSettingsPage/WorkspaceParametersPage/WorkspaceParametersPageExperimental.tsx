@@ -1,5 +1,4 @@
-import { API } from "api/api";
-import { DetailedError } from "api/errors";
+import { API, createWebSocket } from "api/api";
 import { checkAuthorization } from "api/queries/authCheck";
 import type {
 	DynamicParametersRequest,
@@ -24,6 +23,7 @@ import { useMutation, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import {
 	type WorkspacePermissions,
@@ -114,33 +114,35 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		if (!templateVersionId && !workspace.latest_build.template_version_id)
 			return;
 
-		const socket = API.templateVersionDynamicParameters(
-			templateVersionId ?? workspace.latest_build.template_version_id,
-			workspace.owner_id,
-			{
-				onMessage,
-				onError: (error) => {
-					if (ws.current === socket) {
-						setWsError(error);
-					}
-				},
-				onClose: () => {
-					if (ws.current === socket) {
-						setWsError(
-							new DetailedError(
-								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
-							),
-						);
-					}
-				},
-			},
-		);
+		const versionId =
+			templateVersionId ?? workspace.latest_build.template_version_id;
 
-		ws.current = socket;
+		const dispose = createReconnectingWebSocket({
+			connect() {
+				const socket = createWebSocket(
+					`/api/v2/templateversions/${versionId}/dynamic-parameters`,
+					new URLSearchParams({ user_id: workspace.owner_id }),
+				);
+
+				socket.addEventListener("message", (event) => {
+					const response = JSON.parse(
+						event.data as string,
+					) as DynamicParametersResponse;
+					onMessage(response);
+				});
+
+				ws.current = socket;
+				return socket;
+			},
+			onOpen() {
+				setWsError(null);
+				initialParamsSentRef.current = false;
+			},
+			onDisconnect() {},
+		});
 
 		return () => {
-			socket.close();
+			dispose();
 		};
 	}, [
 		templateVersionId,

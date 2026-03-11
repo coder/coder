@@ -128,9 +128,17 @@ func (*API) handleParameterEvaluate(rw http.ResponseWriter, r *http.Request, ini
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
+// dynamicParameterIdleTimeout is the idle timeout for the dynamic
+// parameters WebSocket. The connection is closed if no messages are
+// received within this duration. Each client message resets the timer.
+const dynamicParameterIdleTimeout = 3 * time.Minute
+
 func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request, initial codersdk.DynamicParametersRequest, render dynamicparameters.Renderer) {
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Minute)
+	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+
+	idleTimer := time.AfterFunc(dynamicParameterIdleTimeout, cancel)
+	defer idleTimer.Stop()
 
 	conn, err := websocket.Accept(rw, r, nil)
 	if err != nil {
@@ -178,6 +186,8 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 				// The connection has been closed, so there is no one to write to
 				return
 			}
+
+			idleTimer.Reset(dynamicParameterIdleTimeout)
 
 			// Take a nil uuid to mean the previous owner ID.
 			// This just removes the need to constantly send who you are.

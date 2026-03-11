@@ -1,5 +1,5 @@
-import { API } from "api/api";
-import { type ApiErrorResponse, DetailedError } from "api/errors";
+import { createWebSocket } from "api/api";
+import type { ApiErrorResponse } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
 	templateByName,
@@ -31,6 +31,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
+import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
@@ -159,33 +160,33 @@ const CreateWorkspacePage: FC = () => {
 	useEffect(() => {
 		if (!realizedVersionId) return;
 
-		const socket = API.templateVersionDynamicParameters(
-			realizedVersionId,
-			defaultOwner.id,
-			{
-				onMessage,
-				onError: (error) => {
-					if (ws.current === socket) {
-						setWsError(error);
-					}
-				},
-				onClose: () => {
-					if (ws.current === socket) {
-						setWsError(
-							new DetailedError(
-								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
-							),
-						);
-					}
-				},
-			},
-		);
+		const dispose = createReconnectingWebSocket({
+			connect() {
+				const socket = createWebSocket(
+					`/api/v2/templateversions/${realizedVersionId}/dynamic-parameters`,
+					new URLSearchParams({ user_id: defaultOwner.id }),
+				);
 
-		ws.current = socket;
+				socket.addEventListener("message", (event) => {
+					const response = JSON.parse(
+						event.data as string,
+					) as DynamicParametersResponse;
+					onMessage(response);
+				});
+
+				ws.current = socket;
+				return socket;
+			},
+			onOpen() {
+				setWsError(null);
+				// Reset so initial parameters are re-sent on reconnect.
+				initialParamsSentRef.current = false;
+			},
+			onDisconnect() {},
+		});
 
 		return () => {
-			socket.close();
+			dispose();
 		};
 	}, [realizedVersionId, onMessage, defaultOwner.id]);
 

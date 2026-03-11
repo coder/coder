@@ -1,5 +1,4 @@
-import { API } from "api/api";
-import { DetailedError } from "api/errors";
+import { createWebSocket } from "api/api";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
@@ -24,6 +23,7 @@ import {
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
 import { pageTitle } from "utils/page";
+import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 
 type ButtonValues = Record<string, string>;
 
@@ -63,33 +63,31 @@ const TemplateEmbedPageExperimental: FC = () => {
 			return;
 		}
 
-		const socket = API.templateVersionDynamicParameters(
-			template.active_version_id,
-			me.id,
-			{
-				onMessage,
-				onError: (error) => {
-					if (ws.current === socket) {
-						setWsError(error);
-					}
-				},
-				onClose: () => {
-					if (ws.current === socket) {
-						setWsError(
-							new DetailedError(
-								"Websocket connection for dynamic parameters unexpectedly closed.",
-								"Refresh the page to reset the form.",
-							),
-						);
-					}
-				},
-			},
-		);
+		const dispose = createReconnectingWebSocket({
+			connect() {
+				const socket = createWebSocket(
+					`/api/v2/templateversions/${template.active_version_id}/dynamic-parameters`,
+					new URLSearchParams({ user_id: me.id }),
+				);
 
-		ws.current = socket;
+				socket.addEventListener("message", (event) => {
+					const response = JSON.parse(
+						event.data as string,
+					) as DynamicParametersResponse;
+					onMessage(response);
+				});
+
+				ws.current = socket;
+				return socket;
+			},
+			onOpen() {
+				setWsError(null);
+			},
+			onDisconnect() {},
+		});
 
 		return () => {
-			socket.close();
+			dispose();
 		};
 	}, [template.active_version_id, onMessage, me]);
 
