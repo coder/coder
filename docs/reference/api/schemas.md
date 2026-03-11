@@ -2166,6 +2166,7 @@ This is required on creation to enable a user-flow of validating a template work
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "password": "string",
+  "service_account": true,
   "user_status": "active",
   "username": "string"
 }
@@ -2175,11 +2176,12 @@ This is required on creation to enable a user-flow of validating a template work
 
 | Name               | Type                                       | Required | Restrictions | Description                                                                         |
 |--------------------|--------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------|
-| `email`            | string                                     | true     |              |                                                                                     |
+| `email`            | string                                     | false    |              |                                                                                     |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              | Login type defaults to LoginTypePassword.                                           |
 | `name`             | string                                     | false    |              |                                                                                     |
 | `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
 | `password`         | string                                     | false    |              |                                                                                     |
+| `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                      |
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
 

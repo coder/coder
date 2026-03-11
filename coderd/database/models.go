@@ -4877,6 +4877,8 @@ type User struct {
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
 	// Determines if a user is a system user, and therefore cannot login or perform normal actions
 	IsSystem bool `db:"is_system" json:"is_system"`
+	// Determines if a user is an admin-managed account that cannot login
+	IsServiceAccount bool `db:"is_service_account" json:"is_service_account"`
 }
 
 type UserConfig struct {
