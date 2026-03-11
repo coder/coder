@@ -1576,11 +1576,16 @@ func (api *API) resolveChatGitAccessToken(
 				return ptr.Ref(token), nil
 			}
 		}
+
+		// Never fall back to unrelated providers when an origin is provided.
+		// Otherwise we can leak one provider's OAuth token to another provider
+		// host by sending it in the Authorization header.
+		return nil, gitsync.ErrNoTokenAvailable
 	}
 
 	// Fallback: iterate all external auth configs.
 	// Used when origin is empty (inline refresh from HTTP handler)
-	// or when the origin-specific lookup above failed.
+	// and there is no provider context to scope by origin.
 	configs := make(map[string]*externalauth.Config)
 	providerIDs := []string{}
 	for _, config := range api.ExternalAuthConfigs {
