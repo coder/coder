@@ -41,7 +41,12 @@ const unsetSelectValue = "__unset__";
 function snakeToPrettyLabel(jsonName: string): string {
 	return jsonName
 		.split(/[._]/)
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.map((word) => {
+			if (word === "api") {
+				return "API";
+			}
+			return word.charAt(0).toUpperCase() + word.slice(1);
+		})
 		.join(" ");
 }
 
