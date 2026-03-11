@@ -164,6 +164,7 @@ var (
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
 	OwnerID            uuid.UUID
+	CreatedBy          uuid.UUID
 	WorkspaceID        uuid.NullUUID
 	ParentChatID       uuid.NullUUID
 	RootChatID         uuid.NullUUID
@@ -192,6 +193,7 @@ const (
 // SendMessageOptions controls user message insertion with busy-state behavior.
 type SendMessageOptions struct {
 	ChatID         uuid.UUID
+	CreatedBy      uuid.UUID
 	Content        []fantasy.Content
 	ContentFileIDs map[int]uuid.UUID
 	ModelConfigID  *uuid.UUID
@@ -209,6 +211,7 @@ type SendMessageResult struct {
 // EditMessageOptions controls in-place user message edits.
 type EditMessageOptions struct {
 	ChatID          uuid.UUID
+	CreatedBy       uuid.UUID
 	EditedMessageID int64
 	Content         []fantasy.Content
 	ContentFileIDs  map[int]uuid.UUID
@@ -223,6 +226,7 @@ type EditMessageResult struct {
 // PromoteQueuedOptions controls queued-message promotion.
 type PromoteQueuedOptions struct {
 	ChatID          uuid.UUID
+	CreatedBy       uuid.UUID
 	QueuedMessageID int64
 	ModelConfigID   *uuid.UUID
 }
@@ -266,7 +270,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				return xerrors.Errorf("marshal system prompt: %w", err)
 			}
 			_, err = tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-				ChatID: insertedChat.ID,
+				ChatID:    insertedChat.ID,
+				CreatedBy: uuid.NullUUID{},
 				ModelConfigID: uuid.NullUUID{
 					UUID:  opts.ModelConfigID,
 					Valid: true,
@@ -303,6 +308,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			},
 			Role:                "user",
 			Content:             userContent,
+			CreatedBy:           uuid.NullUUID{UUID: opts.CreatedBy, Valid: opts.CreatedBy != uuid.Nil},
 			Visibility:          database.ChatMessageVisibilityBoth,
 			InputTokens:         sql.NullInt64{},
 			OutputTokens:        sql.NullInt64{},
@@ -421,6 +427,7 @@ func (p *Server) SendMessage(
 			lockedChat,
 			modelConfigID,
 			content,
+			opts.CreatedBy,
 		)
 		if err != nil {
 			return err
@@ -736,6 +743,7 @@ func (p *Server) PromoteQueued(
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
 			},
+			opts.CreatedBy,
 		)
 		if err != nil {
 			return err
@@ -881,12 +889,14 @@ func insertUserMessageAndSetPending(
 	lockedChat database.Chat,
 	modelConfigID uuid.UUID,
 	content pqtype.NullRawMessage,
+	createdBy uuid.UUID,
 ) (database.ChatMessage, database.Chat, error) {
 	message, err := insertChatMessageWithStore(ctx, store, database.InsertChatMessageParams{
 		ChatID:              lockedChat.ID,
 		ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		Role:                "user",
 		Content:             content,
+		CreatedBy:           uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
 		Visibility:          database.ChatMessageVisibilityBoth,
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
@@ -1948,6 +1958,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 							RawMessage: nextQueued.Content,
 							Valid:      len(nextQueued.Content) > 0,
 						},
+						CreatedBy:           uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
 						Visibility:          database.ChatMessageVisibilityBoth,
 						InputTokens:         sql.NullInt64{},
 						OutputTokens:        sql.NullInt64{},
@@ -2296,6 +2307,7 @@ func (p *Server) runChat(
 				hasUsage := step.Usage != (fantasy.Usage{})
 				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 					ChatID:        chat.ID,
+					CreatedBy:     uuid.NullUUID{},
 					ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 					Role:          string(fantasy.MessageRoleAssistant),
 					Content:       assistantContent,
@@ -2329,6 +2341,7 @@ func (p *Server) runChat(
 
 				toolMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 					ChatID:              chat.ID,
+					CreatedBy:           uuid.NullUUID{},
 					ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 					Role:                string(fantasy.MessageRoleTool),
 					Content:             resultContent,
@@ -2613,6 +2626,7 @@ func (p *Server) persistChatContextSummary(
 	txErr := p.db.InTx(func(tx database.Store) error {
 		_, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
 			ChatID:        chatID,
+			CreatedBy:     uuid.NullUUID{},
 			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 			Role:          string(fantasy.MessageRoleUser),
 			Content: pqtype.NullRawMessage{
@@ -2635,6 +2649,7 @@ func (p *Server) persistChatContextSummary(
 
 		assistantMessage, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
 			ChatID:        chatID,
+			CreatedBy:     uuid.NullUUID{},
 			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 			Role:          string(fantasy.MessageRoleAssistant),
 			Content:       assistantContent,
@@ -2658,6 +2673,7 @@ func (p *Server) persistChatContextSummary(
 
 		toolMessage, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
 			ChatID:        chatID,
+			CreatedBy:     uuid.NullUUID{},
 			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 			Role:          string(fantasy.MessageRoleTool),
 			Content:       toolResult,

@@ -192,6 +192,7 @@ WITH updated_chat AS (
 )
 INSERT INTO chat_messages (
     chat_id,
+    created_by,
     model_config_id,
     role,
     content,
@@ -206,6 +207,7 @@ INSERT INTO chat_messages (
     compressed
 ) VALUES (
     @chat_id::uuid,
+    sqlc.narg('created_by')::uuid,
     sqlc.narg('model_config_id')::uuid,
     @role::text,
     sqlc.narg('content')::jsonb,

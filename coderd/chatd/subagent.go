@@ -249,6 +249,7 @@ func (p *Server) createChildSubagentChat(
 
 	child, err := p.CreateChat(ctx, CreateOptions{
 		OwnerID:     parent.OwnerID,
+		CreatedBy:   parent.OwnerID,
 		WorkspaceID: parent.WorkspaceID,
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
@@ -289,8 +290,15 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, ErrSubagentNotDescendant
 	}
 
+	// Look up the target chat to get the owner for CreatedBy.
+	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
+	}
+
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
+		CreatedBy:    targetChat.OwnerID,
 		Content:      []fantasy.Content{fantasy.TextContent{Text: message}},
 		BusyBehavior: busyBehavior,
 	})
