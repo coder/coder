@@ -3,7 +3,6 @@
 # Pre-commit hook that runs CI-equivalent checks locally.
 # Runs `make pre-commit` (gen, fmt, lint, typos, build) which
 # catches most CI failures without needing Docker or Playwright.
-# The full CI suite (including tests) runs via the pre-push hook.
 #
 # Installation (worktree-compatible):
 #

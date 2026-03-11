@@ -20,9 +20,9 @@ SHELL := bash
 .ONESHELL:
 
 # When MAKE_TIMED=1, replace SHELL with a wrapper that prints
-# elapsed wall-clock time for each recipe. pre-commit and pre-push
-# set this on their sub-makes so every parallel job reports its
-# duration. Ad-hoc usage: make MAKE_TIMED=1 test
+# elapsed wall-clock time for each recipe. pre-commit sets this on
+# its sub-makes so every parallel job reports its duration. Ad-hoc
+# usage: make MAKE_TIMED=1 test
 ifdef MAKE_TIMED
 SHELL := $(CURDIR)/scripts/lib/timed-shell.sh
 .SHELLFLAGS = $@ -ceu
@@ -113,9 +113,9 @@ VERSION      := $(shell ./scripts/version.sh)
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
 
-# Limit parallel Make jobs in pre-commit/pre-push. Defaults to
-# nproc/4 (min 2) since test and lint targets have internal
-# parallelism. Override: make pre-push PARALLEL_JOBS=8
+# Limit parallel Make jobs in pre-commit. Defaults to nproc/4
+# (min 2) since lint and build targets have internal parallelism.
+# Override: make pre-commit PARALLEL_JOBS=8
 PARALLEL_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8); echo $$(( n / 4 > 2 ? n / 4 : 2 )))
 
 # Use the highest ZSTD compression level in release builds to
@@ -713,37 +713,18 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 	build/typos-$(TYPOS_VERSION) --config .github/workflows/typos.toml
 .PHONY: lint/typos
 
-# pre-commit and pre-push mirror CI "required" jobs locally.
-# See the "required" job's needs list in .github/workflows/ci.yaml.
+# pre-commit mirrors the fast local CI checks.
 #
-# pre-commit runs checks that don't need external services (Docker,
-# Playwright). This is the git pre-commit hook default since test
-# and Docker failures in the local environment would otherwise block
+# It runs checks that don't need external services (Docker,
+# Playwright). This is the git pre-commit hook default since Docker
+# and browser issues in the local environment would otherwise block
 # all commits.
 #
-# pre-push runs the full CI suite including tests. This is the git
-# pre-push hook default, catching everything CI would before pushing.
-#
-# pre-push uses two-phase execution: gen+fmt+test-postgres-docker
-# first (writes files, starts Docker), then lint+build+test in
-# parallel. pre-commit uses two phases: gen+fmt first, then
-# lint+build. This avoids races where gen's `go run` creates
-# temporary .go files that lint's find-based checks pick up.
-# Within each phase, targets run in parallel via -j. Both fail if
-# any tracked files have unstaged changes afterward.
-#
-# Both pre-commit and pre-push:
-#   gen, fmt, lint, lint/typos, slim binary (local arch)
-#
-# pre-push only (need external services or are slow):
-#   site/out/index.html (pnpm build)
-#   test-postgres-docker + test (needs Docker)
-#   test-js, test-e2e (needs Playwright)
-#   sqlc-vet (needs Docker)
-#   offlinedocs/check
-#
-# Omitted:
-#   test-go-pg-17 (same tests, different PG version)
+# pre-commit uses two phases: gen+fmt first, then lint+build. This
+# avoids races where gen's `go run` creates temporary .go files that
+# lint's find-based checks pick up. Within each phase, targets run in
+# parallel via -j. It fails if any tracked files have unstaged
+# changes afterward.
 
 define check-unstaged
 	unstaged="$$(git diff --name-only)"
@@ -776,27 +757,6 @@ pre-commit:
 	$(check-unstaged)
 	echo "$(BOLD)$(GREEN)=== pre-commit passed in $$(( $$(date +%s) - $$start ))s ===$(RESET)"
 .PHONY: pre-commit
-
-pre-push:
-	start=$$(date +%s)
-	echo "=== Phase 1/2: gen + fmt + postgres ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 gen fmt test-postgres-docker
-	$(check-unstaged)
-	echo "=== Phase 2/2: lint + build + test ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 \
-		lint \
-		lint/typos \
-		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT) \
-		site/out/index.html \
-		test \
-		test-js \
-		test-e2e \
-		test-race \
-		sqlc-vet \
-		offlinedocs/check
-	$(check-unstaged)
-	echo "$(BOLD)$(GREEN)=== pre-push passed in $$(( $$(date +%s) - $$start ))s ===$(RESET)"
-.PHONY: pre-push
 
 offlinedocs/check: offlinedocs/node_modules/.installed
 	cd offlinedocs/
@@ -1474,4 +1434,6 @@ dogfood/coder/nix.hash: flake.nix flake.lock
 # Count the number of test databases created per test package.
 count-test-databases:
 	PGPASSWORD=postgres psql -h localhost -U postgres -d coder_testing -P pager=off -c 'SELECT test_package, count(*) as count from test_databases GROUP BY test_package ORDER BY count DESC'
+.PHONY: count-test-databases
+
 .PHONY: count-test-databases

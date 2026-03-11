@@ -50,7 +50,6 @@ Only pause to ask for confirmation when:
 | **Format**      | `make fmt`               | Auto-format code                    |
 | **Clean**       | `make clean`             | Clean build artifacts               |
 | **Pre-commit**  | `make pre-commit`        | Fast CI checks (gen/fmt/lint/build) |
-| **Pre-push**    | `make pre-push`          | All CI checks including tests       |
 
 ### Documentation Commands
 
@@ -119,16 +118,13 @@ no matter how long they take.
 git config core.hooksPath scripts/githooks
 ```
 
-Two hooks run automatically:
+One hook runs automatically:
 
 - **pre-commit**: `make pre-commit` (gen, fmt, lint, typos, build).
   Fast checks that catch most CI failures. Allow at least 5 minutes.
-- **pre-push**: `make pre-push` (full CI suite including tests).
-  Runs before pushing to catch everything CI would. Allow at least
-  15 minutes (race tests are slow without cache).
 
-`git commit` and `git push` will appear to hang while hooks run.
-This is normal. Do not interrupt, retry, or reduce the timeout.
+`git commit` will appear to hang while the hook runs. This is normal.
+Do not interrupt, retry, or reduce the timeout.
 
 NEVER run `git config core.hooksPath` to change or disable hooks.
 
