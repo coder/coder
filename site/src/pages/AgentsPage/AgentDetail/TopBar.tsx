@@ -72,7 +72,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	const navigate = useNavigate();
 
 	return (
-		<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
+		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
 			{/* Mobile back button */}
 			<Button
 				variant="subtle"

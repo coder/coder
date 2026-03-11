@@ -157,6 +157,11 @@ const createComponents = (
 				typeof className === "string" && className.includes("task-list-item");
 			return <li className={isTask ? "list-none" : undefined}>{children}</li>;
 		},
+		// Horizontal rule: reset browser default inset/ridge border
+		// (preflight is disabled) to a clean 1px solid line.
+		hr: () => (
+			<hr className="my-6 border-0 border-t border-solid border-border-default" />
+		),
 		// Table cells: streamdown defaults to text-sm (14px).
 		// Drop the explicit size so cells inherit the 13px base.
 		th: ({ children }: MarkdownComponentProps) => (
