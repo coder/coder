@@ -12,14 +12,6 @@
           "name": "main",
           "operating_system": "linux",
           "architecture": "amd64",
-          "apps": [
-            {
-              "slug": "devcontainer-app",
-              "display_name": "devcontainer-app",
-              "open_in": 1,
-              "id": "a917a82a-fc11-9d2e-5431-cdbb8925e507"
-            }
-          ],
           "Auth": {
             "Token": ""
           },
@@ -34,7 +26,15 @@
           "devcontainers": [
             {
               "workspace_folder": "/workspace",
-              "name": "dev"
+              "name": "dev",
+              "apps": [
+                {
+                  "slug": "devcontainer-app",
+                  "display_name": "devcontainer-app",
+                  "open_in": 1,
+                  "id": "a917a82a-fc11-9d2e-5431-cdbb8925e507"
+                }
+              ]
             },
             {
               "workspace_folder": "/other",

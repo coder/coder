@@ -63,7 +63,7 @@ func TestGetModulesArchive(t *testing.T) {
 		hashBytes := sha256.Sum256(archive)
 		hash := hex.EncodeToString(hashBytes[:])
 		if runtime.GOOS != "windows" {
-			require.Equal(t, "edcccdd4db68869552542e66bad87a51e2e455a358964912805a32b06123cb5c", hash)
+			require.Equal(t, "6a32629d6a37e11cd143e2155396d03d54fa4946bf1bf84f797a78a2d06623c3", hash)
 		} else {
 			require.Equal(t, "67027a27452d60ce2799fcfd70329c185f9aee7115b0944e3aa00b4776be9d92", hash)
 		}

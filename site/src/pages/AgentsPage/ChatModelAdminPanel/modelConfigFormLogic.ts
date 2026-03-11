@@ -8,7 +8,7 @@ import {
 } from "api/chatModelOptions";
 import type * as TypesGen from "api/typesGenerated";
 import * as Yup from "yup";
-import { isPricingField } from "./pricingFields";
+import { pricingFieldNames } from "./pricingFields";
 
 // ── Preserved public types ─────────────────────────────────────
 
@@ -234,6 +234,25 @@ export const buildInitialModelFormValues = (
 		: structuredClone(emptyModelConfigFormState),
 });
 
+function isNonNegativePricingField(field: FieldSchema): boolean {
+	return pricingFieldNames.has(field.json_name);
+}
+
+function isValidOptionalNumber(
+	value: string | undefined,
+	minimum?: number,
+): boolean {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return true;
+	}
+
+	const parsed = Number(trimmed);
+	return (
+		Number.isFinite(parsed) && (minimum === undefined || parsed >= minimum)
+	);
+}
+
 // ── Schema-driven Yup validation ───────────────────────────────
 
 /**
@@ -256,25 +275,16 @@ function yupTestForField(field: FieldSchema): Yup.StringSchema {
 				},
 			);
 
-		case "number":
-			return Yup.string().test(
-				"optional-number",
-				isPricingField(field)
+		case "number": {
+			const minimum = isNonNegativePricingField(field) ? 0 : undefined;
+			const errorMessage =
+				minimum === 0
 					? `${label} must be zero or greater.`
-					: `${label} must be a valid number.`,
-				(value) => {
-					const trimmed = value?.trim();
-					if (!trimmed) return true;
-					const parsed = Number(trimmed);
-					if (!Number.isFinite(parsed)) {
-						return false;
-					}
-					if (isPricingField(field)) {
-						return parsed >= 0;
-					}
-					return true;
-				},
+					: `${label} must be a valid number.`;
+			return Yup.string().test("optional-number", errorMessage, (value) =>
+				isValidOptionalNumber(value, minimum),
 			);
+		}
 
 		case "boolean":
 			return Yup.string().test(

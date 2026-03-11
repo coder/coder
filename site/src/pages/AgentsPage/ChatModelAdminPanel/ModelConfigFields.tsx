@@ -24,7 +24,7 @@ import type {
 	ModelConfigFormBuildResult,
 	ModelFormValues,
 } from "./modelConfigFormLogic";
-import { isPricingField } from "./pricingFields";
+import { pricingFieldNames } from "./pricingFields";
 
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
@@ -417,7 +417,9 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
 			form={form}
 			fieldErrors={fieldErrors}
 			disabled={disabled}
-			fields={getVisibleGeneralFields().filter(isPricingField)}
+			fields={getVisibleGeneralFields().filter(({ json_name }) =>
+				pricingFieldNames.has(json_name),
+			)}
 		/>
 	);
 };
@@ -442,7 +444,7 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 			fieldErrors={fieldErrors}
 			disabled={disabled}
 			fields={getVisibleGeneralFields().filter(
-				(field) => !isPricingField(field),
+				({ json_name }) => !pricingFieldNames.has(json_name),
 			)}
 		/>
 	);

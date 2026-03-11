@@ -553,42 +553,43 @@ func normalizedEnumValue(value string, allowed ...string) *string {
 	return nil
 }
 
-// MergeMissingCallConfig fills unset call config values from defaults.
+// MergeMissingCallConfig fills unset call config values from a provider or
+// profile default config.
 func MergeMissingCallConfig(
 	dst *codersdk.ChatModelCallConfig,
-	defaults codersdk.ChatModelCallConfig,
+	defaultCallConfig codersdk.ChatModelCallConfig,
 ) {
 	if dst.MaxOutputTokens == nil {
-		dst.MaxOutputTokens = defaults.MaxOutputTokens
+		dst.MaxOutputTokens = defaultCallConfig.MaxOutputTokens
 	}
 	if dst.Temperature == nil {
-		dst.Temperature = defaults.Temperature
+		dst.Temperature = defaultCallConfig.Temperature
 	}
 	if dst.TopP == nil {
-		dst.TopP = defaults.TopP
+		dst.TopP = defaultCallConfig.TopP
 	}
 	if dst.TopK == nil {
-		dst.TopK = defaults.TopK
+		dst.TopK = defaultCallConfig.TopK
 	}
 	if dst.PresencePenalty == nil {
-		dst.PresencePenalty = defaults.PresencePenalty
+		dst.PresencePenalty = defaultCallConfig.PresencePenalty
 	}
 	if dst.FrequencyPenalty == nil {
-		dst.FrequencyPenalty = defaults.FrequencyPenalty
+		dst.FrequencyPenalty = defaultCallConfig.FrequencyPenalty
 	}
 	if dst.InputPricePerMillionTokens == nil {
-		dst.InputPricePerMillionTokens = defaults.InputPricePerMillionTokens
+		dst.InputPricePerMillionTokens = defaultCallConfig.InputPricePerMillionTokens
 	}
 	if dst.OutputPricePerMillionTokens == nil {
-		dst.OutputPricePerMillionTokens = defaults.OutputPricePerMillionTokens
+		dst.OutputPricePerMillionTokens = defaultCallConfig.OutputPricePerMillionTokens
 	}
 	if dst.CacheReadPricePerMillionTokens == nil {
-		dst.CacheReadPricePerMillionTokens = defaults.CacheReadPricePerMillionTokens
+		dst.CacheReadPricePerMillionTokens = defaultCallConfig.CacheReadPricePerMillionTokens
 	}
 	if dst.CacheWritePricePerMillionTokens == nil {
-		dst.CacheWritePricePerMillionTokens = defaults.CacheWritePricePerMillionTokens
+		dst.CacheWritePricePerMillionTokens = defaultCallConfig.CacheWritePricePerMillionTokens
 	}
-	MergeMissingProviderOptions(&dst.ProviderOptions, defaults.ProviderOptions)
+	MergeMissingProviderOptions(&dst.ProviderOptions, defaultCallConfig.ProviderOptions)
 }
 
 // MergeMissingProviderOptions fills unset provider option fields from defaults.

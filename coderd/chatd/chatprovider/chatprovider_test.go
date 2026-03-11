@@ -149,7 +149,7 @@ func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
 			},
 		},
 	}
-	defaults := codersdk.ChatModelCallConfig{
+	defaultCallConfig := codersdk.ChatModelCallConfig{
 		MaxOutputTokens:                 int64Ptr(512),
 		Temperature:                     float64Ptr(0.9),
 		TopP:                            float64Ptr(0.8),
@@ -165,7 +165,7 @@ func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
 		},
 	}
 
-	chatprovider.MergeMissingCallConfig(&dst, defaults)
+	chatprovider.MergeMissingCallConfig(&dst, defaultCallConfig)
 
 	require.NotNil(t, dst.MaxOutputTokens)
 	require.EqualValues(t, 512, *dst.MaxOutputTokens)

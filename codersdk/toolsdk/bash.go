@@ -362,28 +362,27 @@ func executeCommandWithTimeout(ctx context.Context, session *gossh.Session, comm
 		// Command completed normally
 		return safeWriter.Bytes(), err
 	case <-ctx.Done():
-		// Context was canceled (timeout or other cancellation)
-		// Close the session to stop the command, but handle errors gracefully
+		// Context was canceled (timeout or other cancellation). Try to terminate the
+		// remote command promptly so the SSH session goroutines do not linger.
+		_ = session.Signal(gossh.SIGKILL)
 		closeErr := session.Close()
 
-		// Give a brief moment to collect any remaining output and for goroutines to finish
-		timer := time.NewTimer(100 * time.Millisecond)
+		// Give the remote side time to observe the signal/close, flush any final
+		// output, and let session.Wait() unblock before we return to the caller.
+		timer := time.NewTimer(5 * time.Second)
 		defer timer.Stop()
 
 		select {
 		case <-timer.C:
-			// Timer expired, return what we have
-			break
+			// Grace period expired; return the output we collected so far.
 		case err := <-done:
-			// Command finished during grace period
+			// Command finished during grace period.
 			if closeErr == nil {
 				return safeWriter.Bytes(), err
 			}
-			// If session close failed, prioritize the context error
-			break
 		}
 
-		// Return the collected output with the context error
+		// Return the collected output with the context error.
 		return safeWriter.Bytes(), context.Cause(ctx)
 	}
 }
