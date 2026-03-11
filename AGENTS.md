@@ -255,3 +255,58 @@ These files may be gitignored, read manually if not auto-loaded.
 ---
 
 *This file stays lean and actionable. Detailed workflows and explanations are imported automatically.*
+
+## Cursor Cloud specific instructions
+
+### System dependencies
+
+Docker is required for Go tests (Postgres is auto-started via `dockertest`).
+The VM snapshot includes Docker, `zstd`, `shellcheck`, and `gotestsum` pre-installed.
+
+### Starting the dev server
+
+Do **not** use `./scripts/develop.sh` directly in Cloud Agent environments.
+The fat binary build's `pushd`/`popd` during tar creation can delete the
+working directory out from under the frontend `pnpm dev` subprocess, causing
+an `ENOENT: uv_cwd` crash. Instead, start the API and frontend separately:
+
+```sh
+# 1. Start the API server (uses built-in embedded Postgres)
+./scripts/coder-dev.sh server --http-address 0.0.0.0:3000 \
+  --swagger-enable --access-url http://127.0.0.1:3000 \
+  --dangerous-allow-cors-requests=true &
+
+# 2. Wait for it to be ready
+timeout 60s bash -c 'until curl -s --fail http://localhost:3000/healthz >/dev/null 2>&1; do sleep 0.5; done'
+
+# 3. Create the initial admin user (first run only)
+./scripts/coder-dev.sh login http://127.0.0.1:3000 \
+  --first-user-username=admin --first-user-email=admin@coder.com \
+  --first-user-password="SomeSecurePassword!" \
+  --first-user-full-name="Admin User" --first-user-trial=false
+
+# 4. Start the frontend dev server
+cd site && CODER_HOST=http://127.0.0.1:3000 pnpm dev --host &
+```
+
+Admin credentials: `admin@coder.com` / `SomeSecurePassword!`
+API: `http://localhost:3000` | Frontend: `http://localhost:8080`
+
+### Skipping code generation
+
+Generated files (`.pb.go`, `querier.go`, `dbauthz.go`, `typesGenerated.ts`,
+etc.) are committed to the repo. If you haven't changed `.sql` or `.proto`
+files, you can skip the `make gen` step by touching the generated outputs so
+Make considers them up-to-date. The update script does this automatically.
+
+### Lint caveats
+
+`make lint` includes a Helm chart lint (`lint/helm`) that requires the `helm`
+CLI, which is not installed in the Cloud Agent VM. This is expected to fail
+and does not affect Go or frontend linting. All other lint targets pass.
+
+### Frontend tests
+
+`pnpm test` in `site/` runs both Vitest and Jest. The
+`CreateWorkspacePage.jest.tsx` test is known to be flaky with `waitFor`
+timeouts in CI-like environments. Prefer `vitest run` for reliable results.
