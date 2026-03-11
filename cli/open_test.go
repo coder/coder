@@ -678,5 +678,4 @@ func TestOpenApp(t *testing.T) {
 		w.RequireContains("test.open-error")
 		w.RequireContains(client.SessionToken())
 	})
-
 }

@@ -353,12 +353,11 @@ func (r *RootCmd) openApp() *serpent.Command {
 			appIdx := slices.IndexFunc(agt.Apps, func(a codersdk.WorkspaceApp) bool {
 				return a.Slug == appSlug
 			})
-			if appIdx != -1 {
-				foundApp = agt.Apps[appIdx]
-			} else {
+			if appIdx == -1 {
 				cliui.Errorf(inv.Stderr, "app %q not found in workspace %q\nAvailable apps: %v", appSlug, workspaceName, allAppSlugs)
 				return xerrors.Errorf("app %q not found, available: %s", appSlug, strings.Join(allAppSlugs, ", "))
 			}
+			foundApp = agt.Apps[appIdx]
 
 			// To build the app URL, we need to know the wildcard hostname
 			// and path app URL for the region.
@@ -680,5 +679,3 @@ func replacePlaceholderExternalSessionTokenString(client *codersdk.Client, appUR
 	// We will just re-use the existing session token we're already using.
 	return strings.ReplaceAll(appURL, "$SESSION_TOKEN", client.SessionToken())
 }
-
-

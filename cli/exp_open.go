@@ -5,12 +5,12 @@ import (
 	"net/url"
 	"strings"
 
+	open "github.com/skratchdot/open-golang/open"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
 	appurl "github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/serpent"
-	open "github.com/skratchdot/open-golang/open"
 )
 
 func (r *RootCmd) expOpen() *serpent.Command {

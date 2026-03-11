@@ -1,12 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # open app
 
-Open a workspace application or port.
+Open a workspace application.
 
 ## Usage
 
 ```console
-coder open app [flags] <workspace> <app slug or port>
+coder open app [flags] <workspace> [<app slug>]
 ```
 
 ## Options
