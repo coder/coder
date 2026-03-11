@@ -465,6 +465,8 @@ type ChatDiffStatus struct {
 	ChatID           uuid.UUID  `json:"chat_id" format:"uuid"`
 	URL              *string    `json:"url,omitempty"`
 	PullRequestState *string    `json:"pull_request_state,omitempty"`
+	PullRequestTitle string     `json:"pull_request_title"`
+	PullRequestDraft bool       `json:"pull_request_draft"`
 	ChangesRequested bool       `json:"changes_requested"`
 	Additions        int32      `json:"additions"`
 	Deletions        int32      `json:"deletions"`

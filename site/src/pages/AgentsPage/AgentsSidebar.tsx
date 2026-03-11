@@ -33,6 +33,10 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisIcon,
+	GitMergeIcon,
+	GitPullRequestArrowIcon,
+	GitPullRequestClosedIcon,
+	GitPullRequestDraftIcon,
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
@@ -96,6 +100,37 @@ type ChatTree = {
 
 const getStatusConfig = (status: ChatStatus) => {
 	return statusConfig[status] ?? statusConfig.completed;
+};
+
+/**
+ * Returns the icon and className to use for a PR state, or undefined
+ * if there is no PR linked. Only overrides the icon when the chat
+ * is not actively executing (pending/running/paused/error).
+ */
+const getPRIconConfig = (
+	diffStatus: ChatDiffStatus | undefined,
+): { icon: typeof CheckIcon; className: string } | undefined => {
+	const state = diffStatus?.pull_request_state;
+	if (!state) {
+		return undefined;
+	}
+	if (state === "merged") {
+		return { icon: GitMergeIcon, className: "text-purple-500" };
+	}
+	if (state === "closed") {
+		return {
+			icon: GitPullRequestClosedIcon,
+			className: "text-content-destructive",
+		};
+	}
+	// state === "open"
+	if (diffStatus?.pull_request_draft) {
+		return {
+			icon: GitPullRequestDraftIcon,
+			className: "text-content-secondary",
+		};
+	}
+	return { icon: GitPullRequestArrowIcon, className: "text-green-500" };
 };
 
 const asNonEmptyString = (value: unknown): string | undefined => {
@@ -309,8 +344,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	);
 	const hasChildren = childIDs.length > 0;
 	const isDelegated = Boolean(getParentChatID(chat));
-	const config = getStatusConfig(chat.status);
-	const StatusIcon = config.icon;
 	const isDelegatedExecuting =
 		isDelegated && (chat.status === "pending" || chat.status === "running");
 	const modelName = getModelDisplayName(
@@ -324,6 +357,13 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 			: undefined;
 	const subtitle = errorReason || modelName;
 	const diffStatus = getChatDiffStatus(chat);
+	const baseConfig = getStatusConfig(chat.status);
+	const prConfig =
+		chat.status === "waiting" || chat.status === "completed"
+			? getPRIconConfig(diffStatus)
+			: undefined;
+	const config = prConfig ?? baseConfig;
+	const StatusIcon = config.icon;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;

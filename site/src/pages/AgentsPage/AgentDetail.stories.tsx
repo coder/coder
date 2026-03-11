@@ -144,6 +144,8 @@ const buildQueries = (
 		data: {
 			chat_id: CHAT_ID,
 			url: opts?.diffUrl,
+			pull_request_title: "",
+			pull_request_draft: false,
 			changes_requested: false,
 			additions: opts?.diffUrl ? 4 : 0,
 			deletions: opts?.diffUrl ? 1 : 0,

@@ -66,6 +66,8 @@ type DiffStats struct {
 // PRStatus is the complete status of a pull/merge request.
 // This is the universal return type that all providers populate.
 type PRStatus struct {
+	// Title is the PR's title/subject line.
+	Title string
 	// State is the PR's lifecycle state.
 	State PRState
 	// Draft indicates the PR is marked as draft/WIP.

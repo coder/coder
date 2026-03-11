@@ -1091,6 +1091,8 @@ export interface ChatDiffStatus {
 	readonly chat_id: string;
 	readonly url?: string;
 	readonly pull_request_state?: string;
+	readonly pull_request_title: string;
+	readonly pull_request_draft: boolean;
 	readonly changes_requested: boolean;
 	readonly additions: number;
 	readonly deletions: number;

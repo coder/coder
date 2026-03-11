@@ -3924,6 +3924,8 @@ type ChatDiffStatus struct {
 	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
 	GitBranch        string         `db:"git_branch" json:"git_branch"`
 	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
+	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
+	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
 }
 
 type ChatFile struct {
