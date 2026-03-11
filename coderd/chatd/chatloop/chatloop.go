@@ -98,12 +98,6 @@ type stepResult struct {
 	finishReason     fantasy.FinishReason
 	toolCalls        []fantasy.ToolCallContent
 	shouldContinue   bool
-
-	// providerToolResults stores tool results emitted by the
-	// provider for server-executed tools (e.g. web search).
-	// Keyed by tool call ID so we can attach the correct
-	// ProviderMetadata when persisting.
-	providerToolResults map[string]fantasy.StreamPart
 }
 
 // toResponseMessages converts step content into messages suitable
@@ -319,42 +313,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 				for _, tr := range toolResults {
 					result.content = append(result.content, tr)
 				}
-			}
-
-			// Synthesize tool results for provider-executed tool
-			// calls (e.g. web search). The provider handles
-			// these server-side so there is no local execution,
-			// but we still need a ToolResultContent in the
-			// persisted content so the DB has matching
-			// tool_call / tool_result pairs. Without this,
-			// reloading the conversation and sending it back to
-			// the provider fails because the provider sees a
-			// tool_call with no tool_result. The
-			// ProviderExecuted flag ensures these synthetic
-			// results are filtered out by the provider
-			// adapter's toPrompt().
-			for _, tc := range result.toolCalls {
-				if !tc.ProviderExecuted {
-					continue
-				}
-				tr := fantasy.ToolResultContent{
-					ToolCallID:       tc.ToolCallID,
-					ToolName:         tc.ToolName,
-					ProviderExecuted: true,
-					Result: fantasy.ToolResultOutputContentText{
-						Text: "provider-executed tool result",
-					},
-				}
-				// Attach provider metadata from the streamed
-				// tool result if available. This preserves
-				// Anthropic's WebSearchResultMetadata (including
-				// encrypted_content) so multi-turn conversations
-				// can reconstruct the web_search_tool_result
-				// block.
-				if ptr, ok := result.providerToolResults[tc.ToolCallID]; ok {
-					tr.ProviderMetadata = ptr.ProviderMetadata
-				}
-				result.content = append(result.content, tr)
 			}
 
 			// Extract context limit from provider metadata.
@@ -595,18 +553,23 @@ func processStepStream(
 			)
 
 		case fantasy.StreamPartTypeToolResult:
-			// Capture provider-emitted tool results (e.g. web
-			// search) so their ProviderMetadata is preserved
-			// through the DB round-trip. Without this metadata
-			// the Anthropic provider cannot reconstruct the
-			// web_search_tool_result block on follow-up turns.
+			// Provider-executed tool results (e.g. web search)
+			// are emitted by the provider and added directly
+			// to the step content for multi-turn round-tripping.
+			// This mirrors fantasy's agent.go accumulation logic.
 			if part.ProviderExecuted {
-				if result.providerToolResults == nil {
-					result.providerToolResults = make(map[string]fantasy.StreamPart)
+				tr := fantasy.ToolResultContent{
+					ToolCallID:       part.ID,
+					ToolName:         part.ToolCallName,
+					ProviderExecuted: true,
+					ProviderMetadata: part.ProviderMetadata,
 				}
-				result.providerToolResults[part.ID] = part
+				result.content = append(result.content, tr)
+				publishMessagePart(
+					fantasy.MessageRoleTool,
+					chatprompt.PartFromContent(tr),
+				)
 			}
-
 		case fantasy.StreamPartTypeFinish:
 			result.usage = part.Usage
 			result.finishReason = part.FinishReason
