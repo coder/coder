@@ -257,9 +257,9 @@ WHERE
 RETURNING
     *;
 
--- name: AcquireChat :one
--- Acquires a pending chat for processing. Uses SKIP LOCKED to prevent
--- multiple replicas from acquiring the same chat.
+-- name: AcquireChats :many
+-- Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
+-- to prevent multiple replicas from acquiring the same chat.
 UPDATE
     chats
 SET
@@ -269,7 +269,7 @@ SET
     updated_at = @started_at::timestamptz,
     worker_id = @worker_id::uuid
 WHERE
-    id = (
+    id = ANY(
         SELECT
             id
         FROM
@@ -281,7 +281,7 @@ WHERE
         FOR UPDATE
             SKIP LOCKED
         LIMIT
-            1
+            @num_chats::int
     )
 RETURNING
     *;

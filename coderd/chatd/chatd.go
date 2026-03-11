@@ -41,7 +41,7 @@ const (
 
 	homeInstructionLookupTimeout = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
-	chatHeartbeatInterval        = 30 * time.Second
+	chatHeartbeatInterval        = 60 * time.Second
 	maxChatSteps                 = 1200
 	// maxStreamBufferSize caps the number of events buffered
 	// per chat during a single LLM step. When exceeded the
@@ -52,6 +52,12 @@ const (
 	// recovery loop runs relative to the stale threshold. A value
 	// of 5 means recovery runs at 1/5 of the stale-after duration.
 	staleRecoveryIntervalDivisor = 5
+
+	// maxChatsPerAcquire is the maximum number of chats to
+	// acquire in a single processOnce call. Batching avoids
+	// waiting a full polling interval between acquisitions
+	// when many chats are pending.
+	maxChatsPerAcquire int32 = 10
 
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
@@ -75,10 +81,10 @@ type Server struct {
 	webpushDispatcher webpush.Dispatcher
 	providerAPIKeys   chatprovider.ProviderAPIKeys
 
-	// streamMu guards chatStreams which tracks in-flight chat
-	// stream state for broadcasting ephemeral events.
-	streamMu    sync.Mutex
-	chatStreams map[uuid.UUID]*chatStreamState
+	// chatStreams stores per-chat stream state. Using sync.Map
+	// gives each chat independent locking — concurrent chats
+	// never contend with each other.
+	chatStreams sync.Map // uuid.UUID -> *chatStreamState
 
 	// instructionCache caches home instruction file contents by
 	// workspace agent ID so we don't re-dial on every chat turn.
@@ -137,6 +143,7 @@ type SubscribeFnParams struct {
 }
 
 type chatStreamState struct {
+	mu          sync.Mutex
 	buffer      []codersdk.ChatStreamEvent
 	buffering   bool
 	subscribers map[uuid.UUID]chan codersdk.ChatStreamEvent
@@ -989,7 +996,6 @@ func New(cfg Config) *Server {
 		pubsub:                     cfg.Pubsub,
 		webpushDispatcher:          cfg.WebpushDispatcher,
 		providerAPIKeys:            cfg.ProviderAPIKeys,
-		chatStreams:                make(map[uuid.UUID]*chatStreamState),
 		instructionCache:           make(map[uuid.UUID]cachedInstruction),
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
@@ -1029,79 +1035,73 @@ func (p *Server) start(ctx context.Context) {
 }
 
 func (p *Server) processOnce(ctx context.Context) {
-	// Bail out early if the server is shutting down. The main
-	// loop's select can randomly pick the ticker over ctx.Done(),
-	// so we must guard against acquiring a chat we cannot process.
 	if ctx.Err() != nil {
 		return
 	}
 
-	// Try to acquire a pending chat. We detach from the server
-	// lifetime to prevent a phantom-acquire race: when the server
-	// context is canceled, the pq driver's watchCancel goroutine
-	// races with the actual query on the wire. The UPDATE can
-	// commit in Postgres (setting the chat to "running") before
-	// the cancel request arrives via a second TCP connection, yet
-	// the Go driver still returns context.Canceled to the caller
-	// because the awaitDone goroutine in database/sql closes the
-	// Rows before Scan reads them. This leaves the chat stuck as
-	// "running" with no goroutine to process it. Using a context
-	// that cannot be canceled ensures the driver sees the query
-	// result if Postgres executed it.
+	// We detach from the server lifetime to prevent a
+	// phantom-acquire race: when the server context is
+	// canceled, the pq driver's watchCancel goroutine
+	// races with the actual query on the wire. Using a
+	// context that cannot be canceled ensures the driver
+	// sees the query result if Postgres executed it.
 	acquireCtx, acquireCancel := context.WithTimeout(
 		context.WithoutCancel(ctx), 10*time.Second,
 	)
-	defer acquireCancel()
-	chat, err := p.db.AcquireChat(acquireCtx, database.AcquireChatParams{
+	chats, err := p.db.AcquireChats(acquireCtx, database.AcquireChatsParams{
 		StartedAt: time.Now(),
 		WorkerID:  p.workerID,
+		NumChats:  maxChatsPerAcquire,
 	})
+	acquireCancel()
 	if err != nil {
-		if !xerrors.Is(err, sql.ErrNoRows) {
-			p.logger.Error(ctx, "failed to acquire chat", slog.Error(err))
-		}
-		// No pending chats or error.
+		p.logger.Error(ctx, "failed to acquire chats", slog.Error(err))
+		return
+	}
+	if len(chats) == 0 {
 		return
 	}
 
-	// If the server context was canceled while we were acquiring,
-	// release the chat back to pending immediately so another
-	// replica can pick it up.
+	// If the server context was canceled while we were
+	// acquiring, release the chats back to pending.
 	if ctx.Err() != nil {
 		releaseCtx, releaseCancel := context.WithTimeout(
 			context.WithoutCancel(ctx), 10*time.Second,
 		)
-		defer releaseCancel()
-		_, updateErr := p.db.UpdateChatStatus(releaseCtx, database.UpdateChatStatusParams{
-			ID:          chat.ID,
-			Status:      database.ChatStatusPending,
-			WorkerID:    uuid.NullUUID{},
-			StartedAt:   sql.NullTime{},
-			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
-		})
-		if updateErr != nil {
-			p.logger.Error(ctx, "failed to release chat acquired during shutdown",
-				slog.F("chat_id", chat.ID), slog.Error(updateErr))
+		for _, chat := range chats {
+			_, updateErr := p.db.UpdateChatStatus(releaseCtx, database.UpdateChatStatusParams{
+				ID:          chat.ID,
+				Status:      database.ChatStatusPending,
+				WorkerID:    uuid.NullUUID{},
+				StartedAt:   sql.NullTime{},
+				HeartbeatAt: sql.NullTime{},
+				LastError:   sql.NullString{},
+			})
+			if updateErr != nil {
+				p.logger.Error(ctx, "failed to release chat acquired during shutdown",
+					slog.F("chat_id", chat.ID), slog.Error(updateErr))
+			}
 		}
+		releaseCancel()
 		return
 	}
 
-	// Process the chat (don't block the main loop).
-	p.inflight.Add(1)
-	go func() {
-		defer p.inflight.Done()
-		p.processChat(ctx, chat)
-	}()
+	for _, chat := range chats {
+		p.inflight.Add(1)
+		go func() {
+			defer p.inflight.Done()
+			p.processChat(ctx, chat)
+		}()
+	}
 }
 
 func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
-	p.streamMu.Lock()
-	state := p.streamStateLocked(chatID)
+	state := p.getOrCreateStreamState(chatID)
+	state.mu.Lock()
 	if event.Type == codersdk.ChatStreamEventTypeMessagePart {
 		if !state.buffering {
-			p.cleanupStreamIfIdleLocked(chatID, state)
-			p.streamMu.Unlock()
+			p.cleanupStreamIfIdle(chatID, state)
+			state.mu.Unlock()
 			return
 		}
 		if len(state.buffer) >= maxStreamBufferSize {
@@ -1115,7 +1115,7 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 	for _, ch := range state.subscribers {
 		subscribers = append(subscribers, ch)
 	}
-	p.streamMu.Unlock()
+	state.mu.Unlock()
 
 	for _, ch := range subscribers {
 		select {
@@ -1127,13 +1127,11 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 	}
 
 	// Clean up the stream entry if it was created by
-	// streamStateLocked but has no subscribers and is not
+	// getOrCreateStreamState but has no subscribers and is not
 	// actively buffering (e.g. publish with no watchers).
-	p.streamMu.Lock()
-	if cur, ok := p.chatStreams[chatID]; ok {
-		p.cleanupStreamIfIdleLocked(chatID, cur)
-	}
-	p.streamMu.Unlock()
+	state.mu.Lock()
+	p.cleanupStreamIfIdle(chatID, state)
+	state.mu.Unlock()
 }
 
 func (p *Server) subscribeToStream(chatID uuid.UUID) (
@@ -1141,48 +1139,52 @@ func (p *Server) subscribeToStream(chatID uuid.UUID) (
 	<-chan codersdk.ChatStreamEvent,
 	func(),
 ) {
-	p.streamMu.Lock()
-	state := p.streamStateLocked(chatID)
+	state := p.getOrCreateStreamState(chatID)
+	state.mu.Lock()
 	snapshot := append([]codersdk.ChatStreamEvent(nil), state.buffer...)
 	id := uuid.New()
 	ch := make(chan codersdk.ChatStreamEvent, 128)
 	state.subscribers[id] = ch
-	p.streamMu.Unlock()
+	state.mu.Unlock()
 
 	cancel := func() {
-		p.streamMu.Lock()
-		state, ok := p.chatStreams[chatID]
-		if ok {
-			// Remove the subscriber but do not close the channel.
-			// publishToStream copies subscriber references under
-			// streamMu then sends outside the lock; closing here
-			// races with that send and can panic. The channel
-			// becomes unreachable once removed and will be GC'd.
-			delete(state.subscribers, id)
-			p.cleanupStreamIfIdleLocked(chatID, state)
-		}
-		p.streamMu.Unlock()
+		state.mu.Lock()
+		// Remove the subscriber but do not close the channel.
+		// publishToStream copies subscriber references under
+		// the per-chat lock then sends outside; closing here
+		// races with that send and can panic. The channel
+		// becomes unreachable once removed and will be GC'd.
+		delete(state.subscribers, id)
+		p.cleanupStreamIfIdle(chatID, state)
+		state.mu.Unlock()
 	}
 
 	return snapshot, ch, cancel
 }
 
-// cleanupStreamIfIdleLocked removes the chat entry when there
-// are no subscribers and the stream is not buffering. The
-// caller must hold p.streamMu.
-func (p *Server) cleanupStreamIfIdleLocked(chatID uuid.UUID, state *chatStreamState) {
-	if !state.buffering && len(state.subscribers) == 0 {
-		delete(p.chatStreams, chatID)
+// getOrCreateStreamState returns the per-chat stream state,
+// creating one atomically if it doesn't exist. The returned
+// state has its own mutex — callers must lock state.mu for
+// access.
+func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
+	if val, ok := p.chatStreams.Load(chatID); ok {
+		state, _ := val.(*chatStreamState)
+		return state
 	}
+	val, _ := p.chatStreams.LoadOrStore(chatID, &chatStreamState{
+		subscribers: make(map[uuid.UUID]chan codersdk.ChatStreamEvent),
+	})
+	state, _ := val.(*chatStreamState)
+	return state
 }
 
-func (p *Server) streamStateLocked(chatID uuid.UUID) *chatStreamState {
-	state, ok := p.chatStreams[chatID]
-	if !ok {
-		state = &chatStreamState{subscribers: make(map[uuid.UUID]chan codersdk.ChatStreamEvent)}
-		p.chatStreams[chatID] = state
+// cleanupStreamIfIdle removes the chat entry from the sync.Map
+// when there are no subscribers and the stream is not buffering.
+// The caller must hold state.mu.
+func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) {
+	if !state.buffering && len(state.subscribers) == 0 {
+		p.chatStreams.Delete(chatID)
 	}
-	return state
 }
 
 func (p *Server) Subscribe(
@@ -1876,19 +1878,17 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	// buffering hasn't started yet — the subscriber gets an empty
 	// snapshot and publishToStream drops message_parts while
 	// buffering is false.
-	p.streamMu.Lock()
-	startState := p.streamStateLocked(chat.ID)
-	startState.buffer = nil
-	startState.buffering = true
-	p.streamMu.Unlock()
+	streamState := p.getOrCreateStreamState(chat.ID)
+	streamState.mu.Lock()
+	streamState.buffer = nil
+	streamState.buffering = true
+	streamState.mu.Unlock()
 	defer func() {
-		p.streamMu.Lock()
-		if stopState, ok := p.chatStreams[chat.ID]; ok {
-			stopState.buffer = nil
-			stopState.buffering = false
-			p.cleanupStreamIfIdleLocked(chat.ID, stopState)
-		}
-		p.streamMu.Unlock()
+		streamState.mu.Lock()
+		streamState.buffer = nil
+		streamState.buffering = false
+		p.cleanupStreamIfIdle(chat.ID, streamState)
+		streamState.mu.Unlock()
 	}()
 
 	p.publishStatus(chat.ID, database.ChatStatusRunning, uuid.NullUUID{
@@ -2373,11 +2373,13 @@ func (p *Server) runChat(
 		// Clear the stream buffer now that the step is
 		// persisted. Late-joining subscribers will load
 		// these messages from the database instead.
-		p.streamMu.Lock()
-		if state, ok := p.chatStreams[chat.ID]; ok {
-			state.buffer = nil
+		if val, ok := p.chatStreams.Load(chat.ID); ok {
+			if ss, ok := val.(*chatStreamState); ok {
+				ss.mu.Lock()
+				ss.buffer = nil
+				ss.mu.Unlock()
+			}
 		}
-		p.streamMu.Unlock()
 
 		return nil
 	}
@@ -2531,12 +2533,13 @@ func (p *Server) runChat(
 		},
 
 		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
-			p.streamMu.Lock()
-			if state, ok := p.chatStreams[chat.ID]; ok {
-				state.buffer = nil
+			if val, ok := p.chatStreams.Load(chat.ID); ok {
+				if rs, ok := val.(*chatStreamState); ok {
+					rs.mu.Lock()
+					rs.buffer = nil
+					rs.mu.Unlock()
+				}
 			}
-			p.streamMu.Unlock()
-
 			logger.Warn(ctx, "retrying LLM stream",
 				slog.F("attempt", attempt),
 				slog.F("delay", delay.String()),

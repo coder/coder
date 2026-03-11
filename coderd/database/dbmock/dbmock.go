@@ -44,19 +44,19 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
 }
 
-// AcquireChat mocks base method.
-func (m *MockStore) AcquireChat(ctx context.Context, arg database.AcquireChatParams) (database.Chat, error) {
+// AcquireChats mocks base method.
+func (m *MockStore) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AcquireChat", ctx, arg)
-	ret0, _ := ret[0].(database.Chat)
+	ret := m.ctrl.Call(m, "AcquireChats", ctx, arg)
+	ret0, _ := ret[0].([]database.Chat)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// AcquireChat indicates an expected call of AcquireChat.
-func (mr *MockStoreMockRecorder) AcquireChat(ctx, arg any) *gomock.Call {
+// AcquireChats indicates an expected call of AcquireChats.
+func (mr *MockStoreMockRecorder) AcquireChats(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireChat", reflect.TypeOf((*MockStore)(nil).AcquireChat), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireChats", reflect.TypeOf((*MockStore)(nil).AcquireChats), ctx, arg)
 }
 
 // AcquireLock mocks base method.

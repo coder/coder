@@ -2968,7 +2968,7 @@ func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProvi
 	return i, err
 }
 
-const acquireChat = `-- name: AcquireChat :one
+const acquireChats = `-- name: AcquireChats :many
 UPDATE
     chats
 SET
@@ -2978,7 +2978,7 @@ SET
     updated_at = $1::timestamptz,
     worker_id = $2::uuid
 WHERE
-    id = (
+    id = ANY(
         SELECT
             id
         FROM
@@ -2990,40 +2990,57 @@ WHERE
         FOR UPDATE
             SKIP LOCKED
         LIMIT
-            1
+            $3::int
     )
 RETURNING
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 `
 
-type AcquireChatParams struct {
+type AcquireChatsParams struct {
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	WorkerID  uuid.UUID `db:"worker_id" json:"worker_id"`
+	NumChats  int32     `db:"num_chats" json:"num_chats"`
 }
 
-// Acquires a pending chat for processing. Uses SKIP LOCKED to prevent
-// multiple replicas from acquiring the same chat.
-func (q *sqlQuerier) AcquireChat(ctx context.Context, arg AcquireChatParams) (Chat, error) {
-	row := q.db.QueryRowContext(ctx, acquireChat, arg.StartedAt, arg.WorkerID)
-	var i Chat
-	err := row.Scan(
-		&i.ID,
-		&i.OwnerID,
-		&i.WorkspaceID,
-		&i.Title,
-		&i.Status,
-		&i.WorkerID,
-		&i.StartedAt,
-		&i.HeartbeatAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ParentChatID,
-		&i.RootChatID,
-		&i.LastModelConfigID,
-		&i.Archived,
-		&i.LastError,
-	)
-	return i, err
+// Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
+// to prevent multiple replicas from acquiring the same chat.
+func (q *sqlQuerier) AcquireChats(ctx context.Context, arg AcquireChatsParams) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, acquireChats, arg.StartedAt, arg.WorkerID, arg.NumChats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many

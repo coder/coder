@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"sort"
 	"strings"
@@ -13,12 +14,14 @@ import (
 
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
 
 const (
 	subagentAwaitPollInterval  = 200 * time.Millisecond
+	subagentAwaitFallbackPoll  = 5 * time.Second
 	defaultSubagentWaitTimeout = 5 * time.Minute
 )
 
@@ -322,39 +325,88 @@ func (p *Server) awaitSubagentCompletion(
 		return database.Chat{}, "", ErrSubagentNotDescendant
 	}
 
+	// Check immediately before entering the poll loop.
+	targetChat, report, done, checkErr := p.checkSubagentCompletion(ctx, targetChatID)
+	if checkErr != nil {
+		return database.Chat{}, "", checkErr
+	}
+	if done {
+		return handleSubagentDone(targetChat, report)
+	}
+
 	if timeout <= 0 {
 		timeout = defaultSubagentWaitTimeout
 	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
-	ticker := time.NewTicker(subagentAwaitPollInterval)
+	// When pubsub is available, subscribe for fast status
+	// notifications and use a less aggressive fallback poll.
+	// Without pubsub (single-instance / in-memory) fall back
+	// to the original 200ms polling.
+	pollInterval := subagentAwaitPollInterval
+	var notifyCh <-chan struct{}
+	if p.pubsub != nil {
+		pollInterval = subagentAwaitFallbackPoll
+		ch := make(chan struct{}, 1)
+		notifyCh = ch
+		cancel, subErr := p.pubsub.SubscribeWithErr(
+			coderdpubsub.ChatStreamNotifyChannel(targetChatID),
+			func(_ context.Context, _ []byte, _ error) {
+				// Non-blocking send so we never stall the
+				// pubsub dispatch goroutine.
+				select {
+				case ch <- struct{}{}:
+				default:
+				}
+			},
+		)
+		if subErr == nil {
+			defer cancel()
+		} else {
+			// Subscription failed; fall back to fast polling.
+			pollInterval = subagentAwaitPollInterval
+			notifyCh = nil
+		}
+	}
+
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	for {
-		targetChat, report, done, checkErr := p.checkSubagentCompletion(ctx, targetChatID)
-		if checkErr != nil {
-			return database.Chat{}, "", checkErr
-		}
-		if done {
-			if targetChat.Status == database.ChatStatusError {
-				reason := strings.TrimSpace(report)
-				if reason == "" {
-					reason = "agent reached error status"
-				}
-				return database.Chat{}, "", xerrors.New(reason)
-			}
-			return targetChat, report, nil
-		}
-
 		select {
+		case <-notifyCh:
 		case <-ticker.C:
 		case <-timer.C:
 			return database.Chat{}, "", xerrors.New("timed out waiting for delegated subagent completion")
 		case <-ctx.Done():
 			return database.Chat{}, "", ctx.Err()
 		}
+
+		targetChat, report, done, checkErr = p.checkSubagentCompletion(ctx, targetChatID)
+		if checkErr != nil {
+			return database.Chat{}, "", checkErr
+		}
+		if done {
+			return handleSubagentDone(targetChat, report)
+		}
 	}
+}
+
+// handleSubagentDone translates a completed subagent check into the
+// appropriate return value, surfacing error-status chats as errors.
+func handleSubagentDone(
+	chat database.Chat,
+	report string,
+) (database.Chat, string, error) {
+	if chat.Status == database.ChatStatusError {
+		reason := strings.TrimSpace(report)
+		if reason == "" {
+			reason = "agent reached error status"
+		}
+		return database.Chat{}, "", xerrors.New(reason)
+	}
+	return chat, report, nil
 }
 
 func (p *Server) closeSubagent(
@@ -448,6 +500,9 @@ func latestSubagentAssistantMessage(
 	return "", nil
 }
 
+// isSubagentDescendant reports whether targetChatID is a descendant
+// of ancestorChatID by walking up the parent chain from the target.
+// This is O(depth) DB queries instead of O(nodes) BFS.
 func isSubagentDescendant(
 	ctx context.Context,
 	store database.Store,
@@ -458,47 +513,29 @@ func isSubagentDescendant(
 		return false, nil
 	}
 
-	descendants, err := listSubagentDescendants(ctx, store, ancestorChatID)
-	if err != nil {
-		return false, err
-	}
-	for _, descendant := range descendants {
-		if descendant.ID == targetChatID {
+	currentID := targetChatID
+	visited := map[uuid.UUID]struct{}{} // cycle protection
+	for {
+		if _, seen := visited[currentID]; seen {
+			return false, nil
+		}
+		visited[currentID] = struct{}{}
+
+		chat, err := store.GetChatByID(ctx, currentID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return false, nil // chain broken; not a confirmed descendant
+			}
+			return false, xerrors.Errorf("get chat %s: %w", currentID, err)
+		}
+		if !chat.ParentChatID.Valid {
+			return false, nil // reached root without finding ancestor
+		}
+		if chat.ParentChatID.UUID == ancestorChatID {
 			return true, nil
 		}
+		currentID = chat.ParentChatID.UUID
 	}
-	return false, nil
-}
-
-func listSubagentDescendants(
-	ctx context.Context,
-	store database.Store,
-	chatID uuid.UUID,
-) ([]database.Chat, error) {
-	queue := []uuid.UUID{chatID}
-	visited := map[uuid.UUID]struct{}{chatID: {}}
-
-	out := make([]database.Chat, 0)
-	for len(queue) > 0 {
-		parentChatID := queue[0]
-		queue = queue[1:]
-
-		children, err := store.ListChildChatsByParentID(ctx, parentChatID)
-		if err != nil {
-			return nil, xerrors.Errorf("list child chats for %s: %w", parentChatID, err)
-		}
-
-		for _, child := range children {
-			if _, ok := visited[child.ID]; ok {
-				continue
-			}
-			visited[child.ID] = struct{}{}
-			out = append(out, child)
-			queue = append(queue, child.ID)
-		}
-	}
-
-	return out, nil
 }
 
 func subagentFallbackChatTitle(message string) string {

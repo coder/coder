@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/fantasy"
@@ -575,9 +576,10 @@ func processStepStream(
 	return result, nil
 }
 
-// executeTools runs each tool call sequentially after the stream
-// completes. Results are published via onResult as each tool
-// finishes.
+// executeTools runs all tool calls concurrently after the stream
+// completes. Results are published via onResult in the original
+// tool-call order after all tools finish, preserving deterministic
+// event ordering for SSE subscribers.
 func executeTools(
 	ctx context.Context,
 	allTools []fantasy.AgentTool,
@@ -593,11 +595,32 @@ func executeTools(
 		toolMap[t.Info().Name] = t
 	}
 
-	results := make([]fantasy.ToolResultContent, 0, len(toolCalls))
-	for _, tc := range toolCalls {
-		tr := executeSingleTool(ctx, toolMap, tc)
-		results = append(results, tr)
-		if onResult != nil {
+	results := make([]fantasy.ToolResultContent, len(toolCalls))
+	var wg sync.WaitGroup
+	wg.Add(len(toolCalls))
+	for i, tc := range toolCalls {
+		go func(i int, tc fantasy.ToolCallContent) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					results[i] = fantasy.ToolResultContent{
+						ToolCallID: tc.ToolCallID,
+						ToolName:   tc.ToolName,
+						Result: fantasy.ToolResultOutputContentError{
+							Error: xerrors.Errorf("tool panicked: %v", r),
+						},
+					}
+				}
+			}()
+			results[i] = executeSingleTool(ctx, toolMap, tc)
+		}(i, tc)
+	}
+	wg.Wait()
+
+	// Publish results in the original tool-call order so SSE
+	// subscribers see a deterministic event sequence.
+	if onResult != nil {
+		for _, tr := range results {
 			onResult(tr)
 		}
 	}
