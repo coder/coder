@@ -103,6 +103,21 @@ func (mr *MockStoreMockRecorder) AcquireProvisionerJob(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireProvisionerJob", reflect.TypeOf((*MockStore)(nil).AcquireProvisionerJob), ctx, arg)
 }
 
+// AcquireStaleChatDiffStatuses mocks base method.
+func (m *MockStore) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AcquireStaleChatDiffStatuses", ctx, limitVal)
+	ret0, _ := ret[0].([]database.AcquireStaleChatDiffStatusesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AcquireStaleChatDiffStatuses indicates an expected call of AcquireStaleChatDiffStatuses.
+func (mr *MockStoreMockRecorder) AcquireStaleChatDiffStatuses(ctx, limitVal any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireStaleChatDiffStatuses", reflect.TypeOf((*MockStore)(nil).AcquireStaleChatDiffStatuses), ctx, limitVal)
+}
+
 // ActivityBumpWorkspace mocks base method.
 func (m *MockStore) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
 	m.ctrl.T.Helper()
@@ -159,6 +174,20 @@ func (m *MockStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) ArchiveUnusedTemplateVersions(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ArchiveUnusedTemplateVersions", reflect.TypeOf((*MockStore)(nil).ArchiveUnusedTemplateVersions), ctx, arg)
+}
+
+// BackoffChatDiffStatus mocks base method.
+func (m *MockStore) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackoffChatDiffStatus", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BackoffChatDiffStatus indicates an expected call of BackoffChatDiffStatus.
+func (mr *MockStoreMockRecorder) BackoffChatDiffStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackoffChatDiffStatus", reflect.TypeOf((*MockStore)(nil).BackoffChatDiffStatus), ctx, arg)
 }
 
 // BatchUpdateWorkspaceAgentMetadata mocks base method.

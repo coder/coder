@@ -61,6 +61,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/gitsync"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -773,6 +774,21 @@ func New(options *Options) *API {
 		Pubsub:            options.Pubsub,
 		WebpushDispatcher: options.WebPushDispatcher,
 	})
+	gitSyncLogger := options.Logger.Named("gitsync")
+	refresher := gitsync.NewRefresher(
+		api.resolveGitProvider,
+		api.resolveChatGitAccessToken,
+		gitSyncLogger.Named("refresher"),
+		quartz.NewReal(),
+	)
+	api.gitSyncWorker = gitsync.NewWorker(options.Database,
+		refresher,
+		api.chatDaemon.PublishDiffStatusChange,
+		quartz.NewReal(),
+		gitSyncLogger,
+	)
+	// nolint:gocritic // chat diff worker needs to be able to CRUD chats.
+	go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
@@ -1999,6 +2015,9 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
+	// gitSyncWorker refreshes stale chat diff statuses in the
+	// background.
+	gitSyncWorker *gitsync.Worker
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2028,6 +2047,13 @@ func (api *API) Close() error {
 		api.Logger.Warn(api.ctx, "websocket shutdown timed out after 10 seconds")
 	}
 	api.dbRolluper.Close()
+	// chatDiffWorker is unconditionally initialized in New().
+	select {
+	case <-api.gitSyncWorker.Done():
+	case <-time.After(10 * time.Second):
+		api.Logger.Warn(context.Background(),
+			"chat diff refresh worker did not exit in time")
+	}
 	if err := api.chatDaemon.Close(); err != nil {
 		api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
 	}

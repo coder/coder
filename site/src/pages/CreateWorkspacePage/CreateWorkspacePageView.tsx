@@ -127,6 +127,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const initialTouched = Object.fromEntries(
 		parameters.filter((p) => autofillByName[p.name]).map((p) => [p.name, true]),
 	);
+	if (defaultName) {
+		initialTouched.name = true;
+	}
 
 	// The form parameters values hold the working state of the parameters that will be submitted when creating a workspace
 	// 1. The form parameter values are initialized from the websocket response when the form is mounted

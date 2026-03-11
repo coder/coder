@@ -1,4 +1,3 @@
-import { chatSystemPrompt, updateChatSystemPrompt } from "api/queries/chats";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -17,17 +16,15 @@ import { MonitorIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
-	type FormEvent,
 	useCallback,
 	useEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { AgentChatInput } from "./AgentChatInput";
-import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 import {
 	getModelCatalogStatusMessage,
 	getModelSelectorPlaceholder,
@@ -113,10 +110,6 @@ interface AgentCreateFormProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
 	modelCatalogError: unknown;
-	canSetSystemPrompt: boolean;
-	canManageChatModelConfigs: boolean;
-	isConfigureAgentsDialogOpen: boolean;
-	onConfigureAgentsDialogOpenChange: (open: boolean) => void;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -129,21 +122,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelCatalogLoading,
 	isModelConfigsLoading,
 	modelCatalogError,
-	canSetSystemPrompt,
-	canManageChatModelConfigs,
-	isConfigureAgentsDialogOpen,
-	onConfigureAgentsDialogOpenChange,
 }) => {
 	const { organizations } = useDashboard();
-	const queryClient = useQueryClient();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
 		useEmptyStateDraft();
-	const systemPromptQuery = useQuery(chatSystemPrompt());
-	const {
-		mutate: saveSystemPrompt,
-		isPending: isSavingSystemPrompt,
-		isError: isSaveSystemPromptError,
-	} = useMutation(updateChatSystemPrompt(queryClient));
 	const [initialLastModelConfigID] = useState(() => {
 		if (typeof window === "undefined") {
 			return "";
@@ -203,9 +185,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
-	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
-	const [localEdit, setLocalEdit] = useState<string | null>(null);
-	const systemPromptDraft = localEdit ?? serverPrompt;
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -215,7 +194,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	);
 	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
 	const autoCreateWorkspaceValue = "__auto_create_workspace__";
-	const hasAdminControls = canSetSystemPrompt || canManageChatModelConfigs;
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -263,7 +241,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	selectedWorkspaceIdRef.current = selectedWorkspaceId;
 	const selectedModelRef = useRef(selectedModel);
 	selectedModelRef.current = selectedModel;
-	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
 
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
@@ -283,20 +260,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setHasUserSelectedModel(true);
 		setUserSelectedModel(value);
 	}, []);
-
-	const handleSaveSystemPrompt = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isSystemPromptDirty) {
-				return;
-			}
-			saveSystemPrompt(
-				{ system_prompt: systemPromptDraft },
-				{ onSuccess: () => setLocalEdit(null) },
-			);
-		},
-		[isSystemPromptDirty, systemPromptDraft, saveSystemPrompt],
-	);
 
 	const handleSend = useCallback(
 		async (message: string, fileIDs?: string[]) => {
@@ -431,21 +394,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					}
 				/>
 			</div>
-
-			{hasAdminControls && (
-				<ConfigureAgentsDialog
-					open={isConfigureAgentsDialogOpen}
-					onOpenChange={onConfigureAgentsDialogOpenChange}
-					canManageChatModelConfigs={canManageChatModelConfigs}
-					canSetSystemPrompt={canSetSystemPrompt}
-					systemPromptDraft={systemPromptDraft}
-					onSystemPromptDraftChange={setLocalEdit}
-					onSaveSystemPrompt={handleSaveSystemPrompt}
-					isSystemPromptDirty={isSystemPromptDirty}
-					saveSystemPromptError={isSaveSystemPromptError}
-					isDisabled={isCreating || isSavingSystemPrompt}
-				/>
-			)}
 		</div>
 	);
 };
