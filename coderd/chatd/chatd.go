@@ -64,6 +64,11 @@ const (
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
 
+// ChatIDHeader is sent on all outgoing LLM API requests so that
+// AI Bridge (or any upstream proxy) can correlate requests to a
+// specific chat session.
+const ChatIDHeader = "X-Coder-Chat-Id"
+
 // Server handles background processing of pending chats.
 type Server struct {
 	cancel   context.CancelFunc
@@ -2847,6 +2852,7 @@ func (p *Server) resolveChatModel(
 
 	model, err := chatprovider.ModelFromConfig(
 		dbConfig.Provider, dbConfig.Model, keys,
+		map[string]string{ChatIDHeader: chat.ID.String()},
 	)
 	if err != nil {
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(
@@ -3143,7 +3149,7 @@ func (p *Server) maybeSendPushNotification(
 					if assistantText != "" {
 						model, _, keys, resolveErr := p.resolveChatModel(pushCtx, chat)
 						if resolveErr == nil {
-							if summary := generatePushSummary(pushCtx, chat.Title, assistantText, model, keys, logger); summary != "" {
+							if summary := generatePushSummary(pushCtx, chat.ID, chat.Title, assistantText, model, keys, logger); summary != "" {
 								pushBody = summary
 							}
 						}

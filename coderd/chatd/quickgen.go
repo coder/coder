@@ -13,6 +13,7 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -77,6 +78,7 @@ func (p *Server) maybeGenerateChatTitle(
 	for _, c := range preferredTitleModels {
 		m, err := chatprovider.ModelFromConfig(
 			c.provider, c.model, keys,
+			map[string]string{ChatIDHeader: chat.ID.String()},
 		)
 		if err == nil {
 			candidates = append(candidates, m)
@@ -267,6 +269,7 @@ const pushSummaryPrompt = "You are a notification assistant. Given a chat title 
 // fall back to the provided model. Returns "" on any failure.
 func generatePushSummary(
 	ctx context.Context,
+	chatID uuid.UUID,
 	chatTitle string,
 	assistantText string,
 	fallbackModel fantasy.LanguageModel,
@@ -282,6 +285,7 @@ func generatePushSummary(
 	for _, c := range preferredTitleModels {
 		m, err := chatprovider.ModelFromConfig(
 			c.provider, c.model, keys,
+			map[string]string{ChatIDHeader: chatID.String()},
 		)
 		if err == nil {
 			candidates = append(candidates, m)

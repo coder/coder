@@ -921,6 +921,7 @@ func ModelFromConfig(
 	providerHint string,
 	modelName string,
 	providerKeys ProviderAPIKeys,
+	headers map[string]string,
 ) (fantasy.LanguageModel, error) {
 	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
@@ -942,24 +943,40 @@ func ModelFromConfig(
 		if baseURL != "" {
 			options = append(options, fantasyanthropic.WithBaseURL(baseURL))
 		}
+		if len(headers) > 0 {
+			options = append(options, fantasyanthropic.WithHeaders(headers))
+		}
 		providerClient, err = fantasyanthropic.New(options...)
 	case fantasyazure.Name:
 		if baseURL == "" {
 			return nil, xerrors.New("AZURE_OPENAI_BASE_URL is not set")
 		}
-		providerClient, err = fantasyazure.New(
+		options := []fantasyazure.Option{
 			fantasyazure.WithAPIKey(apiKey),
 			fantasyazure.WithBaseURL(baseURL),
 			fantasyazure.WithUseResponsesAPI(),
-		)
+		}
+		if len(headers) > 0 {
+			options = append(options, fantasyazure.WithHeaders(headers))
+		}
+		providerClient, err = fantasyazure.New(options...)
 	case fantasybedrock.Name:
-		providerClient, err = fantasybedrock.New(fantasybedrock.WithAPIKey(apiKey))
+		options := []fantasybedrock.Option{
+			fantasybedrock.WithAPIKey(apiKey),
+		}
+		if len(headers) > 0 {
+			options = append(options, fantasybedrock.WithHeaders(headers))
+		}
+		providerClient, err = fantasybedrock.New(options...)
 	case fantasygoogle.Name:
 		options := []fantasygoogle.Option{
 			fantasygoogle.WithGeminiAPIKey(apiKey),
 		}
 		if baseURL != "" {
 			options = append(options, fantasygoogle.WithBaseURL(baseURL))
+		}
+		if len(headers) > 0 {
+			options = append(options, fantasygoogle.WithHeaders(headers))
 		}
 		providerClient, err = fantasygoogle.New(options...)
 	case fantasyopenai.Name:
@@ -970,6 +987,9 @@ func ModelFromConfig(
 		if baseURL != "" {
 			options = append(options, fantasyopenai.WithBaseURL(baseURL))
 		}
+		if len(headers) > 0 {
+			options = append(options, fantasyopenai.WithHeaders(headers))
+		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:
 		options := []fantasyopenaicompat.Option{
@@ -978,15 +998,27 @@ func ModelFromConfig(
 		if baseURL != "" {
 			options = append(options, fantasyopenaicompat.WithBaseURL(baseURL))
 		}
+		if len(headers) > 0 {
+			options = append(options, fantasyopenaicompat.WithHeaders(headers))
+		}
 		providerClient, err = fantasyopenaicompat.New(options...)
 	case fantasyopenrouter.Name:
-		providerClient, err = fantasyopenrouter.New(fantasyopenrouter.WithAPIKey(apiKey))
+		options := []fantasyopenrouter.Option{
+			fantasyopenrouter.WithAPIKey(apiKey),
+		}
+		if len(headers) > 0 {
+			options = append(options, fantasyopenrouter.WithHeaders(headers))
+		}
+		providerClient, err = fantasyopenrouter.New(options...)
 	case fantasyvercel.Name:
 		options := []fantasyvercel.Option{
 			fantasyvercel.WithAPIKey(apiKey),
 		}
 		if baseURL != "" {
 			options = append(options, fantasyvercel.WithBaseURL(baseURL))
+		}
+		if len(headers) > 0 {
+			options = append(options, fantasyvercel.WithHeaders(headers))
 		}
 		providerClient, err = fantasyvercel.New(options...)
 	default:
