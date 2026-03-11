@@ -382,6 +382,7 @@ func TestDebugCollectProfile(t *testing.T) {
 	// runtime/trace.Start are process-global. Running them concurrently
 	// causes one to fail with "already in progress".
 
+	//nolint:paralleltest // CPU profiler is process-global
 	t.Run("Defaults", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -438,6 +439,7 @@ func TestDebugCollectProfile(t *testing.T) {
 		require.NotContains(t, files, "allocs.prof")
 	})
 
+	//nolint:paralleltest // CPU profiler and tracer are process-global
 	t.Run("WithTraceAndCPU", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -523,6 +525,7 @@ func TestDebugCollectProfile(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, res.StatusCode)
 	})
 
+	//nolint:paralleltest // CPU profiler is process-global
 	t.Run("Conflict", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()

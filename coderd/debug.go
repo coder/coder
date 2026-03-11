@@ -360,15 +360,12 @@ const (
 )
 
 // @Summary Collect debug profiles
-// @ID debug-collect-profile
+// @ID collect-debug-profiles
 // @Security CoderSessionToken
-// @Produce application/gzip
 // @Tags Debug
-// @Param duration query string false "Profile collection duration" default(10s)
-// @Param profiles query string false "Comma-separated list of profile types to collect" default(cpu,heap,allocs,block,mutex,goroutine)
-// @Success 200 {file} binary "tar.gz archive of collected profiles"
-// @Failure 409 {object} codersdk.Response "Profile collection already in progress"
+// @Success 200
 // @Router /debug/profile [get]
+// @x-apidocgen {"skip": true}
 func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
