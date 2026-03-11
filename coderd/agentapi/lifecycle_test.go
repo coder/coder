@@ -582,6 +582,61 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.Equal(t, uint64(1), got.GetSampleCount())
 		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
+
+	t.Run("SubAgentDoesNotEmitMetric", func(t *testing.T) {
+		t.Parallel()
+		parentID := uuid.New()
+		subAgent := database.WorkspaceAgent{
+			ID:             uuid.New(),
+			ParentID:       uuid.NullUUID{UUID: parentID, Valid: true},
+			LifecycleState: database.WorkspaceAgentLifecycleStateStarting,
+			StartedAt:      sql.NullTime{Valid: true, Time: someTime},
+			ReadyAt:        sql.NullTime{Valid: false},
+		}
+		lifecycle := &agentproto.Lifecycle{
+			State:     agentproto.Lifecycle_READY,
+			ChangedAt: timestamppb.New(now),
+		}
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             subAgent.ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			StartedAt:      subAgent.StartedAt,
+			ReadyAt: sql.NullTime{
+				Time:  now,
+				Valid: true,
+			},
+		}).Return(nil)
+		// GetWorkspaceBuildMetricsByResourceID should NOT be called
+		// because sub-agents should be skipped before querying.
+		reg := prometheus.NewRegistry()
+		metrics := agentapi.NewLifecycleMetrics(reg)
+		api := &agentapi.LifecycleAPI{
+			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+				return subAgent, nil
+			},
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			Metrics:                  metrics,
+			PublishWorkspaceUpdateFn: nil,
+		}
+		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
+			Lifecycle: lifecycle,
+		})
+		require.NoError(t, err)
+		require.Equal(t, lifecycle, resp)
+
+		// The metric should not have been emitted at all.
+		labeled := promhelp.MetricValue(t, reg, fullMetricName, prometheus.Labels{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "success",
+			"is_prebuild":       "false",
+		})
+		require.Nil(t, labeled, "sub-agent should not emit build duration metric")
+	})
 }
 
 func TestUpdateStartup(t *testing.T) {
