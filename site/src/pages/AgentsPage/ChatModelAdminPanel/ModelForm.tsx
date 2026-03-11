@@ -429,7 +429,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 									<div>
 										<p className="m-0 text-xs text-content-secondary">
 											Optional USD pricing metadata per 1M tokens. Leave any
-											field blank to use the default price of $0.
+											field blank to keep pricing unset and use provider or
+											profile defaults when available.
 										</p>
 									</div>
 									<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
