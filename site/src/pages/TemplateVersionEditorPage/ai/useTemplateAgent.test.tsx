@@ -200,7 +200,7 @@ describe("useTemplateAgent MCP lifecycle", () => {
 		expect(mcpClientToolsMock).toHaveBeenCalledTimes(1);
 	});
 
-	it("uses the current server MCP endpoint when initializing the client", async () => {
+	it("uses the registry MCP endpoint when initializing the client", async () => {
 		renderTemplateAgentHook({ enabled: true });
 
 		await waitFor(() => {
@@ -218,7 +218,7 @@ describe("useTemplateAgent MCP lifecycle", () => {
 		expect(mcpClientOptions).toEqual({
 			transport: {
 				type: "http",
-				url: new URL("/mcp/http", window.location.origin).toString(),
+				url: "https://registry.coder.com/mcp",
 			},
 		});
 		expect(mcpClientOptions?.transport.url).not.toContain(
