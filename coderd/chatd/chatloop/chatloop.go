@@ -428,27 +428,6 @@ func processStepStream(
 	activeReasoningContent := make(map[string]reasoningState)
 	// Track tool names by ID for input delta publishing.
 	toolNames := make(map[string]string)
-	// Track reasoning text/titles for title extraction.
-	reasoningTitles := make(map[string]string)
-	reasoningText := make(map[string]string)
-
-	setReasoningTitleFromText := func(id string, text string) {
-		if id == "" || strings.TrimSpace(text) == "" {
-			return
-		}
-		if reasoningTitles[id] != "" {
-			return
-		}
-		reasoningText[id] += text
-		if !strings.ContainsAny(reasoningText[id], "\r\n") {
-			return
-		}
-		title := chatprompt.ReasoningTitleFromFirstLine(reasoningText[id])
-		if title == "" {
-			return
-		}
-		reasoningTitles[id] = title
-	}
 
 	for part := range stream {
 		switch part.Type {
@@ -485,12 +464,9 @@ func processStepStream(
 				active.options = part.ProviderMetadata
 				activeReasoningContent[part.ID] = active
 			}
-			setReasoningTitleFromText(part.ID, part.Delta)
-			title := reasoningTitles[part.ID]
 			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type:  codersdk.ChatMessagePartTypeReasoning,
-				Text:  part.Delta,
-				Title: title,
+				Type: codersdk.ChatMessagePartTypeReasoning,
+				Text: part.Delta,
 			})
 
 		case fantasy.StreamPartTypeReasoningEnd:
@@ -504,21 +480,6 @@ func processStepStream(
 				}
 				result.content = append(result.content, content)
 				delete(activeReasoningContent, part.ID)
-
-				// Derive reasoning title at end of reasoning
-				// block if we haven't yet.
-				if reasoningTitles[part.ID] == "" {
-					reasoningTitles[part.ID] = chatprompt.ReasoningTitleFromFirstLine(
-						reasoningText[part.ID],
-					)
-				}
-				title := reasoningTitles[part.ID]
-				if title != "" {
-					publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-						Type:  codersdk.ChatMessagePartTypeReasoning,
-						Title: title,
-					})
-				}
 			}
 		case fantasy.StreamPartTypeToolInputStart:
 			activeToolCalls[part.ID] = &fantasy.ToolCallContent{
