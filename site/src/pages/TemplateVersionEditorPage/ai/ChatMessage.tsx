@@ -35,7 +35,35 @@ export const ChatMessage: FC<ChatMessageProps> = ({
 						<UserIcon className="size-3" />
 						<span>You</span>
 					</div>
-					<MemoizedChatMarkdown>{message.content}</MemoizedChatMarkdown>
+					{message.attachments.length > 0 && (
+						<div className="mb-2 space-y-2">
+							{message.attachments.map((attachment, index) => {
+								const attachmentLabel =
+									attachment.filename ?? `Attachment ${index + 1}`;
+								if (!attachment.mediaType.startsWith("image/")) {
+									return (
+										<div
+											key={`${attachmentLabel}-${index}`}
+											className="rounded-md border border-border/60 bg-surface-invert-secondary px-2 py-1 text-xs text-content-invert-secondary"
+										>
+											{attachmentLabel}
+										</div>
+									);
+								}
+								return (
+									<img
+										key={`${attachmentLabel}-${index}`}
+										src={attachment.url}
+										alt={attachmentLabel}
+										className="max-h-60 max-w-full rounded-md border border-border/60 object-contain"
+									/>
+								);
+							})}
+						</div>
+					)}
+					{message.content.trim().length > 0 && (
+						<MemoizedChatMarkdown>{message.content}</MemoizedChatMarkdown>
+					)}
 				</div>
 			</div>
 		);

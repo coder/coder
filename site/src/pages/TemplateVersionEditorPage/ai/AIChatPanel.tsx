@@ -109,7 +109,8 @@ export const AIChatPanel: FC<AIChatPanelProps> = ({
 					{messages.length === 0 && (
 						<p className="m-0 text-xs leading-relaxed text-content-secondary">
 							Ask me to inspect or modify your template files. I can read files,
-							propose edits, and ask for approval before changing anything.
+							propose edits, and review pasted screenshots before changing
+							anything.
 						</p>
 					)}
 

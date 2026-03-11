@@ -41,6 +41,9 @@ vi.mock("ai", () => {
 			}
 			return part.type === "dynamic-tool" || part.type.startsWith("tool-");
 		},
+		isFileUIPart: (part: { type?: unknown }) => {
+			return typeof part?.type === "string" && part.type === "file";
+		},
 		isReasoningUIPart: (part: { type?: unknown }) => {
 			return typeof part?.type === "string" && part.type === "reasoning";
 		},
@@ -244,7 +247,7 @@ describe("useTemplateAgent MCP lifecycle", () => {
 		});
 
 		act(() => {
-			result.current.send("Check available tools");
+			void result.current.send("Check available tools");
 		});
 
 		await waitFor(() => {
@@ -270,7 +273,7 @@ describe("useTemplateAgent prompt guidance", () => {
 		const { result } = renderTemplateAgentHook({ currentFilePath: "main.tf" });
 
 		act(() => {
-			result.current.send("Update the template");
+			void result.current.send("Update the template");
 		});
 
 		await waitFor(() => {
@@ -297,17 +300,89 @@ describe("useTemplateAgent prompt guidance", () => {
 			"If editFile fails because oldContent was not found, matched multiple locations",
 		);
 		expect(instructions).toContain(
+			"Do not treat your own memory as the source of truth for Coder behavior",
+		);
+		expect(instructions).toContain(
+			"consult the official Coder tools instead of guessing",
+		);
+		expect(instructions).toContain(
 			'If you have not already inspected "main.tf" in this conversation, read it',
 		);
 		expect(instructions).toContain(
 			'If you already inspected "main.tf" and nothing indicates it changed, reuse that content',
 		);
 		expect(instructions).toContain(
-			"Use coder_docs_outline and coder_docs for official Coder product documentation that matches deployment version v2.99.99",
+			"Use coder_docs_outline and coder_docs as the primary external source of truth for official Coder product documentation that matches deployment version v2.99.99",
+		);
+		expect(instructions).toContain(
+			"Use the docs to look up product behavior, template authoring guidance, examples, and references instead of relying on memory",
 		);
 		expect(instructions).toContain(
 			"Start with coder_docs_outline to discover relevant markdown paths",
 		);
+		expect(instructions).toContain(
+			'A request like "turn that enable_fuse variable into a Coder parameter" should start by reading the current template file, then use coder_registry_ to confirm the supported parameter shape or example before editing',
+		);
+		expect(instructions).toContain(
+			"When interacting with or modifying template values, variables, parameters, module blocks, registry modules, or other template-owned settings, prefer coder_registry_ tools for authoritative examples and supported configuration details",
+		);
+	});
+});
+
+describe("useTemplateAgent attachments", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("sends pasted screenshots as file parts and exposes them in display messages", async () => {
+		enqueueUIMessageStreams([[completedMessage]]);
+		const { result } = renderTemplateAgentHook();
+		const screenshot = new File(["png-bytes"], "error.png", {
+			type: "image/png",
+		});
+
+		await act(async () => {
+			await expect(
+				result.current.send({
+					text: "What does this error mean?",
+					attachments: [screenshot],
+				}),
+			).resolves.toEqual({ accepted: true });
+		});
+
+		await waitFor(() => {
+			expect(result.current.status).toBe("idle");
+		});
+
+		const firstCall = createAgentUIStreamMock.mock.calls[0]?.[0] as
+			| { uiMessages: UIMessage[] }
+			| undefined;
+		expect(firstCall).toBeDefined();
+
+		const userMessage = firstCall?.uiMessages[0];
+		expect(userMessage).toBeDefined();
+		expect(userMessage?.role).toBe("user");
+		expect(userMessage?.parts).toEqual([
+			{ type: "text", text: "What does this error mean?" },
+			expect.objectContaining({
+				type: "file",
+				mediaType: "image/png",
+				filename: "error.png",
+				url: expect.stringContaining("data:image/png;base64,"),
+			}),
+		]);
+
+		expect(result.current.messages[0]).toMatchObject({
+			role: "user",
+			content: "What does this error mean?",
+			attachments: [
+				{
+					mediaType: "image/png",
+					filename: "error.png",
+					url: expect.stringContaining("data:image/png;base64,"),
+				},
+			],
+		});
 	});
 });
 
@@ -321,7 +396,7 @@ describe("useTemplateAgent approvals", () => {
 		const { result } = renderTemplateAgentHook();
 
 		act(() => {
-			result.current.send("Apply the edit");
+			void result.current.send("Apply the edit");
 		});
 
 		await waitFor(() => {
@@ -378,7 +453,7 @@ describe("useTemplateAgent approvals", () => {
 		const { result } = renderTemplateAgentHook();
 
 		act(() => {
-			result.current.send("Do the change");
+			void result.current.send("Do the change");
 		});
 
 		await waitFor(() => {
@@ -494,7 +569,7 @@ describe("useTemplateAgent buildTemplate approvals", () => {
 		const { result } = renderTemplateAgentHook();
 
 		act(() => {
-			result.current.send("Build it");
+			void result.current.send("Build it");
 		});
 
 		await waitFor(() => {
@@ -511,7 +586,7 @@ describe("useTemplateAgent buildTemplate approvals", () => {
 		const { result } = renderTemplateAgentHook();
 
 		act(() => {
-			result.current.send("Build it");
+			void result.current.send("Build it");
 		});
 
 		await waitFor(() => {
@@ -536,7 +611,7 @@ describe("useTemplateAgent buildTemplate approvals", () => {
 		const { result } = renderTemplateAgentHook();
 
 		act(() => {
-			result.current.send("Build it");
+			void result.current.send("Build it");
 		});
 
 		await waitFor(() => {
@@ -643,7 +718,7 @@ describe("useTemplateAgent publishTemplate approvals", () => {
 		const { result } = renderTemplateAgentHook();
 
 		act(() => {
-			result.current.send("Publish the template");
+			void result.current.send("Publish the template");
 		});
 
 		await waitFor(() => {
@@ -660,7 +735,7 @@ describe("useTemplateAgent publishTemplate approvals", () => {
 		const { result } = renderTemplateAgentHook();
 
 		act(() => {
-			result.current.send("Publish the template");
+			void result.current.send("Publish the template");
 		});
 
 		await waitFor(() => {
@@ -685,7 +760,7 @@ describe("useTemplateAgent publishTemplate approvals", () => {
 		const { result } = renderTemplateAgentHook();
 
 		act(() => {
-			result.current.send("Publish the template");
+			void result.current.send("Publish the template");
 		});
 
 		await waitFor(() => {

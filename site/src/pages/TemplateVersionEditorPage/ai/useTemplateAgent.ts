@@ -4,6 +4,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import {
 	createAgentUIStream,
 	getToolName,
+	isFileUIPart,
 	isReasoningUIPart,
 	isToolUIPart,
 	readUIMessageStream,
@@ -16,6 +17,11 @@ import { API } from "api/api";
 import type { AIBridgeProvider, AIModelConfig } from "api/queries/aiBridge";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FileTree } from "utils/filetree";
+import {
+	MAX_CHAT_IMAGE_ATTACHMENTS,
+	readFileAsDataURL,
+	validateImageAttachment,
+} from "./attachments";
 import type {
 	BuildOutput,
 	BuildResult,
@@ -135,8 +141,13 @@ Rules:
 - Use listFiles early in the conversation to learn the template structure,
   and use it again only when something indicates the file list may have
   changed or you need a refresh.
-- Treat the local template files as the primary source of truth for edit
-  requests.
+- Treat the local template files as the source of truth for the user's
+  current template state.
+- Do not treat your own memory as the source of truth for Coder behavior,
+  examples, references, or supported configuration.
+- Before answering questions about Coder-specific behavior, template
+  authoring patterns, examples, or references, consult the official Coder
+  tools instead of guessing.
 - Before editing a file, make sure you have read it at least once in this
   conversation.
 - Earlier tool results remain available in this conversation. Reuse prior
@@ -153,6 +164,8 @@ Rules:
   to uniquely identify the edit location.
 - Keep HCL syntax valid. Use proper Terraform formatting conventions.
 - Explain what you're changing and why before making edits.
+- The user may attach screenshots or other image files. Inspect relevant
+  image attachments when they help answer the request or diagnose an error.
 - After making changes, use buildTemplate to validate them.
 - If a build fails, use getBuildLogs to understand the error and fix it.
 - When the user asks about build errors, use getBuildLogs to read the logs.
@@ -174,28 +187,33 @@ const getSystemPrompt = (
 - The user is currently viewing "${currentFilePath}".
 - If you have not already inspected "${currentFilePath}" in this conversation, read it before making assumptions, answering questions, or proposing edits whenever the request could plausibly refer to code already in that file.
 - If you already inspected "${currentFilePath}" and nothing indicates it changed, reuse that content instead of rereading it just because a new user turn started.
-- Requests about changing existing local code, variables, resources, or values in the current template should start with local tools (listFiles, readFile, editFile), not coder_docs or coder_registry_ tools, unless the user is clearly asking about another file or you truly need external documentation.
+- Requests about changing existing local code, variables, resources, or values in the current template should still begin by reading the relevant local file(s) so you understand the current state before editing.
+- After inspecting the relevant local file(s), do not guess about Coder-specific behavior. Use coder_registry_ for template values, parameters, module settings, registry examples, and supported configuration details; use coder_docs for all other Coder documentation, references, and examples.
 - If you choose to work in a different file first, briefly explain why that file is more relevant.`
 			: `Current editor context:
 - The user does not currently have a file open.
 - Choose and read the most relevant local file before making assumptions, answering questions, or proposing edits if you have not already inspected that file in this conversation.
 - Reuse earlier file reads when nothing indicates the file changed, instead of rereading files on every follow-up turn.
-- Requests about changing existing local code, variables, resources, or values in the current template should start with local tools (listFiles, readFile, editFile), not coder_docs or coder_registry_ tools, unless local files are insufficient and you genuinely need external documentation.`;
+- Requests about changing existing local code, variables, resources, or values in the current template should begin by reading the relevant local file(s), then use coder_registry_ for template values, parameters, module settings, registry examples, and supported configuration details, and use coder_docs for other Coder documentation, references, and examples.`;
 
 	const docsToolInstructions =
 		docsVersion !== undefined && docsVersion.length > 0
-			? `- Use coder_docs_outline and coder_docs for official Coder product documentation that matches deployment version ${docsVersion} when you need authoritative guidance about Coder template authoring, parameters, product behavior, or examples that are not already clear from the local files.
-- Start with coder_docs_outline to discover relevant markdown paths, then call coder_docs with an exact path from that outline.`
-			: "- coder_docs_outline and coder_docs may be unavailable if the deployment build version could not be determined.";
+			? `- Use coder_docs_outline and coder_docs as the primary external source of truth for official Coder product documentation that matches deployment version ${docsVersion}.
+- Use the docs to look up product behavior, template authoring guidance, examples, and references instead of relying on memory.
+- Start with coder_docs_outline to discover relevant markdown paths, then call coder_docs with an exact path from that outline.
+- If the docs and your memory conflict, follow the docs.`
+			: "- coder_docs_outline and coder_docs may be unavailable if the deployment build version could not be determined. In that case, avoid guessing and rely on local files plus coder_registry_ results.";
 
 	return `${BASE_SYSTEM_PROMPT}
 
 Additional guidance:
-- If the user asks to modify existing local template code, variables, resources, module blocks, or values, inspect the relevant local file(s) and make the change with listFiles/readFile/editFile before considering coder_docs or coder_registry_ tools.
-- A request like "turn that enable_fuse variable into a Coder parameter" is a local edit request, so if you have not already read the current template file in this conversation, read it first. Otherwise, reuse the most recent known file state. Do not search the docs or registry unless the local files are insufficient.
+- Start with local tools to inspect the current template state before editing, but use official external sources to validate Coder-specific behavior instead of guessing.
+- A request like "turn that enable_fuse variable into a Coder parameter" should start by reading the current template file, then use coder_registry_ to confirm the supported parameter shape or example before editing.
 ${docsToolInstructions}
-- Use coder_registry_ tools for external registry modules, published examples, or authoritative configuration details that are not already available in the local files.
-- Use coder_registry_ tool results to confirm module inputs, outputs, examples, and supported settings before you recommend changes based on external registry content.
+- When interacting with or modifying template values, variables, parameters, module blocks, registry modules, or other template-owned settings, prefer coder_registry_ tools for authoritative examples and supported configuration details.
+- Use coder_registry_ tool results to confirm module inputs, outputs, examples, and supported settings before you recommend or edit template values.
+- For all other Coder product behavior, authoring guidance, examples, and references, prefer coder_docs_outline then coder_docs and follow the documentation as closely as possible.
+- If local files, coder_docs, and coder_registry_ disagree, trust the local file for the user's current state, but trust coder_docs and coder_registry_ over memory for what Coder supports.
 
 ${currentFileInstructions}`;
 };
@@ -305,12 +323,31 @@ export interface DisplayReasoning {
 	isStreaming: boolean;
 }
 
+interface DisplayAttachment {
+	mediaType: string;
+	url: string;
+	filename?: string;
+}
+
 export interface DisplayMessage {
 	id: string;
 	role: "user" | "assistant";
 	content: string;
+	attachments: DisplayAttachment[];
 	toolCalls: DisplayToolCall[];
 	reasoning: DisplayReasoning[];
+}
+
+type SendMessageInput =
+	| string
+	| {
+			text: string;
+			attachments?: readonly File[];
+	  };
+
+interface SendMessageResult {
+	accepted: boolean;
+	error?: string;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -318,6 +355,53 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const toToolArgs = (input: unknown): Record<string, unknown> =>
 	isRecord(input) ? input : {};
+
+const toDisplayAttachment = (
+	part: Pick<DisplayAttachment, "mediaType" | "url" | "filename">,
+): DisplayAttachment => ({
+	mediaType: part.mediaType,
+	url: part.url,
+	filename: part.filename,
+});
+
+const normalizeSendInput = (
+	input: SendMessageInput,
+): { text: string; attachments: readonly File[] } => {
+	if (typeof input === "string") {
+		return { text: input, attachments: [] };
+	}
+	return {
+		text: input.text,
+		attachments: input.attachments ?? [],
+	};
+};
+
+const readAttachmentParts = async (
+	attachments: readonly File[],
+): Promise<UIMessage["parts"]> => {
+	if (attachments.length > MAX_CHAT_IMAGE_ATTACHMENTS) {
+		throw new Error(
+			`You can attach up to ${MAX_CHAT_IMAGE_ATTACHMENTS} screenshots per message.`,
+		);
+	}
+
+	const parts = await Promise.all(
+		attachments.map(async (file) => {
+			const validationError = validateImageAttachment(file);
+			if (validationError) {
+				throw new Error(validationError);
+			}
+			return {
+				type: "file" as const,
+				mediaType: file.type,
+				filename: file.name.length > 0 ? file.name : undefined,
+				url: await readFileAsDataURL(file),
+			};
+		}),
+	);
+
+	return parts;
+};
 
 const cloneMessage = <T>(value: T): T => {
 	if (typeof globalThis.structuredClone === "function") {
@@ -398,10 +482,14 @@ const toDisplayMessages = (uiMessages: UIMessage[]): DisplayMessage[] => {
 				)
 				.map((part) => part.text)
 				.join("");
+			const attachments = message.parts
+				.filter(isFileUIPart)
+				.map((part) => toDisplayAttachment(part));
 			result.push({
 				id: message.id,
 				role: "user",
 				content,
+				attachments,
 				toolCalls: [],
 				reasoning: [],
 			});
@@ -427,6 +515,7 @@ const toDisplayMessages = (uiMessages: UIMessage[]): DisplayMessage[] => {
 						id: `${message.id}-${segmentIndex++}`,
 						role: "assistant",
 						content: currentText,
+						attachments: [],
 						toolCalls: currentToolCalls,
 						reasoning: currentReasoning,
 					});
@@ -444,6 +533,7 @@ const toDisplayMessages = (uiMessages: UIMessage[]): DisplayMessage[] => {
 						id: `${message.id}-${segmentIndex++}`,
 						role: "assistant",
 						content: currentText,
+						attachments: [],
 						toolCalls: currentToolCalls,
 						reasoning: currentReasoning,
 					});
@@ -474,6 +564,7 @@ const toDisplayMessages = (uiMessages: UIMessage[]): DisplayMessage[] => {
 				id: segmentIndex > 0 ? `${message.id}-${segmentIndex}` : message.id,
 				role: "assistant",
 				content: currentText,
+				attachments: [],
 				toolCalls: currentToolCalls,
 				reasoning: currentReasoning,
 			});
@@ -590,6 +681,8 @@ export const useTemplateAgent = ({
 	const uiMessagesRef = useRef<UIMessage[]>([]);
 	const messageCounter = useRef(0);
 	const abortRef = useRef<AbortController | null>(null);
+
+	const sendPreparingRef = useRef(false);
 
 	const mcpClientRef = useRef<MCPClientInstance | null>(null);
 	const mcpToolsRef = useRef<MCPTools>({});
@@ -797,39 +890,63 @@ export const useTemplateAgent = ({
 	);
 
 	const send = useCallback(
-		(text: string) => {
+		async (input: SendMessageInput): Promise<SendMessageResult> => {
 			if (status === "streaming") {
-				return;
+				return { accepted: false };
 			}
 			// Don't allow new messages while approvals are pending.
 			if (status === "awaiting_approval") {
-				return;
+				return { accepted: false };
 			}
-			if (abortRef.current) {
-				return;
+			if (abortRef.current || sendPreparingRef.current) {
+				return { accepted: false };
 			}
 			if (status === "error") {
 				setStatus("idle");
 			}
 
+			const { text, attachments } = normalizeSendInput(input);
 			const trimmed = text.trim();
-			if (!trimmed) {
-				return;
+			if (!trimmed && attachments.length === 0) {
+				return { accepted: false };
 			}
 
-			if (uiMessagesRef.current.length === 0) {
-				hasBuiltInCurrentRunRef.current = false;
+			sendPreparingRef.current = true;
+			try {
+				const attachmentParts =
+					attachments.length === 0
+						? []
+						: await readAttachmentParts(attachments);
+				if (uiMessagesRef.current.length === 0) {
+					hasBuiltInCurrentRunRef.current = false;
+				}
+
+				const userMessage: UIMessage = {
+					id: `msg-${++messageCounter.current}`,
+					role: "user",
+					parts: [
+						...(trimmed.length > 0
+							? [{ type: "text" as const, text: trimmed }]
+							: []),
+						...attachmentParts,
+					],
+				};
+				const nextConversation = [...uiMessagesRef.current, userMessage];
+				setConversationMessages(nextConversation);
+
+				void runStream(nextConversation);
+				return { accepted: true };
+			} catch (error) {
+				return {
+					accepted: false,
+					error:
+						error instanceof Error
+							? error.message
+							: "Failed to read the attached screenshot.",
+				};
+			} finally {
+				sendPreparingRef.current = false;
 			}
-
-			const userMessage: UIMessage = {
-				id: `msg-${++messageCounter.current}`,
-				role: "user",
-				parts: [{ type: "text", text: trimmed }],
-			};
-			const nextConversation = [...uiMessagesRef.current, userMessage];
-			setConversationMessages(nextConversation);
-
-			void runStream(nextConversation);
 		},
 		[runStream, setConversationMessages, status],
 	);
