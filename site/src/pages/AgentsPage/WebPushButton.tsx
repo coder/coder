@@ -22,17 +22,12 @@ export const WebPushButton: FC = () => {
 		try {
 			if (webPush.subscribed) {
 				await webPush.unsubscribe();
-				toast.success("Notifications disabled.");
 			} else {
 				await webPush.subscribe();
-				toast.success("Notifications enabled.");
 			}
 		} catch (error) {
-			if (webPush.subscribed) {
-				toast.error(getErrorMessage(error, "Failed to disable notifications."));
-			} else {
-				toast.error(getErrorMessage(error, "Failed to enable notifications."));
-			}
+			const action = webPush.subscribed ? "disable" : "enable";
+			toast.error(getErrorMessage(error, `Failed to ${action} notifications.`));
 		}
 	};
 

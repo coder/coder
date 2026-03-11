@@ -1,9 +1,5 @@
 # Coder Agents
 
-> [!NOTE]
-> Coder Agents is currently in internal preview. We are actively developing
-> the feature and demoing it with customers for feedback.
-
 Coder Agents is a chat interface and API for delegating development work and research to coding agents in your Coder deployment. Developers describe the work they want done, and Coder Agents handles selecting a template, provisioning a workspace, and executing the task.
 
 Coder Agents includes its own self-hosted AI coding
@@ -12,7 +8,7 @@ agent that runs the agent loop directly within the Coder control plane.
 No specialized software, API keys, or network access is required inside your workspace. The only requirement is network access between the control plane and external LLM providers.
 
 <video autoplay playsinline loop>
-  <source src="https://github.com/coder/coder/blob/main/docs/images/guides/ai-agents/coder-agents-ui.mp4?raw=true" type="video/mp4">
+  <source src="https://raw.githubusercontent.com/coder/coder/refs/heads/main/docs/images/guides/ai-agents/coder-agents-ui.mp4" type="video/mp4">
 Your browser does not support the video tag.
 </video>
 

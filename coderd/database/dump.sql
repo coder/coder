@@ -1215,7 +1215,8 @@ CREATE TABLE chat_messages (
     cache_creation_tokens bigint,
     cache_read_tokens bigint,
     context_limit bigint,
-    compressed boolean DEFAULT false NOT NULL
+    compressed boolean DEFAULT false NOT NULL,
+    created_by uuid
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -3533,6 +3534,8 @@ CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btre
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
+
+CREATE INDEX idx_chats_owner_updated_id ON chats USING btree (owner_id, updated_at DESC, id DESC);
 
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 

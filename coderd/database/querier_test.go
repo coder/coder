@@ -9116,3 +9116,123 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		require.Contains(t, gotIDs, postUser.ID)
 	})
 }
+
+func TestGetWorkspaceBuildMetricsByResourceID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: tmpl.ID, Valid: true},
+			CreatedBy:      user.ID,
+		})
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID:   org.ID,
+			TemplateID:       tmpl.ID,
+			OwnerID:          user.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			JobID:             job.ID,
+			InitiatorID:       user.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+
+		parentReadyAt := dbtime.Now()
+		parentStartedAt := parentReadyAt.Add(-time.Second)
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID:     resource.ID,
+			StartedAt:      sql.NullTime{Time: parentStartedAt, Valid: true},
+			ReadyAt:        sql.NullTime{Time: parentReadyAt, Valid: true},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+
+		row, err := db.GetWorkspaceBuildMetricsByResourceID(ctx, resource.ID)
+		require.NoError(t, err)
+		require.True(t, row.AllAgentsReady)
+		require.True(t, parentReadyAt.Equal(row.LastAgentReadyAt))
+		require.Equal(t, "success", row.WorstStatus)
+	})
+
+	t.Run("SubAgentExcluded", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: tmpl.ID, Valid: true},
+			CreatedBy:      user.ID,
+		})
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID:   org.ID,
+			TemplateID:       tmpl.ID,
+			OwnerID:          user.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			JobID:             job.ID,
+			InitiatorID:       user.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+
+		parentReadyAt := dbtime.Now()
+		parentStartedAt := parentReadyAt.Add(-time.Second)
+		parentAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID:     resource.ID,
+			StartedAt:      sql.NullTime{Time: parentStartedAt, Valid: true},
+			ReadyAt:        sql.NullTime{Time: parentReadyAt, Valid: true},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+
+		// Sub-agent with ready_at 1 hour later should be excluded.
+		subAgentReadyAt := parentReadyAt.Add(time.Hour)
+		subAgentStartedAt := subAgentReadyAt.Add(-time.Second)
+		_ = dbgen.WorkspaceSubAgent(t, db, parentAgent, database.WorkspaceAgent{
+			StartedAt:      sql.NullTime{Time: subAgentStartedAt, Valid: true},
+			ReadyAt:        sql.NullTime{Time: subAgentReadyAt, Valid: true},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+
+		row, err := db.GetWorkspaceBuildMetricsByResourceID(ctx, resource.ID)
+		require.NoError(t, err)
+		require.True(t, row.AllAgentsReady)
+		// LastAgentReadyAt should be the parent's, not the sub-agent's.
+		require.True(t, parentReadyAt.Equal(row.LastAgentReadyAt))
+		require.Equal(t, "success", row.WorstStatus)
+	})
+}

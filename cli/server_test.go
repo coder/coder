@@ -108,6 +108,29 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 	})
 }
 
+func TestReadExternalAuthProvidersFromEnv_APIBaseURL(t *testing.T) {
+	t.Parallel()
+	providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
+		"CODER_EXTERNAL_AUTH_0_TYPE=github",
+		"CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxx",
+		"CODER_EXTERNAL_AUTH_0_API_BASE_URL=https://ghes.corp.com/api/v3",
+	})
+	require.NoError(t, err)
+	require.Len(t, providers, 1)
+	assert.Equal(t, "https://ghes.corp.com/api/v3", providers[0].APIBaseURL)
+}
+
+func TestReadExternalAuthProvidersFromEnv_APIBaseURLDefault(t *testing.T) {
+	t.Parallel()
+	providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
+		"CODER_EXTERNAL_AUTH_0_TYPE=github",
+		"CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxx",
+	})
+	require.NoError(t, err)
+	require.Len(t, providers, 1)
+	assert.Equal(t, "", providers[0].APIBaseURL)
+}
+
 // TestReadGitAuthProvidersFromEnv ensures that the deprecated `CODER_GITAUTH_`
 // environment variables are still supported.
 func TestReadGitAuthProvidersFromEnv(t *testing.T) {

@@ -1150,6 +1150,7 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 export interface ChatMessage {
 	readonly id: number;
 	readonly chat_id: string;
+	readonly created_by?: string;
 	readonly model_config_id?: string;
 	readonly created_at: string;
 	readonly role: string;
@@ -1609,6 +1610,14 @@ export interface ChatStreamRetry {
  */
 export interface ChatStreamStatus {
 	readonly status: ChatStatus;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatSystemPromptResponse is the response for getting the chat system prompt.
+ */
+export interface ChatSystemPromptResponse {
+	readonly system_prompt: string;
 }
 
 // From codersdk/chats.go
@@ -2683,6 +2692,12 @@ export interface ExternalAuthConfig {
 	 */
 	readonly regex: string;
 	/**
+	 * APIBaseURL is the base URL for provider REST API calls
+	 * (e.g., "https://api.github.com" for GitHub). Derived from
+	 * defaults when not explicitly configured.
+	 */
+	readonly api_base_url: string;
+	/**
 	 * DisplayName is shown in the UI to identify the auth config.
 	 */
 	readonly display_name: string;
@@ -3252,7 +3267,7 @@ export interface LinkConfig {
 /**
  * ListChatsOptions are optional parameters for ListChats.
  */
-export interface ListChatsOptions {
+export interface ListChatsOptions extends Pagination {
 	readonly Archived: boolean | null;
 }
 
@@ -6303,6 +6318,14 @@ export interface UpdateChatRequest {
 	readonly title: string;
 }
 
+// From codersdk/chats.go
+/**
+ * UpdateChatSystemPromptRequest is the request to update the chat system prompt.
+ */
+export interface UpdateChatSystemPromptRequest {
+	readonly system_prompt: string;
+}
+
 // From codersdk/updatecheck.go
 /**
  * UpdateCheckResponse contains information on the latest release of Coder.
@@ -6461,6 +6484,15 @@ export interface UpdateTemplateMeta {
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
 	readonly terminal_font: TerminalFontName;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateUserChatCustomPromptRequest is the request to update a user's
+ * custom chat prompt.
+ */
+export interface UpdateUserChatCustomPromptRequest {
+	readonly custom_prompt: string;
 }
 
 // From codersdk/notifications.go
@@ -6685,6 +6717,15 @@ export interface UserActivityInsightsResponse {
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
 	readonly terminal_font: TerminalFontName;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatCustomPromptResponse is the response for getting a user's
+ * custom chat prompt.
+ */
+export interface UserChatCustomPromptResponse {
+	readonly custom_prompt: string;
 }
 
 // From codersdk/insights.go

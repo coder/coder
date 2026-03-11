@@ -582,6 +582,64 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.Equal(t, uint64(1), got.GetSampleCount())
 		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
+
+	t.Run("SubAgentDoesNotEmitMetric", func(t *testing.T) {
+		t.Parallel()
+		parentID := uuid.New()
+		subAgent := database.WorkspaceAgent{
+			ID:             uuid.New(),
+			ParentID:       uuid.NullUUID{UUID: parentID, Valid: true},
+			LifecycleState: database.WorkspaceAgentLifecycleStateStarting,
+			StartedAt:      sql.NullTime{Valid: true, Time: someTime},
+			ReadyAt:        sql.NullTime{Valid: false},
+		}
+		lifecycle := &agentproto.Lifecycle{
+			State:     agentproto.Lifecycle_READY,
+			ChangedAt: timestamppb.New(now),
+		}
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().UpdateWorkspaceAgentLifecycleStateByID(gomock.Any(), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             subAgent.ID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			StartedAt:      subAgent.StartedAt,
+			ReadyAt: sql.NullTime{
+				Time:  now,
+				Valid: true,
+			},
+		}).Return(nil)
+		// GetWorkspaceBuildMetricsByResourceID should NOT be called
+		// because sub-agents should be skipped before querying.
+		reg := prometheus.NewRegistry()
+		metrics := agentapi.NewLifecycleMetrics(reg)
+		api := &agentapi.LifecycleAPI{
+			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+				return subAgent, nil
+			},
+			WorkspaceID:              workspaceID,
+			Database:                 dbM,
+			Log:                      testutil.Logger(t),
+			Metrics:                  metrics,
+			PublishWorkspaceUpdateFn: nil,
+		}
+		resp, err := api.UpdateLifecycle(context.Background(), &agentproto.UpdateLifecycleRequest{
+			Lifecycle: lifecycle,
+		})
+		require.NoError(t, err)
+		require.Equal(t, lifecycle, resp)
+
+		// We don't expect the metric to be emitted for sub-agents, by default this will fail anyway but it doesn't hurt
+		// to document the test explicitly.
+		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), gomock.Any()).Times(0)
+
+		// If we were emitting the metric we would have failed by now since it would include a call to the database that we're not expecting.
+		pm, err := reg.Gather()
+		require.NoError(t, err)
+		for _, m := range pm {
+			if m.GetName() == fullMetricName {
+				t.Fatal("metric should not be emitted for sub-agent")
+			}
+		}
+	})
 }
 
 func TestUpdateStartup(t *testing.T) {

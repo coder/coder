@@ -1,9 +1,79 @@
 import { API, type ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
-import type { QueryClient } from "react-query";
+import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
+
+/**
+ * Updates a single chat inside every page of the infinite chats query
+ * cache. Use this instead of setQueryData(chatsKey, ...) which writes
+ * to the wrong key (the flat list key, not the infinite query key).
+ */
+export const updateInfiniteChatsCache = (
+	queryClient: QueryClient,
+	updater: (chats: TypesGen.Chat[]) => TypesGen.Chat[],
+) => {
+	// Update ALL infinite chat queries regardless of their filter opts.
+	queryClient.setQueriesData<{
+		pages: TypesGen.Chat[][];
+		pageParams: unknown[];
+	}>({ queryKey: chatsKey }, (prev) => {
+		if (!prev) return prev;
+		if (!prev.pages) return prev;
+		const nextPages = prev.pages.map((page) => updater(page));
+		// Only return a new reference if something actually changed.
+		const changed = nextPages.some((page, i) => page !== prev.pages[i]);
+		return changed ? { ...prev, pages: nextPages } : prev;
+	});
+};
+
+/**
+ * Reads the flat list of chats from the first matching infinite query
+ * in the cache. Returns undefined when no data is cached yet.
+ */
+export const readInfiniteChatsCache = (
+	queryClient: QueryClient,
+): TypesGen.Chat[] | undefined => {
+	const queries = queryClient.getQueriesData<{
+		pages: TypesGen.Chat[][];
+		pageParams: unknown[];
+	}>({ queryKey: chatsKey });
+	for (const [, data] of queries) {
+		if (data?.pages) {
+			return data.pages.flat();
+		}
+	}
+	return undefined;
+};
+
+const DEFAULT_CHAT_PAGE_LIMIT = 50;
+
+export const infiniteChats = (opts?: { archived?: boolean }) => {
+	const limit = DEFAULT_CHAT_PAGE_LIMIT;
+
+	return {
+		queryKey: [...chatsKey, opts],
+		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
+			if (lastPage.length < limit) {
+				return undefined;
+			}
+			return pages.length + 1;
+		},
+		initialPageParam: 0,
+		queryFn: ({ pageParam }: { pageParam: unknown }) => {
+			if (typeof pageParam !== "number") {
+				throw new Error("pageParam must be a number");
+			}
+			return API.getChats({
+				limit,
+				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
+				archived: opts?.archived?.toString(),
+			});
+		},
+		refetchOnWindowFocus: true as const,
+	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
+};
 
 export const chats = () => ({
 	queryKey: chatsKey,
@@ -21,12 +91,11 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({ queryKey: chatsKey });
 		await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
-		const previousChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
 		const previousChat = queryClient.getQueryData<TypesGen.ChatWithMessages>(
 			chatKey(chatId),
 		);
-		queryClient.setQueryData<TypesGen.Chat[]>(chatsKey, (old) =>
-			old?.map((chat) =>
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
 				chat.id === chatId ? { ...chat, archived: true } : chat,
 			),
 		);
@@ -36,24 +105,19 @@ export const archiveChat = (queryClient: QueryClient) => ({
 				chat: { ...previousChat.chat, archived: true },
 			});
 		}
-		return { previousChats, previousChat };
+		return { previousChat };
 	},
 	onError: (
 		_error: unknown,
 		chatId: string,
 		context:
 			| {
-					previousChats?: TypesGen.Chat[];
 					previousChat?: TypesGen.ChatWithMessages;
 			  }
 			| undefined,
 	) => {
-		if (context?.previousChats) {
-			queryClient.setQueryData<TypesGen.Chat[]>(
-				chatsKey,
-				context.previousChats,
-			);
-		}
+		// Rollback: invalidate to re-fetch the correct state.
+		void queryClient.invalidateQueries({ queryKey: chatsKey });
 		if (context?.previousChat) {
 			queryClient.setQueryData<TypesGen.ChatWithMessages>(
 				chatKey(chatId),
@@ -72,12 +136,11 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({ queryKey: chatsKey });
 		await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
-		const previousChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
 		const previousChat = queryClient.getQueryData<TypesGen.ChatWithMessages>(
 			chatKey(chatId),
 		);
-		queryClient.setQueryData<TypesGen.Chat[]>(chatsKey, (old) =>
-			old?.map((chat) =>
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
 				chat.id === chatId ? { ...chat, archived: false } : chat,
 			),
 		);
@@ -87,24 +150,19 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 				chat: { ...previousChat.chat, archived: false },
 			});
 		}
-		return { previousChats, previousChat };
+		return { previousChat };
 	},
 	onError: (
 		_error: unknown,
 		chatId: string,
 		context:
 			| {
-					previousChats?: TypesGen.Chat[];
 					previousChat?: TypesGen.ChatWithMessages;
 			  }
 			| undefined,
 	) => {
-		if (context?.previousChats) {
-			queryClient.setQueryData<TypesGen.Chat[]>(
-				chatsKey,
-				context.previousChats,
-			);
-		}
+		// Rollback: invalidate to re-fetch the correct state.
+		void queryClient.invalidateQueries({ queryKey: chatsKey });
 		if (context?.previousChat) {
 			queryClient.setQueryData<TypesGen.ChatWithMessages>(
 				chatKey(chatId),
@@ -194,6 +252,38 @@ export const chatDiffContentsKey = (chatId: string) =>
 export const chatDiffContents = (chatId: string) => ({
 	queryKey: chatDiffContentsKey(chatId),
 	queryFn: () => API.getChatDiffContents(chatId),
+});
+
+const chatSystemPromptKey = ["chat-system-prompt"] as const;
+
+export const chatSystemPrompt = () => ({
+	queryKey: chatSystemPromptKey,
+	queryFn: () => API.getChatSystemPrompt(),
+});
+
+export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
+	mutationFn: API.updateChatSystemPrompt,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatSystemPromptKey,
+		});
+	},
+});
+
+const chatUserCustomPromptKey = ["chat-user-custom-prompt"] as const;
+
+export const chatUserCustomPrompt = () => ({
+	queryKey: chatUserCustomPromptKey,
+	queryFn: () => API.getUserChatCustomPrompt(),
+});
+
+export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
+	mutationFn: API.updateUserChatCustomPrompt,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUserCustomPromptKey,
+		});
+	},
 });
 
 export const chatModelsKey = ["chat-models"] as const;

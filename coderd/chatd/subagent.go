@@ -52,9 +52,17 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 				"(e.g. fixing a specific bug, writing a single module, "+
 				"running a migration). Do NOT use for simple or quick "+
 				"operations you can handle directly with execute, "+
-				"read_file, or write_file. The child agent receives the "+
-				"same workspace tools but cannot spawn its own subagents. "+
-				"After spawning, use wait_agent to collect the result.",
+				"read_file, or write_file - for example, reading a group "+
+				"of files and outputting them verbatim does not need a "+
+				"subagent. Reserve subagents for tasks that require "+
+				"intellectual work such as code analysis, writing new "+
+				"code, or complex refactoring. Be careful when running "+
+				"parallel subagents: if two subagents modify the same "+
+				"files they will conflict with each other, so ensure "+
+				"parallel subagent tasks are independent. "+
+				"The child agent receives the same workspace tools but "+
+				"cannot spawn its own subagents. After spawning, use "+
+				"wait_agent to collect the result.",
 			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -281,8 +289,15 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, ErrSubagentNotDescendant
 	}
 
+	// Look up the target chat to get the owner for CreatedBy.
+	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
+	}
+
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
+		CreatedBy:    targetChat.OwnerID,
 		Content:      []fantasy.Content{fantasy.TextContent{Text: message}},
 		BusyBehavior: busyBehavior,
 	})

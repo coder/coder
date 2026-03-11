@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
 import {
 	chatModelConfigsKey,
 	chatModelsKey,
@@ -9,7 +10,15 @@ import type {
 	ChatModelsResponse,
 	ChatProviderConfig,
 } from "api/typesGenerated";
-import { fn } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
 
 // Pre-seeded query data so that ChatModelAdminPanel renders
@@ -74,38 +83,79 @@ const meta: Meta<typeof ConfigureAgentsDialog> = {
 		onOpenChange: fn(),
 		canManageChatModelConfigs: false,
 		canSetSystemPrompt: false,
-		systemPromptDraft: "",
-		onSystemPromptDraftChange: fn(),
-		onSaveSystemPrompt: fn(),
-		isSystemPromptDirty: false,
-		isDisabled: false,
+	},
+	beforeEach: () => {
+		spyOn(API, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "",
+		});
+		spyOn(API, "updateChatSystemPrompt").mockResolvedValue();
+		spyOn(API, "getUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "",
+		});
+		spyOn(API, "updateUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "",
+		});
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof ConfigureAgentsDialog>;
 
-export const SystemPromptOnly: Story = {
+/** Regular user sees only the Personal Prompt section. */
+export const UserOnly: Story = {};
+
+/** Admin sees Personal Prompt + System Prompt in the same Prompts tab. */
+export const AdminPrompts: Story = {
 	args: {
 		canSetSystemPrompt: true,
-		canManageChatModelConfigs: false,
-		systemPromptDraft: "You are a helpful coding assistant.",
+	},
+	beforeEach: () => {
+		spyOn(API, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "You are a helpful coding assistant.",
+		});
 	},
 };
 
-export const ModelConfigOnly: Story = {
-	args: {
-		canSetSystemPrompt: false,
-		canManageChatModelConfigs: true,
-	},
-	parameters: { queries: chatQueries },
-};
-
-export const BothEnabled: Story = {
+/** Admin with model config permissions sees Providers/Models tabs. */
+export const AdminFull: Story = {
 	args: {
 		canSetSystemPrompt: true,
 		canManageChatModelConfigs: true,
-		systemPromptDraft: "Follow company coding standards.",
 	},
 	parameters: { queries: chatQueries },
+	beforeEach: () => {
+		spyOn(API, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "Follow company coding standards.",
+		});
+	},
+};
+
+/** Verifies that typing and saving the system prompt calls the API. */
+export const SavesBehaviorPromptAndRestores: Story = {
+	args: {
+		canSetSystemPrompt: true,
+	},
+	play: async () => {
+		const dialog = await screen.findByRole("dialog");
+
+		// Find the System Instructions textarea by its unique placeholder.
+		const textareas = await within(dialog).findAllByPlaceholderText(
+			"Additional behavior, style, and tone preferences for all users",
+		);
+		const textarea = textareas[0];
+
+		await userEvent.type(textarea, "You are a focused coding assistant.");
+
+		// Click the Save button inside the System Instructions form.
+		// There are multiple Save buttons (one per form), so grab all and
+		// pick the last one which belongs to the system prompt section.
+		const saveButtons = within(dialog).getAllByRole("button", { name: "Save" });
+		await userEvent.click(saveButtons[saveButtons.length - 1]);
+
+		await waitFor(() => {
+			expect(API.updateChatSystemPrompt).toHaveBeenCalledWith({
+				system_prompt: "You are a focused coding assistant.",
+			});
+		});
+	},
 };
