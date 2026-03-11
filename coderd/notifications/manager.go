@@ -380,8 +380,7 @@ func (m *Manager) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	m.mu.Unlock()     // Unlock to avoid blocking loop.
-	defer m.mu.Lock() // Re-lock the mutex due to earlier defer.
+	m.mu.Unlock() // Unlock to avoid blocking loop.
 
 	// Wait for the manager loop to exit or the context to be canceled, whichever comes first.
 	select {
@@ -392,9 +391,11 @@ func (m *Manager) Stop(ctx context.Context) error {
 		}
 		// For some reason, slog.Error returns {} for a context error.
 		m.log.Error(context.Background(), "graceful stop failed", slog.F("err", errStr))
+		m.mu.Lock() // Re-acquire the lock since the deferred unlock will still run.
 		return ctx.Err()
 	case <-m.done:
 		m.log.Debug(context.Background(), "gracefully stopped")
+		m.mu.Lock() // Re-acquire the lock since the deferred unlock will still run.
 		return nil
 	}
 }
