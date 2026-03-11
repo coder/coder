@@ -103,14 +103,9 @@ type Options struct {
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
-func New(opts Options, workspace database.Workspace) (*API, error) {
+func New(opts Options, workspace database.Workspace, agent database.WorkspaceAgent) *API {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
-	}
-
-	agent, err := opts.Database.GetWorkspaceAgentByID(opts.AuthenticatedCtx, opts.AgentID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace agent by id %q: %w", opts.AgentID, err)
 	}
 
 	api := &API{
@@ -161,8 +156,7 @@ func New(opts Options, workspace database.Workspace) (*API, error) {
 	}
 
 	api.StatsAPI = &StatsAPI{
-		AgentID:                   agent.ID,
-		AgentName:                 agent.Name,
+		Agent:                     agent,
 		Workspace:                 api.cachedWorkspaceFields,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
@@ -181,9 +175,11 @@ func New(opts Options, workspace database.Workspace) (*API, error) {
 	}
 
 	api.AppsAPI = &AppsAPI{
-		AgentID:                  agent.ID,
+		Agent:                    agent,
+		AgentFn:                  api.agent,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
+		Workspace:                api.cachedWorkspaceFields,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
 		Clock:                    opts.Clock,
 		NotificationsEnqueuer:    opts.NotificationsEnqueuer,
@@ -248,7 +244,7 @@ func New(opts Options, workspace database.Workspace) (*API, error) {
 	// like prebuild claims where owner_id and other fields may be modified in the DB.
 	go api.startCacheRefreshLoop(opts.AuthenticatedCtx)
 
-	return api, nil
+	return api
 }
 
 func (a *API) Server(ctx context.Context) (*drpcserver.Server, error) {
@@ -347,11 +343,11 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 	a.cachedWorkspaceFields.Clear()
 }
 
-func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+func (a *API) publishWorkspaceUpdate(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 	a.opts.PublishWorkspaceUpdateFn(ctx, a.opts.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        kind,
 		WorkspaceID: a.opts.WorkspaceID,
-		AgentID:     &agent.ID,
+		AgentID:     &agentID,
 	})
 	return nil
 }

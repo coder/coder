@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -17,8 +16,7 @@ import (
 )
 
 type StatsAPI struct {
-	AgentID                   uuid.UUID
-	AgentName                 string
+	Agent                     database.WorkspaceAgent
 	Workspace                 *CachedWorkspaceFields
 	Database                  database.Store
 	Log                       slog.Logger
@@ -49,9 +47,9 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	var ws database.WorkspaceIdentity
 	var ok bool
 	if ws, ok = a.Workspace.AsWorkspaceIdentity(); !ok {
-		w, err := a.Database.GetWorkspaceByAgentID(ctx, a.AgentID)
+		w, err := a.Database.GetWorkspaceByAgentID(ctx, a.Agent.ID)
 		if err != nil {
-			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", a.AgentID, err)
+			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", a.Agent.ID, err)
 		}
 		ws = database.WorkspaceIdentityFromWorkspace(w)
 	}
@@ -76,7 +74,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		ctx,
 		a.now(),
 		ws,
-		database.WorkspaceAgent{ID: a.AgentID, Name: a.AgentName},
+		a.Agent,
 		req.Stats,
 		false,
 	)

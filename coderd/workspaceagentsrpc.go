@@ -142,7 +142,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 			slog.F("role", role))
 	}
 
-	agentAPI, err := agentapi.New(agentapi.Options{
+	agentAPI := agentapi.New(agentapi.Options{
 		AgentID:           workspaceAgent.ID,
 		OwnerID:           workspace.OwnerID,
 		WorkspaceID:       workspace.ID,
@@ -178,12 +178,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
-	}, workspace)
-	if err != nil {
-		logger.Error(ctx, "failed to create agent API", slog.Error(err))
-		_ = conn.Close(websocket.StatusInternalError, err.Error())
-		return
-	}
+	}, workspace, workspaceAgent)
 
 	streamID := tailnet.StreamID{
 		Name: fmt.Sprintf("%s-%s-%s", workspace.OwnerUsername, workspace.Name, workspaceAgent.Name),
