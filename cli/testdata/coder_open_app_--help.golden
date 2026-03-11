@@ -1,9 +1,9 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder open app [flags] <workspace> <app slug or port>
+  coder open app [flags] <workspace> [<app slug>]
 
-  Open a workspace application or port.
+  Open a workspace application.
 
 OPTIONS:
       --region string, $CODER_OPEN_APP_REGION (default: primary)
