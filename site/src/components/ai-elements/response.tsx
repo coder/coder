@@ -157,10 +157,20 @@ const createComponents = (
 				typeof className === "string" && className.includes("task-list-item");
 			return <li className={isTask ? "list-none" : undefined}>{children}</li>;
 		},
+		// Table cells: streamdown defaults to text-sm (14px).
+		// Drop the explicit size so cells inherit the 13px base.
+		th: ({ children }: MarkdownComponentProps) => (
+			<th className="whitespace-nowrap px-4 py-2 text-left font-semibold">
+				{children}
+			</th>
+		),
+		td: ({ children }: MarkdownComponentProps) => (
+			<td className="px-4 py-2">{children}</td>
+		),
 		// Inline code only — fenced blocks are handled by the pre override.
 		code: ({ children }: MarkdownComponentProps) => (
 			<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-content-primary">
-				{children}
+				{children}{" "}
 			</code>
 		),
 		// Fenced code blocks: extract language and content from the HAST
