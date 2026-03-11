@@ -233,6 +233,9 @@ func TestWorkspaceAgentRPCRole(t *testing.T) {
 
 		// Close the connection and give the server time to process.
 		_ = conn.Close()
+
+		// Verify that connectivity timestamps were never set
+		// (first_connected_at, last_connected_at, disconnected_at).
 		require.Never(t, func() bool {
 			agent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), r.Agents[0].ID)
 			if err != nil {

@@ -586,6 +586,9 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
 		for i := 0; i < 100; i++ {
+			// Sibling replica count may not be immediately consistent.
+			// In production, proxies re-register every 30s and
+			// Kubernetes rolls out gradually, so this is benign.
 			var registerRes wsproxysdk.RegisterWorkspaceProxyResponse
 			require.Eventually(t, func() bool {
 				var err error
