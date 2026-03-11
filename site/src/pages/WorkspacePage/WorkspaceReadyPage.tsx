@@ -281,6 +281,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 			isOwner={isOwner}
 			timings={timingsQuery.data}
 			startWorkspaceError={startWorkspaceMutation.error}
+			updateWorkspaceError={updateWorkspaceMutation.error}
 		/>
 
 			<WorkspaceDeleteDialog

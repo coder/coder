@@ -55,6 +55,7 @@ export interface WorkspaceProps {
 	isOwner: boolean;
 	timings?: TypesGen.WorkspaceBuildTimings;
 	startWorkspaceError?: unknown;
+	updateWorkspaceError?: unknown;
 }
 
 /**
@@ -89,6 +90,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 	isOwner,
 	timings,
 	startWorkspaceError,
+	updateWorkspaceError,
 }) => {
 	const navigate = useNavigate();
 	const theme = useTheme();
@@ -125,14 +127,10 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const { shouldShow: shouldShowWorkspaceReadyDelayAlert } =
 		useWorkspaceReadyDelayAlert(timings, workspaceRunning);
 
-	const isRunningWorkspaceLimitError = Boolean(
-		startWorkspaceError &&
-			isApiError(startWorkspaceError) &&
-			startWorkspaceError.response?.status === 409 &&
-			startWorkspaceError.response?.data?.message?.includes(
-				"Running workspace limit",
-			),
-	);
+	const isStartRunningWorkspaceLimitError =
+		isRunningWorkspaceLimitError(startWorkspaceError);
+	const isUpdateRunningWorkspaceLimitError =
+		isRunningWorkspaceLimitError(updateWorkspaceError);
 
 	return (
 		<div
@@ -255,13 +253,25 @@ export const Workspace: FC<WorkspaceProps> = ({
 						</Alert>
 					)}
 
-					{isRunningWorkspaceLimitError && (
+					{isStartRunningWorkspaceLimitError && (
 						<Alert severity="warning">
 							<AlertTitle>Running workspace limit reached</AlertTitle>
 							<AlertDetail>
 								{getErrorMessage(
 									startWorkspaceError,
 									"Running workspace limit reached (max 1 per user). Stop one or more workspaces to start another.",
+								)}
+							</AlertDetail>
+						</Alert>
+					)}
+
+					{isUpdateRunningWorkspaceLimitError && (
+						<Alert severity="warning">
+							<AlertTitle>Running workspace limit reached</AlertTitle>
+							<AlertDetail>
+								{getErrorMessage(
+									updateWorkspaceError,
+									"Running workspace limit reached (max 1 per user). Stop one or more workspaces to update this workspace.",
 								)}
 							</AlertDetail>
 						</Alert>
@@ -341,6 +351,14 @@ export const Workspace: FC<WorkspaceProps> = ({
 const countAgents = (resource: TypesGen.WorkspaceResource) => {
 	return resource.agents ? resource.agents.length : 0;
 };
+
+const isRunningWorkspaceLimitError = (error: unknown): boolean =>
+	Boolean(
+		error &&
+			isApiError(error) &&
+			error.response?.status === 409 &&
+			error.response?.data?.message?.includes("Running workspace limit"),
+	);
 
 const styles = {
 	content: {
