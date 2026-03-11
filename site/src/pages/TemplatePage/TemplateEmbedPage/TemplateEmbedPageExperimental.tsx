@@ -1,4 +1,5 @@
 import { API } from "api/api";
+import { DetailedError } from "api/errors";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
@@ -82,7 +83,14 @@ const TemplateEmbedPageExperimental: FC = () => {
 			onOpen() {
 				setWsError(null);
 			},
-			onDisconnect() {},
+			onDisconnect() {
+				setWsError(
+					new DetailedError(
+						"WebSocket connection for dynamic parameters lost.",
+						"Attempting to reconnect...",
+					),
+				);
+			},
 		});
 
 		return () => {

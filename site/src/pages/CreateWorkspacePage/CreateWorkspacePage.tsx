@@ -1,5 +1,5 @@
 import { API } from "api/api";
-import type { ApiErrorResponse } from "api/errors";
+import { type ApiErrorResponse, DetailedError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import {
 	templateByName,
@@ -181,7 +181,14 @@ const CreateWorkspacePage: FC = () => {
 				// Reset so initial parameters are re-sent on reconnect.
 				initialParamsSentRef.current = false;
 			},
-			onDisconnect() {},
+			onDisconnect() {
+				setWsError(
+					new DetailedError(
+						"WebSocket connection for dynamic parameters lost.",
+						"Attempting to reconnect...",
+					),
+				);
+			},
 		});
 
 		return () => {

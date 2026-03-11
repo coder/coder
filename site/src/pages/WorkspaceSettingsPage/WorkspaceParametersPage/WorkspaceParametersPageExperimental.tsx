@@ -1,4 +1,5 @@
 import { API } from "api/api";
+import { DetailedError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import type {
 	DynamicParametersRequest,
@@ -137,7 +138,14 @@ const WorkspaceParametersPageExperimental: FC = () => {
 				setWsError(null);
 				initialParamsSentRef.current = false;
 			},
-			onDisconnect() {},
+			onDisconnect() {
+				setWsError(
+					new DetailedError(
+						"WebSocket connection for dynamic parameters lost.",
+						"Attempting to reconnect...",
+					),
+				);
+			},
 		});
 
 		return () => {
