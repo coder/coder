@@ -1,23 +1,18 @@
-import { ChevronDownIcon, ExternalLinkIcon, GlobeIcon } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import { ExternalLinkIcon, GlobeIcon } from "lucide-react";
+import { type FC, useMemo } from "react";
 import { cn } from "utils/cn";
+import { ToolCollapsible } from "./ToolCollapsible";
 
 interface WebSearchSourcesProps {
 	sources: Array<{ url: string; title: string }>;
 }
 
-/** Maximum number of source pills visible before collapsing. */
-const VISIBLE_LIMIT = 4;
-
 /**
- * Renders a compact row of citation pills for web search results.
- * Sources are deduplicated by URL and shown as small rounded chips
- * with favicons. When more than four sources are present, the rest
- * are hidden behind a "+N more" expander.
+ * Renders web search sources as a collapsible tool card, consistent
+ * with other tool call renderings. The collapsed header shows a globe
+ * icon and "Searched N sources"; expanding reveals clickable pills.
  */
 const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
-	const [expanded, setExpanded] = useState(false);
-
 	// Deduplicate sources by URL, keeping the first occurrence.
 	const unique = useMemo(() => {
 		const seen = new Set<string>();
@@ -34,61 +29,26 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 		return null;
 	}
 
-	const hasOverflow = unique.length > VISIBLE_LIMIT;
-	const visible = expanded ? unique : unique.slice(0, VISIBLE_LIMIT);
-	const hiddenCount = unique.length - VISIBLE_LIMIT;
+	const detail = unique.length === 1 ? "1 result" : `${unique.length} results`;
 
 	return (
-		<div className="flex flex-col gap-1.5 py-1">
-			{/* Label */}
-			<span className="flex items-center gap-1 text-xs text-content-secondary">
-				<GlobeIcon className="h-3 w-3 shrink-0" />
-				Sources
-			</span>
-
-			{/* Pills */}
-			<div className="flex flex-wrap items-center gap-1.5">
-				{visible.map((source) => (
+		<ToolCollapsible
+			hasContent={unique.length > 0}
+			header={
+				<>
+					<GlobeIcon className="h-4 w-4 shrink-0 text-content-secondary" />
+					<span className="text-sm text-content-secondary">
+						Searched <span className="text-content-secondary/60">{detail}</span>
+					</span>
+				</>
+			}
+		>
+			<div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+				{unique.map((source) => (
 					<SourcePill key={source.url} source={source} />
 				))}
-
-				{hasOverflow && !expanded && (
-					<button
-						type="button"
-						onClick={() => setExpanded(true)}
-						className={cn(
-							"inline-flex items-center gap-1 rounded-full",
-							"border border-solid border-border-default bg-surface-secondary",
-							"px-2.5 py-1 text-xs text-content-secondary",
-							"cursor-pointer transition-colors",
-							"hover:bg-surface-tertiary hover:text-content-primary",
-							// Reset native button styles.
-							"font-[inherit] m-0",
-						)}
-					>
-						+{hiddenCount} more
-					</button>
-				)}
-
-				{hasOverflow && expanded && (
-					<button
-						type="button"
-						onClick={() => setExpanded(false)}
-						className={cn(
-							"inline-flex items-center gap-0.5 rounded-full",
-							"border border-solid border-border-default bg-surface-secondary",
-							"px-2.5 py-1 text-xs text-content-secondary",
-							"cursor-pointer transition-colors",
-							"hover:bg-surface-tertiary hover:text-content-primary",
-							"font-[inherit] m-0",
-						)}
-					>
-						Show less
-						<ChevronDownIcon className="h-3 w-3 shrink-0 rotate-180" />
-					</button>
-				)}
 			</div>
-		</div>
+		</ToolCollapsible>
 	);
 };
 

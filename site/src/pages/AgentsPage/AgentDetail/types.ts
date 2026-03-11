@@ -54,6 +54,10 @@ export type RenderBlock =
 			type: "source";
 			url: string;
 			title: string;
+	  }
+	| {
+			type: "sources";
+			sources: Array<{ url: string; title: string }>;
 	  };
 
 export type ParsedMessageContent = {

@@ -268,6 +268,13 @@ function renderBlockList({
 						);
 					}
 					return null;
+				case "sources":
+					return (
+						<WebSearchSources
+							key={`${keyPrefix}-sources-${index}`}
+							sources={block.sources}
+						/>
+					);
 				default:
 					return null;
 			}
@@ -311,6 +318,18 @@ const ChatMessageItem = memo<{
 			parsed.toolCalls.length === 0 &&
 			parsed.markdown === "" &&
 			parsed.reasoning === ""
+		) {
+			return null;
+		}
+
+		// Hide messages that consist entirely of provider-executed
+		// tool results. The parser skips these parts, so the parsed
+		// output is empty and would show a "no renderable content"
+		// fallback.
+		const parts = message.content ?? [];
+		if (
+			parts.length > 0 &&
+			parts.every((p) => p.type === "tool-result" && p.provider_executed)
 		) {
 			return null;
 		}
@@ -482,9 +501,6 @@ const ChatMessageItem = memo<{
 											isError={tool.isError}
 										/>
 									))}
-									{parsed.sources.length > 0 && (
-										<WebSearchSources sources={parsed.sources} />
-									)}
 									{!hasRenderableContent && (
 										<div className="text-xs text-content-secondary">
 											Message has no renderable content.
@@ -579,9 +595,6 @@ export const StreamingOutput = memo<{
 									subagentStatusOverrides={subagentStatusOverrides}
 								/>
 							))}
-							{streamState && streamState.sources.length > 0 && (
-								<WebSearchSources sources={streamState.sources} />
-							)}
 						</div>{" "}
 					</MessageContent>
 				</Message>

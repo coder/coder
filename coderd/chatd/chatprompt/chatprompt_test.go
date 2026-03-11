@@ -56,18 +56,20 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 					Input:      tc.input,
 				},
 			}, nil)
-				require.NoError(t, err)
+			require.NoError(t, err)
 
-				toolContent, err := chatprompt.MarshalToolResult(
-					"toolu_01C4PqN6F2493pi7Ebag8Vg7",
-					"execute",
-					json.RawMessage(`{"error":"tool call was interrupted before it produced a result"}`),
-					true,
-					false,
-				)
-				require.NoError(t, err)
+			toolContent, err := chatprompt.MarshalToolResult(
+				"toolu_01C4PqN6F2493pi7Ebag8Vg7",
+				"execute",
+				json.RawMessage(`{"error":"tool call was interrupted before it produced a result"}`),
+				true,
+				false,
+				nil,
+			)
+			require.NoError(t, err)
 
-				prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{				{
+			prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+				{
 					Role:       string(fantasy.MessageRoleAssistant),
 					Visibility: database.ChatMessageVisibilityBoth,
 					Content:    assistantContent,

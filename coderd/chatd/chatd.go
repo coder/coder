@@ -2575,7 +2575,7 @@ func (p *Server) runChat(
 // buildProviderTools creates provider-native tool definitions
 // (like web search) based on the model configuration. These
 // tools are executed server-side by the LLM provider.
-func buildProviderTools(provider string, options *codersdk.ChatModelProviderOptions) []fantasy.Tool {
+func buildProviderTools(_ string, options *codersdk.ChatModelProviderOptions) []fantasy.Tool {
 	var tools []fantasy.Tool
 
 	if options.Anthropic != nil && options.Anthropic.WebSearchEnabled != nil && *options.Anthropic.WebSearchEnabled {
@@ -2673,6 +2673,7 @@ func (p *Server) persistChatContextSummary(
 		summaryResult,
 		false,
 		false,
+		nil,
 	)
 	if err != nil {
 		return xerrors.Errorf("encode summary tool result: %w", err)

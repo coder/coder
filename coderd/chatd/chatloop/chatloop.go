@@ -98,6 +98,12 @@ type stepResult struct {
 	finishReason     fantasy.FinishReason
 	toolCalls        []fantasy.ToolCallContent
 	shouldContinue   bool
+
+	// providerToolResults stores tool results emitted by the
+	// provider for server-executed tools (e.g. web search).
+	// Keyed by tool call ID so we can attach the correct
+	// ProviderMetadata when persisting.
+	providerToolResults map[string]fantasy.StreamPart
 }
 
 // toResponseMessages converts step content into messages suitable
@@ -331,14 +337,24 @@ func Run(ctx context.Context, opts RunOptions) error {
 				if !tc.ProviderExecuted {
 					continue
 				}
-				result.content = append(result.content, fantasy.ToolResultContent{
+				tr := fantasy.ToolResultContent{
 					ToolCallID:       tc.ToolCallID,
 					ToolName:         tc.ToolName,
 					ProviderExecuted: true,
 					Result: fantasy.ToolResultOutputContentText{
 						Text: "provider-executed tool result",
 					},
-				})
+				}
+				// Attach provider metadata from the streamed
+				// tool result if available. This preserves
+				// Anthropic's WebSearchResultMetadata (including
+				// encrypted_content) so multi-turn conversations
+				// can reconstruct the web_search_tool_result
+				// block.
+				if ptr, ok := result.providerToolResults[tc.ToolCallID]; ok {
+					tr.ProviderMetadata = ptr.ProviderMetadata
+				}
+				result.content = append(result.content, tr)
 			}
 
 			// Extract context limit from provider metadata.
@@ -525,20 +541,20 @@ func processStepStream(
 				toolNames[part.ID] = part.ToolCallName
 			}
 
-			case fantasy.StreamPartTypeToolInputDelta:
-				var providerExecuted bool
-				if toolCall, exists := activeToolCalls[part.ID]; exists {
-					toolCall.Input += part.Delta
-					providerExecuted = toolCall.ProviderExecuted
-				}
-				toolName := toolNames[part.ID]
-				publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-					Type:             codersdk.ChatMessagePartTypeToolCall,
-					ToolCallID:       part.ID,
-					ToolName:         toolName,
-					ArgsDelta:        part.Delta,
-					ProviderExecuted: providerExecuted,
-				})
+		case fantasy.StreamPartTypeToolInputDelta:
+			var providerExecuted bool
+			if toolCall, exists := activeToolCalls[part.ID]; exists {
+				toolCall.Input += part.Delta
+				providerExecuted = toolCall.ProviderExecuted
+			}
+			toolName := toolNames[part.ID]
+			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+				Type:             codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID:       part.ID,
+				ToolName:         toolName,
+				ArgsDelta:        part.Delta,
+				ProviderExecuted: providerExecuted,
+			})
 		case fantasy.StreamPartTypeToolInputEnd:
 			// No callback needed; the full tool call arrives in
 			// StreamPartTypeToolCall.
@@ -577,6 +593,19 @@ func processStepStream(
 				fantasy.MessageRoleAssistant,
 				chatprompt.PartFromContent(sourceContent),
 			)
+
+		case fantasy.StreamPartTypeToolResult:
+			// Capture provider-emitted tool results (e.g. web
+			// search) so their ProviderMetadata is preserved
+			// through the DB round-trip. Without this metadata
+			// the Anthropic provider cannot reconstruct the
+			// web_search_tool_result block on follow-up turns.
+			if part.ProviderExecuted {
+				if result.providerToolResults == nil {
+					result.providerToolResults = make(map[string]fantasy.StreamPart)
+				}
+				result.providerToolResults[part.ID] = part
+			}
 
 		case fantasy.StreamPartTypeFinish:
 			result.usage = part.Usage

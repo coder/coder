@@ -364,6 +364,7 @@ type toolResultRaw struct {
 	Result           json.RawMessage `json:"result"`
 	IsError          bool            `json:"is_error,omitempty"`
 	ProviderExecuted bool            `json:"provider_executed,omitempty"`
+	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty"`
 }
 
 // parseToolResultRows decodes persisted tool result rows.
@@ -394,6 +395,7 @@ func (r toolResultRaw) toToolResultPart() fantasy.ToolResultPart {
 		return fantasy.ToolResultPart{
 			ToolCallID:       toolCallID,
 			ProviderExecuted: r.ProviderExecuted,
+			ProviderOptions:  r.providerOptions(),
 			Output: fantasy.ToolResultOutputContentError{
 				Error: xerrors.New(message),
 			},
@@ -403,10 +405,29 @@ func (r toolResultRaw) toToolResultPart() fantasy.ToolResultPart {
 	return fantasy.ToolResultPart{
 		ToolCallID:       toolCallID,
 		ProviderExecuted: r.ProviderExecuted,
+		ProviderOptions:  r.providerOptions(),
 		Output: fantasy.ToolResultOutputContentText{
 			Text: resultText,
 		},
 	}
+}
+
+// providerOptions deserializes the stored provider metadata
+// JSON into a ProviderOptions map using the fantasy type
+// registry. Returns nil when no metadata is stored.
+func (r toolResultRaw) providerOptions() fantasy.ProviderOptions {
+	if len(r.ProviderMetadata) == 0 {
+		return nil
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(r.ProviderMetadata, &raw); err != nil {
+		return nil
+	}
+	opts, err := fantasy.UnmarshalProviderOptions(raw)
+	if err != nil {
+		return nil
+	}
+	return opts
 }
 
 // extractErrorString pulls the "error" field from a JSON object if
@@ -612,13 +633,22 @@ func injectFileID(encoded json.RawMessage, fileID uuid.UUID) (json.RawMessage, e
 // MarshalToolResult encodes a single tool result for persistence as
 // an opaque JSON blob. The stored shape is
 // [{"tool_call_id":…,"tool_name":…,"result":…,"is_error":…}].
-func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isError bool, providerExecuted bool) (pqtype.NullRawMessage, error) {
+func MarshalToolResult(toolCallID, toolName string, result json.RawMessage, isError bool, providerExecuted bool, providerMetadata fantasy.ProviderMetadata) (pqtype.NullRawMessage, error) {
+	var metaJSON json.RawMessage
+	if len(providerMetadata) > 0 {
+		var err error
+		metaJSON, err = json.Marshal(providerMetadata)
+		if err != nil {
+			return pqtype.NullRawMessage{}, xerrors.Errorf("encode provider metadata: %w", err)
+		}
+	}
 	row := toolResultRaw{
 		ToolCallID:       toolCallID,
 		ToolName:         toolName,
 		Result:           result,
 		IsError:          isError,
 		ProviderExecuted: providerExecuted,
+		ProviderMetadata: metaJSON,
 	}
 	data, err := json.Marshal([]toolResultRaw{row})
 	if err != nil {
@@ -657,7 +687,7 @@ func MarshalToolResultContent(content fantasy.ToolResultContent) (pqtype.NullRaw
 		result = []byte(`{}`)
 	}
 
-	return MarshalToolResult(content.ToolCallID, content.ToolName, result, isError, content.ProviderExecuted)
+	return MarshalToolResult(content.ToolCallID, content.ToolName, result, isError, content.ProviderExecuted, content.ProviderMetadata)
 }
 
 // PartFromContent converts fantasy content into a SDK chat message part.

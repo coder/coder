@@ -167,13 +167,33 @@ export const applyMessagePartToStreamState = (
 			if (!url) {
 				return prev;
 			}
-			// Deduplicate by URL.
+			const source = { url, title: title || url };
+			// Still populate the flat list for backward compat.
 			if (nextState.sources.some((s) => s.url === url)) {
 				return prev;
 			}
+			const newSources = [...nextState.sources, source];
+			// Group consecutive sources into a single inline
+			// block at the current position in the block list.
+			const lastBlock = nextState.blocks[nextState.blocks.length - 1];
+			let newBlocks: RenderBlock[];
+			if (lastBlock && lastBlock.type === "sources") {
+				// Append to existing sources block.
+				newBlocks = [...nextState.blocks];
+				newBlocks[newBlocks.length - 1] = {
+					type: "sources",
+					sources: [...lastBlock.sources, source],
+				};
+			} else {
+				newBlocks = [
+					...nextState.blocks,
+					{ type: "sources", sources: [source] },
+				];
+			}
 			return {
 				...nextState,
-				sources: [...nextState.sources, { url, title: title || url }],
+				sources: newSources,
+				blocks: newBlocks,
 			};
 		}
 		default:

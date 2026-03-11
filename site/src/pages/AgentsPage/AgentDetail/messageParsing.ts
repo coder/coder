@@ -267,9 +267,25 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					const url = asString(typedBlock.url);
 					const title = asString(typedBlock.title);
 					if (url) {
-						// Deduplicate by URL.
+						const source = { url, title: title || url };
+						// Still populate the flat list for backward compat.
 						if (!parsed.sources.some((s) => s.url === url)) {
-							parsed.sources.push({ url, title: title || url });
+							parsed.sources.push(source);
+						}
+						// Group consecutive sources into a single
+						// inline block at this position.
+						const lastBlock = parsed.blocks[parsed.blocks.length - 1];
+						if (
+							lastBlock &&
+							lastBlock.type === "sources" &&
+							!lastBlock.sources.some((s) => s.url === url)
+						) {
+							lastBlock.sources.push(source);
+						} else if (!lastBlock || lastBlock.type !== "sources") {
+							parsed.blocks.push({
+								type: "sources",
+								sources: [source],
+							});
 						}
 					}
 					break;
