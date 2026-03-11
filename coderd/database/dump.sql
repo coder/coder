@@ -1187,7 +1187,9 @@ CREATE TABLE chat_diff_statuses (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     git_branch text DEFAULT ''::text NOT NULL,
-    git_remote_origin text DEFAULT ''::text NOT NULL
+    git_remote_origin text DEFAULT ''::text NOT NULL,
+    pull_request_title text DEFAULT ''::text NOT NULL,
+    pull_request_draft boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE chat_files (

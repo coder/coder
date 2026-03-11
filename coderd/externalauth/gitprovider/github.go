@@ -258,6 +258,7 @@ func (g *githubProvider) FetchPullRequestStatus(
 	)
 
 	var pull struct {
+		Title        string `json:"title"`
 		State        string `json:"state"`
 		Merged       bool   `json:"merged"`
 		Draft        bool   `json:"draft"`
@@ -298,6 +299,7 @@ func (g *githubProvider) FetchPullRequestStatus(
 	}
 
 	return &PRStatus{
+		Title:   pull.Title,
 		State:   state,
 		Draft:   pull.Draft,
 		HeadSHA: pull.Head.SHA,

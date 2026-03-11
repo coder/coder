@@ -218,6 +218,8 @@ func (r *Refresher) refreshOne(
 			String: string(status.State),
 			Valid:  status.State != "",
 		},
+		PullRequestTitle: status.Title,
+		PullRequestDraft: status.Draft,
 		ChangesRequested: status.ChangesRequested,
 		Additions:        status.DiffStats.Additions,
 		Deletions:        status.DiffStats.Deletions,

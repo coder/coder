@@ -1534,6 +1534,8 @@ func (api *API) refreshChatDiffStatus(
 				String: string(status.State),
 				Valid:  status.State != "",
 			},
+			PullRequestTitle: status.Title,
+			PullRequestDraft: status.Draft,
 			ChangesRequested: status.ChangesRequested,
 			Additions:        status.DiffStats.Additions,
 			Deletions:        status.DiffStats.Deletions,
@@ -2314,6 +2316,8 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 			result.PullRequestState = &pullRequestState
 		}
 	}
+	result.PullRequestTitle = status.PullRequestTitle
+	result.PullRequestDraft = status.PullRequestDraft
 	result.ChangesRequested = status.ChangesRequested
 	result.Additions = status.Additions
 	result.Deletions = status.Deletions
