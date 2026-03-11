@@ -11,6 +11,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -110,7 +111,7 @@ func patchFileContent(
 func ConvertMessages(
 	messages []database.ChatMessage,
 ) ([]fantasy.Message, error) {
-	return ConvertMessagesWithFiles(context.Background(), messages, nil)
+	return ConvertMessagesWithFiles(context.Background(), messages, nil, slog.Logger{})
 }
 
 // ConvertMessagesWithFiles converts persisted chat messages into LLM
@@ -121,6 +122,7 @@ func ConvertMessagesWithFiles(
 	ctx context.Context,
 	messages []database.ChatMessage,
 	resolver FileResolver,
+	logger slog.Logger,
 ) ([]fantasy.Message, error) {
 	// Phase 1: Pre-scan user messages for file_id references.
 	var allFileIDs []uuid.UUID
@@ -229,7 +231,7 @@ func ConvertMessagesWithFiles(
 				if row.ToolCallID != "" && row.ToolName != "" {
 					toolNameByCallID[sanitizeToolCallID(row.ToolCallID)] = row.ToolName
 				}
-				parts = append(parts, row.toToolResultPart())
+				parts = append(parts, row.toToolResultPart(logger))
 			}
 			prompt = append(prompt, fantasy.Message{
 				Role:    fantasy.MessageRoleTool,
@@ -380,7 +382,7 @@ func parseToolResultRows(raw pqtype.NullRawMessage) ([]toolResultRaw, error) {
 	return rows, nil
 }
 
-func (r toolResultRaw) toToolResultPart() fantasy.ToolResultPart {
+func (r toolResultRaw) toToolResultPart(logger slog.Logger) fantasy.ToolResultPart {
 	toolCallID := sanitizeToolCallID(r.ToolCallID)
 	resultText := string(r.Result)
 	if resultText == "" || resultText == "null" {
@@ -395,7 +397,7 @@ func (r toolResultRaw) toToolResultPart() fantasy.ToolResultPart {
 		return fantasy.ToolResultPart{
 			ToolCallID:       toolCallID,
 			ProviderExecuted: r.ProviderExecuted,
-			ProviderOptions:  r.providerOptions(),
+			ProviderOptions:  r.providerOptions(logger),
 			Output: fantasy.ToolResultOutputContentError{
 				Error: xerrors.New(message),
 			},
@@ -405,7 +407,7 @@ func (r toolResultRaw) toToolResultPart() fantasy.ToolResultPart {
 	return fantasy.ToolResultPart{
 		ToolCallID:       toolCallID,
 		ProviderExecuted: r.ProviderExecuted,
-		ProviderOptions:  r.providerOptions(),
+		ProviderOptions:  r.providerOptions(logger),
 		Output: fantasy.ToolResultOutputContentText{
 			Text: resultText,
 		},
@@ -415,16 +417,26 @@ func (r toolResultRaw) toToolResultPart() fantasy.ToolResultPart {
 // providerOptions deserializes the stored provider metadata
 // JSON into a ProviderOptions map using the fantasy type
 // registry. Returns nil when no metadata is stored.
-func (r toolResultRaw) providerOptions() fantasy.ProviderOptions {
+func (r toolResultRaw) providerOptions(logger slog.Logger) fantasy.ProviderOptions {
 	if len(r.ProviderMetadata) == 0 {
 		return nil
 	}
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(r.ProviderMetadata, &raw); err != nil {
+		logger.Warn(context.Background(),
+			"failed to unmarshal provider metadata JSON",
+			slog.F("tool_call_id", r.ToolCallID),
+			slog.Error(err),
+		)
 		return nil
 	}
 	opts, err := fantasy.UnmarshalProviderOptions(raw)
 	if err != nil {
+		logger.Warn(context.Background(),
+			"failed to deserialize provider metadata",
+			slog.F("tool_call_id", r.ToolCallID),
+			slog.Error(err),
+		)
 		return nil
 	}
 	return opts

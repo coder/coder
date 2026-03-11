@@ -10,6 +10,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -136,6 +137,7 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 			},
 		},
 		resolver,
+		slogtest.Make(t, nil),
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -177,6 +179,7 @@ func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 			},
 		},
 		nil, // No resolver.
+		slogtest.Make(t, nil),
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)

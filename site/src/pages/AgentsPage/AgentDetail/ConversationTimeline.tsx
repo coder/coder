@@ -595,7 +595,7 @@ export const StreamingOutput = memo<{
 									subagentStatusOverrides={subagentStatusOverrides}
 								/>
 							))}
-						</div>{" "}
+						</div>
 					</MessageContent>
 				</Message>
 			</ConversationItem>

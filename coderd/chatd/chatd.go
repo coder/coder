@@ -2125,7 +2125,7 @@ func (p *Server) runChat(
 		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, providerKeys, logger)
 	}()
 
-	prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver())
+	prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
 	if err != nil {
 		return xerrors.Errorf("build chat prompt: %w", err)
 	}
@@ -2525,7 +2525,7 @@ func (p *Server) runChat(
 			if err != nil {
 				return nil, xerrors.Errorf("reload chat messages: %w", err)
 			}
-			reloadedPrompt, err := chatprompt.ConvertMessagesWithFiles(reloadCtx, reloadedMsgs, p.chatFileResolver())
+			reloadedPrompt, err := chatprompt.ConvertMessagesWithFiles(reloadCtx, reloadedMsgs, p.chatFileResolver(), logger)
 			if err != nil {
 				return nil, xerrors.Errorf("convert reloaded messages: %w", err)
 			}

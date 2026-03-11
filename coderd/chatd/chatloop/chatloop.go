@@ -64,9 +64,9 @@ type RunOptions struct {
 	ProviderOptions fantasy.ProviderOptions
 
 	// ProviderTools are provider-native tools (like web search)
-	// that are executed server-side by the provider. These are
-	// passed directly into the Call.Tools alongside function
-	// tool definitions.
+	// that are passed directly to the provider API alongside
+	// function tool definitions. These are not necessarily
+	// executed server-side; handling is provider-specific.
 	ProviderTools []fantasy.Tool
 
 	PersistStep        func(context.Context, PersistedStep) error
@@ -561,7 +561,7 @@ func processStepStream(
 				tr := fantasy.ToolResultContent{
 					ToolCallID:       part.ID,
 					ToolName:         part.ToolCallName,
-					ProviderExecuted: true,
+					ProviderExecuted: part.ProviderExecuted,
 					ProviderMetadata: part.ProviderMetadata,
 				}
 				result.content = append(result.content, tr)
@@ -839,8 +839,9 @@ func persistInterruptedStep(
 
 // buildToolDefinitions converts AgentTool definitions into the
 // fantasy.Tool slice expected by fantasy.Call. When activeTools
-// is non-empty, only tools whose name appears in the list are
-// included. This mirrors fantasy's agent.prepareTools filtering.
+// is non-empty, only function tools whose name appears in the
+// list are included. Provider tools bypass this filter and are
+// always appended unconditionally.
 func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, providerTools []fantasy.Tool) []fantasy.Tool {
 	prepared := make([]fantasy.Tool, 0, len(tools))
 	for _, tool := range tools {

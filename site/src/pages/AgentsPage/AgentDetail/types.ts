@@ -51,11 +51,6 @@ export type RenderBlock =
 			text: string;
 	  }
 	| {
-			type: "source";
-			url: string;
-			title: string;
-	  }
-	| {
 			type: "sources";
 			sources: Array<{ url: string; title: string }>;
 	  };
