@@ -403,7 +403,7 @@ func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 			if !allValidProfiles[p] {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: fmt.Sprintf("Unknown profile type: %q.", p),
-					Detail:  fmt.Sprintf("Valid types: cpu, heap, allocs, block, mutex, goroutine, threadcreate, trace"),
+					Detail:  "Valid types: cpu, heap, allocs, block, mutex, goroutine, threadcreate, trace",
 				})
 				return
 			}
