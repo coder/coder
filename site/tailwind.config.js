@@ -64,6 +64,8 @@ module.exports = {
 					red: "hsl(var(--surface-red))",
 					purple: "hsl(var(--surface-purple))",
 					magenta: "hsl(var(--surface-magenta))",
+					"git-added": "hsl(var(--surface-git-added))",
+					"git-deleted": "hsl(var(--surface-git-deleted))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
@@ -87,6 +89,14 @@ module.exports = {
 					sky: "hsl(var(--highlight-sky))",
 					red: "hsl(var(--highlight-red))",
 					magenta: "hsl(var(--highlight-magenta))",
+				},
+				git: {
+					added: "hsl(var(--git-added))",
+					deleted: "hsl(var(--git-deleted))",
+					modified: "hsl(var(--git-modified))",
+					merged: "hsl(var(--git-merged))",
+					"added-bright": "hsl(var(--git-added-bright))",
+					"deleted-bright": "hsl(var(--git-deleted-bright))",
 				},
 			},
 			keyframes: {

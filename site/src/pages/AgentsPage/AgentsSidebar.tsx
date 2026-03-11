@@ -115,12 +115,12 @@ const getPRIconConfig = (
 		return undefined;
 	}
 	if (state === "merged") {
-		return { icon: GitMergeIcon, className: "text-purple-500" };
+		return { icon: GitMergeIcon, className: "text-git-merged" };
 	}
 	if (state === "closed") {
 		return {
 			icon: GitPullRequestClosedIcon,
-			className: "text-content-destructive",
+			className: "text-git-deleted-bright",
 		};
 	}
 	// state === "open"
@@ -130,7 +130,7 @@ const getPRIconConfig = (
 			className: "text-content-secondary",
 		};
 	}
-	return { icon: GitPullRequestArrowIcon, className: "text-green-500" };
+	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
 };
 
 const asNonEmptyString = (value: unknown): string | undefined => {
@@ -464,10 +464,10 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
-											<span className="text-green-700 dark:text-green-500">
+											<span className="text-git-added-bright">
 												+{additions}
 											</span>
-											<span className="text-red-700 dark:text-red-400">
+											<span className="text-git-deleted-bright">
 												&minus;{deletions}
 											</span>{" "}
 										</span>
