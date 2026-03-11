@@ -572,8 +572,13 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		// The dbmock should panic by now if we were emitting a metric for subagents so this check is a bit redundant.
-		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{})
+		got := promhelp.HistogramValue(t, reg, fullMetricName, prometheus.Labels{
+			"template_name":     "test-template",
+			"organization_name": "test-org",
+			"transition":        "start",
+			"status":            "error",
+			"is_prebuild":       "false",
+		})
 		require.Equal(t, uint64(1), got.GetSampleCount())
 		require.Equal(t, expectedDuration, got.GetSampleSum())
 	})
@@ -622,15 +627,18 @@ func TestUpdateLifecycle(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, lifecycle, resp)
 
-		// The metric should not have been emitted at all.
-		labeled := promhelp.MetricValue(t, reg, fullMetricName, prometheus.Labels{
-			"template_name":     "test-template",
-			"organization_name": "test-org",
-			"transition":        "start",
-			"status":            "success",
-			"is_prebuild":       "false",
-		})
-		require.Nil(t, labeled, "sub-agent should not emit build duration metric")
+		// We don't expect the metric to be emitted for sub-agents, by default this will fail anyway but it doesn't hurt
+		// to document the test explicitly.
+		dbM.EXPECT().GetWorkspaceBuildMetricsByResourceID(gomock.Any(), gomock.Any()).Times(0)
+
+		// If we were emitting the metric we would have failed by now since it would include a call to the database that we're not expecting.
+		pm, err := reg.Gather()
+		require.NoError(t, err)
+		for _, m := range pm {
+			if m.GetName() == fullMetricName {
+				t.Fatal("metric should not be emitted for sub-agent")
+			}
+		}
 	})
 }
 
