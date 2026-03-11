@@ -5459,6 +5459,10 @@ func TestAsChatd(t *testing.T) {
 		// DeploymentConfig read.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceDeploymentConfig)
 		require.NoError(t, err, "deployment config read should be allowed")
+
+		// User read_personal (needed for GetUserChatCustomPrompt).
+		err = auth.Authorize(ctx, actor, policy.ActionReadPersonal, rbac.ResourceUser)
+		require.NoError(t, err, "user read_personal should be allowed")
 	})
 
 	t.Run("DeniedActions", func(t *testing.T) {
