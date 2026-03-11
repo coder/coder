@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -3112,48 +3111,6 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 		return nil
 	}
 
-	if err := validatePositiveInt64Field(
-		"max_output_tokens",
-		modelConfig.MaxOutputTokens,
-	); err != nil {
-		return err
-	}
-	if err := validateFloat64RangeField(
-		"temperature",
-		modelConfig.Temperature,
-		0,
-		2,
-	); err != nil {
-		return err
-	}
-	if err := validateFloat64RangeField(
-		"top_p",
-		modelConfig.TopP,
-		0,
-		1,
-	); err != nil {
-		return err
-	}
-	if err := validatePositiveInt64Field("top_k", modelConfig.TopK); err != nil {
-		return err
-	}
-	if err := validateFloat64RangeField(
-		"presence_penalty",
-		modelConfig.PresencePenalty,
-		-2,
-		2,
-	); err != nil {
-		return err
-	}
-	if err := validateFloat64RangeField(
-		"frequency_penalty",
-		modelConfig.FrequencyPenalty,
-		-2,
-		2,
-	); err != nil {
-		return err
-	}
-
 	pricingFields := []struct {
 		name  string
 		value *float64
@@ -3172,45 +3129,12 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 	return nil
 }
 
-func validatePositiveInt64Field(name string, value *int64) error {
-	if value == nil {
-		return nil
-	}
-	if *value <= 0 {
-		return xerrors.Errorf("%s must be greater than zero", name)
-	}
-	return nil
-}
-
 func validateNonNegativeFloat64Field(name string, value *float64) error {
 	if value == nil {
 		return nil
 	}
-	if math.IsNaN(*value) || math.IsInf(*value, 0) || *value < 0 {
+	if *value < 0 {
 		return xerrors.Errorf("%s must be greater than or equal to zero", name)
-	}
-	return nil
-}
-
-func validateFloat64RangeField(
-	name string,
-	value *float64,
-	minimum float64,
-	maximum float64,
-) error {
-	if value == nil {
-		return nil
-	}
-	if math.IsNaN(*value) ||
-		math.IsInf(*value, 0) ||
-		*value < minimum ||
-		*value > maximum {
-		return xerrors.Errorf(
-			"%s must be between %v and %v",
-			name,
-			minimum,
-			maximum,
-		)
 	}
 	return nil
 }
