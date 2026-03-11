@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-	LOCK_HOLD_MS,
 	getChimeEnabled,
+	LOCK_HOLD_MS,
 	maybePlayChime,
 	setChimeEnabled,
 } from "./useAgentChime";

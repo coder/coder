@@ -98,9 +98,7 @@ function playChime(chatID: string): void {
 			// Hold the lock briefly so that tabs receiving the
 			// WebSocket event a bit later will see the lock as
 			// held and skip.
-			await new Promise((resolve) =>
-				setTimeout(resolve, LOCK_HOLD_MS),
-			);
+			await new Promise((resolve) => setTimeout(resolve, LOCK_HOLD_MS));
 		},
 	);
 }
