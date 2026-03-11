@@ -331,6 +331,33 @@ describe("WorkspacePage", () => {
 		});
 	});
 
+	it("shows a running workspace limit warning when update fails with 409", async () => {
+		jest
+			.spyOn(API, "getWorkspaceByOwnerAndName")
+			.mockResolvedValueOnce(MockOutdatedWorkspace);
+		jest.spyOn(API, "updateWorkspace").mockRejectedValueOnce({
+			isAxiosError: true,
+			response: {
+				status: 409,
+				data: {
+					message:
+						"Running workspace limit reached (max 1 per user). Stop one or more workspaces to update this workspace.",
+				},
+			},
+		});
+
+		await renderWorkspacePage(MockWorkspace);
+
+		const user = userEvent.setup();
+		await user.click(screen.getByTestId("workspace-update-button"));
+		const confirmButton = await screen.findByTestId("confirm-button");
+		await user.click(confirmButton);
+
+		await screen.findByText(
+			/Stop one or more workspaces to update this workspace/i,
+		);
+	});
+
 	it("restart the workspace with one time parameters when having the confirmation dialog", async () => {
 		localStorage.removeItem(`${MockUser.id}_ignoredWarnings`);
 		jest.spyOn(API, "getWorkspaceParameters").mockResolvedValue({
