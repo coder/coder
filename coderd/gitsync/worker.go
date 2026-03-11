@@ -258,6 +258,9 @@ func (w *Worker) RefreshChat(
 		return nil, xerrors.Errorf("refresh chat diff status: %w", err)
 	}
 
+	if len(results) == 0 {
+		return nil, nil
+	}
 	res := results[0]
 	if res.Error != nil {
 		return nil, xerrors.Errorf("refresh chat diff status: %w", res.Error)

@@ -1169,10 +1169,8 @@ func (api *API) resolveChatDiffStatus(
 
 	// Use the same refresh pipeline as the background worker
 	// so both paths share identical provider/token resolution.
-	//nolint:gocritic // System-level context needed for cross-user
-	// external auth link reads in the gitsync refresher.
 	refreshed, err := api.gitSyncWorker.RefreshChat(
-		dbauthz.AsSystemRestricted(ctx), status, chat.OwnerID,
+		ctx, status, chat.OwnerID,
 	)
 	if err == nil && refreshed != nil {
 		return refreshed, nil
@@ -1471,7 +1469,6 @@ func chatDiffStatusIsStale(status database.ChatDiffStatus, now time.Time) bool {
 	}
 	return !status.StaleAt.After(now)
 }
-
 
 func (api *API) resolveChatGitAccessToken(
 	ctx context.Context,
