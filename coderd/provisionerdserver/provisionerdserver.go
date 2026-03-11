@@ -3521,10 +3521,11 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 	appSlugs[slug] = struct{}{}
 
 	health := database.WorkspaceAppHealthDisabled
-	if app.Healthcheck == nil {
-		app.Healthcheck = &sdkproto.Healthcheck{}
+	healthcheck := app.GetHealthcheck()
+	if healthcheck == nil {
+		healthcheck = &sdkproto.Healthcheck{}
 	}
-	if app.Healthcheck.Url != "" {
+	if healthcheck.Url != "" {
 		health = database.WorkspaceAppHealthInitializing
 	}
 
@@ -3579,9 +3580,9 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 		External:             app.External,
 		Subdomain:            app.Subdomain,
 		SharingLevel:         sharingLevel,
-		HealthcheckUrl:       app.Healthcheck.Url,
-		HealthcheckInterval:  app.Healthcheck.Interval,
-		HealthcheckThreshold: app.Healthcheck.Threshold,
+		HealthcheckUrl:       healthcheck.Url,
+		HealthcheckInterval:  healthcheck.Interval,
+		HealthcheckThreshold: healthcheck.Threshold,
 		Health:               health,
 		// #nosec G115 - Order represents a display order value that's always small and fits in int32
 		DisplayOrder: int32(app.Order),
