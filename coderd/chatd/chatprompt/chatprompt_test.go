@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
@@ -642,6 +643,551 @@ func TestSDKPartsNeverProduceFantasyEnvelopeShape(t *testing.T) {
 				part.Type)
 		}
 	}
+}
+
+// nullRaw wraps raw JSON bytes in a NullRawMessage for test input.
+func nullRaw(data json.RawMessage) pqtype.NullRawMessage {
+	return pqtype.NullRawMessage{RawMessage: data, Valid: true}
+}
+
+func TestParseContent_BackwardCompat(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+
+	// Build legacy fantasy assistant content using MarshalContent.
+	legacyAssistantReasoning, err := chatprompt.MarshalContent([]fantasy.Content{
+		fantasy.ReasoningContent{
+			Text: "let me think...",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				"anthropic": &fantasyanthropic.ProviderCacheControlOptions{
+					CacheControl: fantasyanthropic.CacheControl{Type: "ephemeral"},
+				},
+			},
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	legacyAssistantToolCall, err := chatprompt.MarshalContent([]fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID: "call_123",
+			ToolName:   "read_file",
+			Input:      `{"path":"main.go"}`,
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	// Build new SDK format using MarshalParts.
+	sdkMetadata := json.RawMessage(`{"anthropic":{"type":"anthropic.cache_control_options","data":{"cache_control":{"type":"ephemeral"}}}}`)
+
+	newAssistantWithMeta, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:             codersdk.ChatMessagePartTypeText,
+		Text:             "here is my answer",
+		ProviderMetadata: sdkMetadata,
+	}})
+	require.NoError(t, err)
+
+	newAssistantToolCall, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolCall,
+		ToolCallID: "call_456",
+		ToolName:   "execute",
+		Args:       json.RawMessage(`{"cmd":"ls"}`),
+	}})
+	require.NoError(t, err)
+
+	newToolResult, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:       codersdk.ChatMessagePartTypeToolResult,
+		ToolCallID: "call_456",
+		ToolName:   "execute",
+		Result:     json.RawMessage(`{"output":"file1.go"}`),
+	}})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name  string
+		role  string
+		raw   pqtype.NullRawMessage
+		check func(t *testing.T, parts []codersdk.ChatMessagePart)
+	}{
+		{
+			name: "system/plain_string",
+			role: "system",
+			raw:  nullRaw(mustJSON(t, "You are helpful.")),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+				assert.Equal(t, "You are helpful.", parts[0].Text)
+			},
+		},
+		{
+			name: "user/fantasy_text",
+			role: "user",
+			raw: nullRaw(mustJSON(t, []json.RawMessage{
+				mustJSON(t, map[string]any{
+					"type": "text",
+					"data": map[string]any{"text": "hello from user"},
+				}),
+			})),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+				assert.Equal(t, "hello from user", parts[0].Text)
+			},
+		},
+		{
+			name: "assistant/fantasy_text",
+			role: "assistant",
+			raw: nullRaw(mustJSON(t, []json.RawMessage{
+				mustJSON(t, map[string]any{
+					"type": "text",
+					"data": map[string]any{"text": "hello from assistant"},
+				}),
+			})),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+				assert.Equal(t, "hello from assistant", parts[0].Text)
+			},
+		},
+		{
+			name: "user/fantasy_file_with_file_id",
+			role: "user",
+			raw: nullRaw(mustJSON(t, []json.RawMessage{
+				mustJSON(t, map[string]any{
+					"type": "file",
+					"data": map[string]any{
+						"media_type": "image/png",
+						"file_id":    fileID.String(),
+					},
+				}),
+			})),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeFile, parts[0].Type)
+				assert.Equal(t, "image/png", parts[0].MediaType)
+				assert.True(t, parts[0].FileID.Valid)
+				assert.Equal(t, fileID, parts[0].FileID.UUID)
+				assert.Nil(t, parts[0].Data, "inline data cleared when file_id present")
+			},
+		},
+		{
+			name: "assistant/fantasy_reasoning_with_metadata",
+			role: "assistant",
+			raw:  legacyAssistantReasoning,
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeReasoning, parts[0].Type)
+				assert.Equal(t, "let me think...", parts[0].Text)
+				require.NotNil(t, parts[0].ProviderMetadata, "ProviderMetadata must be preserved")
+				assert.Contains(t, string(parts[0].ProviderMetadata), "anthropic")
+			},
+		},
+		{
+			name: "assistant/fantasy_tool_call",
+			role: "assistant",
+			raw:  legacyAssistantToolCall,
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeToolCall, parts[0].Type)
+				assert.Equal(t, "call_123", parts[0].ToolCallID)
+				assert.Equal(t, "read_file", parts[0].ToolName)
+				assert.JSONEq(t, `{"path":"main.go"}`, string(parts[0].Args))
+			},
+		},
+		{
+			name: "tool/legacy_result_row",
+			role: "tool",
+			raw: nullRaw(mustJSON(t, []map[string]any{{
+				"tool_call_id": "call_123",
+				"tool_name":    "read_file",
+				"result":       json.RawMessage(`{"output":"package main"}`),
+			}})),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
+				assert.Equal(t, "call_123", parts[0].ToolCallID)
+				assert.Equal(t, "read_file", parts[0].ToolName)
+				assert.JSONEq(t, `{"output":"package main"}`, string(parts[0].Result))
+			},
+		},
+		{
+			name: "user/sdk_text",
+			role: "user",
+			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "hello sdk"},
+			})),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+				assert.Equal(t, "hello sdk", parts[0].Text)
+			},
+		},
+		{
+			name: "user/sdk_file_reference",
+			role: "user",
+			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeFileReference, FileName: "main.go", StartLine: 1, EndLine: 10, Content: "func main() {}"},
+			})),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeFileReference, parts[0].Type)
+				assert.Equal(t, "main.go", parts[0].FileName)
+				assert.Equal(t, 1, parts[0].StartLine)
+				assert.Equal(t, 10, parts[0].EndLine)
+				assert.Equal(t, "func main() {}", parts[0].Content)
+			},
+		},
+		{
+			name: "user/sdk_file",
+			role: "user",
+			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeFile, FileID: uuid.NullUUID{UUID: fileID, Valid: true}, MediaType: "image/png"},
+			})),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeFile, parts[0].Type)
+				assert.True(t, parts[0].FileID.Valid)
+				assert.Equal(t, fileID, parts[0].FileID.UUID)
+				assert.Equal(t, "image/png", parts[0].MediaType)
+			},
+		},
+		{
+			name: "assistant/sdk_text_with_metadata",
+			role: "assistant",
+			raw:  newAssistantWithMeta,
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+				assert.Equal(t, "here is my answer", parts[0].Text)
+				assert.JSONEq(t, string(sdkMetadata), string(parts[0].ProviderMetadata))
+			},
+		},
+		{
+			name: "assistant/sdk_tool_call",
+			role: "assistant",
+			raw:  newAssistantToolCall,
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeToolCall, parts[0].Type)
+				assert.Equal(t, "call_456", parts[0].ToolCallID)
+				assert.Equal(t, "execute", parts[0].ToolName)
+				assert.JSONEq(t, `{"cmd":"ls"}`, string(parts[0].Args))
+			},
+		},
+		{
+			name: "tool/sdk_tool_result",
+			role: "tool",
+			raw:  newToolResult,
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
+				assert.Equal(t, "call_456", parts[0].ToolCallID)
+				assert.Equal(t, "execute", parts[0].ToolName)
+				assert.JSONEq(t, `{"output":"file1.go"}`, string(parts[0].Result))
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			parts, err := chatprompt.ParseContent(tc.role, tc.raw)
+			require.NoError(t, err)
+			tc.check(t, parts)
+		})
+	}
+}
+
+// TestProviderMetadataRoundTrip verifies that Anthropic cache
+// control hints survive the full path: legacy fantasy DB row →
+// ParseContent → SDK part (ProviderMetadata) → partsToMessageParts
+// → fantasy.MessagePart (ProviderOptions).
+func TestProviderMetadataRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	legacyContent, err := chatprompt.MarshalContent([]fantasy.Content{
+		fantasy.TextContent{
+			Text: "cached response",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				"anthropic": &fantasyanthropic.ProviderCacheControlOptions{
+					CacheControl: fantasyanthropic.CacheControl{Type: "ephemeral"},
+				},
+			},
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	// Step 1: ParseContent preserves metadata on the SDK part.
+	parts, err := chatprompt.ParseContent("assistant", legacyContent)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	require.NotNil(t, parts[0].ProviderMetadata,
+		"ProviderMetadata must survive ParseContent")
+
+	// Step 2: ConvertMessagesWithFiles reconstructs typed
+	// ProviderOptions on the fantasy part.
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       "assistant",
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    legacyContent,
+		}},
+		nil,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 1)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok, "expected TextPart")
+	require.Equal(t, "cached response", textPart.Text)
+
+	cc := fantasyanthropic.GetCacheControl(textPart.ProviderOptions)
+	require.NotNil(t, cc, "Anthropic cache control must survive round-trip")
+	require.Equal(t, "ephemeral", cc.Type)
+}
+
+// TestFileReferencePreservation verifies file-reference parts
+// survive the storage round-trip and convert to text for LLMs.
+func TestFileReferencePreservation(t *testing.T) {
+	t.Parallel()
+
+	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:      codersdk.ChatMessagePartTypeFileReference,
+		FileName:  "main.go",
+		StartLine: 10,
+		EndLine:   20,
+		Content:   "func main() {}",
+	}})
+	require.NoError(t, err)
+
+	// Storage round-trip: all fields intact.
+	parts, err := chatprompt.ParseContent("user", raw)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, codersdk.ChatMessagePartTypeFileReference, parts[0].Type)
+	assert.Equal(t, "main.go", parts[0].FileName)
+	assert.Equal(t, 10, parts[0].StartLine)
+	assert.Equal(t, 20, parts[0].EndLine)
+	assert.Equal(t, "func main() {}", parts[0].Content)
+
+	// LLM dispatch: file-reference becomes a TextPart.
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       "user",
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    raw,
+		}},
+		nil,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 1)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok, "file-reference should become TextPart for LLM")
+	assert.Contains(t, textPart.Text, "[file-reference]")
+	assert.Contains(t, textPart.Text, "main.go")
+	assert.Contains(t, textPart.Text, "10-20")
+	assert.Contains(t, textPart.Text, "func main() {}")
+}
+
+// TestAssistantWriteRoundTrip verifies the Stage 4 write path:
+// fantasy.Content (with ProviderMetadata) → PartFromContent →
+// MarshalParts → DB → ParseContent (SDK path) →
+// ConvertMessagesWithFiles → fantasy part with ProviderOptions.
+func TestAssistantWriteRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	original := fantasy.TextContent{
+		Text: "response with cache hints",
+		ProviderMetadata: fantasy.ProviderMetadata{
+			"anthropic": &fantasyanthropic.ProviderCacheControlOptions{
+				CacheControl: fantasyanthropic.CacheControl{Type: "ephemeral"},
+			},
+		},
+	}
+
+	// Simulate persistStep: PartFromContent → MarshalParts.
+	sdkPart := chatprompt.PartFromContent(original)
+	require.Equal(t, codersdk.ChatMessagePartTypeText, sdkPart.Type)
+	require.NotNil(t, sdkPart.ProviderMetadata)
+
+	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{sdkPart})
+	require.NoError(t, err)
+
+	// Read back via ParseContent (takes the new SDK path, not
+	// the legacy fallback, because the stored format is flat).
+	parts, err := chatprompt.ParseContent("assistant", raw)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, "response with cache hints", parts[0].Text)
+	assert.JSONEq(t, string(sdkPart.ProviderMetadata), string(parts[0].ProviderMetadata))
+
+	// Full LLM dispatch: metadata reconstructed as typed options.
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       "assistant",
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    raw,
+		}},
+		nil,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 1)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "response with cache hints", textPart.Text)
+
+	cc := fantasyanthropic.GetCacheControl(textPart.ProviderOptions)
+	require.NotNil(t, cc, "cache control must survive new write → new read round-trip")
+	require.Equal(t, "ephemeral", cc.Type)
+}
+
+// TestMixedFormatConversation verifies ConvertMessagesWithFiles
+// handles a realistic post-deploy conversation where legacy and new
+// storage formats coexist.
+func TestMixedFormatConversation(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	resolvedFileData := []byte("resolved-png-bytes")
+
+	resolver := func(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
+		out := make(map[uuid.UUID]chatprompt.FileData)
+		for _, id := range ids {
+			if id == fileID {
+				out[id] = chatprompt.FileData{Data: resolvedFileData, MediaType: "image/png"}
+			}
+		}
+		return out, nil
+	}
+
+	// 1. System (JSON string).
+	systemRaw, err := json.Marshal("You are helpful.")
+	require.NoError(t, err)
+
+	// 2. Old user (fantasy envelope: text + file with file_id).
+	oldUserRaw := mustJSON(t, []json.RawMessage{
+		mustJSON(t, map[string]any{
+			"type": "text",
+			"data": map[string]any{"text": "Look at this image."},
+		}),
+		mustJSON(t, map[string]any{
+			"type": "file",
+			"data": map[string]any{
+				"media_type": "image/png",
+				"file_id":    fileID.String(),
+			},
+		}),
+	})
+
+	// 3. Old assistant (fantasy envelope: tool-call).
+	oldAssistantRaw, err := chatprompt.MarshalContent([]fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID: "call_1",
+			ToolName:   "analyze_image",
+			Input:      `{"detail":"high"}`,
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	// 4. Old tool (legacy result rows).
+	oldToolRaw, err := chatprompt.MarshalToolResult(
+		"call_1", "analyze_image",
+		json.RawMessage(`{"description":"a cat"}`), false,
+		false, nil,
+	)
+	require.NoError(t, err)
+
+	// 5. New user (SDK parts: text + file-reference).
+	newUserRaw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeText, Text: "Check this diff."},
+		{Type: codersdk.ChatMessagePartTypeFileReference, FileName: "main.go", StartLine: 5, EndLine: 15, Content: "func main() {}"},
+	})
+	require.NoError(t, err)
+
+	// 6. New assistant (SDK parts: text with metadata).
+	newAssistantMeta := json.RawMessage(`{"anthropic":{"type":"anthropic.cache_control_options","data":{"cache_control":{"type":"ephemeral"}}}}`)
+	newAssistantRaw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeText, Text: "Here is my analysis.", ProviderMetadata: newAssistantMeta},
+	})
+	require.NoError(t, err)
+
+	messages := []database.ChatMessage{
+		{Role: "system", Visibility: database.ChatMessageVisibilityModel, Content: pqtype.NullRawMessage{RawMessage: systemRaw, Valid: true}},
+		{Role: "user", Visibility: database.ChatMessageVisibilityBoth, Content: pqtype.NullRawMessage{RawMessage: oldUserRaw, Valid: true}},
+		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: oldAssistantRaw},
+		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: oldToolRaw},
+		{Role: "user", Visibility: database.ChatMessageVisibilityBoth, Content: newUserRaw},
+		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: newAssistantRaw},
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(), messages, resolver, slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 6, "all 6 messages should produce prompt entries")
+
+	// 1. System.
+	require.Equal(t, fantasy.MessageRoleSystem, prompt[0].Role)
+	systemText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok)
+	assert.Equal(t, "You are helpful.", systemText.Text)
+
+	// 2. Old user: text + file with resolved data.
+	require.Equal(t, fantasy.MessageRoleUser, prompt[1].Role)
+	require.Len(t, prompt[1].Content, 2)
+	userText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[1].Content[0])
+	require.True(t, ok)
+	assert.Equal(t, "Look at this image.", userText.Text)
+	filePart, ok := fantasy.AsMessagePart[fantasy.FilePart](prompt[1].Content[1])
+	require.True(t, ok)
+	assert.Equal(t, resolvedFileData, filePart.Data)
+	assert.Equal(t, "image/png", filePart.MediaType)
+
+	// 3. Old assistant: tool-call with normalized input.
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
+	toolCalls := chatprompt.ExtractToolCalls(prompt[2].Content)
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, "call_1", toolCalls[0].ToolCallID)
+	assert.Equal(t, "analyze_image", toolCalls[0].ToolName)
+	assert.JSONEq(t, `{"detail":"high"}`, toolCalls[0].Input)
+
+	// 4. Old tool: result paired with call_1.
+	require.Equal(t, fantasy.MessageRoleTool, prompt[3].Role)
+	require.Len(t, prompt[3].Content, 1)
+	toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[3].Content[0])
+	require.True(t, ok)
+	assert.Equal(t, "call_1", toolResult.ToolCallID)
+
+	// 5. New user: text + file-reference (converted to TextPart).
+	require.Equal(t, fantasy.MessageRoleUser, prompt[4].Role)
+	require.Len(t, prompt[4].Content, 2)
+	newUserText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[4].Content[0])
+	require.True(t, ok)
+	assert.Equal(t, "Check this diff.", newUserText.Text)
+	refText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[4].Content[1])
+	require.True(t, ok)
+	assert.Contains(t, refText.Text, "[file-reference]")
+	assert.Contains(t, refText.Text, "main.go")
+
+	// 6. New assistant: text with ProviderMetadata → ProviderOptions.
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[5].Role)
+	require.Len(t, prompt[5].Content, 1)
+	newAssistantText, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[5].Content[0])
+	require.True(t, ok)
+	assert.Equal(t, "Here is my analysis.", newAssistantText.Text)
+	cc := fantasyanthropic.GetCacheControl(newAssistantText.ProviderOptions)
+	require.NotNil(t, cc, "ProviderMetadata must survive on new-format assistant messages")
+	assert.Equal(t, "ephemeral", cc.Type)
 }
 
 func mustJSON(t *testing.T, v any) json.RawMessage {
