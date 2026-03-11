@@ -562,10 +562,10 @@ describe("buildModelConfigFromForm", () => {
 	describe("withDefaultPricingModelConfig", () => {
 		it("fills in default pricing when fields are left blank", () => {
 			expect(withDefaultPricingModelConfig()).toEqual({
-				input_price_per_million_tokens: 5,
-				output_price_per_million_tokens: 20,
-				cache_read_price_per_million_tokens: 0.5,
-				cache_write_price_per_million_tokens: 5,
+				input_price_per_million_tokens: 0,
+				output_price_per_million_tokens: 0,
+				cache_read_price_per_million_tokens: 0,
+				cache_write_price_per_million_tokens: 0,
 			});
 		});
 
@@ -576,10 +576,10 @@ describe("buildModelConfigFromForm", () => {
 					provider_options: { openai: { reasoning_effort: "high" } },
 				}),
 			).toEqual({
-				input_price_per_million_tokens: 5,
+				input_price_per_million_tokens: 0,
 				output_price_per_million_tokens: 8,
-				cache_read_price_per_million_tokens: 0.5,
-				cache_write_price_per_million_tokens: 5,
+				cache_read_price_per_million_tokens: 0,
+				cache_write_price_per_million_tokens: 0,
 				provider_options: { openai: { reasoning_effort: "high" } },
 			});
 		});
