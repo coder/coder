@@ -80,12 +80,12 @@ describe("ModelsSection", () => {
 		).toBeInTheDocument();
 	});
 
-	it("hides the warning when a model has custom pricing", () => {
+	it("hides the warning when a model has explicit zero pricing", () => {
 		renderModelsSection([
 			{
 				...baseModelConfig,
 				model_config: {
-					output_price_per_million_tokens: 1.25,
+					output_price_per_million_tokens: 0,
 				},
 			},
 		]);

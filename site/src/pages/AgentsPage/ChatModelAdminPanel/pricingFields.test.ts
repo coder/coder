@@ -15,14 +15,17 @@ describe("pricingFields", () => {
 		}
 	});
 
-	it("treats missing or zero pricing as undefined pricing", () => {
+	it("treats missing pricing as undefined pricing", () => {
 		expect(hasCustomPricing()).toBe(false);
+	});
+
+	it("treats explicit zero pricing as custom pricing", () => {
 		expect(
 			hasCustomPricing({
 				input_price_per_million_tokens: 0,
 				output_price_per_million_tokens: 0,
 			} satisfies TypesGen.ChatModelCallConfig),
-		).toBe(false);
+		).toBe(true);
 	});
 
 	it("detects custom pricing when any pricing field is greater than zero", () => {

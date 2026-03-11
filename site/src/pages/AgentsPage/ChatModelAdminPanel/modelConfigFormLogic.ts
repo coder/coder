@@ -8,7 +8,7 @@ import {
 } from "api/chatModelOptions";
 import type * as TypesGen from "api/typesGenerated";
 import * as Yup from "yup";
-import { getDefaultPricingForField, pricingFieldNames } from "./pricingFields";
+import { pricingFieldNames } from "./pricingFields";
 
 // ── Preserved public types ─────────────────────────────────────
 
@@ -237,26 +237,6 @@ export const buildInitialModelFormValues = (
 function isNonNegativePricingField(field: FieldSchema): boolean {
 	return pricingFieldNames.has(field.json_name);
 }
-
-function withDefaultPricingModelConfig(
-	modelConfig?: TypesGen.ChatModelCallConfig,
-): TypesGen.ChatModelCallConfig {
-	const nextModelConfig: Record<string, unknown> = { ...(modelConfig ?? {}) };
-
-	for (const fieldName of pricingFieldNames) {
-		if (nextModelConfig[fieldName] !== undefined) {
-			continue;
-		}
-		const defaultValue = getDefaultPricingForField(fieldName);
-		if (defaultValue !== undefined) {
-			nextModelConfig[fieldName] = defaultValue;
-		}
-	}
-
-	return nextModelConfig as TypesGen.ChatModelCallConfig;
-}
-
-export { withDefaultPricingModelConfig };
 
 function isValidOptionalNumber(
 	value: string | undefined,

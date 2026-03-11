@@ -44,4 +44,6 @@ export const getPricingPlaceholderForField = (
 export const hasCustomPricing = (
 	modelConfig?: TypesGen.ChatModelCallConfig,
 ): boolean =>
-	pricingFieldNameList.some((fieldName) => (modelConfig?.[fieldName] ?? 0) > 0);
+	pricingFieldNameList.some(
+		(fieldName) => modelConfig?.[fieldName] !== undefined,
+	);

@@ -33,7 +33,6 @@ import {
 	type ModelFormValues,
 	parsePositiveInteger,
 	parseThresholdInteger,
-	withDefaultPricingModelConfig,
 } from "./modelConfigFormLogic";
 import { ProviderIcon } from "./ProviderIcon";
 
@@ -127,9 +126,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			if (Object.keys(buildResult.fieldErrors).length > 0) return;
 
 			const trimmedDisplayName = values.displayName.trim();
-			const builtModelConfig = withDefaultPricingModelConfig(
-				buildResult.modelConfig,
-			);
+			const builtModelConfig = buildResult.modelConfig;
 
 			if (isEditing && editingModel) {
 				const req: TypesGen.UpdateChatModelConfigRequest = {

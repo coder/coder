@@ -421,18 +421,11 @@ export const NoModelConfigByDefault: Story = {
 				model: "gpt-5-pro",
 			}),
 		);
-		// Pricing defaults are now sent explicitly as $0 metadata.
+		// Blank pricing fields should remain unset in the payload.
 		const callArgs = (
 			API.createChatModelConfig as unknown as ReturnType<typeof spyOn>
 		).mock.calls[0][0] as Record<string, unknown>;
-		expect(callArgs).toMatchObject({
-			model_config: {
-				input_price_per_million_tokens: 0,
-				output_price_per_million_tokens: 0,
-				cache_read_price_per_million_tokens: 0,
-				cache_write_price_per_million_tokens: 0,
-			},
-		});
+		expect(callArgs).not.toHaveProperty("model_config");
 	},
 };
 
