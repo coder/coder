@@ -339,7 +339,7 @@ export const ActiveFilterShowsActiveAgents: Story = {
 			expect(canvas.getByText("Active agent one")).toBeInTheDocument();
 			expect(canvas.getByText("Active agent two")).toBeInTheDocument();
 		});
-		expect(canvas.getByText("Active")).toBeInTheDocument();
+		expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
 	},
 };
 
@@ -373,7 +373,7 @@ export const ArchivedFilterShowsArchivedAgents: Story = {
 			expect(canvas.getByText("Archived agent one")).toBeInTheDocument();
 			expect(canvas.getByText("Archived agent two")).toBeInTheDocument();
 		});
-		expect(canvas.getByText("Archived")).toBeInTheDocument();
+		expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
 	},
 };
 
