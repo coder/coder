@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -1188,6 +1189,83 @@ func TestMixedFormatConversation(t *testing.T) {
 	cc := fantasyanthropic.GetCacheControl(newAssistantText.ProviderOptions)
 	require.NotNil(t, cc, "ProviderMetadata must survive on new-format assistant messages")
 	assert.Equal(t, "ephemeral", cc.Type)
+}
+
+// TestQueuedMessageRoundTrip verifies that a user message with
+// file-reference parts survives the queue → promote cycle. The
+// queued path stores MarshalParts output as raw JSON in
+// chat_queued_messages, db2sdk.ChatQueuedMessage parses it for
+// display while queued, then PromoteQueued copies the same raw
+// bytes into chat_messages where ParseContent reads them.
+func TestQueuedMessageRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Simulate the write path: user sends a message with text +
+	// file-reference, which gets queued.
+	parts := []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeText, Text: "Review this change."},
+		{Type: codersdk.ChatMessagePartTypeFileReference, FileName: "api.go", StartLine: 42, EndLine: 58, Content: "func handleRequest() {}"},
+	}
+	raw, err := chatprompt.MarshalParts(parts)
+	require.NoError(t, err)
+
+	// Step 1: While queued, db2sdk.ChatQueuedMessage parses the
+	// content for display. Verify it produces correct parts
+	// (with internal fields stripped).
+	queuedMsg := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
+		ID:      1,
+		ChatID:  uuid.New(),
+		Content: raw.RawMessage,
+	})
+	require.Len(t, queuedMsg.Content, 2)
+	assert.Equal(t, codersdk.ChatMessagePartTypeText, queuedMsg.Content[0].Type)
+	assert.Equal(t, "Review this change.", queuedMsg.Content[0].Text)
+	assert.Equal(t, codersdk.ChatMessagePartTypeFileReference, queuedMsg.Content[1].Type)
+	assert.Equal(t, "api.go", queuedMsg.Content[1].FileName)
+	assert.Equal(t, 42, queuedMsg.Content[1].StartLine)
+	assert.Equal(t, 58, queuedMsg.Content[1].EndLine)
+	assert.Equal(t, "func handleRequest() {}", queuedMsg.Content[1].Content)
+
+	// Step 2: PromoteQueued copies the raw bytes into
+	// chat_messages. ParseContent must handle them identically.
+	promoted, err := chatprompt.ParseContent("user", pqtype.NullRawMessage{
+		RawMessage: raw.RawMessage,
+		Valid:      true,
+	})
+	require.NoError(t, err)
+	require.Len(t, promoted, 2)
+	assert.Equal(t, codersdk.ChatMessagePartTypeText, promoted[0].Type)
+	assert.Equal(t, "Review this change.", promoted[0].Text)
+	assert.Equal(t, codersdk.ChatMessagePartTypeFileReference, promoted[1].Type)
+	assert.Equal(t, "api.go", promoted[1].FileName)
+	assert.Equal(t, 42, promoted[1].StartLine)
+	assert.Equal(t, 58, promoted[1].EndLine)
+	assert.Equal(t, "func handleRequest() {}", promoted[1].Content)
+
+	// Step 3: The promoted message is used for LLM dispatch.
+	// File-reference becomes a TextPart.
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       "user",
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    pqtype.NullRawMessage{RawMessage: raw.RawMessage, Valid: true},
+		}},
+		nil,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 2)
+
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
+	require.True(t, ok)
+	assert.Equal(t, "Review this change.", textPart.Text)
+
+	refPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[1])
+	require.True(t, ok)
+	assert.Contains(t, refPart.Text, "[file-reference]")
+	assert.Contains(t, refPart.Text, "api.go")
 }
 
 func mustJSON(t *testing.T, v any) json.RawMessage {

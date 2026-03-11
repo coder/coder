@@ -1207,7 +1207,7 @@ export interface ChatMessagePart {
 	readonly provider_metadata?: Record<string, string>;
 	/**
 	 * ProviderExecuted indicates the tool call was executed by
-	 * the provider (e.g. Anthropic computer use). Internal only.
+	 * the provider (e.g. Anthropic computer use).
 	 */
 	readonly provider_executed?: boolean;
 }
