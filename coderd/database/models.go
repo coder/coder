@@ -3952,6 +3952,7 @@ type ChatMessage struct {
 	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
 	Compressed          bool                  `db:"compressed" json:"compressed"`
+	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
 }
 
 type ChatModelConfig struct {

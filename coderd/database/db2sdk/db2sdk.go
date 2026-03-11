@@ -1059,9 +1059,14 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 	if !m.ModelConfigID.Valid {
 		modelConfigID = nil
 	}
+	createdBy := &m.CreatedBy.UUID
+	if !m.CreatedBy.Valid {
+		createdBy = nil
+	}
 	msg := codersdk.ChatMessage{
 		ID:            m.ID,
 		ChatID:        m.ChatID,
+		CreatedBy:     createdBy,
 		ModelConfigID: modelConfigID,
 		CreatedAt:     m.CreatedAt,
 		Role:          m.Role,

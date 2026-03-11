@@ -49,6 +49,7 @@ type Chat struct {
 type ChatMessage struct {
 	ID            int64             `json:"id"`
 	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
+	CreatedBy     *uuid.UUID        `json:"created_by,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
 	Role          string            `json:"role"`
