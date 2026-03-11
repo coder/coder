@@ -1,9 +1,5 @@
 import { useTheme } from "@emotion/react";
-import type {
-	ChangeTypes,
-	DiffLineAnnotation,
-	FileDiffMetadata,
-} from "@pierre/diffs";
+import type { DiffLineAnnotation, FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
@@ -38,6 +34,7 @@ import {
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
 import type { ChatMessageInputRef } from "./AgentChatInput";
+import { changeColor, changeLabel } from "./diffColors";
 
 interface FilesChangedPanelProps {
 	chatId: string;
@@ -181,40 +178,6 @@ function parsePullRequestUrl(url: string): {
 // -------------------------------------------------------------------
 // File tree data model
 // -------------------------------------------------------------------
-
-/** Maps a diff change type to a Tailwind text-color class. */
-function changeColor(type?: ChangeTypes): string | undefined {
-	switch (type) {
-		case "new":
-			return "text-green-700 dark:text-green-300";
-		case "deleted":
-			return "text-red-700 dark:text-red-300";
-		case "rename-pure":
-		case "rename-changed":
-			return "text-orange-700 dark:text-orange-300";
-		case "change":
-			return "text-orange-700 dark:text-orange-300";
-		default:
-			return undefined;
-	}
-}
-
-/** Short letter shown after the filename, matching VS Code style. */
-function changeLabel(type: ChangeTypes): string {
-	switch (type) {
-		case "new":
-			return "A";
-		case "deleted":
-			return "D";
-		case "rename-pure":
-		case "rename-changed":
-			return "R";
-		case "change":
-			return "M";
-		default:
-			return "";
-	}
-}
 
 interface FileTreeNode {
 	name: string;
