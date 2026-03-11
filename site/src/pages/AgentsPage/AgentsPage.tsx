@@ -75,6 +75,10 @@ const AgentsPage: FC = () => {
 		permissions.editDeploymentConfig ||
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
 
+	const [archivedFilter, setArchivedFilter] = useState<"active" | "archived">(
+		"active",
+	);
+
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
 	// uses its own internal scroll containers so the reserved gutter
@@ -118,7 +122,9 @@ const AgentsPage: FC = () => {
 		};
 	}, []);
 
-	const chatsQuery = useInfiniteQuery(infiniteChats());
+	const chatsQuery = useInfiniteQuery(
+		infiniteChats({ archived: archivedFilter === "archived" }),
+	);
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const createMutation = useMutation(createChat(queryClient));
@@ -484,6 +490,9 @@ const AgentsPage: FC = () => {
 			isAgentsAdmin={isAgentsAdmin}
 			hasNextPage={chatsQuery.hasNextPage}
 			onLoadMore={() => void chatsQuery.fetchNextPage()}
+			isFetchingNextPage={chatsQuery.isFetchingNextPage}
+			archivedFilter={archivedFilter}
+			onArchivedFilterChange={setArchivedFilter}
 		/>
 	);
 };

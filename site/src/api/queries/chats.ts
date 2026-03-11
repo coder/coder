@@ -49,7 +49,7 @@ export const readInfiniteChatsCache = (
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
 
-export const infiniteChats = (opts?: { q?: string }) => {
+export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
 
 	return {
@@ -69,6 +69,7 @@ export const infiniteChats = (opts?: { q?: string }) => {
 				limit,
 				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
 				q: opts?.q,
+				archived: opts?.archived,
 			});
 		},
 		refetchOnWindowFocus: true as const,

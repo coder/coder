@@ -56,6 +56,9 @@ interface AgentsPageViewProps {
 	modelCatalogError: unknown;
 	hasNextPage: boolean | undefined;
 	onLoadMore: () => void;
+	isFetchingNextPage: boolean;
+	archivedFilter: "active" | "archived";
+	onArchivedFilterChange: (filter: "active" | "archived") => void;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -84,6 +87,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	modelCatalogError,
 	hasNextPage,
 	onLoadMore,
+	isFetchingNextPage,
+	archivedFilter,
+	onArchivedFilterChange,
 }) => {
 	const {
 		chatErrorReasons,
@@ -123,6 +129,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onRetryLoad={onRetryChatsLoad}
 					hasNextPage={hasNextPage}
 					onLoadMore={onLoadMore}
+					isFetchingNextPage={isFetchingNextPage}
+					archivedFilter={archivedFilter}
+					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
 					onOpenSettings={() => setConfigureAgentsDialogOpen(true)}
 				/>

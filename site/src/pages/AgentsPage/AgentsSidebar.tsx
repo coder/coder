@@ -9,11 +9,6 @@ import { Avatar } from "components/Avatar/Avatar";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "components/Collapsible/Collapsible";
-import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -33,6 +28,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisIcon,
+	FilterIcon,
 	GitMergeIcon,
 	GitPullRequestArrowIcon,
 	GitPullRequestClosedIcon,
@@ -54,6 +50,7 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { NavLink, useParams } from "react-router";
@@ -79,6 +76,9 @@ interface AgentsSidebarProps {
 	onRetryLoad?: () => void;
 	hasNextPage?: boolean;
 	onLoadMore?: () => void;
+	isFetchingNextPage?: boolean;
+	archivedFilter: "active" | "archived";
+	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
 	onOpenSettings?: () => void;
 }
@@ -583,6 +583,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onRetryLoad,
 		hasNextPage,
 		onLoadMore,
+		isFetchingNextPage,
+		archivedFilter,
+		onArchivedFilterChange,
 		onCollapse,
 		onOpenSettings,
 	} = props;
@@ -595,7 +598,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const { appearance, buildInfo } = useDashboard();
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
-	const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
 
 	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
 	const chatById = useMemo(() => {
@@ -614,24 +616,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
 		[chatTree.rootIds, visibleChatIDs],
 	);
-	const activeRootIDs = useMemo(
-		() =>
-			visibleRootIDs.filter((id) => {
-				const chat = chatById.get(id);
-				return chat && !chat.archived;
-			}),
-		[visibleRootIDs, chatById],
-	);
-	const archivedRootIDs = useMemo(
-		() =>
-			visibleRootIDs.filter((id) => {
-				const chat = chatById.get(id);
-				return chat?.archived;
-			}),
-		[visibleRootIDs, chatById],
-	);
-	const effectiveArchivedExpanded =
-		normalizedSearch && archivedRootIDs.length > 0 ? true : isArchivedExpanded;
 
 	// Auto-expand ancestors of the active chat so it's always visible.
 	useEffect(() => {
@@ -706,18 +690,53 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<CoderIcon className="h-6 w-6 fill-content-primary" />
 						)}
 					</NavLink>
-					{onCollapse && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={onCollapse}
-							aria-label="Collapse sidebar"
-							className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
-						>
-							<PanelLeftCloseIcon />
-						</Button>
-					)}
-				</div>
+					<div className="flex items-center gap-0.5">
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									aria-label="Filter agents"
+									className={cn(
+										"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+										archivedFilter === "archived" && "text-content-primary",
+									)}
+								>
+									<FilterIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onSelect={() => onArchivedFilterChange?.("active")}
+								>
+									Active
+									{archivedFilter === "active" && (
+										<CheckIcon className="ml-auto h-3.5 w-3.5" />
+									)}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onSelect={() => onArchivedFilterChange?.("archived")}
+								>
+									Archived
+									{archivedFilter === "archived" && (
+										<CheckIcon className="ml-auto h-3.5 w-3.5" />
+									)}
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+						{onCollapse && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={onCollapse}
+								aria-label="Collapse sidebar"
+								className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+							>
+								<PanelLeftCloseIcon />
+							</Button>
+						)}
+					</div>
+				</div>{" "}
 				<Button
 					size="sm"
 					variant="subtle"
@@ -766,16 +785,20 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</>
 					) : (
 						<ChatTreeContext.Provider value={chatTreeCtx}>
-							{activeRootIDs.length === 0 && archivedRootIDs.length === 0 ? (
+							{visibleRootIDs.length === 0 ? (
 								<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-									{normalizedSearch ? "No matching agents" : "No agents yet"}
+									{normalizedSearch
+										? "No matching agents"
+										: archivedFilter === "archived"
+											? "No archived agents"
+											: "No agents yet"}
 								</div>
 							) : (
-								<div className="divide-y divide-border">
-									{activeRootIDs.length > 0 && (
+								<div>
+									{visibleRootIDs.length > 0 && (
 										<div className="pb-2">
 											{TIME_GROUPS.map((group) => {
-												const groupChats = activeRootIDs
+												const groupChats = visibleRootIDs
 													.map((id) => chatById.get(id))
 													.filter(
 														(chat): chat is Chat =>
@@ -805,52 +828,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											})}
 										</div>
 									)}
-									{archivedRootIDs.length > 0 && (
-										<Collapsible
-											className="pt-2"
-											open={effectiveArchivedExpanded}
-											onOpenChange={setIsArchivedExpanded}
-										>
-											<CollapsibleTrigger asChild>
-												<div className="mb-1 ml-2.5 flex cursor-pointer items-center justify-between text-xs font-medium text-content-secondary">
-													<span>Archived ({archivedRootIDs.length})</span>
-													{effectiveArchivedExpanded ? (
-														<ChevronDownIcon className="h-3 w-3" />
-													) : (
-														<ChevronRightIcon className="h-3 w-3" />
-													)}
-												</div>
-											</CollapsibleTrigger>
-											<CollapsibleContent>
-												<div className="flex flex-col gap-0.5">
-													{archivedRootIDs.map((id) => {
-														const chat = chatById.get(id);
-														if (!chat) return null;
-														return (
-															<ChatTreeNode
-																key={chat.id}
-																chat={chat}
-																isChildNode={false}
-															/>
-														);
-													})}
-												</div>
-											</CollapsibleContent>
-										</Collapsible>
-									)}
 								</div>
 							)}
-							{hasNextPage && (
-								<div className="px-2 py-2">
-									<Button
-										size="sm"
-										variant="outline"
-										className="w-full"
-										onClick={onLoadMore}
-									>
-										Show more
-									</Button>
-								</div>
+							{(hasNextPage || isFetchingNextPage) && (
+								<LoadMoreSentinel
+									onLoadMore={onLoadMore}
+									isFetchingNextPage={isFetchingNextPage}
+								/>
 							)}
 						</ChatTreeContext.Provider>
 					)}
@@ -864,6 +848,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								type="button"
 								className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
 							>
+								{" "}
 								<Avatar
 									fallback={user.username}
 									src={user.avatar_url}
@@ -900,6 +885,37 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					)}
 				</div>
 			</div>
+		</div>
+	);
+};
+
+const LoadMoreSentinel: FC<{
+	onLoadMore?: () => void;
+	isFetchingNextPage?: boolean;
+}> = ({ onLoadMore, isFetchingNextPage }) => {
+	const sentinelRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const el = sentinelRef.current;
+		if (!el || !onLoadMore) return;
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0]?.isIntersecting) {
+					onLoadMore();
+				}
+			},
+			{ threshold: 0 },
+		);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [onLoadMore]);
+
+	return (
+		<div ref={sentinelRef} className="flex items-center justify-center py-2">
+			{isFetchingNextPage && (
+				<Spinner className="h-4 w-4 text-content-secondary" loading />
+			)}
 		</div>
 	);
 };
