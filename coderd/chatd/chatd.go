@@ -164,7 +164,6 @@ var (
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
 	OwnerID            uuid.UUID
-	CreatedBy          uuid.UUID
 	WorkspaceID        uuid.NullUUID
 	ParentChatID       uuid.NullUUID
 	RootChatID         uuid.NullUUID
@@ -308,8 +307,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			},
 			Role:                "user",
 			Content:             userContent,
-			CreatedBy:           uuid.NullUUID{UUID: opts.CreatedBy, Valid: opts.CreatedBy != uuid.Nil},
-			Visibility:          database.ChatMessageVisibilityBoth,
+				CreatedBy:           uuid.NullUUID{UUID: opts.OwnerID, Valid: opts.OwnerID != uuid.Nil},			Visibility:          database.ChatMessageVisibilityBoth,
 			InputTokens:         sql.NullInt64{},
 			OutputTokens:        sql.NullInt64{},
 			TotalTokens:         sql.NullInt64{},

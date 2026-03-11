@@ -253,7 +253,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
-		CreatedBy:          apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
 		Title:              title,
 		ModelConfigID:      modelConfigID,
