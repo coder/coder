@@ -46,6 +46,12 @@ func Entitlements(
 		return codersdk.Entitlements{}, xerrors.Errorf("query active user count: %w", err)
 	}
 
+	// nolint:gocritic // Getting active AI seat count is a system function.
+	activeAISeatCount, err := db.GetActiveAISeatCount(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		return codersdk.Entitlements{}, xerrors.Errorf("query active AI seat count: %w", err)
+	}
+
 	// nolint:gocritic // Getting external templates is a system function.
 	externalTemplates, err := db.GetTemplatesWithFilter(dbauthz.AsSystemRestricted(ctx), database.GetTemplatesWithFilterParams{
 		HasExternalAgent: sql.NullBool{
@@ -59,6 +65,7 @@ func Entitlements(
 
 	entitlements, err := LicensesEntitlements(ctx, now, licenses, enablements, keys, FeatureArguments{
 		ActiveUserCount:       activeUserCount,
+		ActiveAISeatCount:     activeAISeatCount,
 		ReplicaCount:          replicaCount,
 		ExternalAuthCount:     externalAuthCount,
 		ExternalTemplateCount: int64(len(externalTemplates)),
@@ -88,6 +95,7 @@ func Entitlements(
 
 type FeatureArguments struct {
 	ActiveUserCount       int64
+	ActiveAISeatCount     int64
 	ReplicaCount          int
 	ExternalAuthCount     int
 	ExternalTemplateCount int64
@@ -325,6 +333,9 @@ func LicensesEntitlements(
 				var actual *int64
 				if featureName == codersdk.FeatureUserLimit {
 					actual = &featureArguments.ActiveUserCount
+				}
+				if featureName == codersdk.FeatureAIGovernanceUserLimit {
+					actual = &featureArguments.ActiveAISeatCount
 				}
 
 				entitlements.AddFeature(featureName, codersdk.Feature{
