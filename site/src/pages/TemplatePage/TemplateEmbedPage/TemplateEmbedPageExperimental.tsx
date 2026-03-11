@@ -69,12 +69,7 @@ const TemplateEmbedPageExperimental: FC = () => {
 				const socket = API.templateVersionDynamicParameters(
 					template.active_version_id,
 					me.id,
-					{
-						onMessage,
-						// Lifecycle is managed by createReconnectingWebSocket.
-						onError: () => {},
-						onClose: () => {},
-					},
+					{ onMessage },
 				);
 
 				ws.current = socket;

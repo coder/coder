@@ -123,12 +123,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 				const socket = API.templateVersionDynamicParameters(
 					versionId,
 					workspace.owner_id,
-					{
-						onMessage,
-						// Lifecycle is managed by createReconnectingWebSocket.
-						onError: () => {},
-						onClose: () => {},
-					},
+					{ onMessage },
 				);
 
 				ws.current = socket;

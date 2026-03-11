@@ -1146,12 +1146,8 @@ class ApiMethods {
 		userId: string,
 		{
 			onMessage,
-			onError,
-			onClose,
 		}: {
 			onMessage: (response: TypesGen.DynamicParametersResponse) => void;
-			onError: (error: Error) => void;
-			onClose: () => void;
 		},
 	): WebSocket => {
 		const socket = createWebSocket(
@@ -1162,15 +1158,6 @@ class ApiMethods {
 		socket.addEventListener("message", (event) =>
 			onMessage(JSON.parse(event.data) as TypesGen.DynamicParametersResponse),
 		);
-
-		socket.addEventListener("error", () => {
-			onError(new Error("Connection for dynamic parameters failed."));
-			socket.close();
-		});
-
-		socket.addEventListener("close", () => {
-			onClose();
-		});
 
 		return socket;
 	};

@@ -165,12 +165,7 @@ const CreateWorkspacePage: FC = () => {
 				const socket = API.templateVersionDynamicParameters(
 					realizedVersionId,
 					defaultOwner.id,
-					{
-						onMessage,
-						// Lifecycle is managed by createReconnectingWebSocket.
-						onError: () => {},
-						onClose: () => {},
-					},
+					{ onMessage },
 				);
 
 				ws.current = socket;

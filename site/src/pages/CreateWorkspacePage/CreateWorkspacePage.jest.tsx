@@ -56,14 +56,6 @@ describe("CreateWorkspacePage", () => {
 				mockWebSocket.addEventListener("message", (event) => {
 					callbacks.onMessage(JSON.parse(event.data));
 				});
-				mockWebSocket.addEventListener("error", () => {
-					callbacks.onError(
-						new Error("Connection for dynamic parameters failed."),
-					);
-				});
-				mockWebSocket.addEventListener("close", () => {
-					callbacks.onClose();
-				});
 
 				publisher.publishOpen(new Event("open"));
 				publisher.publishMessage(
@@ -91,8 +83,6 @@ describe("CreateWorkspacePage", () => {
 				MockUserOwner.id,
 				expect.objectContaining({
 					onMessage: expect.any(Function),
-					onError: expect.any(Function),
-					onClose: expect.any(Function),
 				}),
 			);
 
@@ -112,14 +102,6 @@ describe("CreateWorkspacePage", () => {
 				.mockImplementation((_versionId, _ownerId, callbacks) => {
 					mockWebSocket.addEventListener("message", (event) => {
 						callbacks.onMessage(JSON.parse(event.data));
-					});
-					mockWebSocket.addEventListener("error", () => {
-						callbacks.onError(
-							new Error("Connection for dynamic parameters failed."),
-						);
-					});
-					mockWebSocket.addEventListener("close", () => {
-						callbacks.onClose();
 					});
 
 					publisher.publishOpen(new Event("open"));
@@ -170,53 +152,38 @@ describe("CreateWorkspacePage", () => {
 			jest.useRealTimers();
 		});
 
-		it("handles WebSocket error gracefully", async () => {
+		it("shows error when WebSocket disconnects", async () => {
 			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
 
 			jest
 				.spyOn(API, "templateVersionDynamicParameters")
 				.mockImplementation((_versionId, _ownerId, callbacks) => {
-					mockWebSocket.addEventListener("error", () => {
-						callbacks.onError(new Error("Connection failed"));
+					mockWebSocket.addEventListener("message", (event) => {
+						callbacks.onMessage(JSON.parse(event.data));
 					});
+
+					mockPublisher.publishOpen(new Event("open"));
+					mockPublisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify(MockDynamicParametersResponse),
+						}),
+					);
 
 					return mockWebSocket;
 				});
 
 			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			// Simulate a disconnect via the close event, which
+			// createReconnectingWebSocket forwards as onDisconnect.
+			mockPublisher.publishClose(new Event("close") as CloseEvent);
 
 			await waitFor(() => {
-				expect(mockPublisher).toBeDefined();
-				mockPublisher.publishError(new Event("Connection failed"));
-				const alert = screen.getByRole("alert");
-				expect(
-					within(alert).getByRole("heading", { name: /connection failed/i }),
-				).toBeInTheDocument();
-			});
-		});
-
-		it("handles WebSocket close event", async () => {
-			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
-
-			jest
-				.spyOn(API, "templateVersionDynamicParameters")
-				.mockImplementation((_versionId, _ownerId, callbacks) => {
-					mockWebSocket.addEventListener("close", () => {
-						callbacks.onClose();
-					});
-
-					return mockWebSocket;
-				});
-
-			renderCreateWorkspacePage();
-
-			await waitFor(() => {
-				expect(mockPublisher).toBeDefined();
-				mockPublisher.publishClose(new Event("close") as CloseEvent);
 				const alert = screen.getByRole("alert");
 				expect(
 					within(alert).getByRole("heading", {
-						name: /websocket connection.*unexpectedly closed/i,
+						name: /dynamic parameters lost/i,
 					}),
 				).toBeInTheDocument();
 			});
