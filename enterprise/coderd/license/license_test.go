@@ -852,6 +852,9 @@ func TestEntitlements(t *testing.T) {
 			GetActiveUserCount(gomock.Any(), false).
 			Return(int64(1), nil)
 		mDB.EXPECT().
+			GetActiveAISeatCount(gomock.Any()).
+			Return(int64(27), nil)
+		mDB.EXPECT().
 			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Cond(func(params database.GetTotalUsageDCManagedAgentsV1Params) bool {
 				// gomock doesn't seem to compare times very nicely, so check
 				// them manually.
@@ -884,6 +887,11 @@ func TestEntitlements(t *testing.T) {
 		require.EqualValues(t, 100, *managedAgentLimit.Limit)
 		require.NotNil(t, managedAgentLimit.Actual)
 		require.EqualValues(t, 175, *managedAgentLimit.Actual)
+
+		aiGovernanceSeatLimit, ok := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
+		require.True(t, ok)
+		require.NotNil(t, aiGovernanceSeatLimit.Actual)
+		require.EqualValues(t, 27, *aiGovernanceSeatLimit.Actual)
 
 		// Usage exceeds the limit, so an exceeded warning should be present.
 		require.Len(t, entitlements.Warnings, 1)

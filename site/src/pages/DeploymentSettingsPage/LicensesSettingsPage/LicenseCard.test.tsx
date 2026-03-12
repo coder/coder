@@ -53,8 +53,10 @@ describe("LicenseCard", () => {
 			/>,
 		);
 
-		const removeButton = await screen.findByRole("button", { name: /remove/i });
-		await user.click(removeButton);
+		await user.click(
+			screen.getByRole("button", { name: /show license actions/i }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: /remove/i }));
 
 		const dialog = await screen.findByTestId("dialog");
 		expect(dialog).toHaveTextContent(/This license has already expired/);
@@ -72,8 +74,10 @@ describe("LicenseCard", () => {
 			/>,
 		);
 
-		const removeButton = await screen.findByRole("button", { name: /remove/i });
-		await user.click(removeButton);
+		await user.click(
+			screen.getByRole("button", { name: /show license actions/i }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: /remove/i }));
 
 		await screen.findByText(
 			/Removing this license will disable all Premium features/,
@@ -123,7 +127,10 @@ describe("LicenseCard", () => {
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: /remove/i }));
+		await user.click(
+			screen.getByRole("button", { name: /show license actions/i }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: /remove/i }));
 
 		const dialog = await screen.findByTestId("dialog");
 		const dialogScope = within(dialog);

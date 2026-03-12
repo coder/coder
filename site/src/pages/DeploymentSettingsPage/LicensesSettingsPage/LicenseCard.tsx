@@ -1,12 +1,28 @@
 import type { GetLicensesResponse } from "api/api";
+import type { Feature } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "components/Collapsible/Collapsible";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { Pill } from "components/Pill/Pill";
 import dayjs from "dayjs";
+import { ChevronDownIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { AddOnCard } from "./AddOnCard";
 
 type LicenseCardProps = {
 	license: GetLicensesResponse;
+	allLicenses?: GetLicensesResponse[];
+	aiGovernanceUserFeature?: Feature;
 	userLimitActual?: number;
 	userLimitLimit?: number;
 	onRemove: (licenseId: number) => void;
@@ -15,6 +31,8 @@ type LicenseCardProps = {
 
 export const LicenseCard: FC<LicenseCardProps> = ({
 	license,
+	allLicenses,
+	aiGovernanceUserFeature,
 	userLimitActual,
 	userLimitLimit,
 	onRemove,
@@ -30,18 +48,38 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	const isExpired = dayjs
 		.unix(license.claims.license_expires)
 		.isBefore(dayjs());
+	const isPremium = license.claims.feature_set?.toLowerCase() === "premium";
+	const aiGovernanceActual = aiGovernanceUserFeature?.actual ?? 0;
+	const aiGovernanceLimit = aiGovernanceUserFeature?.limit ?? 0;
 
 	const licenseType = license.claims.trial
 		? "Trial"
-		: license.claims.feature_set?.toLowerCase() === "premium"
+		: isPremium
 			? "Premium"
 			: "Enterprise";
 
+	let includedWithPremium = 0;
+	let additionalPurchased = 0;
+	for (const lic of allLicenses ?? []) {
+		const aiGovernanceSeatLimit = lic.claims.features?.ai_governance_user_limit;
+		if (!aiGovernanceSeatLimit || aiGovernanceSeatLimit <= 0) {
+			continue;
+		}
+
+		if (lic.claims.feature_set?.toLowerCase() === "premium") {
+			includedWithPremium += aiGovernanceSeatLimit;
+		} else {
+			additionalPurchased += aiGovernanceSeatLimit;
+		}
+	}
+
+	const hasAiGovernanceAddOn =
+		(aiGovernanceUserFeature?.enabled ?? false) &&
+		((license.claims.addons ?? []).includes("ai_governance") ||
+			(license.claims.features?.ai_governance_user_limit ?? 0) > 0);
+
 	return (
-		<div
-			key={license.id}
-			className="license-card rounded-lg border border-solid border-border bg-surface-secondary p-4 text-sm shadow-sm"
-		>
+		<Collapsible defaultOpen>
 			<DeleteDialog
 				key={licenseIDMarkedForRemoval}
 				isOpen={licenseIDMarkedForRemoval !== undefined}
@@ -64,52 +102,114 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				}
 				confirmLoading={isRemoving}
 			/>
-			<div className="flex flex-row gap-4 items-center">
-				<span className="text-content-secondary text-lg font-semibold">
-					#{license.id}
-				</span>
-				<span className="account-type font-semibold text-lg capitalize">
-					{licenseType}
-				</span>
-				<div className="flex flex-row justify-end gap-16 items-end flex-1">
-					<div className="flex flex-col items-center">
-						<span className="text-content-secondary">Users</span>
-						<span className="text-content-primary user-limit">
-							{userLimitActual} {` / ${currentUserLimit || "Unlimited"}`}
-						</span>
-					</div>
-					{license.claims.nbf && (
-						<div className="flex flex-col items-center">
-							<span className="text-content-secondary">Valid From</span>
-							<span className="text-content-secondary license-valid-from">
-								{dayjs.unix(license.claims.nbf).format("MMMM D, YYYY")}
-							</span>
+			<div className="license-card group overflow-hidden rounded-md border border-solid border-border bg-surface-secondary text-sm shadow-sm">
+				<div className="flex items-center gap-6 p-3">
+					<CollapsibleTrigger
+						asChild
+						className="[&[data-state=closed]_.license-chevron]:-rotate-90"
+					>
+						<button
+							type="button"
+							className="m-0 flex min-w-0 flex-1 appearance-none items-center gap-6 border-0 bg-transparent p-0 text-left"
+						>
+							<div className="flex items-center gap-1.5">
+								<ChevronDownIcon className="license-chevron size-4 text-content-secondary transition-colors transition-transform group-hover:text-content-primary" />
+								<span className="text-base font-medium text-content-secondary">
+									#{license.id}
+								</span>
+								<span className="account-type text-base font-medium capitalize">
+									{licenseType}
+								</span>
+							</div>
+
+							<div className="ml-auto flex items-center gap-12 text-xs font-medium">
+								<div className="flex flex-col items-start">
+									<span className="text-content-secondary">Status</span>
+									<span
+										className={
+											isExpired
+												? "text-content-destructive"
+												: "text-content-success"
+										}
+									>
+										{isExpired ? "Expired" : "Active"}
+									</span>
+								</div>
+								<div className="flex flex-col items-start">
+									<span className="text-content-secondary">Users</span>
+									<span className="text-content-primary user-limit">
+										{userLimitActual} {` / ${currentUserLimit || "Unlimited"}`}
+									</span>
+								</div>
+								{license.claims.nbf && (
+									<div className="flex flex-col items-start">
+										<span className="text-content-secondary">Valid From</span>
+										<span className="text-content-primary license-valid-from">
+											{dayjs.unix(license.claims.nbf).format("MMMM D, YYYY")}
+										</span>
+									</div>
+								)}
+								<div className="flex flex-col items-start">
+									<span className="text-content-secondary">Valid Until</span>
+									<span className="text-content-primary license-expires">
+										{dayjs
+											.unix(license.claims.license_expires)
+											.format("MMMM D, YYYY")}
+									</span>
+								</div>
+							</div>
+						</button>
+					</CollapsibleTrigger>
+
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								onClick={(event) => event.stopPropagation()}
+								className="size-[30px]"
+							>
+								<EllipsisVerticalIcon />
+								<span className="sr-only">Show license actions</span>
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onClick={() => setLicenseIDMarkedForRemoval(license.id)}
+							>
+								<TrashIcon />
+								Remove&hellip;
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+
+				<CollapsibleContent>
+					{isPremium && hasAiGovernanceAddOn && (
+						<div className="border-0 border-t border-solid border-border bg-surface-primary px-4 py-4">
+							<div className="text-sm font-medium text-content-secondary">
+								Add-ons
+							</div>
+							<div className="mt-3 flex flex-wrap gap-3">
+								<AddOnCard
+									title="AI governance"
+									unit="Seats"
+									actual={aiGovernanceActual}
+									limit={aiGovernanceLimit}
+									includedWithPremium={includedWithPremium}
+									additionalPurchased={additionalPurchased}
+								/>
+							</div>
 						</div>
 					)}
-					<div className="flex flex-col items-center">
-						{isExpired ? (
-							<Pill className="mb-1" type="error">
-								Expired
-							</Pill>
-						) : (
-							<span className="text-content-secondary">Valid Until</span>
-						)}
-						<span className="text-content-secondary license-expires">
-							{dayjs
-								.unix(license.claims.license_expires)
-								.format("MMMM D, YYYY")}
-						</span>
-					</div>
-					<Button
-						variant="destructive"
-						size="sm"
-						onClick={() => setLicenseIDMarkedForRemoval(license.id)}
-						className="remove-button"
-					>
-						Remove&hellip;
-					</Button>
-				</div>
+					{isExpired && (
+						<div className="border-0 border-t border-solid border-border px-4 py-3">
+							<Pill type="error">Expired</Pill>
+						</div>
+					)}
+				</CollapsibleContent>
 			</div>
-		</div>
+		</Collapsible>
 	);
 };
