@@ -2431,6 +2431,42 @@ func TestDeleteCustomRoleDoesNotDeleteSystemRole(t *testing.T) {
 	require.True(t, roles[0].IsSystem)
 }
 
+func TestGetAuthorizationUserRolesImpliedOrgRole(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	regularUser := dbgen.User(t, db, database.User{})
+	saUser := dbgen.User(t, db, database.User{IsServiceAccount: true})
+
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         regularUser.ID,
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         saUser.ID,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	wantMember := rbac.RoleOrgMember() + ":" + org.ID.String()
+	wantSA := rbac.RoleOrgServiceAccount() + ":" + org.ID.String()
+
+	// Regular users get the implied organization-member role.
+	regularRoles, err := db.GetAuthorizationUserRoles(ctx, regularUser.ID)
+	require.NoError(t, err)
+	require.Contains(t, regularRoles.Roles, wantMember)
+	require.NotContains(t, regularRoles.Roles, wantSA)
+
+	// Service accounts get the implied organization-service-account role.
+	saRoles, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
+	require.NoError(t, err)
+	require.Contains(t, saRoles.Roles, wantSA)
+	require.NotContains(t, saRoles.Roles, wantMember)
+}
+
 func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
 	t.Parallel()
 
@@ -2441,82 +2477,155 @@ func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
 
 	updated, err := db.UpdateOrganizationWorkspaceSharingSettings(ctx, database.UpdateOrganizationWorkspaceSharingSettingsParams{
 		ID:                       org.ID,
-		WorkspaceSharingDisabled: true,
+		ShareableWorkspaceOwners: database.ShareableWorkspaceOwnersNone,
 		UpdatedAt:                dbtime.Now(),
 	})
 	require.NoError(t, err)
-	require.True(t, updated.WorkspaceSharingDisabled)
+	require.Equal(t, database.ShareableWorkspaceOwnersNone, updated.ShareableWorkspaceOwners)
 
 	got, err := db.GetOrganizationByID(ctx, org.ID)
 	require.NoError(t, err)
-	require.True(t, got.WorkspaceSharingDisabled)
+	require.Equal(t, database.ShareableWorkspaceOwnersNone, got.ShareableWorkspaceOwners)
 }
 
 func TestDeleteWorkspaceACLsByOrganization(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
-	org1 := dbgen.Organization(t, db, database.Organization{})
-	org2 := dbgen.Organization(t, db, database.Organization{})
+	t.Run("DeletesAll", func(t *testing.T) {
+		t.Parallel()
 
-	owner1 := dbgen.User(t, db, database.User{})
-	owner2 := dbgen.User(t, db, database.User{})
-	sharedUser := dbgen.User(t, db, database.User{})
-	sharedGroup := dbgen.Group(t, db, database.Group{
-		OrganizationID: org1.ID,
+		db, _ := dbtestutil.NewDB(t)
+		org1 := dbgen.Organization(t, db, database.Organization{})
+		org2 := dbgen.Organization(t, db, database.Organization{})
+
+		owner1 := dbgen.User(t, db, database.User{})
+		owner2 := dbgen.User(t, db, database.User{})
+		sharedUser := dbgen.User(t, db, database.User{})
+		sharedGroup := dbgen.Group(t, db, database.Group{
+			OrganizationID: org1.ID,
+		})
+
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         owner1.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org2.ID,
+			UserID:         owner2.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         sharedUser.ID,
+		})
+
+		ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        owner1.ID,
+			OrganizationID: org1.ID,
+			UserACL: database.WorkspaceACL{
+				sharedUser.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+			GroupACL: database.WorkspaceACL{
+				sharedGroup.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        owner2.ID,
+			OrganizationID: org2.ID,
+			UserACL: database.WorkspaceACL{
+				uuid.NewString(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		err := db.DeleteWorkspaceACLsByOrganization(ctx, database.DeleteWorkspaceACLsByOrganizationParams{
+			OrganizationID:         org1.ID,
+			ExcludeServiceAccounts: false,
+		})
+		require.NoError(t, err)
+
+		got1, err := db.GetWorkspaceByID(ctx, ws1.ID)
+		require.NoError(t, err)
+		require.Empty(t, got1.UserACL)
+		require.Empty(t, got1.GroupACL)
+
+		got2, err := db.GetWorkspaceByID(ctx, ws2.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, got2.UserACL)
 	})
 
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org1.ID,
-		UserID:         owner1.ID,
-	})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org2.ID,
-		UserID:         owner2.ID,
-	})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org1.ID,
-		UserID:         sharedUser.ID,
-	})
+	t.Run("ExcludesServiceAccounts", func(t *testing.T) {
+		t.Parallel()
 
-	ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:        owner1.ID,
-		OrganizationID: org1.ID,
-		UserACL: database.WorkspaceACL{
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		regularUser := dbgen.User(t, db, database.User{})
+		saUser := dbgen.User(t, db, database.User{IsServiceAccount: true})
+		sharedUser := dbgen.User(t, db, database.User{})
+
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         regularUser.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         saUser.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         sharedUser.ID,
+		})
+
+		regularWS := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        regularUser.ID,
+			OrganizationID: org.ID,
+			UserACL: database.WorkspaceACL{
+				sharedUser.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		saWS := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        saUser.ID,
+			OrganizationID: org.ID,
+			UserACL: database.WorkspaceACL{
+				sharedUser.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		err := db.DeleteWorkspaceACLsByOrganization(ctx, database.DeleteWorkspaceACLsByOrganizationParams{
+			OrganizationID:         org.ID,
+			ExcludeServiceAccounts: true,
+		})
+		require.NoError(t, err)
+
+		// Regular user workspace ACLs should be cleared.
+		gotRegular, err := db.GetWorkspaceByID(ctx, regularWS.ID)
+		require.NoError(t, err)
+		require.Empty(t, gotRegular.UserACL)
+
+		// Service account workspace ACLs should be preserved.
+		gotSA, err := db.GetWorkspaceByID(ctx, saWS.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.WorkspaceACL{
 			sharedUser.ID.String(): {
 				Permissions: []policy.Action{policy.ActionRead},
 			},
-		},
-		GroupACL: database.WorkspaceACL{
-			sharedGroup.ID.String(): {
-				Permissions: []policy.Action{policy.ActionRead},
-			},
-		},
-	}).Do().Workspace
-
-	ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:        owner2.ID,
-		OrganizationID: org2.ID,
-		UserACL: database.WorkspaceACL{
-			uuid.NewString(): {
-				Permissions: []policy.Action{policy.ActionRead},
-			},
-		},
-	}).Do().Workspace
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	err := db.DeleteWorkspaceACLsByOrganization(ctx, org1.ID)
-	require.NoError(t, err)
-
-	got1, err := db.GetWorkspaceByID(ctx, ws1.ID)
-	require.NoError(t, err)
-	require.Empty(t, got1.UserACL)
-	require.Empty(t, got1.GroupACL)
-
-	got2, err := db.GetWorkspaceByID(ctx, ws2.ID)
-	require.NoError(t, err)
-	require.NotEmpty(t, got2.UserACL)
+		}, gotSA.UserACL)
+	})
 }
 
 func TestAuthorizedAuditLogs(t *testing.T) {

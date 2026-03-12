@@ -3070,6 +3070,67 @@ func AllResourceTypeValues() []ResourceType {
 	}
 }
 
+type ShareableWorkspaceOwners string
+
+const (
+	ShareableWorkspaceOwnersNone            ShareableWorkspaceOwners = "none"
+	ShareableWorkspaceOwnersEveryone        ShareableWorkspaceOwners = "everyone"
+	ShareableWorkspaceOwnersServiceAccounts ShareableWorkspaceOwners = "service_accounts"
+)
+
+func (e *ShareableWorkspaceOwners) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ShareableWorkspaceOwners(s)
+	case string:
+		*e = ShareableWorkspaceOwners(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ShareableWorkspaceOwners: %T", src)
+	}
+	return nil
+}
+
+type NullShareableWorkspaceOwners struct {
+	ShareableWorkspaceOwners ShareableWorkspaceOwners `json:"shareable_workspace_owners"`
+	Valid                    bool                     `json:"valid"` // Valid is true if ShareableWorkspaceOwners is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullShareableWorkspaceOwners) Scan(value interface{}) error {
+	if value == nil {
+		ns.ShareableWorkspaceOwners, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ShareableWorkspaceOwners.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullShareableWorkspaceOwners) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ShareableWorkspaceOwners), nil
+}
+
+func (e ShareableWorkspaceOwners) Valid() bool {
+	switch e {
+	case ShareableWorkspaceOwnersNone,
+		ShareableWorkspaceOwnersEveryone,
+		ShareableWorkspaceOwnersServiceAccounts:
+		return true
+	}
+	return false
+}
+
+func AllShareableWorkspaceOwnersValues() []ShareableWorkspaceOwners {
+	return []ShareableWorkspaceOwners{
+		ShareableWorkspaceOwnersNone,
+		ShareableWorkspaceOwnersEveryone,
+		ShareableWorkspaceOwnersServiceAccounts,
+	}
+}
+
 type StartupScriptBehavior string
 
 const (
@@ -4446,16 +4507,17 @@ type OAuth2ProviderAppToken struct {
 }
 
 type Organization struct {
-	ID                       uuid.UUID `db:"id" json:"id"`
-	Name                     string    `db:"name" json:"name"`
-	Description              string    `db:"description" json:"description"`
-	CreatedAt                time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time `db:"updated_at" json:"updated_at"`
-	IsDefault                bool      `db:"is_default" json:"is_default"`
-	DisplayName              string    `db:"display_name" json:"display_name"`
-	Icon                     string    `db:"icon" json:"icon"`
-	Deleted                  bool      `db:"deleted" json:"deleted"`
-	WorkspaceSharingDisabled bool      `db:"workspace_sharing_disabled" json:"workspace_sharing_disabled"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	IsDefault   bool      `db:"is_default" json:"is_default"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	Icon        string    `db:"icon" json:"icon"`
+	Deleted     bool      `db:"deleted" json:"deleted"`
+	// Controls whose workspaces can be shared: none, everyone, or service_accounts.
+	ShareableWorkspaceOwners ShareableWorkspaceOwners `db:"shareable_workspace_owners" json:"shareable_workspace_owners"`
 }
 
 type OrganizationMember struct {

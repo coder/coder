@@ -672,7 +672,7 @@ func (m queryMetricsStore) DeleteWorkspaceACLByID(ctx context.Context, id uuid.U
 	return r0
 }
 
-func (m queryMetricsStore) DeleteWorkspaceACLsByOrganization(ctx context.Context, organizationID uuid.UUID) error {
+func (m queryMetricsStore) DeleteWorkspaceACLsByOrganization(ctx context.Context, organizationID database.DeleteWorkspaceACLsByOrganizationParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteWorkspaceACLsByOrganization(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("DeleteWorkspaceACLsByOrganization").Observe(time.Since(start).Seconds())

@@ -4862,7 +4862,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceSharingSettingsRequest"
                         }
                     }
                 ],
@@ -4870,7 +4870,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateWorkspaceSharingSettingsRequest"
+                            "$ref": "#/definitions/codersdk.WorkspaceSharingSettings"
                         }
                     }
                 }
@@ -18761,6 +18761,19 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ShareableWorkspaceOwners": {
+            "type": "string",
+            "enum": [
+                "none",
+                "everyone",
+                "service_accounts"
+            ],
+            "x-enum-varnames": [
+                "ShareableWorkspaceOwnersNone",
+                "ShareableWorkspaceOwnersEveryone",
+                "ShareableWorkspaceOwnersServiceAccounts"
+            ]
+        },
         "codersdk.SharedWorkspaceActor": {
             "type": "object",
             "properties": {
@@ -20369,7 +20382,21 @@ const docTemplate = `{
         "codersdk.UpdateWorkspaceSharingSettingsRequest": {
             "type": "object",
             "properties": {
+                "shareable_workspace_owners": {
+                    "description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
+                    "enum": [
+                        "none",
+                        "everyone",
+                        "service_accounts"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
+                        }
+                    ]
+                },
                 "sharing_disabled": {
+                    "description": "SharingDisabled is deprecated and left for backward compatibility\npurposes, use ` + "`" + `ShareableWorkspaceOwners` + "`" + ` instead.",
                     "type": "boolean"
                 }
             }
@@ -22210,7 +22237,21 @@ const docTemplate = `{
         "codersdk.WorkspaceSharingSettings": {
             "type": "object",
             "properties": {
+                "shareable_workspace_owners": {
+                    "description": "ShareableWorkspaceOwners controls whose workspaces can be shared\nwithin the organization.",
+                    "enum": [
+                        "none",
+                        "everyone",
+                        "service_accounts"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ShareableWorkspaceOwners"
+                        }
+                    ]
+                },
                 "sharing_disabled": {
+                    "description": "SharingDisabled is deprecated and left for backward compatibility\npurposes, use ` + "`" + `ShareableWorkspaceOwners` + "`" + ` instead.",
                     "type": "boolean"
                 },
                 "sharing_globally_disabled": {
