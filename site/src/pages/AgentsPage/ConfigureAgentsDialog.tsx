@@ -110,10 +110,9 @@ const UsageContent: FC = () => {
 		}),
 	);
 	const summaryQuery = useQuery({
-		...chatCostSummary({
+		...chatCostSummary(selectedUser?.user_id ?? "me", {
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
-			user_id: selectedUser?.user_id,
 		}),
 		enabled: selectedUser !== null,
 	});

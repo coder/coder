@@ -302,21 +302,25 @@ describe("unarchiveChat optimistic update", () => {
 
 describe("chat cost query factories", () => {
 	it("builds the summary query key and forwards snake_case params", async () => {
+		const user = "user-1";
 		const params = {
 			start_date: "2025-01-01",
 			end_date: "2025-01-31",
-			user_id: "user-1",
 		};
 		vi.mocked(API.getChatCostSummary).mockResolvedValue(
 			{} as TypesGen.ChatCostSummary,
 		);
 
-		const query = chatCostSummary(params);
+		const query = chatCostSummary(user, params);
 
-		expect(chatCostSummaryKey(params)).toEqual(["chatCostSummary", params]);
-		expect(query.queryKey).toEqual(["chatCostSummary", params]);
+		expect(chatCostSummaryKey(user, params)).toEqual([
+			"chatCostSummary",
+			user,
+			params,
+		]);
+		expect(query.queryKey).toEqual(["chatCostSummary", user, params]);
 		await query.queryFn();
-		expect(API.getChatCostSummary).toHaveBeenCalledWith(params);
+		expect(API.getChatCostSummary).toHaveBeenCalledWith(user, params);
 	});
 
 	it("builds a distinct users query key and forwards snake_case params", async () => {
@@ -335,7 +339,7 @@ describe("chat cost query factories", () => {
 
 		expect(chatCostUsersKey(params)).toEqual(["chatCostUsers", params]);
 		expect(query.queryKey).toEqual(["chatCostUsers", params]);
-		expect(query.queryKey).not.toEqual(chatCostSummaryKey(params));
+		expect(query.queryKey).not.toEqual(chatCostSummaryKey("me", params));
 		await query.queryFn();
 		expect(API.getChatCostUsers).toHaveBeenCalledWith(params);
 	});

@@ -37,10 +37,9 @@ export const UserAnalyticsDialog: FC<UserAnalyticsDialogProps> = ({
 	}, []);
 
 	const summaryQuery = useQuery({
-		...chatCostSummary({
+		...chatCostSummary(user?.id ?? "me", {
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
-			user_id: user?.id,
 		}),
 		enabled: open && Boolean(user?.id),
 	});

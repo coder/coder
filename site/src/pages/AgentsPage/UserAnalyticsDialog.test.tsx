@@ -114,7 +114,11 @@ describe("UserAnalyticsDialog", () => {
 
 		await waitFor(() => {
 			expect(mockGetChatCostSummary).toHaveBeenCalledWith(
-				expect.objectContaining({ user_id: "user-123" }),
+				"user-123",
+				expect.objectContaining({
+					start_date: expect.any(String),
+					end_date: expect.any(String),
+				}),
 			);
 		});
 
