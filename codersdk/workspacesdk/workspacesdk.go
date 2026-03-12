@@ -2,6 +2,7 @@ package workspacesdk
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -131,10 +132,13 @@ type Resolver interface {
 
 type Client struct {
 	client *codersdk.Client
+
+	// DERPTLSConfig is an optional TLS config for DERP connections.
+	DERPTLSConfig *tls.Config
 }
 
 func New(c *codersdk.Client) *Client {
-	return &Client{client: c}
+	return &Client{client: c, DERPTLSConfig: c.DERPTLSConfig}
 }
 
 // AgentConnectionInfo returns required information for establishing
@@ -187,6 +191,8 @@ type DialAgentOptions struct {
 	// Whether the client will send network telemetry events.
 	// Enable instead of Disable so it's initialized to false (in tests).
 	EnableTelemetry bool
+	// DERPTLSConfig is an optional TLS config for DERP connections.
+	DERPTLSConfig *tls.Config
 }
 
 // RewriteDERPMap rewrites the DERP map to use the configured access URL of the
@@ -249,11 +255,17 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		controller.TelemetryCtrl = basicTel
 	}
 
+	derpTLSConfig := options.DERPTLSConfig
+	if derpTLSConfig == nil {
+		derpTLSConfig = c.DERPTLSConfig
+	}
+
 	c.RewriteDERPMap(connInfo.DERPMap)
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
 		DERPHeader:          &header,
+		DERPTLSConfig:       derpTLSConfig,
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,
 		BlockEndpoints:      c.client.DisableDirectConnections || options.BlockEndpoints,

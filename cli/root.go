@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -548,6 +549,9 @@ type RootCmd struct {
 	useKeyring                 bool
 	keyringServiceName         string
 	useKeyringWithGlobalConfig bool
+
+	// DERPTLSConfig is an optional TLS config for DERP connections.
+	DERPTLSConfig *tls.Config
 }
 
 // ensureClientURL loads the client URL from the config file if it
@@ -606,6 +610,9 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 
 	if r.disableDirect {
 		clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
+	}
+	if r.DERPTLSConfig != nil {
+		clientOpts = append(clientOpts, codersdk.WithDERPTLSConfig(r.DERPTLSConfig))
 	}
 
 	if r.debugHTTP {
@@ -668,6 +675,9 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 
 		if r.disableDirect {
 			clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
+		}
+		if r.DERPTLSConfig != nil {
+			clientOpts = append(clientOpts, codersdk.WithDERPTLSConfig(r.DERPTLSConfig))
 		}
 
 		if r.debugHTTP {
