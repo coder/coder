@@ -324,8 +324,20 @@ func Run(ctx context.Context, opts RunOptions) error {
 				for _, tr := range toolResults {
 					result.content = append(result.content, tr)
 				}
-			}
 
+				// Check for interruption after tool execution.
+				// Tools that were canceled mid-flight produce error
+				// results via ctx cancellation. Persist the full
+				// step (assistant blocks + tool results) through
+				// the interrupt-safe path so nothing is lost.
+				if ctx.Err() != nil {
+					if errors.Is(context.Cause(ctx), ErrInterrupted) {
+						persistInterruptedStep(ctx, opts, &result)
+						return ErrInterrupted
+					}
+					return ctx.Err()
+				}
+			}
 			// Extract context limit from provider metadata.
 			contextLimit := extractContextLimit(result.providerMetadata)
 			if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
@@ -334,15 +346,21 @@ func Run(ctx context.Context, opts RunOptions) error {
 					Valid: true,
 				}
 			}
-			// Persist the step — errors propagate directly.
+			// Persist the step. If persistence fails because
+			// the chat was interrupted between the previous
+			// check and here, fall back to the interrupt-safe
+			// path so partial content is not lost.
 			if err := opts.PersistStep(ctx, PersistedStep{
 				Content:      result.content,
 				Usage:        result.usage,
 				ContextLimit: contextLimit,
 			}); err != nil {
+				if errors.Is(err, ErrInterrupted) {
+					persistInterruptedStep(ctx, opts, &result)
+					return ErrInterrupted
+				}
 				return xerrors.Errorf("persist step: %w", err)
 			}
-
 			lastUsage = result.usage
 			lastProviderMetadata = result.providerMetadata
 
