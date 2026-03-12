@@ -409,6 +409,8 @@ func TestStartBuiltinPostgres(t *testing.T) {
 		t.SkipNow()
 	}
 
+	t.Cleanup(http.DefaultClient.CloseIdleConnections)
+
 	reservePort := func(t *testing.T) string {
 		t.Helper()
 
@@ -428,7 +430,7 @@ func TestStartBuiltinPostgres(t *testing.T) {
 		require.NoError(t, cfg.PostgresPort().Write(port))
 
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
-		connectionURL, closeFunc, err := startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "")
+		connectionURL, closeFunc, err := startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "", false)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, closeFunc())
@@ -438,25 +440,35 @@ func TestStartBuiltinPostgres(t *testing.T) {
 		require.NoError(t, verifyBuiltinPostgresInstance(ctx, cfg, connectionURL))
 	})
 
-	t.Run("ReusesMatchingBuiltinInstance", func(t *testing.T) {
+	t.Run("ReconnectReusesMatchingBuiltinInstance", func(t *testing.T) {
 		t.Parallel()
 		cfg := config.Root(t.TempDir())
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
-		connectionURL, closeFunc, err := startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "")
+		connectionURL, closeFunc, err := startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "", true)
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, closeFunc())
 		})
 
-		reusedURL, reusedCloseFunc, err := startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "")
+		reusedURL, reusedCloseFunc, err := startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "", true)
 		require.NoError(t, err)
 		require.Equal(t, connectionURL, reusedURL)
-		require.NoError(t, reusedCloseFunc())
 		require.NoError(t, verifyBuiltinPostgresInstance(ctx, cfg, connectionURL))
+
+		// The reused close func is a no-op; it does not own the
+		// process. Calling it should succeed without stopping postgres.
+		require.NoError(t, reusedCloseFunc())
+
+		// Verify postgres is still running after the no-op close.
+		persistedPort, readErr := cfg.PostgresPort().Read()
+		require.NoError(t, readErr)
+		conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", persistedPort), testutil.IntervalMedium)
+		require.NoError(t, dialErr, "expected postgres to still be running after no-op close")
+		_ = conn.Close()
 	})
 
-	t.Run("BusyPersistedPortReturnsNonMatchingProcessError", func(t *testing.T) {
+	t.Run("ReconnectBusyPersistedPortReturnsNonMatchingProcessError", func(t *testing.T) {
 		t.Parallel()
 		cfg := config.Root(t.TempDir())
 		port := reservePort(t)
@@ -485,7 +497,7 @@ func TestStartBuiltinPostgres(t *testing.T) {
 		})
 
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
-		_, _, err = startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "")
+		_, _, err = startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "", true)
 		require.Error(t, err)
 		require.ErrorIs(t, err, errBuiltinPostgresNonMatchingProcess)
 		require.FileExists(t, sentinelPath)

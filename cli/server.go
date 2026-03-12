@@ -323,8 +323,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	}
 
 	var (
-		vals = new(codersdk.DeploymentValues)
-		opts = vals.Options()
+		vals                          = new(codersdk.DeploymentValues)
+		opts                          = vals.Options()
+		allowBuiltinPostgresReconnect bool
 	)
 	serverCmd := &serpent.Command{
 		Use:     "server",
@@ -465,7 +466,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if vals.EphemeralDeployment.Value() {
 					customPostgresCacheDir = cacheDir
 				}
-				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger, customPostgresCacheDir)
+				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger, customPostgresCacheDir, allowBuiltinPostgresReconnect)
 				if err != nil {
 					return err
 				}
@@ -1321,7 +1322,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			ctx, cancel := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer cancel()
 
-			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger, "")
+			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger, "", false)
 			if err != nil {
 				return err
 			}
@@ -1350,6 +1351,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	createAdminUserCmd.Options.Add(rawURLOpt)
 	postgresBuiltinURLCmd.Options.Add(rawURLOpt)
 	postgresBuiltinServeCmd.Options.Add(rawURLOpt)
+
+	serverCmd.Options.Add(serpent.Option{
+		Flag:        "dev-builtin-postgres-reconnect",
+		Env:         "CODER_DEV_BUILTIN_POSTGRES_RECONNECT",
+		Hidden:      true,
+		Value:       serpent.BoolOf(&allowBuiltinPostgresReconnect),
+		Description: "Allow the server to reconnect to an already-running built-in PostgreSQL instance instead of starting a new one. Intended for local development workflows only.",
+	})
 
 	serverCmd.Children = append(
 		serverCmd.Children,
@@ -2271,7 +2280,8 @@ func verifyBuiltinPostgresInstance(ctx context.Context, cfg config.Root, connect
 	return nil
 }
 
-func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger, customCacheDir string) (string, func() error, error) {
+//nolint:revive // Ignore flag-parameter: allowReconnect explicitly scopes reconnect behavior to opt-in callers.
+func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger, customCacheDir string, allowReconnect bool) (string, func() error, error) {
 	usr, err := user.Current()
 	if err != nil {
 		return "", nil, err
@@ -2369,10 +2379,12 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 			slog.Error(startErr),
 		)
 
-		if persistedPortExisted {
+		if allowReconnect && persistedPortExisted {
 			verifyErr := verifyBuiltinPostgresInstance(ctx, cfg, connectionURL)
 			if verifyErr == nil {
 				logger.Info(ctx, "reusing running built-in postgres on persisted port", slog.F("port", pgPort))
+				// Return a no-op closer: the reconnecting caller does
+				// not own this process and should not stop it on exit.
 				return connectionURL, func() error { return nil }, nil
 			}
 			return "", nil, xerrors.Errorf("%w (port %d): start failed: %v; verification failed: %v", errBuiltinPostgresNonMatchingProcess, pgPort, startErr, verifyErr)

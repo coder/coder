@@ -302,6 +302,7 @@ func TestServer(t *testing.T) {
 			"--http-address", "127.0.0.1:0",
 			"--access-url", "http://example-b.com",
 			"--cache-dir", t.TempDir(),
+			"--dev-builtin-postgres-reconnect",
 		)
 		clitest.Start(t, invB.WithContext(testutil.Context(t, superDuperLong)))
 
