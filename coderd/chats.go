@@ -356,6 +356,158 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
+func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	// Default date range: last 30 days.
+	now := time.Now()
+	defaultStart := now.AddDate(0, 0, -30)
+
+	qp := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	startDate := p.Time(qp, defaultStart, "start_date", time.RFC3339)
+	endDate := p.Time(qp, now, "end_date", time.RFC3339)
+	userID := p.UUID(qp, uuid.Nil, "user_id")
+	p.ErrorExcessParams(qp)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	// Default to the caller; if user_id is set, require authorization.
+	targetUserID := apiKey.UserID
+	if userID != uuid.Nil {
+		if !api.Authorize(r, policy.ActionRead, rbac.ResourceChat.WithOwner(userID.String())) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		targetUserID = userID
+	}
+
+	summary, err := api.Database.GetChatCostSummary(ctx, database.GetChatCostSummaryParams{
+		OwnerID:   targetUserID,
+		StartDate: startDate,
+		EndDate:   endDate,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	byModel, err := api.Database.GetChatCostByModel(ctx, database.GetChatCostByModelParams{
+		OwnerID:   targetUserID,
+		StartDate: startDate,
+		EndDate:   endDate,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	byChat, err := api.Database.GetChatCostByChat(ctx, database.GetChatCostByChatParams{
+		OwnerID:   targetUserID,
+		StartDate: startDate,
+		EndDate:   endDate,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	modelBreakdowns := make([]codersdk.ChatCostModelBreakdown, 0, len(byModel))
+	for _, model := range byModel {
+		modelBreakdowns = append(modelBreakdowns, codersdk.ChatCostModelBreakdown{
+			ModelConfigID:     model.ModelConfigID,
+			DisplayName:       model.DisplayName,
+			Provider:          model.Provider,
+			Model:             model.Model,
+			TotalCostMicros:   model.TotalCostMicros,
+			MessageCount:      model.MessageCount,
+			TotalInputTokens:  model.TotalInputTokens,
+			TotalOutputTokens: model.TotalOutputTokens,
+		})
+	}
+
+	chatBreakdowns := make([]codersdk.ChatCostChatBreakdown, 0, len(byChat))
+	for _, chat := range byChat {
+		chatBreakdowns = append(chatBreakdowns, codersdk.ChatCostChatBreakdown{
+			RootChatID:        chat.RootChatID,
+			ChatTitle:         chat.ChatTitle,
+			TotalCostMicros:   chat.TotalCostMicros,
+			MessageCount:      chat.MessageCount,
+			TotalInputTokens:  chat.TotalInputTokens,
+			TotalOutputTokens: chat.TotalOutputTokens,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostSummary{
+		StartDate:            startDate,
+		EndDate:              endDate,
+		TotalCostMicros:      summary.TotalCostMicros,
+		PricedMessageCount:   summary.PricedMessageCount,
+		UnpricedMessageCount: summary.UnpricedMessageCount,
+		TotalInputTokens:     summary.TotalInputTokens,
+		TotalOutputTokens:    summary.TotalOutputTokens,
+		ByModel:              modelBreakdowns,
+		ByChat:               chatBreakdowns,
+	})
+}
+
+func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceChat) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	now := time.Now()
+	defaultStart := now.AddDate(0, 0, -30)
+
+	qp := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	startDate := p.Time(qp, defaultStart, "start_date", time.RFC3339)
+	endDate := p.Time(qp, now, "end_date", time.RFC3339)
+	p.ErrorExcessParams(qp)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	users, err := api.Database.GetChatCostByUser(ctx, database.GetChatCostByUserParams{
+		StartDate: startDate,
+		EndDate:   endDate,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	rollups := make([]codersdk.ChatCostUserRollup, 0, len(users))
+	for _, user := range users {
+		rollups = append(rollups, codersdk.ChatCostUserRollup{
+			UserID:            user.UserID,
+			TotalCostMicros:   user.TotalCostMicros,
+			MessageCount:      user.MessageCount,
+			ChatCount:         user.ChatCount,
+			TotalInputTokens:  user.TotalInputTokens,
+			TotalOutputTokens: user.TotalOutputTokens,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostUsersResponse{
+		StartDate: startDate,
+		EndDate:   endDate,
+		Users:     rollups,
+	})
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
