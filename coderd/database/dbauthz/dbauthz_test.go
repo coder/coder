@@ -4535,12 +4535,6 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			UpdatedAt:               app.UpdatedAt,
 		}).Asserts(rbac.ResourceOauth2App, policy.ActionUpdate).Returns(app)
 	}))
-	s.Run("GetOAuth2ProviderAppByRegistrationToken", s.Subtest(func(db database.Store, check *expects) {
-		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
-			RegistrationAccessToken: []byte("test-token"),
-		})
-		check.Args([]byte("test-token")).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
-	}))
 }
 
 func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {

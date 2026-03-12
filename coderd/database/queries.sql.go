@@ -9074,44 +9074,6 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
-const getOAuth2ProviderAppByRegistrationToken = `-- name: GetOAuth2ProviderAppByRegistrationToken :one
-SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE registration_access_token = $1
-`
-
-func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken []byte) (OAuth2ProviderApp, error) {
-	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByRegistrationToken, registrationAccessToken)
-	var i OAuth2ProviderApp
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		&i.Icon,
-		&i.CallbackURL,
-		pq.Array(&i.RedirectUris),
-		&i.ClientType,
-		&i.DynamicallyRegistered,
-		&i.ClientIDIssuedAt,
-		&i.ClientSecretExpiresAt,
-		pq.Array(&i.GrantTypes),
-		pq.Array(&i.ResponseTypes),
-		&i.TokenEndpointAuthMethod,
-		&i.Scope,
-		pq.Array(&i.Contacts),
-		&i.ClientUri,
-		&i.LogoUri,
-		&i.TosUri,
-		&i.PolicyUri,
-		&i.JwksUri,
-		&i.Jwks,
-		&i.SoftwareID,
-		&i.SoftwareVersion,
-		&i.RegistrationAccessToken,
-		&i.RegistrationClientUri,
-	)
-	return i, err
-}
-
 const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
 SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri FROM oauth2_provider_app_codes WHERE id = $1
 `

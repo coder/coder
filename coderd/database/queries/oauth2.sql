@@ -249,5 +249,3 @@ WHERE id = $1 RETURNING *;
 -- name: DeleteOAuth2ProviderAppByClientID :exec
 DELETE FROM oauth2_provider_apps WHERE id = $1;
 
--- name: GetOAuth2ProviderAppByRegistrationToken :one
-SELECT * FROM oauth2_provider_apps WHERE registration_access_token = $1;
