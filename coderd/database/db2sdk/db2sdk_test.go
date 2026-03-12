@@ -437,6 +437,61 @@ func TestAIBridgeInterception(t *testing.T) {
 	}
 }
 
+func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
+	t.Parallel()
+
+	toolCallID := uuid.New().String()
+	toolName := "web_search"
+
+	// Build assistant content blocks with ProviderExecuted set.
+	toolCall := fantasy.ToolCallContent{
+		ToolCallID:       toolCallID,
+		ToolName:         toolName,
+		Input:            `{"query":"test"}`,
+		ProviderExecuted: true,
+	}
+	toolResult := fantasy.ToolResultContent{
+		ToolCallID:       toolCallID,
+		ToolName:         toolName,
+		Result:           fantasy.ToolResultOutputContentText{Text: `{"results":[]}`},
+		ProviderExecuted: true,
+	}
+
+	tcJSON, err := json.Marshal(toolCall)
+	require.NoError(t, err)
+	trJSON, err := json.Marshal(toolResult)
+	require.NoError(t, err)
+
+	rawContent := json.RawMessage("[" + string(tcJSON) + "," + string(trJSON) + "]")
+
+	dbMsg := database.ChatMessage{
+		ID:     1,
+		ChatID: uuid.New(),
+		Role:   string(fantasy.MessageRoleAssistant),
+		Content: pqtype.NullRawMessage{
+			RawMessage: rawContent,
+			Valid:      true,
+		},
+		CreatedAt: time.Now(),
+	}
+
+	result := db2sdk.ChatMessage(dbMsg)
+
+	require.Len(t, result.Content, 2)
+
+	// First part: tool call.
+	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, result.Content[0].Type)
+	require.Equal(t, toolCallID, result.Content[0].ToolCallID)
+	require.Equal(t, toolName, result.Content[0].ToolName)
+	require.True(t, result.Content[0].ProviderExecuted, "tool call should preserve ProviderExecuted")
+
+	// Second part: tool result.
+	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, result.Content[1].Type)
+	require.Equal(t, toolCallID, result.Content[1].ToolCallID)
+	require.Equal(t, toolName, result.Content[1].ToolName)
+	require.True(t, result.Content[1].ProviderExecuted, "tool result should preserve ProviderExecuted")
+}
+
 func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	t.Parallel()
 

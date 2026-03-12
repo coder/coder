@@ -1336,19 +1336,23 @@ func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 			Data:      value.Data,
 		}
 	case fantasy.ToolResultContent:
-		return chatprompt.ToolResultToPart(
+		part := chatprompt.ToolResultToPart(
 			value.ToolCallID,
 			value.ToolName,
 			toolResultOutputToRawJSON(value.Result),
 			toolResultOutputIsError(value.Result),
 		)
+		part.ProviderExecuted = value.ProviderExecuted
+		return part
 	case *fantasy.ToolResultContent:
-		return chatprompt.ToolResultToPart(
+		part := chatprompt.ToolResultToPart(
 			value.ToolCallID,
 			value.ToolName,
 			toolResultOutputToRawJSON(value.Result),
 			toolResultOutputIsError(value.Result),
 		)
+		part.ProviderExecuted = value.ProviderExecuted
+		return part
 	default:
 		return codersdk.ChatMessagePart{}
 	}
