@@ -14,7 +14,9 @@ import {
 	unarchiveChat,
 	updateInfiniteChatsCache,
 } from "api/queries/chats";
+import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
@@ -34,8 +36,6 @@ import {
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
-import { workspaceById } from "api/queries/workspaces";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
 	type CreateChatOptions,
 	emptyInputStorageKey,
@@ -483,45 +483,47 @@ const AgentsPage: FC = () => {
 
 	return (
 		<>
-		<DeleteDialog
-			isOpen={pendingArchiveAndDelete !== null && Boolean(pendingWorkspaceName)}
-			onConfirm={handleConfirmArchiveAndDelete}
-			onCancel={() => setPendingArchiveAndDelete(null)}
-			entity="workspace"
-			name={pendingWorkspaceName}
-			confirmLoading={archiveAndDeleteMutation.isPending}
-			info="This will archive the agent and permanently delete the associated workspace and all its resources."
-		/>
-		<AgentsPageView
-			agentId={agentId}
-			chatList={chatList}
-			catalogModelOptions={catalogModelOptions}
-			modelConfigs={chatModelConfigsQuery.data ?? []}
-			logoUrl={appearance.logo_url}
-			handleNewAgent={handleNewAgent}
-			isCreating={createMutation.isPending}
-			isArchiving={isArchiving}
-			archivingChatId={archivingChatId}
-			isChatsLoading={chatsQuery.isLoading}
-			chatsLoadError={chatsQuery.error}
-			onRetryChatsLoad={() => void chatsQuery.refetch()}
-			onCollapseSidebar={() => setIsSidebarCollapsed(true)}
-			isSidebarCollapsed={isSidebarCollapsed}
-			onExpandSidebar={() => setIsSidebarCollapsed(false)}
-			outletContext={outletContext}
-			onCreateChat={handleCreateChat}
-			createError={createMutation.error}
-			modelCatalog={chatModelsQuery.data}
-			isModelCatalogLoading={chatModelsQuery.isLoading}
-			isModelConfigsLoading={chatModelConfigsQuery.isLoading}
-			modelCatalogError={chatModelsQuery.error}
-			isAgentsAdmin={isAgentsAdmin}
-			hasNextPage={chatsQuery.hasNextPage}
-			onLoadMore={() => void chatsQuery.fetchNextPage()}
-			isFetchingNextPage={chatsQuery.isFetchingNextPage}
-			archivedFilter={archivedFilter}
-			onArchivedFilterChange={setArchivedFilter}
-		/>
+			<DeleteDialog
+				isOpen={
+					pendingArchiveAndDelete !== null && Boolean(pendingWorkspaceName)
+				}
+				onConfirm={handleConfirmArchiveAndDelete}
+				onCancel={() => setPendingArchiveAndDelete(null)}
+				entity="workspace"
+				name={pendingWorkspaceName}
+				confirmLoading={archiveAndDeleteMutation.isPending}
+				info="This will archive the agent and permanently delete the associated workspace and all its resources."
+			/>
+			<AgentsPageView
+				agentId={agentId}
+				chatList={chatList}
+				catalogModelOptions={catalogModelOptions}
+				modelConfigs={chatModelConfigsQuery.data ?? []}
+				logoUrl={appearance.logo_url}
+				handleNewAgent={handleNewAgent}
+				isCreating={createMutation.isPending}
+				isArchiving={isArchiving}
+				archivingChatId={archivingChatId}
+				isChatsLoading={chatsQuery.isLoading}
+				chatsLoadError={chatsQuery.error}
+				onRetryChatsLoad={() => void chatsQuery.refetch()}
+				onCollapseSidebar={() => setIsSidebarCollapsed(true)}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onExpandSidebar={() => setIsSidebarCollapsed(false)}
+				outletContext={outletContext}
+				onCreateChat={handleCreateChat}
+				createError={createMutation.error}
+				modelCatalog={chatModelsQuery.data}
+				isModelCatalogLoading={chatModelsQuery.isLoading}
+				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
+				modelCatalogError={chatModelsQuery.error}
+				isAgentsAdmin={isAgentsAdmin}
+				hasNextPage={chatsQuery.hasNextPage}
+				onLoadMore={() => void chatsQuery.fetchNextPage()}
+				isFetchingNextPage={chatsQuery.isFetchingNextPage}
+				archivedFilter={archivedFilter}
+				onArchivedFilterChange={setArchivedFilter}
+			/>
 		</>
 	);
 };
