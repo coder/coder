@@ -80,6 +80,12 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 					xerrors.Errorf("load workspace: %w", err).Error(),
 				), nil
 			}
+			// Workspace was soft-deleted but row still exists.
+			if ws.Deleted {
+				return fantasy.NewTextErrorResponse(
+					"workspace was deleted; use create_workspace to make a new one",
+				), nil
+			}
 
 			build, err := options.DB.GetLatestWorkspaceBuildByWorkspaceID(ctx, ws.ID)
 			if err != nil {

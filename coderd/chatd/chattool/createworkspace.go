@@ -250,6 +250,10 @@ func checkExistingWorkspace(
 		}
 		return nil, false, xerrors.Errorf("load workspace: %w", err)
 	}
+	// Workspace was soft-deleted but row still exists — allow creation.
+	if ws.Deleted {
+		return nil, false, nil
+	}
 
 	// Check the latest build status.
 	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, ws.ID)
