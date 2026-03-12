@@ -257,7 +257,16 @@ func TestServer(t *testing.T) {
 		)
 		waiterA := clitest.StartWithWaiter(t, invA.WithContext(testutil.Context(t, superDuperLong)))
 
-		serverAURL := waitAccessURL(t, sharedConfig)
+		var rawServerAURL string
+		//nolint:gocritic // Embedded postgres takes a while to fire up.
+		require.Eventually(t, func() bool {
+			var readErr error
+			rawServerAURL, readErr = sharedConfig.URL().Read()
+			return readErr == nil && rawServerAURL != ""
+		}, superDuperLong, testutil.IntervalFast, "failed to get access URL")
+
+		serverAURL, err := url.Parse(rawServerAURL)
+		require.NoError(t, err)
 		assertHealthy(t, serverAURL)
 
 		persistedPort, err := sharedConfig.PostgresPort().Read()
