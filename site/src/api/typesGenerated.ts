@@ -1070,6 +1070,92 @@ export interface Chat {
 
 // From codersdk/chats.go
 /**
+ * ChatCostChatBreakdown contains per-root-chat cost aggregation.
+ */
+export interface ChatCostChatBreakdown {
+	readonly root_chat_id: string;
+	readonly chat_title: string;
+	readonly total_cost_micros: number;
+	readonly message_count: number;
+	readonly total_input_tokens: number;
+	readonly total_output_tokens: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostModelBreakdown contains per-model cost aggregation.
+ */
+export interface ChatCostModelBreakdown {
+	readonly model_config_id: string;
+	readonly display_name: string;
+	readonly provider: string;
+	readonly model: string;
+	readonly total_cost_micros: number;
+	readonly message_count: number;
+	readonly total_input_tokens: number;
+	readonly total_output_tokens: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostSummary is the response from the chat cost summary endpoint.
+ */
+export interface ChatCostSummary {
+	readonly start_date: string;
+	readonly end_date: string;
+	readonly total_cost_micros: number;
+	readonly priced_message_count: number;
+	readonly unpriced_message_count: number;
+	readonly total_input_tokens: number;
+	readonly total_output_tokens: number;
+	readonly by_model: readonly ChatCostModelBreakdown[];
+	readonly by_chat: readonly ChatCostChatBreakdown[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
+ */
+export interface ChatCostSummaryOptions {
+	readonly StartDate: string;
+	readonly EndDate: string;
+	readonly UserID: string; // Zero value means "use the caller's own ID".
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostUserRollup contains per-user cost aggregation for admin views.
+ */
+export interface ChatCostUserRollup {
+	readonly user_id: string;
+	readonly total_cost_micros: number;
+	readonly message_count: number;
+	readonly chat_count: number;
+	readonly total_input_tokens: number;
+	readonly total_output_tokens: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostUsersOptions are optional query parameters for GetChatCostUsers.
+ */
+export interface ChatCostUsersOptions {
+	readonly StartDate: string;
+	readonly EndDate: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostUsersResponse is the response from the admin chat cost users endpoint.
+ */
+export interface ChatCostUsersResponse {
+	readonly start_date: string;
+	readonly end_date: string;
+	readonly users: readonly ChatCostUserRollup[];
+}
+
+// From codersdk/chats.go
+/**
  * ChatDiffContents represents the resolved diff text for a chat.
  */
 export interface ChatDiffContents {

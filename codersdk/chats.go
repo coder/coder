@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -613,6 +614,71 @@ type chatStreamEnvelope struct {
 	Data json.RawMessage     `json:"data,omitempty"`
 }
 
+// ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
+type ChatCostSummaryOptions struct {
+	StartDate time.Time
+	EndDate   time.Time
+	UserID    uuid.UUID // Zero value means "use the caller's own ID".
+}
+
+// ChatCostUsersOptions are optional query parameters for GetChatCostUsers.
+type ChatCostUsersOptions struct {
+	StartDate time.Time
+	EndDate   time.Time
+}
+
+// ChatCostSummary is the response from the chat cost summary endpoint.
+type ChatCostSummary struct {
+	StartDate            time.Time                `json:"start_date" format:"date-time"`
+	EndDate              time.Time                `json:"end_date" format:"date-time"`
+	TotalCostMicros      int64                    `json:"total_cost_micros"`
+	PricedMessageCount   int64                    `json:"priced_message_count"`
+	UnpricedMessageCount int64                    `json:"unpriced_message_count"`
+	TotalInputTokens     int64                    `json:"total_input_tokens"`
+	TotalOutputTokens    int64                    `json:"total_output_tokens"`
+	ByModel              []ChatCostModelBreakdown `json:"by_model"`
+	ByChat               []ChatCostChatBreakdown  `json:"by_chat"`
+}
+
+// ChatCostModelBreakdown contains per-model cost aggregation.
+type ChatCostModelBreakdown struct {
+	ModelConfigID     uuid.UUID `json:"model_config_id" format:"uuid"`
+	DisplayName       string    `json:"display_name"`
+	Provider          string    `json:"provider"`
+	Model             string    `json:"model"`
+	TotalCostMicros   int64     `json:"total_cost_micros"`
+	MessageCount      int64     `json:"message_count"`
+	TotalInputTokens  int64     `json:"total_input_tokens"`
+	TotalOutputTokens int64     `json:"total_output_tokens"`
+}
+
+// ChatCostChatBreakdown contains per-root-chat cost aggregation.
+type ChatCostChatBreakdown struct {
+	RootChatID        uuid.UUID `json:"root_chat_id" format:"uuid"`
+	ChatTitle         string    `json:"chat_title"`
+	TotalCostMicros   int64     `json:"total_cost_micros"`
+	MessageCount      int64     `json:"message_count"`
+	TotalInputTokens  int64     `json:"total_input_tokens"`
+	TotalOutputTokens int64     `json:"total_output_tokens"`
+}
+
+// ChatCostUserRollup contains per-user cost aggregation for admin views.
+type ChatCostUserRollup struct {
+	UserID            uuid.UUID `json:"user_id" format:"uuid"`
+	TotalCostMicros   int64     `json:"total_cost_micros"`
+	MessageCount      int64     `json:"message_count"`
+	ChatCount         int64     `json:"chat_count"`
+	TotalInputTokens  int64     `json:"total_input_tokens"`
+	TotalOutputTokens int64     `json:"total_output_tokens"`
+}
+
+// ChatCostUsersResponse is the response from the admin chat cost users endpoint.
+type ChatCostUsersResponse struct {
+	StartDate time.Time            `json:"start_date" format:"date-time"`
+	EndDate   time.Time            `json:"end_date" format:"date-time"`
+	Users     []ChatCostUserRollup `json:"users"`
+}
+
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
 	Query string
@@ -773,6 +839,60 @@ func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.U
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// GetChatCostSummary returns an aggregate cost summary for the caller
+// (or for a specific user when UserID is set, admin only).
+func (c *Client) GetChatCostSummary(ctx context.Context, opts ChatCostSummaryOptions) (ChatCostSummary, error) {
+	qp := url.Values{}
+	if !opts.StartDate.IsZero() {
+		qp.Set("start_date", opts.StartDate.Format(time.RFC3339))
+	}
+	if !opts.EndDate.IsZero() {
+		qp.Set("end_date", opts.EndDate.Format(time.RFC3339))
+	}
+	if opts.UserID != uuid.Nil {
+		qp.Set("user_id", opts.UserID.String())
+	}
+	reqURL := "/api/experimental/chats/cost-summary"
+	if len(qp) > 0 {
+		reqURL += "?" + qp.Encode()
+	}
+	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return ChatCostSummary{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatCostSummary{}, ReadBodyAsError(res)
+	}
+	var summary ChatCostSummary
+	return summary, json.NewDecoder(res.Body).Decode(&summary)
+}
+
+// GetChatCostUsers returns a per-user cost rollup for the deployment (admin only).
+func (c *Client) GetChatCostUsers(ctx context.Context, opts ChatCostUsersOptions) (ChatCostUsersResponse, error) {
+	qp := url.Values{}
+	if !opts.StartDate.IsZero() {
+		qp.Set("start_date", opts.StartDate.Format(time.RFC3339))
+	}
+	if !opts.EndDate.IsZero() {
+		qp.Set("end_date", opts.EndDate.Format(time.RFC3339))
+	}
+	reqURL := "/api/experimental/chats/cost-users"
+	if len(qp) > 0 {
+		reqURL += "?" + qp.Encode()
+	}
+	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return ChatCostUsersResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatCostUsersResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatCostUsersResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.
