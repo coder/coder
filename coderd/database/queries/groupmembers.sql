@@ -52,12 +52,6 @@ FROM
 ON CONFLICT DO NOTHING
 RETURNING group_id;
 
--- name: RemoveUserFromAllGroups :exec
-DELETE FROM
-	group_members
-WHERE
-	user_id = @user_id;
-
 -- name: RemoveUserFromGroups :many
 DELETE FROM
 	group_members

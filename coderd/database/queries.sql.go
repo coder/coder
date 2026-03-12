@@ -5942,18 +5942,6 @@ func (q *sqlQuerier) InsertUserGroupsByID(ctx context.Context, arg InsertUserGro
 	return items, nil
 }
 
-const removeUserFromAllGroups = `-- name: RemoveUserFromAllGroups :exec
-DELETE FROM
-	group_members
-WHERE
-	user_id = $1
-`
-
-func (q *sqlQuerier) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, removeUserFromAllGroups, userID)
-	return err
-}
-
 const removeUserFromGroups = `-- name: RemoveUserFromGroups :many
 DELETE FROM
 	group_members
