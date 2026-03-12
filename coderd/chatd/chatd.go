@@ -2349,12 +2349,23 @@ func (p *Server) runChat(
 				hasUsage := step.Usage != (fantasy.Usage{})
 				var usageForCost codersdk.ChatMessageUsage
 				if hasUsage {
-					usageForCost = codersdk.ChatMessageUsage{
-						InputTokens:         int64Ptr(step.Usage.InputTokens),
-						OutputTokens:        int64Ptr(step.Usage.OutputTokens),
-						ReasoningTokens:     int64Ptr(step.Usage.ReasoningTokens),
-						CacheCreationTokens: int64Ptr(step.Usage.CacheCreationTokens),
-						CacheReadTokens:     int64Ptr(step.Usage.CacheReadTokens),
+					// Only populate fields that the provider explicitly
+					// reported. Nil fields tell the calculator "no data"
+					// vs zero meaning "reported as zero tokens."
+					if step.Usage.InputTokens != 0 {
+						usageForCost.InputTokens = int64Ptr(step.Usage.InputTokens)
+					}
+					if step.Usage.OutputTokens != 0 {
+						usageForCost.OutputTokens = int64Ptr(step.Usage.OutputTokens)
+					}
+					if step.Usage.ReasoningTokens != 0 {
+						usageForCost.ReasoningTokens = int64Ptr(step.Usage.ReasoningTokens)
+					}
+					if step.Usage.CacheCreationTokens != 0 {
+						usageForCost.CacheCreationTokens = int64Ptr(step.Usage.CacheCreationTokens)
+					}
+					if step.Usage.CacheReadTokens != 0 {
+						usageForCost.CacheReadTokens = int64Ptr(step.Usage.CacheReadTokens)
 					}
 				}
 
@@ -2381,6 +2392,10 @@ func (p *Server) runChat(
 					CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
 					ContextLimit:    step.ContextLimit,
 					Compressed:      sql.NullBool{},
+					// TotalCostMicros is nullable: NULL means "unpriced"
+					// (pricing config was missing or no priced token
+					// breakdown available), while 0 means "priced at
+					// zero cost" (e.g., a free model).
 					TotalCostMicros: usageNullInt64Ptr(totalCostMicros),
 				})
 				if insertErr != nil {
