@@ -5581,30 +5581,6 @@ func (q *sqlQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (File, error
 	return i, err
 }
 
-const getFileIDByTemplateVersionID = `-- name: GetFileIDByTemplateVersionID :one
-SELECT
-	files.id
-FROM
-	files
-JOIN
-	provisioner_jobs ON
-		provisioner_jobs.storage_method = 'file'
-		AND provisioner_jobs.file_id = files.id
-JOIN
-	template_versions ON template_versions.job_id = provisioner_jobs.id
-WHERE
-	template_versions.id = $1
-LIMIT
-	1
-`
-
-func (q *sqlQuerier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, getFileIDByTemplateVersionID, templateVersionID)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
-}
-
 const getFileTemplates = `-- name: GetFileTemplates :many
 SELECT
 	files.id AS file_id,

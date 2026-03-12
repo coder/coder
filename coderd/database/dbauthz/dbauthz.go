@@ -2741,22 +2741,6 @@ func (q *querier) GetFileByID(ctx context.Context, id uuid.UUID) (database.File,
 	return file, nil
 }
 
-func (q *querier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
-	fileID, err := q.db.GetFileIDByTemplateVersionID(ctx, templateVersionID)
-	if err != nil {
-		return uuid.Nil, err
-	}
-	// This is a kind of weird check, because users will almost never have this
-	// permission. Since this query is not currently used to provide data in a
-	// user facing way, it's expected that this query is run as some system
-	// subject in order to be authorized.
-	err = q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFile.WithID(fileID))
-	if err != nil {
-		return uuid.Nil, err
-	}
-	return fileID, nil
-}
-
 func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
