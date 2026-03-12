@@ -8060,20 +8060,6 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentLogOverflowByID(ctx, arg an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentLogOverflowByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentLogOverflowByID), ctx, arg)
 }
 
-// UpdateWorkspaceAgentMetadata mocks base method.
-func (m *MockStore) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateWorkspaceAgentMetadata", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateWorkspaceAgentMetadata indicates an expected call of UpdateWorkspaceAgentMetadata.
-func (mr *MockStoreMockRecorder) UpdateWorkspaceAgentMetadata(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAgentMetadata), ctx, arg)
-}
-
 // UpdateWorkspaceAgentStartupByID mocks base method.
 func (m *MockStore) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	m.ctrl.T.Helper()

@@ -21837,46 +21837,6 @@ func (q *sqlQuerier) UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, ar
 	return err
 }
 
-const updateWorkspaceAgentMetadata = `-- name: UpdateWorkspaceAgentMetadata :exec
-WITH metadata AS (
-	SELECT
-		unnest($2::text[]) AS key,
-		unnest($3::text[]) AS value,
-		unnest($4::text[]) AS error,
-		unnest($5::timestamptz[]) AS collected_at
-)
-UPDATE
-	workspace_agent_metadata wam
-SET
-	value = m.value,
-	error = m.error,
-	collected_at = m.collected_at
-FROM
-	metadata m
-WHERE
-	wam.workspace_agent_id = $1
-	AND wam.key = m.key
-`
-
-type UpdateWorkspaceAgentMetadataParams struct {
-	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
-	Key              []string    `db:"key" json:"key"`
-	Value            []string    `db:"value" json:"value"`
-	Error            []string    `db:"error" json:"error"`
-	CollectedAt      []time.Time `db:"collected_at" json:"collected_at"`
-}
-
-func (q *sqlQuerier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg UpdateWorkspaceAgentMetadataParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentMetadata,
-		arg.WorkspaceAgentID,
-		pq.Array(arg.Key),
-		pq.Array(arg.Value),
-		pq.Array(arg.Error),
-		pq.Array(arg.CollectedAt),
-	)
-	return err
-}
-
 const updateWorkspaceAgentStartupByID = `-- name: UpdateWorkspaceAgentStartupByID :exec
 UPDATE
 	workspace_agents

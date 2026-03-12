@@ -4302,14 +4302,6 @@ func (m queryMetricsStore) UpdateWorkspaceAgentLogOverflowByID(ctx context.Conte
 	return r0
 }
 
-func (m queryMetricsStore) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
-	start := time.Now()
-	r0 := m.s.UpdateWorkspaceAgentMetadata(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceAgentMetadata").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg database.UpdateWorkspaceAgentStartupByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceAgentStartupByID(ctx, arg)
