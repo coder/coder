@@ -53,8 +53,15 @@ func (wb *WaitBuffer) Write(p []byte) (int, error) {
 // ctx expires. Returns nil on match, ctx.Err() on timeout.
 // Safe to call from any goroutine.
 func (wb *WaitBuffer) WaitFor(ctx context.Context, signal string) error {
+	return wb.WaitForNth(ctx, signal, 1)
+}
+
+// WaitForNth blocks until the accumulated output contains at least
+// n occurrences of signal, or ctx expires. Returns nil on match,
+// ctx.Err() on timeout. Safe to call from any goroutine.
+func (wb *WaitBuffer) WaitForNth(ctx context.Context, signal string, n int) error {
 	return wb.WaitForCond(ctx, func(s string) bool {
-		return strings.Contains(s, signal)
+		return strings.Count(s, signal) >= n
 	})
 }
 

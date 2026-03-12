@@ -166,6 +166,43 @@ func TestWaitBuffer_SequentialWaits(t *testing.T) {
 	require.NoError(t, wb.WaitFor(ctx, "second"))
 }
 
+func TestWaitBuffer_WaitForNth_Blocks(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	wb := testutil.NewWaitBuffer()
+	_, err := wb.Write([]byte("Foo "))
+	require.NoError(t, err)
+
+	// First occurrence is already present, but we want two.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = wb.WaitForNth(ctx, "Foo", 2)
+	}()
+
+	_, err = wb.Write([]byte("Bar Foo"))
+	require.NoError(t, err)
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("WaitForNth did not unblock after second occurrence")
+	}
+}
+
+func TestWaitBuffer_WaitForNth_AlreadySatisfied(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	wb := testutil.NewWaitBuffer()
+	_, err := wb.Write([]byte("Foo Foo Foo"))
+	require.NoError(t, err)
+
+	// All three occurrences already present.
+	require.NoError(t, wb.WaitForNth(ctx, "Foo", 3))
+}
+
 func TestWaitBuffer_RequireWaitFor_Timeout(t *testing.T) {
 	t.Parallel()
 
