@@ -2362,21 +2362,6 @@ func (mr *MockStoreMockRecorder) GetFileByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFileByID", reflect.TypeOf((*MockStore)(nil).GetFileByID), ctx, id)
 }
 
-// GetFileTemplates mocks base method.
-func (m *MockStore) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetFileTemplates", ctx, fileID)
-	ret0, _ := ret[0].([]database.GetFileTemplatesRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetFileTemplates indicates an expected call of GetFileTemplates.
-func (mr *MockStoreMockRecorder) GetFileTemplates(ctx, fileID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFileTemplates", reflect.TypeOf((*MockStore)(nil).GetFileTemplates), ctx, fileID)
-}
-
 // GetFilteredInboxNotificationsByUserID mocks base method.
 func (m *MockStore) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	m.ctrl.T.Helper()

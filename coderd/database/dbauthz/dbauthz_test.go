@@ -3771,11 +3771,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetDeploymentWorkspaceStats(gomock.Any()).Return(database.GetDeploymentWorkspaceStatsRow{}, nil).AnyTimes()
 		check.Args().Asserts()
 	}))
-	s.Run("GetFileTemplates", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		id := uuid.New()
-		dbm.EXPECT().GetFileTemplates(gomock.Any(), id).Return([]database.GetFileTemplatesRow{}, nil).AnyTimes()
-		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
 	s.Run("GetProvisionerJobsToBeReaped", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetProvisionerJobsToBeReapedParams{}
 		dbm.EXPECT().GetProvisionerJobsToBeReaped(gomock.Any(), arg).Return([]database.ProvisionerJob{}, nil).AnyTimes()

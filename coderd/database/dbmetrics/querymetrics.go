@@ -1287,14 +1287,6 @@ func (m queryMetricsStore) GetFileByID(ctx context.Context, id uuid.UUID) (datab
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetFileTemplates(ctx, fileID)
-	m.queryLatencies.WithLabelValues("GetFileTemplates").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFileTemplates").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetFilteredInboxNotificationsByUserID(ctx, arg)
