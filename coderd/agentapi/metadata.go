@@ -66,7 +66,7 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 	var (
 		collectedAt = a.now()
 		allKeysLen  = 0
-		dbUpdate = struct {
+		dbUpdate    = struct {
 			Key         []string
 			Value       []string
 			Error       []string

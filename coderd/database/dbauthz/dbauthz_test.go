@@ -880,7 +880,6 @@ func (s *MethodTestSuite) TestGroup() {
 		check.Args(arg).Asserts(g, policy.ActionUpdate).Returns()
 	}))
 
-
 	s.Run("InsertUserGroupsByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		o := testutil.Fake(s.T(), faker, database.Organization{})
 		u1 := testutil.Fake(s.T(), faker, database.User{})
@@ -892,7 +891,6 @@ func (s *MethodTestSuite) TestGroup() {
 		dbm.EXPECT().InsertUserGroupsByID(gomock.Any(), arg).Return(returns, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(returns)
 	}))
-
 
 	s.Run("RemoveUserFromGroups", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		o := testutil.Fake(s.T(), faker, database.Organization{})
