@@ -2248,6 +2248,23 @@ func isBuiltinPostgresPortConflict(err error, port uint64) bool {
 	return strings.Contains(err.Error(), fmt.Sprintf("process already listening on port %d", port))
 }
 
+func canonicalBuiltinPostgresPath(path string) (string, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", xerrors.Errorf("abs path %q: %w", path, err)
+	}
+
+	resolvedPath, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return filepath.Clean(absPath), nil
+		}
+		return "", xerrors.Errorf("resolve symlinks for %q: %w", path, err)
+	}
+
+	return filepath.Clean(resolvedPath), nil
+}
+
 func verifyBuiltinPostgresInstance(ctx context.Context, cfg config.Root, connectionURL string) error {
 	// nolint:gocritic // Keep persisted-port verification quick on conflicts.
 	verifyCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -2281,7 +2298,15 @@ func verifyBuiltinPostgresInstance(ctx context.Context, cfg config.Root, connect
 	if err != nil {
 		return xerrors.Errorf("query persisted postgres data directory: %w", err)
 	}
-	if filepath.Clean(dataDirectory) != filepath.Clean(filepath.Join(cfg.PostgresPath(), "data")) {
+	resolvedDataDirectory, err := canonicalBuiltinPostgresPath(dataDirectory)
+	if err != nil {
+		return xerrors.Errorf("canonicalize persisted postgres data directory: %w", err)
+	}
+	resolvedExpectedDataDirectory, err := canonicalBuiltinPostgresPath(filepath.Join(cfg.PostgresPath(), "data"))
+	if err != nil {
+		return xerrors.Errorf("canonicalize expected postgres data directory: %w", err)
+	}
+	if resolvedDataDirectory != resolvedExpectedDataDirectory {
 		return xerrors.Errorf("unexpected data directory %q", dataDirectory)
 	}
 

@@ -458,6 +458,26 @@ func TestStartBuiltinPostgres(t *testing.T) {
 		require.NoError(t, verifyBuiltinPostgresInstance(ctx, cfg, connectionURL))
 	})
 
+	t.Run("VerifyBuiltinInstanceAcceptsRelativeConfigPath", func(t *testing.T) {
+		t.Parallel()
+
+		workingDir, err := os.Getwd()
+		require.NoError(t, err)
+
+		configDir, err := filepath.Rel(workingDir, t.TempDir())
+		require.NoError(t, err)
+		cfg := config.Root(configDir)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+		connectionURL, closeFunc, err := startBuiltinPostgres(ctx, cfg, testutil.Logger(t), "", false)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, closeFunc())
+		})
+
+		require.NoError(t, verifyBuiltinPostgresInstance(ctx, cfg, connectionURL))
+	})
+
 	t.Run("ReconnectReusesMatchingBuiltinInstance", func(t *testing.T) {
 		t.Parallel()
 		cfg := config.Root(t.TempDir())
