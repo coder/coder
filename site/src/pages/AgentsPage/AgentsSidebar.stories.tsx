@@ -475,6 +475,8 @@ export const WithDiffStats: Story = {
 				diff_status: {
 					chat_id: "diff-both",
 					url: "https://github.com/coder/coder/pull/1",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
@@ -488,6 +490,8 @@ export const WithDiffStats: Story = {
 				diff_status: {
 					chat_id: "diff-add-only",
 					url: "https://github.com/coder/coder/pull/2",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 120,
 					deletions: 0,
@@ -501,6 +505,8 @@ export const WithDiffStats: Story = {
 				diff_status: {
 					chat_id: "diff-del-only",
 					url: "https://github.com/coder/coder/pull/3",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 0,
 					deletions: 35,
@@ -514,6 +520,8 @@ export const WithDiffStats: Story = {
 				diff_status: {
 					chat_id: "diff-none",
 					url: "https://github.com/coder/coder/pull/4",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 0,
 					deletions: 0,
@@ -558,6 +566,8 @@ export const WithDiffStatsLight: Story = {
 				diff_status: {
 					chat_id: "diff-both-light",
 					url: "https://github.com/coder/coder/pull/1",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
@@ -571,6 +581,8 @@ export const WithDiffStatsLight: Story = {
 				diff_status: {
 					chat_id: "diff-add-only-light",
 					url: "https://github.com/coder/coder/pull/2",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 120,
 					deletions: 0,
@@ -584,6 +596,8 @@ export const WithDiffStatsLight: Story = {
 				diff_status: {
 					chat_id: "diff-del-only-light",
 					url: "https://github.com/coder/coder/pull/3",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 0,
 					deletions: 35,
@@ -604,6 +618,98 @@ export const WithDiffStatsLight: Story = {
 			expect(canvas.getByText("+42")).toBeInTheDocument();
 			expect(canvas.getByText("+120")).toBeInTheDocument();
 		});
+	},
+};
+
+export const WithPRStateIcons: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pr-open",
+				title: "Open pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-open",
+					url: "https://github.com/coder/coder/pull/100",
+					pull_request_state: "open",
+					pull_request_title: "feat: add new feature",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 50,
+					deletions: 10,
+					changed_files: 4,
+				},
+			}),
+			buildChat({
+				id: "pr-draft",
+				title: "Draft pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-draft",
+					url: "https://github.com/coder/coder/pull/101",
+					pull_request_state: "open",
+					pull_request_title: "wip: draft changes",
+					pull_request_draft: true,
+					changes_requested: false,
+					additions: 20,
+					deletions: 5,
+					changed_files: 2,
+				},
+			}),
+			buildChat({
+				id: "pr-merged",
+				title: "Merged pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-merged",
+					url: "https://github.com/coder/coder/pull/102",
+					pull_request_state: "merged",
+					pull_request_title: "feat: completed feature",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 200,
+					deletions: 80,
+					changed_files: 12,
+				},
+			}),
+			buildChat({
+				id: "pr-closed",
+				title: "Closed pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-closed",
+					url: "https://github.com/coder/coder/pull/103",
+					pull_request_state: "closed",
+					pull_request_title: "fix: abandoned approach",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 15,
+					deletions: 3,
+					changed_files: 1,
+				},
+			}),
+			buildChat({
+				id: "pr-no-state",
+				title: "No PR state (branch only)",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-no-state",
+					url: "https://github.com/coder/coder/tree/my-branch",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 10,
+					deletions: 2,
+					changed_files: 1,
+				},
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
 	},
 };
 

@@ -33,9 +33,14 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisIcon,
+	GitMergeIcon,
+	GitPullRequestArrowIcon,
+	GitPullRequestClosedIcon,
+	GitPullRequestDraftIcon,
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
+	SettingsIcon,
 	SquarePenIcon,
 	Trash2Icon,
 } from "lucide-react";
@@ -72,7 +77,10 @@ interface AgentsSidebarProps {
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
+	hasNextPage?: boolean;
+	onLoadMore?: () => void;
 	onCollapse?: () => void;
+	onOpenSettings?: () => void;
 }
 
 const statusConfig = {
@@ -92,6 +100,37 @@ type ChatTree = {
 
 const getStatusConfig = (status: ChatStatus) => {
 	return statusConfig[status] ?? statusConfig.completed;
+};
+
+/**
+ * Returns the icon and className to use for a PR state, or undefined
+ * if there is no PR linked. Only overrides the icon when the chat
+ * is not actively executing (pending/running/paused/error).
+ */
+const getPRIconConfig = (
+	diffStatus: ChatDiffStatus | undefined,
+): { icon: typeof CheckIcon; className: string } | undefined => {
+	const state = diffStatus?.pull_request_state;
+	if (!state) {
+		return undefined;
+	}
+	if (state === "merged") {
+		return { icon: GitMergeIcon, className: "text-purple-500" };
+	}
+	if (state === "closed") {
+		return {
+			icon: GitPullRequestClosedIcon,
+			className: "text-content-destructive",
+		};
+	}
+	// state === "open"
+	if (diffStatus?.pull_request_draft) {
+		return {
+			icon: GitPullRequestDraftIcon,
+			className: "text-content-secondary",
+		};
+	}
+	return { icon: GitPullRequestArrowIcon, className: "text-green-500" };
 };
 
 const asNonEmptyString = (value: unknown): string | undefined => {
@@ -305,8 +344,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	);
 	const hasChildren = childIDs.length > 0;
 	const isDelegated = Boolean(getParentChatID(chat));
-	const config = getStatusConfig(chat.status);
-	const StatusIcon = config.icon;
 	const isDelegatedExecuting =
 		isDelegated && (chat.status === "pending" || chat.status === "running");
 	const modelName = getModelDisplayName(
@@ -320,6 +357,13 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 			: undefined;
 	const subtitle = errorReason || modelName;
 	const diffStatus = getChatDiffStatus(chat);
+	const baseConfig = getStatusConfig(chat.status);
+	const prConfig =
+		chat.status === "waiting" || chat.status === "completed"
+			? getPRIconConfig(diffStatus)
+			: undefined;
+	const config = prConfig ?? baseConfig;
+	const StatusIcon = config.icon;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
@@ -417,7 +461,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								<div className="flex min-w-0 items-center gap-1.5">
 									{hasLinkedDiffStatus && hasLineStats && (
 										<span
-											className="inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-medium leading-none tabular-nums"
+											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
 											<span className="text-green-700 dark:text-green-500">
@@ -537,7 +581,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isLoading = false,
 		loadError,
 		onRetryLoad,
+		hasNextPage,
+		onLoadMore,
 		onCollapse,
+		onOpenSettings,
 	} = props;
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
@@ -793,41 +840,65 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									)}
 								</div>
 							)}
+							{hasNextPage && (
+								<div className="px-2 py-2">
+									<Button
+										size="sm"
+										variant="outline"
+										className="w-full"
+										onClick={onLoadMore}
+									>
+										Show more
+									</Button>
+								</div>
+							)}
 						</ChatTreeContext.Provider>
 					)}
 				</div>
 			</ScrollArea>
 			<div className="hidden border-0 border-t border-solid md:block">
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
+				<div className="flex items-center">
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<button
+								type="button"
+								className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
+							>
+								<Avatar
+									fallback={user.username}
+									src={user.avatar_url}
+									size="sm"
+									className="rounded-full"
+								/>{" "}
+								<span className="truncate text-sm text-content-secondary">
+									{user.name || user.username}
+								</span>
+							</button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
+							<UserDropdownContent
+								user={user}
+								buildInfo={buildInfo}
+								supportLinks={
+									appearance.support_links?.filter(
+										(link) => link.location !== "navbar",
+									) ?? []
+								}
+								onSignOut={signOut}
+							/>
+						</DropdownMenuContent>
+					</DropdownMenu>
+					{onOpenSettings && (
 						<button
 							type="button"
-							className="flex w-full items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
+							onClick={onOpenSettings}
+							className="flex shrink-0 items-center justify-center bg-transparent border-0 cursor-pointer p-2 mr-1 rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-tertiary/50 transition-colors"
+							aria-label="Settings"
 						>
-							<Avatar
-								fallback={user.username}
-								src={user.avatar_url}
-								size="sm"
-								className="rounded-full"
-							/>{" "}
-							<span className="truncate text-sm text-content-secondary">
-								{user.name || user.username}
-							</span>
+							<SettingsIcon className="h-4 w-4" />
 						</button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
-						<UserDropdownContent
-							user={user}
-							buildInfo={buildInfo}
-							supportLinks={
-								appearance.support_links?.filter(
-									(link) => link.location !== "navbar",
-								) ?? []
-							}
-							onSignOut={signOut}
-						/>
-					</DropdownMenuContent>
-				</DropdownMenu>
+					)}
+				</div>
 			</div>
 		</div>
 	);

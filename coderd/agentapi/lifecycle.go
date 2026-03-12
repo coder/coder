@@ -134,9 +134,12 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	case database.WorkspaceAgentLifecycleStateReady,
 		database.WorkspaceAgentLifecycleStateStartTimeout,
 		database.WorkspaceAgentLifecycleStateStartError:
-		a.emitMetricsOnce.Do(func() {
-			a.emitBuildDurationMetric(ctx, workspaceAgent.ResourceID)
-		})
+		// Only emit metrics for the parent agent, this metric is not intended to measure devcontainer durations.
+		if !workspaceAgent.ParentID.Valid {
+			a.emitMetricsOnce.Do(func() {
+				a.emitBuildDurationMetric(ctx, workspaceAgent.ResourceID)
+			})
+		}
 	}
 
 	return req.Lifecycle, nil

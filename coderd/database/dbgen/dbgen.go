@@ -578,17 +578,27 @@ func WorkspaceBuildParameters(t testing.TB, db database.Store, orig []database.W
 }
 
 func User(t testing.TB, db database.Store, orig database.User) database.User {
+	loginType := takeFirst(orig.LoginType, database.LoginTypePassword)
+	email := takeFirst(orig.Email, testutil.GetRandomName(t))
+	// A DB constraint requires login_type = 'none' and email = '' for service
+	// accounts.
+	if orig.IsServiceAccount {
+		loginType = database.LoginTypeNone
+		email = ""
+	}
+
 	user, err := db.InsertUser(genCtx, database.InsertUserParams{
-		ID:             takeFirst(orig.ID, uuid.New()),
-		Email:          takeFirst(orig.Email, testutil.GetRandomName(t)),
-		Username:       takeFirst(orig.Username, testutil.GetRandomName(t)),
-		Name:           takeFirst(orig.Name, testutil.GetRandomName(t)),
-		HashedPassword: takeFirstSlice(orig.HashedPassword, []byte(must(cryptorand.String(32)))),
-		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
-		RBACRoles:      takeFirstSlice(orig.RBACRoles, []string{}),
-		LoginType:      takeFirst(orig.LoginType, database.LoginTypePassword),
-		Status:         string(takeFirst(orig.Status, database.UserStatusDormant)),
+		ID:               takeFirst(orig.ID, uuid.New()),
+		Email:            email,
+		Username:         takeFirst(orig.Username, testutil.GetRandomName(t)),
+		Name:             takeFirst(orig.Name, testutil.GetRandomName(t)),
+		HashedPassword:   takeFirstSlice(orig.HashedPassword, []byte(must(cryptorand.String(32)))),
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:        takeFirst(orig.UpdatedAt, dbtime.Now()),
+		RBACRoles:        takeFirstSlice(orig.RBACRoles, []string{}),
+		LoginType:        loginType,
+		Status:           string(takeFirst(orig.Status, database.UserStatusDormant)),
+		IsServiceAccount: orig.IsServiceAccount,
 	})
 	require.NoError(t, err, "insert user")
 

@@ -187,6 +187,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
 
+	// Make the reason something human-readable.
 	reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
 	s.aiSeatTracker.RecordUsage(ctx, initID, reason)
 	return &proto.RecordInterceptionResponse{}, nil

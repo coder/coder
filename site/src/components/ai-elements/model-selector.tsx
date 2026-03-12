@@ -3,7 +3,6 @@ import {
 	SelectContent,
 	SelectGroup,
 	SelectItem,
-	SelectLabel,
 	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
@@ -86,7 +85,6 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 
 		return Array.from(grouped.entries());
 	}, [options]);
-	const showProviderHeading = optionsByProvider.length > 1;
 	const isDisabled = disabled || options.length === 0;
 
 	return (
@@ -111,9 +109,6 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						const providerLabel = formatProviderLabel(provider);
 						return (
 							<SelectGroup key={provider}>
-								{showProviderHeading && (
-									<SelectLabel>{providerLabel}</SelectLabel>
-								)}
 								{providerOptions.map((option) => (
 									<ModelOptionItem
 										key={option.id}

@@ -12,6 +12,8 @@ const (
 	CheckChatProvidersProviderCheck                CheckConstraint = "chat_providers_provider_check"                  // chat_providers
 	CheckOrganizationIDNotZero                     CheckConstraint = "organization_id_not_zero"                       // custom_roles
 	CheckOneTimePasscodeSet                        CheckConstraint = "one_time_passcode_set"                          // users
+	CheckUsersEmailNotEmpty                        CheckConstraint = "users_email_not_empty"                          // users
+	CheckUsersServiceAccountLoginType              CheckConstraint = "users_service_account_login_type"               // users
 	CheckUsersUsernameMinLength                    CheckConstraint = "users_username_min_length"                      // users
 	CheckMaxProvisionerLogsLength                  CheckConstraint = "max_provisioner_logs_length"                    // provisioner_jobs
 	CheckMaxLogsLength                             CheckConstraint = "max_logs_length"                                // workspace_agents

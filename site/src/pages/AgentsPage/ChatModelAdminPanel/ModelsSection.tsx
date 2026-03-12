@@ -18,7 +18,7 @@ import {
 	PlusIcon,
 	StarIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { cn } from "utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
@@ -32,6 +32,8 @@ type ModelView =
 
 interface ModelsSectionProps {
 	sectionLabel?: string;
+	sectionDescription?: string;
+	sectionBadge?: ReactNode;
 	providerStates: readonly ProviderState[];
 	selectedProvider: string | null;
 	selectedProviderState: ProviderState | null;
@@ -53,6 +55,8 @@ interface ModelsSectionProps {
 
 export const ModelsSection: FC<ModelsSectionProps> = ({
 	sectionLabel,
+	sectionDescription,
+	sectionBadge,
 	providerStates,
 	selectedProvider,
 	selectedProviderState,
@@ -164,7 +168,10 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 			{sectionLabel && (
 				<SectionHeader
 					label={sectionLabel}
-					description="Manage models available to Agents."
+					description={
+						sectionDescription ?? "Manage models available to Agents."
+					}
+					badge={sectionBadge}
 					action={addButton || undefined}
 				/>
 			)}

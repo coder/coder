@@ -1215,3 +1215,75 @@ func TestSearchTasks(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchChats(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name                  string
+		Query                 string
+		Expected              database.GetChatsByOwnerIDParams
+		ExpectedErrorContains string
+	}{
+		{
+			Name:  "Empty",
+			Query: "",
+			Expected: database.GetChatsByOwnerIDParams{
+				Archived: sql.NullBool{Bool: false, Valid: true},
+			},
+		},
+		{
+			Name:  "ArchivedTrue",
+			Query: "archived:true",
+			Expected: database.GetChatsByOwnerIDParams{
+				Archived: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:  "ArchivedFalse",
+			Query: "archived:false",
+			Expected: database.GetChatsByOwnerIDParams{
+				Archived: sql.NullBool{Bool: false, Valid: true},
+			},
+		},
+		{
+			Name:                  "ExtraParam",
+			Query:                 "archived:true invalid:param",
+			ExpectedErrorContains: "is not a valid query param",
+		},
+		{
+			Name:                  "ExtraColon",
+			Query:                 "archived:true:extra",
+			ExpectedErrorContains: "can only contain 1 ':'",
+		},
+		{
+			Name:                  "PrefixColon",
+			Query:                 ":archived",
+			ExpectedErrorContains: "cannot start or end with ':'",
+		},
+		{
+			Name:                  "SuffixColon",
+			Query:                 "archived:",
+			ExpectedErrorContains: "cannot start or end with ':'",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
+			values, errs := searchquery.Chats(c.Query)
+			if c.ExpectedErrorContains != "" {
+				require.True(t, len(errs) > 0, "expect some errors")
+				var s strings.Builder
+				for _, err := range errs {
+					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+				}
+				require.Contains(t, s.String(), c.ExpectedErrorContains)
+			} else {
+				require.Len(t, errs, 0, "expected no error")
+				require.Equal(t, c.Expected, values, "expected values")
+			}
+		})
+	}
+}

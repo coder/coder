@@ -19,15 +19,17 @@ type store interface {
 }
 
 // throttleInterval is the minimum time between DB writes for the same user. This
-// is to prevent ai seat tracking from consuming more db resources. It is 30
-// minutes more than the db interval to ensure each insert has a better chance to
-// take effect in the db.
+// is to prevent ai seat tracking from consuming more db resources.
 //
 // These events are not critical to be recorded in real time, so we can afford to
-// skip almost all of them.
+// skip almost all of them. The first write is the most important, as it
+// indicates a seat is consumed. Subsequent writes are purely informative and has
+// no functional impact.
 const (
-	throttleInterval    = (6 * time.Hour) + time.Minute*30
-	failedRetryInterval = 10 * time.Minute
+	throttleInterval = 6 * time.Hour
+	// failedRetryInterval exists to prevent a transient error from causing no
+	// usage to be recorded. Still debounce.
+	failedRetryInterval = 30 * time.Minute
 )
 
 // SeatTracker records current AI seat state for users.
@@ -67,7 +69,7 @@ func (t *SeatTracker) recordThrottle(userID uuid.UUID, now time.Time, d time.Dur
 // RecordUsage will record the AI seat usage for the user. There is a race condition between
 // checking if the user should be recorded or throttled and actually recording. This is fine, as
 // it just means we record the usage twice.
-// The throttle just exists to prevent excessive database queries. Extra writes are not a problem.
+// The throttle just exists to prevent excessive database queries.
 func (t *SeatTracker) RecordUsage(ctx context.Context, userID uuid.UUID, reason agplaiseats.Reason) {
 	now := t.clock.Now()
 	if t.skipRecord(userID, now) {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
@@ -15,12 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
@@ -386,6 +387,90 @@ func TestListChats(t *testing.T) {
 		unauthenticatedClient := codersdk.New(client.URL)
 		_, err := unauthenticatedClient.ListChats(ctx, nil)
 		requireSDKError(t, err, http.StatusUnauthorized)
+	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		// Create 5 chats.
+		const totalChats = 5
+		createdChats := make([]codersdk.Chat, 0, totalChats)
+		for i := 0; i < totalChats; i++ {
+			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				Content: []codersdk.ChatInputPart{
+					{
+						Type: codersdk.ChatInputPartTypeText,
+						Text: fmt.Sprintf("chat-%d", i),
+					},
+				},
+			})
+			require.NoError(t, err)
+			createdChats = append(createdChats, chat)
+		}
+
+		// Fetch first page with limit=2.
+		page1, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{Limit: 2},
+		})
+		require.NoError(t, err)
+		require.Len(t, page1, 2)
+
+		// Fetch second page using after_id from last item of page 1.
+		page2, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{
+				AfterID: uuid.MustParse(page1[len(page1)-1].ID.String()),
+				Limit:   2,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, page2, 2)
+
+		// Ensure page1 and page2 have no overlap.
+		page1IDs := make(map[uuid.UUID]struct{})
+		for _, c := range page1 {
+			page1IDs[c.ID] = struct{}{}
+		}
+		for _, c := range page2 {
+			_, overlap := page1IDs[c.ID]
+			require.False(t, overlap, "page2 should not contain items from page1")
+		}
+
+		// Fetch third page — should have 1 remaining chat.
+		page3, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{
+				AfterID: uuid.MustParse(page2[len(page2)-1].ID.String()),
+				Limit:   2,
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, page3, 1)
+
+		// All 5 chats should be accounted for.
+		allIDs := make(map[uuid.UUID]struct{})
+		for _, c := range append(append(page1, page2...), page3...) {
+			allIDs[c.ID] = struct{}{}
+		}
+		for _, c := range createdChats {
+			_, found := allIDs[c.ID]
+			require.True(t, found, "chat %s should appear in paginated results", c.ID)
+		}
+
+		// Fetch with offset=3, limit=2 — should return 2 chats.
+		offsetPage, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Pagination: codersdk.Pagination{Offset: 3, Limit: 2},
+		})
+		require.NoError(t, err)
+		require.Len(t, offsetPage, 2)
+
+		// No limit should return all chats.
+		allChats, err := client.ListChats(ctx, nil)
+		require.NoError(t, err)
+		require.Len(t, allChats, totalChats)
 	})
 }
 
@@ -1195,30 +1280,30 @@ func TestArchiveChat(t *testing.T) {
 		err = client.ArchiveChat(ctx, chatToArchive.ID)
 		require.NoError(t, err)
 
-		// Default (no filter) returns all chats including archived.
+		// Default (no filter) returns only non-archived chats.
 		allChats, err := client.ListChats(ctx, nil)
 		require.NoError(t, err)
-		require.Len(t, allChats, 2)
+		require.Len(t, allChats, 1)
+		require.Equal(t, chatToKeep.ID, allChats[0].ID)
 
-		// archived=false returns only non-archived chats.
+		// archived:false returns only non-archived chats.
 		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(false),
+			Query: "archived:false",
 		})
 		require.NoError(t, err)
 		require.Len(t, activeChats, 1)
 		require.Equal(t, chatToKeep.ID, activeChats[0].ID)
 		require.False(t, activeChats[0].Archived)
 
-		// archived=true returns only archived chats.
+		// archived:true returns only archived chats.
 		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(true),
+			Query: "archived:true",
 		})
 		require.NoError(t, err)
 		require.Len(t, archivedChats, 1)
 		require.Equal(t, chatToArchive.ID, archivedChats[0].ID)
 		require.True(t, archivedChats[0].Archived)
 	})
-
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
@@ -1272,9 +1357,9 @@ func TestArchiveChat(t *testing.T) {
 		err = client.ArchiveChat(ctx, parentChat.ID)
 		require.NoError(t, err)
 
-		// archived=false should exclude the entire archived family.
+		// archived:false should exclude the entire archived family.
 		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(false),
+			Query: "archived:false",
 		})
 		require.NoError(t, err)
 		for _, c := range activeChats {
@@ -1321,19 +1406,18 @@ func TestUnarchiveChat(t *testing.T) {
 
 		// Verify it's archived.
 		archivedChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(true),
+			Query: "archived:true",
 		})
 		require.NoError(t, err)
 		require.Len(t, archivedChats, 1)
 		require.True(t, archivedChats[0].Archived)
-
 		// Unarchive the chat.
 		err = client.UnarchiveChat(ctx, chat.ID)
 		require.NoError(t, err)
 
 		// Verify it's no longer archived.
 		activeChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(false),
+			Query: "archived:false",
 		})
 		require.NoError(t, err)
 		require.Len(t, activeChats, 1)
@@ -1342,7 +1426,7 @@ func TestUnarchiveChat(t *testing.T) {
 
 		// No archived chats remain.
 		archivedChats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Archived: ptr.Ref(true),
+			Query: "archived:true",
 		})
 		require.NoError(t, err)
 		require.Empty(t, archivedChats)
@@ -2483,9 +2567,8 @@ func TestGetChatDiffStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		refreshedAt := time.Date(2026, time.January, 15, 12, 0, 0, 0, time.UTC)
-		staleAt := time.Date(2026, time.January, 15, 13, 0, 0, 0, time.UTC)
-
+		refreshedAt := time.Now().UTC().Truncate(time.Second)
+		staleAt := refreshedAt.Add(time.Hour)
 		_, err = db.UpsertChatDiffStatusReference(
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusReferenceParams{
@@ -2521,7 +2604,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, cachedStatusChat.ID, cachedStatus.ChatID)
 		require.NotNil(t, cachedStatus.URL)
-		require.Equal(t, "https://github.com/coder/coder/tree/feature%2Fdiff-status", *cachedStatus.URL)
+		require.Equal(t, "https://github.com/coder/coder/tree/feature/diff-status", *cachedStatus.URL)
 		require.NotNil(t, cachedStatus.PullRequestState)
 		require.Equal(t, "open", *cachedStatus.PullRequestState)
 		require.True(t, cachedStatus.ChangesRequested)
@@ -2555,6 +2638,130 @@ func TestGetChatDiffStatus(t *testing.T) {
 		otherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		_, err = otherClient.GetChatDiffStatus(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	// Integration test: exercises the full HTTP handler refresh
+	// path with a real DB, dbauthz, a mock GitHub API, and an
+	// external-auth-linked user. Verifies that a stale chat diff
+	// status is refreshed end-to-end via the gitsync worker's
+	// Refresh pipeline (provider resolution, token acquisition
+	// through external auth, and PR status fetch).
+	t.Run("RefreshesStaleStatusWithExternalAuth", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Mock GitHub API over TLS so the git provider's URL patterns
+		// (which require https://) match our PR URLs.
+		ghAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			// PR status: GET /repos/{owner}/{repo}/pulls/{number}
+			case r.URL.Path == "/repos/testorg/testrepo/pulls/42" && r.URL.Query().Get("per_page") == "":
+				_, _ = w.Write([]byte(`{
+					"state": "open",
+					"merged": false,
+					"draft": false,
+					"additions": 25,
+					"deletions": 7,
+					"changed_files": 4,
+					"head": {"sha": "abc123"}
+				}`))
+			// PR reviews: GET /repos/{owner}/{repo}/pulls/{number}/reviews
+			case strings.HasSuffix(r.URL.Path, "/reviews"):
+				_, _ = w.Write([]byte(`[]`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(ghAPI.Close)
+
+		// The git provider derives webBaseURL from apiBaseURL.
+		// For a TLS server at https://127.0.0.1:PORT, webBaseURL
+		// is the same, and PR URL patterns match
+		// https://127.0.0.1:PORT/{owner}/{repo}/pull/{number}.
+		ghWebHost := strings.TrimPrefix(ghAPI.URL, "https://")
+		prURL := fmt.Sprintf("https://%s/testorg/testrepo/pull/42", ghWebHost)
+		remoteOrigin := fmt.Sprintf("https://%s/testorg/testrepo.git", ghWebHost)
+
+		// Set up a fake OIDC IDP for external auth login.
+		const providerID = "test-github"
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues: chatDeploymentValues(t),
+			ExternalAuthConfigs: []*externalauth.Config{
+				fake.ExternalAuthConfig(t, providerID, nil, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+					// Point the git provider at our mock API server.
+					cfg.APIBaseURL = ghAPI.URL
+					// Match the remote origin (127.0.0.1 host).
+					cfg.Regex = regexp.MustCompile(regexp.QuoteMeta(ghWebHost))
+				}),
+			},
+		})
+		db := api.Database
+
+		// Use the TLS mock server's HTTP client (which trusts its
+		// self-signed cert) for git provider API calls.
+		api.HTTPClient = ghAPI.Client()
+
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Log in to the external auth provider so the user has an
+		// ExternalAuthLink row in the DB. This is what
+		// resolveChatGitAccessToken reads via GetExternalAuthLink.
+		fake.ExternalLogin(t, client)
+
+		// Insert a chat owned by the user.
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "rbac integration test",
+		})
+		require.NoError(t, err)
+
+		// Store a pre-resolved PR URL so the refresh path uses
+		// ParsePullRequestURL directly (skipping branch-to-PR
+		// resolution, which isn't what we're testing). The status
+		// is stale (stale_at in the past) so the handler triggers
+		// a full refresh through RefreshChat.
+		_, err = db.UpsertChatDiffStatusReference(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpsertChatDiffStatusReferenceParams{
+				ChatID:          chat.ID,
+				Url:             sql.NullString{String: prURL, Valid: true},
+				GitBranch:       "feature/rbac-fix",
+				GitRemoteOrigin: remoteOrigin,
+				StaleAt:         time.Now().Add(-time.Minute),
+			},
+		)
+		require.NoError(t, err)
+
+		// Call the HTTP endpoint. This exercises the full code
+		// path: resolveChatDiffStatus -> RefreshChat (with
+		// AsSystemRestricted) -> Refresher.Refresh ->
+		// resolveChatGitAccessToken (GetExternalAuthLink with
+		// AsSystemRestricted) -> FetchPullRequestStatus (mock).
+		//
+		// Without the AsSystemRestricted fix, GetExternalAuthLink
+		// would fail under the chatd RBAC context (missing
+		// ActionReadPersonal), causing ErrNoTokenAvailable and a
+		// refresh failure that silently returns stale data.
+		status, err := client.GetChatDiffStatus(ctx, chat.ID)
+		require.NoError(t, err)
+
+		// The mock GitHub API returned PR #42 with 25 additions,
+		// 7 deletions, 4 changed files, state "open".
+		require.NotNil(t, status.RefreshedAt, "status should have been refreshed")
+		require.NotNil(t, status.PullRequestState)
+		require.Equal(t, "open", *status.PullRequestState)
+		require.EqualValues(t, 25, status.Additions)
+		require.EqualValues(t, 7, status.Deletions)
+		require.EqualValues(t, 4, status.ChangedFiles)
+		require.NotNil(t, status.URL)
+		require.Contains(t, *status.URL, "pull/42")
 	})
 }
 
@@ -3116,6 +3323,81 @@ func createChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.ChatM
 	})
 	require.NoError(t, err)
 	return modelConfig
+}
+
+//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
+func TestChatSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	adminClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	t.Run("ReturnsEmptyWhenUnset", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		resp, err := adminClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "", resp.SystemPrompt)
+	})
+
+	t.Run("AdminCanSet", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "You are a helpful coding assistant.",
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "You are a helpful coding assistant.", resp.SystemPrompt)
+	})
+
+	t.Run("AdminCanUnset", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Unset by sending an empty string.
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "",
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatSystemPrompt(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "", resp.SystemPrompt)
+	})
+
+	t.Run("NonAdminFails", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := memberClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: "This should fail.",
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("UnauthenticatedFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		anonClient := codersdk.New(adminClient.URL)
+		_, err := anonClient.GetChatSystemPrompt(ctx)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
+
+	t.Run("TooLong", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		tooLong := strings.Repeat("a", 131073)
+		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+			SystemPrompt: tooLong,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
+	})
 }
 
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {

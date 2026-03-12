@@ -43,6 +43,8 @@ func ReasonTask(description string) Reason {
 
 // SeatTracker records AI seat consumption state.
 type SeatTracker interface {
+	// RecordUsage does not return an error to prevent blocking the user from using
+	// AI features. This method is used to record usage, not enforce it.
 	RecordUsage(ctx context.Context, userID uuid.UUID, reason Reason)
 }
 

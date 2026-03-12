@@ -57,7 +57,7 @@ SELECT
 FROM
 	users
 WHERE
-	(LOWER(username) = LOWER(@username) OR LOWER(email) = LOWER(@email)) AND
+	(LOWER(username) = LOWER(@username) OR (@email != '' AND LOWER(email) = LOWER(@email))) AND
 	deleted = false
 LIMIT
 	1;
@@ -92,13 +92,15 @@ INSERT INTO
 		updated_at,
 		rbac_roles,
 		login_type,
-		status
+		status,
+		is_service_account
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9,
 		-- if the status passed in is empty, fallback to dormant, which is what
 		-- we were doing before.
-		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status)
+		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status),
+		@is_service_account::bool
 	) RETURNING *;
 
 -- name: UpdateUserProfile :one
@@ -166,6 +168,29 @@ SET
 	value = @terminal_font
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'terminal_font'
+RETURNING *;
+
+-- name: GetUserChatCustomPrompt :one
+SELECT
+	value as chat_custom_prompt
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'chat_custom_prompt';
+
+-- name: UpdateUserChatCustomPrompt :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'chat_custom_prompt', @chat_custom_prompt)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @chat_custom_prompt
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'chat_custom_prompt'
 RETURNING *;
 
 -- name: GetUserTaskNotificationAlertDismissed :one

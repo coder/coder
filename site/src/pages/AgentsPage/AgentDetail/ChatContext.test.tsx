@@ -1,6 +1,35 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { watchChat } from "api/api";
 import { chatKey, chatsKey } from "api/queries/chats";
+
+// The infinite query key used by useInfiniteQuery(infiniteChats())
+// is [...chatsKey, undefined] = ["chats", undefined].
+const infiniteChatsTestKey = [...chatsKey, undefined];
+
+type InfiniteData = {
+	pages: TypesGen.Chat[][];
+	pageParams: unknown[];
+};
+
+/** Seed the infinite chats cache in the format TanStack Query expects. */
+const seedInfiniteChats = (
+	queryClient: QueryClient,
+	chats: TypesGen.Chat[],
+) => {
+	queryClient.setQueryData<InfiniteData>(infiniteChatsTestKey, {
+		pages: [chats],
+		pageParams: [0],
+	});
+};
+
+/** Read chats back from the infinite query cache. */
+const readInfiniteChats = (
+	queryClient: QueryClient,
+): TypesGen.Chat[] | undefined => {
+	const data = queryClient.getQueryData<InfiniteData>(infiniteChatsTestKey);
+	return data?.pages.flat();
+};
+
 import type * as TypesGen from "api/typesGenerated";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
@@ -763,6 +792,80 @@ describe("useChatStore", () => {
 			chatQueuedMessages: [queuedMessage],
 		});
 
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([]);
+		});
+	});
+
+	it("corrects stale queued messages from cache when switching back to a chat", async () => {
+		const chatID = "chat-1";
+		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = ({ children }: PropsWithChildren) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		// Start with queued messages from a stale React Query cache.
+		// This simulates coming back to a chat whose queue was drained
+		// server-side while the user was viewing a different chat.
+		const staleOptions = {
+			chatID,
+			chatMessages: [existingMessage],
+			chatRecord: makeChat(chatID),
+			chatData: {
+				chat: makeChat(chatID),
+				messages: [existingMessage],
+				queued_messages: [queuedMessage],
+			},
+			chatQueuedMessages: [queuedMessage],
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
+				};
+			},
+			{
+				initialProps: staleOptions,
+				wrapper,
+			},
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+		// Initially shows the stale queued message from cache.
+		expect(result.current.queuedMessages.map((m) => m.id)).toEqual([
+			queuedMessage.id,
+		]);
+
+		// Simulate the REST query refetching and returning fresh
+		// data with an empty queue (no queue_update from WS yet).
+		rerender({
+			...staleOptions,
+			chatData: {
+				chat: {
+					...makeChat(chatID),
+					updated_at: "2025-01-01T00:00:02.000Z",
+				},
+				messages: [existingMessage],
+				queued_messages: [],
+			},
+			chatQueuedMessages: [],
+		});
+
+		// The store should accept the fresh REST data because the
+		// WebSocket hasn't sent a queue_update yet.
 		await waitFor(() => {
 			expect(result.current.queuedMessages).toEqual([]);
 		});
@@ -2188,7 +2291,7 @@ describe("updateSidebarChat via stream events", () => {
 		});
 		const initialChat = makeChat(chatID);
 		// Seed the chats list so updateSidebarChat can find it.
-		queryClient.setQueryData(chatsKey, [initialChat]);
+		seedInfiniteChats(queryClient, [initialChat]);
 
 		const wrapper = ({ children }: PropsWithChildren) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -2229,7 +2332,7 @@ describe("updateSidebarChat via stream events", () => {
 		});
 
 		await waitFor(() => {
-			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			const sidebarChats = readInfiniteChats(queryClient);
 			expect(sidebarChats?.[0].status).toBe("completed");
 		});
 	});
@@ -2252,7 +2355,7 @@ describe("updateSidebarChat via stream events", () => {
 			},
 		});
 		const initialChat = makeChat(chatID);
-		queryClient.setQueryData(chatsKey, [initialChat]);
+		seedInfiniteChats(queryClient, [initialChat]);
 
 		const wrapper = ({ children }: PropsWithChildren) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -2302,7 +2405,7 @@ describe("updateSidebarChat via stream events", () => {
 		// global chat-list WebSocket delivers the authoritative server
 		// timestamp. Verify it stays at the original value.
 		await waitFor(() => {
-			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			const sidebarChats = readInfiniteChats(queryClient);
 			expect(sidebarChats?.[0].updated_at).toBe(initialChat.updated_at);
 		});
 	});
@@ -2325,7 +2428,7 @@ describe("updateSidebarChat via stream events", () => {
 			},
 		});
 		const initialChat = makeChat(chatID);
-		queryClient.setQueryData(chatsKey, [initialChat]);
+		seedInfiniteChats(queryClient, [initialChat]);
 
 		const wrapper = ({ children }: PropsWithChildren) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -2366,7 +2469,7 @@ describe("updateSidebarChat via stream events", () => {
 		});
 
 		await waitFor(() => {
-			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			const sidebarChats = readInfiniteChats(queryClient);
 			expect(sidebarChats?.[0].status).toBe("error");
 		});
 	});
@@ -2391,7 +2494,7 @@ describe("updateSidebarChat via stream events", () => {
 		});
 		const activeChat = makeChat(chatID);
 		const otherChat = makeChat(otherChatID);
-		queryClient.setQueryData(chatsKey, [activeChat, otherChat]);
+		seedInfiniteChats(queryClient, [activeChat, otherChat]);
 
 		const wrapper = ({ children }: PropsWithChildren) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -2432,14 +2535,14 @@ describe("updateSidebarChat via stream events", () => {
 		});
 
 		await waitFor(() => {
-			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			const sidebarChats = readInfiniteChats(queryClient);
 			expect(sidebarChats?.find((c) => c.id === chatID)?.status).toBe(
 				"completed",
 			);
 		});
 
 		// The other chat should remain unchanged.
-		const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+		const sidebarChats = readInfiniteChats(queryClient);
 		expect(sidebarChats?.find((c) => c.id === otherChatID)?.status).toBe(
 			"running",
 		);
@@ -2464,7 +2567,7 @@ describe("updateSidebarChat via stream events", () => {
 		});
 		const futureTimestamp = "2099-01-01T00:00:00.000Z";
 		const initialChat = { ...makeChat(chatID), updated_at: futureTimestamp };
-		queryClient.setQueryData(chatsKey, [initialChat]);
+		seedInfiniteChats(queryClient, [initialChat]);
 
 		const wrapper = ({ children }: PropsWithChildren) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -2512,7 +2615,7 @@ describe("updateSidebarChat via stream events", () => {
 		});
 
 		await waitFor(() => {
-			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			const sidebarChats = readInfiniteChats(queryClient);
 			expect(sidebarChats?.[0].updated_at).toBe(futureTimestamp);
 		});
 	});
@@ -2535,7 +2638,7 @@ describe("updateSidebarChat via stream events", () => {
 			},
 		});
 		const initialChat = makeChat(chatID);
-		queryClient.setQueryData(chatsKey, [initialChat]);
+		seedInfiniteChats(queryClient, [initialChat]);
 
 		const wrapper = ({ children }: PropsWithChildren) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -2576,7 +2679,7 @@ describe("updateSidebarChat via stream events", () => {
 		});
 
 		await waitFor(() => {
-			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			const sidebarChats = readInfiniteChats(queryClient);
 			// Status should update, but updated_at must stay untouched.
 			expect(sidebarChats?.[0].status).toBe("completed");
 			expect(sidebarChats?.[0].updated_at).toBe(initialChat.updated_at);
@@ -2601,7 +2704,7 @@ describe("updateSidebarChat via stream events", () => {
 			},
 		});
 		const initialChat = makeChat(chatID);
-		queryClient.setQueryData(chatsKey, [initialChat]);
+		seedInfiniteChats(queryClient, [initialChat]);
 
 		const wrapper = ({ children }: PropsWithChildren) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -2642,7 +2745,7 @@ describe("updateSidebarChat via stream events", () => {
 		});
 
 		await waitFor(() => {
-			const sidebarChats = queryClient.getQueryData<TypesGen.Chat[]>(chatsKey);
+			const sidebarChats = readInfiniteChats(queryClient);
 			expect(sidebarChats?.[0].status).toBe("error");
 			expect(sidebarChats?.[0].updated_at).toBe(initialChat.updated_at);
 		});
