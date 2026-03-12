@@ -4,6 +4,7 @@ import type { HealthCode, HealthSeverity } from "api/typesGenerated";
 import {
 	CircleAlertIcon,
 	CircleCheckIcon,
+	CircleHelpIcon,
 	CircleMinusIcon,
 } from "lucide-react";
 import {
@@ -180,6 +181,21 @@ export const Pill: React.FC<PillProps> = ({ icon, children, ...divProps }) => {
 			{cloneElement(icon, { className: "size-[14px]" })}
 			{children}
 		</div>
+	);
+};
+
+interface StatusIconProps {
+	value: boolean | null;
+}
+
+export const StatusIcon: FC<StatusIconProps> = ({ value }) => {
+	if (value === null) {
+		return <CircleHelpIcon className="size-icon-sm text-content-disabled" />;
+	}
+	return value ? (
+		<CircleCheckIcon className="size-icon-sm text-content-success" />
+	) : (
+		<CircleMinusIcon className="size-icon-sm text-content-destructive" />
 	);
 };
 
