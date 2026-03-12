@@ -2240,6 +2240,14 @@ func embeddedPostgresURL(cfg config.Root) (string, error) {
 
 var errBuiltinPostgresNonMatchingProcess = xerrors.New("persisted built-in PostgreSQL port is already in use by a non-matching process")
 
+func isBuiltinPostgresPortConflict(err error, port uint64) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(err.Error(), fmt.Sprintf("process already listening on port %d", port))
+}
+
 func verifyBuiltinPostgresInstance(ctx context.Context, cfg config.Root, connectionURL string) error {
 	// nolint:gocritic // Keep persisted-port verification quick on conflicts.
 	verifyCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -2379,7 +2387,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 			slog.Error(startErr),
 		)
 
-		if allowReconnect && persistedPortExisted {
+		if allowReconnect && persistedPortExisted && isBuiltinPostgresPortConflict(startErr, pgPort) {
 			verifyErr := verifyBuiltinPostgresInstance(ctx, cfg, connectionURL)
 			if verifyErr == nil {
 				logger.Info(ctx, "reusing running built-in postgres on persisted port", slog.F("port", pgPort))

@@ -403,6 +403,24 @@ func TestEscapePostgresURLUserInfo(t *testing.T) {
 	}
 }
 
+func TestIsBuiltinPostgresPortConflict(t *testing.T) {
+	t.Parallel()
+
+	const port uint64 = 54321
+
+	t.Run("MatchesEmbeddedPostgresPortConflict", func(t *testing.T) {
+		t.Parallel()
+		err := xerrors.Errorf("process already listening on port %d", port)
+		require.True(t, isBuiltinPostgresPortConflict(err, port))
+	})
+
+	t.Run("RejectsOtherStartErrors", func(t *testing.T) {
+		t.Parallel()
+		err := xerrors.New("unable to create runtime directory")
+		require.False(t, isBuiltinPostgresPortConflict(err, port))
+	})
+}
+
 func TestStartBuiltinPostgres(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
