@@ -1135,14 +1135,6 @@ func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg data
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetCoordinatorResumeTokenSigningKey(ctx)
-	m.queryLatencies.WithLabelValues("GetCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCoordinatorResumeTokenSigningKey").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCryptoKeyByFeatureAndSequence(ctx, arg)

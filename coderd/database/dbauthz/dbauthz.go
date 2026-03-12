@@ -2610,13 +2610,6 @@ func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetC
 	return q.db.GetAuthorizedConnectionLogsOffset(ctx, arg, prep)
 }
 
-func (q *querier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return "", err
-	}
-	return q.db.GetCoordinatorResumeTokenSigningKey(ctx)
-}
-
 func (q *querier) GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err

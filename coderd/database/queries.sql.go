@@ -14637,17 +14637,6 @@ func (q *sqlQuerier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	return chat_system_prompt, err
 }
 
-const getCoordinatorResumeTokenSigningKey = `-- name: GetCoordinatorResumeTokenSigningKey :one
-SELECT value FROM site_configs WHERE key = 'coordinator_resume_token_signing_key'
-`
-
-func (q *sqlQuerier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getCoordinatorResumeTokenSigningKey)
-	var value string
-	err := row.Scan(&value)
-	return value, err
-}
-
 const getDERPMeshKey = `-- name: GetDERPMeshKey :one
 SELECT value FROM site_configs WHERE key = 'derp_mesh_key'
 `
