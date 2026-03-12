@@ -21,6 +21,7 @@ set -euo pipefail
 # Matched against CODER_WORKSPACE_OWNER_NAME.
 ALLOWLIST=(
 	mafredri
+	johnstcn
 )
 
 cd "$(git rev-parse --show-toplevel)"
