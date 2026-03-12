@@ -562,7 +562,7 @@ func TestServingBin(t *testing.T) {
 					}
 
 					if tr.wantEtag != "" {
-						assert.NotEmpty(t, resp.Header.Get("ETag"), "etag header is empty")
+						assert.Equal(t, []string{tr.wantEtag}, resp.Header.Values("ETag"), "etag header values did not match")
 						assert.Equal(t, tr.wantEtag, resp.Header.Get("ETag"), "etag did not match")
 					}
 
@@ -570,6 +570,8 @@ func TestServingBin(t *testing.T) {
 						// This is a custom header that we set to help the
 						// client know the size of the decompressed data. See
 						// the comment in site.go.
+						headerValues := resp.Header.Values("X-Original-Content-Length")
+						assert.Len(t, headerValues, 1, "X-Original-Content-Length should have exactly one value")
 						headerStr := resp.Header.Get("X-Original-Content-Length")
 						assert.NotEmpty(t, headerStr, "X-Original-Content-Length header is empty")
 						originalSize, err := strconv.Atoi(headerStr)

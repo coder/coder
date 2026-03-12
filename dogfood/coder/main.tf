@@ -904,7 +904,6 @@ resource "coder_app" "develop_sh" {
   icon         = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
   command      = "screen -x develop_sh"
   share        = "authenticated"
-  subdomain    = true
   open_in      = "tab"
   order        = 0
 }

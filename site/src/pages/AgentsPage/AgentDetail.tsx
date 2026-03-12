@@ -83,6 +83,9 @@ import {
 import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
 
+/** localStorage key controlling whether the right panel is visible. */
+export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
+
 const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
@@ -576,6 +579,26 @@ const AgentDetail: FC = () => {
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef("");
 
+	// Right panel open/closed state is owned here so the loading
+	// skeleton and the loaded view share the same layout, preventing
+	// a horizontal shift when data arrives.
+	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
+		if (typeof window === "undefined") return false;
+		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
+	});
+	const handleSetShowSidebarPanel = useCallback(
+		(next: boolean | ((prev: boolean) => boolean)) => {
+			setShowSidebarPanel((prev) => {
+				const value = typeof next === "function" ? next(prev) : next;
+				if (typeof window !== "undefined") {
+					localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
+				}
+				return value;
+			});
+		},
+		[],
+	);
+
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
@@ -1065,6 +1088,7 @@ const AgentDetail: FC = () => {
 				modelCatalogStatusMessage={modelCatalogStatusMessage}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				showRightPanel={showSidebarPanel}
 			/>
 		);
 	}
@@ -1103,6 +1127,8 @@ const AgentDetail: FC = () => {
 			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+			showSidebarPanel={showSidebarPanel}
+			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
 			diffStatusData={diffStatusQuery.data}
 			gitWatcher={gitWatcher}

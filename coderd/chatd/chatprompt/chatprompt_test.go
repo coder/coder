@@ -463,6 +463,130 @@ func TestInjectMissingToolUses_DropsOnlyProviderExecutedMessage(t *testing.T) {
 	require.Equal(t, fantasy.MessageRoleAssistant, prompt[2].Role)
 }
 
+// TestProviderExecutedResultInAssistantContent verifies the
+// round-trip for the new persistence model: provider-executed tool
+// results (e.g. web_search) are stored inline in the assistant
+// content row (not as separate tool-role messages). After marshal →
+// parse → ToMessageParts, the ToolResultPart must carry
+// ProviderExecuted = true so the fantasy Anthropic provider can
+// reconstruct the web_search_tool_result block.
+func TestProviderExecutedResultInAssistantContent(t *testing.T) {
+	t.Parallel()
+
+	// The assistant message contains a PE tool call, a PE tool result,
+	// and a text block — mimicking a web_search step where persistStep
+	// keeps the PE result inline.
+	assistantContent := mustMarshalContent(t, []fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID:       "srvtoolu_WS",
+			ToolName:         "web_search",
+			Input:            `{"query":"golang testing"}`,
+			ProviderExecuted: true,
+		},
+		fantasy.ToolResultContent{
+			ToolCallID:       "srvtoolu_WS",
+			ToolName:         "web_search",
+			Result:           fantasy.ToolResultOutputContentText{Text: `{"results":"some search results"}`},
+			ProviderExecuted: true,
+		},
+		fantasy.TextContent{Text: "Here is what I found."},
+	})
+
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+		{Role: "user", Visibility: database.ChatMessageVisibilityBoth, Content: mustMarshalContent(t, []fantasy.Content{
+			fantasy.TextContent{Text: "Thanks!"},
+		})},
+	})
+	require.NoError(t, err)
+
+	// Should be 2 messages: assistant + user.
+	require.Len(t, prompt, 2)
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[1].Role)
+
+	// The assistant message must contain 3 parts: tool_call, tool_result, text.
+	var foundToolCall, foundToolResult, foundText bool
+	for _, part := range prompt[0].Content {
+		if tc, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](part); ok {
+			require.Equal(t, "srvtoolu_WS", tc.ToolCallID)
+			require.True(t, tc.ProviderExecuted, "ToolCallPart.ProviderExecuted must be true")
+			foundToolCall = true
+		}
+		if tr, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](part); ok {
+			require.Equal(t, "srvtoolu_WS", tr.ToolCallID)
+			require.True(t, tr.ProviderExecuted, "ToolResultPart.ProviderExecuted must be true")
+			foundToolResult = true
+		}
+		if tp, ok := fantasy.AsMessagePart[fantasy.TextPart](part); ok {
+			require.Equal(t, "Here is what I found.", tp.Text)
+			foundText = true
+		}
+	}
+	require.True(t, foundToolCall, "expected PE tool call in assistant message")
+	require.True(t, foundToolResult, "expected PE tool result in assistant message")
+	require.True(t, foundText, "expected text part in assistant message")
+}
+
+// TestProviderExecutedResult_LegacyToolRow verifies backward
+// compatibility: PE tool results that were stored as separate
+// tool-role rows (legacy persistence) are still handled correctly
+// by the repair passes — orphaned PE results are dropped, and
+// matching PE results in the same step work via the existing
+// injectMissingToolUses logic.
+func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
+	t.Parallel()
+
+	// Assistant with PE web_search + regular tool call.
+	assistantContent := mustMarshalContent(t, []fantasy.Content{
+		fantasy.ToolCallContent{
+			ToolCallID:       "srvtoolu_WS",
+			ToolName:         "web_search",
+			Input:            `{"query":"test"}`,
+			ProviderExecuted: true,
+		},
+		fantasy.ToolCallContent{
+			ToolCallID: "toolu_exec",
+			ToolName:   "execute",
+			Input:      `{"command":"ls"}`,
+		},
+		fantasy.TextContent{Text: "Results."},
+	})
+
+	// Legacy: PE result stored as separate tool-role message.
+	peResult := mustMarshalToolResult(t,
+		"srvtoolu_WS", "web_search",
+		json.RawMessage(`{"results":"cached"}`),
+		false, true, // providerExecuted = true
+	)
+	execResult := mustMarshalToolResult(t,
+		"toolu_exec", "execute",
+		json.RawMessage(`{"output":"file.txt"}`),
+		false, false,
+	)
+
+	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
+		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: peResult},
+		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: execResult},
+		{Role: "user", Visibility: database.ChatMessageVisibilityBoth, Content: mustMarshalContent(t, []fantasy.Content{
+			fantasy.TextContent{Text: "next"},
+		})},
+	})
+	require.NoError(t, err)
+
+	// The PE tool result should be dropped by injectMissingToolUses,
+	// leaving: assistant, tool(exec), user.
+	require.Len(t, prompt, 3, "expected 3 messages after PE result is dropped")
+	require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+	require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[2].Role)
+
+	// Tool message should only contain the exec result, not the PE one.
+	toolIDs := extractToolResultIDs(t, prompt[1])
+	require.Equal(t, []string{"toolu_exec"}, toolIDs)
+}
+
 func mustJSON(t *testing.T, v any) json.RawMessage {
 	t.Helper()
 	data, err := json.Marshal(v)

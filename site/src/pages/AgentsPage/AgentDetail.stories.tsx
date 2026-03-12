@@ -27,8 +27,7 @@ import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
-import AgentDetail from "./AgentDetail";
-import { RIGHT_PANEL_OPEN_KEY } from "./AgentDetailView";
+import AgentDetail, { RIGHT_PANEL_OPEN_KEY } from "./AgentDetail";
 import type { AgentsOutletContext } from "./AgentsPage";
 
 // ---------------------------------------------------------------------------

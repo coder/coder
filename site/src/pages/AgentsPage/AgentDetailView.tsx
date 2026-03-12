@@ -1,9 +1,8 @@
 import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { Skeleton } from "components/Skeleton/Skeleton";
 import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useCallback, useMemo, useState } from "react";
+import { type FC, type RefObject, useMemo, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -11,6 +10,10 @@ import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetail";
 import type { useChatStore } from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
+import {
+	ChatConversationSkeleton,
+	RightPanelSkeleton,
+} from "./AgentsSkeletons";
 import { GitPanel } from "./GitPanel";
 import { RightPanel } from "./RightPanel";
 import { SidebarTabView } from "./SidebarTabView";
@@ -79,6 +82,11 @@ interface AgentDetailViewProps {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 
+	// Right panel state (owned by the parent so loading and
+	// loaded views share the same layout).
+	showSidebarPanel: boolean;
+	onSetShowSidebarPanel: (next: boolean | ((prev: boolean) => boolean)) => void;
+
 	// Sidebar content data.
 	prNumber: number | undefined;
 	diffStatusData: ChatDiffStatusResponse | undefined;
@@ -115,9 +123,6 @@ interface AgentDetailViewProps {
 	urlTransform?: UrlTransform;
 }
 
-/** localStorage key controlling whether the right panel is visible. */
-export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
-
 export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	agentId,
 	chatTitle,
@@ -142,6 +147,8 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	isInterruptPending,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
+	showSidebarPanel,
+	onSetShowSidebarPanel,
 	prNumber,
 	diffStatusData,
 	gitWatcher,
@@ -162,25 +169,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	scrollContainerRef,
 	urlTransform,
 }) => {
-	// Panel/sidebar UI state – purely visual, no data-fetching
-	// implications. The open/closed state is persisted to localStorage
-	// so users get a consistent layout when switching between chats.
-	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
-		if (typeof window === "undefined") return false;
-		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
-	});
-	const handleSetShowSidebarPanel = useCallback(
-		(next: boolean | ((prev: boolean) => boolean)) => {
-			setShowSidebarPanel((prev) => {
-				const value = typeof next === "function" ? next(prev) : next;
-				if (typeof window !== "undefined") {
-					localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
-				}
-				return value;
-			});
-		},
-		[],
-	);
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
@@ -234,7 +222,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						onOpenParentChat={(chatId) => onNavigateToChat(chatId)}
 						panel={{
 							showSidebarPanel,
-							onToggleSidebar: () => handleSetShowSidebarPanel((prev) => !prev),
+							onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
 						}}
 						workspace={{
 							canOpenEditors,
@@ -321,7 +309,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 				isOpen={shouldShowSidebar}
 				isExpanded={isRightPanelExpanded}
 				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-				onClose={() => handleSetShowSidebarPanel(false)}
+				onClose={() => onSetShowSidebarPanel(false)}
 				onVisualExpandedChange={setDragVisualExpanded}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
@@ -349,7 +337,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							),
 						},
 					]}
-					onClose={() => handleSetShowSidebarPanel(false)}
+					onClose={() => onSetShowSidebarPanel(false)}
 					isExpanded={visualExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 					isSidebarCollapsed={isSidebarCollapsed}
@@ -373,6 +361,7 @@ interface AgentDetailLoadingViewProps {
 	modelCatalogStatusMessage: string | null;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
+	showRightPanel: boolean;
 }
 
 export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
@@ -387,76 +376,73 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 	modelCatalogStatusMessage,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
+	showRightPanel,
 }) => {
 	return (
-		<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+		<div
+			className={cn(
+				"relative flex h-full min-h-0 min-w-0 flex-1",
+				showRightPanel && "flex-row",
+			)}
+		>
 			{titleElement}
-			<AgentDetailTopBar
-				panel={{
-					showSidebarPanel: false,
-					onToggleSidebar: () => {},
-				}}
-				workspace={{
-					canOpenEditors: false,
-					canOpenWorkspace: false,
-					onOpenInEditor: () => {},
-					onViewWorkspace: () => {},
-					onOpenTerminal: () => {},
-					sshCommand: undefined,
-				}}
-				onOpenParentChat={() => {}}
-				onArchiveAgent={() => {}}
-				onUnarchiveAgent={() => {}}
-				onArchiveAndDeleteWorkspace={() => {}}
-				hasWorkspace={false}
-				isSidebarCollapsed={isSidebarCollapsed}
-				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			/>
-			<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
-				<div className="px-4">
-					<div className="mx-auto w-full max-w-3xl py-6">
-						<div className="flex flex-col gap-3">
-							{/* User message bubble (right-aligned) */}
-							<div className="flex w-full justify-end">
-								<Skeleton className="h-10 w-2/3 rounded-lg" />
-							</div>
-							{/* Assistant response lines (left-aligned) */}
-							<div className="space-y-3">
-								<Skeleton className="h-4 w-full" />
-								<Skeleton className="h-4 w-5/6" />
-								<Skeleton className="h-4 w-4/6" />
-							</div>
-							{/* Second user message bubble */}
-							<div className="mt-3 flex w-full justify-end">
-								<Skeleton className="h-10 w-1/2 rounded-lg" />
-							</div>
-							{/* Second assistant response */}
-							<div className="space-y-3">
-								<Skeleton className="h-4 w-full" />
-								<Skeleton className="h-4 w-5/6" />
-								<Skeleton className="h-4 w-4/6" />
-								<Skeleton className="h-4 w-full" />
-								<Skeleton className="h-4 w-3/5" />
-							</div>{" "}
+			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+				<AgentDetailTopBar
+					panel={{
+						showSidebarPanel: false,
+						onToggleSidebar: () => {},
+					}}
+					workspace={{
+						canOpenEditors: false,
+						canOpenWorkspace: false,
+						onOpenInEditor: () => {},
+						onViewWorkspace: () => {},
+						onOpenTerminal: () => {},
+						sshCommand: undefined,
+					}}
+					onOpenParentChat={() => {}}
+					onArchiveAgent={() => {}}
+					onUnarchiveAgent={() => {}}
+					onArchiveAndDeleteWorkspace={() => {}}
+					hasWorkspace={false}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				/>
+				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
+					<div className="px-4">
+						<div className="mx-auto w-full max-w-3xl py-6">
+							<ChatConversationSkeleton />
 						</div>
 					</div>
 				</div>
+				<div className="shrink-0 px-4">
+					<AgentChatInput
+						onSend={() => {}}
+						initialValue=""
+						isDisabled={isInputDisabled}
+						isLoading={false}
+						selectedModel={effectiveSelectedModel}
+						onModelChange={setSelectedModel}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						hasModelOptions={hasModelOptions}
+						inputStatusText={inputStatusText}
+						modelCatalogStatusMessage={modelCatalogStatusMessage}
+					/>
+				</div>
 			</div>
-			<div className="shrink-0 px-4">
-				<AgentChatInput
-					onSend={() => {}}
-					initialValue=""
-					isDisabled={isInputDisabled}
-					isLoading={false}
-					selectedModel={effectiveSelectedModel}
-					onModelChange={setSelectedModel}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					hasModelOptions={hasModelOptions}
-					inputStatusText={inputStatusText}
-					modelCatalogStatusMessage={modelCatalogStatusMessage}
-				/>
-			</div>
+			{showRightPanel && (
+				<RightPanel
+					isOpen
+					isExpanded={false}
+					onToggleExpanded={() => {}}
+					onClose={() => {}}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				>
+					<RightPanelSkeleton />
+				</RightPanel>
+			)}
 		</div>
 	);
 };
