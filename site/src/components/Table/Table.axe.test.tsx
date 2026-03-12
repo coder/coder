@@ -1,6 +1,10 @@
 import "vitest-axe/extend-expect";
 import { render } from "@testing-library/react";
+import { expect } from "vitest";
 import { axe } from "vitest-axe";
+import * as axeMatchers from "vitest-axe/matchers";
+
+expect.extend(axeMatchers);
 
 import {
 	Table,
