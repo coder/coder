@@ -3286,36 +3286,31 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 }
 
 const getChatCostByChat = `-- name: GetChatCostByChat :many
+WITH chat_costs AS (
+    SELECT
+        COALESCE(c.root_chat_id, c.id) AS root_chat_id,
+        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COUNT(*)::bigint AS message_count,
+        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+    FROM chat_messages cm
+    JOIN chats c ON c.id = cm.chat_id
+    WHERE c.owner_id = $1::uuid
+      AND cm.role = 'assistant'
+      AND cm.created_at >= $2::timestamptz
+      AND cm.created_at < $3::timestamptz
+    GROUP BY COALESCE(c.root_chat_id, c.id)
+)
 SELECT
-    COALESCE(c.root_chat_id, c.id) AS root_chat_id,
-    -- Pick the title from the root chat for a stable label.
-    (
-        SELECT
-            rc.title
-        FROM
-            chats rc
-        WHERE
-            rc.id = COALESCE(c.root_chat_id, c.id)
-        LIMIT
-            1
-    ) AS chat_title,
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-    COUNT(*)::bigint AS message_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
-FROM
-    chat_messages cm
-JOIN
-    chats c ON c.id = cm.chat_id
-WHERE
-    c.owner_id = $1::uuid
-    AND cm.role = 'assistant'
-    AND cm.created_at >= $2::timestamptz
-    AND cm.created_at < $3::timestamptz
-GROUP BY
-    COALESCE(c.root_chat_id, c.id)
-ORDER BY
-    total_cost_micros DESC
+    cc.root_chat_id,
+    COALESCE(rc.title, '') AS chat_title,
+    cc.total_cost_micros,
+    cc.message_count,
+    cc.total_input_tokens,
+    cc.total_output_tokens
+FROM chat_costs cc
+LEFT JOIN chats rc ON rc.id = cc.root_chat_id
+ORDER BY cc.total_cost_micros DESC
 `
 
 type GetChatCostByChatParams struct {

@@ -567,36 +567,31 @@ ORDER BY
 -- Per-root-chat cost breakdown for a single user within a date range.
 -- Groups by root_chat_id so forked chats roll up under their root.
 -- Only counts assistant-role messages.
+WITH chat_costs AS (
+    SELECT
+        COALESCE(c.root_chat_id, c.id) AS root_chat_id,
+        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COUNT(*)::bigint AS message_count,
+        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+    FROM chat_messages cm
+    JOIN chats c ON c.id = cm.chat_id
+    WHERE c.owner_id = @owner_id::uuid
+      AND cm.role = 'assistant'
+      AND cm.created_at >= @start_date::timestamptz
+      AND cm.created_at < @end_date::timestamptz
+    GROUP BY COALESCE(c.root_chat_id, c.id)
+)
 SELECT
-    COALESCE(c.root_chat_id, c.id) AS root_chat_id,
-    -- Pick the title from the root chat for a stable label.
-    (
-        SELECT
-            rc.title
-        FROM
-            chats rc
-        WHERE
-            rc.id = COALESCE(c.root_chat_id, c.id)
-        LIMIT
-            1
-    ) AS chat_title,
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-    COUNT(*)::bigint AS message_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
-FROM
-    chat_messages cm
-JOIN
-    chats c ON c.id = cm.chat_id
-WHERE
-    c.owner_id = @owner_id::uuid
-    AND cm.role = 'assistant'
-    AND cm.created_at >= @start_date::timestamptz
-    AND cm.created_at < @end_date::timestamptz
-GROUP BY
-    COALESCE(c.root_chat_id, c.id)
-ORDER BY
-    total_cost_micros DESC;
+    cc.root_chat_id,
+    COALESCE(rc.title, '') AS chat_title,
+    cc.total_cost_micros,
+    cc.message_count,
+    cc.total_input_tokens,
+    cc.total_output_tokens
+FROM chat_costs cc
+LEFT JOIN chats rc ON rc.id = cc.root_chat_id
+ORDER BY cc.total_cost_micros DESC;
 
 -- name: GetChatCostByUser :many
 -- Deployment-wide per-user cost rollup within a date range.
