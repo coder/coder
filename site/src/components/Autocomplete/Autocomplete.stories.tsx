@@ -3,7 +3,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Check } from "lucide-react";
 import { useState } from "react";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { Autocomplete } from "./Autocomplete";
 
 const meta: Meta<typeof Autocomplete> = {
@@ -30,6 +30,8 @@ const simpleOptions: SimpleOption[] = [
 	{ id: "4", name: "Kiwi" },
 	{ id: "5", name: "Coconut" },
 ];
+
+const onClearSelectionChange = fn<(value: SimpleOption | null) => void>();
 
 export const Default: Story = {
 	render: function DefaultStory() {
@@ -224,11 +226,16 @@ export const SearchAndFilter: Story = {
 export const ClearSelection: Story = {
 	render: function ClearSelectionStory() {
 		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[0]);
+		const handleChange = (newValue: SimpleOption | null) => {
+			onClearSelectionChange(newValue);
+			setValue(newValue);
+		};
+
 		return (
 			<div className="w-80">
 				<Autocomplete
 					value={value}
-					onChange={setValue}
+					onChange={handleChange}
 					options={simpleOptions}
 					getOptionValue={(opt) => opt.id}
 					getOptionLabel={(opt) => opt.name}
@@ -242,8 +249,17 @@ export const ClearSelection: Story = {
 		const trigger = canvas.getByRole("button", { name: /mango/i });
 		expect(trigger).toHaveTextContent("Mango");
 
-		const clearButton = canvas.getByRole("button", { name: "Clear selection" });
+		onClearSelectionChange.mockClear();
+
+		const clearButton = canvas.getByLabelText("Clear selection");
+		expect(clearButton).toHaveAttribute("role", "button");
+		expect(clearButton).toHaveAttribute("tabindex", "0");
+		expect(clearButton.tagName).toBe("SPAN");
+
 		await userEvent.click(clearButton);
+		await waitFor(() =>
+			expect(onClearSelectionChange).toHaveBeenCalledWith(null),
+		);
 
 		await waitFor(() =>
 			expect(
