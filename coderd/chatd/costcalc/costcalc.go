@@ -7,14 +7,17 @@ import (
 )
 
 // CalculateTotalCostMicros computes the total cost of a chat message in
-// micros (millionths of a dollar) using the configured model pricing.
+// whole micros (millionths of a dollar) using the configured model pricing.
+//
+// Fractional micro components are summed with decimal precision and then
+// rounded once at the end so callers receive a persistable whole-micro value.
 //
 // Returns nil when pricing is not configured or when all priced usage fields
 // are nil, allowing callers to distinguish "zero cost" from "unpriced".
 func CalculateTotalCostMicros(
 	usage codersdk.ChatMessageUsage,
 	cost *codersdk.ModelCostConfig,
-) *decimal.Decimal {
+) *int64 {
 	if cost == nil {
 		return nil
 	}
@@ -40,7 +43,8 @@ func CalculateTotalCostMicros(
 		Add(outputMicros).
 		Add(cacheReadMicros).
 		Add(cacheWriteMicros)
-	return &total
+	rounded := total.Round(0).IntPart()
+	return &rounded
 }
 
 func derefInt64(v *int64) int64 {

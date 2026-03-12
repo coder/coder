@@ -104,7 +104,7 @@ func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	original := codersdk.ChatCostSummary{
-		TotalCostMicros: decimal.RequireFromString("123.45"),
+		TotalCostMicros: 123,
 	}
 	raw, err := json.Marshal(original)
 	require.NoError(t, err)
@@ -112,5 +112,5 @@ func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
 	var decoded codersdk.ChatCostSummary
 	err = json.Unmarshal(raw, &decoded)
 	require.NoError(t, err)
-	require.True(t, original.TotalCostMicros.Equal(decoded.TotalCostMicros))
+	require.Equal(t, original.TotalCostMicros, decoded.TotalCostMicros)
 }

@@ -421,18 +421,12 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 
 	modelBreakdowns := make([]codersdk.ChatCostModelBreakdown, 0, len(byModel))
 	for _, model := range byModel {
-		totalCostMicros, err := decimalValue(model.TotalCostMicros)
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
 		modelBreakdowns = append(modelBreakdowns, codersdk.ChatCostModelBreakdown{
 			ModelConfigID:     model.ModelConfigID,
 			DisplayName:       model.DisplayName,
 			Provider:          model.Provider,
 			Model:             model.Model,
-			TotalCostMicros:   totalCostMicros,
+			TotalCostMicros:   model.TotalCostMicros,
 			MessageCount:      model.MessageCount,
 			TotalInputTokens:  model.TotalInputTokens,
 			TotalOutputTokens: model.TotalOutputTokens,
@@ -441,32 +435,20 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 
 	chatBreakdowns := make([]codersdk.ChatCostChatBreakdown, 0, len(byChat))
 	for _, chat := range byChat {
-		totalCostMicros, err := decimalValue(chat.TotalCostMicros)
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
 		chatBreakdowns = append(chatBreakdowns, codersdk.ChatCostChatBreakdown{
 			RootChatID:        chat.RootChatID,
 			ChatTitle:         chat.ChatTitle,
-			TotalCostMicros:   totalCostMicros,
+			TotalCostMicros:   chat.TotalCostMicros,
 			MessageCount:      chat.MessageCount,
 			TotalInputTokens:  chat.TotalInputTokens,
 			TotalOutputTokens: chat.TotalOutputTokens,
 		})
 	}
 
-	totalCostMicros, err := decimalValue(summary.TotalCostMicros)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostSummary{
 		StartDate:            startDate,
 		EndDate:              endDate,
-		TotalCostMicros:      totalCostMicros,
+		TotalCostMicros:      summary.TotalCostMicros,
 		PricedMessageCount:   summary.PricedMessageCount,
 		UnpricedMessageCount: summary.UnpricedMessageCount,
 		TotalInputTokens:     summary.TotalInputTokens,
@@ -510,15 +492,9 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 
 	rollups := make([]codersdk.ChatCostUserRollup, 0, len(users))
 	for _, user := range users {
-		totalCostMicros, err := decimalValue(user.TotalCostMicros)
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
 		rollups = append(rollups, codersdk.ChatCostUserRollup{
 			UserID:            user.UserID,
-			TotalCostMicros:   totalCostMicros,
+			TotalCostMicros:   user.TotalCostMicros,
 			MessageCount:      user.MessageCount,
 			ChatCount:         user.ChatCount,
 			TotalInputTokens:  user.TotalInputTokens,
@@ -3281,30 +3257,6 @@ func marshalChatModelCallConfig(
 		return nil, xerrors.Errorf("encode model config: %w", err)
 	}
 	return encoded, nil
-}
-
-func decimalValue(v any) (decimal.Decimal, error) {
-	switch value := v.(type) {
-	case nil:
-		return decimal.Zero, nil
-	case decimal.Decimal:
-		return value, nil
-	case *decimal.Decimal:
-		if value == nil {
-			return decimal.Zero, nil
-		}
-		return *value, nil
-	case []byte:
-		return decimal.NewFromString(string(value))
-	case string:
-		return decimal.NewFromString(value)
-	case int64:
-		return decimal.NewFromInt(value), nil
-	case int32:
-		return decimal.NewFromInt32(value), nil
-	default:
-		return decimal.Zero, xerrors.Errorf("unsupported cost type %T", v)
-	}
 }
 
 func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) error {

@@ -2,17 +2,25 @@ import { chatCostSummary } from "api/queries/chats";
 import { Button } from "components/Button/Button";
 import dayjs from "dayjs";
 import { Loader2Icon, TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useMemo } from "react";
 import { useQuery } from "react-query";
 import { formatCostMicros, formatTokenCount } from "utils/analytics";
 
 const AgentsAnalyticsPage: FC = () => {
-	const end = dayjs();
-	const start = dayjs().subtract(30, "day");
+	const dateRange = useMemo(() => {
+		const end = dayjs();
+		const start = end.subtract(30, "day");
+		return {
+			start,
+			end,
+			startDate: start.toISOString(),
+			endDate: end.toISOString(),
+		};
+	}, []);
 	const summaryQuery = useQuery(
 		chatCostSummary({
-			start_date: start.toISOString(),
-			end_date: end.toISOString(),
+			start_date: dateRange.startDate,
+			end_date: dateRange.endDate,
 		}),
 	);
 
@@ -20,7 +28,8 @@ const AgentsAnalyticsPage: FC = () => {
 		<div>
 			<h1 className="text-2xl font-semibold text-content-primary">Analytics</h1>
 			<p className="text-sm text-content-secondary">
-				{start.format("MMM D")} – {end.format("MMM D, YYYY")}
+				{dateRange.start.format("MMM D")} –{" "}
+				{dateRange.end.format("MMM D, YYYY")}
 			</p>
 		</div>
 	);

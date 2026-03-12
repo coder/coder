@@ -221,7 +221,7 @@ INSERT INTO chat_messages (
     sqlc.narg('cache_read_tokens')::bigint,
     sqlc.narg('context_limit')::bigint,
     COALESCE(sqlc.narg('compressed')::boolean, FALSE),
-    sqlc.narg('total_cost_micros')::numeric
+    sqlc.narg('total_cost_micros')::bigint
 )
 RETURNING
     *;
@@ -512,7 +512,7 @@ WHERE
 -- Aggregate cost summary for a single user within a date range.
 -- Only counts assistant-role messages.
 SELECT
-    COALESCE(SUM(cm.total_cost_micros), 0) AS total_cost_micros,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*) FILTER (
         WHERE cm.total_cost_micros IS NOT NULL
     )::bigint AS priced_message_count,
@@ -543,7 +543,7 @@ SELECT
     cmc.display_name,
     cmc.provider,
     cmc.model,
-    COALESCE(SUM(cm.total_cost_micros), 0) AS total_cost_micros,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*)::bigint AS message_count,
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
     COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
@@ -570,7 +570,7 @@ ORDER BY
 WITH chat_costs AS (
     SELECT
         COALESCE(c.root_chat_id, c.id) AS root_chat_id,
-        COALESCE(SUM(cm.total_cost_micros), 0) AS total_cost_micros,
+        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
         COUNT(*)::bigint AS message_count,
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
         COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
@@ -598,7 +598,7 @@ ORDER BY cc.total_cost_micros DESC;
 -- Only counts assistant-role messages.
 SELECT
     c.owner_id AS user_id,
-    COALESCE(SUM(cm.total_cost_micros), 0) AS total_cost_micros,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*)::bigint AS message_count,
     COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,

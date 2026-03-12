@@ -16,7 +16,7 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 		name  string
 		usage codersdk.ChatMessageUsage
 		cost  *codersdk.ModelCostConfig
-		want  *decimal.Decimal
+		want  *int64
 	}{
 		{
 			name:  "nil cost returns nil",
@@ -36,12 +36,12 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			want: nil,
 		},
 		{
-			name:  "single token preserves fractional micros",
+			name:  "single token rounds to nearest whole micro",
 			usage: codersdk.ChatMessageUsage{InputTokens: int64Ptr(1)},
 			cost: &codersdk.ModelCostConfig{
 				InputPricePerMillionTokens: decPtr("0.01"),
 			},
-			want: decPtr("0.01"),
+			want: int64Ptr(0),
 		},
 		{
 			name:  "simple input only",
@@ -49,7 +49,7 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			cost: &codersdk.ModelCostConfig{
 				InputPricePerMillionTokens: decPtr("3"),
 			},
-			want: decPtr("3000"),
+			want: int64Ptr(3000),
 		},
 		{
 			name:  "simple output only",
@@ -57,7 +57,7 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			cost: &codersdk.ModelCostConfig{
 				OutputPricePerMillionTokens: decPtr("15"),
 			},
-			want: decPtr("7500"),
+			want: int64Ptr(7500),
 		},
 		{
 			name: "reasoning tokens billed at output rate",
@@ -68,7 +68,7 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			cost: &codersdk.ModelCostConfig{
 				OutputPricePerMillionTokens: decPtr("15"),
 			},
-			want: decPtr("7500"),
+			want: int64Ptr(7500),
 		},
 		{
 			name:  "cache read tokens",
@@ -76,7 +76,7 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			cost: &codersdk.ModelCostConfig{
 				CacheReadPricePerMillionTokens: decPtr("0.3"),
 			},
-			want: decPtr("3000"),
+			want: int64Ptr(3000),
 		},
 		{
 			name:  "cache creation tokens",
@@ -84,7 +84,7 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			cost: &codersdk.ModelCostConfig{
 				CacheWritePricePerMillionTokens: decPtr("3.75"),
 			},
-			want: decPtr("18750"),
+			want: int64Ptr(18750),
 		},
 		{
 			name: "full mixed usage totals all components exactly",
@@ -103,7 +103,7 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 				CacheReadPricePerMillionTokens:  decPtr("0.7"),
 				CacheWritePricePerMillionTokens: decPtr("7.89"),
 			},
-			want: decPtr("2241.78"),
+			want: int64Ptr(2242),
 		},
 		{
 			name: "partial pricing only input contributes",
@@ -117,7 +117,7 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			cost: &codersdk.ModelCostConfig{
 				InputPricePerMillionTokens: decPtr("2.5"),
 			},
-			want: decPtr("3085"),
+			want: int64Ptr(3085),
 		},
 		{
 			name:  "zero tokens with pricing returns zero pointer",
@@ -125,13 +125,13 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			cost: &codersdk.ModelCostConfig{
 				InputPricePerMillionTokens: decPtr("3"),
 			},
-			want: decPtr("0"),
+			want: int64Ptr(0),
 		},
 		{
 			name:  "non nil usage with nil prices returns zero pointer",
 			usage: codersdk.ChatMessageUsage{InputTokens: int64Ptr(42)},
 			cost:  &codersdk.ModelCostConfig{},
-			want:  decPtr("0"),
+			want:  int64Ptr(0),
 		},
 	}
 
@@ -142,25 +142,25 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 
 			got := costcalc.CalculateTotalCostMicros(tt.usage, tt.cost)
 
-			assertEqualDecimalPtr(t, tt.want, got)
+			assertEqualInt64Ptr(t, tt.want, got)
 		})
 	}
 }
 
-func assertEqualDecimalPtr(t *testing.T, want, got *decimal.Decimal) {
+func assertEqualInt64Ptr(t *testing.T, want, got *int64) {
 	t.Helper()
 
 	switch {
 	case want == nil || got == nil:
 		requireSamePointerState(t, want, got)
 	default:
-		if !want.Equal(*got) {
-			t.Fatalf("expected %s, got %s", want.String(), got.String())
+		if *want != *got {
+			t.Fatalf("expected %d, got %d", *want, *got)
 		}
 	}
 }
 
-func requireSamePointerState(t *testing.T, want, got *decimal.Decimal) {
+func requireSamePointerState(t *testing.T, want, got *int64) {
 	t.Helper()
 	if want != got {
 		t.Fatalf("expected %v, got %v", want, got)

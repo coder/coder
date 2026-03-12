@@ -1075,7 +1075,7 @@ export interface Chat {
 export interface ChatCostChatBreakdown {
 	readonly root_chat_id: string;
 	readonly chat_title: string;
-	readonly total_cost_micros: string;
+	readonly total_cost_micros: number;
 	readonly message_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
@@ -1090,7 +1090,7 @@ export interface ChatCostModelBreakdown {
 	readonly display_name: string;
 	readonly provider: string;
 	readonly model: string;
-	readonly total_cost_micros: string;
+	readonly total_cost_micros: number;
 	readonly message_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
@@ -1103,7 +1103,7 @@ export interface ChatCostModelBreakdown {
 export interface ChatCostSummary {
 	readonly start_date: string;
 	readonly end_date: string;
-	readonly total_cost_micros: string;
+	readonly total_cost_micros: number;
 	readonly priced_message_count: number;
 	readonly unpriced_message_count: number;
 	readonly total_input_tokens: number;
@@ -1128,7 +1128,7 @@ export interface ChatCostSummaryOptions {
  */
 export interface ChatCostUserRollup {
 	readonly user_id: string;
-	readonly total_cost_micros: string;
+	readonly total_cost_micros: number;
 	readonly message_count: number;
 	readonly chat_count: number;
 	readonly total_input_tokens: number;

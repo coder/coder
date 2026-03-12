@@ -29,7 +29,7 @@ const buildSummary = (
 ): TypesGen.ChatCostSummary => ({
 	start_date: "2026-02-10",
 	end_date: "2026-03-12",
-	total_cost_micros: "1500000",
+	total_cost_micros: 1_500_000,
 	priced_message_count: 12,
 	unpriced_message_count: 2,
 	total_input_tokens: 123_456,
@@ -40,7 +40,7 @@ const buildSummary = (
 			display_name: "GPT-4.1",
 			provider: "OpenAI",
 			model: "gpt-4.1",
-			total_cost_micros: "1250000",
+			total_cost_micros: 1_250_000,
 			message_count: 9,
 			total_input_tokens: 100_000,
 			total_output_tokens: 200_000,
@@ -50,7 +50,7 @@ const buildSummary = (
 		{
 			root_chat_id: "chat-1",
 			chat_title: "Quarterly review",
-			total_cost_micros: "750000",
+			total_cost_micros: 750_000,
 			message_count: 5,
 			total_input_tokens: 60_000,
 			total_output_tokens: 80_000,

@@ -12,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	decimal "github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -3290,7 +3289,7 @@ const getChatCostByChat = `-- name: GetChatCostByChat :many
 WITH chat_costs AS (
     SELECT
         COALESCE(c.root_chat_id, c.id) AS root_chat_id,
-        COALESCE(SUM(cm.total_cost_micros), 0) AS total_cost_micros,
+        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
         COUNT(*)::bigint AS message_count,
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
         COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
@@ -3321,12 +3320,12 @@ type GetChatCostByChatParams struct {
 }
 
 type GetChatCostByChatRow struct {
-	RootChatID        uuid.UUID   `db:"root_chat_id" json:"root_chat_id"`
-	ChatTitle         string      `db:"chat_title" json:"chat_title"`
-	TotalCostMicros   interface{} `db:"total_cost_micros" json:"total_cost_micros"`
-	MessageCount      int64       `db:"message_count" json:"message_count"`
-	TotalInputTokens  int64       `db:"total_input_tokens" json:"total_input_tokens"`
-	TotalOutputTokens int64       `db:"total_output_tokens" json:"total_output_tokens"`
+	RootChatID        uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	ChatTitle         string    `db:"chat_title" json:"chat_title"`
+	TotalCostMicros   int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	MessageCount      int64     `db:"message_count" json:"message_count"`
+	TotalInputTokens  int64     `db:"total_input_tokens" json:"total_input_tokens"`
+	TotalOutputTokens int64     `db:"total_output_tokens" json:"total_output_tokens"`
 }
 
 // Per-root-chat cost breakdown for a single user within a date range.
@@ -3368,7 +3367,7 @@ SELECT
     cmc.display_name,
     cmc.provider,
     cmc.model,
-    COALESCE(SUM(cm.total_cost_micros), 0) AS total_cost_micros,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*)::bigint AS message_count,
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
     COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
@@ -3396,14 +3395,14 @@ type GetChatCostByModelParams struct {
 }
 
 type GetChatCostByModelRow struct {
-	ModelConfigID     uuid.UUID   `db:"model_config_id" json:"model_config_id"`
-	DisplayName       string      `db:"display_name" json:"display_name"`
-	Provider          string      `db:"provider" json:"provider"`
-	Model             string      `db:"model" json:"model"`
-	TotalCostMicros   interface{} `db:"total_cost_micros" json:"total_cost_micros"`
-	MessageCount      int64       `db:"message_count" json:"message_count"`
-	TotalInputTokens  int64       `db:"total_input_tokens" json:"total_input_tokens"`
-	TotalOutputTokens int64       `db:"total_output_tokens" json:"total_output_tokens"`
+	ModelConfigID     uuid.UUID `db:"model_config_id" json:"model_config_id"`
+	DisplayName       string    `db:"display_name" json:"display_name"`
+	Provider          string    `db:"provider" json:"provider"`
+	Model             string    `db:"model" json:"model"`
+	TotalCostMicros   int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	MessageCount      int64     `db:"message_count" json:"message_count"`
+	TotalInputTokens  int64     `db:"total_input_tokens" json:"total_input_tokens"`
+	TotalOutputTokens int64     `db:"total_output_tokens" json:"total_output_tokens"`
 }
 
 // Per-model cost breakdown for a single user within a date range.
@@ -3443,7 +3442,7 @@ func (q *sqlQuerier) GetChatCostByModel(ctx context.Context, arg GetChatCostByMo
 const getChatCostByUser = `-- name: GetChatCostByUser :many
 SELECT
     c.owner_id AS user_id,
-    COALESCE(SUM(cm.total_cost_micros), 0) AS total_cost_micros,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*)::bigint AS message_count,
     COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
@@ -3468,12 +3467,12 @@ type GetChatCostByUserParams struct {
 }
 
 type GetChatCostByUserRow struct {
-	UserID            uuid.UUID   `db:"user_id" json:"user_id"`
-	TotalCostMicros   interface{} `db:"total_cost_micros" json:"total_cost_micros"`
-	MessageCount      int64       `db:"message_count" json:"message_count"`
-	ChatCount         int64       `db:"chat_count" json:"chat_count"`
-	TotalInputTokens  int64       `db:"total_input_tokens" json:"total_input_tokens"`
-	TotalOutputTokens int64       `db:"total_output_tokens" json:"total_output_tokens"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	TotalCostMicros   int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	MessageCount      int64     `db:"message_count" json:"message_count"`
+	ChatCount         int64     `db:"chat_count" json:"chat_count"`
+	TotalInputTokens  int64     `db:"total_input_tokens" json:"total_input_tokens"`
+	TotalOutputTokens int64     `db:"total_output_tokens" json:"total_output_tokens"`
 }
 
 // Deployment-wide per-user cost rollup within a date range.
@@ -3510,7 +3509,7 @@ func (q *sqlQuerier) GetChatCostByUser(ctx context.Context, arg GetChatCostByUse
 
 const getChatCostSummary = `-- name: GetChatCostSummary :one
 SELECT
-    COALESCE(SUM(cm.total_cost_micros), 0) AS total_cost_micros,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*) FILTER (
         WHERE cm.total_cost_micros IS NOT NULL
     )::bigint AS priced_message_count,
@@ -3541,11 +3540,11 @@ type GetChatCostSummaryParams struct {
 }
 
 type GetChatCostSummaryRow struct {
-	TotalCostMicros      interface{} `db:"total_cost_micros" json:"total_cost_micros"`
-	PricedMessageCount   int64       `db:"priced_message_count" json:"priced_message_count"`
-	UnpricedMessageCount int64       `db:"unpriced_message_count" json:"unpriced_message_count"`
-	TotalInputTokens     int64       `db:"total_input_tokens" json:"total_input_tokens"`
-	TotalOutputTokens    int64       `db:"total_output_tokens" json:"total_output_tokens"`
+	TotalCostMicros      int64 `db:"total_cost_micros" json:"total_cost_micros"`
+	PricedMessageCount   int64 `db:"priced_message_count" json:"priced_message_count"`
+	UnpricedMessageCount int64 `db:"unpriced_message_count" json:"unpriced_message_count"`
+	TotalInputTokens     int64 `db:"total_input_tokens" json:"total_input_tokens"`
+	TotalOutputTokens    int64 `db:"total_output_tokens" json:"total_output_tokens"`
 }
 
 // Aggregate cost summary for a single user within a date range.
@@ -4156,7 +4155,7 @@ INSERT INTO chat_messages (
     $12::bigint,
     $13::bigint,
     COALESCE($14::boolean, FALSE),
-    $15::numeric
+    $15::bigint
 )
 RETURNING
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, total_cost_micros
@@ -4177,7 +4176,7 @@ type InsertChatMessageParams struct {
 	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
 	Compressed          sql.NullBool          `db:"compressed" json:"compressed"`
-	TotalCostMicros     decimal.NullDecimal   `db:"total_cost_micros" json:"total_cost_micros"`
+	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
 }
 
 func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error) {

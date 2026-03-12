@@ -3459,7 +3459,7 @@ func TestChatCostSummary(t *testing.T) {
 				Visibility:      database.ChatMessageVisibilityBoth,
 				InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
 				OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-				TotalCostMicros: decimal.NullDecimal{Decimal: decimal.RequireFromString("500"), Valid: true},
+				TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
 			})
 			require.NoError(t, err)
 		}
@@ -3467,7 +3467,7 @@ func TestChatCostSummary(t *testing.T) {
 		summary, err := client.GetChatCostSummary(ctx, codersdk.ChatCostSummaryOptions{})
 		require.NoError(t, err)
 
-		requireDecimalEqual(t, "1000", summary.TotalCostMicros)
+		require.Equal(t, int64(1000), summary.TotalCostMicros)
 		require.Equal(t, int64(2), summary.PricedMessageCount)
 		require.Equal(t, int64(0), summary.UnpricedMessageCount)
 		require.Equal(t, int64(200), summary.TotalInputTokens)
@@ -3475,12 +3475,12 @@ func TestChatCostSummary(t *testing.T) {
 
 		require.Len(t, summary.ByModel, 1)
 		require.Equal(t, modelConfig.ID, summary.ByModel[0].ModelConfigID)
-		requireDecimalEqual(t, "1000", summary.ByModel[0].TotalCostMicros)
+		require.Equal(t, int64(1000), summary.ByModel[0].TotalCostMicros)
 		require.Equal(t, int64(2), summary.ByModel[0].MessageCount)
 
 		require.Len(t, summary.ByChat, 1)
 		require.Equal(t, chat.ID, summary.ByChat[0].RootChatID)
-		requireDecimalEqual(t, "1000", summary.ByChat[0].TotalCostMicros)
+		require.Equal(t, int64(1000), summary.ByChat[0].TotalCostMicros)
 		require.Equal(t, int64(2), summary.ByChat[0].MessageCount)
 	})
 }
@@ -3508,7 +3508,7 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
-		TotalCostMicros: decimal.NullDecimal{Decimal: decimal.RequireFromString("750"), Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 750, Valid: true},
 	})
 	require.NoError(t, err)
 
@@ -3520,7 +3520,7 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 			UserID: member.ID,
 		})
 		require.NoError(t, err)
-		requireDecimalEqual(t, "750", summary.TotalCostMicros)
+		require.Equal(t, int64(750), summary.TotalCostMicros)
 		require.Equal(t, int64(1), summary.PricedMessageCount)
 	})
 
@@ -3560,7 +3560,7 @@ func TestChatCostUsers(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: decimal.NullDecimal{Decimal: decimal.RequireFromString("300"), Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 300, Valid: true},
 	})
 	require.NoError(t, err)
 
@@ -3577,7 +3577,7 @@ func TestChatCostUsers(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
-		TotalCostMicros: decimal.NullDecimal{Decimal: decimal.RequireFromString("800"), Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 800, Valid: true},
 	})
 	require.NoError(t, err)
 
@@ -3589,11 +3589,11 @@ func TestChatCostUsers(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, resp.Users, 2)
 		require.Equal(t, member.ID, resp.Users[0].UserID)
-		requireDecimalEqual(t, "800", resp.Users[0].TotalCostMicros)
+		require.Equal(t, int64(800), resp.Users[0].TotalCostMicros)
 		require.Equal(t, int64(1), resp.Users[0].MessageCount)
 		require.Equal(t, int64(1), resp.Users[0].ChatCount)
 		require.Equal(t, firstUser.UserID, resp.Users[1].UserID)
-		requireDecimalEqual(t, "300", resp.Users[1].TotalCostMicros)
+		require.Equal(t, int64(300), resp.Users[1].TotalCostMicros)
 	})
 
 	t.Run("MemberCannotListUsers", func(t *testing.T) {
@@ -3630,7 +3630,7 @@ func TestChatCostSummary_DateRange(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: decimal.NullDecimal{Decimal: decimal.RequireFromString("500"), Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
 	})
 	require.NoError(t, err)
 
@@ -3645,7 +3645,7 @@ func TestChatCostSummary_DateRange(t *testing.T) {
 			EndDate:   now.Add(time.Hour),
 		})
 		require.NoError(t, err)
-		requireDecimalEqual(t, "500", summary.TotalCostMicros)
+		require.Equal(t, int64(500), summary.TotalCostMicros)
 		require.Equal(t, int64(1), summary.PricedMessageCount)
 	})
 
@@ -3658,7 +3658,7 @@ func TestChatCostSummary_DateRange(t *testing.T) {
 			EndDate:   now.Add(2 * time.Hour),
 		})
 		require.NoError(t, err)
-		requireDecimalEqual(t, "0", summary.TotalCostMicros)
+		require.Equal(t, int64(0), summary.TotalCostMicros)
 		require.Equal(t, int64(0), summary.PricedMessageCount)
 	})
 }
@@ -3685,7 +3685,7 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: decimal.NullDecimal{Decimal: decimal.RequireFromString("500"), Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
 	})
 	require.NoError(t, err)
 
@@ -3696,14 +3696,14 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 75, Valid: true},
-		TotalCostMicros: decimal.NullDecimal{},
+		TotalCostMicros: sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
 	summary, err := client.GetChatCostSummary(ctx, codersdk.ChatCostSummaryOptions{})
 	require.NoError(t, err)
 
-	requireDecimalEqual(t, "500", summary.TotalCostMicros)
+	require.Equal(t, int64(500), summary.TotalCostMicros)
 	require.Equal(t, int64(1), summary.PricedMessageCount)
 	require.Equal(t, int64(1), summary.UnpricedMessageCount)
 	require.Equal(t, int64(300), summary.TotalInputTokens)
@@ -3730,11 +3730,6 @@ func requireChatModelPricing(
 	require.True(t, expected.Cost.OutputPricePerMillionTokens.Equal(*actual.Cost.OutputPricePerMillionTokens))
 	require.True(t, expected.Cost.CacheReadPricePerMillionTokens.Equal(*actual.Cost.CacheReadPricePerMillionTokens))
 	require.True(t, expected.Cost.CacheWritePricePerMillionTokens.Equal(*actual.Cost.CacheWritePricePerMillionTokens))
-}
-
-func requireDecimalEqual(t *testing.T, want string, got decimal.Decimal) {
-	t.Helper()
-	require.True(t, decimal.RequireFromString(want).Equal(got), "expected %s, got %s", want, got.String())
 }
 
 func decRef(value string) *decimal.Decimal {

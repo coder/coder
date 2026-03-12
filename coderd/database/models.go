@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	decimal "github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -3956,7 +3955,7 @@ type ChatMessage struct {
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
 	Compressed          bool                  `db:"compressed" json:"compressed"`
 	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
-	TotalCostMicros     decimal.NullDecimal   `db:"total_cost_micros" json:"total_cost_micros"`
+	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
 }
 
 type ChatModelConfig struct {
