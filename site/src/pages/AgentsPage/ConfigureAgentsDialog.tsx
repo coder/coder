@@ -34,7 +34,6 @@ import {
 	KeyRoundIcon,
 	Loader2Icon,
 	ShieldIcon,
-	TriangleAlertIcon,
 	UserIcon,
 	XIcon,
 } from "lucide-react";
@@ -50,6 +49,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatCostMicros, formatTokenCount } from "utils/analytics";
 import { cn } from "utils/cn";
+import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { SectionHeader } from "./SectionHeader";
 
@@ -167,174 +167,15 @@ const UsageContent: FC = () => {
 					</div>
 				</div>
 
-				{summaryQuery.isLoading && (
-					<div
-						role="status"
-						aria-label="Loading usage details"
-						className="flex min-h-[240px] items-center justify-center"
-					>
-						<Loader2Icon className="h-8 w-8 animate-spin text-content-secondary" />
-					</div>
-				)}
-
-				{summaryQuery.isError && (
-					<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
-						<p className="m-0 text-sm text-content-secondary">
-							{summaryQuery.error instanceof Error
-								? summaryQuery.error.message
-								: "Failed to load usage details."}
-						</p>
-						<Button
-							variant="outline"
-							size="sm"
-							type="button"
-							onClick={() => void summaryQuery.refetch()}
-						>
-							Retry
-						</Button>
-					</div>
-				)}
-
-				{summaryQuery.data && (
-					<>
-						<div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-							<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-									Total Cost
-								</p>
-								<p className="mt-1 text-2xl font-semibold text-content-primary">
-									{formatCostMicros(summaryQuery.data.total_cost_micros)}
-								</p>
-							</div>
-							<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-									Input Tokens
-								</p>
-								<p className="mt-1 text-2xl font-semibold text-content-primary">
-									{formatTokenCount(summaryQuery.data.total_input_tokens)}
-								</p>
-							</div>
-							<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-									Output Tokens
-								</p>
-								<p className="mt-1 text-2xl font-semibold text-content-primary">
-									{formatTokenCount(summaryQuery.data.total_output_tokens)}
-								</p>
-							</div>
-							<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-									Messages
-								</p>
-								<p className="mt-1 text-2xl font-semibold text-content-primary">
-									{(
-										summaryQuery.data.priced_message_count +
-										summaryQuery.data.unpriced_message_count
-									).toLocaleString()}
-								</p>
-							</div>
-						</div>
-
-						{summaryQuery.data.unpriced_message_count > 0 && (
-							<div className="flex items-start gap-3 rounded-lg border border-border-warning bg-surface-warning p-4 text-sm text-content-primary">
-								<TriangleAlertIcon className="h-5 w-5 shrink-0 text-content-warning" />
-								<span>
-									{summaryQuery.data.unpriced_message_count} message
-									{summaryQuery.data.unpriced_message_count === 1 ? "" : "s"}{" "}
-									could not be priced because model pricing data was
-									unavailable.
-								</span>
-							</div>
-						)}
-
-						{summaryQuery.data.by_model.length === 0 &&
-						summaryQuery.data.by_chat.length === 0 ? (
-							<p className="py-12 text-center text-content-secondary">
-								No usage data for this user in the selected period.
-							</p>
-						) : (
-							<>
-								<div className="overflow-x-auto rounded-lg border border-border-default">
-									<table className="w-full text-sm">
-										<thead>
-											<tr className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-												<th className="px-4 py-3">Model</th>
-												<th className="px-4 py-3">Provider</th>
-												<th className="px-4 py-3 text-right">Cost</th>
-												<th className="px-4 py-3 text-right">Messages</th>
-												<th className="px-4 py-3 text-right">Input</th>
-												<th className="px-4 py-3 text-right">Output</th>
-											</tr>
-										</thead>
-										<tbody>
-											{summaryQuery.data.by_model.map((model) => (
-												<tr
-													key={model.model_config_id}
-													className="border-t border-border-default"
-												>
-													<td className="px-4 py-3">
-														{model.display_name || model.model}
-													</td>
-													<td className="px-4 py-3 text-content-secondary">
-														{model.provider}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{formatCostMicros(model.total_cost_micros)}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{model.message_count.toLocaleString()}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{formatTokenCount(model.total_input_tokens)}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{formatTokenCount(model.total_output_tokens)}
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-								</div>
-
-								<div className="overflow-x-auto rounded-lg border border-border-default">
-									<table className="w-full text-sm">
-										<thead>
-											<tr className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-												<th className="px-4 py-3">Chat</th>
-												<th className="px-4 py-3 text-right">Cost</th>
-												<th className="px-4 py-3 text-right">Messages</th>
-												<th className="px-4 py-3 text-right">Input</th>
-												<th className="px-4 py-3 text-right">Output</th>
-											</tr>
-										</thead>
-										<tbody>
-											{summaryQuery.data.by_chat.map((chat) => (
-												<tr
-													key={chat.root_chat_id}
-													className="border-t border-border-default"
-												>
-													<td className="px-4 py-3">{chat.chat_title}</td>
-													<td className="px-4 py-3 text-right">
-														{formatCostMicros(chat.total_cost_micros)}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{chat.message_count.toLocaleString()}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{formatTokenCount(chat.total_input_tokens)}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{formatTokenCount(chat.total_output_tokens)}
-													</td>
-												</tr>
-											))}
-										</tbody>
-									</table>
-								</div>
-							</>
-						)}
-					</>
-				)}
+				<ChatCostSummaryView
+					summary={summaryQuery.data}
+					isLoading={summaryQuery.isLoading}
+					isError={summaryQuery.isError}
+					error={summaryQuery.error}
+					onRetry={() => void summaryQuery.refetch()}
+					loadingLabel="Loading usage details"
+					emptyMessage="No usage data for this user in the selected period."
+				/>
 			</div>
 		);
 	}

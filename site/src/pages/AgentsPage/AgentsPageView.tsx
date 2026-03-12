@@ -15,6 +15,7 @@ import {
 	ConfigureAgentsDialog,
 	type ConfigureAgentsSection,
 } from "./ConfigureAgentsDialog";
+import { UserAnalyticsDialog } from "./UserAnalyticsDialog";
 import { WebPushButton } from "./WebPushButton";
 
 type ChatModelOption = ModelSelectorOption;
@@ -104,6 +105,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		useState(false);
 	const [configureAgentsInitialSection, setConfigureAgentsInitialSection] =
 		useState<ConfigureAgentsSection>("behavior");
+	const [isUserAnalyticsDialogOpen, setUserAnalyticsDialogOpen] =
+		useState(false);
 	const outlet = useOutlet();
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
@@ -140,8 +143,12 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
 					onOpenAnalytics={() => {
-						setConfigureAgentsInitialSection("usage");
-						setConfigureAgentsDialogOpen(true);
+						if (isAgentsAdmin) {
+							setConfigureAgentsInitialSection("usage");
+							setConfigureAgentsDialogOpen(true);
+							return;
+						}
+						setUserAnalyticsDialogOpen(true);
 					}}
 					onOpenSettings={() => {
 						setConfigureAgentsInitialSection("behavior");
@@ -209,6 +216,10 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 				canManageChatModelConfigs={isAgentsAdmin}
 				canSetSystemPrompt={isAgentsAdmin}
 				initialSection={configureAgentsInitialSection}
+			/>
+			<UserAnalyticsDialog
+				open={isUserAnalyticsDialogOpen}
+				onOpenChange={setUserAnalyticsDialogOpen}
 			/>
 		</div>
 	);
