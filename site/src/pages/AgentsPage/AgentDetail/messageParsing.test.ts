@@ -101,11 +101,28 @@ describe("parseMessageContent", () => {
 			{ type: "text", text: "Line one" },
 			{ type: "text", text: "Line two" },
 		]);
-		expect(result.markdown).toBe("Line one\nLine two");
+		expect(result.markdown).toBe("Line oneLine two");
 		expect(result.blocks).toHaveLength(1);
 		expect(result.blocks[0]).toEqual({
 			type: "response",
-			text: "Line one\nLine two",
+			text: "Line oneLine two",
+		});
+	});
+
+	it("normalizes list markers split across text blocks", () => {
+		// LLMs stream list markers and item content as separate text
+		// blocks. Both paths (streaming and completed) must concatenate
+		// them directly so the marker and content stay on the same line.
+		const result = parseMessageContent([
+			{ type: "text", text: "Intro\n\n- " },
+			{ type: "text", text: "First item" },
+			{ type: "text", text: "\n- " },
+			{ type: "text", text: "Second item" },
+		]);
+		expect(result.blocks).toHaveLength(1);
+		expect(result.blocks[0]).toEqual({
+			type: "response",
+			text: "Intro\n\n- First item\n- Second item",
 		});
 	});
 
