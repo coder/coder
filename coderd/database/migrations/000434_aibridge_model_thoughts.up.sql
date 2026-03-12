@@ -1,8 +1,7 @@
 CREATE TABLE aibridge_model_thoughts (
     id UUID NOT NULL PRIMARY KEY,
     interception_id UUID NOT NULL,
-    tool_usage_id UUID NOT NULL,
-    content TEXT,
+    content TEXT NOT NULL,
     metadata jsonb,
     created_at TIMESTAMPTZ NOT NULL
 );

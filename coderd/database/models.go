@@ -3978,8 +3978,7 @@ type AIBridgeInterception struct {
 type AIBridgeModelThought struct {
 	ID             uuid.UUID             `db:"id" json:"id"`
 	InterceptionID uuid.UUID             `db:"interception_id" json:"interception_id"`
-	ToolUsageID    uuid.UUID             `db:"tool_usage_id" json:"tool_usage_id"`
-	Content        sql.NullString        `db:"content" json:"content"`
+	Content        string                `db:"content" json:"content"`
 	Metadata       pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	CreatedAt      time.Time             `db:"created_at" json:"created_at"`
 }
