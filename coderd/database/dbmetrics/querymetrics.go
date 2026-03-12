@@ -3239,14 +3239,6 @@ func (m queryMetricsStore) InsertUserGroupsByID(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
-	start := time.Now()
-	r0 := m.s.InsertUserGroupsByName(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertUserGroupsByName").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertUserGroupsByName").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertUserLink(ctx, arg)

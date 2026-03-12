@@ -4823,16 +4823,6 @@ func (q *querier) InsertUserGroupsByID(ctx context.Context, arg database.InsertU
 	return q.db.InsertUserGroupsByID(ctx, arg)
 }
 
-func (q *querier) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
-	// This will add the user to all named groups. This counts as updating a group.
-	// NOTE: instead of checking if the user has permission to update each group, we instead
-	// check if the user has permission to update *a* group in the org.
-	fetch := func(_ context.Context, arg database.InsertUserGroupsByNameParams) (rbac.Objecter, error) {
-		return rbac.ResourceGroup.InOrg(arg.OrganizationID), nil
-	}
-	return update(q.log, q.auth, fetch, q.db.InsertUserGroupsByName)(ctx, arg)
-}
-
 // TODO: Should this be in system.go?
 func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUserObject(arg.UserID)); err != nil {

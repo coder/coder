@@ -5942,37 +5942,6 @@ func (q *sqlQuerier) InsertUserGroupsByID(ctx context.Context, arg InsertUserGro
 	return items, nil
 }
 
-const insertUserGroupsByName = `-- name: InsertUserGroupsByName :exec
-WITH groups AS (
-    SELECT
-        id
-    FROM
-        groups
-    WHERE
-        groups.organization_id = $2 AND
-        groups.name = ANY($3 :: text [])
-)
-INSERT INTO
-    group_members (user_id, group_id)
-SELECT
-    $1,
-    groups.id
-FROM
-    groups
-`
-
-type InsertUserGroupsByNameParams struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	GroupNames     []string  `db:"group_names" json:"group_names"`
-}
-
-// InsertUserGroupsByName adds a user to all provided groups, if they exist.
-func (q *sqlQuerier) InsertUserGroupsByName(ctx context.Context, arg InsertUserGroupsByNameParams) error {
-	_, err := q.db.ExecContext(ctx, insertUserGroupsByName, arg.UserID, arg.OrganizationID, pq.Array(arg.GroupNames))
-	return err
-}
-
 const removeUserFromAllGroups = `-- name: RemoveUserFromAllGroups :exec
 DELETE FROM
 	group_members

@@ -6056,20 +6056,6 @@ func (mr *MockStoreMockRecorder) InsertUserGroupsByID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserGroupsByID", reflect.TypeOf((*MockStore)(nil).InsertUserGroupsByID), ctx, arg)
 }
 
-// InsertUserGroupsByName mocks base method.
-func (m *MockStore) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertUserGroupsByName", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// InsertUserGroupsByName indicates an expected call of InsertUserGroupsByName.
-func (mr *MockStoreMockRecorder) InsertUserGroupsByName(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertUserGroupsByName", reflect.TypeOf((*MockStore)(nil).InsertUserGroupsByName), ctx, arg)
-}
-
 // InsertUserLink mocks base method.
 func (m *MockStore) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
 	m.ctrl.T.Helper()

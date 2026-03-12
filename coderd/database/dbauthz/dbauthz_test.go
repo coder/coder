@@ -909,15 +909,6 @@ func (s *MethodTestSuite) TestGroup() {
 		check.Args(arg).Asserts(g, policy.ActionUpdate).Returns()
 	}))
 
-	s.Run("InsertUserGroupsByName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		o := testutil.Fake(s.T(), faker, database.Organization{})
-		u1 := testutil.Fake(s.T(), faker, database.User{})
-		g1 := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
-		g2 := testutil.Fake(s.T(), faker, database.Group{OrganizationID: o.ID})
-		arg := database.InsertUserGroupsByNameParams{OrganizationID: o.ID, UserID: u1.ID, GroupNames: slice.New(g1.Name, g2.Name)}
-		dbm.EXPECT().InsertUserGroupsByName(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionUpdate).Returns()
-	}))
 
 	s.Run("InsertUserGroupsByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		o := testutil.Fake(s.T(), faker, database.Organization{})

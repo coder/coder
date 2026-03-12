@@ -32,25 +32,6 @@ WHERE group_id = @group_id
         END;
 
 -- InsertUserGroupsByName adds a user to all provided groups, if they exist.
--- name: InsertUserGroupsByName :exec
-WITH groups AS (
-    SELECT
-        id
-    FROM
-        groups
-    WHERE
-        groups.organization_id = @organization_id AND
-        groups.name = ANY(@group_names :: text [])
-)
-INSERT INTO
-    group_members (user_id, group_id)
-SELECT
-    @user_id,
-    groups.id
-FROM
-    groups;
-
--- InsertUserGroupsByID adds a user to all provided groups, if they exist.
 -- name: InsertUserGroupsByID :many
 WITH groups AS (
 	SELECT
