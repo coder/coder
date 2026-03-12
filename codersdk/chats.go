@@ -8,6 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -623,6 +624,8 @@ type ChatCostSummaryOptions struct {
 type ChatCostUsersOptions struct {
 	StartDate time.Time
 	EndDate   time.Time
+	Username  string
+	Pagination
 }
 
 // ChatCostSummary is the response from the chat cost summary endpoint.
@@ -663,6 +666,9 @@ type ChatCostChatBreakdown struct {
 // ChatCostUserRollup contains per-user cost aggregation for admin views.
 type ChatCostUserRollup struct {
 	UserID            uuid.UUID `json:"user_id" format:"uuid"`
+	Username          string    `json:"username"`
+	Name              string    `json:"name"`
+	AvatarURL         string    `json:"avatar_url"`
 	TotalCostMicros   int64     `json:"total_cost_micros"`
 	MessageCount      int64     `json:"message_count"`
 	ChatCount         int64     `json:"chat_count"`
@@ -674,6 +680,7 @@ type ChatCostUserRollup struct {
 type ChatCostUsersResponse struct {
 	StartDate time.Time            `json:"start_date" format:"date-time"`
 	EndDate   time.Time            `json:"end_date" format:"date-time"`
+	Count     int64                `json:"count"`
 	Users     []ChatCostUserRollup `json:"users"`
 }
 
@@ -876,6 +883,15 @@ func (c *Client) GetChatCostUsers(ctx context.Context, opts ChatCostUsersOptions
 	}
 	if !opts.EndDate.IsZero() {
 		qp.Set("end_date", opts.EndDate.Format(time.RFC3339))
+	}
+	if opts.Username != "" {
+		qp.Set("username", opts.Username)
+	}
+	if opts.Limit > 0 {
+		qp.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	if opts.Offset > 0 {
+		qp.Set("offset", strconv.Itoa(opts.Offset))
 	}
 	reqURL := "/api/experimental/chats/cost-users"
 	if len(qp) > 0 {

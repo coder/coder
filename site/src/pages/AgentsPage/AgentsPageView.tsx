@@ -11,7 +11,10 @@ import { pageTitle } from "utils/page";
 import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ChimeButton } from "./ChimeButton";
-import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
+import {
+	ConfigureAgentsDialog,
+	type ConfigureAgentsSection,
+} from "./ConfigureAgentsDialog";
 import { WebPushButton } from "./WebPushButton";
 
 type ChatModelOption = ModelSelectorOption;
@@ -47,7 +50,6 @@ interface AgentsPageViewProps {
 	isSidebarCollapsed: boolean;
 	onExpandSidebar: () => void;
 	outletContext: AgentsOutletContext;
-	onOpenAnalytics?: () => void;
 	isAgentsAdmin: boolean;
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	createError: unknown;
@@ -79,7 +81,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isSidebarCollapsed,
 	onExpandSidebar,
 	outletContext,
-	onOpenAnalytics,
 	isAgentsAdmin,
 	onCreateChat,
 	createError,
@@ -101,6 +102,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	} = outletContext;
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
+	const [configureAgentsInitialSection, setConfigureAgentsInitialSection] =
+		useState<ConfigureAgentsSection>("behavior");
 	const outlet = useOutlet();
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
@@ -136,8 +139,14 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					archivedFilter={archivedFilter}
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
-					onOpenAnalytics={onOpenAnalytics}
-					onOpenSettings={() => setConfigureAgentsDialogOpen(true)}
+					onOpenAnalytics={() => {
+						setConfigureAgentsInitialSection("usage");
+						setConfigureAgentsDialogOpen(true);
+					}}
+					onOpenSettings={() => {
+						setConfigureAgentsInitialSection("behavior");
+						setConfigureAgentsDialogOpen(true);
+					}}
 				/>
 			</div>
 
@@ -199,6 +208,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 				onOpenChange={setConfigureAgentsDialogOpen}
 				canManageChatModelConfigs={isAgentsAdmin}
 				canSetSystemPrompt={isAgentsAdmin}
+				initialSection={configureAgentsInitialSection}
 			/>
 		</div>
 	);

@@ -3545,6 +3545,8 @@ func TestChatCostUsers(t *testing.T) {
 	client, db := newChatClientWithDatabase(t)
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	firstUserRecord, err := db.GetUserByID(dbauthz.AsSystemRestricted(seedCtx), firstUser.UserID)
+	require.NoError(t, err)
 	modelConfig := createChatModelConfig(t, client)
 
 	adminChat, err := db.InsertChat(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatParams{
@@ -3587,13 +3589,34 @@ func TestChatCostUsers(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		resp, err := client.GetChatCostUsers(ctx, codersdk.ChatCostUsersOptions{})
 		require.NoError(t, err)
+		require.Equal(t, int64(2), resp.Count)
 		require.Len(t, resp.Users, 2)
 		require.Equal(t, member.ID, resp.Users[0].UserID)
+		require.Equal(t, member.Username, resp.Users[0].Username)
 		require.Equal(t, int64(800), resp.Users[0].TotalCostMicros)
 		require.Equal(t, int64(1), resp.Users[0].MessageCount)
 		require.Equal(t, int64(1), resp.Users[0].ChatCount)
 		require.Equal(t, firstUser.UserID, resp.Users[1].UserID)
+		require.Equal(t, firstUserRecord.Username, resp.Users[1].Username)
 		require.Equal(t, int64(300), resp.Users[1].TotalCostMicros)
+	})
+
+	t.Run("AdminCanFilterAndPaginateUsers", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		resp, err := client.GetChatCostUsers(ctx, codersdk.ChatCostUsersOptions{
+			Username: member.Username,
+			Pagination: codersdk.Pagination{
+				Limit:  1,
+				Offset: 0,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(1), resp.Count)
+		require.Len(t, resp.Users, 1)
+		require.Equal(t, member.ID, resp.Users[0].UserID)
+		require.Equal(t, member.Username, resp.Users[0].Username)
 	})
 
 	t.Run("MemberCannotListUsers", func(t *testing.T) {

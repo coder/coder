@@ -323,6 +323,9 @@ describe("chat cost query factories", () => {
 		const params = {
 			start_date: "2025-01-01",
 			end_date: "2025-01-31",
+			username: "alice",
+			limit: 10,
+			offset: 20,
 		};
 		vi.mocked(API.getChatCostUsers).mockResolvedValue(
 			{} as TypesGen.ChatCostUsersResponse,

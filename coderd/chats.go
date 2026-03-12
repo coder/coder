@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -421,9 +422,13 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 
 	modelBreakdowns := make([]codersdk.ChatCostModelBreakdown, 0, len(byModel))
 	for _, model := range byModel {
+		displayName := strings.TrimSpace(model.DisplayName)
+		if displayName == "" {
+			displayName = model.Model
+		}
 		modelBreakdowns = append(modelBreakdowns, codersdk.ChatCostModelBreakdown{
 			ModelConfigID:     model.ModelConfigID,
-			DisplayName:       model.DisplayName,
+			DisplayName:       displayName,
 			Provider:          model.Provider,
 			Model:             model.Model,
 			TotalCostMicros:   model.TotalCostMicros,
@@ -472,6 +477,9 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 	p := httpapi.NewQueryParamParser()
 	startDate := p.Time(qp, defaultStart, "start_date", time.RFC3339)
 	endDate := p.Time(qp, now, "end_date", time.RFC3339)
+	username := strings.TrimSpace(p.String(qp, "", "username"))
+	limit := p.Int(qp, 10, "limit")
+	offset := p.Int(qp, 0, "offset")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -480,10 +488,44 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if limit <= 0 {
+		limit = 10
+	}
+	if offset < 0 || offset > math.MaxInt32 || limit > math.MaxInt32 {
+		validations := make([]codersdk.ValidationError, 0, 2)
+		if offset < 0 {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "offset",
+				Detail: "Must be greater than or equal to 0.",
+			})
+		}
+		if offset > math.MaxInt32 {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "offset",
+				Detail: fmt.Sprintf("Must be less than or equal to %d.", math.MaxInt32),
+			})
+		}
+		if limit > math.MaxInt32 {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "limit",
+				Detail: fmt.Sprintf("Must be less than or equal to %d.", math.MaxInt32),
+			})
+		}
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: validations,
+		})
+		return
+	}
 
 	users, err := api.Database.GetChatCostByUser(ctx, database.GetChatCostByUserParams{
 		StartDate: startDate,
 		EndDate:   endDate,
+		Username:  username,
+		// #nosec G115 - Pagination limits are validated to fit in int32 above.
+		PageLimit: int32(limit),
+		// #nosec G115 - Pagination offsets are validated to fit in int32 above.
+		PageOffset: int32(offset),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -491,9 +533,14 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rollups := make([]codersdk.ChatCostUserRollup, 0, len(users))
+	count := int64(0)
 	for _, user := range users {
+		count = user.TotalCount
 		rollups = append(rollups, codersdk.ChatCostUserRollup{
 			UserID:            user.UserID,
+			Username:          user.Username,
+			Name:              user.Name,
+			AvatarURL:         user.AvatarURL,
 			TotalCostMicros:   user.TotalCostMicros,
 			MessageCount:      user.MessageCount,
 			ChatCount:         user.ChatCount,
@@ -505,6 +552,7 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostUsersResponse{
 		StartDate: startDate,
 		EndDate:   endDate,
+		Count:     count,
 		Users:     rollups,
 	})
 }

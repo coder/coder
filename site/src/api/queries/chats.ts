@@ -405,11 +405,17 @@ export const chatCostSummary = (params?: {
 export const chatCostUsersKey = (params?: {
 	start_date?: string;
 	end_date?: string;
+	username?: string;
+	limit?: number;
+	offset?: number;
 }) => ["chatCostUsers", params] as const;
 
 export const chatCostUsers = (params?: {
 	start_date?: string;
 	end_date?: string;
+	username?: string;
+	limit?: number;
+	offset?: number;
 }) => ({
 	queryKey: chatCostUsersKey(params),
 	queryFn: () => API.getChatCostUsers(params),

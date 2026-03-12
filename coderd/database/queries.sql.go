@@ -3440,45 +3440,90 @@ func (q *sqlQuerier) GetChatCostByModel(ctx context.Context, arg GetChatCostByMo
 }
 
 const getChatCostByUser = `-- name: GetChatCostByUser :many
+WITH chat_cost_users AS (
+    SELECT
+        c.owner_id AS user_id,
+        u.username,
+        u.name,
+        u.avatar_url,
+        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COUNT(*)::bigint AS message_count,
+        COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
+        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+    FROM
+        chat_messages cm
+    JOIN
+        chats c ON c.id = cm.chat_id
+    JOIN
+        users u ON u.id = c.owner_id
+    WHERE
+        cm.role = 'assistant'
+        AND cm.created_at >= $3::timestamptz
+        AND cm.created_at < $4::timestamptz
+        AND (
+            $5::text = ''
+            OR u.username ILIKE '%' || $5::text || '%'
+        )
+    GROUP BY
+        c.owner_id,
+        u.username,
+        u.name,
+        u.avatar_url
+)
 SELECT
-    c.owner_id AS user_id,
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-    COUNT(*)::bigint AS message_count,
-    COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+    user_id,
+    username,
+    name,
+    avatar_url,
+    total_cost_micros,
+    message_count,
+    chat_count,
+    total_input_tokens,
+    total_output_tokens,
+    COUNT(*) OVER()::bigint AS total_count
 FROM
-    chat_messages cm
-JOIN
-    chats c ON c.id = cm.chat_id
-WHERE
-    cm.role = 'assistant'
-    AND cm.created_at >= $1::timestamptz
-    AND cm.created_at < $2::timestamptz
-GROUP BY
-    c.owner_id
+    chat_cost_users
 ORDER BY
-    total_cost_micros DESC
+    total_cost_micros DESC,
+    username ASC
+LIMIT
+    $2::int
+OFFSET
+    $1::int
 `
 
 type GetChatCostByUserParams struct {
-	StartDate time.Time `db:"start_date" json:"start_date"`
-	EndDate   time.Time `db:"end_date" json:"end_date"`
+	PageOffset int32     `db:"page_offset" json:"page_offset"`
+	PageLimit  int32     `db:"page_limit" json:"page_limit"`
+	StartDate  time.Time `db:"start_date" json:"start_date"`
+	EndDate    time.Time `db:"end_date" json:"end_date"`
+	Username   string    `db:"username" json:"username"`
 }
 
 type GetChatCostByUserRow struct {
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	Username          string    `db:"username" json:"username"`
+	Name              string    `db:"name" json:"name"`
+	AvatarURL         string    `db:"avatar_url" json:"avatar_url"`
 	TotalCostMicros   int64     `db:"total_cost_micros" json:"total_cost_micros"`
 	MessageCount      int64     `db:"message_count" json:"message_count"`
 	ChatCount         int64     `db:"chat_count" json:"chat_count"`
 	TotalInputTokens  int64     `db:"total_input_tokens" json:"total_input_tokens"`
 	TotalOutputTokens int64     `db:"total_output_tokens" json:"total_output_tokens"`
+	TotalCount        int64     `db:"total_count" json:"total_count"`
 }
 
 // Deployment-wide per-user cost rollup within a date range.
 // Only counts assistant-role messages.
 func (q *sqlQuerier) GetChatCostByUser(ctx context.Context, arg GetChatCostByUserParams) ([]GetChatCostByUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatCostByUser, arg.StartDate, arg.EndDate)
+	rows, err := q.db.QueryContext(ctx, getChatCostByUser,
+		arg.PageOffset,
+		arg.PageLimit,
+		arg.StartDate,
+		arg.EndDate,
+		arg.Username,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -3488,11 +3533,15 @@ func (q *sqlQuerier) GetChatCostByUser(ctx context.Context, arg GetChatCostByUse
 		var i GetChatCostByUserRow
 		if err := rows.Scan(
 			&i.UserID,
+			&i.Username,
+			&i.Name,
+			&i.AvatarURL,
 			&i.TotalCostMicros,
 			&i.MessageCount,
 			&i.ChatCount,
 			&i.TotalInputTokens,
 			&i.TotalOutputTokens,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}

@@ -596,22 +596,54 @@ ORDER BY cc.total_cost_micros DESC;
 -- name: GetChatCostByUser :many
 -- Deployment-wide per-user cost rollup within a date range.
 -- Only counts assistant-role messages.
+WITH chat_cost_users AS (
+    SELECT
+        c.owner_id AS user_id,
+        u.username,
+        u.name,
+        u.avatar_url,
+        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COUNT(*)::bigint AS message_count,
+        COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
+        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+    FROM
+        chat_messages cm
+    JOIN
+        chats c ON c.id = cm.chat_id
+    JOIN
+        users u ON u.id = c.owner_id
+    WHERE
+        cm.role = 'assistant'
+        AND cm.created_at >= @start_date::timestamptz
+        AND cm.created_at < @end_date::timestamptz
+        AND (
+            @username::text = ''
+            OR u.username ILIKE '%' || @username::text || '%'
+        )
+    GROUP BY
+        c.owner_id,
+        u.username,
+        u.name,
+        u.avatar_url
+)
 SELECT
-    c.owner_id AS user_id,
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-    COUNT(*)::bigint AS message_count,
-    COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+    user_id,
+    username,
+    name,
+    avatar_url,
+    total_cost_micros,
+    message_count,
+    chat_count,
+    total_input_tokens,
+    total_output_tokens,
+    COUNT(*) OVER()::bigint AS total_count
 FROM
-    chat_messages cm
-JOIN
-    chats c ON c.id = cm.chat_id
-WHERE
-    cm.role = 'assistant'
-    AND cm.created_at >= @start_date::timestamptz
-    AND cm.created_at < @end_date::timestamptz
-GROUP BY
-    c.owner_id
+    chat_cost_users
 ORDER BY
-    total_cost_micros DESC;
+    total_cost_micros DESC,
+    username ASC
+LIMIT
+    sqlc.arg('page_limit')::int
+OFFSET
+    sqlc.arg('page_offset')::int;

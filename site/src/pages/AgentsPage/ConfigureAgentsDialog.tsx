@@ -6,6 +6,8 @@ import {
 	updateChatSystemPrompt,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
+import type * as TypesGen from "api/typesGenerated";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
 import {
 	Dialog,
@@ -15,6 +17,9 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "components/Dialog/Dialog";
+import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
+import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
+import { SearchField } from "components/SearchField/SearchField";
 import {
 	Tooltip,
 	TooltipContent,
@@ -48,7 +53,11 @@ import { cn } from "utils/cn";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { SectionHeader } from "./SectionHeader";
 
-type ConfigureAgentsSection = "providers" | "models" | "behavior" | "usage";
+export type ConfigureAgentsSection =
+	| "providers"
+	| "models"
+	| "behavior"
+	| "usage";
 
 type ConfigureAgentsSectionOption = {
 	id: ConfigureAgentsSection;
@@ -73,15 +82,13 @@ const AdminBadge: FC = () => (
 	</TooltipProvider>
 );
 
-const truncateUserID = (userID: string): string => {
-	if (userID.length <= 16) {
-		return userID;
-	}
-	return `${userID.slice(0, 8)}…${userID.slice(-4)}`;
-};
+const pageSize = 10;
 
 const UsageContent: FC = () => {
-	const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+	const [selectedUser, setSelectedUser] =
+		useState<TypesGen.ChatCostUserRollup | null>(null);
+	const [usernameFilter, setUsernameFilter] = useState("");
+	const [page, setPage] = useState(1);
 	const dateRange = useMemo(() => {
 		const end = dayjs();
 		const start = end.subtract(30, "day");
@@ -91,38 +98,46 @@ const UsageContent: FC = () => {
 			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
 		};
 	}, []);
+	const offset = (page - 1) * pageSize;
 
 	const usersQuery = useQuery(
 		chatCostUsers({
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
+			username: usernameFilter || undefined,
+			limit: pageSize,
+			offset,
 		}),
 	);
 	const summaryQuery = useQuery({
 		...chatCostSummary({
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
-			user_id: selectedUserId ?? undefined,
+			user_id: selectedUser?.user_id,
 		}),
-		enabled: selectedUserId !== null,
+		enabled: selectedUser !== null,
 	});
+
+	const totalCount = usersQuery.data?.count ?? 0;
+	const hasPreviousPage = page > 1;
+	const hasNextPage = offset + pageSize < totalCount;
 
 	const header = (
 		<SectionHeader
 			label="Usage"
 			description={
-				selectedUserId
+				selectedUser
 					? "Review deployment chat usage for a specific user."
 					: "Review deployment chat usage and drill into individual users."
 			}
 			badge={<AdminBadge />}
 			action={
-				selectedUserId ? (
+				selectedUser ? (
 					<Button
 						variant="outline"
 						size="sm"
 						type="button"
-						onClick={() => setSelectedUserId(null)}
+						onClick={() => setSelectedUser(null)}
 					>
 						← Back to all users
 					</Button>
@@ -135,17 +150,21 @@ const UsageContent: FC = () => {
 		/>
 	);
 
-	if (selectedUserId) {
+	if (selectedUser) {
 		return (
 			<div className="space-y-6">
 				{header}
-				<div className="space-y-1">
-					<p className="m-0 text-xs text-content-secondary">
-						{dateRange.rangeLabel}
-					</p>
-					<p className="m-0 break-all rounded-lg border border-border bg-surface-secondary px-3 py-2 font-mono text-xs text-content-secondary">
-						User ID: {selectedUserId}
-					</p>
+				<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
+					<AvatarData
+						title={selectedUser.name || selectedUser.username}
+						subtitle={`@${selectedUser.username}`}
+						src={selectedUser.avatar_url}
+						imgFallbackText={selectedUser.username}
+					/>
+					<div className="min-w-0 text-xs text-content-secondary">
+						<div>User ID: {selectedUser.user_id}</div>
+						<div>{dateRange.rangeLabel}</div>
+					</div>
 				</div>
 
 				{summaryQuery.isLoading && (
@@ -253,7 +272,9 @@ const UsageContent: FC = () => {
 													key={model.model_config_id}
 													className="border-t border-border-default"
 												>
-													<td className="px-4 py-3">{model.display_name}</td>
+													<td className="px-4 py-3">
+														{model.display_name || model.model}
+													</td>
 													<td className="px-4 py-3 text-content-secondary">
 														{model.provider}
 													</td>
@@ -321,6 +342,27 @@ const UsageContent: FC = () => {
 	return (
 		<div className="space-y-6">
 			{header}
+			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+				<div className="w-full md:max-w-sm">
+					<SearchField
+						value={usernameFilter}
+						onChange={(value) => {
+							setUsernameFilter(value);
+							setPage(1);
+						}}
+						placeholder="Filter by username"
+						aria-label="Filter usage by username"
+					/>
+				</div>
+				{usersQuery.data && (
+					<PaginationAmount
+						limit={pageSize}
+						totalRecords={usersQuery.data.count}
+						currentOffsetStart={usersQuery.data.count === 0 ? 0 : offset + 1}
+						paginationUnitLabel="users"
+					/>
+				)}
+			</div>
 			{usersQuery.isLoading && (
 				<div
 					role="status"
@@ -355,58 +397,71 @@ const UsageContent: FC = () => {
 						No usage data for this period.
 					</p>
 				) : (
-					<div className="overflow-x-auto rounded-lg border border-border-default">
-						<table className="w-full text-sm">
-							<thead>
-								<tr className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<th className="px-4 py-3">User ID</th>
-									<th className="px-4 py-3 text-right">Total Cost</th>
-									<th className="px-4 py-3 text-right">Messages</th>
-									<th className="px-4 py-3 text-right">Chats</th>
-									<th className="px-4 py-3 text-right">Input Tokens</th>
-									<th className="px-4 py-3 text-right">Output Tokens</th>
-								</tr>
-							</thead>
-							<tbody>
-								{usersQuery.data.users.map((user) => (
-									<tr
-										key={user.user_id}
-										className="cursor-pointer border-t border-border-default transition-colors hover:bg-surface-secondary/50"
-										onClick={() => setSelectedUserId(user.user_id)}
-										onKeyDown={(event) => {
-											if (event.key === "Enter" || event.key === " ") {
-												event.preventDefault();
-												setSelectedUserId(user.user_id);
-											}
-										}}
-										role="button"
-										tabIndex={0}
-									>
-										<td className="px-4 py-3 font-mono text-xs text-content-primary">
-											<span title={user.user_id}>
-												{truncateUserID(user.user_id)}
-											</span>
-										</td>
-										<td className="px-4 py-3 text-right">
-											{formatCostMicros(user.total_cost_micros)}
-										</td>
-										<td className="px-4 py-3 text-right">
-											{user.message_count.toLocaleString()}
-										</td>
-										<td className="px-4 py-3 text-right">
-											{user.chat_count.toLocaleString()}
-										</td>
-										<td className="px-4 py-3 text-right">
-											{formatTokenCount(user.total_input_tokens)}
-										</td>
-										<td className="px-4 py-3 text-right">
-											{formatTokenCount(user.total_output_tokens)}
-										</td>
+					<>
+						<div className="overflow-x-auto rounded-lg border border-border-default">
+							<table className="w-full text-sm">
+								<thead>
+									<tr className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
+										<th className="px-4 py-3">User</th>
+										<th className="px-4 py-3 text-right">Total Cost</th>
+										<th className="px-4 py-3 text-right">Messages</th>
+										<th className="px-4 py-3 text-right">Chats</th>
+										<th className="px-4 py-3 text-right">Input Tokens</th>
+										<th className="px-4 py-3 text-right">Output Tokens</th>
 									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
+								</thead>
+								<tbody>
+									{usersQuery.data.users.map((user) => (
+										<tr
+											key={user.user_id}
+											className="cursor-pointer border-t border-border-default transition-colors hover:bg-surface-secondary/50"
+											onClick={() => setSelectedUser(user)}
+											onKeyDown={(event) => {
+												if (event.key === "Enter" || event.key === " ") {
+													event.preventDefault();
+													setSelectedUser(user);
+												}
+											}}
+											role="button"
+											tabIndex={0}
+										>
+											<td className="px-4 py-3 min-w-[220px]">
+												<AvatarData
+													title={user.name || user.username}
+													subtitle={`@${user.username}`}
+													src={user.avatar_url}
+													imgFallbackText={user.username}
+												/>
+											</td>
+											<td className="px-4 py-3 text-right">
+												{formatCostMicros(user.total_cost_micros)}
+											</td>
+											<td className="px-4 py-3 text-right">
+												{user.message_count.toLocaleString()}
+											</td>
+											<td className="px-4 py-3 text-right">
+												{user.chat_count.toLocaleString()}
+											</td>
+											<td className="px-4 py-3 text-right">
+												{formatTokenCount(user.total_input_tokens)}
+											</td>
+											<td className="px-4 py-3 text-right">
+												{formatTokenCount(user.total_output_tokens)}
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+						<PaginationWidgetBase
+							totalRecords={usersQuery.data.count}
+							currentPage={page}
+							pageSize={pageSize}
+							onPageChange={setPage}
+							hasPreviousPage={hasPreviousPage}
+							hasNextPage={hasNextPage}
+						/>
+					</>
 				))}
 		</div>
 	);
@@ -420,6 +475,7 @@ interface ConfigureAgentsDialogProps {
 	onOpenChange: (open: boolean) => void;
 	canManageChatModelConfigs: boolean;
 	canSetSystemPrompt: boolean;
+	initialSection?: ConfigureAgentsSection;
 }
 
 export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
@@ -427,6 +483,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	onOpenChange,
 	canManageChatModelConfigs,
 	canSetSystemPrompt,
+	initialSection = "behavior",
 }) => {
 	const queryClient = useQueryClient();
 
@@ -523,9 +580,9 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 
 	useEffect(() => {
 		if (open) {
-			setUserActiveSection("behavior");
+			setUserActiveSection(initialSection);
 		}
-	}, [open]);
+	}, [initialSection, open]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>

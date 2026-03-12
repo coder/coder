@@ -1128,6 +1128,9 @@ export interface ChatCostSummaryOptions {
  */
 export interface ChatCostUserRollup {
 	readonly user_id: string;
+	readonly username: string;
+	readonly name: string;
+	readonly avatar_url: string;
 	readonly total_cost_micros: number;
 	readonly message_count: number;
 	readonly chat_count: number;
@@ -1139,9 +1142,10 @@ export interface ChatCostUserRollup {
 /**
  * ChatCostUsersOptions are optional query parameters for GetChatCostUsers.
  */
-export interface ChatCostUsersOptions {
+export interface ChatCostUsersOptions extends Pagination {
 	readonly StartDate: string;
 	readonly EndDate: string;
+	readonly Username: string;
 }
 
 // From codersdk/chats.go
@@ -1151,6 +1155,7 @@ export interface ChatCostUsersOptions {
 export interface ChatCostUsersResponse {
 	readonly start_date: string;
 	readonly end_date: string;
+	readonly count: number;
 	readonly users: readonly ChatCostUserRollup[];
 }
 

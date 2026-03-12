@@ -3197,6 +3197,9 @@ class ApiMethods {
 	getChatCostUsers = async (params?: {
 		start_date?: string;
 		end_date?: string;
+		username?: string;
+		limit?: number;
+		offset?: number;
 	}): Promise<TypesGen.ChatCostUsersResponse> => {
 		const url = getURLWithSearchParams(
 			"/api/experimental/chats/cost-users",
