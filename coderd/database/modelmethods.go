@@ -326,6 +326,13 @@ func (t Template) RBACObject() rbac.Object {
 		WithGroupACL(t.GroupACL)
 }
 
+func (t GetFileTemplatesRow) RBACObject() rbac.Object {
+	return rbac.ResourceTemplate.WithID(t.TemplateID).
+		InOrg(t.TemplateOrganizationID).
+		WithACLUserList(t.UserACL).
+		WithGroupACL(t.GroupACL)
+}
+
 // RBACObject for a workspace build's provisioner state requires Update access of the template.
 func (t GetWorkspaceBuildProvisionerStateByIDRow) RBACObject() rbac.Object {
 	return rbac.ResourceTemplate.WithID(t.TemplateID).

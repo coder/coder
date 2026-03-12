@@ -11,6 +11,14 @@ INSERT INTO
 VALUES
     ($1, $2, $3, lower(@name), $4, $5) RETURNING *;
 
+-- name: GetProvisionerKeyByID :one
+SELECT
+    *
+FROM
+    provisioner_keys
+WHERE
+    id = $1;
+
 -- name: GetProvisionerKeyByHashedSecret :one
 SELECT
     *

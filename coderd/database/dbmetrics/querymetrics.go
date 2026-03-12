@@ -1271,6 +1271,14 @@ func (m queryMetricsStore) GetFileByID(ctx context.Context, id uuid.UUID) (datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFileTemplates(ctx, fileID)
+	m.queryLatencies.WithLabelValues("GetFileTemplates").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFileTemplates").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetFilteredInboxNotificationsByUserID(ctx, arg)
@@ -1500,6 +1508,14 @@ func (m queryMetricsStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid
 	r0, r1 := m.s.GetOAuth2ProviderAppByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderAppByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOAuth2ProviderAppCodeByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppCodeByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderAppCodeByID").Inc()
 	return r0, r1
 }
 
@@ -1804,6 +1820,14 @@ func (m queryMetricsStore) GetProvisionerKeyByHashedSecret(ctx context.Context, 
 	r0, r1 := m.s.GetProvisionerKeyByHashedSecret(ctx, hashedSecret)
 	m.queryLatencies.WithLabelValues("GetProvisionerKeyByHashedSecret").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetProvisionerKeyByHashedSecret").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerKeyByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetProvisionerKeyByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetProvisionerKeyByID").Inc()
 	return r0, r1
 }
 
@@ -2644,6 +2668,14 @@ func (m queryMetricsStore) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg
 	r0, r1 := m.s.GetWorkspaceByOwnerIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetWorkspaceByOwnerIDAndName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceByOwnerIDAndName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (database.Workspace, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceByResourceID(ctx, resourceID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceByResourceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceByResourceID").Inc()
 	return r0, r1
 }
 

@@ -5425,6 +5425,75 @@ func (q *sqlQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (File, error
 	return i, err
 }
 
+const getFileTemplates = `-- name: GetFileTemplates :many
+SELECT
+	files.id AS file_id,
+	files.created_by AS file_created_by,
+	templates.id AS template_id,
+	templates.organization_id AS template_organization_id,
+	templates.created_by AS template_created_by,
+	templates.user_acl,
+	templates.group_acl
+FROM
+	templates
+INNER JOIN
+	template_versions
+	ON templates.id = template_versions.template_id
+INNER JOIN
+	provisioner_jobs
+	ON job_id = provisioner_jobs.id
+INNER JOIN
+	files
+	ON files.id = provisioner_jobs.file_id
+WHERE
+    -- Only fetch template version associated files.
+	storage_method = 'file'
+	AND provisioner_jobs.type = 'template_version_import'
+	AND file_id = $1
+`
+
+type GetFileTemplatesRow struct {
+	FileID                 uuid.UUID   `db:"file_id" json:"file_id"`
+	FileCreatedBy          uuid.UUID   `db:"file_created_by" json:"file_created_by"`
+	TemplateID             uuid.UUID   `db:"template_id" json:"template_id"`
+	TemplateOrganizationID uuid.UUID   `db:"template_organization_id" json:"template_organization_id"`
+	TemplateCreatedBy      uuid.UUID   `db:"template_created_by" json:"template_created_by"`
+	UserACL                TemplateACL `db:"user_acl" json:"user_acl"`
+	GroupACL               TemplateACL `db:"group_acl" json:"group_acl"`
+}
+
+// Get all templates that use a file.
+func (q *sqlQuerier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]GetFileTemplatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getFileTemplates, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetFileTemplatesRow
+	for rows.Next() {
+		var i GetFileTemplatesRow
+		if err := rows.Scan(
+			&i.FileID,
+			&i.FileCreatedBy,
+			&i.TemplateID,
+			&i.TemplateOrganizationID,
+			&i.TemplateCreatedBy,
+			&i.UserACL,
+			&i.GroupACL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertFile = `-- name: InsertFile :one
 INSERT INTO
 	files (id, hash, created_at, created_by, mimetype, "data")
@@ -8766,6 +8835,30 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 		&i.SoftwareVersion,
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
+SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri FROM oauth2_provider_app_codes WHERE id = $1
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppCodeByID, id)
+	var i OAuth2ProviderAppCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.AppID,
+		&i.ResourceUri,
+		&i.CodeChallenge,
+		&i.CodeChallengeMethod,
+		&i.StateHash,
+		&i.RedirectUri,
 	)
 	return i, err
 }
@@ -13177,6 +13270,29 @@ WHERE
 
 func (q *sqlQuerier) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (ProvisionerKey, error) {
 	row := q.db.QueryRowContext(ctx, getProvisionerKeyByHashedSecret, hashedSecret)
+	var i ProvisionerKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.Name,
+		&i.HashedSecret,
+		&i.Tags,
+	)
+	return i, err
+}
+
+const getProvisionerKeyByID = `-- name: GetProvisionerKeyByID :one
+SELECT
+    id, created_at, organization_id, name, hashed_secret, tags
+FROM
+    provisioner_keys
+WHERE
+    id = $1
+`
+
+func (q *sqlQuerier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (ProvisionerKey, error) {
+	row := q.db.QueryRowContext(ctx, getProvisionerKeyByID, id)
 	var i ProvisionerKey
 	err := row.Scan(
 		&i.ID,
@@ -24581,6 +24697,71 @@ type GetWorkspaceByOwnerIDAndNameParams struct {
 
 func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error) {
 	row := q.db.QueryRowContext(ctx, getWorkspaceByOwnerIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+		&i.LastUsedAt,
+		&i.DormantAt,
+		&i.DeletingAt,
+		&i.AutomaticUpdates,
+		&i.Favorite,
+		&i.NextStartAt,
+		&i.GroupACL,
+		&i.UserACL,
+		&i.OwnerAvatarUrl,
+		&i.OwnerUsername,
+		&i.OwnerName,
+		&i.OrganizationName,
+		&i.OrganizationDisplayName,
+		&i.OrganizationIcon,
+		&i.OrganizationDescription,
+		&i.TemplateName,
+		&i.TemplateDisplayName,
+		&i.TemplateIcon,
+		&i.TemplateDescription,
+		&i.TaskID,
+		&i.GroupACLDisplayInfo,
+		&i.UserACLDisplayInfo,
+	)
+	return i, err
+}
+
+const getWorkspaceByResourceID = `-- name: GetWorkspaceByResourceID :one
+SELECT
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, group_acl, user_acl, owner_avatar_url, owner_username, owner_name, organization_name, organization_display_name, organization_icon, organization_description, template_name, template_display_name, template_icon, template_description, task_id, group_acl_display_info, user_acl_display_info
+FROM
+	workspaces_expanded as workspaces
+WHERE
+	workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+					workspace_resources.id = $1
+			)
+	)
+LIMIT
+	1
+`
+
+func (q *sqlQuerier) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByResourceID, resourceID)
 	var i Workspace
 	err := row.Scan(
 		&i.ID,

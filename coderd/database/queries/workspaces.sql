@@ -8,6 +8,30 @@ WHERE
 LIMIT
 	1;
 
+-- name: GetWorkspaceByResourceID :one
+SELECT
+	*
+FROM
+	workspaces_expanded as workspaces
+WHERE
+	workspaces.id = (
+		SELECT
+			workspace_id
+		FROM
+			workspace_builds
+		WHERE
+			workspace_builds.job_id = (
+				SELECT
+					job_id
+				FROM
+					workspace_resources
+				WHERE
+					workspace_resources.id = @resource_id
+			)
+	)
+LIMIT
+	1;
+
 -- name: GetWorkspaceByWorkspaceAppID :one
 SELECT
 	*
