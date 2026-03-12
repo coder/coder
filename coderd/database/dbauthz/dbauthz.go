@@ -4255,10 +4255,6 @@ func (q *querier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg database
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByOwnerIDAndName)(ctx, arg)
 }
 
-func (q *querier) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (database.Workspace, error) {
-	return fetch(q.log, q.auth, q.db.GetWorkspaceByResourceID)(ctx, resourceID)
-}
-
 func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
 }

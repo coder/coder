@@ -2168,12 +2168,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 			WithOwner(ws.OwnerID.String())
 		check.Args(ws.ID).Asserts(expected, policy.ActionRead).Returns(ws)
 	}))
-	s.Run("GetWorkspaceByResourceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		ws := testutil.Fake(s.T(), faker, database.Workspace{})
-		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{})
-		dbm.EXPECT().GetWorkspaceByResourceID(gomock.Any(), res.ID).Return(ws, nil).AnyTimes()
-		check.Args(res.ID).Asserts(ws, policy.ActionRead).Returns(ws)
-	}))
 	s.Run("GetWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetWorkspacesParams{}
 		dbm.EXPECT().GetAuthorizedWorkspaces(gomock.Any(), arg, gomock.Any()).Return([]database.GetWorkspacesRow{}, nil).AnyTimes()

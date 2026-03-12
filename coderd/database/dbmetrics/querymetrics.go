@@ -2687,14 +2687,6 @@ func (m queryMetricsStore) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (database.Workspace, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceByResourceID(ctx, resourceID)
-	m.queryLatencies.WithLabelValues("GetWorkspaceByResourceID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceByResourceID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (database.Workspace, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceByWorkspaceAppID(ctx, workspaceAppID)
