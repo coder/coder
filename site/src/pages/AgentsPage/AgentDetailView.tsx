@@ -381,7 +381,7 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 	return (
 		<div
 			className={cn(
-				"relative flex min-h-0 min-w-0 flex-1",
+				"relative flex h-full min-h-0 min-w-0 flex-1",
 				showRightPanel && "flex-row",
 			)}
 		>
