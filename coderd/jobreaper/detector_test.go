@@ -83,7 +83,7 @@ func (e *detectorTestEnv) close() {
 
 // requireTerminatedJob asserts that a provisioner job was properly terminated
 // by the job reaper with the expected reap type (hung or pending).
-func requireTerminatedJob(t *testing.T, ctx context.Context, db database.Store, jobID uuid.UUID, now time.Time, reapType jobreaper.ReapType) {
+func requireTerminatedJob(ctx context.Context, t *testing.T, db database.Store, jobID uuid.UUID, now time.Time, reapType jobreaper.ReapType) {
 	t.Helper()
 	job, err := db.GetProvisionerJobByID(ctx, jobID)
 	require.NoError(t, err)
@@ -186,7 +186,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	requireTerminatedJob(t, env.Ctx, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
+	requireTerminatedJob(env.Ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
 
 	// Check that the provisioner state was copied.
 	build, err := env.DB.GetWorkspaceBuildByID(env.Ctx, currentBuild.Build.ID)
@@ -240,7 +240,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	requireTerminatedJob(t, env.Ctx, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
+	requireTerminatedJob(env.Ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
 
 	// Check that the provisioner state was NOT copied.
 	build, err := env.DB.GetWorkspaceBuildByID(env.Ctx, currentBuild.Build.ID)
@@ -283,7 +283,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	requireTerminatedJob(t, env.Ctx, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
+	requireTerminatedJob(env.Ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
 
 	// Check that the provisioner state was NOT updated.
 	build, err := env.DB.GetWorkspaceBuildByID(env.Ctx, currentBuild.Build.ID)
@@ -325,7 +325,7 @@ func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testin
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	requireTerminatedJob(t, env.Ctx, env.DB, currentBuild.Build.JobID, now, jobreaper.Pending)
+	requireTerminatedJob(env.Ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Pending)
 
 	// Check that the provisioner state was NOT updated.
 	build, err := env.DB.GetWorkspaceBuildByID(env.Ctx, currentBuild.Build.ID)
@@ -383,7 +383,7 @@ func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	requireTerminatedJob(t, env.Ctx, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
+	requireTerminatedJob(env.Ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
 }
 
 func TestDetectorHungOtherJobTypes(t *testing.T) {
@@ -458,8 +458,8 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	require.Contains(t, stats.TerminatedJobIDs, templateDryRunJob.ID)
 
 	// Check that both jobs were terminated as hung.
-	requireTerminatedJob(t, env.Ctx, env.DB, templateImportJob.ID, now, jobreaper.Hung)
-	requireTerminatedJob(t, env.Ctx, env.DB, templateDryRunJob.ID, now, jobreaper.Hung)
+	requireTerminatedJob(env.Ctx, t, env.DB, templateImportJob.ID, now, jobreaper.Hung)
+	requireTerminatedJob(env.Ctx, t, env.DB, templateDryRunJob.ID, now, jobreaper.Hung)
 }
 
 func TestDetectorPendingOtherJobTypes(t *testing.T) {
@@ -533,8 +533,8 @@ func TestDetectorPendingOtherJobTypes(t *testing.T) {
 	require.Contains(t, stats.TerminatedJobIDs, templateDryRunJob.ID)
 
 	// Check that both jobs were terminated as pending.
-	requireTerminatedJob(t, env.Ctx, env.DB, templateImportJob.ID, now, jobreaper.Pending)
-	requireTerminatedJob(t, env.Ctx, env.DB, templateDryRunJob.ID, now, jobreaper.Pending)
+	requireTerminatedJob(env.Ctx, t, env.DB, templateImportJob.ID, now, jobreaper.Pending)
+	requireTerminatedJob(env.Ctx, t, env.DB, templateDryRunJob.ID, now, jobreaper.Pending)
 }
 
 func TestDetectorHungCanceledJob(t *testing.T) {
@@ -586,7 +586,7 @@ func TestDetectorHungCanceledJob(t *testing.T) {
 	require.Contains(t, stats.TerminatedJobIDs, templateImportJob.ID)
 
 	// Check that the job was updated.
-	requireTerminatedJob(t, env.Ctx, env.DB, templateImportJob.ID, now, jobreaper.Hung)
+	requireTerminatedJob(env.Ctx, t, env.DB, templateImportJob.ID, now, jobreaper.Hung)
 }
 
 func TestDetectorPushesLogs(t *testing.T) {
