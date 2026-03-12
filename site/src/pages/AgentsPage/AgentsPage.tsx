@@ -34,6 +34,8 @@ import {
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+import { workspaceById } from "api/queries/workspaces";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
 	type CreateChatOptions,
 	emptyInputStorageKey,
@@ -160,6 +162,10 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
 		},
 	});
+	const [pendingArchiveAndDelete, setPendingArchiveAndDelete] = useState<{
+		chatId: string;
+		workspaceId: string;
+	} | null>(null);
 	const unarchiveChatBase = unarchiveChat(queryClient);
 	const unarchiveAgentMutation = useMutation({
 		...unarchiveChatBase,
@@ -248,11 +254,17 @@ const AgentsPage: FC = () => {
 	const requestArchiveAndDeleteWorkspace = useCallback(
 		(chatId: string, workspaceId: string) => {
 			if (!isArchiving) {
-				archiveAndDeleteMutation.mutate({ chatId, workspaceId });
+				setPendingArchiveAndDelete({ chatId, workspaceId });
 			}
 		},
-		[isArchiving, archiveAndDeleteMutation],
+		[isArchiving],
 	);
+	const handleConfirmArchiveAndDelete = useCallback(() => {
+		if (pendingArchiveAndDelete && !isArchiving) {
+			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete);
+			setPendingArchiveAndDelete(null);
+		}
+	}, [pendingArchiveAndDelete, isArchiving, archiveAndDeleteMutation]);
 	const requestUnarchiveAgent = useCallback(
 		(chatId: string) => {
 			unarchiveAgentMutation.mutate(chatId);
@@ -463,7 +475,23 @@ const AgentsPage: FC = () => {
 		onNewAgent: handleNewAgent,
 	});
 
+	const pendingWorkspaceQuery = useQuery({
+		...workspaceById(pendingArchiveAndDelete?.workspaceId ?? ""),
+		enabled: Boolean(pendingArchiveAndDelete?.workspaceId),
+	});
+	const pendingWorkspaceName = pendingWorkspaceQuery.data?.name ?? "";
+
 	return (
+		<>
+		<DeleteDialog
+			isOpen={pendingArchiveAndDelete !== null && Boolean(pendingWorkspaceName)}
+			onConfirm={handleConfirmArchiveAndDelete}
+			onCancel={() => setPendingArchiveAndDelete(null)}
+			entity="workspace"
+			name={pendingWorkspaceName}
+			confirmLoading={archiveAndDeleteMutation.isPending}
+			info="This will archive the agent and permanently delete the associated workspace and all its resources."
+		/>
 		<AgentsPageView
 			agentId={agentId}
 			chatList={chatList}
@@ -494,6 +522,7 @@ const AgentsPage: FC = () => {
 			archivedFilter={archivedFilter}
 			onArchivedFilterChange={setArchivedFilter}
 		/>
+		</>
 	);
 };
 
