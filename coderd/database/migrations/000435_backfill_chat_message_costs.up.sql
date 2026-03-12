@@ -1,11 +1,11 @@
 WITH message_costs AS (
     SELECT
         msg.id,
-        (
-            ROUND(COALESCE(msg.input_tokens, 0)::numeric * COALESCE(pricing.input_price, 0))
-            + ROUND((COALESCE(msg.output_tokens, 0) + COALESCE(msg.reasoning_tokens, 0))::numeric * COALESCE(pricing.output_price, 0))
-            + ROUND(COALESCE(msg.cache_read_tokens, 0)::numeric * COALESCE(pricing.cache_read_price, 0))
-            + ROUND(COALESCE(msg.cache_creation_tokens, 0)::numeric * COALESCE(pricing.cache_write_price, 0))
+        ROUND(
+            COALESCE(msg.input_tokens, 0)::numeric * COALESCE(pricing.input_price, 0)
+            + (COALESCE(msg.output_tokens, 0) + COALESCE(msg.reasoning_tokens, 0))::numeric * COALESCE(pricing.output_price, 0)
+            + COALESCE(msg.cache_read_tokens, 0)::numeric * COALESCE(pricing.cache_read_price, 0)
+            + COALESCE(msg.cache_creation_tokens, 0)::numeric * COALESCE(pricing.cache_write_price, 0)
         )::bigint AS total_cost_micros
     FROM
         chat_messages AS msg

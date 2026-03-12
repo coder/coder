@@ -535,7 +535,7 @@ WHERE
     AND cm.created_at >= @start_date::timestamptz
     AND cm.created_at < @end_date::timestamptz;
 
--- name: GetChatCostByModel :many
+-- name: GetChatCostPerModel :many
 -- Per-model cost breakdown for a single user within a date range.
 -- Only counts assistant-role messages that have a model_config_id.
 SELECT
@@ -563,7 +563,7 @@ GROUP BY
 ORDER BY
     total_cost_micros DESC;
 
--- name: GetChatCostByChat :many
+-- name: GetChatCostPerChat :many
 -- Per-root-chat cost breakdown for a single user within a date range.
 -- Groups by root_chat_id so forked chats roll up under their root.
 -- Only counts assistant-role messages.
@@ -593,7 +593,7 @@ FROM chat_costs cc
 LEFT JOIN chats rc ON rc.id = cc.root_chat_id
 ORDER BY cc.total_cost_micros DESC;
 
--- name: GetChatCostByUser :many
+-- name: GetChatCostPerUser :many
 -- Deployment-wide per-user cost rollup within a date range.
 -- Only counts assistant-role messages.
 WITH chat_cost_users AS (

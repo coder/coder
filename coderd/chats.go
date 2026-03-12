@@ -400,7 +400,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	byModel, err := api.Database.GetChatCostByModel(ctx, database.GetChatCostByModelParams{
+	byModel, err := api.Database.GetChatCostPerModel(ctx, database.GetChatCostPerModelParams{
 		OwnerID:   targetUserID,
 		StartDate: startDate,
 		EndDate:   endDate,
@@ -410,7 +410,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	byChat, err := api.Database.GetChatCostByChat(ctx, database.GetChatCostByChatParams{
+	byChat, err := api.Database.GetChatCostPerChat(ctx, database.GetChatCostPerChatParams{
 		OwnerID:   targetUserID,
 		StartDate: startDate,
 		EndDate:   endDate,
@@ -518,7 +518,7 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := api.Database.GetChatCostByUser(ctx, database.GetChatCostByUserParams{
+	users, err := api.Database.GetChatCostPerUser(ctx, database.GetChatCostPerUserParams{
 		StartDate: startDate,
 		EndDate:   endDate,
 		Username:  username,

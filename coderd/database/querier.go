@@ -221,13 +221,13 @@ type sqlcQuerier interface {
 	// Per-root-chat cost breakdown for a single user within a date range.
 	// Groups by root_chat_id so forked chats roll up under their root.
 	// Only counts assistant-role messages.
-	GetChatCostByChat(ctx context.Context, arg GetChatCostByChatParams) ([]GetChatCostByChatRow, error)
+	GetChatCostPerChat(ctx context.Context, arg GetChatCostPerChatParams) ([]GetChatCostPerChatRow, error)
 	// Per-model cost breakdown for a single user within a date range.
 	// Only counts assistant-role messages that have a model_config_id.
-	GetChatCostByModel(ctx context.Context, arg GetChatCostByModelParams) ([]GetChatCostByModelRow, error)
+	GetChatCostPerModel(ctx context.Context, arg GetChatCostPerModelParams) ([]GetChatCostPerModelRow, error)
 	// Deployment-wide per-user cost rollup within a date range.
 	// Only counts assistant-role messages.
-	GetChatCostByUser(ctx context.Context, arg GetChatCostByUserParams) ([]GetChatCostByUserRow, error)
+	GetChatCostPerUser(ctx context.Context, arg GetChatCostPerUserParams) ([]GetChatCostPerUserRow, error)
 	// Aggregate cost summary for a single user within a date range.
 	// Only counts assistant-role messages.
 	GetChatCostSummary(ctx context.Context, arg GetChatCostSummaryParams) (GetChatCostSummaryRow, error)

@@ -1007,27 +1007,27 @@ func (m queryMetricsStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatCostByChat(ctx context.Context, arg database.GetChatCostByChatParams) ([]database.GetChatCostByChatRow, error) {
+func (m queryMetricsStore) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatCostByChat(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetChatCostByChat").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostByChat").Inc()
+	r0, r1 := m.s.GetChatCostPerChat(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatCostPerChat").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostPerChat").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatCostByModel(ctx context.Context, arg database.GetChatCostByModelParams) ([]database.GetChatCostByModelRow, error) {
+func (m queryMetricsStore) GetChatCostPerModel(ctx context.Context, arg database.GetChatCostPerModelParams) ([]database.GetChatCostPerModelRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatCostByModel(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetChatCostByModel").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostByModel").Inc()
+	r0, r1 := m.s.GetChatCostPerModel(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatCostPerModel").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostPerModel").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatCostByUser(ctx context.Context, arg database.GetChatCostByUserParams) ([]database.GetChatCostByUserRow, error) {
+func (m queryMetricsStore) GetChatCostPerUser(ctx context.Context, arg database.GetChatCostPerUserParams) ([]database.GetChatCostPerUserRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatCostByUser(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetChatCostByUser").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostByUser").Inc()
+	r0, r1 := m.s.GetChatCostPerUser(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatCostPerUser").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostPerUser").Inc()
 	return r0, r1
 }
 

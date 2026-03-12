@@ -2449,25 +2449,25 @@ func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (datab
 	return fetch(q.log, q.auth, q.db.GetChatByIDForUpdate)(ctx, id)
 }
 
-func (q *querier) GetChatCostByChat(ctx context.Context, arg database.GetChatCostByChatParams) ([]database.GetChatCostByChatRow, error) {
+func (q *querier) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String())); err != nil {
 		return nil, err
 	}
-	return q.db.GetChatCostByChat(ctx, arg)
+	return q.db.GetChatCostPerChat(ctx, arg)
 }
 
-func (q *querier) GetChatCostByModel(ctx context.Context, arg database.GetChatCostByModelParams) ([]database.GetChatCostByModelRow, error) {
+func (q *querier) GetChatCostPerModel(ctx context.Context, arg database.GetChatCostPerModelParams) ([]database.GetChatCostPerModelRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String())); err != nil {
 		return nil, err
 	}
-	return q.db.GetChatCostByModel(ctx, arg)
+	return q.db.GetChatCostPerModel(ctx, arg)
 }
 
-func (q *querier) GetChatCostByUser(ctx context.Context, arg database.GetChatCostByUserParams) ([]database.GetChatCostByUserRow, error) {
+func (q *querier) GetChatCostPerUser(ctx context.Context, arg database.GetChatCostPerUserParams) ([]database.GetChatCostPerUserRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
-	return q.db.GetChatCostByUser(ctx, arg)
+	return q.db.GetChatCostPerUser(ctx, arg)
 }
 
 func (q *querier) GetChatCostSummary(ctx context.Context, arg database.GetChatCostSummaryParams) (database.GetChatCostSummaryRow, error) {

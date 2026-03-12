@@ -3285,7 +3285,7 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 	return i, err
 }
 
-const getChatCostByChat = `-- name: GetChatCostByChat :many
+const getChatCostPerChat = `-- name: GetChatCostPerChat :many
 WITH chat_costs AS (
     SELECT
         COALESCE(c.root_chat_id, c.id) AS root_chat_id,
@@ -3313,13 +3313,13 @@ LEFT JOIN chats rc ON rc.id = cc.root_chat_id
 ORDER BY cc.total_cost_micros DESC
 `
 
-type GetChatCostByChatParams struct {
+type GetChatCostPerChatParams struct {
 	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
 	StartDate time.Time `db:"start_date" json:"start_date"`
 	EndDate   time.Time `db:"end_date" json:"end_date"`
 }
 
-type GetChatCostByChatRow struct {
+type GetChatCostPerChatRow struct {
 	RootChatID        uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
 	ChatTitle         string    `db:"chat_title" json:"chat_title"`
 	TotalCostMicros   int64     `db:"total_cost_micros" json:"total_cost_micros"`
@@ -3331,15 +3331,15 @@ type GetChatCostByChatRow struct {
 // Per-root-chat cost breakdown for a single user within a date range.
 // Groups by root_chat_id so forked chats roll up under their root.
 // Only counts assistant-role messages.
-func (q *sqlQuerier) GetChatCostByChat(ctx context.Context, arg GetChatCostByChatParams) ([]GetChatCostByChatRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatCostByChat, arg.OwnerID, arg.StartDate, arg.EndDate)
+func (q *sqlQuerier) GetChatCostPerChat(ctx context.Context, arg GetChatCostPerChatParams) ([]GetChatCostPerChatRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatCostPerChat, arg.OwnerID, arg.StartDate, arg.EndDate)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetChatCostByChatRow
+	var items []GetChatCostPerChatRow
 	for rows.Next() {
-		var i GetChatCostByChatRow
+		var i GetChatCostPerChatRow
 		if err := rows.Scan(
 			&i.RootChatID,
 			&i.ChatTitle,
@@ -3361,7 +3361,7 @@ func (q *sqlQuerier) GetChatCostByChat(ctx context.Context, arg GetChatCostByCha
 	return items, nil
 }
 
-const getChatCostByModel = `-- name: GetChatCostByModel :many
+const getChatCostPerModel = `-- name: GetChatCostPerModel :many
 SELECT
     cmc.id AS model_config_id,
     cmc.display_name,
@@ -3388,13 +3388,13 @@ ORDER BY
     total_cost_micros DESC
 `
 
-type GetChatCostByModelParams struct {
+type GetChatCostPerModelParams struct {
 	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
 	StartDate time.Time `db:"start_date" json:"start_date"`
 	EndDate   time.Time `db:"end_date" json:"end_date"`
 }
 
-type GetChatCostByModelRow struct {
+type GetChatCostPerModelRow struct {
 	ModelConfigID     uuid.UUID `db:"model_config_id" json:"model_config_id"`
 	DisplayName       string    `db:"display_name" json:"display_name"`
 	Provider          string    `db:"provider" json:"provider"`
@@ -3407,15 +3407,15 @@ type GetChatCostByModelRow struct {
 
 // Per-model cost breakdown for a single user within a date range.
 // Only counts assistant-role messages that have a model_config_id.
-func (q *sqlQuerier) GetChatCostByModel(ctx context.Context, arg GetChatCostByModelParams) ([]GetChatCostByModelRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatCostByModel, arg.OwnerID, arg.StartDate, arg.EndDate)
+func (q *sqlQuerier) GetChatCostPerModel(ctx context.Context, arg GetChatCostPerModelParams) ([]GetChatCostPerModelRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatCostPerModel, arg.OwnerID, arg.StartDate, arg.EndDate)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetChatCostByModelRow
+	var items []GetChatCostPerModelRow
 	for rows.Next() {
-		var i GetChatCostByModelRow
+		var i GetChatCostPerModelRow
 		if err := rows.Scan(
 			&i.ModelConfigID,
 			&i.DisplayName,
@@ -3439,7 +3439,7 @@ func (q *sqlQuerier) GetChatCostByModel(ctx context.Context, arg GetChatCostByMo
 	return items, nil
 }
 
-const getChatCostByUser = `-- name: GetChatCostByUser :many
+const getChatCostPerUser = `-- name: GetChatCostPerUser :many
 WITH chat_cost_users AS (
     SELECT
         c.owner_id AS user_id,
@@ -3493,7 +3493,7 @@ OFFSET
     $1::int
 `
 
-type GetChatCostByUserParams struct {
+type GetChatCostPerUserParams struct {
 	PageOffset int32     `db:"page_offset" json:"page_offset"`
 	PageLimit  int32     `db:"page_limit" json:"page_limit"`
 	StartDate  time.Time `db:"start_date" json:"start_date"`
@@ -3501,7 +3501,7 @@ type GetChatCostByUserParams struct {
 	Username   string    `db:"username" json:"username"`
 }
 
-type GetChatCostByUserRow struct {
+type GetChatCostPerUserRow struct {
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
 	Username          string    `db:"username" json:"username"`
 	Name              string    `db:"name" json:"name"`
@@ -3516,8 +3516,8 @@ type GetChatCostByUserRow struct {
 
 // Deployment-wide per-user cost rollup within a date range.
 // Only counts assistant-role messages.
-func (q *sqlQuerier) GetChatCostByUser(ctx context.Context, arg GetChatCostByUserParams) ([]GetChatCostByUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatCostByUser,
+func (q *sqlQuerier) GetChatCostPerUser(ctx context.Context, arg GetChatCostPerUserParams) ([]GetChatCostPerUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatCostPerUser,
 		arg.PageOffset,
 		arg.PageLimit,
 		arg.StartDate,
@@ -3528,9 +3528,9 @@ func (q *sqlQuerier) GetChatCostByUser(ctx context.Context, arg GetChatCostByUse
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetChatCostByUserRow
+	var items []GetChatCostPerUserRow
 	for rows.Next() {
-		var i GetChatCostByUserRow
+		var i GetChatCostPerUserRow
 		if err := rows.Scan(
 			&i.UserID,
 			&i.Username,

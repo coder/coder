@@ -1836,49 +1836,49 @@ func (mr *MockStoreMockRecorder) GetChatByIDForUpdate(ctx, id any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatByIDForUpdate", reflect.TypeOf((*MockStore)(nil).GetChatByIDForUpdate), ctx, id)
 }
 
-// GetChatCostByChat mocks base method.
-func (m *MockStore) GetChatCostByChat(ctx context.Context, arg database.GetChatCostByChatParams) ([]database.GetChatCostByChatRow, error) {
+// GetChatCostPerChat mocks base method.
+func (m *MockStore) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatCostByChat", ctx, arg)
-	ret0, _ := ret[0].([]database.GetChatCostByChatRow)
+	ret := m.ctrl.Call(m, "GetChatCostPerChat", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatCostPerChatRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatCostByChat indicates an expected call of GetChatCostByChat.
-func (mr *MockStoreMockRecorder) GetChatCostByChat(ctx, arg any) *gomock.Call {
+// GetChatCostPerChat indicates an expected call of GetChatCostPerChat.
+func (mr *MockStoreMockRecorder) GetChatCostPerChat(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCostByChat", reflect.TypeOf((*MockStore)(nil).GetChatCostByChat), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCostPerChat", reflect.TypeOf((*MockStore)(nil).GetChatCostPerChat), ctx, arg)
 }
 
-// GetChatCostByModel mocks base method.
-func (m *MockStore) GetChatCostByModel(ctx context.Context, arg database.GetChatCostByModelParams) ([]database.GetChatCostByModelRow, error) {
+// GetChatCostPerModel mocks base method.
+func (m *MockStore) GetChatCostPerModel(ctx context.Context, arg database.GetChatCostPerModelParams) ([]database.GetChatCostPerModelRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatCostByModel", ctx, arg)
-	ret0, _ := ret[0].([]database.GetChatCostByModelRow)
+	ret := m.ctrl.Call(m, "GetChatCostPerModel", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatCostPerModelRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatCostByModel indicates an expected call of GetChatCostByModel.
-func (mr *MockStoreMockRecorder) GetChatCostByModel(ctx, arg any) *gomock.Call {
+// GetChatCostPerModel indicates an expected call of GetChatCostPerModel.
+func (mr *MockStoreMockRecorder) GetChatCostPerModel(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCostByModel", reflect.TypeOf((*MockStore)(nil).GetChatCostByModel), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCostPerModel", reflect.TypeOf((*MockStore)(nil).GetChatCostPerModel), ctx, arg)
 }
 
-// GetChatCostByUser mocks base method.
-func (m *MockStore) GetChatCostByUser(ctx context.Context, arg database.GetChatCostByUserParams) ([]database.GetChatCostByUserRow, error) {
+// GetChatCostPerUser mocks base method.
+func (m *MockStore) GetChatCostPerUser(ctx context.Context, arg database.GetChatCostPerUserParams) ([]database.GetChatCostPerUserRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatCostByUser", ctx, arg)
-	ret0, _ := ret[0].([]database.GetChatCostByUserRow)
+	ret := m.ctrl.Call(m, "GetChatCostPerUser", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatCostPerUserRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatCostByUser indicates an expected call of GetChatCostByUser.
-func (mr *MockStoreMockRecorder) GetChatCostByUser(ctx, arg any) *gomock.Call {
+// GetChatCostPerUser indicates an expected call of GetChatCostPerUser.
+func (mr *MockStoreMockRecorder) GetChatCostPerUser(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCostByUser", reflect.TypeOf((*MockStore)(nil).GetChatCostByUser), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatCostPerUser", reflect.TypeOf((*MockStore)(nil).GetChatCostPerUser), ctx, arg)
 }
 
 // GetChatCostSummary mocks base method.
