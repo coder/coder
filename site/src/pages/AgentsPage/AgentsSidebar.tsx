@@ -24,6 +24,7 @@ import {
 	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
+	BarChart3Icon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -80,6 +81,7 @@ interface AgentsSidebarProps {
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
+	onOpenAnalytics?: () => void;
 	onOpenSettings?: () => void;
 }
 
@@ -572,6 +574,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		archivedFilter,
 		onArchivedFilterChange,
 		onCollapse,
+		onOpenAnalytics,
 		onOpenSettings,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -858,6 +861,16 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							/>
 						</DropdownMenuContent>
 					</DropdownMenu>
+					{onOpenAnalytics && (
+						<button
+							type="button"
+							onClick={onOpenAnalytics}
+							className="flex shrink-0 items-center justify-center bg-transparent border-0 cursor-pointer p-2 mr-1 rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-tertiary/50 transition-colors"
+							aria-label="Analytics"
+						>
+							<BarChart3Icon className="h-4 w-4" />
+						</button>
+					)}
 					{onOpenSettings && (
 						<button
 							type="button"

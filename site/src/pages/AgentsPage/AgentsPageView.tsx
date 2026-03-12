@@ -5,7 +5,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { PanelLeftIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useOutlet } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
@@ -47,6 +47,7 @@ interface AgentsPageViewProps {
 	isSidebarCollapsed: boolean;
 	onExpandSidebar: () => void;
 	outletContext: AgentsOutletContext;
+	onOpenAnalytics?: () => void;
 	isAgentsAdmin: boolean;
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	createError: unknown;
@@ -78,6 +79,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isSidebarCollapsed,
 	onExpandSidebar,
 	outletContext,
+	onOpenAnalytics,
 	isAgentsAdmin,
 	onCreateChat,
 	createError,
@@ -99,13 +101,14 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	} = outletContext;
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
+	const outlet = useOutlet();
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<title>{pageTitle("Agents")}</title>
 			<div
 				className={cn(
 					"md:h-full md:w-[320px] md:min-h-0 md:border-b-0",
-					agentId
+					agentId || outlet
 						? "hidden md:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
 						: "order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0",
 					isSidebarCollapsed && "md:hidden",
@@ -133,6 +136,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					archivedFilter={archivedFilter}
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
+					onOpenAnalytics={onOpenAnalytics}
 					onOpenSettings={() => setConfigureAgentsDialogOpen(true)}
 				/>
 			</div>
@@ -140,10 +144,10 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			<div
 				className={cn(
 					"flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
-					!agentId && "order-1 md:order-none flex-none md:flex-1",
+					!(agentId || outlet) && "order-1 md:order-none flex-none md:flex-1",
 				)}
 			>
-				{agentId ? (
+				{agentId || outlet ? (
 					<Outlet key={agentId} context={outletContext} />
 				) : (
 					<>

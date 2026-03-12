@@ -347,6 +347,9 @@ const ProvisionerJobsPage = lazy(
 		),
 );
 const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
+const AgentsAnalyticsPage = lazy(
+	() => import("./pages/AgentsPage/AgentsAnalyticsPage"),
+);
 const AgentDetail = lazy(() => import("./pages/AgentsPage/AgentDetail"));
 
 import {
@@ -644,6 +647,14 @@ export const router = createBrowserRouter(
 						</Suspense>
 					}
 				>
+					<Route
+						path="analytics"
+						element={
+							<Suspense fallback={<AgentDetailSkeleton />}>
+								<AgentsAnalyticsPage />
+							</Suspense>
+						}
+					/>
 					<Route
 						path=":agentId"
 						element={

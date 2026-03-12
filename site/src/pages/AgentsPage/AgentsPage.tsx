@@ -481,6 +481,7 @@ const AgentsPage: FC = () => {
 			isSidebarCollapsed={isSidebarCollapsed}
 			onExpandSidebar={() => setIsSidebarCollapsed(false)}
 			outletContext={outletContext}
+			onOpenAnalytics={() => navigate("/agents/analytics")}
 			onCreateChat={handleCreateChat}
 			createError={createMutation.error}
 			modelCatalog={chatModelsQuery.data}
