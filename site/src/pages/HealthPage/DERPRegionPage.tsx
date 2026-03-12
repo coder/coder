@@ -5,6 +5,7 @@ import type {
 	HealthSeverity,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
@@ -184,24 +185,23 @@ const DERPRegionPage: FC = () => {
 								</Tooltip>
 							</header>
 
-							<table className="w-full border-collapse text-sm [&_td]:px-3 [&_td]:py-2 [&_td]:text-left [&_td]:border-0 [&_td]:border-b [&_td]:border-solid [&_td]:border-border [&_tr:last-child_td]:border-b-0">
-								<tbody>
+							<Table>
+								<TableBody>
 									{checks.map((check) => (
-										<tr key={check.label}>
-											<td className="w-8">
+										<TableRow key={check.label}>
+											<TableCell className="w-8">
 												<StatusIcon value={check.value} />
-											</td>
-											<td className="font-medium whitespace-nowrap w-40">
+											</TableCell>
+											<TableCell className="font-medium whitespace-nowrap w-40">
 												{check.label}
-											</td>
-											<td className="text-content-secondary">
+											</TableCell>
+											<TableCell className="text-content-secondary">
 												{check.description}
-											</td>
-										</tr>
+											</TableCell>
+										</TableRow>
 									))}
-								</tbody>
-							</table>
-
+								</TableBody>
+							</Table>
 							<Logs
 								lines={logs?.flat() ?? []}
 								className="rounded-b-lg border-0 border-t border-solid border-border"

@@ -6,6 +6,7 @@ import type {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
+import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
 import { MapPinIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useOutletContext } from "react-router";
@@ -156,11 +157,11 @@ const DERPPage: FC = () => {
 							<h5 className="text-xs uppercase tracking-wide text-content-secondary m-0 mb-2">
 								{group.title}
 							</h5>
-							<table className="w-full border-collapse text-sm [&_td]:px-3 [&_td]:py-2 [&_td]:text-left [&_td]:border-0 [&_td]:border-b [&_td]:border-solid [&_td]:border-border [&_tr:last-child_td]:border-b-0">
-								<tbody>
+							<Table>
+								<TableBody>
 									{group.flags.map((flag) => (
-										<tr key={flag}>
-											<td className="w-8">
+										<TableRow key={flag}>
+											<TableCell className="w-8">
 												<StatusIcon
 													value={
 														safeNetcheck[flag] === null
@@ -170,17 +171,17 @@ const DERPPage: FC = () => {
 																: safeNetcheck[flag]
 													}
 												/>
-											</td>
-											<td className="font-medium whitespace-nowrap w-36">
+											</TableCell>
+											<TableCell className="font-medium whitespace-nowrap w-36">
 												{flagDescriptions[flag].label}
-											</td>
-											<td className="text-content-secondary">
+											</TableCell>
+											<TableCell className="text-content-secondary">
 												{flagDescriptions[flag].description}
-											</td>
-										</tr>
+											</TableCell>
+										</TableRow>
 									))}
-								</tbody>
-							</table>
+								</TableBody>
+							</Table>
 						</div>
 					))}
 				</section>
