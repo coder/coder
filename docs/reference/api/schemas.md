@@ -1553,6 +1553,170 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
+## codersdk.ChatCostChatBreakdown
+
+```json
+{
+  "chat_title": "string",
+  "message_count": 0,
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "total_cost_micros": 0,
+  "total_input_tokens": 0,
+  "total_output_tokens": 0
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description |
+|-----------------------|---------|----------|--------------|-------------|
+| `chat_title`          | string  | false    |              |             |
+| `message_count`       | integer | false    |              |             |
+| `root_chat_id`        | string  | false    |              |             |
+| `total_cost_micros`   | integer | false    |              |             |
+| `total_input_tokens`  | integer | false    |              |             |
+| `total_output_tokens` | integer | false    |              |             |
+
+## codersdk.ChatCostModelBreakdown
+
+```json
+{
+  "display_name": "string",
+  "message_count": 0,
+  "model": "string",
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "provider": "string",
+  "total_cost_micros": 0,
+  "total_input_tokens": 0,
+  "total_output_tokens": 0
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description |
+|-----------------------|---------|----------|--------------|-------------|
+| `display_name`        | string  | false    |              |             |
+| `message_count`       | integer | false    |              |             |
+| `model`               | string  | false    |              |             |
+| `model_config_id`     | string  | false    |              |             |
+| `provider`            | string  | false    |              |             |
+| `total_cost_micros`   | integer | false    |              |             |
+| `total_input_tokens`  | integer | false    |              |             |
+| `total_output_tokens` | integer | false    |              |             |
+
+## codersdk.ChatCostSummary
+
+```json
+{
+  "by_chat": [
+    {
+      "chat_title": "string",
+      "message_count": 0,
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "total_cost_micros": 0,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0
+    }
+  ],
+  "by_model": [
+    {
+      "display_name": "string",
+      "message_count": 0,
+      "model": "string",
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "provider": "string",
+      "total_cost_micros": 0,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0
+    }
+  ],
+  "end_date": "2019-08-24T14:15:22Z",
+  "priced_message_count": 0,
+  "start_date": "2019-08-24T14:15:22Z",
+  "total_cost_micros": 0,
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "unpriced_message_count": 0
+}
+```
+
+### Properties
+
+| Name                     | Type                                                                        | Required | Restrictions | Description |
+|--------------------------|-----------------------------------------------------------------------------|----------|--------------|-------------|
+| `by_chat`                | array of [codersdk.ChatCostChatBreakdown](#codersdkchatcostchatbreakdown)   | false    |              |             |
+| `by_model`               | array of [codersdk.ChatCostModelBreakdown](#codersdkchatcostmodelbreakdown) | false    |              |             |
+| `end_date`               | string                                                                      | false    |              |             |
+| `priced_message_count`   | integer                                                                     | false    |              |             |
+| `start_date`             | string                                                                      | false    |              |             |
+| `total_cost_micros`      | integer                                                                     | false    |              |             |
+| `total_input_tokens`     | integer                                                                     | false    |              |             |
+| `total_output_tokens`    | integer                                                                     | false    |              |             |
+| `unpriced_message_count` | integer                                                                     | false    |              |             |
+
+## codersdk.ChatCostUserRollup
+
+```json
+{
+  "avatar_url": "string",
+  "chat_count": 0,
+  "message_count": 0,
+  "name": "string",
+  "total_cost_micros": 0,
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name                  | Type    | Required | Restrictions | Description |
+|-----------------------|---------|----------|--------------|-------------|
+| `avatar_url`          | string  | false    |              |             |
+| `chat_count`          | integer | false    |              |             |
+| `message_count`       | integer | false    |              |             |
+| `name`                | string  | false    |              |             |
+| `total_cost_micros`   | integer | false    |              |             |
+| `total_input_tokens`  | integer | false    |              |             |
+| `total_output_tokens` | integer | false    |              |             |
+| `user_id`             | string  | false    |              |             |
+| `username`            | string  | false    |              |             |
+
+## codersdk.ChatCostUsersResponse
+
+```json
+{
+  "count": 0,
+  "end_date": "2019-08-24T14:15:22Z",
+  "start_date": "2019-08-24T14:15:22Z",
+  "users": [
+    {
+      "avatar_url": "string",
+      "chat_count": 0,
+      "message_count": 0,
+      "name": "string",
+      "total_cost_micros": 0,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0,
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `count`      | integer                                                             | false    |              |             |
+| `end_date`   | string                                                              | false    |              |             |
+| `start_date` | string                                                              | false    |              |             |
+| `users`      | array of [codersdk.ChatCostUserRollup](#codersdkchatcostuserrollup) | false    |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json

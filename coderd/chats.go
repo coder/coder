@@ -358,6 +358,16 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
+// @Summary Get chat cost summary for a user
+// @ID get-chat-cost-summary
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chat
+// @Param user path string true "User ID, name, or me"
+// @Param start_date query string false "Start date (RFC3339)"
+// @Param end_date query string false "End date (RFC3339)"
+// @Success 200 {object} codersdk.ChatCostSummary
+// @Router /chats/cost/{user}/summary [get]
 func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -370,7 +380,6 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	p := httpapi.NewQueryParamParser()
 	startDate := p.Time(qp, defaultStart, "start_date", time.RFC3339)
 	endDate := p.Time(qp, now, "end_date", time.RFC3339)
-	userID := p.UUID(qp, uuid.Nil, "user_id")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -380,18 +389,14 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Default to the caller; if user_id is set, require authorization.
-	targetUserID := apiKey.UserID
-	if userID != uuid.Nil {
-		if !api.Authorize(r, policy.ActionRead, rbac.ResourceChat.WithOwner(userID.String())) {
-			httpapi.Forbidden(rw)
-			return
-		}
-		targetUserID = userID
+	targetUser := httpmw.UserParam(r)
+	if targetUser.ID != apiKey.UserID && !api.Authorize(r, policy.ActionRead, rbac.ResourceChat.WithOwner(targetUser.ID.String())) {
+		httpapi.Forbidden(rw)
+		return
 	}
 
 	summary, err := api.Database.GetChatCostSummary(ctx, database.GetChatCostSummaryParams{
-		OwnerID:   targetUserID,
+		OwnerID:   targetUser.ID,
 		StartDate: startDate,
 		EndDate:   endDate,
 	})
@@ -401,7 +406,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	byModel, err := api.Database.GetChatCostPerModel(ctx, database.GetChatCostPerModelParams{
-		OwnerID:   targetUserID,
+		OwnerID:   targetUser.ID,
 		StartDate: startDate,
 		EndDate:   endDate,
 	})
@@ -411,7 +416,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	byChat, err := api.Database.GetChatCostPerChat(ctx, database.GetChatCostPerChatParams{
-		OwnerID:   targetUserID,
+		OwnerID:   targetUser.ID,
 		StartDate: startDate,
 		EndDate:   endDate,
 	})
@@ -422,32 +427,12 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 
 	modelBreakdowns := make([]codersdk.ChatCostModelBreakdown, 0, len(byModel))
 	for _, model := range byModel {
-		displayName := strings.TrimSpace(model.DisplayName)
-		if displayName == "" {
-			displayName = model.Model
-		}
-		modelBreakdowns = append(modelBreakdowns, codersdk.ChatCostModelBreakdown{
-			ModelConfigID:     model.ModelConfigID,
-			DisplayName:       displayName,
-			Provider:          model.Provider,
-			Model:             model.Model,
-			TotalCostMicros:   model.TotalCostMicros,
-			MessageCount:      model.MessageCount,
-			TotalInputTokens:  model.TotalInputTokens,
-			TotalOutputTokens: model.TotalOutputTokens,
-		})
+		modelBreakdowns = append(modelBreakdowns, convertChatCostModelBreakdown(model))
 	}
 
 	chatBreakdowns := make([]codersdk.ChatCostChatBreakdown, 0, len(byChat))
 	for _, chat := range byChat {
-		chatBreakdowns = append(chatBreakdowns, codersdk.ChatCostChatBreakdown{
-			RootChatID:        chat.RootChatID,
-			ChatTitle:         chat.ChatTitle,
-			TotalCostMicros:   chat.TotalCostMicros,
-			MessageCount:      chat.MessageCount,
-			TotalInputTokens:  chat.TotalInputTokens,
-			TotalOutputTokens: chat.TotalOutputTokens,
-		})
+		chatBreakdowns = append(chatBreakdowns, convertChatCostChatBreakdown(chat))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostSummary{
@@ -463,6 +448,18 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Get per-user chat cost rollup
+// @ID get-chat-cost-users
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chat
+// @Param start_date query string false "Start date (RFC3339)"
+// @Param end_date query string false "End date (RFC3339)"
+// @Param username query string false "Filter by username"
+// @Param limit query int false "Page size"
+// @Param offset query int false "Page offset"
+// @Success 200 {object} codersdk.ChatCostUsersResponse
+// @Router /chats/cost/users [get]
 func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceChat) {
@@ -536,17 +533,7 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 	count := int64(0)
 	for _, user := range users {
 		count = user.TotalCount
-		rollups = append(rollups, codersdk.ChatCostUserRollup{
-			UserID:            user.UserID,
-			Username:          user.Username,
-			Name:              user.Name,
-			AvatarURL:         user.AvatarURL,
-			TotalCostMicros:   user.TotalCostMicros,
-			MessageCount:      user.MessageCount,
-			ChatCount:         user.ChatCount,
-			TotalInputTokens:  user.TotalInputTokens,
-			TotalOutputTokens: user.TotalOutputTokens,
-		})
+		rollups = append(rollups, convertChatCostUserRollup(user))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostUsersResponse{
@@ -2372,6 +2359,48 @@ func convertChats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]data
 		}
 	}
 	return result
+}
+
+func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {
+	displayName := strings.TrimSpace(model.DisplayName)
+	if displayName == "" {
+		displayName = model.Model
+	}
+	return codersdk.ChatCostModelBreakdown{
+		ModelConfigID:     model.ModelConfigID,
+		DisplayName:       displayName,
+		Provider:          model.Provider,
+		Model:             model.Model,
+		TotalCostMicros:   model.TotalCostMicros,
+		MessageCount:      model.MessageCount,
+		TotalInputTokens:  model.TotalInputTokens,
+		TotalOutputTokens: model.TotalOutputTokens,
+	}
+}
+
+func convertChatCostChatBreakdown(chat database.GetChatCostPerChatRow) codersdk.ChatCostChatBreakdown {
+	return codersdk.ChatCostChatBreakdown{
+		RootChatID:        chat.RootChatID,
+		ChatTitle:         chat.ChatTitle,
+		TotalCostMicros:   chat.TotalCostMicros,
+		MessageCount:      chat.MessageCount,
+		TotalInputTokens:  chat.TotalInputTokens,
+		TotalOutputTokens: chat.TotalOutputTokens,
+	}
+}
+
+func convertChatCostUserRollup(user database.GetChatCostPerUserRow) codersdk.ChatCostUserRollup {
+	return codersdk.ChatCostUserRollup{
+		UserID:            user.UserID,
+		Username:          user.Username,
+		Name:              user.Name,
+		AvatarURL:         user.AvatarURL,
+		TotalCostMicros:   user.TotalCostMicros,
+		MessageCount:      user.MessageCount,
+		ChatCount:         user.ChatCount,
+		TotalInputTokens:  user.TotalInputTokens,
+		TotalOutputTokens: user.TotalOutputTokens,
+	}
 }
 
 func convertChatQueuedMessage(m database.ChatQueuedMessage) codersdk.ChatQueuedMessage {

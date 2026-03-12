@@ -617,7 +617,6 @@ type chatStreamEnvelope struct {
 type ChatCostSummaryOptions struct {
 	StartDate time.Time
 	EndDate   time.Time
-	UserID    uuid.UUID // Zero value means "use the caller's own ID".
 }
 
 // ChatCostUsersOptions are optional query parameters for GetChatCostUsers.
@@ -846,9 +845,8 @@ func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.U
 	return nil
 }
 
-// GetChatCostSummary returns an aggregate cost summary for the caller
-// (or for a specific user when UserID is set, admin only).
-func (c *Client) GetChatCostSummary(ctx context.Context, opts ChatCostSummaryOptions) (ChatCostSummary, error) {
+// GetChatCostSummary returns an aggregate cost summary for the specified user.
+func (c *Client) GetChatCostSummary(ctx context.Context, user string, opts ChatCostSummaryOptions) (ChatCostSummary, error) {
 	qp := url.Values{}
 	if !opts.StartDate.IsZero() {
 		qp.Set("start_date", opts.StartDate.Format(time.RFC3339))
@@ -856,10 +854,7 @@ func (c *Client) GetChatCostSummary(ctx context.Context, opts ChatCostSummaryOpt
 	if !opts.EndDate.IsZero() {
 		qp.Set("end_date", opts.EndDate.Format(time.RFC3339))
 	}
-	if opts.UserID != uuid.Nil {
-		qp.Set("user_id", opts.UserID.String())
-	}
-	reqURL := "/api/experimental/chats/cost-summary"
+	reqURL := fmt.Sprintf("/api/experimental/chats/cost/%s/summary", user)
 	if len(qp) > 0 {
 		reqURL += "?" + qp.Encode()
 	}
@@ -893,7 +888,7 @@ func (c *Client) GetChatCostUsers(ctx context.Context, opts ChatCostUsersOptions
 	if opts.Offset > 0 {
 		qp.Set("offset", strconv.Itoa(opts.Offset))
 	}
-	reqURL := "/api/experimental/chats/cost-users"
+	reqURL := "/api/experimental/chats/cost/users"
 	if len(qp) > 0 {
 		reqURL += "?" + qp.Encode()
 	}

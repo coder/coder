@@ -1138,8 +1138,13 @@ func New(options *Options) *API {
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
-			r.Get("/cost-summary", api.chatCostSummary)
-			r.Get("/cost-users", api.chatCostUsers)
+			r.Route("/cost", func(r chi.Router) {
+				r.Get("/users", api.chatCostUsers)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Get("/summary", api.chatCostSummary)
+				})
+			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)

@@ -1119,7 +1119,6 @@ export interface ChatCostSummary {
 export interface ChatCostSummaryOptions {
 	readonly StartDate: string;
 	readonly EndDate: string;
-	readonly UserID: string; // Zero value means "use the caller's own ID".
 }
 
 // From codersdk/chats.go

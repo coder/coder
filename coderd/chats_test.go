@@ -3464,7 +3464,7 @@ func TestChatCostSummary(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		summary, err := client.GetChatCostSummary(ctx, codersdk.ChatCostSummaryOptions{})
+		summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
 		require.NoError(t, err)
 
 		require.Equal(t, int64(1000), summary.TotalCostMicros)
@@ -3516,9 +3516,7 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		summary, err := client.GetChatCostSummary(ctx, codersdk.ChatCostSummaryOptions{
-			UserID: member.ID,
-		})
+		summary, err := client.GetChatCostSummary(ctx, member.ID.String(), codersdk.ChatCostSummaryOptions{})
 		require.NoError(t, err)
 		require.Equal(t, int64(750), summary.TotalCostMicros)
 		require.Equal(t, int64(1), summary.PricedMessageCount)
@@ -3528,13 +3526,11 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := memberClient.GetChatCostSummary(ctx, codersdk.ChatCostSummaryOptions{
-			UserID: firstUser.UserID,
-		})
+		_, err := memberClient.GetChatCostSummary(ctx, firstUser.UserID.String(), codersdk.ChatCostSummaryOptions{})
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 }
 
@@ -3663,7 +3659,7 @@ func TestChatCostSummary_DateRange(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		summary, err := client.GetChatCostSummary(ctx, codersdk.ChatCostSummaryOptions{
+		summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{
 			StartDate: now.Add(-time.Hour),
 			EndDate:   now.Add(time.Hour),
 		})
@@ -3676,7 +3672,7 @@ func TestChatCostSummary_DateRange(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		summary, err := client.GetChatCostSummary(ctx, codersdk.ChatCostSummaryOptions{
+		summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{
 			StartDate: now.Add(time.Hour),
 			EndDate:   now.Add(2 * time.Hour),
 		})
@@ -3723,7 +3719,7 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	summary, err := client.GetChatCostSummary(ctx, codersdk.ChatCostSummaryOptions{})
+	summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
 	require.NoError(t, err)
 
 	require.Equal(t, int64(500), summary.TotalCostMicros)
