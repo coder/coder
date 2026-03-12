@@ -135,16 +135,6 @@ LIMIT
     -- Default to 50 to prevent accidental excessively large queries.
     COALESCE(NULLIF(@limit_opt :: int, 0), 50);
 
--- name: ListChildChatsByParentID :many
-SELECT
-    *
-FROM
-    chats
-WHERE
-    parent_chat_id = @parent_chat_id::uuid
-ORDER BY
-    created_at ASC;
-
 -- name: InsertChat :one
 INSERT INTO chats (
     owner_id,

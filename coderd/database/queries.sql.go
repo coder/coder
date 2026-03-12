@@ -3901,56 +3901,6 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 	return i, err
 }
 
-const listChildChatsByParentID = `-- name: ListChildChatsByParentID :many
-SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
-FROM
-    chats
-WHERE
-    parent_chat_id = $1::uuid
-ORDER BY
-    created_at ASC
-`
-
-func (q *sqlQuerier) ListChildChatsByParentID(ctx context.Context, parentChatID uuid.UUID) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, listChildChatsByParentID, parentChatID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Chat
-	for rows.Next() {
-		var i Chat
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Status,
-			&i.WorkerID,
-			&i.StartedAt,
-			&i.HeartbeatAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ParentChatID,
-			&i.RootChatID,
-			&i.LastModelConfigID,
-			&i.Archived,
-			&i.LastError,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const popNextQueuedMessage = `-- name: PopNextQueuedMessage :one
 DELETE FROM chat_queued_messages
 WHERE id = (
