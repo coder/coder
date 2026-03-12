@@ -499,6 +499,82 @@ func TestRun_ShutdownDuringToolExecutionReturnsContextCanceled(t *testing.T) {
 	assert.ErrorIs(t, err, context.Canceled, "shutdown should propagate as context.Canceled")
 }
 
+func TestToResponseMessages_ProviderExecutedToolResultInAssistantMessage(t *testing.T) {
+	t.Parallel()
+
+	sr := stepResult{
+		content: []fantasy.Content{
+			// Provider-executed tool call (e.g. web_search).
+			fantasy.ToolCallContent{
+				ToolCallID:       "provider-tc-1",
+				ToolName:         "web_search",
+				Input:            `{"query":"coder"}`,
+				ProviderExecuted: true,
+			},
+			// Provider-executed tool result — must stay in
+			// assistant message.
+			fantasy.ToolResultContent{
+				ToolCallID:       "provider-tc-1",
+				ToolName:         "web_search",
+				ProviderExecuted: true,
+				ProviderMetadata: fantasy.ProviderMetadata{"anthropic": nil},
+			},
+			// Local tool call (e.g. read_file).
+			fantasy.ToolCallContent{
+				ToolCallID:       "local-tc-1",
+				ToolName:         "read_file",
+				Input:            `{"path":"main.go"}`,
+				ProviderExecuted: false,
+			},
+			// Local tool result — should go into tool message.
+			fantasy.ToolResultContent{
+				ToolCallID:       "local-tc-1",
+				ToolName:         "read_file",
+				Result:           fantasy.ToolResultOutputContentText{Text: "some result"},
+				ProviderExecuted: false,
+			},
+		},
+	}
+
+	msgs := sr.toResponseMessages()
+	require.Len(t, msgs, 2, "expected assistant + tool messages")
+
+	// First message: assistant role.
+	assistantMsg := msgs[0]
+	assert.Equal(t, fantasy.MessageRoleAssistant, assistantMsg.Role)
+	require.Len(t, assistantMsg.Content, 3,
+		"assistant message should have provider ToolCallPart, provider ToolResultPart, and local ToolCallPart")
+
+	// Part 0: provider tool call.
+	providerTC, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](assistantMsg.Content[0])
+	require.True(t, ok, "part 0 should be ToolCallPart")
+	assert.Equal(t, "provider-tc-1", providerTC.ToolCallID)
+	assert.True(t, providerTC.ProviderExecuted)
+
+	// Part 1: provider tool result (inline in assistant turn).
+	providerTR, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](assistantMsg.Content[1])
+	require.True(t, ok, "part 1 should be ToolResultPart")
+	assert.Equal(t, "provider-tc-1", providerTR.ToolCallID)
+	assert.True(t, providerTR.ProviderExecuted)
+
+	// Part 2: local tool call.
+	localTC, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](assistantMsg.Content[2])
+	require.True(t, ok, "part 2 should be ToolCallPart")
+	assert.Equal(t, "local-tc-1", localTC.ToolCallID)
+	assert.False(t, localTC.ProviderExecuted)
+
+	// Second message: tool role.
+	toolMsg := msgs[1]
+	assert.Equal(t, fantasy.MessageRoleTool, toolMsg.Role)
+	require.Len(t, toolMsg.Content, 1,
+		"tool message should have only the local ToolResultPart")
+
+	localTR, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](toolMsg.Content[0])
+	require.True(t, ok, "tool part should be ToolResultPart")
+	assert.Equal(t, "local-tc-1", localTR.ToolCallID)
+	assert.False(t, localTR.ProviderExecuted)
+}
+
 func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
 	if len(message.ProviderOptions) == 0 {
 		return false
