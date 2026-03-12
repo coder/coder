@@ -77,7 +77,7 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			want: ptr(int64(18750)),
 		},
 		{
-			name: "full mixed usage sums rounded categories",
+			name: "full mixed usage totals all components",
 			usage: codersdk.ChatMessageUsage{
 				InputTokens:         ptr(int64(101)),
 				OutputTokens:        ptr(int64(201)),
@@ -118,14 +118,24 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			want: ptr(int64(0)),
 		},
 		{
-			name: "rounding happens per category",
+			name: "sum-before-round preserves component precision",
 			usage: codersdk.ChatMessageUsage{
-				InputTokens:  ptr(int64(1)),
-				OutputTokens: ptr(int64(1)),
+				InputTokens:     ptr(int64(1)),
+				OutputTokens:    ptr(int64(1)),
+				CacheReadTokens: ptr(int64(1)),
 			},
 			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens:  ptr(0.15),
-				OutputPricePerMillionTokens: ptr(0.15),
+				InputPricePerMillionTokens:     ptr(0.4),
+				OutputPricePerMillionTokens:    ptr(0.4),
+				CacheReadPricePerMillionTokens: ptr(0.4),
+			},
+			want: ptr(int64(1)),
+		},
+		{
+			name:  "sub-micro usage rounds to zero",
+			usage: codersdk.ChatMessageUsage{InputTokens: ptr(int64(1))},
+			cost: &codersdk.ModelCostConfig{
+				InputPricePerMillionTokens: ptr(0.01),
 			},
 			want: ptr(int64(0)),
 		},
