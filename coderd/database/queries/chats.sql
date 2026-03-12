@@ -145,16 +145,6 @@ WHERE
 ORDER BY
     created_at ASC;
 
--- name: ListChatsByRootID :many
-SELECT
-    *
-FROM
-    chats
-WHERE
-    root_chat_id = @root_chat_id::uuid
-ORDER BY
-    created_at ASC;
-
 -- name: InsertChat :one
 INSERT INTO chats (
     owner_id,
