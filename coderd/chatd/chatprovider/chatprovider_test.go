@@ -7,7 +7,6 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
@@ -138,61 +137,6 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	require.Equal(t, "latency", *options.OpenRouter.Provider.Sort)
 }
 
-func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
-	t.Parallel()
-
-	dst := codersdk.ChatModelCallConfig{
-		Temperature: float64Ptr(0.2),
-		Cost: &codersdk.ModelCostConfig{
-			OutputPricePerMillionTokens: decPtr("0.7"),
-		},
-		ProviderOptions: &codersdk.ChatModelProviderOptions{
-			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: stringPtr("alice"),
-			},
-		},
-	}
-	defaultCallConfig := codersdk.ChatModelCallConfig{
-		MaxOutputTokens: int64Ptr(512),
-		Temperature:     float64Ptr(0.9),
-		TopP:            float64Ptr(0.8),
-		Cost: &codersdk.ModelCostConfig{
-			InputPricePerMillionTokens:      decPtr("0.15"),
-			OutputPricePerMillionTokens:     decPtr("0.9"),
-			CacheReadPricePerMillionTokens:  decPtr("0.03"),
-			CacheWritePricePerMillionTokens: decPtr("0.3"),
-		},
-		ProviderOptions: &codersdk.ChatModelProviderOptions{
-			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User:            stringPtr("bob"),
-				ReasoningEffort: stringPtr("medium"),
-			},
-		},
-	}
-
-	chatprovider.MergeMissingCallConfig(&dst, defaultCallConfig)
-
-	require.NotNil(t, dst.MaxOutputTokens)
-	require.EqualValues(t, 512, *dst.MaxOutputTokens)
-	require.NotNil(t, dst.Temperature)
-	require.Equal(t, 0.2, *dst.Temperature)
-	require.NotNil(t, dst.TopP)
-	require.Equal(t, 0.8, *dst.TopP)
-	require.NotNil(t, dst.Cost)
-	require.NotNil(t, dst.Cost.InputPricePerMillionTokens)
-	require.True(t, dst.Cost.InputPricePerMillionTokens.Equal(decimal.RequireFromString("0.15")))
-	require.NotNil(t, dst.Cost.OutputPricePerMillionTokens)
-	require.True(t, dst.Cost.OutputPricePerMillionTokens.Equal(decimal.RequireFromString("0.7")))
-	require.NotNil(t, dst.Cost.CacheReadPricePerMillionTokens)
-	require.True(t, dst.Cost.CacheReadPricePerMillionTokens.Equal(decimal.RequireFromString("0.03")))
-	require.NotNil(t, dst.Cost.CacheWritePricePerMillionTokens)
-	require.True(t, dst.Cost.CacheWritePricePerMillionTokens.Equal(decimal.RequireFromString("0.3")))
-	require.NotNil(t, dst.ProviderOptions)
-	require.NotNil(t, dst.ProviderOptions.OpenAI)
-	require.Equal(t, "alice", *dst.ProviderOptions.OpenAI.User)
-	require.Equal(t, "medium", *dst.ProviderOptions.OpenAI.ReasoningEffort)
-}
-
 func stringPtr(value string) *string {
 	return &value
 }
@@ -203,13 +147,4 @@ func boolPtr(value bool) *bool {
 
 func int64Ptr(value int64) *int64 {
 	return &value
-}
-
-func float64Ptr(value float64) *float64 {
-	return &value
-}
-
-func decPtr(s string) *decimal.Decimal {
-	d := decimal.RequireFromString(s)
-	return &d
 }

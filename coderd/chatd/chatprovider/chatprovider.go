@@ -553,34 +553,6 @@ func normalizedEnumValue(value string, allowed ...string) *string {
 	return nil
 }
 
-// MergeMissingCallConfig fills unset call config values from a provider or
-// profile default config.
-func MergeMissingCallConfig(
-	dst *codersdk.ChatModelCallConfig,
-	defaults codersdk.ChatModelCallConfig,
-) {
-	if dst.MaxOutputTokens == nil {
-		dst.MaxOutputTokens = defaults.MaxOutputTokens
-	}
-	if dst.Temperature == nil {
-		dst.Temperature = defaults.Temperature
-	}
-	if dst.TopP == nil {
-		dst.TopP = defaults.TopP
-	}
-	if dst.TopK == nil {
-		dst.TopK = defaults.TopK
-	}
-	if dst.PresencePenalty == nil {
-		dst.PresencePenalty = defaults.PresencePenalty
-	}
-	if dst.FrequencyPenalty == nil {
-		dst.FrequencyPenalty = defaults.FrequencyPenalty
-	}
-	MergeMissingModelCostConfig(&dst.Cost, defaults.Cost)
-	MergeMissingProviderOptions(&dst.ProviderOptions, defaults.ProviderOptions)
-}
-
 // MergeMissingModelCostConfig fills unset pricing metadata from defaults.
 func MergeMissingModelCostConfig(
 	dst **codersdk.ModelCostConfig,
