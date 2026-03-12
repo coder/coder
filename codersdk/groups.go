@@ -130,10 +130,12 @@ func (c *Client) GroupByOrgAndName(ctx context.Context, orgID uuid.UUID, name st
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {
+func (c *Client) Group(ctx context.Context, group uuid.UUID, req UsersRequest) (Group, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/groups/%s", group.String()),
 		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
 	)
 	if err != nil {
 		return Group{}, xerrors.Errorf("make request: %w", err)

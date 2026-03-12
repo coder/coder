@@ -891,9 +891,9 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 	require.NoError(t, err)
 
 	var sessionToken string
-	if req.UserLoginType == codersdk.LoginTypeNone {
-		// Cannot log in with a disabled login user. So make it an api key from
-		// the client making this user.
+	if req.UserLoginType != codersdk.LoginTypePassword {
+		// Cannot log in with a non-password user. So make it an api key from the
+		// client making this user.
 		token, err := client.CreateToken(context.Background(), user.ID.String(), codersdk.CreateTokenRequest{
 			Lifetime:  time.Hour * 24,
 			Scope:     codersdk.APIKeyScopeAll,

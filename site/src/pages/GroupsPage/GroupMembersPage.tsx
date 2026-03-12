@@ -16,6 +16,7 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { UsersFilter } from "components/Filter/UsersFilter";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
@@ -46,6 +47,7 @@ const GroupMembersPage: FC = () => {
 		organization,
 		permissions,
 		groupQuery,
+		filterProps,
 	} = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
 	const addMemberMutation = useMutation(addMember(queryClient, organization));
@@ -77,6 +79,10 @@ const GroupMembersPage: FC = () => {
 					}}
 				/>
 			)}
+
+			<TableToolbar>
+				<UsersFilter {...filterProps} />
+			</TableToolbar>
 
 			<Table>
 				<TableHeader>

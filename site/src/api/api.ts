@@ -29,6 +29,7 @@ import type {
 	DeleteExternalAuthByIDResponse,
 	DynamicParametersRequest,
 	PostWorkspaceUsageRequest,
+	UsersRequest,
 } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
 
@@ -2090,10 +2091,14 @@ class ApiMethods {
 	getGroup = async (
 		organization: string,
 		groupName: string,
+		filter?: UsersRequest,
+		signal?: AbortSignal,
 	): Promise<TypesGen.Group> => {
-		const response = await this.axios.get(
+		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/groups/${groupName}`,
+			filter,
 		);
+		const response = await this.axios.get(url.toString(), { signal });
 		return response.data;
 	};
 
