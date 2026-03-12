@@ -2398,13 +2398,6 @@ func (q *querier) GetAnnouncementBanners(ctx context.Context) (string, error) {
 	return q.db.GetAnnouncementBanners(ctx)
 }
 
-func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return "", err
-	}
-	return q.db.GetAppSecurityKey(ctx)
-}
-
 func (q *querier) GetApplicationName(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetApplicationName(ctx)

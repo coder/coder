@@ -14614,17 +14614,6 @@ func (q *sqlQuerier) GetAnnouncementBanners(ctx context.Context) (string, error)
 	return value, err
 }
 
-const getAppSecurityKey = `-- name: GetAppSecurityKey :one
-SELECT value FROM site_configs WHERE key = 'app_signing_key'
-`
-
-func (q *sqlQuerier) GetAppSecurityKey(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getAppSecurityKey)
-	var value string
-	err := row.Scan(&value)
-	return value, err
-}
-
 const getApplicationName = `-- name: GetApplicationName :one
 SELECT value FROM site_configs WHERE key = 'application_name'
 `

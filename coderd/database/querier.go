@@ -202,7 +202,6 @@ type sqlcQuerier interface {
 	// rows we delete. Stale rows are excluded from the sum but still deleted.
 	GetAndResetBoundaryUsageSummary(ctx context.Context, maxStalenessMs int64) (GetAndResetBoundaryUsageSummaryRow, error)
 	GetAnnouncementBanners(ctx context.Context) (string, error)
-	GetAppSecurityKey(ctx context.Context) (string, error)
 	GetApplicationName(ctx context.Context) (string, error)
 	// GetAuditLogsBefore retrieves `row_limit` number of audit logs before the provided
 	// ID.

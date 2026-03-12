@@ -951,14 +951,6 @@ func (m queryMetricsStore) GetAnnouncementBanners(ctx context.Context) (string, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAppSecurityKey(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAppSecurityKey(ctx)
-	m.queryLatencies.WithLabelValues("GetAppSecurityKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAppSecurityKey").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetApplicationName(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetApplicationName(ctx)

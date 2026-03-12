@@ -1626,21 +1626,6 @@ func (mr *MockStoreMockRecorder) GetAnnouncementBanners(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAnnouncementBanners", reflect.TypeOf((*MockStore)(nil).GetAnnouncementBanners), ctx)
 }
 
-// GetAppSecurityKey mocks base method.
-func (m *MockStore) GetAppSecurityKey(ctx context.Context) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAppSecurityKey", ctx)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAppSecurityKey indicates an expected call of GetAppSecurityKey.
-func (mr *MockStoreMockRecorder) GetAppSecurityKey(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAppSecurityKey", reflect.TypeOf((*MockStore)(nil).GetAppSecurityKey), ctx)
-}
-
 // GetApplicationName mocks base method.
 func (m *MockStore) GetApplicationName(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
