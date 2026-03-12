@@ -314,11 +314,14 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	// This functionality has been moved to the AppsAPI in the agentapi. We keep this HTTP handler around for back
 	// compatibility with older agents. We'll translate the request into the protobuf so there is only one primary
 	// implementation.
+	cachedWs := &agentapi.CachedWorkspaceFields{}
+	cachedWs.UpdateValues(workspace)
+
 	appAPI := &agentapi.AppsAPI{
-		Agent:    workspaceAgent,
-		Database: api.Database,
-		Log:      api.Logger,
-		TaskID:   workspace.TaskID,
+		Agent:     workspaceAgent,
+		Database:  api.Database,
+		Log:       api.Logger,
+		Workspace: cachedWs,
 		AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 			return api.Database.GetWorkspaceAgentByID(ctx, workspaceAgent.ID)
 		},

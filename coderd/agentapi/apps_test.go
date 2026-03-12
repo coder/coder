@@ -284,7 +284,6 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			},
 			Database:  mDB,
 			Log:       testutil.Logger(t),
-			TaskID:    workspace.TaskID,
 			Workspace: cachedWs,
 			PublishWorkspaceUpdateFn: func(_ context.Context, agnt uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				assert.Equal(t, agnt, agent.ID)

@@ -28,7 +28,6 @@ type AppsAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
 	Database                 database.Store
 	Log                      slog.Logger
-	TaskID                   uuid.NullUUID
 	Workspace                *CachedWorkspaceFields
 	PublishWorkspaceUpdateFn func(context.Context, uuid.UUID, wspubsub.WorkspaceEventKind) error
 	NotificationsEnqueuer    notifications.Enqueuer
@@ -158,19 +157,11 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		})
 	}
 
-	// Use the cached workspace identity for the workspace ID.
-	var workspaceID uuid.UUID
-	if ws, ok := a.Workspace.AsWorkspaceIdentity(); ok {
-		workspaceID = ws.ID
-	} else {
-		w, err := a.Database.GetWorkspaceByAgentID(ctx, a.Agent.ID)
-		if err != nil {
-			return nil, codersdk.NewError(http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to get workspace.",
-				Detail:  err.Error(),
-			})
-		}
-		workspaceID = w.ID
+	ws, ok := a.Workspace.AsWorkspaceIdentity()
+	if !ok {
+		return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Workspace identity not cached.",
+		})
 	}
 
 	// Treat the message as untrusted input.
@@ -191,7 +182,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	_, err = a.Database.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 		ID:          uuid.New(),
 		CreatedAt:   dbtime.Now(),
-		WorkspaceID: workspaceID,
+		WorkspaceID: ws.ID,
 		AgentID:     a.Agent.ID,
 		AppID:       app.ID,
 		State:       dbState,
@@ -225,7 +216,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		// We pass time.Time{} for nextAutostart since we don't have access to
 		// TemplateScheduleStore here. The activity bump logic handles this by
 		// defaulting to the template's activity_bump duration (typically 1 hour).
-		workspacestats.ActivityBumpWorkspace(ctx, a.Log, a.Database, workspaceID, time.Time{})
+		workspacestats.ActivityBumpWorkspace(ctx, a.Log, a.Database, ws.ID, time.Time{})
 	}
 	// just return a blank response because it doesn't contain any settable fields at present.
 	return new(agentproto.UpdateAppStatusResponse), nil
@@ -278,7 +269,8 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 		return
 	}
 
-	if !a.TaskID.Valid {
+	taskID := a.Workspace.TaskID()
+	if !taskID.Valid {
 		// Workspace has no task ID, do nothing.
 		return
 	}
@@ -303,7 +295,7 @@ func (a *AppsAPI) enqueueAITaskStateNotification(
 		return
 	}
 
-	task, err := a.Database.GetTaskByID(ctx, a.TaskID.UUID)
+	task, err := a.Database.GetTaskByID(ctx, taskID.UUID)
 	if err != nil {
 		a.Log.Warn(ctx, "failed to get task", slog.Error(err))
 		return
