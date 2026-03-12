@@ -340,32 +340,55 @@ func extractMagicSessionType(env []string) (magicType MagicSessionType, rawType 
 	})
 }
 
-// sessionCloseTracker is a wrapper around Session that tracks the exit code.
+// sessionCloseTracker is a wrapper around Session that tracks the
+// exit code and reason for session closure. Exit() always takes
+// priority over Close() because Exit carries an intentional exit
+// code from the process, while Close is a fallback (default code 1)
+// triggered by the SSH library or SFTP server teardown.
 type sessionCloseTracker struct {
 	ssh.Session
-	exitOnce sync.Once
-	code     atomic.Int64
+	mu     sync.Mutex
+	exited bool // true if Exit() was called
+	code   int
+	reason string
 }
 
 var _ ssh.Session = &sessionCloseTracker{}
 
-func (s *sessionCloseTracker) track(code int) {
-	s.exitOnce.Do(func() {
-		s.code.Store(int64(code))
-	})
+func (s *sessionCloseTracker) exitCode() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.code
 }
 
-func (s *sessionCloseTracker) exitCode() int {
-	return int(s.code.Load())
+// closeReason returns the reason recorded by Close() only if
+// Exit() was never called. This covers the case where the SSH
+// library or an internal component (e.g. sftp.Server) tears
+// down the session without going through an explicit Exit path.
+func (s *sessionCloseTracker) closeReason() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.exited {
+		return s.reason
+	}
+	return ""
 }
 
 func (s *sessionCloseTracker) Exit(code int) error {
-	s.track(code)
+	s.mu.Lock()
+	s.exited = true
+	s.code = code
+	s.mu.Unlock()
 	return s.Session.Exit(code)
 }
 
 func (s *sessionCloseTracker) Close() error {
-	s.track(1)
+	s.mu.Lock()
+	if !s.exited {
+		s.code = 1
+		s.reason = "session closed by the server or client disconnect"
+	}
+	s.mu.Unlock()
 	return s.Session.Close()
 }
 
@@ -449,6 +472,13 @@ func (s *Server) sessionHandler(session ssh.Session) {
 
 		disconnected := s.config.ReportConnection(id, magicType, remoteAddrString)
 		defer func() {
+			// If closeCause was never called but the tracker
+			// recorded a Close() (e.g. client disconnect, server
+			// shutdown, or SFTP teardown), use its reason so we
+			// never report a non-zero exit with an empty reason.
+			if reason == "" {
+				reason = scr.closeReason()
+			}
 			disconnected(scr.exitCode(), reason)
 		}()
 	}
@@ -527,7 +557,11 @@ func (s *Server) sessionHandler(session ssh.Session) {
 			slog.F("exit_code", code),
 		)
 
-		closeCause(fmt.Sprintf("process exited with error status: %d", exitError.ExitCode()))
+		// exitError.Error() includes signal information for
+		// signal deaths (e.g. "signal: killed", "signal:
+		// terminated") which is far more useful than just the
+		// numeric code (-1).
+		closeCause(fmt.Sprintf("process exited: %s", exitError))
 
 		// TODO(mafredri): For signal exit, there's also an "exit-signal"
 		// request (session.Exit sends "exit-status"), however, since it's
