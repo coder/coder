@@ -1,7 +1,10 @@
 import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { Skeleton } from "components/Skeleton/Skeleton";
+import {
+	ChatConversationSkeleton,
+	RightPanelSkeleton,
+} from "./AgentsSkeletons";
 import { ArchiveIcon } from "lucide-react";
 import { type FC, type RefObject, useMemo, useState } from "react";
 import type { UrlTransform } from "streamdown";
@@ -406,30 +409,7 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
 					<div className="px-4">
 						<div className="mx-auto w-full max-w-3xl py-6">
-							<div className="flex flex-col gap-3">
-								{/* User message bubble (right-aligned) */}
-								<div className="flex w-full justify-end">
-									<Skeleton className="h-10 w-2/3 rounded-lg" />
-								</div>
-								{/* Assistant response lines (left-aligned) */}
-								<div className="space-y-3">
-									<Skeleton className="h-4 w-full" />
-									<Skeleton className="h-4 w-5/6" />
-									<Skeleton className="h-4 w-4/6" />
-								</div>
-								{/* Second user message bubble */}
-								<div className="mt-3 flex w-full justify-end">
-									<Skeleton className="h-10 w-1/2 rounded-lg" />
-								</div>
-								{/* Second assistant response */}
-								<div className="space-y-3">
-									<Skeleton className="h-4 w-full" />
-									<Skeleton className="h-4 w-5/6" />
-									<Skeleton className="h-4 w-4/6" />
-									<Skeleton className="h-4 w-full" />
-									<Skeleton className="h-4 w-3/5" />
-								</div>{" "}
-							</div>
+							<ChatConversationSkeleton />
 						</div>
 					</div>
 				</div>
@@ -458,19 +438,7 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				>
-					<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
-						{/* Skeleton tab bar matching SidebarTabView layout */}
-						<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
-							<Skeleton className="h-6 w-12 rounded-md" />
-							<div className="flex-1" />
-						</div>
-						{/* Skeleton panel content */}
-						<div className="space-y-4 p-4">
-							<Skeleton className="h-4 w-32" />
-							<Skeleton className="h-3 w-full" />
-							<Skeleton className="h-3 w-3/4" />
-						</div>
-					</div>
+					<RightPanelSkeleton />
 				</RightPanel>
 			)}
 		</div>
