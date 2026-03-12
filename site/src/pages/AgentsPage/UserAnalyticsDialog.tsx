@@ -11,10 +11,20 @@ import {
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import dayjs from "dayjs";
 import { BarChart3Icon, XIcon } from "lucide-react";
-import { type FC, useMemo } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { SectionHeader } from "./SectionHeader";
+
+const createDateRange = () => {
+	const end = dayjs();
+	const start = end.subtract(30, "day");
+	return {
+		startDate: start.toISOString(),
+		endDate: end.toISOString(),
+		rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
+	};
+};
 
 interface UserAnalyticsDialogProps {
 	open: boolean;
@@ -26,15 +36,15 @@ export const UserAnalyticsDialog: FC<UserAnalyticsDialogProps> = ({
 	onOpenChange,
 }) => {
 	const { user } = useAuthContext();
-	const dateRange = useMemo(() => {
-		const end = dayjs();
-		const start = end.subtract(30, "day");
-		return {
-			startDate: start.toISOString(),
-			endDate: end.toISOString(),
-			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
-		};
-	}, []);
+	const [dateRange, setDateRange] = useState(createDateRange);
+
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+
+		setDateRange(createDateRange());
+	}, [open]);
 
 	const summaryQuery = useQuery({
 		...chatCostSummary(user?.id ?? "me", {

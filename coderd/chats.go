@@ -536,6 +536,23 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 		rollups = append(rollups, convertChatCostUserRollup(user))
 	}
 
+	if len(users) == 0 && offset > 0 {
+		countUsers, countErr := api.Database.GetChatCostPerUser(ctx, database.GetChatCostPerUserParams{
+			StartDate:  startDate,
+			EndDate:    endDate,
+			Username:   username,
+			PageLimit:  1,
+			PageOffset: 0,
+		})
+		if countErr != nil {
+			httpapi.InternalServerError(rw, countErr)
+			return
+		}
+		if len(countUsers) > 0 {
+			count = countUsers[0].TotalCount
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostUsersResponse{
 		StartDate: startDate,
 		EndDate:   endDate,

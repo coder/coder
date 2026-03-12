@@ -37,7 +37,6 @@ WITH message_costs AS (
         AND (
             msg.input_tokens IS NOT NULL
             OR msg.output_tokens IS NOT NULL
-            OR msg.total_tokens IS NOT NULL
             OR msg.reasoning_tokens IS NOT NULL
             OR msg.cache_creation_tokens IS NOT NULL
             OR msg.cache_read_tokens IS NOT NULL
