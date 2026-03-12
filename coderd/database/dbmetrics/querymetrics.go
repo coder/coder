@@ -376,6 +376,14 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatMCPServerByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatMCPServerByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteChatMCPServerByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatMCPServerByID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatMessagesAfterID(ctx context.Context, arg database.DeleteChatMessagesAfterIDParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatMessagesAfterID(ctx, arg)
@@ -1039,6 +1047,22 @@ func (m queryMetricsStore) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUI
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatMCPServerByID(ctx context.Context, id uuid.UUID) (database.ChatMcpServer, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMCPServerByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatMCPServerByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMCPServerByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatMCPServers(ctx context.Context) ([]database.ChatMcpServer, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMCPServers(ctx)
+	m.queryLatencies.WithLabelValues("GetChatMCPServers").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMCPServers").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatMessageByID(ctx context.Context, id int64) (database.ChatMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMessageByID(ctx, id)
@@ -1260,6 +1284,14 @@ func (m queryMetricsStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx 
 	r0, r1 := m.s.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, provisionerJobIds)
 	m.queryLatencies.WithLabelValues("GetEligibleProvisionerDaemonsByProvisionerJobIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEligibleProvisionerDaemonsByProvisionerJobIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetEnabledChatMCPServers(ctx context.Context) ([]database.ChatMcpServer, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEnabledChatMCPServers(ctx)
+	m.queryLatencies.WithLabelValues("GetEnabledChatMCPServers").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledChatMCPServers").Inc()
 	return r0, r1
 }
 
@@ -3007,6 +3039,14 @@ func (m queryMetricsStore) InsertChatFile(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertChatMCPServer(ctx context.Context, arg database.InsertChatMCPServerParams) (database.ChatMcpServer, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatMCPServer(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatMCPServer").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatMCPServer").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertChatMessage(ctx context.Context, arg database.InsertChatMessageParams) (database.ChatMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatMessage(ctx, arg)
@@ -3796,6 +3836,14 @@ func (m queryMetricsStore) UpdateChatHeartbeat(ctx context.Context, arg database
 	r0, r1 := m.s.UpdateChatHeartbeat(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatHeartbeat").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatHeartbeat").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatMCPServer(ctx context.Context, arg database.UpdateChatMCPServerParams) (database.ChatMcpServer, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatMCPServer(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatMCPServer").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatMCPServer").Inc()
 	return r0, r1
 }
 

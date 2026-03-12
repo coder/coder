@@ -109,6 +109,38 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		log.Debug(ctx, "encrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
+	mcpServers, err := cryptDB.GetChatMCPServers(ctx)
+	if err != nil {
+		return xerrors.Errorf("get chat MCP servers: %w", err)
+	}
+	log.Info(ctx, "encrypting chat MCP server auth headers", slog.F("server_count", len(mcpServers)))
+	for idx, server := range mcpServers {
+		if strings.TrimSpace(server.AuthHeaders) == "" {
+			continue
+		}
+		if server.AuthHeadersKeyID.Valid && server.AuthHeadersKeyID.String == ciphers[0].HexDigest() {
+			log.Debug(ctx, "skipping chat MCP server", slog.F("slug", server.Slug), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+			continue
+		}
+		if _, err := cryptDB.UpdateChatMCPServer(ctx, database.UpdateChatMCPServerParams{
+			Slug:             server.Slug,
+			Url:              server.Url,
+			DisplayName:      server.DisplayName,
+			AuthType:         server.AuthType,
+			AuthHeaders:      server.AuthHeaders,
+			AuthHeadersKeyID: sql.NullString{}, // dbcrypt will update as required
+			OauthClientID:    server.OauthClientID,
+			OauthAuthServer:  server.OauthAuthServer,
+			ToolAllowRegex:   server.ToolAllowRegex,
+			ToolDenyRegex:    server.ToolDenyRegex,
+			Enabled:          server.Enabled,
+			ID:               server.ID,
+		}); err != nil {
+			return xerrors.Errorf("update chat MCP server id=%s slug=%s: %w", server.ID, server.Slug, err)
+		}
+		log.Debug(ctx, "encrypted chat MCP server auth headers", slog.F("slug", server.Slug), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -221,6 +253,34 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
+	mcpServers, err := cryptDB.GetChatMCPServers(ctx)
+	if err != nil {
+		return xerrors.Errorf("get chat MCP servers: %w", err)
+	}
+	log.Info(ctx, "decrypting chat MCP server auth headers", slog.F("server_count", len(mcpServers)))
+	for idx, server := range mcpServers {
+		if !server.AuthHeadersKeyID.Valid {
+			continue
+		}
+		if _, err := cryptDB.UpdateChatMCPServer(ctx, database.UpdateChatMCPServerParams{
+			Slug:             server.Slug,
+			Url:              server.Url,
+			DisplayName:      server.DisplayName,
+			AuthType:         server.AuthType,
+			AuthHeaders:      server.AuthHeaders,
+			AuthHeadersKeyID: sql.NullString{}, // we explicitly want to clear the key id
+			OauthClientID:    server.OauthClientID,
+			OauthAuthServer:  server.OauthAuthServer,
+			ToolAllowRegex:   server.ToolAllowRegex,
+			ToolDenyRegex:    server.ToolDenyRegex,
+			Enabled:          server.Enabled,
+			ID:               server.ID,
+		}); err != nil {
+			return xerrors.Errorf("update chat MCP server id=%s slug=%s: %w", server.ID, server.Slug, err)
+		}
+		log.Debug(ctx, "decrypted chat MCP server auth headers", slog.F("slug", server.Slug), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -242,11 +302,14 @@ DELETE FROM external_auth_links
 	WHERE oauth_access_token_key_id IS NOT NULL
 	OR oauth_refresh_token_key_id IS NOT NULL;
 UPDATE chat_providers
-	SET api_key = '',
-		api_key_key_id = NULL
-	WHERE api_key_key_id IS NOT NULL;
-COMMIT;
-`
+		SET api_key = '',
+			api_key_key_id = NULL
+		WHERE api_key_key_id IS NOT NULL;
+UPDATE chat_mcp_servers
+		SET auth_headers = '',
+			auth_headers_key_id = NULL
+		WHERE auth_headers_key_id IS NOT NULL;
+COMMIT;`
 
 // Delete deletes all user tokens and revokes all ciphers.
 // This is a destructive operation and should only be used

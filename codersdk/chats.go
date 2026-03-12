@@ -509,6 +509,54 @@ type UpdateChatModelConfigRequest struct {
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 
+// ChatMCPServerAuthType represents the authentication type for an MCP server.
+type ChatMCPServerAuthType string
+
+const (
+	ChatMCPServerAuthTypeNone   ChatMCPServerAuthType = "none"
+	ChatMCPServerAuthTypeHeader ChatMCPServerAuthType = "header"
+	ChatMCPServerAuthTypeOAuth  ChatMCPServerAuthType = "oauth"
+)
+
+// ChatMCPServerConfig represents a configured MCP server for the chat system.
+type ChatMCPServerConfig struct {
+	ID             uuid.UUID             `json:"id" format:"uuid"`
+	Slug           string                `json:"slug"`
+	URL            string                `json:"url"`
+	DisplayName    string                `json:"display_name"`
+	AuthType       ChatMCPServerAuthType `json:"auth_type"`
+	HasAuthHeaders bool                  `json:"has_auth_headers"`
+	ToolAllowRegex string                `json:"tool_allow_regex"`
+	ToolDenyRegex  string                `json:"tool_deny_regex"`
+	Enabled        bool                  `json:"enabled"`
+	CreatedAt      time.Time             `json:"created_at" format:"date-time"`
+	UpdatedAt      time.Time             `json:"updated_at" format:"date-time"`
+}
+
+// CreateChatMCPServerRequest is the request body for creating a new MCP server configuration.
+type CreateChatMCPServerRequest struct {
+	Slug           string                `json:"slug" validate:"required"`
+	URL            string                `json:"url" validate:"required"`
+	DisplayName    string                `json:"display_name"`
+	AuthType       ChatMCPServerAuthType `json:"auth_type"`
+	AuthHeaders    map[string]string     `json:"auth_headers,omitempty"`
+	ToolAllowRegex string                `json:"tool_allow_regex"`
+	ToolDenyRegex  string                `json:"tool_deny_regex"`
+	Enabled        *bool                 `json:"enabled,omitempty"`
+}
+
+// UpdateChatMCPServerRequest is the request body for updating an MCP server configuration.
+type UpdateChatMCPServerRequest struct {
+	Slug           *string                `json:"slug,omitempty"`
+	URL            *string                `json:"url,omitempty"`
+	DisplayName    *string                `json:"display_name,omitempty"`
+	AuthType       *ChatMCPServerAuthType `json:"auth_type,omitempty"`
+	AuthHeaders    map[string]string      `json:"auth_headers,omitempty"`
+	ToolAllowRegex *string                `json:"tool_allow_regex,omitempty"`
+	ToolDenyRegex  *string                `json:"tool_deny_regex,omitempty"`
+	Enabled        *bool                  `json:"enabled,omitempty"`
+}
+
 // ChatGitChange represents a git file change detected during a chat session.
 type ChatGitChange struct {
 	ID          uuid.UUID `json:"id" format:"uuid"`
@@ -765,6 +813,61 @@ func (c *Client) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.U
 // DeleteChatModelConfig deletes an admin-managed chat model config.
 func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ListChatMCPServerConfigs returns all configured MCP servers.
+func (c *Client) ListChatMCPServerConfigs(ctx context.Context) ([]ChatMCPServerConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/mcp-servers", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var configs []ChatMCPServerConfig
+	return configs, json.NewDecoder(res.Body).Decode(&configs)
+}
+
+// CreateChatMCPServerConfig creates a new MCP server configuration.
+func (c *Client) CreateChatMCPServerConfig(ctx context.Context, req CreateChatMCPServerRequest) (ChatMCPServerConfig, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/mcp-servers", req)
+	if err != nil {
+		return ChatMCPServerConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return ChatMCPServerConfig{}, ReadBodyAsError(res)
+	}
+	var config ChatMCPServerConfig
+	return config, json.NewDecoder(res.Body).Decode(&config)
+}
+
+// UpdateChatMCPServerConfig updates an existing MCP server configuration.
+func (c *Client) UpdateChatMCPServerConfig(ctx context.Context, id uuid.UUID, req UpdateChatMCPServerRequest) (ChatMCPServerConfig, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/mcp-servers/%s", id), req)
+	if err != nil {
+		return ChatMCPServerConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatMCPServerConfig{}, ReadBodyAsError(res)
+	}
+	var config ChatMCPServerConfig
+	return config, json.NewDecoder(res.Body).Decode(&config)
+}
+
+// DeleteChatMCPServerConfig deletes an MCP server configuration.
+func (c *Client) DeleteChatMCPServerConfig(ctx context.Context, id uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/mcp-servers/%s", id), nil)
 	if err != nil {
 		return err
 	}

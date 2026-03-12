@@ -3938,6 +3938,25 @@ type ChatFile struct {
 	Data           []byte    `db:"data" json:"data"`
 }
 
+type ChatMcpServer struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	Slug        string    `db:"slug" json:"slug"`
+	Url         string    `db:"url" json:"url"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	AuthType    string    `db:"auth_type" json:"auth_type"`
+	AuthHeaders string    `db:"auth_headers" json:"auth_headers"`
+	// The ID of the key used to encrypt the auth headers. If this is NULL, the headers are not encrypted
+	AuthHeadersKeyID sql.NullString `db:"auth_headers_key_id" json:"auth_headers_key_id"`
+	OauthClientID    string         `db:"oauth_client_id" json:"oauth_client_id"`
+	OauthAuthServer  string         `db:"oauth_auth_server" json:"oauth_auth_server"`
+	ToolAllowRegex   string         `db:"tool_allow_regex" json:"tool_allow_regex"`
+	ToolDenyRegex    string         `db:"tool_deny_regex" json:"tool_deny_regex"`
+	Enabled          bool           `db:"enabled" json:"enabled"`
+	CreatedBy        uuid.NullUUID  `db:"created_by" json:"created_by"`
+	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`

@@ -1146,6 +1146,33 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 ];
 
 // From codersdk/chats.go
+export type ChatMCPServerAuthType = "header" | "none" | "oauth";
+
+export const ChatMCPServerAuthTypes: ChatMCPServerAuthType[] = [
+	"header",
+	"none",
+	"oauth",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatMCPServerConfig represents a configured MCP server for the chat system.
+ */
+export interface ChatMCPServerConfig {
+	readonly id: string;
+	readonly slug: string;
+	readonly url: string;
+	readonly display_name: string;
+	readonly auth_type: ChatMCPServerAuthType;
+	readonly has_auth_headers: boolean;
+	readonly tool_allow_regex: string;
+	readonly tool_deny_regex: string;
+	readonly enabled: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
 /**
  * ChatMessage represents a single message in a chat.
  */
@@ -1769,6 +1796,21 @@ export interface ConvertLoginRequest {
 	 */
 	readonly to_type: LoginType;
 	readonly password: string;
+}
+
+// From codersdk/chats.go
+/**
+ * CreateChatMCPServerRequest is the request body for creating a new MCP server configuration.
+ */
+export interface CreateChatMCPServerRequest {
+	readonly slug: string;
+	readonly url: string;
+	readonly display_name: string;
+	readonly auth_type: ChatMCPServerAuthType;
+	readonly auth_headers?: Record<string, string>;
+	readonly tool_allow_regex: string;
+	readonly tool_deny_regex: string;
+	readonly enabled?: boolean;
 }
 
 // From codersdk/chats.go
@@ -6313,6 +6355,21 @@ export interface UpdateAppearanceConfig {
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatMCPServerRequest is the request body for updating an MCP server configuration.
+ */
+export interface UpdateChatMCPServerRequest {
+	readonly slug?: string;
+	readonly url?: string;
+	readonly display_name?: string;
+	readonly auth_type?: ChatMCPServerAuthType;
+	readonly auth_headers?: Record<string, string>;
+	readonly tool_allow_regex?: string;
+	readonly tool_deny_regex?: string;
+	readonly enabled?: boolean;
 }
 
 // From codersdk/chats.go

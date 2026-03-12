@@ -3283,3 +3283,325 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 	)
 	return effectiveKeys.APIKey(provider.Provider) != ""
 }
+
+func parseChatMCPServerID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	mcpServerID, err := uuid.Parse(chi.URLParam(r, "mcpServer"))
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid MCP server ID.",
+			Detail:  err.Error(),
+		})
+		return uuid.Nil, false
+	}
+	return mcpServerID, true
+}
+
+func convertChatMCPServerConfig(server database.ChatMcpServer) codersdk.ChatMCPServerConfig {
+	return codersdk.ChatMCPServerConfig{
+		ID:             server.ID,
+		Slug:           server.Slug,
+		URL:            server.Url,
+		DisplayName:    server.DisplayName,
+		AuthType:       codersdk.ChatMCPServerAuthType(server.AuthType),
+		HasAuthHeaders: server.AuthHeaders != "",
+		ToolAllowRegex: server.ToolAllowRegex,
+		ToolDenyRegex:  server.ToolDenyRegex,
+		Enabled:        server.Enabled,
+		CreatedAt:      server.CreatedAt,
+		UpdatedAt:      server.UpdatedAt,
+	}
+}
+
+// @Summary List chat MCP server configs
+// @ID list-chat-mcp-server-configs
+// @Tags Chat
+// @Security CoderSessionToken
+// @Produce json
+// @Success 200 {array} codersdk.ChatMCPServerConfig
+// @Router /chats/mcp-servers [get]
+func (api *API) listChatMCPServers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Admin users can see all MCP servers (including disabled ones)
+	// for management purposes. Non-admin users see only enabled
+	// servers, which is sufficient for using the chat feature.
+	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
+
+	var servers []database.ChatMcpServer
+	var err error
+	if isAdmin {
+		servers, err = api.Database.GetChatMCPServers(ctx)
+	} else {
+		//nolint:gocritic // All authenticated users need to read enabled MCP servers to use the chat feature.
+		servers, err = api.Database.GetEnabledChatMCPServers(dbauthz.AsSystemRestricted(ctx))
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list MCP servers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resp := make([]codersdk.ChatMCPServerConfig, 0, len(servers))
+	for _, s := range servers {
+		resp = append(resp, convertChatMCPServerConfig(s))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @Summary Create chat MCP server config
+// @ID create-chat-mcp-server-config
+// @Tags Chat
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Param request body codersdk.CreateChatMCPServerRequest true "Request body"
+// @Success 201 {object} codersdk.ChatMCPServerConfig
+// @Router /chats/mcp-servers [post]
+func (api *API) createChatMCPServer(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.CreateChatMCPServerRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	slug := strings.TrimSpace(req.Slug)
+	if slug == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Slug is required.",
+		})
+		return
+	}
+	serverURL := strings.TrimSpace(req.URL)
+	if serverURL == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "URL is required.",
+		})
+		return
+	}
+
+	authType := string(codersdk.ChatMCPServerAuthTypeNone)
+	if req.AuthType != "" {
+		authType = string(req.AuthType)
+	}
+
+	// Serialize auth headers to JSON if provided.
+	authHeaders := ""
+	if len(req.AuthHeaders) > 0 {
+		data, err := json.Marshal(req.AuthHeaders)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid auth headers.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		authHeaders = string(data)
+	}
+
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
+	server, err := api.Database.InsertChatMCPServer(ctx, database.InsertChatMCPServerParams{
+		Slug:             slug,
+		Url:              serverURL,
+		DisplayName:      strings.TrimSpace(req.DisplayName),
+		AuthType:         authType,
+		AuthHeaders:      authHeaders,
+		AuthHeadersKeyID: sql.NullString{},
+		OauthClientID:    "",
+		OauthAuthServer:  "",
+		ToolAllowRegex:   strings.TrimSpace(req.ToolAllowRegex),
+		ToolDenyRegex:    strings.TrimSpace(req.ToolDenyRegex),
+		Enabled:          enabled,
+		CreatedBy:        uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+	})
+	if err != nil {
+		if database.IsUniqueViolation(err) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "An MCP server with this slug already exists.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create MCP server.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, convertChatMCPServerConfig(server))
+}
+
+// @Summary Update chat MCP server config
+// @ID update-chat-mcp-server-config
+// @Tags Chat
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Param mcpServer path string true "MCP Server ID" format(uuid)
+// @Param request body codersdk.UpdateChatMCPServerRequest true "Request body"
+// @Success 200 {object} codersdk.ChatMCPServerConfig
+// @Router /chats/mcp-servers/{mcpServer} [patch]
+func (api *API) updateChatMCPServer(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	id, ok := parseChatMCPServerID(rw, r)
+	if !ok {
+		return
+	}
+
+	existing, err := api.Database.GetChatMCPServerByID(ctx, id)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get MCP server.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var req codersdk.UpdateChatMCPServerRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Apply partial updates.
+	slug := existing.Slug
+	if req.Slug != nil {
+		slug = strings.TrimSpace(*req.Slug)
+	}
+	serverURL := existing.Url
+	if req.URL != nil {
+		serverURL = strings.TrimSpace(*req.URL)
+	}
+	displayName := existing.DisplayName
+	if req.DisplayName != nil {
+		displayName = strings.TrimSpace(*req.DisplayName)
+	}
+	authType := existing.AuthType
+	if req.AuthType != nil {
+		authType = string(*req.AuthType)
+	}
+	authHeaders := existing.AuthHeaders
+	authHeadersKeyID := existing.AuthHeadersKeyID
+	if req.AuthHeaders != nil {
+		if len(req.AuthHeaders) > 0 {
+			data, marshalErr := json.Marshal(req.AuthHeaders)
+			if marshalErr != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid auth headers.",
+					Detail:  marshalErr.Error(),
+				})
+				return
+			}
+			authHeaders = string(data)
+			// Reset key ID so headers get re-encrypted.
+			authHeadersKeyID = sql.NullString{}
+		} else {
+			authHeaders = ""
+			authHeadersKeyID = sql.NullString{}
+		}
+	}
+	toolAllowRegex := existing.ToolAllowRegex
+	if req.ToolAllowRegex != nil {
+		toolAllowRegex = strings.TrimSpace(*req.ToolAllowRegex)
+	}
+	toolDenyRegex := existing.ToolDenyRegex
+	if req.ToolDenyRegex != nil {
+		toolDenyRegex = strings.TrimSpace(*req.ToolDenyRegex)
+	}
+	enabled := existing.Enabled
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+
+	updated, err := api.Database.UpdateChatMCPServer(ctx, database.UpdateChatMCPServerParams{
+		ID:               id,
+		Slug:             slug,
+		Url:              serverURL,
+		DisplayName:      displayName,
+		AuthType:         authType,
+		AuthHeaders:      authHeaders,
+		AuthHeadersKeyID: authHeadersKeyID,
+		OauthClientID:    existing.OauthClientID,
+		OauthAuthServer:  existing.OauthAuthServer,
+		ToolAllowRegex:   toolAllowRegex,
+		ToolDenyRegex:    toolDenyRegex,
+		Enabled:          enabled,
+	})
+	if err != nil {
+		if database.IsUniqueViolation(err) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "An MCP server with this slug already exists.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update MCP server.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatMCPServerConfig(updated))
+}
+
+// @Summary Delete chat MCP server config
+// @ID delete-chat-mcp-server-config
+// @Tags Chat
+// @Security CoderSessionToken
+// @Param mcpServer path string true "MCP Server ID" format(uuid)
+// @Success 204
+// @Router /chats/mcp-servers/{mcpServer} [delete]
+func (api *API) deleteChatMCPServer(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	id, ok := parseChatMCPServerID(rw, r)
+	if !ok {
+		return
+	}
+
+	if _, err := api.Database.GetChatMCPServerByID(ctx, id); err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get MCP server.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if err := api.Database.DeleteChatMCPServerByID(ctx, id); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to delete MCP server.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}

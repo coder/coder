@@ -481,6 +481,145 @@ const docTemplate = `{
                 }
             }
         },
+        "/chats/mcp-servers": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "List chat MCP server configs",
+                "operationId": "list-chat-mcp-server-configs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatMCPServerConfig"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Create chat MCP server config",
+                "operationId": "create-chat-mcp-server-config",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatMCPServerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatMCPServerConfig"
+                        }
+                    }
+                }
+            }
+        },
+        "/chats/mcp-servers/{mcpServer}": {
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Delete chat MCP server config",
+                "operationId": "delete-chat-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP Server ID",
+                        "name": "mcpServer",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Update chat MCP server config",
+                "operationId": "update-chat-mcp-server-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP Server ID",
+                        "name": "mcpServer",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatMCPServerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatMCPServerConfig"
+                        }
+                    }
+                }
+            }
+        },
         "/connectionlog": {
             "get": {
                 "security": [
@@ -13723,6 +13862,60 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatMCPServerAuthType": {
+            "type": "string",
+            "enum": [
+                "none",
+                "header",
+                "oauth"
+            ],
+            "x-enum-varnames": [
+                "ChatMCPServerAuthTypeNone",
+                "ChatMCPServerAuthTypeHeader",
+                "ChatMCPServerAuthTypeOAuth"
+            ]
+        },
+        "codersdk.ChatMCPServerConfig": {
+            "type": "object",
+            "properties": {
+                "auth_type": {
+                    "$ref": "#/definitions/codersdk.ChatMCPServerAuthType"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "has_auth_headers": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_regex": {
+                    "type": "string"
+                },
+                "tool_deny_regex": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -13886,6 +14079,42 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.CreateChatMCPServerRequest": {
+            "type": "object",
+            "required": [
+                "slug",
+                "url"
+            ],
+            "properties": {
+                "auth_headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "auth_type": {
+                    "$ref": "#/definitions/codersdk.ChatMCPServerAuthType"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_regex": {
+                    "type": "string"
+                },
+                "tool_deny_regex": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
                 }
             }
         },
@@ -19961,6 +20190,38 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.BannerConfig"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.UpdateChatMCPServerRequest": {
+            "type": "object",
+            "properties": {
+                "auth_headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "auth_type": {
+                    "$ref": "#/definitions/codersdk.ChatMCPServerAuthType"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "slug": {
+                    "type": "string"
+                },
+                "tool_allow_regex": {
+                    "type": "string"
+                },
+                "tool_deny_regex": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
                 }
             }
         },

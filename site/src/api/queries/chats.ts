@@ -386,3 +386,45 @@ export const deleteChatModelConfig = (queryClient: QueryClient) => ({
 		await invalidateChatConfigurationQueries(queryClient);
 	},
 });
+
+export const chatMCPServerConfigsKey = ["chat-mcp-server-configs"] as const;
+
+export const chatMCPServerConfigs = () => ({
+	queryKey: chatMCPServerConfigsKey,
+	queryFn: (): Promise<TypesGen.ChatMCPServerConfig[]> =>
+		API.getChatMCPServerConfigs(),
+});
+
+export const createChatMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.CreateChatMCPServerRequest) =>
+		API.createChatMCPServerConfig(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatMCPServerConfigsKey,
+		});
+	},
+});
+
+type UpdateChatMCPServerConfigMutationArgs = {
+	id: string;
+	req: TypesGen.UpdateChatMCPServerRequest;
+};
+
+export const updateChatMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: ({ id, req }: UpdateChatMCPServerConfigMutationArgs) =>
+		API.updateChatMCPServerConfig(id, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatMCPServerConfigsKey,
+		});
+	},
+});
+
+export const deleteChatMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) => API.deleteChatMCPServerConfig(id),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatMCPServerConfigsKey,
+		});
+	},
+});

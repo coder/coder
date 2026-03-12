@@ -2311,6 +2311,262 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 	return i, err
 }
 
+const deleteChatMCPServerByID = `-- name: DeleteChatMCPServerByID :exec
+DELETE FROM chat_mcp_servers WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatMCPServerByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatMCPServerByID, id)
+	return err
+}
+
+const getChatMCPServerByID = `-- name: GetChatMCPServerByID :one
+SELECT id, slug, url, display_name, auth_type, auth_headers, auth_headers_key_id, oauth_client_id, oauth_auth_server, tool_allow_regex, tool_deny_regex, enabled, created_by, created_at, updated_at FROM chat_mcp_servers WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatMCPServerByID(ctx context.Context, id uuid.UUID) (ChatMcpServer, error) {
+	row := q.db.QueryRowContext(ctx, getChatMCPServerByID, id)
+	var i ChatMcpServer
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Url,
+		&i.DisplayName,
+		&i.AuthType,
+		&i.AuthHeaders,
+		&i.AuthHeadersKeyID,
+		&i.OauthClientID,
+		&i.OauthAuthServer,
+		&i.ToolAllowRegex,
+		&i.ToolDenyRegex,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatMCPServers = `-- name: GetChatMCPServers :many
+SELECT id, slug, url, display_name, auth_type, auth_headers, auth_headers_key_id, oauth_client_id, oauth_auth_server, tool_allow_regex, tool_deny_regex, enabled, created_by, created_at, updated_at FROM chat_mcp_servers ORDER BY slug ASC
+`
+
+func (q *sqlQuerier) GetChatMCPServers(ctx context.Context) ([]ChatMcpServer, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMCPServers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMcpServer
+	for rows.Next() {
+		var i ChatMcpServer
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Url,
+			&i.DisplayName,
+			&i.AuthType,
+			&i.AuthHeaders,
+			&i.AuthHeadersKeyID,
+			&i.OauthClientID,
+			&i.OauthAuthServer,
+			&i.ToolAllowRegex,
+			&i.ToolDenyRegex,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getEnabledChatMCPServers = `-- name: GetEnabledChatMCPServers :many
+SELECT id, slug, url, display_name, auth_type, auth_headers, auth_headers_key_id, oauth_client_id, oauth_auth_server, tool_allow_regex, tool_deny_regex, enabled, created_by, created_at, updated_at FROM chat_mcp_servers WHERE enabled = TRUE ORDER BY slug ASC
+`
+
+func (q *sqlQuerier) GetEnabledChatMCPServers(ctx context.Context) ([]ChatMcpServer, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledChatMCPServers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMcpServer
+	for rows.Next() {
+		var i ChatMcpServer
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Url,
+			&i.DisplayName,
+			&i.AuthType,
+			&i.AuthHeaders,
+			&i.AuthHeadersKeyID,
+			&i.OauthClientID,
+			&i.OauthAuthServer,
+			&i.ToolAllowRegex,
+			&i.ToolDenyRegex,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatMCPServer = `-- name: InsertChatMCPServer :one
+INSERT INTO chat_mcp_servers (
+    slug, url, display_name, auth_type, auth_headers, auth_headers_key_id,
+    oauth_client_id, oauth_auth_server, tool_allow_regex, tool_deny_regex,
+    enabled, created_by
+) VALUES (
+    $1::text, $2::text, $3::text, $4::text,
+    $5::text, $6::text,
+    $7::text, $8::text,
+    $9::text, $10::text,
+    $11::boolean, $12::uuid
+) RETURNING id, slug, url, display_name, auth_type, auth_headers, auth_headers_key_id, oauth_client_id, oauth_auth_server, tool_allow_regex, tool_deny_regex, enabled, created_by, created_at, updated_at
+`
+
+type InsertChatMCPServerParams struct {
+	Slug             string         `db:"slug" json:"slug"`
+	Url              string         `db:"url" json:"url"`
+	DisplayName      string         `db:"display_name" json:"display_name"`
+	AuthType         string         `db:"auth_type" json:"auth_type"`
+	AuthHeaders      string         `db:"auth_headers" json:"auth_headers"`
+	AuthHeadersKeyID sql.NullString `db:"auth_headers_key_id" json:"auth_headers_key_id"`
+	OauthClientID    string         `db:"oauth_client_id" json:"oauth_client_id"`
+	OauthAuthServer  string         `db:"oauth_auth_server" json:"oauth_auth_server"`
+	ToolAllowRegex   string         `db:"tool_allow_regex" json:"tool_allow_regex"`
+	ToolDenyRegex    string         `db:"tool_deny_regex" json:"tool_deny_regex"`
+	Enabled          bool           `db:"enabled" json:"enabled"`
+	CreatedBy        uuid.NullUUID  `db:"created_by" json:"created_by"`
+}
+
+func (q *sqlQuerier) InsertChatMCPServer(ctx context.Context, arg InsertChatMCPServerParams) (ChatMcpServer, error) {
+	row := q.db.QueryRowContext(ctx, insertChatMCPServer,
+		arg.Slug,
+		arg.Url,
+		arg.DisplayName,
+		arg.AuthType,
+		arg.AuthHeaders,
+		arg.AuthHeadersKeyID,
+		arg.OauthClientID,
+		arg.OauthAuthServer,
+		arg.ToolAllowRegex,
+		arg.ToolDenyRegex,
+		arg.Enabled,
+		arg.CreatedBy,
+	)
+	var i ChatMcpServer
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Url,
+		&i.DisplayName,
+		&i.AuthType,
+		&i.AuthHeaders,
+		&i.AuthHeadersKeyID,
+		&i.OauthClientID,
+		&i.OauthAuthServer,
+		&i.ToolAllowRegex,
+		&i.ToolDenyRegex,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateChatMCPServer = `-- name: UpdateChatMCPServer :one
+UPDATE chat_mcp_servers SET
+    slug = $1::text,
+    url = $2::text,
+    display_name = $3::text,
+    auth_type = $4::text,
+    auth_headers = $5::text,
+    auth_headers_key_id = $6::text,
+    oauth_client_id = $7::text,
+    oauth_auth_server = $8::text,
+    tool_allow_regex = $9::text,
+    tool_deny_regex = $10::text,
+    enabled = $11::boolean,
+    updated_at = NOW()
+WHERE id = $12::uuid
+RETURNING id, slug, url, display_name, auth_type, auth_headers, auth_headers_key_id, oauth_client_id, oauth_auth_server, tool_allow_regex, tool_deny_regex, enabled, created_by, created_at, updated_at
+`
+
+type UpdateChatMCPServerParams struct {
+	Slug             string         `db:"slug" json:"slug"`
+	Url              string         `db:"url" json:"url"`
+	DisplayName      string         `db:"display_name" json:"display_name"`
+	AuthType         string         `db:"auth_type" json:"auth_type"`
+	AuthHeaders      string         `db:"auth_headers" json:"auth_headers"`
+	AuthHeadersKeyID sql.NullString `db:"auth_headers_key_id" json:"auth_headers_key_id"`
+	OauthClientID    string         `db:"oauth_client_id" json:"oauth_client_id"`
+	OauthAuthServer  string         `db:"oauth_auth_server" json:"oauth_auth_server"`
+	ToolAllowRegex   string         `db:"tool_allow_regex" json:"tool_allow_regex"`
+	ToolDenyRegex    string         `db:"tool_deny_regex" json:"tool_deny_regex"`
+	Enabled          bool           `db:"enabled" json:"enabled"`
+	ID               uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatMCPServer(ctx context.Context, arg UpdateChatMCPServerParams) (ChatMcpServer, error) {
+	row := q.db.QueryRowContext(ctx, updateChatMCPServer,
+		arg.Slug,
+		arg.Url,
+		arg.DisplayName,
+		arg.AuthType,
+		arg.AuthHeaders,
+		arg.AuthHeadersKeyID,
+		arg.OauthClientID,
+		arg.OauthAuthServer,
+		arg.ToolAllowRegex,
+		arg.ToolDenyRegex,
+		arg.Enabled,
+		arg.ID,
+	)
+	var i ChatMcpServer
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Url,
+		&i.DisplayName,
+		&i.AuthType,
+		&i.AuthHeaders,
+		&i.AuthHeadersKeyID,
+		&i.OauthClientID,
+		&i.OauthAuthServer,
+		&i.ToolAllowRegex,
+		&i.ToolDenyRegex,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
 UPDATE
     chat_model_configs
