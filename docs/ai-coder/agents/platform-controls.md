@@ -72,13 +72,16 @@ The areas we are investing in include:
 
 ### Usage controls and analytics
 
-We plan to give platform teams visibility into how agents are being used across
-the organization: token consumption per user, cost per PR, merge rates by model,
-and average time from prompt to merged pull request.
+Administrators can now see deployment-wide agent usage from the Agents settings
+dialog, including spend, token counts, and message counts per user. Developers
+can see their own usage from the analytics dialog on the Agents page, with total
+cost and breakdowns by model and by chat.
 
-The goal is to let platform teams make data-driven decisions — like switching
-the default model when analytics show one model produces higher merge rates —
-rather than relying on anecdotal feedback from individual developers.
+Costs are calculated per message from recorded input, output, reasoning, cache
+creation, and cache read tokens multiplied by the configured price for that
+model. Model pricing is set alongside model configuration in admin settings, and
+messages without pricing data are marked as unpriced. We are continuing to build
+toward broader metrics like merge rates by model and cost per pull request.
 
 ### Infrastructure-level enforcement
 
