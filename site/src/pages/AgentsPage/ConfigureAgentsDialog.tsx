@@ -1,4 +1,6 @@
 import {
+	chatCostSummary,
+	chatCostUsers,
 	chatSystemPrompt,
 	chatUserCustomPrompt,
 	updateChatSystemPrompt,
@@ -19,11 +21,15 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import dayjs from "dayjs";
 import type { LucideIcon } from "lucide-react";
 import {
+	BarChart3Icon,
 	BoxesIcon,
 	KeyRoundIcon,
+	Loader2Icon,
 	ShieldIcon,
+	TriangleAlertIcon,
 	UserIcon,
 	XIcon,
 } from "lucide-react";
@@ -37,11 +43,12 @@ import {
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
+import { formatCostMicros, formatTokenCount } from "utils/analytics";
 import { cn } from "utils/cn";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { SectionHeader } from "./SectionHeader";
 
-type ConfigureAgentsSection = "providers" | "models" | "behavior";
+type ConfigureAgentsSection = "providers" | "models" | "behavior" | "usage";
 
 type ConfigureAgentsSectionOption = {
 	id: ConfigureAgentsSection;
@@ -65,6 +72,345 @@ const AdminBadge: FC = () => (
 		</Tooltip>
 	</TooltipProvider>
 );
+
+const truncateUserID = (userID: string): string => {
+	if (userID.length <= 16) {
+		return userID;
+	}
+	return `${userID.slice(0, 8)}…${userID.slice(-4)}`;
+};
+
+const UsageContent: FC = () => {
+	const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+	const dateRange = useMemo(() => {
+		const end = dayjs();
+		const start = end.subtract(30, "day");
+		return {
+			startDate: start.format("YYYY-MM-DD"),
+			endDate: end.format("YYYY-MM-DD"),
+			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
+		};
+	}, []);
+
+	const usersQuery = useQuery(
+		chatCostUsers({
+			start_date: dateRange.startDate,
+			end_date: dateRange.endDate,
+		}),
+	);
+	const summaryQuery = useQuery({
+		...chatCostSummary({
+			start_date: dateRange.startDate,
+			end_date: dateRange.endDate,
+			user_id: selectedUserId ?? undefined,
+		}),
+		enabled: selectedUserId !== null,
+	});
+
+	const header = (
+		<SectionHeader
+			label="Usage"
+			description={
+				selectedUserId
+					? "Review deployment chat usage for a specific user."
+					: "Review deployment chat usage and drill into individual users."
+			}
+			badge={<AdminBadge />}
+			action={
+				selectedUserId ? (
+					<Button
+						variant="outline"
+						size="sm"
+						type="button"
+						onClick={() => setSelectedUserId(null)}
+					>
+						← Back to all users
+					</Button>
+				) : (
+					<span className="text-xs text-content-secondary">
+						{dateRange.rangeLabel}
+					</span>
+				)
+			}
+		/>
+	);
+
+	if (selectedUserId) {
+		return (
+			<div className="space-y-6">
+				{header}
+				<div className="space-y-1">
+					<p className="m-0 text-xs text-content-secondary">
+						{dateRange.rangeLabel}
+					</p>
+					<p className="m-0 break-all rounded-lg border border-border bg-surface-secondary px-3 py-2 font-mono text-xs text-content-secondary">
+						User ID: {selectedUserId}
+					</p>
+				</div>
+
+				{summaryQuery.isLoading && (
+					<div
+						role="status"
+						aria-label="Loading usage details"
+						className="flex min-h-[240px] items-center justify-center"
+					>
+						<Loader2Icon className="h-8 w-8 animate-spin text-content-secondary" />
+					</div>
+				)}
+
+				{summaryQuery.isError && (
+					<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
+						<p className="m-0 text-sm text-content-secondary">
+							{summaryQuery.error instanceof Error
+								? summaryQuery.error.message
+								: "Failed to load usage details."}
+						</p>
+						<Button
+							variant="outline"
+							size="sm"
+							type="button"
+							onClick={() => void summaryQuery.refetch()}
+						>
+							Retry
+						</Button>
+					</div>
+				)}
+
+				{summaryQuery.data && (
+					<>
+						<div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+							<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
+								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+									Total Cost
+								</p>
+								<p className="mt-1 text-2xl font-semibold text-content-primary">
+									{formatCostMicros(summaryQuery.data.total_cost_micros)}
+								</p>
+							</div>
+							<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
+								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+									Input Tokens
+								</p>
+								<p className="mt-1 text-2xl font-semibold text-content-primary">
+									{formatTokenCount(summaryQuery.data.total_input_tokens)}
+								</p>
+							</div>
+							<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
+								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+									Output Tokens
+								</p>
+								<p className="mt-1 text-2xl font-semibold text-content-primary">
+									{formatTokenCount(summaryQuery.data.total_output_tokens)}
+								</p>
+							</div>
+							<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
+								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+									Messages
+								</p>
+								<p className="mt-1 text-2xl font-semibold text-content-primary">
+									{(
+										summaryQuery.data.priced_message_count +
+										summaryQuery.data.unpriced_message_count
+									).toLocaleString()}
+								</p>
+							</div>
+						</div>
+
+						{summaryQuery.data.unpriced_message_count > 0 && (
+							<div className="flex items-start gap-3 rounded-lg border border-border-warning bg-surface-warning p-4 text-sm text-content-primary">
+								<TriangleAlertIcon className="h-5 w-5 shrink-0 text-content-warning" />
+								<span>
+									{summaryQuery.data.unpriced_message_count} message
+									{summaryQuery.data.unpriced_message_count === 1 ? "" : "s"}{" "}
+									could not be priced because model pricing data was
+									unavailable.
+								</span>
+							</div>
+						)}
+
+						{summaryQuery.data.by_model.length === 0 &&
+						summaryQuery.data.by_chat.length === 0 ? (
+							<p className="py-12 text-center text-content-secondary">
+								No usage data for this user in the selected period.
+							</p>
+						) : (
+							<>
+								<div className="overflow-x-auto rounded-lg border border-border-default">
+									<table className="w-full text-sm">
+										<thead>
+											<tr className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
+												<th className="px-4 py-3">Model</th>
+												<th className="px-4 py-3">Provider</th>
+												<th className="px-4 py-3 text-right">Cost</th>
+												<th className="px-4 py-3 text-right">Messages</th>
+												<th className="px-4 py-3 text-right">Input</th>
+												<th className="px-4 py-3 text-right">Output</th>
+											</tr>
+										</thead>
+										<tbody>
+											{summaryQuery.data.by_model.map((model) => (
+												<tr
+													key={model.model_config_id}
+													className="border-t border-border-default"
+												>
+													<td className="px-4 py-3">{model.display_name}</td>
+													<td className="px-4 py-3 text-content-secondary">
+														{model.provider}
+													</td>
+													<td className="px-4 py-3 text-right">
+														{formatCostMicros(model.total_cost_micros)}
+													</td>
+													<td className="px-4 py-3 text-right">
+														{model.message_count.toLocaleString()}
+													</td>
+													<td className="px-4 py-3 text-right">
+														{formatTokenCount(model.total_input_tokens)}
+													</td>
+													<td className="px-4 py-3 text-right">
+														{formatTokenCount(model.total_output_tokens)}
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</div>
+
+								<div className="overflow-x-auto rounded-lg border border-border-default">
+									<table className="w-full text-sm">
+										<thead>
+											<tr className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
+												<th className="px-4 py-3">Chat</th>
+												<th className="px-4 py-3 text-right">Cost</th>
+												<th className="px-4 py-3 text-right">Messages</th>
+												<th className="px-4 py-3 text-right">Input</th>
+												<th className="px-4 py-3 text-right">Output</th>
+											</tr>
+										</thead>
+										<tbody>
+											{summaryQuery.data.by_chat.map((chat) => (
+												<tr
+													key={chat.root_chat_id}
+													className="border-t border-border-default"
+												>
+													<td className="px-4 py-3">{chat.chat_title}</td>
+													<td className="px-4 py-3 text-right">
+														{formatCostMicros(chat.total_cost_micros)}
+													</td>
+													<td className="px-4 py-3 text-right">
+														{chat.message_count.toLocaleString()}
+													</td>
+													<td className="px-4 py-3 text-right">
+														{formatTokenCount(chat.total_input_tokens)}
+													</td>
+													<td className="px-4 py-3 text-right">
+														{formatTokenCount(chat.total_output_tokens)}
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</div>
+							</>
+						)}
+					</>
+				)}
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-6">
+			{header}
+			{usersQuery.isLoading && (
+				<div
+					role="status"
+					aria-label="Loading usage"
+					className="flex min-h-[240px] items-center justify-center"
+				>
+					<Loader2Icon className="h-8 w-8 animate-spin text-content-secondary" />
+				</div>
+			)}
+
+			{usersQuery.isError && (
+				<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
+					<p className="m-0 text-sm text-content-secondary">
+						{usersQuery.error instanceof Error
+							? usersQuery.error.message
+							: "Failed to load usage data."}
+					</p>
+					<Button
+						variant="outline"
+						size="sm"
+						type="button"
+						onClick={() => void usersQuery.refetch()}
+					>
+						Retry
+					</Button>
+				</div>
+			)}
+
+			{usersQuery.data &&
+				(usersQuery.data.users.length === 0 ? (
+					<p className="py-12 text-center text-content-secondary">
+						No usage data for this period.
+					</p>
+				) : (
+					<div className="overflow-x-auto rounded-lg border border-border-default">
+						<table className="w-full text-sm">
+							<thead>
+								<tr className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
+									<th className="px-4 py-3">User ID</th>
+									<th className="px-4 py-3 text-right">Total Cost</th>
+									<th className="px-4 py-3 text-right">Messages</th>
+									<th className="px-4 py-3 text-right">Chats</th>
+									<th className="px-4 py-3 text-right">Input Tokens</th>
+									<th className="px-4 py-3 text-right">Output Tokens</th>
+								</tr>
+							</thead>
+							<tbody>
+								{usersQuery.data.users.map((user) => (
+									<tr
+										key={user.user_id}
+										className="cursor-pointer border-t border-border-default transition-colors hover:bg-surface-secondary/50"
+										onClick={() => setSelectedUserId(user.user_id)}
+										onKeyDown={(event) => {
+											if (event.key === "Enter" || event.key === " ") {
+												event.preventDefault();
+												setSelectedUserId(user.user_id);
+											}
+										}}
+										role="button"
+										tabIndex={0}
+									>
+										<td className="px-4 py-3 font-mono text-xs text-content-primary">
+											<span title={user.user_id}>
+												{truncateUserID(user.user_id)}
+											</span>
+										</td>
+										<td className="px-4 py-3 text-right">
+											{formatCostMicros(user.total_cost_micros)}
+										</td>
+										<td className="px-4 py-3 text-right">
+											{user.message_count.toLocaleString()}
+										</td>
+										<td className="px-4 py-3 text-right">
+											{user.chat_count.toLocaleString()}
+										</td>
+										<td className="px-4 py-3 text-right">
+											{formatTokenCount(user.total_input_tokens)}
+										</td>
+										<td className="px-4 py-3 text-right">
+											{formatTokenCount(user.total_output_tokens)}
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					</div>
+				))}
+		</div>
+	);
+};
 
 const textareaClassName =
 	"max-h-[240px] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]";
@@ -154,6 +500,12 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				id: "models",
 				label: "Models",
 				icon: BoxesIcon,
+				adminOnly: true,
+			});
+			options.push({
+				id: "usage",
+				label: "Usage",
+				icon: BarChart3Icon,
 				adminOnly: true,
 			});
 		}
@@ -352,6 +704,9 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 							sectionDescription="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
 							sectionBadge={<AdminBadge />}
 						/>
+					)}
+					{activeSection === "usage" && canManageChatModelConfigs && (
+						<UsageContent />
 					)}
 				</div>
 			</DialogContent>

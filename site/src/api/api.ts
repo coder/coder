@@ -3171,7 +3171,7 @@ class ApiMethods {
 		user_id?: string;
 	}): Promise<TypesGen.ChatCostSummary> => {
 		const url = getURLWithSearchParams(
-			"/api/experimental/chats/cost/summary",
+			"/api/experimental/chats/cost-summary",
 			params,
 		);
 		const response = await this.axios.get<TypesGen.ChatCostSummary>(url);
@@ -3183,7 +3183,7 @@ class ApiMethods {
 		end_date?: string;
 	}): Promise<TypesGen.ChatCostUsersResponse> => {
 		const url = getURLWithSearchParams(
-			"/api/experimental/chats/cost/users",
+			"/api/experimental/chats/cost-users",
 			params,
 		);
 		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
