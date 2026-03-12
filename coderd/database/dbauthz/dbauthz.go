@@ -2449,20 +2449,32 @@ func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (datab
 	return fetch(q.log, q.auth, q.db.GetChatByIDForUpdate)(ctx, id)
 }
 
-func (*querier) GetChatCostByChat(context.Context, database.GetChatCostByChatParams) ([]database.GetChatCostByChatRow, error) {
-	panic("not implemented")
+func (q *querier) GetChatCostByChat(ctx context.Context, arg database.GetChatCostByChatParams) ([]database.GetChatCostByChatRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatCostByChat(ctx, arg)
 }
 
-func (*querier) GetChatCostByModel(context.Context, database.GetChatCostByModelParams) ([]database.GetChatCostByModelRow, error) {
-	panic("not implemented")
+func (q *querier) GetChatCostByModel(ctx context.Context, arg database.GetChatCostByModelParams) ([]database.GetChatCostByModelRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatCostByModel(ctx, arg)
 }
 
-func (*querier) GetChatCostByUser(context.Context, database.GetChatCostByUserParams) ([]database.GetChatCostByUserRow, error) {
-	panic("not implemented")
+func (q *querier) GetChatCostByUser(ctx context.Context, arg database.GetChatCostByUserParams) ([]database.GetChatCostByUserRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatCostByUser(ctx, arg)
 }
 
-func (*querier) GetChatCostSummary(context.Context, database.GetChatCostSummaryParams) (database.GetChatCostSummaryRow, error) {
-	panic("not implemented")
+func (q *querier) GetChatCostSummary(ctx context.Context, arg database.GetChatCostSummaryParams) (database.GetChatCostSummaryRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(arg.OwnerID.String())); err != nil {
+		return database.GetChatCostSummaryRow{}, err
+	}
+	return q.db.GetChatCostSummary(ctx, arg)
 }
 
 func (q *querier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
