@@ -485,9 +485,6 @@ importers:
       vitest:
         specifier: 4.0.14
         version: 4.0.14(@types/node@20.19.25)(jiti@1.21.7)(jsdom@27.2.0)(msw@2.4.8(typescript@5.6.3))(yaml@2.7.0)
-      vitest-axe:
-        specifier: 0.1.0
-        version: 0.1.0(vitest@4.0.14(@types/node@20.19.25)(jiti@1.21.7)(jsdom@27.2.0)(msw@2.4.8(typescript@5.6.3))(yaml@2.7.0))
 
 packages:
 
@@ -3186,10 +3183,6 @@ packages:
   chalk@4.1.2:
     resolution: {integrity: sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA==, tarball: https://registry.npmjs.org/chalk/-/chalk-4.1.2.tgz}
     engines: {node: '>=10'}
-
-  chalk@5.6.2:
-    resolution: {integrity: sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==, tarball: https://registry.npmjs.org/chalk/-/chalk-5.6.2.tgz}
-    engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
 
   char-regex@1.0.2:
     resolution: {integrity: sha512-kWWXztvZ5SBQV+eRgKFeh8q5sLuZY2+8WUIzlxWVTg+oGwY14qylx1KbKzHd8P6ZYkAg0xyIDU9JMHhyJMZ1jw==, tarball: https://registry.npmjs.org/char-regex/-/char-regex-1.0.2.tgz}
@@ -6461,11 +6454,6 @@ packages:
       yaml:
         optional: true
 
-  vitest-axe@0.1.0:
-    resolution: {integrity: sha512-jvtXxeQPg8R/2ANTY8QicA5pvvdRP4F0FsVUAHANJ46YCDASie/cuhlSzu0DGcLmZvGBSBNsNuK3HqfaeknyvA==, tarball: https://registry.npmjs.org/vitest-axe/-/vitest-axe-0.1.0.tgz}
-    peerDependencies:
-      vitest: '>=0.16.0'
-
   vitest@4.0.14:
     resolution: {integrity: sha512-d9B2J9Cm9dN9+6nxMnnNJKJCtcyKfnHj15N6YNJfaFHRLua/d3sRKU9RuKmO9mB0XdFtUizlxfz/VPbd3OxGhw==, tarball: https://registry.npmjs.org/vitest/-/vitest-4.0.14.tgz}
     engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
@@ -9615,8 +9603,6 @@ snapshots:
     dependencies:
       ansi-styles: 4.3.0
       supports-color: 7.2.0
-
-  chalk@5.6.2: {}
 
   char-regex@1.0.2: {}
 
@@ -13518,16 +13504,6 @@ snapshots:
       fsevents: 2.3.3
       jiti: 1.21.7
       yaml: 2.7.0
-
-  vitest-axe@0.1.0(vitest@4.0.14(@types/node@20.19.25)(jiti@1.21.7)(jsdom@27.2.0)(msw@2.4.8(typescript@5.6.3))(yaml@2.7.0)):
-    dependencies:
-      aria-query: 5.3.2
-      axe-core: 4.11.1
-      chalk: 5.6.2
-      dom-accessibility-api: 0.5.16
-      lodash-es: 4.17.21
-      redent: 3.0.0
-      vitest: 4.0.14(@types/node@20.19.25)(jiti@1.21.7)(jsdom@27.2.0)(msw@2.4.8(typescript@5.6.3))(yaml@2.7.0)
 
   vitest@4.0.14(@types/node@20.19.25)(jiti@1.21.7)(jsdom@27.2.0)(msw@2.4.8(typescript@5.6.3))(yaml@2.7.0):
     dependencies:

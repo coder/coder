@@ -75,11 +75,6 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 		>
 			<TableCell className="!p-0 border-0 border-b text-base">
 				<Collapsible open={isDiffOpen} onOpenChange={setIsDiffOpen}>
-					{/*
-						Use a div with role="button" instead of native <button> because
-						the row content can include links (resource_link), and nested
-						interactive elements inside <button> are invalid HTML.
-					*/}
 					<div
 						className={cn(
 							"flex flex-row items-center gap-4 py-4 px-8",

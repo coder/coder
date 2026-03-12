@@ -171,11 +171,6 @@ export function Autocomplete<TOption>({
 					</span>
 					<span className="flex items-center shrink-0">
 						{loading && <Spinner size="sm" loading className="mr-1" />}
-						{/*
-							Use a span with role="button" instead of native <button>
-							because this control is nested inside the PopoverTrigger
-							<button>, and nested buttons are invalid HTML.
-						*/}
 						{showClearButton && (
 							<span
 								role="button"
