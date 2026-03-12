@@ -18262,38 +18262,6 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 	return i, err
 }
 
-const updateUserLinkedID = `-- name: UpdateUserLinkedID :one
-UPDATE
-	user_links
-SET
-	linked_id = $1
-WHERE
-	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
-`
-
-type UpdateUserLinkedIDParams struct {
-	LinkedID  string    `db:"linked_id" json:"linked_id"`
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	LoginType LoginType `db:"login_type" json:"login_type"`
-}
-
-func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error) {
-	row := q.db.QueryRowContext(ctx, updateUserLinkedID, arg.LinkedID, arg.UserID, arg.LoginType)
-	var i UserLink
-	err := row.Scan(
-		&i.UserID,
-		&i.LoginType,
-		&i.LinkedID,
-		&i.OAuthAccessToken,
-		&i.OAuthRefreshToken,
-		&i.OAuthExpiry,
-		&i.OAuthAccessTokenKeyID,
-		&i.OAuthRefreshTokenKeyID,
-		&i.Claims,
-	)
-	return i, err
-}
-
 const createUserSecret = `-- name: CreateUserSecret :one
 INSERT INTO user_secrets (
     id,

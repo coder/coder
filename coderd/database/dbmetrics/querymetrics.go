@@ -4142,14 +4142,6 @@ func (m queryMetricsStore) UpdateUserLink(ctx context.Context, arg database.Upda
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateUserLinkedID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateUserLinkedID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserLinkedID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) UpdateUserLoginType(ctx context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserLoginType(ctx, arg)
