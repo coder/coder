@@ -37,6 +37,8 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	logger := s.logger.With(slog.F("path", r.URL.Path))
 
+	byok := agplaibridge.IsBYOK(r.Header)
+
 	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
 	if key == "" {
 		logger.Warn(ctx, "no auth key provided")
@@ -44,8 +46,18 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Remove the Coder token header so it's not forwarded to upstream providers.
+	// Strip headers that carry the Coder session token so they are never
+	// forwarded to upstream providers. In BYOK mode, only the dedicated
+	// BYOK header is removed; the user's LLM credentials (Authorization,
+	// X-Api-Key) are left intact. In centralized mode, all auth headers
+	// are removed because they carried the Coder token.
 	r.Header.Del(agplaibridge.HeaderCoderAuth)
+	if byok {
+		r.Header.Del(agplaibridge.HeaderCoderBYOKToken)
+	} else {
+		r.Header.Del("Authorization")
+		r.Header.Del("X-Api-Key")
+	}
 
 	client, err := s.Client()
 	if err != nil {
