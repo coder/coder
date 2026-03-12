@@ -3285,6 +3285,288 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 	return i, err
 }
 
+const getChatCostByChat = `-- name: GetChatCostByChat :many
+SELECT
+    COALESCE(c.root_chat_id, c.id) AS root_chat_id,
+    -- Pick the title from the root chat for a stable label.
+    (
+        SELECT
+            rc.title
+        FROM
+            chats rc
+        WHERE
+            rc.id = COALESCE(c.root_chat_id, c.id)
+        LIMIT
+            1
+    ) AS chat_title,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COUNT(*)::bigint AS message_count,
+    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+FROM
+    chat_messages cm
+JOIN
+    chats c ON c.id = cm.chat_id
+WHERE
+    c.owner_id = $1::uuid
+    AND cm.role = 'assistant'
+    AND cm.created_at >= $2::timestamptz
+    AND cm.created_at < $3::timestamptz
+GROUP BY
+    COALESCE(c.root_chat_id, c.id)
+ORDER BY
+    total_cost_micros DESC
+`
+
+type GetChatCostByChatParams struct {
+	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
+	StartDate time.Time `db:"start_date" json:"start_date"`
+	EndDate   time.Time `db:"end_date" json:"end_date"`
+}
+
+type GetChatCostByChatRow struct {
+	RootChatID        uuid.UUID `db:"root_chat_id" json:"root_chat_id"`
+	ChatTitle         string    `db:"chat_title" json:"chat_title"`
+	TotalCostMicros   int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	MessageCount      int64     `db:"message_count" json:"message_count"`
+	TotalInputTokens  int64     `db:"total_input_tokens" json:"total_input_tokens"`
+	TotalOutputTokens int64     `db:"total_output_tokens" json:"total_output_tokens"`
+}
+
+// Per-root-chat cost breakdown for a single user within a date range.
+// Groups by root_chat_id so forked chats roll up under their root.
+// Only counts assistant-role messages.
+func (q *sqlQuerier) GetChatCostByChat(ctx context.Context, arg GetChatCostByChatParams) ([]GetChatCostByChatRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatCostByChat, arg.OwnerID, arg.StartDate, arg.EndDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatCostByChatRow
+	for rows.Next() {
+		var i GetChatCostByChatRow
+		if err := rows.Scan(
+			&i.RootChatID,
+			&i.ChatTitle,
+			&i.TotalCostMicros,
+			&i.MessageCount,
+			&i.TotalInputTokens,
+			&i.TotalOutputTokens,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatCostByModel = `-- name: GetChatCostByModel :many
+SELECT
+    cmc.id AS model_config_id,
+    cmc.display_name,
+    cmc.provider,
+    cmc.model,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COUNT(*)::bigint AS message_count,
+    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+FROM
+    chat_messages cm
+JOIN
+    chats c ON c.id = cm.chat_id
+JOIN
+    chat_model_configs cmc ON cmc.id = cm.model_config_id
+WHERE
+    c.owner_id = $1::uuid
+    AND cm.role = 'assistant'
+    AND cm.created_at >= $2::timestamptz
+    AND cm.created_at < $3::timestamptz
+GROUP BY
+    cmc.id, cmc.display_name, cmc.provider, cmc.model
+ORDER BY
+    total_cost_micros DESC
+`
+
+type GetChatCostByModelParams struct {
+	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
+	StartDate time.Time `db:"start_date" json:"start_date"`
+	EndDate   time.Time `db:"end_date" json:"end_date"`
+}
+
+type GetChatCostByModelRow struct {
+	ModelConfigID     uuid.UUID `db:"model_config_id" json:"model_config_id"`
+	DisplayName       string    `db:"display_name" json:"display_name"`
+	Provider          string    `db:"provider" json:"provider"`
+	Model             string    `db:"model" json:"model"`
+	TotalCostMicros   int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	MessageCount      int64     `db:"message_count" json:"message_count"`
+	TotalInputTokens  int64     `db:"total_input_tokens" json:"total_input_tokens"`
+	TotalOutputTokens int64     `db:"total_output_tokens" json:"total_output_tokens"`
+}
+
+// Per-model cost breakdown for a single user within a date range.
+// Only counts assistant-role messages that have a model_config_id.
+func (q *sqlQuerier) GetChatCostByModel(ctx context.Context, arg GetChatCostByModelParams) ([]GetChatCostByModelRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatCostByModel, arg.OwnerID, arg.StartDate, arg.EndDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatCostByModelRow
+	for rows.Next() {
+		var i GetChatCostByModelRow
+		if err := rows.Scan(
+			&i.ModelConfigID,
+			&i.DisplayName,
+			&i.Provider,
+			&i.Model,
+			&i.TotalCostMicros,
+			&i.MessageCount,
+			&i.TotalInputTokens,
+			&i.TotalOutputTokens,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatCostByUser = `-- name: GetChatCostByUser :many
+SELECT
+    c.owner_id AS user_id,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COUNT(*)::bigint AS message_count,
+    COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
+    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+FROM
+    chat_messages cm
+JOIN
+    chats c ON c.id = cm.chat_id
+WHERE
+    cm.role = 'assistant'
+    AND cm.created_at >= $1::timestamptz
+    AND cm.created_at < $2::timestamptz
+GROUP BY
+    c.owner_id
+ORDER BY
+    total_cost_micros DESC
+`
+
+type GetChatCostByUserParams struct {
+	StartDate time.Time `db:"start_date" json:"start_date"`
+	EndDate   time.Time `db:"end_date" json:"end_date"`
+}
+
+type GetChatCostByUserRow struct {
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+	TotalCostMicros   int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	MessageCount      int64     `db:"message_count" json:"message_count"`
+	ChatCount         int64     `db:"chat_count" json:"chat_count"`
+	TotalInputTokens  int64     `db:"total_input_tokens" json:"total_input_tokens"`
+	TotalOutputTokens int64     `db:"total_output_tokens" json:"total_output_tokens"`
+}
+
+// Deployment-wide per-user cost rollup within a date range.
+// Only counts assistant-role messages.
+func (q *sqlQuerier) GetChatCostByUser(ctx context.Context, arg GetChatCostByUserParams) ([]GetChatCostByUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatCostByUser, arg.StartDate, arg.EndDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatCostByUserRow
+	for rows.Next() {
+		var i GetChatCostByUserRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.TotalCostMicros,
+			&i.MessageCount,
+			&i.ChatCount,
+			&i.TotalInputTokens,
+			&i.TotalOutputTokens,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatCostSummary = `-- name: GetChatCostSummary :one
+SELECT
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COUNT(*) FILTER (
+        WHERE cm.total_cost_micros IS NOT NULL
+    )::bigint AS priced_message_count,
+    COUNT(*) FILTER (
+        WHERE cm.total_cost_micros IS NULL
+            AND (
+                cm.input_tokens IS NOT NULL
+                OR cm.output_tokens IS NOT NULL
+            )
+    )::bigint AS unpriced_message_count,
+    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+FROM
+    chat_messages cm
+JOIN
+    chats c ON c.id = cm.chat_id
+WHERE
+    c.owner_id = $1::uuid
+    AND cm.role = 'assistant'
+    AND cm.created_at >= $2::timestamptz
+    AND cm.created_at < $3::timestamptz
+`
+
+type GetChatCostSummaryParams struct {
+	OwnerID   uuid.UUID `db:"owner_id" json:"owner_id"`
+	StartDate time.Time `db:"start_date" json:"start_date"`
+	EndDate   time.Time `db:"end_date" json:"end_date"`
+}
+
+type GetChatCostSummaryRow struct {
+	TotalCostMicros      int64 `db:"total_cost_micros" json:"total_cost_micros"`
+	PricedMessageCount   int64 `db:"priced_message_count" json:"priced_message_count"`
+	UnpricedMessageCount int64 `db:"unpriced_message_count" json:"unpriced_message_count"`
+	TotalInputTokens     int64 `db:"total_input_tokens" json:"total_input_tokens"`
+	TotalOutputTokens    int64 `db:"total_output_tokens" json:"total_output_tokens"`
+}
+
+// Aggregate cost summary for a single user within a date range.
+// Only counts assistant-role messages.
+func (q *sqlQuerier) GetChatCostSummary(ctx context.Context, arg GetChatCostSummaryParams) (GetChatCostSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatCostSummary, arg.OwnerID, arg.StartDate, arg.EndDate)
+	var i GetChatCostSummaryRow
+	err := row.Scan(
+		&i.TotalCostMicros,
+		&i.PricedMessageCount,
+		&i.UnpricedMessageCount,
+		&i.TotalInputTokens,
+		&i.TotalOutputTokens,
+	)
+	return i, err
+}
+
 const getChatDiffStatusByChatID = `-- name: GetChatDiffStatusByChatID :one
 SELECT
     chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft

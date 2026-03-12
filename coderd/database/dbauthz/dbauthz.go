@@ -2449,6 +2449,22 @@ func (q *querier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (datab
 	return fetch(q.log, q.auth, q.db.GetChatByIDForUpdate)(ctx, id)
 }
 
+func (*querier) GetChatCostByChat(context.Context, database.GetChatCostByChatParams) ([]database.GetChatCostByChatRow, error) {
+	panic("not implemented")
+}
+
+func (*querier) GetChatCostByModel(context.Context, database.GetChatCostByModelParams) ([]database.GetChatCostByModelRow, error) {
+	panic("not implemented")
+}
+
+func (*querier) GetChatCostByUser(context.Context, database.GetChatCostByUserParams) ([]database.GetChatCostByUserRow, error) {
+	panic("not implemented")
+}
+
+func (*querier) GetChatCostSummary(context.Context, database.GetChatCostSummaryParams) (database.GetChatCostSummaryRow, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
 	// Authorize read on the parent chat.
 	_, err := q.GetChatByID(ctx, chatID)

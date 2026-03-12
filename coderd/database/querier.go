@@ -218,6 +218,19 @@ type sqlcQuerier interface {
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
+	// Per-root-chat cost breakdown for a single user within a date range.
+	// Groups by root_chat_id so forked chats roll up under their root.
+	// Only counts assistant-role messages.
+	GetChatCostByChat(ctx context.Context, arg GetChatCostByChatParams) ([]GetChatCostByChatRow, error)
+	// Per-model cost breakdown for a single user within a date range.
+	// Only counts assistant-role messages that have a model_config_id.
+	GetChatCostByModel(ctx context.Context, arg GetChatCostByModelParams) ([]GetChatCostByModelRow, error)
+	// Deployment-wide per-user cost rollup within a date range.
+	// Only counts assistant-role messages.
+	GetChatCostByUser(ctx context.Context, arg GetChatCostByUserParams) ([]GetChatCostByUserRow, error)
+	// Aggregate cost summary for a single user within a date range.
+	// Only counts assistant-role messages.
+	GetChatCostSummary(ctx context.Context, arg GetChatCostSummaryParams) (GetChatCostSummaryRow, error)
 	GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error)
 	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
 	GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFile, error)

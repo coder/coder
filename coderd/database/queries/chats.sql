@@ -507,3 +507,116 @@ SET
     updated_at = NOW()
 WHERE
     chat_id = @chat_id::uuid;
+
+-- name: GetChatCostSummary :one
+-- Aggregate cost summary for a single user within a date range.
+-- Only counts assistant-role messages.
+SELECT
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COUNT(*) FILTER (
+        WHERE cm.total_cost_micros IS NOT NULL
+    )::bigint AS priced_message_count,
+    COUNT(*) FILTER (
+        WHERE cm.total_cost_micros IS NULL
+            AND (
+                cm.input_tokens IS NOT NULL
+                OR cm.output_tokens IS NOT NULL
+            )
+    )::bigint AS unpriced_message_count,
+    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+FROM
+    chat_messages cm
+JOIN
+    chats c ON c.id = cm.chat_id
+WHERE
+    c.owner_id = @owner_id::uuid
+    AND cm.role = 'assistant'
+    AND cm.created_at >= @start_date::timestamptz
+    AND cm.created_at < @end_date::timestamptz;
+
+-- name: GetChatCostByModel :many
+-- Per-model cost breakdown for a single user within a date range.
+-- Only counts assistant-role messages that have a model_config_id.
+SELECT
+    cmc.id AS model_config_id,
+    cmc.display_name,
+    cmc.provider,
+    cmc.model,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COUNT(*)::bigint AS message_count,
+    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+FROM
+    chat_messages cm
+JOIN
+    chats c ON c.id = cm.chat_id
+JOIN
+    chat_model_configs cmc ON cmc.id = cm.model_config_id
+WHERE
+    c.owner_id = @owner_id::uuid
+    AND cm.role = 'assistant'
+    AND cm.created_at >= @start_date::timestamptz
+    AND cm.created_at < @end_date::timestamptz
+GROUP BY
+    cmc.id, cmc.display_name, cmc.provider, cmc.model
+ORDER BY
+    total_cost_micros DESC;
+
+-- name: GetChatCostByChat :many
+-- Per-root-chat cost breakdown for a single user within a date range.
+-- Groups by root_chat_id so forked chats roll up under their root.
+-- Only counts assistant-role messages.
+SELECT
+    COALESCE(c.root_chat_id, c.id) AS root_chat_id,
+    -- Pick the title from the root chat for a stable label.
+    (
+        SELECT
+            rc.title
+        FROM
+            chats rc
+        WHERE
+            rc.id = COALESCE(c.root_chat_id, c.id)
+        LIMIT
+            1
+    ) AS chat_title,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COUNT(*)::bigint AS message_count,
+    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+FROM
+    chat_messages cm
+JOIN
+    chats c ON c.id = cm.chat_id
+WHERE
+    c.owner_id = @owner_id::uuid
+    AND cm.role = 'assistant'
+    AND cm.created_at >= @start_date::timestamptz
+    AND cm.created_at < @end_date::timestamptz
+GROUP BY
+    COALESCE(c.root_chat_id, c.id)
+ORDER BY
+    total_cost_micros DESC;
+
+-- name: GetChatCostByUser :many
+-- Deployment-wide per-user cost rollup within a date range.
+-- Only counts assistant-role messages.
+SELECT
+    c.owner_id AS user_id,
+    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COUNT(*)::bigint AS message_count,
+    COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
+    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+FROM
+    chat_messages cm
+JOIN
+    chats c ON c.id = cm.chat_id
+WHERE
+    cm.role = 'assistant'
+    AND cm.created_at >= @start_date::timestamptz
+    AND cm.created_at < @end_date::timestamptz
+GROUP BY
+    c.owner_id
+ORDER BY
+    total_cost_micros DESC;

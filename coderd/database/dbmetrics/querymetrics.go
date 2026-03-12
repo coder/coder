@@ -1007,6 +1007,38 @@ func (m queryMetricsStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatCostByChat(ctx context.Context, arg database.GetChatCostByChatParams) ([]database.GetChatCostByChatRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatCostByChat(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatCostByChat").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostByChat").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatCostByModel(ctx context.Context, arg database.GetChatCostByModelParams) ([]database.GetChatCostByModelRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatCostByModel(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatCostByModel").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostByModel").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatCostByUser(ctx context.Context, arg database.GetChatCostByUserParams) ([]database.GetChatCostByUserRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatCostByUser(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatCostByUser").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostByUser").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatCostSummary(ctx context.Context, arg database.GetChatCostSummaryParams) (database.GetChatCostSummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatCostSummary(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatCostSummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostSummary").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatDiffStatusByChatID(ctx, chatID)
