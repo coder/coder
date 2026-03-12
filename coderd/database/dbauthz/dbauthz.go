@@ -6637,10 +6637,6 @@ func (q *querier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context,
 	return q.GetWorkspacesAndAgentsByOwnerID(ctx, ownerID)
 }
 
-func (q *querier) GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID, _ rbac.PreparedAuthorized) ([]database.WorkspaceBuildParameter, error) {
-	return q.GetWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs)
-}
-
 // GetAuthorizedUsers is not required for dbauthz since GetUsers is already
 // authenticated.
 func (q *querier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, _ rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {

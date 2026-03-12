@@ -4614,14 +4614,6 @@ func (m queryMetricsStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.WorkspaceBuildParameter, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs, prepared)
-	m.queryLatencies.WithLabelValues("GetAuthorizedWorkspaceBuildParametersByBuildIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedWorkspaceBuildParametersByBuildIDs").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAuthorizedUsers(ctx, arg, prepared)
