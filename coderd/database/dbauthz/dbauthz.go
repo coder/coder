@@ -2663,14 +2663,6 @@ func (q *querier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaul
 	return q.db.GetDefaultProxyConfig(ctx)
 }
 
-// Only used by metrics cache.
-func (q *querier) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]database.GetDeploymentDAUsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetDeploymentDAUs(ctx, tzOffset)
-}
-
 func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetDeploymentID(ctx)

@@ -1199,14 +1199,6 @@ func (m queryMetricsStore) GetDefaultProxyConfig(ctx context.Context) (database.
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]database.GetDeploymentDAUsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetDeploymentDAUs(ctx, tzOffset)
-	m.queryLatencies.WithLabelValues("GetDeploymentDAUs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeploymentDAUs").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetDeploymentID(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDeploymentID(ctx)
