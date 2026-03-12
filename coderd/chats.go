@@ -21,6 +21,7 @@ import (
 	"charm.land/fantasy"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -420,12 +421,18 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 
 	modelBreakdowns := make([]codersdk.ChatCostModelBreakdown, 0, len(byModel))
 	for _, model := range byModel {
+		totalCostMicros, err := decimalValue(model.TotalCostMicros)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+
 		modelBreakdowns = append(modelBreakdowns, codersdk.ChatCostModelBreakdown{
 			ModelConfigID:     model.ModelConfigID,
 			DisplayName:       model.DisplayName,
 			Provider:          model.Provider,
 			Model:             model.Model,
-			TotalCostMicros:   model.TotalCostMicros,
+			TotalCostMicros:   totalCostMicros,
 			MessageCount:      model.MessageCount,
 			TotalInputTokens:  model.TotalInputTokens,
 			TotalOutputTokens: model.TotalOutputTokens,
@@ -434,20 +441,32 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 
 	chatBreakdowns := make([]codersdk.ChatCostChatBreakdown, 0, len(byChat))
 	for _, chat := range byChat {
+		totalCostMicros, err := decimalValue(chat.TotalCostMicros)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+
 		chatBreakdowns = append(chatBreakdowns, codersdk.ChatCostChatBreakdown{
 			RootChatID:        chat.RootChatID,
 			ChatTitle:         chat.ChatTitle,
-			TotalCostMicros:   chat.TotalCostMicros,
+			TotalCostMicros:   totalCostMicros,
 			MessageCount:      chat.MessageCount,
 			TotalInputTokens:  chat.TotalInputTokens,
 			TotalOutputTokens: chat.TotalOutputTokens,
 		})
 	}
 
+	totalCostMicros, err := decimalValue(summary.TotalCostMicros)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostSummary{
 		StartDate:            startDate,
 		EndDate:              endDate,
-		TotalCostMicros:      summary.TotalCostMicros,
+		TotalCostMicros:      totalCostMicros,
 		PricedMessageCount:   summary.PricedMessageCount,
 		UnpricedMessageCount: summary.UnpricedMessageCount,
 		TotalInputTokens:     summary.TotalInputTokens,
@@ -491,9 +510,15 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 
 	rollups := make([]codersdk.ChatCostUserRollup, 0, len(users))
 	for _, user := range users {
+		totalCostMicros, err := decimalValue(user.TotalCostMicros)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+
 		rollups = append(rollups, codersdk.ChatCostUserRollup{
 			UserID:            user.UserID,
-			TotalCostMicros:   user.TotalCostMicros,
+			TotalCostMicros:   totalCostMicros,
 			MessageCount:      user.MessageCount,
 			ChatCount:         user.ChatCount,
 			TotalInputTokens:  user.TotalInputTokens,
@@ -3258,6 +3283,30 @@ func marshalChatModelCallConfig(
 	return encoded, nil
 }
 
+func decimalValue(v any) (decimal.Decimal, error) {
+	switch value := v.(type) {
+	case nil:
+		return decimal.Zero, nil
+	case decimal.Decimal:
+		return value, nil
+	case *decimal.Decimal:
+		if value == nil {
+			return decimal.Zero, nil
+		}
+		return *value, nil
+	case []byte:
+		return decimal.NewFromString(string(value))
+	case string:
+		return decimal.NewFromString(value)
+	case int64:
+		return decimal.NewFromInt(value), nil
+	case int32:
+		return decimal.NewFromInt32(value), nil
+	default:
+		return decimal.Zero, xerrors.Errorf("unsupported cost type %T", v)
+	}
+}
+
 func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) error {
 	if modelConfig == nil {
 		return nil
@@ -3270,7 +3319,7 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 
 	pricingFields := []struct {
 		name  string
-		value *float64
+		value *decimal.Decimal
 	}{
 		{name: "cost.input_price_per_million_tokens", value: costConfig.InputPricePerMillionTokens},
 		{name: "cost.output_price_per_million_tokens", value: costConfig.OutputPricePerMillionTokens},
@@ -3278,7 +3327,7 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 		{name: "cost.cache_write_price_per_million_tokens", value: costConfig.CacheWritePricePerMillionTokens},
 	}
 	for _, field := range pricingFields {
-		if err := validateNonNegativeFloat64Field(field.name, field.value); err != nil {
+		if err := validateNonNegativeDecimalField(field.name, field.value); err != nil {
 			return err
 		}
 	}
@@ -3286,11 +3335,11 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 	return nil
 }
 
-func validateNonNegativeFloat64Field(name string, value *float64) error {
+func validateNonNegativeDecimalField(name string, value *decimal.Decimal) error {
 	if value == nil {
 		return nil
 	}
-	if *value < 0 {
+	if value.IsNegative() {
 		return xerrors.Errorf("%s must be greater than or equal to zero", name)
 	}
 	return nil

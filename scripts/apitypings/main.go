@@ -130,6 +130,7 @@ func TypeMappings(gen *guts.GoParser) error {
 		"github.com/coder/serpent.URL":            "string",
 		"github.com/coder/serpent.HostPort":       "string",
 		"encoding/json.RawMessage":                "map[string]string",
+		"github.com/shopspring/decimal.Decimal":   "string",
 	})
 	if err != nil {
 		return xerrors.Errorf("include custom: %w", err)

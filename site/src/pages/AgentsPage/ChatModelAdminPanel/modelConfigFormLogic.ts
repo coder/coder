@@ -110,7 +110,7 @@ function convertFormValue(value: string, field: FieldSchema): unknown {
 		case "integer":
 			return Number.parseInt(trimmed, 10);
 		case "number":
-			return Number(trimmed);
+			return isNonNegativePricingField(field) ? trimmed : Number(trimmed);
 		case "boolean":
 			return trimmed === "true";
 		case "array":

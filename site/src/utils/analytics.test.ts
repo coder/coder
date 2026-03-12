@@ -20,6 +20,10 @@ describe("formatCostMicros", () => {
 		expect(formatCostMicros(10_000)).toBe("$0.01");
 		expect(formatCostMicros(12_345_678)).toBe("$12.35");
 	});
+
+	it("formats string micros from generated API types", () => {
+		expect(formatCostMicros("1500000")).toBe("$1.50");
+	});
 });
 
 describe("formatTokenCount", () => {

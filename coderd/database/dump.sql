@@ -1219,7 +1219,7 @@ CREATE TABLE chat_messages (
     context_limit bigint,
     compressed boolean DEFAULT false NOT NULL,
     created_by uuid,
-    total_cost_micros bigint
+    total_cost_micros numeric
 );
 
 CREATE SEQUENCE chat_messages_id_seq

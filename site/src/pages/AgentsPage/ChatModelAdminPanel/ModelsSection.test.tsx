@@ -86,7 +86,7 @@ describe("ModelsSection", () => {
 				...baseModelConfig,
 				model_config: {
 					cost: {
-						output_price_per_million_tokens: 0,
+						output_price_per_million_tokens: "0",
 					},
 				},
 			},

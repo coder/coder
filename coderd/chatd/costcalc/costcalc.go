@@ -1,7 +1,7 @@
 package costcalc
 
 import (
-	"math"
+	"github.com/shopspring/decimal"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -9,19 +9,12 @@ import (
 // CalculateTotalCostMicros computes the total cost of a chat message in
 // micros (millionths of a dollar) using the configured model pricing.
 //
-// All cost components are summed at full float64 precision before a single
-// math.Round at the end. Messages with a true cost below 0.5 micros
-// (~$0.0000005) will still round to zero. This is accepted behavior for the
-// int64 micros storage format. For context, this threshold corresponds to
-// roughly 50 tokens on a model priced at $0.01/million tokens, which is well
-// below typical message sizes.
-//
-// Returns nil when pricing is not configured, allowing callers to distinguish
-// "zero cost" from "unpriced".
+// Returns nil when pricing is not configured or when all priced usage fields
+// are nil, allowing callers to distinguish "zero cost" from "unpriced".
 func CalculateTotalCostMicros(
 	usage codersdk.ChatMessageUsage,
 	cost *codersdk.ModelCostConfig,
-) *int64 {
+) *decimal.Decimal {
 	if cost == nil {
 		return nil
 	}
@@ -34,16 +27,19 @@ func CalculateTotalCostMicros(
 		return nil
 	}
 
-	inputMicros := float64(derefInt64(usage.InputTokens)) *
-		derefFloat64(cost.InputPricePerMillionTokens)
-	outputMicros := float64(derefInt64(usage.OutputTokens)+derefInt64(usage.ReasoningTokens)) *
-		derefFloat64(cost.OutputPricePerMillionTokens)
-	cacheReadMicros := float64(derefInt64(usage.CacheReadTokens)) *
-		derefFloat64(cost.CacheReadPricePerMillionTokens)
-	cacheWriteMicros := float64(derefInt64(usage.CacheCreationTokens)) *
-		derefFloat64(cost.CacheWritePricePerMillionTokens)
+	inputMicros := decimal.NewFromInt(derefInt64(usage.InputTokens)).
+		Mul(derefDecimal(cost.InputPricePerMillionTokens))
+	outputMicros := decimal.NewFromInt(derefInt64(usage.OutputTokens) + derefInt64(usage.ReasoningTokens)).
+		Mul(derefDecimal(cost.OutputPricePerMillionTokens))
+	cacheReadMicros := decimal.NewFromInt(derefInt64(usage.CacheReadTokens)).
+		Mul(derefDecimal(cost.CacheReadPricePerMillionTokens))
+	cacheWriteMicros := decimal.NewFromInt(derefInt64(usage.CacheCreationTokens)).
+		Mul(derefDecimal(cost.CacheWritePricePerMillionTokens))
 
-	total := int64(math.Round(inputMicros + outputMicros + cacheReadMicros + cacheWriteMicros))
+	total := inputMicros.
+		Add(outputMicros).
+		Add(cacheReadMicros).
+		Add(cacheWriteMicros)
 	return &total
 }
 
@@ -55,9 +51,9 @@ func derefInt64(v *int64) int64 {
 	return *v
 }
 
-func derefFloat64(v *float64) float64 {
+func derefDecimal(v *decimal.Decimal) decimal.Decimal {
 	if v == nil {
-		return 0
+		return decimal.Zero
 	}
 
 	return *v

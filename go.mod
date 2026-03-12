@@ -492,6 +492,7 @@ require (
 	github.com/go-git/go-git/v5 v5.17.0
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/openai/openai-go/v3 v3.15.0
+	github.com/shopspring/decimal v1.4.0
 	gonum.org/v1/gonum v0.17.0
 )
 

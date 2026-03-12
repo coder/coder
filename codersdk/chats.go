@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -423,13 +424,10 @@ type ChatModelVercelProviderOptions struct {
 
 // ModelCostConfig stores pricing metadata for a chat model.
 type ModelCostConfig struct {
-	// Pricing is stored as configuration metadata and currently only needs to
-	// round-trip cleanly through the API and admin UI. If we later use these
-	// values for billing-grade arithmetic, switch to a fixed-point type.
-	InputPricePerMillionTokens      *float64 `json:"input_price_per_million_tokens,omitempty" description:"Input token price in USD per 1M tokens"`
-	OutputPricePerMillionTokens     *float64 `json:"output_price_per_million_tokens,omitempty" description:"Output token price in USD per 1M tokens"`
-	CacheReadPricePerMillionTokens  *float64 `json:"cache_read_price_per_million_tokens,omitempty" description:"Cache read token price in USD per 1M tokens"`
-	CacheWritePricePerMillionTokens *float64 `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
+	InputPricePerMillionTokens      *decimal.Decimal `json:"input_price_per_million_tokens,omitempty" description:"Input token price in USD per 1M tokens"`
+	OutputPricePerMillionTokens     *decimal.Decimal `json:"output_price_per_million_tokens,omitempty" description:"Output token price in USD per 1M tokens"`
+	CacheReadPricePerMillionTokens  *decimal.Decimal `json:"cache_read_price_per_million_tokens,omitempty" description:"Cache read token price in USD per 1M tokens"`
+	CacheWritePricePerMillionTokens *decimal.Decimal `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
 }
 
 // ChatModelCallConfig configures per-call model behavior defaults.
@@ -450,10 +448,10 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 	type chatModelCallConfigAlias ChatModelCallConfig
 	aux := struct {
 		*chatModelCallConfigAlias
-		InputPricePerMillionTokens      *float64 `json:"input_price_per_million_tokens,omitempty"`
-		OutputPricePerMillionTokens     *float64 `json:"output_price_per_million_tokens,omitempty"`
-		CacheReadPricePerMillionTokens  *float64 `json:"cache_read_price_per_million_tokens,omitempty"`
-		CacheWritePricePerMillionTokens *float64 `json:"cache_write_price_per_million_tokens,omitempty"`
+		InputPricePerMillionTokens      *decimal.Decimal `json:"input_price_per_million_tokens,omitempty"`
+		OutputPricePerMillionTokens     *decimal.Decimal `json:"output_price_per_million_tokens,omitempty"`
+		CacheReadPricePerMillionTokens  *decimal.Decimal `json:"cache_read_price_per_million_tokens,omitempty"`
+		CacheWritePricePerMillionTokens *decimal.Decimal `json:"cache_write_price_per_million_tokens,omitempty"`
 	}{
 		chatModelCallConfigAlias: (*chatModelCallConfigAlias)(c),
 	}
@@ -631,7 +629,7 @@ type ChatCostUsersOptions struct {
 type ChatCostSummary struct {
 	StartDate            time.Time                `json:"start_date" format:"date-time"`
 	EndDate              time.Time                `json:"end_date" format:"date-time"`
-	TotalCostMicros      int64                    `json:"total_cost_micros"`
+	TotalCostMicros      decimal.Decimal          `json:"total_cost_micros"`
 	PricedMessageCount   int64                    `json:"priced_message_count"`
 	UnpricedMessageCount int64                    `json:"unpriced_message_count"`
 	TotalInputTokens     int64                    `json:"total_input_tokens"`
@@ -642,34 +640,34 @@ type ChatCostSummary struct {
 
 // ChatCostModelBreakdown contains per-model cost aggregation.
 type ChatCostModelBreakdown struct {
-	ModelConfigID     uuid.UUID `json:"model_config_id" format:"uuid"`
-	DisplayName       string    `json:"display_name"`
-	Provider          string    `json:"provider"`
-	Model             string    `json:"model"`
-	TotalCostMicros   int64     `json:"total_cost_micros"`
-	MessageCount      int64     `json:"message_count"`
-	TotalInputTokens  int64     `json:"total_input_tokens"`
-	TotalOutputTokens int64     `json:"total_output_tokens"`
+	ModelConfigID     uuid.UUID       `json:"model_config_id" format:"uuid"`
+	DisplayName       string          `json:"display_name"`
+	Provider          string          `json:"provider"`
+	Model             string          `json:"model"`
+	TotalCostMicros   decimal.Decimal `json:"total_cost_micros"`
+	MessageCount      int64           `json:"message_count"`
+	TotalInputTokens  int64           `json:"total_input_tokens"`
+	TotalOutputTokens int64           `json:"total_output_tokens"`
 }
 
 // ChatCostChatBreakdown contains per-root-chat cost aggregation.
 type ChatCostChatBreakdown struct {
-	RootChatID        uuid.UUID `json:"root_chat_id" format:"uuid"`
-	ChatTitle         string    `json:"chat_title"`
-	TotalCostMicros   int64     `json:"total_cost_micros"`
-	MessageCount      int64     `json:"message_count"`
-	TotalInputTokens  int64     `json:"total_input_tokens"`
-	TotalOutputTokens int64     `json:"total_output_tokens"`
+	RootChatID        uuid.UUID       `json:"root_chat_id" format:"uuid"`
+	ChatTitle         string          `json:"chat_title"`
+	TotalCostMicros   decimal.Decimal `json:"total_cost_micros"`
+	MessageCount      int64           `json:"message_count"`
+	TotalInputTokens  int64           `json:"total_input_tokens"`
+	TotalOutputTokens int64           `json:"total_output_tokens"`
 }
 
 // ChatCostUserRollup contains per-user cost aggregation for admin views.
 type ChatCostUserRollup struct {
-	UserID            uuid.UUID `json:"user_id" format:"uuid"`
-	TotalCostMicros   int64     `json:"total_cost_micros"`
-	MessageCount      int64     `json:"message_count"`
-	ChatCount         int64     `json:"chat_count"`
-	TotalInputTokens  int64     `json:"total_input_tokens"`
-	TotalOutputTokens int64     `json:"total_output_tokens"`
+	UserID            uuid.UUID       `json:"user_id" format:"uuid"`
+	TotalCostMicros   decimal.Decimal `json:"total_cost_micros"`
+	MessageCount      int64           `json:"message_count"`
+	ChatCount         int64           `json:"chat_count"`
+	TotalInputTokens  int64           `json:"total_input_tokens"`
+	TotalOutputTokens int64           `json:"total_output_tokens"`
 }
 
 // ChatCostUsersResponse is the response from the admin chat cost users endpoint.

@@ -7,6 +7,7 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
@@ -143,7 +144,7 @@ func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
 	dst := codersdk.ChatModelCallConfig{
 		Temperature: float64Ptr(0.2),
 		Cost: &codersdk.ModelCostConfig{
-			OutputPricePerMillionTokens: float64Ptr(0.7),
+			OutputPricePerMillionTokens: decPtr("0.7"),
 		},
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
@@ -156,10 +157,10 @@ func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
 		Temperature:     float64Ptr(0.9),
 		TopP:            float64Ptr(0.8),
 		Cost: &codersdk.ModelCostConfig{
-			InputPricePerMillionTokens:      float64Ptr(0.15),
-			OutputPricePerMillionTokens:     float64Ptr(0.9),
-			CacheReadPricePerMillionTokens:  float64Ptr(0.03),
-			CacheWritePricePerMillionTokens: float64Ptr(0.3),
+			InputPricePerMillionTokens:      decPtr("0.15"),
+			OutputPricePerMillionTokens:     decPtr("0.9"),
+			CacheReadPricePerMillionTokens:  decPtr("0.03"),
+			CacheWritePricePerMillionTokens: decPtr("0.3"),
 		},
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
@@ -179,13 +180,13 @@ func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
 	require.Equal(t, 0.8, *dst.TopP)
 	require.NotNil(t, dst.Cost)
 	require.NotNil(t, dst.Cost.InputPricePerMillionTokens)
-	require.Equal(t, 0.15, *dst.Cost.InputPricePerMillionTokens)
+	require.True(t, dst.Cost.InputPricePerMillionTokens.Equal(decimal.RequireFromString("0.15")))
 	require.NotNil(t, dst.Cost.OutputPricePerMillionTokens)
-	require.Equal(t, 0.7, *dst.Cost.OutputPricePerMillionTokens)
+	require.True(t, dst.Cost.OutputPricePerMillionTokens.Equal(decimal.RequireFromString("0.7")))
 	require.NotNil(t, dst.Cost.CacheReadPricePerMillionTokens)
-	require.Equal(t, 0.03, *dst.Cost.CacheReadPricePerMillionTokens)
+	require.True(t, dst.Cost.CacheReadPricePerMillionTokens.Equal(decimal.RequireFromString("0.03")))
 	require.NotNil(t, dst.Cost.CacheWritePricePerMillionTokens)
-	require.Equal(t, 0.3, *dst.Cost.CacheWritePricePerMillionTokens)
+	require.True(t, dst.Cost.CacheWritePricePerMillionTokens.Equal(decimal.RequireFromString("0.3")))
 	require.NotNil(t, dst.ProviderOptions)
 	require.NotNil(t, dst.ProviderOptions.OpenAI)
 	require.Equal(t, "alice", *dst.ProviderOptions.OpenAI.User)
@@ -206,4 +207,9 @@ func int64Ptr(value int64) *int64 {
 
 func float64Ptr(value float64) *float64 {
 	return &value
+}
+
+func decPtr(s string) *decimal.Decimal {
+	d := decimal.RequireFromString(s)
+	return &d
 }

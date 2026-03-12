@@ -3,6 +3,8 @@ package costcalc_test
 import (
 	"testing"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/coder/coder/v2/coderd/chatd/costcalc"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -14,130 +16,122 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 		name  string
 		usage codersdk.ChatMessageUsage
 		cost  *codersdk.ModelCostConfig
-		want  *int64
+		want  *decimal.Decimal
 	}{
 		{
 			name:  "nil cost returns nil",
-			usage: codersdk.ChatMessageUsage{InputTokens: ptr(int64(1000))},
+			usage: codersdk.ChatMessageUsage{InputTokens: int64Ptr(1000)},
 			cost:  nil,
 			want:  nil,
 		},
 		{
 			name: "all priced usage fields nil returns nil",
 			usage: codersdk.ChatMessageUsage{
-				TotalTokens:  ptr(int64(1234)),
-				ContextLimit: ptr(int64(8192)),
+				TotalTokens:  int64Ptr(1234),
+				ContextLimit: int64Ptr(8192),
 			},
 			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens: ptr(3.0),
+				InputPricePerMillionTokens: decPtr("3"),
 			},
 			want: nil,
 		},
 		{
-			name:  "simple input only",
-			usage: codersdk.ChatMessageUsage{InputTokens: ptr(int64(1000))},
+			name:  "single token preserves fractional micros",
+			usage: codersdk.ChatMessageUsage{InputTokens: int64Ptr(1)},
 			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens: ptr(3.0),
+				InputPricePerMillionTokens: decPtr("0.01"),
 			},
-			want: ptr(int64(3000)),
+			want: decPtr("0.01"),
+		},
+		{
+			name:  "simple input only",
+			usage: codersdk.ChatMessageUsage{InputTokens: int64Ptr(1000)},
+			cost: &codersdk.ModelCostConfig{
+				InputPricePerMillionTokens: decPtr("3"),
+			},
+			want: decPtr("3000"),
 		},
 		{
 			name:  "simple output only",
-			usage: codersdk.ChatMessageUsage{OutputTokens: ptr(int64(500))},
+			usage: codersdk.ChatMessageUsage{OutputTokens: int64Ptr(500)},
 			cost: &codersdk.ModelCostConfig{
-				OutputPricePerMillionTokens: ptr(15.0),
+				OutputPricePerMillionTokens: decPtr("15"),
 			},
-			want: ptr(int64(7500)),
+			want: decPtr("7500"),
 		},
 		{
 			name: "reasoning tokens billed at output rate",
 			usage: codersdk.ChatMessageUsage{
-				OutputTokens:    ptr(int64(300)),
-				ReasoningTokens: ptr(int64(200)),
+				OutputTokens:    int64Ptr(300),
+				ReasoningTokens: int64Ptr(200),
 			},
 			cost: &codersdk.ModelCostConfig{
-				OutputPricePerMillionTokens: ptr(15.0),
+				OutputPricePerMillionTokens: decPtr("15"),
 			},
-			want: ptr(int64(7500)),
+			want: decPtr("7500"),
 		},
 		{
 			name:  "cache read tokens",
-			usage: codersdk.ChatMessageUsage{CacheReadTokens: ptr(int64(10000))},
+			usage: codersdk.ChatMessageUsage{CacheReadTokens: int64Ptr(10000)},
 			cost: &codersdk.ModelCostConfig{
-				CacheReadPricePerMillionTokens: ptr(0.3),
+				CacheReadPricePerMillionTokens: decPtr("0.3"),
 			},
-			want: ptr(int64(3000)),
+			want: decPtr("3000"),
 		},
 		{
 			name:  "cache creation tokens",
-			usage: codersdk.ChatMessageUsage{CacheCreationTokens: ptr(int64(5000))},
+			usage: codersdk.ChatMessageUsage{CacheCreationTokens: int64Ptr(5000)},
 			cost: &codersdk.ModelCostConfig{
-				CacheWritePricePerMillionTokens: ptr(3.75),
+				CacheWritePricePerMillionTokens: decPtr("3.75"),
 			},
-			want: ptr(int64(18750)),
+			want: decPtr("18750"),
 		},
 		{
-			name: "full mixed usage totals all components",
+			name: "full mixed usage totals all components exactly",
 			usage: codersdk.ChatMessageUsage{
-				InputTokens:         ptr(int64(101)),
-				OutputTokens:        ptr(int64(201)),
-				ReasoningTokens:     ptr(int64(52)),
-				CacheReadTokens:     ptr(int64(1005)),
-				CacheCreationTokens: ptr(int64(33)),
-				TotalTokens:         ptr(int64(1391)),
-				ContextLimit:        ptr(int64(4096)),
+				InputTokens:         int64Ptr(101),
+				OutputTokens:        int64Ptr(201),
+				ReasoningTokens:     int64Ptr(52),
+				CacheReadTokens:     int64Ptr(1005),
+				CacheCreationTokens: int64Ptr(33),
+				TotalTokens:         int64Ptr(1391),
+				ContextLimit:        int64Ptr(4096),
 			},
 			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens:      ptr(1.23),
-				OutputPricePerMillionTokens:     ptr(4.56),
-				CacheReadPricePerMillionTokens:  ptr(0.7),
-				CacheWritePricePerMillionTokens: ptr(7.89),
+				InputPricePerMillionTokens:      decPtr("1.23"),
+				OutputPricePerMillionTokens:     decPtr("4.56"),
+				CacheReadPricePerMillionTokens:  decPtr("0.7"),
+				CacheWritePricePerMillionTokens: decPtr("7.89"),
 			},
-			want: ptr(int64(2242)),
+			want: decPtr("2241.78"),
 		},
 		{
 			name: "partial pricing only input contributes",
 			usage: codersdk.ChatMessageUsage{
-				InputTokens:         ptr(int64(1234)),
-				OutputTokens:        ptr(int64(999)),
-				ReasoningTokens:     ptr(int64(111)),
-				CacheReadTokens:     ptr(int64(500)),
-				CacheCreationTokens: ptr(int64(250)),
+				InputTokens:         int64Ptr(1234),
+				OutputTokens:        int64Ptr(999),
+				ReasoningTokens:     int64Ptr(111),
+				CacheReadTokens:     int64Ptr(500),
+				CacheCreationTokens: int64Ptr(250),
 			},
 			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens: ptr(2.5),
+				InputPricePerMillionTokens: decPtr("2.5"),
 			},
-			want: ptr(int64(3085)),
+			want: decPtr("3085"),
 		},
 		{
 			name:  "zero tokens with pricing returns zero pointer",
-			usage: codersdk.ChatMessageUsage{InputTokens: ptr(int64(0))},
+			usage: codersdk.ChatMessageUsage{InputTokens: int64Ptr(0)},
 			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens: ptr(3.0),
+				InputPricePerMillionTokens: decPtr("3"),
 			},
-			want: ptr(int64(0)),
+			want: decPtr("0"),
 		},
 		{
-			name: "sum-before-round preserves component precision",
-			usage: codersdk.ChatMessageUsage{
-				InputTokens:     ptr(int64(1)),
-				OutputTokens:    ptr(int64(1)),
-				CacheReadTokens: ptr(int64(1)),
-			},
-			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens:     ptr(0.4),
-				OutputPricePerMillionTokens:    ptr(0.4),
-				CacheReadPricePerMillionTokens: ptr(0.4),
-			},
-			want: ptr(int64(1)),
-		},
-		{
-			name:  "sub-micro usage rounds to zero",
-			usage: codersdk.ChatMessageUsage{InputTokens: ptr(int64(1))},
-			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens: ptr(0.01),
-			},
-			want: ptr(int64(0)),
+			name:  "non nil usage with nil prices returns zero pointer",
+			usage: codersdk.ChatMessageUsage{InputTokens: int64Ptr(42)},
+			cost:  &codersdk.ModelCostConfig{},
+			want:  decPtr("0"),
 		},
 	}
 
@@ -148,26 +142,36 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 
 			got := costcalc.CalculateTotalCostMicros(tt.usage, tt.cost)
 
-			assertEqualInt64Ptr(t, tt.want, got)
+			assertEqualDecimalPtr(t, tt.want, got)
 		})
 	}
 }
 
-func assertEqualInt64Ptr(t *testing.T, want, got *int64) {
+func assertEqualDecimalPtr(t *testing.T, want, got *decimal.Decimal) {
 	t.Helper()
 
 	switch {
 	case want == nil || got == nil:
-		if want != got {
-			t.Fatalf("expected %v, got %v", want, got)
-		}
+		requireSamePointerState(t, want, got)
 	default:
-		if *want != *got {
-			t.Fatalf("expected %d, got %d", *want, *got)
+		if !want.Equal(*got) {
+			t.Fatalf("expected %s, got %s", want.String(), got.String())
 		}
 	}
 }
 
-func ptr[T any](v T) *T {
+func requireSamePointerState(t *testing.T, want, got *decimal.Decimal) {
+	t.Helper()
+	if want != got {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+}
+
+func int64Ptr(v int64) *int64 {
 	return &v
+}
+
+func decPtr(s string) *decimal.Decimal {
+	d := decimal.RequireFromString(s)
+	return &d
 }

@@ -2,8 +2,9 @@
  * Format cost in micros (millionths of a dollar) to a currency string.
  * Examples: 0 → "$0.00", 1_500_000 → "$1.50", 123_456 → "$0.12"
  */
-export function formatCostMicros(micros: number): string {
-	const dollars = micros / 1_000_000;
+export function formatCostMicros(micros: number | string): string {
+	const microsValue = typeof micros === "string" ? Number(micros) : micros;
+	const dollars = microsValue / 1_000_000;
 	if (dollars > 0 && dollars < 0.01) {
 		return `$${dollars.toFixed(4)}`;
 	}

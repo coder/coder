@@ -1075,7 +1075,7 @@ export interface Chat {
 export interface ChatCostChatBreakdown {
 	readonly root_chat_id: string;
 	readonly chat_title: string;
-	readonly total_cost_micros: number;
+	readonly total_cost_micros: string;
 	readonly message_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
@@ -1090,7 +1090,7 @@ export interface ChatCostModelBreakdown {
 	readonly display_name: string;
 	readonly provider: string;
 	readonly model: string;
-	readonly total_cost_micros: number;
+	readonly total_cost_micros: string;
 	readonly message_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
@@ -1103,7 +1103,7 @@ export interface ChatCostModelBreakdown {
 export interface ChatCostSummary {
 	readonly start_date: string;
 	readonly end_date: string;
-	readonly total_cost_micros: number;
+	readonly total_cost_micros: string;
 	readonly priced_message_count: number;
 	readonly unpriced_message_count: number;
 	readonly total_input_tokens: number;
@@ -1128,7 +1128,7 @@ export interface ChatCostSummaryOptions {
  */
 export interface ChatCostUserRollup {
 	readonly user_id: string;
-	readonly total_cost_micros: number;
+	readonly total_cost_micros: string;
 	readonly message_count: number;
 	readonly chat_count: number;
 	readonly total_input_tokens: number;
@@ -3502,15 +3502,10 @@ export interface MinimalUser {
  * ModelCostConfig stores pricing metadata for a chat model.
  */
 export interface ModelCostConfig {
-	/**
-	 * Pricing is stored as configuration metadata and currently only needs to
-	 * round-trip cleanly through the API and admin UI. If we later use these
-	 * values for billing-grade arithmetic, switch to a fixed-point type.
-	 */
-	readonly input_price_per_million_tokens?: number;
-	readonly output_price_per_million_tokens?: number;
-	readonly cache_read_price_per_million_tokens?: number;
-	readonly cache_write_price_per_million_tokens?: number;
+	readonly input_price_per_million_tokens?: string;
+	readonly output_price_per_million_tokens?: string;
+	readonly cache_read_price_per_million_tokens?: string;
+	readonly cache_write_price_per_million_tokens?: string;
 }
 
 // From netcheck/netcheck.go
