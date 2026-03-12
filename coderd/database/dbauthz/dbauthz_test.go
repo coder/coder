@@ -3063,12 +3063,6 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 		dbm.EXPECT().InsertProvisionerKey(gomock.Any(), arg).Return(pk, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceProvisionerDaemon.InOrg(org.ID).WithID(pk.ID), policy.ActionCreate).Returns(pk)
 	}))
-	s.Run("GetProvisionerKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		org := testutil.Fake(s.T(), faker, database.Organization{})
-		pk := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID})
-		dbm.EXPECT().GetProvisionerKeyByID(gomock.Any(), pk.ID).Return(pk, nil).AnyTimes()
-		check.Args(pk.ID).Asserts(pk, policy.ActionRead).Returns(pk)
-	}))
 	s.Run("GetProvisionerKeyByHashedSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
 		pk := testutil.Fake(s.T(), faker, database.ProvisionerKey{OrganizationID: org.ID, HashedSecret: []byte("foo")})

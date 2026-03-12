@@ -1847,14 +1847,6 @@ func (m queryMetricsStore) GetProvisionerKeyByHashedSecret(ctx context.Context, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetProvisionerKeyByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetProvisionerKeyByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetProvisionerKeyByID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetProvisionerKeyByName(ctx context.Context, arg database.GetProvisionerKeyByNameParams) (database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetProvisionerKeyByName(ctx, arg)

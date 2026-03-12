@@ -3302,10 +3302,6 @@ func (q *querier) GetProvisionerKeyByHashedSecret(ctx context.Context, hashedSec
 	return fetch(q.log, q.auth, q.db.GetProvisionerKeyByHashedSecret)(ctx, hashedSecret)
 }
 
-func (q *querier) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
-	return fetch(q.log, q.auth, q.db.GetProvisionerKeyByID)(ctx, id)
-}
-
 func (q *querier) GetProvisionerKeyByName(ctx context.Context, name database.GetProvisionerKeyByNameParams) (database.ProvisionerKey, error) {
 	return fetch(q.log, q.auth, q.db.GetProvisionerKeyByName)(ctx, name)
 }
