@@ -147,7 +147,7 @@ WHERE
 UPDATE
     organizations
 SET
-    workspace_sharing_disabled = @workspace_sharing_disabled,
+    shareable_workspace_owners = @shareable_workspace_owners,
     updated_at = @updated_at
 WHERE
     id = @id

@@ -1264,7 +1264,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID uuid.UUID, added, re
 			// System roles are stored in the database but have a fixed, code-defined
 			// meaning. Do not rewrite the name for them so the static "who can assign
 			// what" mapping applies.
-			if !rbac.SystemRoleName(roleName.Name) {
+			if !rolestore.IsSystemRoleName(roleName.Name) {
 				// To support a dynamic mapping of what roles can assign what, we need
 				// to store this in the database. For now, just use a static role so
 				// owners and org admins can assign roles.

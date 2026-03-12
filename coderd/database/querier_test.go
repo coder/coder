@@ -2440,15 +2440,15 @@ func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
 
 	updated, err := db.UpdateOrganizationWorkspaceSharingSettings(ctx, database.UpdateOrganizationWorkspaceSharingSettingsParams{
 		ID:                       org.ID,
-		WorkspaceSharingDisabled: true,
+		ShareableWorkspaceOwners: database.ShareableWorkspaceOwnersNone,
 		UpdatedAt:                dbtime.Now(),
 	})
 	require.NoError(t, err)
-	require.True(t, updated.WorkspaceSharingDisabled)
+	require.Equal(t, database.ShareableWorkspaceOwnersNone, updated.ShareableWorkspaceOwners)
 
 	got, err := db.GetOrganizationByID(ctx, org.ID)
 	require.NoError(t, err)
-	require.True(t, got.WorkspaceSharingDisabled)
+	require.Equal(t, database.ShareableWorkspaceOwnersNone, got.ShareableWorkspaceOwners)
 }
 
 func TestDeleteWorkspaceACLsByOrganization(t *testing.T) {

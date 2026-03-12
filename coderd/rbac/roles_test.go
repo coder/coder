@@ -63,7 +63,7 @@ func TestOrgMemberPermissions(t *testing.T) {
 	t.Run("WorkspaceSharingEnabled", func(t *testing.T) {
 		t.Parallel()
 
-		orgPerms, _ := rbac.OrgMemberPermissions(false)
+		orgPerms, _ := rbac.OrgMemberPermissions(rbac.OrgSettings{ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwnersEveryone})
 
 		require.True(t, slices.Contains(orgPerms, rbac.Permission{
 			ResourceType: rbac.ResourceOrganizationMember.Type,
@@ -83,7 +83,7 @@ func TestOrgMemberPermissions(t *testing.T) {
 	t.Run("WorkspaceSharingDisabled", func(t *testing.T) {
 		t.Parallel()
 
-		orgPerms, _ := rbac.OrgMemberPermissions(true)
+		orgPerms, _ := rbac.OrgMemberPermissions(rbac.OrgSettings{ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwnersNone})
 
 		require.False(t, slices.Contains(orgPerms, rbac.Permission{
 			ResourceType: rbac.ResourceOrganizationMember.Type,

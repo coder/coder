@@ -1404,8 +1404,8 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 // RoleByName won't resolve it here. Assume the default behavior: workspace
 // sharing enabled.
 func orgMemberRole(orgID uuid.UUID) Role {
-	workspaceSharingDisabled := false
-	orgPerms, memberPerms := OrgMemberPermissions(workspaceSharingDisabled)
+	settings := OrgSettings{ShareableWorkspaceOwners: ShareableWorkspaceOwnersEveryone}
+	orgPerms, memberPerms := OrgMemberPermissions(settings)
 	return Role{
 		Identifier:  ScopedRoleOrgMember(orgID),
 		DisplayName: "",

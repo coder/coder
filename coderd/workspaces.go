@@ -2492,7 +2492,7 @@ func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWrite
 		httpapi.InternalServerError(rw, err)
 		return false
 	}
-	if org.WorkspaceSharingDisabled {
+	if org.ShareableWorkspaceOwners == database.ShareableWorkspaceOwnersNone {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Workspace sharing is disabled for this organization.",
 		})

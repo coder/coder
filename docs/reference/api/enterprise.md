@@ -2851,6 +2851,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 ```json
 {
+  "shareable_workspace_owners": "none",
   "sharing_disabled": true,
   "sharing_globally_disabled": true
 }
@@ -2882,17 +2883,17 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ```json
 {
-  "sharing_disabled": true,
-  "sharing_globally_disabled": true
+  "shareable_workspace_owners": "none",
+  "sharing_disabled": true
 }
 ```
 
 ### Parameters
 
-| Name           | In   | Type                                                                             | Required | Description                |
-|----------------|------|----------------------------------------------------------------------------------|----------|----------------------------|
-| `organization` | path | string(uuid)                                                                     | true     | Organization ID            |
-| `body`         | body | [codersdk.WorkspaceSharingSettings](schemas.md#codersdkworkspacesharingsettings) | true     | Workspace sharing settings |
+| Name           | In   | Type                                                                                                       | Required | Description                |
+|----------------|------|------------------------------------------------------------------------------------------------------------|----------|----------------------------|
+| `organization` | path | string(uuid)                                                                                               | true     | Organization ID            |
+| `body`         | body | [codersdk.UpdateWorkspaceSharingSettingsRequest](schemas.md#codersdkupdateworkspacesharingsettingsrequest) | true     | Workspace sharing settings |
 
 ### Example responses
 
@@ -2900,15 +2901,17 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ```json
 {
-  "sharing_disabled": true
+  "shareable_workspace_owners": "none",
+  "sharing_disabled": true,
+  "sharing_globally_disabled": true
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                                     |
-|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UpdateWorkspaceSharingSettingsRequest](schemas.md#codersdkupdateworkspacesharingsettingsrequest) |
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceSharingSettings](schemas.md#codersdkworkspacesharingsettings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

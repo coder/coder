@@ -1249,7 +1249,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
 		arg := database.UpdateOrganizationWorkspaceSharingSettingsParams{
 			ID:                       org.ID,
-			WorkspaceSharingDisabled: true,
+			ShareableWorkspaceOwners: database.ShareableWorkspaceOwnersNone,
 		}
 		dbm.EXPECT().GetOrganizationByID(gomock.Any(), org.ID).Return(org, nil).AnyTimes()
 		dbm.EXPECT().UpdateOrganizationWorkspaceSharingSettings(gomock.Any(), arg).Return(org, nil).AnyTimes()

@@ -5454,6 +5454,15 @@ export interface SessionLifetime {
  */
 export const SessionTokenHeader = "Coder-Session-Token";
 
+// From codersdk/workspacesharing.go
+export type ShareableWorkspaceOwners = "everyone" | "none" | "service_accounts";
+
+export const ShareableWorkspaceOwnerses: ShareableWorkspaceOwners[] = [
+	"everyone",
+	"none",
+	"service_accounts",
+];
+
 // From codersdk/workspaces.go
 export interface SharedWorkspaceActor {
 	readonly id: string;
@@ -6638,7 +6647,16 @@ export interface UpdateWorkspaceRequest {
  * that can be updated for an organization.
  */
 export interface UpdateWorkspaceSharingSettingsRequest {
+	/**
+	 * SharingDisabled is deprecated and left for backward compatibility
+	 * purposes, use `ShareableWorkspaceOwners` instead.
+	 */
 	readonly sharing_disabled: boolean;
+	/**
+	 * ShareableWorkspaceOwners controls whose workspaces can be shared
+	 * within the organization.
+	 */
+	readonly shareable_workspace_owners?: ShareableWorkspaceOwners;
 }
 
 // From codersdk/workspaces.go
@@ -7750,7 +7768,16 @@ export interface WorkspaceSharingSettings {
 	 * organization because of a deployment-wide setting.
 	 */
 	readonly sharing_globally_disabled: boolean;
+	/**
+	 * SharingDisabled is deprecated and left for backward compatibility
+	 * purposes, use `ShareableWorkspaceOwners` instead.
+	 */
 	readonly sharing_disabled: boolean;
+	/**
+	 * ShareableWorkspaceOwners controls whose workspaces can be shared
+	 * within the organization.
+	 */
+	readonly shareable_workspace_owners: ShareableWorkspaceOwners;
 }
 
 // From codersdk/workspacebuilds.go

@@ -9986,7 +9986,7 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
 FROM
     organizations
 WHERE
@@ -10008,14 +10008,14 @@ func (q *sqlQuerier) GetDefaultOrganization(ctx context.Context) (Organization, 
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
-		&i.WorkspaceSharingDisabled,
+		&i.ShareableWorkspaceOwners,
 	)
 	return i, err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
 FROM
     organizations
 WHERE
@@ -10035,14 +10035,14 @@ func (q *sqlQuerier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Org
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
-		&i.WorkspaceSharingDisabled,
+		&i.ShareableWorkspaceOwners,
 	)
 	return i, err
 }
 
 const getOrganizationByName = `-- name: GetOrganizationByName :one
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
 FROM
     organizations
 WHERE
@@ -10071,7 +10071,7 @@ func (q *sqlQuerier) GetOrganizationByName(ctx context.Context, arg GetOrganizat
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
-		&i.WorkspaceSharingDisabled,
+		&i.ShareableWorkspaceOwners,
 	)
 	return i, err
 }
@@ -10142,7 +10142,7 @@ func (q *sqlQuerier) GetOrganizationResourceCountByID(ctx context.Context, organ
 
 const getOrganizations = `-- name: GetOrganizations :many
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
 FROM
     organizations
 WHERE
@@ -10186,7 +10186,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 			&i.DisplayName,
 			&i.Icon,
 			&i.Deleted,
-			&i.WorkspaceSharingDisabled,
+			&i.ShareableWorkspaceOwners,
 		); err != nil {
 			return nil, err
 		}
@@ -10203,7 +10203,7 @@ func (q *sqlQuerier) GetOrganizations(ctx context.Context, arg GetOrganizationsP
 
 const getOrganizationsByUserID = `-- name: GetOrganizationsByUserID :many
 SELECT
-    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
+    id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
 FROM
     organizations
 WHERE
@@ -10248,7 +10248,7 @@ func (q *sqlQuerier) GetOrganizationsByUserID(ctx context.Context, arg GetOrgani
 			&i.DisplayName,
 			&i.Icon,
 			&i.Deleted,
-			&i.WorkspaceSharingDisabled,
+			&i.ShareableWorkspaceOwners,
 		); err != nil {
 			return nil, err
 		}
@@ -10268,7 +10268,7 @@ INSERT INTO
     organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default)
 VALUES
     -- If no organizations exist, and this is the first, make it the default.
-    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
+    ($1, $2, $3, $4, $5, $6, $7, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
 `
 
 type InsertOrganizationParams struct {
@@ -10302,7 +10302,7 @@ func (q *sqlQuerier) InsertOrganization(ctx context.Context, arg InsertOrganizat
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
-		&i.WorkspaceSharingDisabled,
+		&i.ShareableWorkspaceOwners,
 	)
 	return i, err
 }
@@ -10318,7 +10318,7 @@ SET
     icon = $5
 WHERE
     id = $6
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
 `
 
 type UpdateOrganizationParams struct {
@@ -10350,7 +10350,7 @@ func (q *sqlQuerier) UpdateOrganization(ctx context.Context, arg UpdateOrganizat
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
-		&i.WorkspaceSharingDisabled,
+		&i.ShareableWorkspaceOwners,
 	)
 	return i, err
 }
@@ -10379,21 +10379,21 @@ const updateOrganizationWorkspaceSharingSettings = `-- name: UpdateOrganizationW
 UPDATE
     organizations
 SET
-    workspace_sharing_disabled = $1,
+    shareable_workspace_owners = $1,
     updated_at = $2
 WHERE
     id = $3
-RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, workspace_sharing_disabled
+RETURNING id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners
 `
 
 type UpdateOrganizationWorkspaceSharingSettingsParams struct {
-	WorkspaceSharingDisabled bool      `db:"workspace_sharing_disabled" json:"workspace_sharing_disabled"`
-	UpdatedAt                time.Time `db:"updated_at" json:"updated_at"`
-	ID                       uuid.UUID `db:"id" json:"id"`
+	ShareableWorkspaceOwners ShareableWorkspaceOwners `db:"shareable_workspace_owners" json:"shareable_workspace_owners"`
+	UpdatedAt                time.Time                `db:"updated_at" json:"updated_at"`
+	ID                       uuid.UUID                `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateOrganizationWorkspaceSharingSettings(ctx context.Context, arg UpdateOrganizationWorkspaceSharingSettingsParams) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, updateOrganizationWorkspaceSharingSettings, arg.WorkspaceSharingDisabled, arg.UpdatedAt, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateOrganizationWorkspaceSharingSettings, arg.ShareableWorkspaceOwners, arg.UpdatedAt, arg.ID)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -10405,7 +10405,7 @@ func (q *sqlQuerier) UpdateOrganizationWorkspaceSharingSettings(ctx context.Cont
 		&i.DisplayName,
 		&i.Icon,
 		&i.Deleted,
-		&i.WorkspaceSharingDisabled,
+		&i.ShareableWorkspaceOwners,
 	)
 	return i, err
 }
@@ -18324,9 +18324,17 @@ SELECT
 				array_agg(org_roles || ':' || organization_members.organization_id::text)
 			FROM
 				organization_members,
-				-- All org_members get the organization-member role for their orgs
+				-- All org members get an implied role for their orgs, except
+				-- service accounts which get an implied service role.
 				unnest(
-					array_append(roles, 'organization-member')
+					array_append(
+						roles,
+						CASE WHEN users.is_service_account THEN
+							'organization-service-account'
+						ELSE
+							'organization-member'
+						END
+					)
 				) AS org_roles
 			WHERE
 				user_id = users.id
