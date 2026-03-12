@@ -27,6 +27,7 @@ ifdef MAKE_TIMED
 SHELL := $(CURDIR)/scripts/lib/timed-shell.sh
 .SHELLFLAGS = $@ -ceu
 export MAKE_TIMED
+export MAKE_LOGDIR
 endif
 
 # This doesn't work on directories.
@@ -515,6 +516,9 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 
 BOLD := $(shell tput bold 2>/dev/null)
 GREEN := $(shell tput setaf 2 2>/dev/null)
+RED := $(shell tput setaf 1 2>/dev/null)
+YELLOW := $(shell tput setaf 3 2>/dev/null)
+DIM := $(shell tput dim 2>/dev/null || tput setaf 8 2>/dev/null)
 RESET := $(shell tput sgr0 2>/dev/null)
 
 fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown
@@ -729,33 +733,41 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 define check-unstaged
 	unstaged="$$(git diff --name-only)"
 	if [[ -n $$unstaged ]]; then
-		echo "ERROR: unstaged changes in tracked files:"
-		echo "$$unstaged"
-		echo
-		echo "Review each change (git diff), verify correctness, then stage:"
-		echo "  git add -u && git commit"
+		echo "$(RED)✗ check unstaged changes$(RESET)"
+		echo "$$unstaged" | sed 's/^/  - /'
+		echo ""
+		echo "$(DIM)  Verify generated changes are correct before staging:$(RESET)"
+		echo "$(DIM)    git diff$(RESET)"
+		echo "$(DIM)    git add -u && git commit$(RESET)"
 		exit 1
 	fi
+endef
+define check-untracked
 	untracked=$$(git ls-files --other --exclude-standard)
 	if [[ -n $$untracked ]]; then
-		echo "WARNING: untracked files (not in this commit, won't be in CI):"
-		echo "$$untracked"
-		echo
+		echo "$(YELLOW)? check untracked files$(RESET)"
+		echo "$$untracked" | sed 's/^/  - /'
+		echo ""
+		echo "$(DIM)  Review if these should be committed or added to .gitignore.$(RESET)"
 	fi
 endef
 
 pre-commit:
 	start=$$(date +%s)
-	echo "=== Phase 1/2: gen + fmt ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 gen fmt
+	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-commit.XXXXXX")
+	echo "$(BOLD)pre-commit$(RESET) ($$logdir)"
+	echo "gen + fmt:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir gen fmt
 	$(check-unstaged)
-	echo "=== Phase 2/2: lint + build ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 \
+	echo "lint + build:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	$(check-unstaged)
-	echo "$(BOLD)$(GREEN)=== pre-commit passed in $$(( $$(date +%s) - $$start ))s ===$(RESET)"
+	$(check-untracked)
+	rm -rf $$logdir
+	echo "$(GREEN)✓ pre-commit passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-commit
 
 offlinedocs/check: offlinedocs/node_modules/.installed
