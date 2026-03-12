@@ -107,6 +107,10 @@ module.exports = {
 					"75%": { opacity: 0.3 },
 					"100%": { opacity: 0.2 },
 				},
+				"status-dot-pulse": {
+					"0%, 100%": { opacity: "1" },
+					"50%": { opacity: "0.35" },
+				},
 				"caret-scan": {
 					"0%": { left: "0%" },
 					"100%": { left: "100%" },
@@ -119,6 +123,8 @@ module.exports = {
 			},
 			animation: {
 				loading: "loading 2s ease-in-out infinite alternate",
+				"status-dot-pulse":
+					"status-dot-pulse 1.8s cubic-bezier(0.5, 0, 0.6, 1) infinite",
 				"caret-scan": "caret-scan 3s ease-in-out infinite",
 				"spin-once": "spin 1s cubic-bezier(0.4, 0, 0.2, 1)",
 				"zip-right": "zip-right 1s cubic-bezier(0.4, 0, 0.2, 1)",

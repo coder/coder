@@ -75,12 +75,15 @@ const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
 
 export interface StatusIndicatorDotProps
 	extends React.HTMLAttributes<HTMLDivElement>,
-		VariantProps<typeof dotVariants> {}
+		VariantProps<typeof dotVariants> {
+	pulse?: boolean;
+}
 
 export const StatusIndicatorDot: FC<StatusIndicatorDotProps> = ({
 	className,
 	// We allow the size and variant to be overridden directly by the component.
 	// This allows StatusIndicatorDot to be used alone.
+	pulse = false,
 	size,
 	variant,
 	...props
@@ -93,6 +96,7 @@ export const StatusIndicatorDot: FC<StatusIndicatorDotProps> = ({
 		<div
 			className={cn(
 				dotVariants({ variant: variant ?? ctxVariant, size: size ?? ctxSize }),
+				pulse && "animate-status-dot-pulse",
 				className,
 			)}
 			{...props}
