@@ -3801,21 +3801,6 @@ func (mr *MockStoreMockRecorder) GetTemplateByOrganizationAndName(ctx, arg any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateByOrganizationAndName", reflect.TypeOf((*MockStore)(nil).GetTemplateByOrganizationAndName), ctx, arg)
 }
 
-// GetTemplateDAUs mocks base method.
-func (m *MockStore) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTemplateDAUs", ctx, arg)
-	ret0, _ := ret[0].([]database.GetTemplateDAUsRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTemplateDAUs indicates an expected call of GetTemplateDAUs.
-func (mr *MockStoreMockRecorder) GetTemplateDAUs(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateDAUs", reflect.TypeOf((*MockStore)(nil).GetTemplateDAUs), ctx, arg)
-}
-
 // GetTemplateGroupRoles mocks base method.
 func (m *MockStore) GetTemplateGroupRoles(ctx context.Context, id uuid.UUID) ([]database.TemplateGroup, error) {
 	m.ctrl.T.Helper()

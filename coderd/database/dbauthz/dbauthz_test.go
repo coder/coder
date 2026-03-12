@@ -3762,11 +3762,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().InsertWorkspaceAgentLogSources(gomock.Any(), arg).Return([]database.WorkspaceAgentLogSource{}, nil).AnyTimes()
 		check.Args(arg).Asserts()
 	}))
-	s.Run("GetTemplateDAUs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetTemplateDAUsParams{}
-		dbm.EXPECT().GetTemplateDAUs(gomock.Any(), arg).Return([]database.GetTemplateDAUsRow{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
 	s.Run("GetActiveWorkspaceBuildsByTemplateID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
 		dbm.EXPECT().GetActiveWorkspaceBuildsByTemplateID(gomock.Any(), id).Return([]database.WorkspaceBuild{}, nil).AnyTimes()

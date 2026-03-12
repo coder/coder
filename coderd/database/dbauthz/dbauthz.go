@@ -3478,14 +3478,6 @@ func (q *querier) GetTemplateByOrganizationAndName(ctx context.Context, arg data
 	return fetch(q.log, q.auth, q.db.GetTemplateByOrganizationAndName)(ctx, arg)
 }
 
-// Only used by metrics cache.
-func (q *querier) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetTemplateDAUs(ctx, arg)
-}
-
 func (q *querier) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
 	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
 		return database.GetTemplateInsightsRow{}, err

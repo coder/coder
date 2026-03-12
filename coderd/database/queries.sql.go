@@ -22083,54 +22083,6 @@ func (q *sqlQuerier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, 
 	return i, err
 }
 
-const getTemplateDAUs = `-- name: GetTemplateDAUs :many
-SELECT
-	(created_at at TIME ZONE cast($2::integer as text))::date as date,
-	user_id
-FROM
-	workspace_agent_stats
-WHERE
-	template_id = $1 AND
-	connection_count > 0
-GROUP BY
-	date, user_id
-ORDER BY
-	date ASC
-`
-
-type GetTemplateDAUsParams struct {
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	TzOffset   int32     `db:"tz_offset" json:"tz_offset"`
-}
-
-type GetTemplateDAUsRow struct {
-	Date   time.Time `db:"date" json:"date"`
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, arg.TemplateID, arg.TzOffset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetTemplateDAUsRow
-	for rows.Next() {
-		var i GetTemplateDAUsRow
-		if err := rows.Scan(&i.Date, &i.UserID); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getWorkspaceAgentStats = `-- name: GetWorkspaceAgentStats :many
 WITH agent_stats AS (
 	SELECT

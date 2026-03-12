@@ -2055,14 +2055,6 @@ func (m queryMetricsStore) GetTemplateByOrganizationAndName(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTemplateDAUs(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetTemplateDAUs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateDAUs").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateInsights(ctx, arg)

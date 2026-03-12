@@ -423,7 +423,6 @@ type sqlcQuerier interface {
 	GetTemplateAverageBuildTime(ctx context.Context, templateID uuid.NullUUID) (GetTemplateAverageBuildTimeRow, error)
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error)
 	GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error)
-	GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error)
 	// GetTemplateInsights returns the aggregate user-produced usage of all
 	// workspaces in a given timeframe. The template IDs, active users, and
 	// usage_seconds all reflect any usage in the template, including apps.
