@@ -88,6 +88,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						{...(shouldDisplayDiff && {
 							tabIndex: 0,
 							role: "button",
+							"aria-expanded": isDiffOpen,
 							onClick: toggle,
 							onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
 								if (event.key === "Enter" || event.key === " ") {
