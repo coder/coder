@@ -158,12 +158,23 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 			if !ok {
 				continue
 			}
-			toolParts = append(toolParts, fantasy.ToolResultPart{
+			part := fantasy.ToolResultPart{
 				ToolCallID:       result.ToolCallID,
 				Output:           result.Result,
 				ProviderExecuted: result.ProviderExecuted,
 				ProviderOptions:  fantasy.ProviderOptions(result.ProviderMetadata),
-			})
+			}
+			// Provider-executed tool results (e.g. web_search)
+			// must stay in the assistant message so the result
+			// block appears inline after the corresponding
+			// server_tool_use block. This matches the persistence
+			// layer in chatd.go which keeps them in
+			// assistantBlocks.
+			if result.ProviderExecuted {
+				assistantParts = append(assistantParts, part)
+			} else {
+				toolParts = append(toolParts, part)
+			}
 		default:
 			continue
 		}
