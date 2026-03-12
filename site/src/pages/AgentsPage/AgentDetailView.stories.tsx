@@ -11,7 +11,6 @@ import {
 	AgentDetailLoadingView,
 	AgentDetailNotFoundView,
 	AgentDetailView,
-	RIGHT_PANEL_OPEN_KEY,
 } from "./AgentDetailView";
 
 // ---------------------------------------------------------------------------
@@ -119,6 +118,8 @@ const meta: Meta<typeof AgentDetailView> = {
 		isInterruptPending: false,
 		isSidebarCollapsed: false,
 		onToggleSidebarCollapsed: fn(),
+		showSidebarPanel: false,
+		onSetShowSidebarPanel: fn(),
 		prNumber: undefined,
 		diffStatusData: undefined,
 		gitWatcher: defaultGitWatcher,
@@ -192,11 +193,8 @@ export const SubmissionPending: Story = {
 
 /** Right sidebar panel is open with diff status data. */
 export const WithSidebarPanel: Story = {
-	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
-	},
 	args: {
+		showSidebarPanel: true,
 		prNumber: 123,
 		diffStatusData: {
 			chat_id: AGENT_ID,
@@ -254,6 +252,7 @@ export const Loading: Story = {
 			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
+			showRightPanel={false}
 		/>
 	),
 };
@@ -273,6 +272,26 @@ export const LoadingWithModelOptions: Story = {
 			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
+			showRightPanel={false}
+		/>
+	),
+};
+/** Loading state with the right panel pre-opened. */
+export const LoadingWithRightPanel: Story = {
+	render: () => (
+		<AgentDetailLoadingView
+			titleElement={<title>Loading — Agents</title>}
+			isInputDisabled
+			effectiveSelectedModel="openai:gpt-4o"
+			setSelectedModel={fn()}
+			modelOptions={defaultModelOptions}
+			modelSelectorPlaceholder="Select a model"
+			hasModelOptions
+			inputStatusText={null}
+			modelCatalogStatusMessage={null}
+			isSidebarCollapsed={false}
+			onToggleSidebarCollapsed={fn()}
+			showRightPanel
 		/>
 	),
 };
@@ -292,6 +311,7 @@ export const LoadingSidebarCollapsed: Story = {
 			modelCatalogStatusMessage={null}
 			isSidebarCollapsed
 			onToggleSidebarCollapsed={fn()}
+			showRightPanel={false}
 		/>
 	),
 };

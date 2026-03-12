@@ -30,6 +30,22 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Rewrite same-repo links for PR branch
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Rewrite same-repo blob/tree main links to the PR head SHA
+          # so that files or directories introduced in the PR are
+          # reachable during link checking.
+          {
+            echo 'replacementPatterns:'
+            echo "  - pattern: \"https://github.com/coder/coder/blob/main/\""
+            echo "    replacement: \"https://github.com/coder/coder/blob/${HEAD_SHA}/\""
+            echo "  - pattern: \"https://github.com/coder/coder/tree/main/\""
+            echo "    replacement: \"https://github.com/coder/coder/tree/${HEAD_SHA}/\""
+          } >> .github/.linkspector.yml
+
       - name: Check Markdown links
         uses: umbrelladocs/action-linkspector@652f85bc57bb1e7d4327260decc10aa68f7694c3 # v1.4.0
         id: markdown-link-check

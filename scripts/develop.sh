@@ -157,23 +157,22 @@ pids=()
 exit_cleanup() {
 	set +e
 	# Set empty interrupt handler so cleanup isn't interrupted.
-	trap '' INT TERM
+	# HUP is included in case SSH drops while cleanup is already
+	# in progress from another signal.
+	trap '' INT TERM HUP
 	# Remove exit trap to avoid infinite loop.
 	trap - EXIT
 
-	# Send interrupts to the processes we started. Note that we do not
-	# (yet) want to send a kill signal to the entire process group as
-	# this can halt processes started by graceful shutdown.
+	# Send INT for graceful shutdown. On SIGHUP, the Go server
+	# re-registers via signal.Notify and handles it, but other
+	# commands may not. INT covers all cases uniformly.
 	kill -INT "${pids[@]}" >/dev/null 2>&1
-	# Use the hammer if things take too long.
-	{ sleep 5 && kill -TERM "${pids[@]}" >/dev/null 2>&1; } &
+	# Use the hammer if things take too long. Stdout/stderr are
+	# closed so the background job can't hold the shell open.
+	{ sleep 15 && kill -TERM "${pids[@]}"; } >/dev/null 2>&1 &
 
 	# Wait for all children to exit (this can be aborted by hammer).
 	wait_cmds
-
-	# Just in case, send termination to the entire process group
-	# in case the children left something behind.
-	kill -TERM -"${ppid}" >/dev/null 2>&1
 
 	exit 1
 }
@@ -184,9 +183,18 @@ start_cmd() {
 
 	echo "== CMD: $*" >&2
 
-	FORCE_COLOR=1 "$@" > >(
-		# Ignore interrupt, read will keep reading until stdin is gone.
-		trap '' INT
+	# Shield the command from direct SIGHUP via SIG_IGN, which
+	# is inherited across exec. Go's signal.Notify resets it to
+	# caught once registered, enabling graceful shutdown.
+	(
+		trap '' HUP
+		FORCE_COLOR=1 exec "$@"
+	) > >(
+		# Keep draining output until the command's stdout closes.
+		# Errexit is off so EIO from a dead terminal doesn't kill
+		# this reader and break the pipe (causing SIGPIPE).
+		set +e
+		trap '' INT HUP
 
 		while read -r line; do
 			if [[ $prefix == date ]]; then
@@ -207,6 +215,10 @@ wait_cmds() {
 fatal() {
 	echo "== FAIL: $*" >&2
 	kill -INT $ppid >/dev/null 2>&1
+	# Exit immediately so the calling context (ERR trap or
+	# background job) doesn't continue executing commands
+	# while cleanup is in progress.
+	exit 1
 }
 
 # This is a way to run multiple processes in parallel, and have Ctrl-C work correctly
@@ -216,7 +228,7 @@ fatal() {
 	ppid=$BASHPID
 	# If something goes wrong, just bail and tear everything down
 	# rather than leaving things in an inconsistent state.
-	trap 'exit_cleanup' INT TERM EXIT
+	trap 'exit_cleanup' INT TERM HUP EXIT
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot

@@ -516,15 +516,17 @@ func ToMessageParts(content []fantasy.Content) []fantasy.MessagePart {
 			})
 		case fantasy.ToolResultContent:
 			parts = append(parts, fantasy.ToolResultPart{
-				ToolCallID:      sanitizeToolCallID(value.ToolCallID),
-				Output:          value.Result,
-				ProviderOptions: fantasy.ProviderOptions(value.ProviderMetadata),
+				ToolCallID:       sanitizeToolCallID(value.ToolCallID),
+				ProviderExecuted: value.ProviderExecuted,
+				Output:           value.Result,
+				ProviderOptions:  fantasy.ProviderOptions(value.ProviderMetadata),
 			})
 		case *fantasy.ToolResultContent:
 			parts = append(parts, fantasy.ToolResultPart{
-				ToolCallID:      sanitizeToolCallID(value.ToolCallID),
-				Output:          value.Result,
-				ProviderOptions: fantasy.ProviderOptions(value.ProviderMetadata),
+				ToolCallID:       sanitizeToolCallID(value.ToolCallID),
+				ProviderExecuted: value.ProviderExecuted,
+				Output:           value.Result,
+				ProviderOptions:  fantasy.ProviderOptions(value.ProviderMetadata),
 			})
 		}
 	}

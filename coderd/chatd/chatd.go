@@ -2298,17 +2298,24 @@ func (p *Server) runChat(
 
 		// Split the step content into assistant blocks and tool
 		// result blocks so they can be stored as separate messages
-		// with the appropriate roles.
+		// with the appropriate roles. Provider-executed tool results
+		// (e.g. web_search) stay in the assistant content because
+		// the LLM provider expects them inline in the assistant
+		// turn, not as separate tool messages.
 		var assistantBlocks []fantasy.Content
 		var toolResults []fantasy.ToolResultContent
 		for _, block := range step.Content {
 			if tr, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok {
-				toolResults = append(toolResults, tr)
-				continue
+				if !tr.ProviderExecuted {
+					toolResults = append(toolResults, tr)
+					continue
+				}
 			}
 			if trPtr, ok := fantasy.AsContentType[*fantasy.ToolResultContent](block); ok && trPtr != nil {
-				toolResults = append(toolResults, *trPtr)
-				continue
+				if !trPtr.ProviderExecuted {
+					toolResults = append(toolResults, *trPtr)
+					continue
+				}
 			}
 			assistantBlocks = append(assistantBlocks, block)
 		}
