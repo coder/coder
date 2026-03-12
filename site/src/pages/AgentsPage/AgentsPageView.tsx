@@ -143,11 +143,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
 					onOpenAnalytics={() => {
-						if (isAgentsAdmin) {
-							setConfigureAgentsInitialSection("usage");
-							setConfigureAgentsDialogOpen(true);
-							return;
-						}
 						setUserAnalyticsDialogOpen(true);
 					}}
 					onOpenSettings={() => {

@@ -113,18 +113,14 @@ describe("AgentsPageView analytics entrypoint", () => {
 		vi.clearAllMocks();
 	});
 
-	it("opens the usage section of settings for admins", async () => {
+	it("opens a separate analytics modal for admins", async () => {
 		const user = userEvent.setup();
 		render(<AgentsPageView {...defaultProps} isAgentsAdmin />);
 
 		await user.click(screen.getByRole("button", { name: /open analytics/i }));
 
-		expect(screen.getByTestId("configure-dialog")).toHaveTextContent(
-			"section:usage",
-		);
-		expect(
-			screen.queryByTestId("user-analytics-dialog"),
-		).not.toBeInTheDocument();
+		expect(screen.getByTestId("user-analytics-dialog")).toBeInTheDocument();
+		expect(screen.queryByTestId("configure-dialog")).not.toBeInTheDocument();
 	});
 
 	it("opens a separate analytics modal for non-admins", async () => {
@@ -135,6 +131,20 @@ describe("AgentsPageView analytics entrypoint", () => {
 
 		expect(screen.getByTestId("user-analytics-dialog")).toBeInTheDocument();
 		expect(screen.queryByTestId("configure-dialog")).not.toBeInTheDocument();
+	});
+
+	it("still opens settings for admins", async () => {
+		const user = userEvent.setup();
+		render(<AgentsPageView {...defaultProps} isAgentsAdmin />);
+
+		await user.click(screen.getByRole("button", { name: /open settings/i }));
+
+		expect(screen.getByTestId("configure-dialog")).toHaveTextContent(
+			"section:behavior",
+		);
+		expect(
+			screen.queryByTestId("user-analytics-dialog"),
+		).not.toBeInTheDocument();
 	});
 
 	it("still opens settings for non-admins", async () => {
