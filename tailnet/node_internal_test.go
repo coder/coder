@@ -111,6 +111,55 @@ func TestNodeUpdater_setNetInfo_same(t *testing.T) {
 	_ = testutil.TryReceive(ctx, t, done)
 }
 
+func TestNodeUpdater_setNetInfo_clonesInput(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+	id := tailcfg.NodeID(1)
+	nodeKey := key.NewNode().Public()
+	discoKey := key.NewDisco().Public()
+	nodeCh := make(chan *Node)
+	uut := newNodeUpdater(
+		logger,
+		func(n *Node) {
+			nodeCh <- n
+		},
+		id, nodeKey, discoKey,
+	)
+	defer uut.close()
+
+	// Given: a DERPLatency map passed into setNetInfo
+	dl := map[string]float64{"1": 0.025}
+	uut.setNetInfo(&tailcfg.NetInfo{
+		PreferredDERP: 1,
+		DERPLatency:   dl,
+	})
+
+	node := testutil.TryReceive(ctx, t, nodeCh)
+	require.Equal(t, 1, node.PreferredDERP)
+	require.True(t, maps.Equal(map[string]float64{"1": 0.025}, node.DERPLatency))
+
+	// When: we mutate the original map after setNetInfo
+	dl["1"] = 99.0
+	dl["2"] = 50.0
+
+	// Then: the nodeUpdater's internal state is not affected.
+	uut.L.Lock()
+	require.Equal(t, map[string]float64{"1": 0.025}, uut.derpLatency)
+	uut.L.Unlock()
+
+	// Then: the Node already produced by the callback is also not
+	// affected.
+	require.Equal(t, map[string]float64{"1": 0.025}, node.DERPLatency)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.TryReceive(ctx, t, done)
+}
+
 func TestNodeUpdater_setDERPForcedWebsocket_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

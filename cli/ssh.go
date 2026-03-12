@@ -1546,11 +1546,22 @@ func collectNetworkStats(ctx context.Context, agentConn workspacesdk.AgentConn, 
 	uploadSecs := float64(totalTx) / dur.Seconds()
 	downloadSecs := float64(totalRx) / dur.Seconds()
 
+	// Node or DERPMap may be nil early in the connection lifecycle
+	// before the tailnet has fully connected. Return stats with
+	// ping data but empty DERP fields rather than panicking.
+	if node == nil || derpMap == nil {
+		return &sshNetworkStats{
+			P2P:              p2p,
+			Latency:          float64(latency.Microseconds()) / 1000,
+			PreferredDERP:    "",
+			DERPLatency:      map[string]float64{},
+			UploadBytesSec:   int64(uploadSecs),
+			DownloadBytesSec: int64(downloadSecs),
+		}, nil
+	}
+
 	preferredDerpName := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
 	derpLatency := tailnet.ExtractDERPLatency(node, derpMap)
-	if _, ok := derpLatency[preferredDerpName]; !ok {
-		derpLatency[preferredDerpName] = 0
-	}
 	derpLatencyMs := maps.Map(derpLatency, func(dur time.Duration) float64 {
 		return float64(dur) / float64(time.Millisecond)
 	})

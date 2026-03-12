@@ -622,20 +622,22 @@ func (u *updater) recordLatencies() {
 			go func() {
 				defer wg.Done()
 
+				// Fetch Node and DERPMap before the ping to ensure the
+				// latency data corresponds to the same DERP state that
+				// informed relay selection for this ping.
+				node := conn.Node()
+				derpMap := conn.DERPMap()
+				if node == nil || derpMap == nil {
+					u.logger.Warn(u.ctx, "failed to get DERP map or node before ping")
+					return
+				}
+
 				pingDur, didP2p, pingResult, err := conn.Ping(pingCtx, agentID)
 				if err != nil {
 					u.logger.Warn(u.ctx, "failed to ping agent", slog.F("agent_id", agentID), slog.Error(err))
 					return
 				}
 
-				// We fetch the Node and DERPMap after each ping, as it may have
-				// changed.
-				node := conn.Node()
-				derpMap := conn.DERPMap()
-				if node == nil || derpMap == nil {
-					u.logger.Warn(u.ctx, "failed to get DERP map or node after ping")
-					return
-				}
 				derpLatencies := tailnet.ExtractDERPLatency(node, derpMap)
 				preferredDerp := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
 				var preferredDerpLatency *time.Duration

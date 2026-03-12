@@ -146,7 +146,7 @@ func (u *nodeUpdater) setNetInfo(ni *tailcfg.NetInfo) {
 	}
 	if !maps.Equal(u.derpLatency, ni.DERPLatency) {
 		dirty = true
-		u.derpLatency = ni.DERPLatency
+		u.derpLatency = maps.Clone(ni.DERPLatency)
 	}
 	if dirty {
 		u.dirty = true
