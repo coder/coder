@@ -5830,7 +5830,7 @@ type InsertUserGroupsByIDParams struct {
 	GroupIds []uuid.UUID `db:"group_ids" json:"group_ids"`
 }
 
-// InsertUserGroupsByID adds a user to all provided groups, if they exist.
+// InsertUserGroupsByName adds a user to all provided groups, if they exist.
 // If there is a conflict, the user is already a member
 func (q *sqlQuerier) InsertUserGroupsByID(ctx context.Context, arg InsertUserGroupsByIDParams) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, insertUserGroupsByID, arg.UserID, pq.Array(arg.GroupIds))
