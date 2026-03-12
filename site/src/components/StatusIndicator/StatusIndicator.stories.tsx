@@ -54,6 +54,18 @@ export const Pending: Story = {
 	},
 };
 
+export const PendingPulse: Story = {
+	args: {
+		variant: "pending",
+		children: (
+			<>
+				<StatusIndicatorDot pulse />
+				Status
+			</>
+		),
+	},
+};
+
 export const Small: Story = {
 	args: {
 		variant: "success",

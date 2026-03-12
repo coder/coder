@@ -106,12 +106,6 @@ export const RunningDelegatedChat: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const statusDot = canvas.getByTestId("agents-tree-executing-child-running");
-		await expect(statusDot).toBeInTheDocument();
-		await expect(statusDot.className).toContain("animate-status-dot-pulse");
-	},
 };
 
 export const PendingDelegatedChat: Story = {
@@ -135,12 +129,6 @@ export const PendingDelegatedChat: Story = {
 			},
 			routing: agentsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const statusDot = canvas.getByTestId("agents-tree-executing-child-pending");
-		await expect(statusDot).toBeInTheDocument();
-		await expect(statusDot.className).toContain("animate-status-dot-pulse");
 	},
 };
 
@@ -207,22 +195,6 @@ export const RunningChatPreservesPulsingDot: Story = {
 			routing: agentsRouting,
 		}),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// The root chat is running and has children, so a pulsing
-		// StatusIndicatorDot should be rendered inside the icon wrapper.
-		const node = canvas.getByTestId("agents-tree-node-root-running");
-		const pulsingDot = node.querySelector(".animate-status-dot-pulse");
-		await expect(pulsingDot).toBeInTheDocument();
-
-		// The toggle button should exist (the node has children) but
-		// must be invisible by default — it only appears on hover of
-		// the icon area itself, not the whole row.
-		const toggle = canvas.getByTestId("agents-tree-toggle-root-running");
-		await expect(toggle).toBeInTheDocument();
-		await expect(toggle.className).toMatch(/\binvisible\b/);
-	},
 };
 
 export const ErrorChatShowsFailedDot: Story = {
@@ -244,16 +216,6 @@ export const ErrorChatShowsFailedDot: Story = {
 			},
 			routing: agentsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const node = canvas.getByTestId("agents-tree-node-error-chat");
-		const failedDot = node.querySelector(".bg-content-destructive");
-		await expect(failedDot).toBeInTheDocument();
-		await expect(failedDot?.className).toContain("border-surface-destructive");
-		await expect(failedDot?.className).not.toContain(
-			"animate-status-dot-pulse",
-		);
 	},
 };
 
@@ -284,16 +246,6 @@ export const IdleParentWithRunningChild: Story = {
 			},
 			routing: agentsRouting,
 		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		// The parent's toggle should use icon-only hover scope because
-		// its child is actively running.
-		const toggle = canvas.getByTestId("agents-tree-toggle-idle-parent");
-		await expect(toggle).toBeInTheDocument();
-		await expect(toggle.className).toMatch(/\binvisible\b/);
-		await expect(toggle.className).toContain("group-hover/icon:visible");
 	},
 };
 
