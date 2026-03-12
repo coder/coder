@@ -66,12 +66,8 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 	var (
 		collectedAt = a.now()
 		allKeysLen  = 0
-		dbUpdate    = struct {
-			Key         []string
-			Value       []string
-			Error       []string
-			CollectedAt []time.Time
-		}{
+		dbUpdate    = database.UpdateWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: workspaceAgent.ID,
 			// These need to be `make(x, 0, len(req.Metadata))` instead of
 			// `make(x, len(req.Metadata))` because we may not insert all
 			// metadata if the keys are large.
