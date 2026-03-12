@@ -560,41 +560,16 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 
 	mp := &mockProvider{
 		parsePullRequestURL: func(raw string) (gitprovider.PRRef, bool) {
-			var num int
-			switch {
-			case strings.HasSuffix(raw, "/pull/1"):
-				num = 1
-			case strings.HasSuffix(raw, "/pull/2"):
-				num = 2
-			case strings.HasSuffix(raw, "/pull/3"):
-				num = 3
-			default:
-				return gitprovider.PRRef{}, false
-			}
-			return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: num}, true
+			return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1}, raw != ""
 		},
-		fetchPullRequestStatus: func(_ context.Context, _ string, ref gitprovider.PRRef) (*gitprovider.PRStatus, error) {
-			call := callCount.Add(1)
-			switch call {
-			case 1:
-				// First call succeeds.
-				return &gitprovider.PRStatus{
-					State: gitprovider.PRStateOpen,
-					DiffStats: gitprovider.DiffStats{
-						Additions:    5,
-						Deletions:    2,
-						ChangedFiles: 1,
-					},
-				}, nil
-			case 2:
-				// Second call hits rate limit.
-				return nil, &gitprovider.RateLimitError{
-					RetryAfter: time.Now().Add(60 * time.Second),
-				}
-			default:
-				// Third call should never happen.
-				t.Fatal("FetchPullRequestStatus called more than 2 times")
-				return nil, nil
+		fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
+			// Every call returns a rate limit error. With
+			// concurrency=1 the first goroutine to acquire the
+			// semaphore makes the only real call; remaining
+			// goroutines see the flag and skip.
+			callCount.Add(1)
+			return nil, &gitprovider.RateLimitError{
+				RetryAfter: time.Now().Add(60 * time.Second),
 			}
 		},
 	}
@@ -604,7 +579,9 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 		return ptr.Ref("test-token"), nil
 	}
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+	// Concurrency=1 ensures sequential semaphore acquisition so
+	// the rate-limit flag is always visible to later goroutines.
+	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal(), gitsync.WithConcurrency(1))
 
 	ownerID := uuid.New()
 	origin := "https://github.com/org/repo"
@@ -643,26 +620,31 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results, 3)
 
-	// Row 0: success.
-	assert.NoError(t, results[0].Error)
-	assert.NotNil(t, results[0].Params)
+	// With concurrency=1, the first goroutine to acquire the
+	// semaphore makes the only API call (which rate-limits).
+	// The remaining goroutines see the rate-limit flag and
+	// skip. Goroutine scheduling order is non-deterministic,
+	// so we verify aggregate counts rather than per-index
+	// results.
+	var directCount, skippedCount int
+	for _, res := range results {
+		require.Error(t, res.Error)
+		var rlErr *gitprovider.RateLimitError
+		require.True(t, errors.As(res.Error, &rlErr),
+			"every result should wrap *RateLimitError")
+		if errors.Is(res.Error, gitsync.ErrRateLimitSkipped) {
+			skippedCount++
+		} else {
+			directCount++
+		}
+	}
 
-	// Row 1: rate-limited.
-	require.Error(t, results[1].Error)
-	var rlErr1 *gitprovider.RateLimitError
-	assert.True(t, errors.As(results[1].Error, &rlErr1),
-		"result[1] error should be *RateLimitError")
-
-	// Row 2: skipped due to rate limit.
-	require.Error(t, results[2].Error)
-	var rlErr2 *gitprovider.RateLimitError
-	assert.True(t, errors.As(results[2].Error, &rlErr2),
-		"result[2] error should wrap *RateLimitError")
-	assert.Contains(t, results[2].Error.Error(), "skipped")
-
-	// Provider should have been called exactly twice.
-	assert.Equal(t, int32(2), callCount.Load(),
-		"FetchPullRequestStatus should be called exactly 2 times")
+	assert.Equal(t, 1, directCount,
+		"exactly one row should be directly rate-limited")
+	assert.Equal(t, 2, skippedCount,
+		"two rows should be skipped due to rate limit")
+	assert.Equal(t, int32(1), callCount.Load(),
+		"FetchPullRequestStatus should be called exactly once")
 }
 
 func TestRefresher_CorrectTokenPerOrigin(t *testing.T) {
@@ -772,4 +754,70 @@ func TestRefresher_CorrectTokenPerOrigin(t *testing.T) {
 	// (owner, origin) group.
 	assert.Equal(t, int32(2), tokenCalls.Load(),
 		"TokenResolver should be called once per (owner, origin) group")
+}
+
+func TestRefresher_ConcurrentProcessing(t *testing.T) {
+	t.Parallel()
+
+	const numRows = 3
+
+	// gate blocks all goroutines until numRows goroutines have
+	// entered FetchPullRequestStatus, proving they run concurrently.
+	gate := make(chan struct{})
+	var entered atomic.Int32
+
+	mp := &mockProvider{
+		parsePullRequestURL: func(raw string) (gitprovider.PRRef, bool) {
+			return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1}, true
+		},
+		fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
+			if entered.Add(1) == numRows {
+				close(gate)
+			}
+			// Block until all goroutines have entered.
+			<-gate
+			return &gitprovider.PRStatus{State: gitprovider.PRStateOpen}, nil
+		},
+	}
+
+	providers := func(_ string) gitprovider.Provider { return mp }
+	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+		return ptr.Ref("test-token"), nil
+	}
+
+	// Concurrency must be >= numRows so all goroutines can enter
+	// simultaneously.
+	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal(), gitsync.WithConcurrency(numRows))
+
+	ownerID := uuid.New()
+	origin := "https://github.com/org/repo"
+
+	requests := make([]gitsync.RefreshRequest, numRows)
+	for i := range requests {
+		requests[i] = gitsync.RefreshRequest{
+			Row: database.ChatDiffStatus{
+				ChatID:          uuid.New(),
+				Url:             sql.NullString{String: fmt.Sprintf("https://github.com/org/repo/pull/%d", i+1), Valid: true},
+				GitRemoteOrigin: origin,
+				GitBranch:       fmt.Sprintf("feat-%d", i+1),
+			},
+			OwnerID: ownerID,
+		}
+	}
+
+	results, err := r.Refresh(context.Background(), requests)
+	require.NoError(t, err)
+	require.Len(t, results, numRows)
+
+	for i, res := range results {
+		if res.Error != nil {
+			t.Logf("result[%d] error: %v", i, res.Error)
+		}
+		assert.NoError(t, res.Error, "result[%d]", i)
+		assert.NotNil(t, res.Params, "result[%d]", i)
+	}
+
+	// All numRows goroutines entered FetchPullRequestStatus
+	// concurrently.
+	assert.Equal(t, int32(numRows), entered.Load())
 }
