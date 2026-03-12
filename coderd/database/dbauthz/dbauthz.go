@@ -1900,10 +1900,6 @@ func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.Delet
 	}, q.db.DeleteExternalAuthLink)(ctx, arg)
 }
 
-func (q *querier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, q.db.GetGitSSHKey, q.db.DeleteGitSSHKey)(ctx, userID)
-}
-
 func (q *querier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetGroupByID, q.db.DeleteGroupByID)(ctx, id)
 }

@@ -711,20 +711,6 @@ func (mr *MockStoreMockRecorder) DeleteExternalAuthLink(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExternalAuthLink", reflect.TypeOf((*MockStore)(nil).DeleteExternalAuthLink), ctx, arg)
 }
 
-// DeleteGitSSHKey mocks base method.
-func (m *MockStore) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteGitSSHKey", ctx, userID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteGitSSHKey indicates an expected call of DeleteGitSSHKey.
-func (mr *MockStoreMockRecorder) DeleteGitSSHKey(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteGitSSHKey", reflect.TypeOf((*MockStore)(nil).DeleteGitSSHKey), ctx, userID)
-}
-
 // DeleteGroupByID mocks base method.
 func (m *MockStore) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()

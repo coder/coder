@@ -5711,18 +5711,6 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 	return i, err
 }
 
-const deleteGitSSHKey = `-- name: DeleteGitSSHKey :exec
-DELETE FROM
-	gitsshkeys
-WHERE
-	user_id = $1
-`
-
-func (q *sqlQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteGitSSHKey, userID)
-	return err
-}
-
 const getGitSSHKey = `-- name: GetGitSSHKey :one
 SELECT
 	user_id, created_at, updated_at, private_key, public_key

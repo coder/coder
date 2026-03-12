@@ -448,14 +448,6 @@ func (m queryMetricsStore) DeleteExternalAuthLink(ctx context.Context, arg datab
 	return r0
 }
 
-func (m queryMetricsStore) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteGitSSHKey(ctx, userID)
-	m.queryLatencies.WithLabelValues("DeleteGitSSHKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteGitSSHKey").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteGroupByID(ctx, id)
