@@ -98,8 +98,9 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 // authentication token in the request.
 //
 // This differs from [RateLimit] in several ways:
-//   - It extracts the token directly from request headers (Authorization Bearer
-//     or X-Api-Key) rather than from the request context, making it suitable for
+//   - It extracts the token directly from the request using
+//     [aibridge.ExtractAuthToken] rather than from the request context, making it
+//     suitable for
 //     endpoints that handle authentication internally (like AI Bridge) rather than
 //     via [ExtractAPIKeyMW] middleware.
 //   - It does not support the bypass header for Owners.
@@ -119,9 +120,9 @@ func RateLimitByAuthToken(count int, window time.Duration) func(http.Handler) ht
 		count,
 		window,
 		httprate.WithKeyFuncs(func(r *http.Request) (string, error) {
-			// Try to extract auth token for per-user rate limiting using
-			// AI provider authentication headers (Authorization Bearer or X-Api-Key).
-			if token := aibridge.ExtractAuthToken(r.Header); token != "" {
+			// Try to extract an auth token for per-user rate limiting.
+			// This uses aibridge.ExtractAuthToken's priority order.
+			if token := aibridge.ExtractAuthToken(r); token != "" {
 				return token, nil
 			}
 			// Fall back to IP-based rate limiting if no token present.

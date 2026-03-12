@@ -30,6 +30,7 @@ import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
+import type { PublishVersionData } from "./types";
 
 const TemplateVersionEditorPage: FC = () => {
 	const getLink = useLinks();
@@ -116,6 +117,24 @@ const TemplateVersionEditorPage: FC = () => {
 		navigateToVersion(newVersion);
 	};
 
+	const doPublish = async ({
+		isActiveVersion,
+		...data
+	}: PublishVersionData) => {
+		const templateVersion = activeTemplateVersion!;
+		// publishVersion returns the server's patched TemplateVersion,
+		// so we use it as the authoritative source of truth instead of
+		// manually reconstructing the object from local inputs.
+		const publishedVersion = await publishVersionMutation.mutateAsync({
+			isActiveVersion,
+			data,
+			version: templateVersion,
+		});
+		setLastSuccessfulPublishedVersion(publishedVersion);
+		queryClient.setQueryData(templateVersionOptions.queryKey, publishedVersion);
+		return publishedVersion;
+	};
+
 	// Provisioner Tags
 	const [provisionerTags, setProvisionerTags] = useState<
 		Record<string, string>
@@ -141,7 +160,9 @@ const TemplateVersionEditorPage: FC = () => {
 					defaultFileTree={fileTree}
 					onPreview={async (newFileTree) => {
 						if (!tarFile) {
-							return;
+							throw new Error(
+								"Template version file contents are unavailable.",
+							);
 						}
 						const newVersionFile = await generateVersionFiles(
 							tarFile,
@@ -158,6 +179,7 @@ const TemplateVersionEditorPage: FC = () => {
 						});
 
 						onBuildEnds(newVersion);
+						return newVersion;
 					}}
 					onPublish={() => {
 						setIsPublishingDialogOpen(true);
@@ -165,22 +187,13 @@ const TemplateVersionEditorPage: FC = () => {
 					onCancelPublish={() => {
 						setIsPublishingDialogOpen(false);
 					}}
-					onConfirmPublish={async ({ isActiveVersion, ...data }) => {
-						await publishVersionMutation.mutateAsync({
-							isActiveVersion,
-							data,
-							version: activeTemplateVersion,
-						});
-						const publishedVersion = {
-							...activeTemplateVersion,
-							...data,
-						};
+					onConfirmPublish={async (data) => {
+						const publishedVersion = await doPublish(data);
 						setIsPublishingDialogOpen(false);
-						setLastSuccessfulPublishedVersion(publishedVersion);
-						queryClient.setQueryData(
-							templateVersionOptions.queryKey,
-							publishedVersion,
-						);
+						navigateToVersion(publishedVersion);
+					}}
+					onPublishVersion={async (data) => {
+						const publishedVersion = await doPublish(data);
 						navigateToVersion(publishedVersion);
 					}}
 					isAskingPublishParameters={isPublishingDialogOpen}
@@ -334,29 +347,34 @@ const generateVersionFiles = async (
 	return new File([blob], "template.tar", { type: "application/x-tar" });
 };
 
+/**
+ * Publish a template version by patching its metadata and optionally
+ * promoting it to the active version. Returns the server's patched
+ * TemplateVersion so callers use authoritative data instead of
+ * reconstructing the object locally.
+ */
 const publishVersion = async (options: {
 	version: TemplateVersion;
 	data: PatchTemplateVersionRequest;
 	isActiveVersion: boolean;
-}) => {
+}): Promise<TemplateVersion> => {
 	const { version, data, isActiveVersion } = options;
 	const haveChanges =
 		data.name !== version.name || data.message !== version.message;
-	const publishActions: Promise<unknown>[] = [];
 
-	if (haveChanges) {
-		publishActions.push(API.patchTemplateVersion(version.id, data));
-	}
+	// Patch metadata first so we have the server's response as the
+	// canonical source of truth for the updated TemplateVersion.
+	const patchedVersion = haveChanges
+		? await API.patchTemplateVersion(version.id, data)
+		: version;
 
 	if (version.template_id && isActiveVersion) {
-		publishActions.push(
-			API.updateActiveTemplateVersion(version.template_id, {
-				id: version.id,
-			}),
-		);
+		await API.updateActiveTemplateVersion(version.template_id, {
+			id: version.id,
+		});
 	}
 
-	return Promise.all(publishActions);
+	return patchedVersion;
 };
 
 const defaultMainTerraformFile = "main.tf";

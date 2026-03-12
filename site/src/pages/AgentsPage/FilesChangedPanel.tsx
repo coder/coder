@@ -65,6 +65,33 @@ const STICKY_HEADER_CSS = [
 	"}",
 ].join(" ");
 
+type ParsedContextContent = {
+	type: "context";
+	lines: number;
+	additionLineIndex: number;
+	deletionLineIndex: number;
+};
+
+type ParsedChangeContent = {
+	type: "change";
+	additions: number;
+	deletions: number;
+	additionLineIndex: number;
+	deletionLineIndex: number;
+};
+
+type ParsedHunkMetadata = FileDiffMetadata["hunks"][number] & {
+	additionLineIndex: number;
+	deletionLineIndex: number;
+	hunkContent: Array<ParsedContextContent | ParsedChangeContent>;
+};
+
+type ParsedFileDiffMetadata = FileDiffMetadata & {
+	additionLines: string[];
+	deletionLines: string[];
+	hunks: ParsedHunkMetadata[];
+};
+
 type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
 
@@ -77,7 +104,7 @@ const DIFF_STYLE_KEY = "agents.diff-view-style";
  * in range are included as well.
  */
 function extractDiffContent(
-	parsedFiles: readonly FileDiffMetadata[],
+	parsedFiles: readonly ParsedFileDiffMetadata[],
 	fileName: string,
 	startLine: number,
 	endLine: number,
@@ -95,43 +122,51 @@ function extractDiffContent(
 		for (const block of hunk.hunkContent) {
 			if (block.type === "context") {
 				for (let i = 0; i < block.lines; i++) {
-					const ln = side === "additions" ? addLine : delLine;
-					if (ln >= startLine && ln <= endLine) {
-						const idx =
+					const lineNumber = side === "additions" ? addLine : delLine;
+					if (lineNumber >= startLine && lineNumber <= endLine) {
+						const lineIndex =
 							side === "additions"
 								? block.additionLineIndex + i
 								: block.deletionLineIndex + i;
-						if (lines[idx] != null) collected.push(lines[idx]);
+						const line = lines[lineIndex];
+						if (line != null) {
+							collected.push(line);
+						}
 					}
 					addLine++;
 					delLine++;
 				}
-			} else {
-				// ChangeContent block.
-				if (side === "deletions") {
-					for (let i = 0; i < block.deletions; i++) {
-						if (delLine >= startLine && delLine <= endLine) {
-							const line = lines[block.deletionLineIndex + i];
-							if (line != null) collected.push(line);
+				continue;
+			}
+
+			if (side === "deletions") {
+				for (let i = 0; i < block.deletions; i++) {
+					if (delLine >= startLine && delLine <= endLine) {
+						const line = lines[block.deletionLineIndex + i];
+						if (line != null) {
+							collected.push(line);
 						}
-						delLine++;
 					}
-					// Addition lines in a change block still advance
-					// the addition counter.
-					addLine += block.additions;
-				} else {
-					// side === "additions"
-					// Deletion lines in a change block still advance
-					// the deletion counter.
-					delLine += block.deletions;
-					for (let i = 0; i < block.additions; i++) {
-						if (addLine >= startLine && addLine <= endLine) {
-							const line = lines[block.additionLineIndex + i];
-							if (line != null) collected.push(line);
-						}
-						addLine++;
+					delLine++;
+				}
+				// Addition lines in a change block still advance the
+				// addition counter even when we are collecting deletions.
+				addLine += block.additions;
+				continue;
+			}
+
+			// side === "additions"
+			// Deletion lines in a change block still advance the
+			// deletion counter even when we are collecting additions.
+			delLine += block.deletions;
+			for (let i = 0; i < block.additions; i++) {
+				if (addLine >= startLine && addLine <= endLine) {
+					const line = lines[block.additionLineIndex + i];
+					if (line != null) {
+						collected.push(line);
 					}
 				}
+				addLine++;
 			}
 		}
 	}
@@ -531,7 +566,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 				diff,
 				`chat-${chatId}-${diffContentsQuery.dataUpdatedAt}`,
 			);
-			return patches.flatMap((p) => p.files);
+			return patches.flatMap((p) => p.files) as ParsedFileDiffMetadata[];
 		} catch {
 			return [];
 		}

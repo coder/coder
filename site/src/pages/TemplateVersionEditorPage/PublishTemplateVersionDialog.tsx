@@ -64,6 +64,9 @@ export const PublishTemplateVersionDialog: FC<
 	});
 	const getFieldHelpers = getFormHelpers(form, publishingError);
 	const handleClose = () => {
+		if (isPublishing) {
+			return;
+		}
 		form.resetForm();
 		onClose();
 	};

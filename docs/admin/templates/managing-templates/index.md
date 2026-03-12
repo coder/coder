@@ -46,6 +46,13 @@ any template's files directly in the Coder dashboard.
 If you'd prefer to use the CLI, use `coder templates pull`, edit the template
 files, then `coder templates push`.
 
+When [AI Bridge](../../../ai-coder/ai-bridge/index.md) is configured and the
+`ai-template-editor` experiment is enabled, an AI coding assistant is available
+in the template editor. It can read, edit, and delete files, run validation
+builds, and publish new versions — all from a chat panel in the editor. See
+[Template Editor AI Assistant](../../../ai-coder/ai-bridge/clients/template-editor.md)
+for details.
+
 > [!TIP]
 > Even if you are a Terraform expert, we suggest reading our
 > [guided tour of a template](../../../tutorials/template-from-scratch.md).

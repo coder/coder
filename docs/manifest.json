@@ -1082,6 +1082,11 @@
 									"path": "./ai-coder/ai-bridge/clients/index.md",
 									"children": [
 										{
+											"title": "Template Editor",
+											"description": "Built-in AI assistant in the template version editor",
+											"path": "./ai-coder/ai-bridge/clients/template-editor.md"
+										},
+										{
 											"title": "Claude Code",
 											"description": "Configure Claude Code to use AI Bridge",
 											"path": "./ai-coder/ai-bridge/clients/claude-code.md"
