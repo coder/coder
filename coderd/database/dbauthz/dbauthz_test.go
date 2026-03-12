@@ -4579,18 +4579,6 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 			AppID: app.ID,
 		}).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionCreate)
 	}))
-	s.Run("UpdateOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
-		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
-			AppID: app.ID,
-		})
-		secret.LastUsedAt = sql.NullTime{Time: dbtestutil.NowInDefaultTimezone(), Valid: true}
-		check.Args(database.UpdateOAuth2ProviderAppSecretByIDParams{
-			ID:         secret.ID,
-			LastUsedAt: secret.LastUsedAt,
-		}).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionUpdate).Returns(secret)
-	}))
 	s.Run("DeleteOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{

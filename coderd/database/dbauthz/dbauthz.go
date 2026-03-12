@@ -5667,13 +5667,6 @@ func (q *querier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg database.
 	return q.db.UpdateOAuth2ProviderAppByID(ctx, arg)
 }
 
-func (q *querier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppSecretByIDParams) (database.OAuth2ProviderAppSecret, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceOauth2AppSecret); err != nil {
-		return database.OAuth2ProviderAppSecret{}, err
-	}
-	return q.db.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
-}
-
 func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
 	fetch := func(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
 		return q.db.GetOrganizationByID(ctx, arg.ID)

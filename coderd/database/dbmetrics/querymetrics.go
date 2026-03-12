@@ -3927,14 +3927,6 @@ func (m queryMetricsStore) UpdateOAuth2ProviderAppByID(ctx context.Context, arg 
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppSecretByIDParams) (database.OAuth2ProviderAppSecret, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateOAuth2ProviderAppSecretByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOAuth2ProviderAppSecretByID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateOrganization(ctx, arg)

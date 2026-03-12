@@ -9889,32 +9889,6 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 	return i, err
 }
 
-const updateOAuth2ProviderAppSecretByID = `-- name: UpdateOAuth2ProviderAppSecretByID :one
-UPDATE oauth2_provider_app_secrets SET
-    last_used_at = $2
-WHERE id = $1 RETURNING id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix
-`
-
-type UpdateOAuth2ProviderAppSecretByIDParams struct {
-	ID         uuid.UUID    `db:"id" json:"id"`
-	LastUsedAt sql.NullTime `db:"last_used_at" json:"last_used_at"`
-}
-
-func (q *sqlQuerier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg UpdateOAuth2ProviderAppSecretByIDParams) (OAuth2ProviderAppSecret, error) {
-	row := q.db.QueryRowContext(ctx, updateOAuth2ProviderAppSecretByID, arg.ID, arg.LastUsedAt)
-	var i OAuth2ProviderAppSecret
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.LastUsedAt,
-		&i.HashedSecret,
-		&i.DisplaySecret,
-		&i.AppID,
-		&i.SecretPrefix,
-	)
-	return i, err
-}
-
 const deleteOrganizationMember = `-- name: DeleteOrganizationMember :exec
 DELETE
 	FROM

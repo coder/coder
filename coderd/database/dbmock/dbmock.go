@@ -7387,21 +7387,6 @@ func (mr *MockStoreMockRecorder) UpdateOAuth2ProviderAppByID(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOAuth2ProviderAppByID", reflect.TypeOf((*MockStore)(nil).UpdateOAuth2ProviderAppByID), ctx, arg)
 }
 
-// UpdateOAuth2ProviderAppSecretByID mocks base method.
-func (m *MockStore) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppSecretByIDParams) (database.OAuth2ProviderAppSecret, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOAuth2ProviderAppSecretByID", ctx, arg)
-	ret0, _ := ret[0].(database.OAuth2ProviderAppSecret)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateOAuth2ProviderAppSecretByID indicates an expected call of UpdateOAuth2ProviderAppSecretByID.
-func (mr *MockStoreMockRecorder) UpdateOAuth2ProviderAppSecretByID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOAuth2ProviderAppSecretByID", reflect.TypeOf((*MockStore)(nil).UpdateOAuth2ProviderAppSecretByID), ctx, arg)
-}
-
 // UpdateOrganization mocks base method.
 func (m *MockStore) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
 	m.ctrl.T.Helper()
