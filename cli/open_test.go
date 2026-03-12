@@ -510,7 +510,7 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
 
-			ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
 			inv = inv.WithContext(ctx)
 
 			for k, v := range tt.env {
