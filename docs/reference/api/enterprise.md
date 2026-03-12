@@ -486,9 +486,10 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
 
 ### Parameters
 
-| Name    | In   | Type   | Required | Description |
-|---------|------|--------|----------|-------------|
-| `group` | path | string | true     | Group id    |
+| Name    | In    | Type   | Required | Description         |
+|---------|-------|--------|----------|---------------------|
+| `group` | path  | string | true     | Group id            |
+| `q`     | query | string | false    | Member search query |
 
 ### Example responses
 

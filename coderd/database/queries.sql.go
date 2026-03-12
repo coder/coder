@@ -7289,24 +7289,146 @@ func (q *sqlQuerier) GetGroupMembers(ctx context.Context, includeSystem bool) ([
 }
 
 const getGroupMembersByGroupID = `-- name: GetGroupMembersByGroupID :many
-SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, organization_id, group_name, group_id
-FROM group_members_expanded
-WHERE group_id = $1
-  -- Filter by system type
-  AND CASE
-      WHEN $2::bool THEN TRUE
-      ELSE
-        user_is_system = false
-      END
+SELECT
+	user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, organization_id, group_name, group_id
+FROM
+	group_members_expanded
+WHERE
+	group_members_expanded.group_id = $1
+	AND CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the username field, so select all
+			-- rows after the cursor.
+			(LOWER(user_username)) > (
+				SELECT
+					LOWER(user_username)
+				FROM
+					group_members_expanded
+				WHERE
+					group_id = $1
+					AND user_id = $2
+			)
+		)
+		ELSE true
+	END
+	-- Start filters
+	-- Filter by email or username
+	AND CASE
+		WHEN $3 :: text != '' THEN (
+			user_email ILIKE concat('%', $3, '%')
+			OR user_username ILIKE concat('%', $3, '%')
+		)
+		ELSE true
+	END
+	-- Filter by name (display name)
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			user_name ILIKE concat('%', $4, '%')
+		ELSE true
+	END
+	-- Filter by status
+	AND CASE
+		-- @status needs to be a text because it can be empty, If it was
+		-- user_status enum, it would not.
+		WHEN cardinality($5 :: user_status[]) > 0 THEN
+			user_status = ANY($5 :: user_status[])
+		ELSE true
+	END
+	-- Filter by rbac_roles
+	AND CASE
+		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
+		-- everyone is a member.
+		WHEN cardinality($6 :: text[]) > 0 AND 'member' != ANY($6 :: text[]) THEN
+			user_rbac_roles && $6 :: text[]
+		ELSE true
+	END
+	-- Filter by last_seen
+	AND CASE
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_last_seen_at <= $7
+		ELSE true
+	END
+	AND CASE
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_last_seen_at >= $8
+		ELSE true
+	END
+	-- Filter by created_at
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_created_at <= $9
+		ELSE true
+	END
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_created_at >= $10
+		ELSE true
+	END
+	 -- Filter by system type
+	AND CASE
+		WHEN $11::bool THEN TRUE
+		ELSE user_is_system = false
+	END
+	AND CASE
+		WHEN $12 :: bigint != 0 THEN
+			user_github_com_user_id = $12
+		ELSE true
+	END
+	-- Filter by login_type
+	AND CASE
+		WHEN cardinality($13 :: login_type[]) > 0 THEN
+			user_login_type = ANY($13 :: login_type[])
+		ELSE true
+	END
+	-- End of filters
+ORDER BY
+	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
+	LOWER(user_username) ASC OFFSET $14
+LIMIT
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF($15 :: int, 0)
 `
 
 type GetGroupMembersByGroupIDParams struct {
-	GroupID       uuid.UUID `db:"group_id" json:"group_id"`
-	IncludeSystem bool      `db:"include_system" json:"include_system"`
+	GroupID         uuid.UUID    `db:"group_id" json:"group_id"`
+	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
+	Search          string       `db:"search" json:"search"`
+	Name            string       `db:"name" json:"name"`
+	Status          []UserStatus `db:"status" json:"status"`
+	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
+	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
+	LastSeenAfter   time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	CreatedBefore   time.Time    `db:"created_before" json:"created_before"`
+	CreatedAfter    time.Time    `db:"created_after" json:"created_after"`
+	IncludeSystem   bool         `db:"include_system" json:"include_system"`
+	GithubComUserID int64        `db:"github_com_user_id" json:"github_com_user_id"`
+	LoginType       []LoginType  `db:"login_type" json:"login_type"`
+	OffsetOpt       int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt        int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error) {
-	rows, err := q.db.QueryContext(ctx, getGroupMembersByGroupID, arg.GroupID, arg.IncludeSystem)
+	rows, err := q.db.QueryContext(ctx, getGroupMembersByGroupID,
+		arg.GroupID,
+		arg.AfterID,
+		arg.Search,
+		arg.Name,
+		pq.Array(arg.Status),
+		pq.Array(arg.RbacRole),
+		arg.LastSeenBefore,
+		arg.LastSeenAfter,
+		arg.CreatedBefore,
+		arg.CreatedAfter,
+		arg.IncludeSystem,
+		arg.GithubComUserID,
+		pq.Array(arg.LoginType),
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
