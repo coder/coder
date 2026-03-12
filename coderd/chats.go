@@ -3111,14 +3111,19 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 		return nil
 	}
 
+	costConfig := codersdk.ModelCostConfig{}
+	if modelConfig.Cost != nil {
+		costConfig = *modelConfig.Cost
+	}
+
 	pricingFields := []struct {
 		name  string
 		value *float64
 	}{
-		{name: "input_price_per_million_tokens", value: modelConfig.InputPricePerMillionTokens},
-		{name: "output_price_per_million_tokens", value: modelConfig.OutputPricePerMillionTokens},
-		{name: "cache_read_price_per_million_tokens", value: modelConfig.CacheReadPricePerMillionTokens},
-		{name: "cache_write_price_per_million_tokens", value: modelConfig.CacheWritePricePerMillionTokens},
+		{name: "cost.input_price_per_million_tokens", value: costConfig.InputPricePerMillionTokens},
+		{name: "cost.output_price_per_million_tokens", value: costConfig.OutputPricePerMillionTokens},
+		{name: "cost.cache_read_price_per_million_tokens", value: costConfig.CacheReadPricePerMillionTokens},
+		{name: "cost.cache_write_price_per_million_tokens", value: costConfig.CacheWritePricePerMillionTokens},
 	}
 	for _, field := range pricingFields {
 		if err := validateNonNegativeFloat64Field(field.name, field.value); err != nil {
@@ -3167,11 +3172,19 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 		config.TopK == nil &&
 		config.PresencePenalty == nil &&
 		config.FrequencyPenalty == nil &&
-		config.InputPricePerMillionTokens == nil &&
-		config.OutputPricePerMillionTokens == nil &&
-		config.CacheReadPricePerMillionTokens == nil &&
-		config.CacheWritePricePerMillionTokens == nil &&
+		isZeroModelCostConfig(config.Cost) &&
 		isZeroChatModelProviderOptions(config.ProviderOptions)
+}
+
+func isZeroModelCostConfig(cost *codersdk.ModelCostConfig) bool {
+	if cost == nil {
+		return true
+	}
+
+	return cost.InputPricePerMillionTokens == nil &&
+		cost.OutputPricePerMillionTokens == nil &&
+		cost.CacheReadPricePerMillionTokens == nil &&
+		cost.CacheWritePricePerMillionTokens == nil
 }
 
 func isZeroChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) bool {

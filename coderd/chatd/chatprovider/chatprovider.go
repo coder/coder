@@ -577,19 +577,37 @@ func MergeMissingCallConfig(
 	if dst.FrequencyPenalty == nil {
 		dst.FrequencyPenalty = defaults.FrequencyPenalty
 	}
-	if dst.InputPricePerMillionTokens == nil {
-		dst.InputPricePerMillionTokens = defaults.InputPricePerMillionTokens
-	}
-	if dst.OutputPricePerMillionTokens == nil {
-		dst.OutputPricePerMillionTokens = defaults.OutputPricePerMillionTokens
-	}
-	if dst.CacheReadPricePerMillionTokens == nil {
-		dst.CacheReadPricePerMillionTokens = defaults.CacheReadPricePerMillionTokens
-	}
-	if dst.CacheWritePricePerMillionTokens == nil {
-		dst.CacheWritePricePerMillionTokens = defaults.CacheWritePricePerMillionTokens
-	}
+	MergeMissingModelCostConfig(&dst.Cost, defaults.Cost)
 	MergeMissingProviderOptions(&dst.ProviderOptions, defaults.ProviderOptions)
+}
+
+// MergeMissingModelCostConfig fills unset pricing metadata from defaults.
+func MergeMissingModelCostConfig(
+	dst **codersdk.ModelCostConfig,
+	defaults *codersdk.ModelCostConfig,
+) {
+	if defaults == nil {
+		return
+	}
+	if *dst == nil {
+		copied := *defaults
+		*dst = &copied
+		return
+	}
+
+	current := *dst
+	if current.InputPricePerMillionTokens == nil {
+		current.InputPricePerMillionTokens = defaults.InputPricePerMillionTokens
+	}
+	if current.OutputPricePerMillionTokens == nil {
+		current.OutputPricePerMillionTokens = defaults.OutputPricePerMillionTokens
+	}
+	if current.CacheReadPricePerMillionTokens == nil {
+		current.CacheReadPricePerMillionTokens = defaults.CacheReadPricePerMillionTokens
+	}
+	if current.CacheWritePricePerMillionTokens == nil {
+		current.CacheWritePricePerMillionTokens = defaults.CacheWritePricePerMillionTokens
+	}
 }
 
 // MergeMissingProviderOptions fills unset provider option fields from defaults.

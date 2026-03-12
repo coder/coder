@@ -22,8 +22,10 @@ describe("pricingFields", () => {
 	it("treats explicit zero pricing as custom pricing", () => {
 		expect(
 			hasCustomPricing({
-				input_price_per_million_tokens: 0,
-				output_price_per_million_tokens: 0,
+				cost: {
+					input_price_per_million_tokens: 0,
+					output_price_per_million_tokens: 0,
+				},
 			} satisfies TypesGen.ChatModelCallConfig),
 		).toBe(true);
 	});
@@ -31,7 +33,9 @@ describe("pricingFields", () => {
 	it("detects custom pricing when any pricing field is greater than zero", () => {
 		expect(
 			hasCustomPricing({
-				cache_write_price_per_million_tokens: 0.25,
+				cost: {
+					cache_write_price_per_million_tokens: 0.25,
+				},
 			} satisfies TypesGen.ChatModelCallConfig),
 		).toBe(true);
 	});

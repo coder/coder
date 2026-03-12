@@ -386,10 +386,12 @@ const GeneralFieldsGroup: FC<
 	return (
 		<>
 			{fields.map((field) => {
-				// General field keys use camelCase of the json_name directly
-				// under "config.", matching the existing form state shape:
-				// config.maxOutputTokens, config.temperature, etc.
-				const camelName = snakeToCamel(field.json_name);
+				// General field keys support nested json_name values, such as
+				// cost.input_price_per_million_tokens.
+				const camelName = field.json_name
+					.split(".")
+					.map(snakeToCamel)
+					.join(".");
 				const fieldKey = `config.${camelName}`;
 				const label = snakeToPrettyLabel(field.json_name);
 

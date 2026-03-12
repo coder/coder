@@ -209,17 +209,27 @@ describe("extractModelConfigFormState", () => {
 		const model: TypesGen.ChatModelConfig = {
 			...baseChatModelConfig,
 			model_config: {
-				input_price_per_million_tokens: 0.15,
-				output_price_per_million_tokens: 0.6,
-				cache_read_price_per_million_tokens: 0.03,
-				cache_write_price_per_million_tokens: 0.3,
+				cost: {
+					input_price_per_million_tokens: 0.15,
+					output_price_per_million_tokens: 0.6,
+					cache_read_price_per_million_tokens: 0.03,
+					cache_write_price_per_million_tokens: 0.3,
+				},
 			},
 		};
 		const result = extractModelConfigFormState(model);
-		expect(result.inputPricePerMillionTokens).toBe("0.15");
-		expect(result.outputPricePerMillionTokens).toBe("0.6");
-		expect(result.cacheReadPricePerMillionTokens).toBe("0.03");
-		expect(result.cacheWritePricePerMillionTokens).toBe("0.3");
+		expect(deepGet(result, ["cost", "inputPricePerMillionTokens"])).toBe(
+			"0.15",
+		);
+		expect(deepGet(result, ["cost", "outputPricePerMillionTokens"])).toBe(
+			"0.6",
+		);
+		expect(deepGet(result, ["cost", "cacheReadPricePerMillionTokens"])).toBe(
+			"0.03",
+		);
+		expect(deepGet(result, ["cost", "cacheWritePricePerMillionTokens"])).toBe(
+			"0.3",
+		);
 	});
 	it("extracts OpenAI provider options", () => {
 		const model: TypesGen.ChatModelConfig = {
@@ -532,27 +542,31 @@ describe("buildModelConfigFromForm", () => {
 			const result = buildModelConfigFromForm(
 				"openai",
 				formWith({
-					inputPricePerMillionTokens: "0.15",
-					outputPricePerMillionTokens: "0.6",
-					cacheReadPricePerMillionTokens: "0.03",
-					cacheWritePricePerMillionTokens: "0.3",
+					cost: {
+						inputPricePerMillionTokens: "0.15",
+						outputPricePerMillionTokens: "0.6",
+						cacheReadPricePerMillionTokens: "0.03",
+						cacheWritePricePerMillionTokens: "0.3",
+					},
 				}),
 			);
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig).toMatchObject({
-				input_price_per_million_tokens: 0.15,
-				output_price_per_million_tokens: 0.6,
-				cache_read_price_per_million_tokens: 0.03,
-				cache_write_price_per_million_tokens: 0.3,
+				cost: {
+					input_price_per_million_tokens: 0.15,
+					output_price_per_million_tokens: 0.6,
+					cache_read_price_per_million_tokens: 0.03,
+					cache_write_price_per_million_tokens: 0.3,
+				},
 			});
 		});
 
 		it("reports error for negative pricing fields", () => {
 			const result = buildModelConfigFromForm(
 				"openai",
-				formWith({ inputPricePerMillionTokens: "-0.5" }),
+				formWith({ cost: { inputPricePerMillionTokens: "-0.5" } }),
 			);
-			expect(result.fieldErrors.inputPricePerMillionTokens).toContain(
+			expect(result.fieldErrors["cost.inputPricePerMillionTokens"]).toContain(
 				"must be zero or greater",
 			);
 			expect(result.modelConfig).toBeUndefined();

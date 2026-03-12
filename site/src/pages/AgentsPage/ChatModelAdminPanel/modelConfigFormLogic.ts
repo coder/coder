@@ -156,10 +156,10 @@ function buildEmptyProviderState(provider: string): Record<string, unknown> {
 export const emptyModelConfigFormState: ModelConfigFormState = (() => {
 	const state: ModelConfigFormState = {};
 
-	// General fields (e.g. maxOutputTokens, temperature).
+	// General fields (e.g. maxOutputTokens, cost.inputPricePerMillionTokens).
 	for (const field of getGeneralFields()) {
-		const key = snakeToCamel(field.json_name);
-		state[key] = "";
+		const camelSegments = field.json_name.split(".").map(snakeToCamel);
+		deepSet(state, camelSegments, "");
 	}
 
 	// Provider sub-objects.
@@ -182,12 +182,12 @@ export const extractModelConfigFormState = (
 
 	const state: ModelConfigFormState = {};
 
-	// General fields — read from the top level of the API config
-	// using the snake_case json_name.
+	// General fields may be nested (for example, cost.input_price_per_million_tokens).
 	for (const field of getGeneralFields()) {
-		const camelKey = snakeToCamel(field.json_name);
-		const apiValue = (config as Record<string, unknown>)[field.json_name];
-		state[camelKey] = toFormString(apiValue);
+		const snakeSegments = field.json_name.split(".");
+		const camelSegments = snakeSegments.map(snakeToCamel);
+		const apiValue = deepGet(config, snakeSegments);
+		deepSet(state, camelSegments, toFormString(apiValue));
 	}
 
 	// Provider sub-objects.
@@ -492,11 +492,12 @@ export const buildModelConfigFromForm = (
 	const modelConfig: Record<string, unknown> = {};
 
 	for (const field of getGeneralFields()) {
-		const formValue = form[snakeToCamel(field.json_name)];
+		const camelSegments = field.json_name.split(".").map(snakeToCamel);
+		const formValue = deepGet(form, camelSegments);
 		if (typeof formValue !== "string") continue;
 		const converted = convertFormValue(formValue, field);
 		if (converted !== undefined) {
-			modelConfig[field.json_name] = converted;
+			deepSet(modelConfig, field.json_name.split("."), converted);
 		}
 	}
 
