@@ -506,7 +506,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 					</div>
 				</div>
 				{/* Footer — pushed to bottom */}
-				<div className="mt-auto pt-6">
+				<div className="mt-auto py-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
 					{confirmingDelete && onDeleteModel && editingModel ? (
 						<div className="flex items-center gap-3">
