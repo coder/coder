@@ -6,12 +6,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// CalculateTotalCostMicros computes the total cost of a chat message in
-// whole micros (millionths of a dollar) using the configured model pricing.
-//
-// Fractional micro components are summed with decimal precision and then
-// rounded once at the end so callers receive a persistable whole-micro value.
-//
+// Returns cost in micros -- millionths of a dollar
 // Returns nil when pricing is not configured or when all priced usage fields
 // are nil, allowing callers to distinguish "zero cost" from "unpriced".
 func CalculateTotalCostMicros(
@@ -30,14 +25,11 @@ func CalculateTotalCostMicros(
 		return nil
 	}
 
-	inputMicros := decimal.NewFromInt(derefInt64(usage.InputTokens)).
-		Mul(derefDecimal(cost.InputPricePerMillionTokens))
-	outputMicros := decimal.NewFromInt(derefInt64(usage.OutputTokens) + derefInt64(usage.ReasoningTokens)).
-		Mul(derefDecimal(cost.OutputPricePerMillionTokens))
-	cacheReadMicros := decimal.NewFromInt(derefInt64(usage.CacheReadTokens)).
-		Mul(derefDecimal(cost.CacheReadPricePerMillionTokens))
-	cacheWriteMicros := decimal.NewFromInt(derefInt64(usage.CacheCreationTokens)).
-		Mul(derefDecimal(cost.CacheWritePricePerMillionTokens))
+	outputTokens := int64OrZero(usage.OutputTokens) + int64OrZero(usage.ReasoningTokens)
+	inputMicros := calcCost(usage.InputTokens, cost.InputPricePerMillionTokens)
+	outputMicros := calcCost(&outputTokens, cost.OutputPricePerMillionTokens)
+	cacheReadMicros := calcCost(usage.CacheReadTokens, cost.CacheReadPricePerMillionTokens)
+	cacheWriteMicros := calcCost(usage.CacheCreationTokens, cost.CacheWritePricePerMillionTokens)
 
 	total := inputMicros.
 		Add(outputMicros).
@@ -47,7 +39,11 @@ func CalculateTotalCostMicros(
 	return &rounded
 }
 
-func derefInt64(v *int64) int64 {
+func calcCost(tokens *int64, pricePerMillion *decimal.Decimal) decimal.Decimal {
+	return decimal.NewFromInt(int64OrZero(tokens)).Mul(decimalOrZero(pricePerMillion))
+}
+
+func int64OrZero(v *int64) int64 {
 	if v == nil {
 		return 0
 	}
@@ -55,7 +51,7 @@ func derefInt64(v *int64) int64 {
 	return *v
 }
 
-func derefDecimal(v *decimal.Decimal) decimal.Decimal {
+func decimalOrZero(v *decimal.Decimal) decimal.Decimal {
 	if v == nil {
 		return decimal.Zero
 	}
