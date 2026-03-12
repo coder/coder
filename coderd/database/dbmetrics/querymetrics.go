@@ -4494,14 +4494,6 @@ func (m queryMetricsStore) UpsertAnnouncementBanners(ctx context.Context, value 
 	return r0
 }
 
-func (m queryMetricsStore) UpsertAppSecurityKey(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertAppSecurityKey(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertAppSecurityKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAppSecurityKey").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) UpsertApplicationName(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertApplicationName(ctx, value)

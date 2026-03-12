@@ -836,7 +836,6 @@ type sqlcQuerier interface {
 	UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]WorkspaceTable, error)
 	UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error
 	UpsertAnnouncementBanners(ctx context.Context, value string) error
-	UpsertAppSecurityKey(ctx context.Context, value string) error
 	UpsertApplicationName(ctx context.Context, value string) error
 	// Upserts boundary usage statistics for a replica. On INSERT (new period), uses
 	// delta values for unique counts (only data since last flush). On UPDATE, uses

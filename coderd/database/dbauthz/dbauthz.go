@@ -6522,13 +6522,6 @@ func (q *querier) UpsertAnnouncementBanners(ctx context.Context, value string) e
 	return q.db.UpsertAnnouncementBanners(ctx, value)
 }
 
-func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.UpsertAppSecurityKey(ctx, data)
-}
-
 func (q *querier) UpsertApplicationName(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err

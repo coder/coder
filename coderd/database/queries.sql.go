@@ -14831,16 +14831,6 @@ func (q *sqlQuerier) UpsertAnnouncementBanners(ctx context.Context, value string
 	return err
 }
 
-const upsertAppSecurityKey = `-- name: UpsertAppSecurityKey :exec
-INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
-ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key'
-`
-
-func (q *sqlQuerier) UpsertAppSecurityKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertAppSecurityKey, value)
-	return err
-}
-
 const upsertApplicationName = `-- name: UpsertApplicationName :exec
 INSERT INTO site_configs (key, value) VALUES ('application_name', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application_name'
