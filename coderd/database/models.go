@@ -3955,6 +3955,7 @@ type ChatMessage struct {
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
 	Compressed          bool                  `db:"compressed" json:"compressed"`
 	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
+	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
 }
 
 type ChatModelConfig struct {

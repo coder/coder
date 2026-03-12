@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/chatd/costcalc"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -298,6 +299,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				CacheReadTokens:     sql.NullInt64{},
 				ContextLimit:        sql.NullInt64{},
 				Compressed:          sql.NullBool{},
+				TotalCostMicros:     sql.NullInt64{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert system message: %w", err)
@@ -325,6 +327,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			CacheCreationTokens: sql.NullInt64{},
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
+			TotalCostMicros:     sql.NullInt64{},
 			Compressed:          sql.NullBool{},
 		})
 		if err != nil {
@@ -913,6 +916,7 @@ func insertUserMessageAndSetPending(
 		CacheCreationTokens: sql.NullInt64{},
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
+		TotalCostMicros:     sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
@@ -1968,6 +1972,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 						CacheCreationTokens: sql.NullInt64{},
 						CacheReadTokens:     sql.NullInt64{},
 						ContextLimit:        sql.NullInt64{},
+						TotalCostMicros:     sql.NullInt64{},
 						Compressed:          sql.NullBool{},
 					})
 					if insertErr != nil {
@@ -2342,6 +2347,23 @@ func (p *Server) runChat(
 				}
 
 				hasUsage := step.Usage != (fantasy.Usage{})
+				var usageForCost codersdk.ChatMessageUsage
+				if hasUsage {
+					usageForCost = codersdk.ChatMessageUsage{
+						InputTokens:         int64Ptr(step.Usage.InputTokens),
+						OutputTokens:        int64Ptr(step.Usage.OutputTokens),
+						ReasoningTokens:     int64Ptr(step.Usage.ReasoningTokens),
+						CacheCreationTokens: int64Ptr(step.Usage.CacheCreationTokens),
+						CacheReadTokens:     int64Ptr(step.Usage.CacheReadTokens),
+					}
+				}
+
+				totalCostMicros := costcalc.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
+				var totalCostValue int64
+				if totalCostMicros != nil {
+					totalCostValue = *totalCostMicros
+				}
+
 				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 					ChatID:        chat.ID,
 					CreatedBy:     uuid.NullUUID{},
@@ -2363,6 +2385,7 @@ func (p *Server) runChat(
 					CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
 					ContextLimit:    step.ContextLimit,
 					Compressed:      sql.NullBool{},
+					TotalCostMicros: usageNullInt64(totalCostValue, totalCostMicros != nil),
 				})
 				if insertErr != nil {
 					return xerrors.Errorf("insert assistant message: %w", insertErr)
@@ -2390,6 +2413,7 @@ func (p *Server) runChat(
 					CacheCreationTokens: sql.NullInt64{},
 					CacheReadTokens:     sql.NullInt64{},
 					ContextLimit:        sql.NullInt64{},
+					TotalCostMicros:     sql.NullInt64{},
 					Compressed:          sql.NullBool{},
 				})
 				if insertErr != nil {
@@ -2742,6 +2766,7 @@ func (p *Server) persistChatContextSummary(
 			CacheCreationTokens: sql.NullInt64{},
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
+			TotalCostMicros:     sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert hidden summary message: %w", txErr)
@@ -2765,6 +2790,7 @@ func (p *Server) persistChatContextSummary(
 			CacheCreationTokens: sql.NullInt64{},
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
+			TotalCostMicros:     sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool call message: %w", txErr)
@@ -2789,6 +2815,7 @@ func (p *Server) persistChatContextSummary(
 			CacheCreationTokens: sql.NullInt64{},
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
+			TotalCostMicros:     sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool result message: %w", txErr)
@@ -2899,6 +2926,10 @@ func (p *Server) resolveModelConfig(
 		)
 	}
 	return defaultConfig, nil
+}
+
+func int64Ptr(value int64) *int64 {
+	return &value
 }
 
 //nolint:revive // Boolean controls SQL NULL validity.

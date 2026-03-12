@@ -1218,7 +1218,8 @@ CREATE TABLE chat_messages (
     cache_read_tokens bigint,
     context_limit bigint,
     compressed boolean DEFAULT false NOT NULL,
-    created_by uuid
+    created_by uuid,
+    total_cost_micros bigint
 );
 
 CREATE SEQUENCE chat_messages_id_seq

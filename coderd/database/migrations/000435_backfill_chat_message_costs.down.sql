@@ -1,0 +1,1 @@
+-- No-op: rolling back 000434 drops the column, which removes backfilled values.

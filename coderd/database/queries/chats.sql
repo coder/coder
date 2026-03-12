@@ -204,7 +204,8 @@ INSERT INTO chat_messages (
     cache_creation_tokens,
     cache_read_tokens,
     context_limit,
-    compressed
+    compressed,
+    total_cost_micros
 ) VALUES (
     @chat_id::uuid,
     sqlc.narg('created_by')::uuid,
@@ -219,7 +220,8 @@ INSERT INTO chat_messages (
     sqlc.narg('cache_creation_tokens')::bigint,
     sqlc.narg('cache_read_tokens')::bigint,
     sqlc.narg('context_limit')::bigint,
-    COALESCE(sqlc.narg('compressed')::boolean, FALSE)
+    COALESCE(sqlc.narg('compressed')::boolean, FALSE),
+    sqlc.narg('total_cost_micros')::bigint
 )
 RETURNING
     *;
