@@ -981,44 +981,41 @@ func TestRecordToolUsage(t *testing.T) {
 				},
 				expectedErr: "insert tool usage",
 			},
+		},
+	)
+}
+
+func TestRecordModelThought(t *testing.T) {
+	t.Parallel()
+
+	var (
+		metadataProto = map[string]*anypb.Any{
+			"key": mustMarshalAny(t, &structpb.Value{Kind: &structpb.Value_StringValue{StringValue: "value"}}),
+		}
+		metadataJSON = `{"key":"value"}`
+	)
+
+	testRecordMethod(t,
+		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordModelThoughtRequest) (*proto.RecordModelThoughtResponse, error) {
+			return srv.RecordModelThought(ctx, req)
+		},
+		[]testRecordMethodCase[*proto.RecordModelThoughtRequest]{
 			{
-				name: "tool usage with model thoughts",
-				request: &proto.RecordToolUsageRequest{
+				name: "valid model thought",
+				request: &proto.RecordModelThoughtRequest{
 					InterceptionId: uuid.NewString(),
-					MsgId:          "msg_456",
-					ToolCallId:     "call_abc",
-					Tool:           "bash",
-					Input:          `{"command": "ls"}`,
-					Injected:       true,
+					Content:        "I should list the files.",
+					Metadata:       metadataProto,
 					CreatedAt:      timestamppb.Now(),
-					ModelThoughts: []*proto.ModelThought{
-						{
-							Content:   "I should list the files.",
-							Metadata:  metadataProto,
-							CreatedAt: timestamppb.Now(),
-						},
-					},
 				},
-				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordToolUsageRequest) {
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordModelThoughtRequest) {
 					interceptionID, err := uuid.Parse(req.GetInterceptionId())
 					assert.NoError(t, err, "parse interception UUID")
-
-					var toolUsageID uuid.UUID
-					db.EXPECT().InsertAIBridgeToolUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeToolUsageParams) bool {
-						toolUsageID = p.ID
-						return assert.Equal(t, interceptionID, p.InterceptionID, "interception ID")
-					})).Return(database.AIBridgeToolUsage{
-						ID:             uuid.New(),
-						InterceptionID: interceptionID,
-						Tool:           req.GetTool(),
-						CreatedAt:      req.GetCreatedAt().AsTime(),
-					}, nil)
 
 					db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeModelThoughtParams) bool {
 						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID not nil") ||
 							!assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
-							!assert.Equal(t, toolUsageID, p.ToolUsageID, "tool usage ID") ||
-							!assert.Equal(t, sql.NullString{String: "I should list the files.", Valid: true}, p.Content, "content") ||
+							!assert.Equal(t, "I should list the files.", p.Content, "content") ||
 							!assert.JSONEq(t, metadataJSON, string(p.Metadata), "metadata") {
 							return false
 						}
@@ -1026,14 +1023,34 @@ func TestRecordToolUsage(t *testing.T) {
 					})).Return(database.AIBridgeModelThought{
 						ID:             uuid.New(),
 						InterceptionID: interceptionID,
-						ToolUsageID:    toolUsageID,
-						Content:        sql.NullString{String: "I should list the files.", Valid: true},
+						Content:        "I should list the files.",
 						Metadata: pqtype.NullRawMessage{
 							RawMessage: json.RawMessage(metadataJSON),
 							Valid:      true,
 						},
 					}, nil)
 				},
+			},
+			{
+				name: "invalid interception ID",
+				request: &proto.RecordModelThoughtRequest{
+					InterceptionId: "not-a-uuid",
+					Content:        "thinking...",
+					CreatedAt:      timestamppb.Now(),
+				},
+				expectedErr: "failed to parse interception_id",
+			},
+			{
+				name: "database error",
+				request: &proto.RecordModelThoughtRequest{
+					InterceptionId: uuid.NewString(),
+					Content:        "thinking...",
+					CreatedAt:      timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordModelThoughtRequest) {
+					db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Any()).Return(database.AIBridgeModelThought{}, sql.ErrConnDone)
+				},
+				expectedErr: "insert model thought",
 			},
 		},
 	)
@@ -1349,46 +1366,28 @@ func TestStructuredLogging(t *testing.T) {
 			},
 		},
 		{
-			name:              "RecordToolUsage_with_model_thought_logs_when_enabled",
+			name:              "RecordModelThought_logs_when_enabled",
 			structuredLogging: true,
 			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
-				db.EXPECT().InsertAIBridgeToolUsage(gomock.Any(), gomock.Any()).Return(database.AIBridgeToolUsage{
-					ID:             uuid.New(),
-					InterceptionID: intcID,
-					Tool:           "bash",
-				}, nil)
 				db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Any()).Return(database.AIBridgeModelThought{
 					ID:             uuid.New(),
 					InterceptionID: intcID,
 				}, nil)
 			},
 			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
-				_, err := srv.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+				_, err := srv.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
 					InterceptionId: intcID.String(),
-					MsgId:          "msg_789",
-					ToolCallId:     "call_xyz",
-					Tool:           "bash",
-					Input:          `{"command": "ls"}`,
-					Injected:       true,
+					Content:        "I need to list the files.",
+					Metadata:       metadataProto,
 					CreatedAt:      timestamppb.Now(),
-					ModelThoughts: []*proto.ModelThought{
-						{
-							Content:   "I need to list the files.",
-							Metadata:  metadataProto,
-							CreatedAt: timestamppb.Now(),
-						},
-					},
 				})
 				return err
 			},
-			// The structured logging test checks for the first log line.
-			// RecordToolUsage logs both tool_usage and model_thought entries.
 			expectedFields: map[string]any{
 				"record_type":     "model_thought",
 				"interception_id": interceptionID.String(),
 				"content":         "I need to list the files.",
 			},
-			expectedLineIdx: 1, // "tool_usage" is also logged.
 		},
 	}
 
@@ -1422,7 +1421,7 @@ func TestStructuredLogging(t *testing.T) {
 				require.Empty(t, lines)
 			} else {
 				matchedLines := getLogLinesWithMessage(lines, aibridgedserver.InterceptionLogMarker)
-				require.GreaterOrEqual(t, tc.expectedLineIdx+1, len(matchedLines), "expected at least %d log line with message %q", tc.expectedLineIdx+1, aibridgedserver.InterceptionLogMarker)
+				require.GreaterOrEqual(t, len(matchedLines), tc.expectedLineIdx+1, "expected at least %d log line(s) with message %q", tc.expectedLineIdx+1, aibridgedserver.InterceptionLogMarker)
 
 				fields := matchedLines[tc.expectedLineIdx].Fields
 				for key, expected := range tc.expectedFields {

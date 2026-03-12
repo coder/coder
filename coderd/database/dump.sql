@@ -1063,8 +1063,7 @@ COMMENT ON COLUMN aibridge_interceptions.client_session_id IS 'The session ID su
 CREATE TABLE aibridge_model_thoughts (
     id uuid NOT NULL,
     interception_id uuid NOT NULL,
-    tool_usage_id uuid NOT NULL,
-    content text,
+    content text NOT NULL,
     metadata jsonb,
     created_at timestamp with time zone NOT NULL
 );

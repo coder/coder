@@ -669,18 +669,17 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 
 const insertAIBridgeModelThought = `-- name: InsertAIBridgeModelThought :one
 INSERT INTO aibridge_model_thoughts (
-  id, interception_id, tool_usage_id, content, metadata, created_at
+  id, interception_id, content, metadata, created_at
 ) VALUES (
-  $1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
+  $1, $2, $3, COALESCE($4::jsonb, '{}'::jsonb), $5
 )
-RETURNING id, interception_id, tool_usage_id, content, metadata, created_at
+RETURNING id, interception_id, content, metadata, created_at
 `
 
 type InsertAIBridgeModelThoughtParams struct {
 	ID             uuid.UUID       `db:"id" json:"id"`
 	InterceptionID uuid.UUID       `db:"interception_id" json:"interception_id"`
-	ToolUsageID    uuid.UUID       `db:"tool_usage_id" json:"tool_usage_id"`
-	Content        sql.NullString  `db:"content" json:"content"`
+	Content        string          `db:"content" json:"content"`
 	Metadata       json.RawMessage `db:"metadata" json:"metadata"`
 	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
 }
@@ -689,7 +688,6 @@ func (q *sqlQuerier) InsertAIBridgeModelThought(ctx context.Context, arg InsertA
 	row := q.db.QueryRowContext(ctx, insertAIBridgeModelThought,
 		arg.ID,
 		arg.InterceptionID,
-		arg.ToolUsageID,
 		arg.Content,
 		arg.Metadata,
 		arg.CreatedAt,
@@ -698,7 +696,6 @@ func (q *sqlQuerier) InsertAIBridgeModelThought(ctx context.Context, arg InsertA
 	err := row.Scan(
 		&i.ID,
 		&i.InterceptionID,
-		&i.ToolUsageID,
 		&i.Content,
 		&i.Metadata,
 		&i.CreatedAt,

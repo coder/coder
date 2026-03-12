@@ -15,6 +15,7 @@ service Recorder {
   rpc RecordTokenUsage(RecordTokenUsageRequest) returns (RecordTokenUsageResponse);
   rpc RecordPromptUsage(RecordPromptUsageRequest) returns (RecordPromptUsageResponse);
   rpc RecordToolUsage(RecordToolUsageRequest) returns (RecordToolUsageResponse);
+  rpc RecordModelThought(RecordModelThoughtRequest) returns (RecordModelThoughtResponse);
 }
 
 // MCPConfigurator is responsible for retrieving any relevant data required for configuring MCP clients
@@ -88,17 +89,16 @@ message RecordToolUsageRequest {
   map<string, google.protobuf.Any> metadata = 8;
   google.protobuf.Timestamp created_at = 9;
   string tool_call_id = 10; // The ID of the tool call provided by the AI provider.
-  repeated ModelThought model_thoughts = 11; // Model thinking associated with this tool call.
 }
 message RecordToolUsageResponse {}
 
-// ModelThought represents a model's thinking/reasoning associated with
-// a tool call.
-message ModelThought {
-  string content = 1;
-  map<string, google.protobuf.Any> metadata = 2;
-  google.protobuf.Timestamp created_at = 3;
+message RecordModelThoughtRequest {
+  string interception_id = 1; // UUID.
+  string content = 2;
+  map<string, google.protobuf.Any> metadata = 3;
+  google.protobuf.Timestamp created_at = 4;
 }
+message RecordModelThoughtResponse {}
 
 message GetMCPServerConfigsRequest {
   string user_id = 1; // UUID. // Not used yet, will be necessary for later RBAC purposes.
