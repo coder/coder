@@ -11,15 +11,12 @@ import type {
 	RenderBlock,
 } from "./types";
 
+/** Concatenate text chunks, skipping whitespace-only values. */
 const appendText = (current: string, next: string): string => {
-	const trimmed = next.trim();
-	if (!trimmed) {
+	if (!next.trim()) {
 		return current;
 	}
-	if (!current) {
-		return next;
-	}
-	return `${current}\n${next}`;
+	return `${current}${next}`;
 };
 
 export const asOptionalTitle = (value: unknown): string | undefined =>
@@ -79,13 +76,14 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	sources: [],
 });
 
-/** Wraps appendTextBlock with newline-joining for complete message blocks. */
+/** Wraps appendTextBlock using the same direct concatenation as
+ *  the streaming path so both produce identical markdown. */
 const appendParsedTextBlock = (
 	blocks: RenderBlock[],
 	type: "response" | "thinking",
 	text: string,
 	title?: string,
-): RenderBlock[] => appendTextBlock(blocks, type, text, title, appendText);
+): RenderBlock[] => appendTextBlock(blocks, type, text, title);
 
 export const ensureToolBlock = (
 	blocks: RenderBlock[],
