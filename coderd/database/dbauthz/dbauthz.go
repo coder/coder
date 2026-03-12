@@ -6560,13 +6560,6 @@ func (q *querier) UpsertConnectionLog(ctx context.Context, arg database.UpsertCo
 	return q.db.UpsertConnectionLog(ctx, arg)
 }
 
-func (q *querier) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.UpsertCoordinatorResumeTokenSigningKey(ctx, value)
-}
-
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err

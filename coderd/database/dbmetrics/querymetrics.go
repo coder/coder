@@ -4526,14 +4526,6 @@ func (m queryMetricsStore) UpsertConnectionLog(ctx context.Context, arg database
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertCoordinatorResumeTokenSigningKey(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertCoordinatorResumeTokenSigningKey").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
 	start := time.Now()
 	r0 := m.s.UpsertDefaultProxy(ctx, arg)

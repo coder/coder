@@ -14829,16 +14829,6 @@ func (q *sqlQuerier) UpsertChatSystemPrompt(ctx context.Context, value string) e
 	return err
 }
 
-const upsertCoordinatorResumeTokenSigningKey = `-- name: UpsertCoordinatorResumeTokenSigningKey :exec
-INSERT INTO site_configs (key, value) VALUES ('coordinator_resume_token_signing_key', $1)
-ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'coordinator_resume_token_signing_key'
-`
-
-func (q *sqlQuerier) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertCoordinatorResumeTokenSigningKey, value)
-	return err
-}
-
 const upsertDefaultProxy = `-- name: UpsertDefaultProxy :exec
 INSERT INTO site_configs (key, value)
 VALUES
