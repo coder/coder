@@ -3856,10 +3856,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().UpsertOAuthSigningKey(gomock.Any(), "foo").Return(nil).AnyTimes()
 		check.Args("foo").Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
-	s.Run("GetOAuthSigningKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetOAuthSigningKey(gomock.Any()).Return("foo", nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionUpdate)
-	}))
 	s.Run("UpsertCoordinatorResumeTokenSigningKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertCoordinatorResumeTokenSigningKey(gomock.Any(), "foo").Return(nil).AnyTimes()
 		check.Args("foo").Asserts(rbac.ResourceSystem, policy.ActionUpdate)

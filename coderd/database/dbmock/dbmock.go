@@ -2991,21 +2991,6 @@ func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppsByUserID(ctx, userID any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppsByUserID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppsByUserID), ctx, userID)
 }
 
-// GetOAuthSigningKey mocks base method.
-func (m *MockStore) GetOAuthSigningKey(ctx context.Context) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOAuthSigningKey", ctx)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetOAuthSigningKey indicates an expected call of GetOAuthSigningKey.
-func (mr *MockStoreMockRecorder) GetOAuthSigningKey(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuthSigningKey", reflect.TypeOf((*MockStore)(nil).GetOAuthSigningKey), ctx)
-}
-
 // GetOrganizationByID mocks base method.
 func (m *MockStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	m.ctrl.T.Helper()

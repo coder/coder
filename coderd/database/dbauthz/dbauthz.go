@@ -3048,13 +3048,6 @@ func (q *querier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid
 	return q.db.GetOAuth2ProviderAppsByUserID(ctx, userID)
 }
 
-func (q *querier) GetOAuthSigningKey(ctx context.Context) (string, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return "", err
-	}
-	return q.db.GetOAuthSigningKey(ctx)
-}
-
 func (q *querier) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	return fetch(q.log, q.auth, q.db.GetOrganizationByID)(ctx, id)
 }

@@ -1623,14 +1623,6 @@ func (m queryMetricsStore) GetOAuth2ProviderAppsByUserID(ctx context.Context, us
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetOAuthSigningKey(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetOAuthSigningKey(ctx)
-	m.queryLatencies.WithLabelValues("GetOAuthSigningKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuthSigningKey").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOrganizationByID(ctx, id)

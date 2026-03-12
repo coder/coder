@@ -57,9 +57,6 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 -- name: GetApplicationName :one
 SELECT value FROM site_configs WHERE key = 'application_name';
 
--- name: GetOAuthSigningKey :one
-SELECT value FROM site_configs WHERE key = 'oauth_signing_key';
-
 -- name: UpsertOAuthSigningKey :exec
 INSERT INTO site_configs (key, value) VALUES ('oauth_signing_key', $1)
 ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signing_key';

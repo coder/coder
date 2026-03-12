@@ -14751,17 +14751,6 @@ func (q *sqlQuerier) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, 
 	return column_1, err
 }
 
-const getOAuthSigningKey = `-- name: GetOAuthSigningKey :one
-SELECT value FROM site_configs WHERE key = 'oauth_signing_key'
-`
-
-func (q *sqlQuerier) GetOAuthSigningKey(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getOAuthSigningKey)
-	var value string
-	err := row.Scan(&value)
-	return value, err
-}
-
 const getPrebuildsSettings = `-- name: GetPrebuildsSettings :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'prebuilds_settings'), '{}') :: text AS prebuilds_settings
