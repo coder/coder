@@ -129,12 +129,11 @@ export const AgentDetailSkeleton: FC = () => {
 	return (
 		<div
 			className={cn(
-				"relative flex min-h-0 min-w-0 flex-1",
+				"relative flex h-full min-h-0 min-w-0 flex-1",
 				rightPanel.open && "flex-row",
 			)}
 		>
-			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-				{/* Minimal skeleton top bar */}
+			<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
 				<div className="flex shrink-0 items-center gap-2 px-4 py-2">
 					<Skeleton className="h-7 w-7 rounded" />
 					<Skeleton className="h-4 w-32" />
