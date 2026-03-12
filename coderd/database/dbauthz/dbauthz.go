@@ -3280,23 +3280,6 @@ func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uui
 	return q.db.GetProvisionerJobTimingsByJobID(ctx, jobID)
 }
 
-func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
-	provisionerJobs, err := q.db.GetProvisionerJobsByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	orgIDs := make(map[uuid.UUID]struct{})
-	for _, job := range provisionerJobs {
-		orgIDs[job.OrganizationID] = struct{}{}
-	}
-	for orgID := range orgIDs {
-		if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(orgID)); err != nil {
-			return nil, err
-		}
-	}
-	return provisionerJobs, nil
-}
-
 func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids database.GetProvisionerJobsByIDsWithQueuePositionParams) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	// TODO: Remove this once we have a proper rbac check for provisioner jobs.
 	// Details in https://github.com/coder/coder/issues/16160

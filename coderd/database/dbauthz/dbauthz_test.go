@@ -1099,18 +1099,6 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		dbm.EXPECT().UpdatePrebuildProvisionerJobWithCancel(gomock.Any(), arg).Return(canceledJobs, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourcePrebuiltWorkspace, policy.ActionUpdate).Returns(canceledJobs)
 	}))
-	s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		org := testutil.Fake(s.T(), faker, database.Organization{})
-		org2 := testutil.Fake(s.T(), faker, database.Organization{})
-		a := testutil.Fake(s.T(), faker, database.ProvisionerJob{OrganizationID: org.ID})
-		b := testutil.Fake(s.T(), faker, database.ProvisionerJob{OrganizationID: org2.ID})
-		ids := []uuid.UUID{a.ID, b.ID}
-		dbm.EXPECT().GetProvisionerJobsByIDs(gomock.Any(), ids).Return([]database.ProvisionerJob{a, b}, nil).AnyTimes()
-		check.Args(ids).Asserts(
-			rbac.ResourceProvisionerJobs.InOrg(org.ID), policy.ActionRead,
-			rbac.ResourceProvisionerJobs.InOrg(org2.ID), policy.ActionRead,
-		).OutOfOrder().Returns(slice.New(a, b))
-	}))
 	s.Run("GetProvisionerLogsAfterID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{Type: database.ProvisionerJobTypeWorkspaceBuild})
@@ -3590,16 +3578,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args([]uuid.UUID{resID}).
 			Asserts(rbac.ResourceSystem, policy.ActionRead).
 			Returns([]database.WorkspaceAgent{agt})
-	}))
-	s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		org := testutil.Fake(s.T(), faker, database.Organization{})
-		a := testutil.Fake(s.T(), faker, database.ProvisionerJob{OrganizationID: org.ID})
-		b := testutil.Fake(s.T(), faker, database.ProvisionerJob{OrganizationID: org.ID})
-		ids := []uuid.UUID{a.ID, b.ID}
-		dbm.EXPECT().GetProvisionerJobsByIDs(gomock.Any(), ids).Return([]database.ProvisionerJob{a, b}, nil).AnyTimes()
-		check.Args(ids).
-			Asserts(rbac.ResourceProvisionerJobs.InOrg(org.ID), policy.ActionRead).
-			Returns(slice.New(a, b))
 	}))
 	s.Run("DeleteWorkspaceSubAgentByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
