@@ -2532,13 +2532,6 @@ func (q *querier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (dat
 	return q.db.GetChatModelConfigByID(ctx, id)
 }
 
-func (q *querier) GetChatModelConfigByProviderAndModel(ctx context.Context, arg database.GetChatModelConfigByProviderAndModelParams) (database.ChatModelConfig, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.ChatModelConfig{}, err
-	}
-	return q.db.GetChatModelConfigByProviderAndModel(ctx, arg)
-}
-
 func (q *querier) GetChatModelConfigs(ctx context.Context) ([]database.ChatModelConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err

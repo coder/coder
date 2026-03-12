@@ -16,21 +16,6 @@ WHERE
     is_default = TRUE
     AND deleted = FALSE;
 
--- name: GetChatModelConfigByProviderAndModel :one
-SELECT
-    *
-FROM
-    chat_model_configs
-WHERE
-    provider = @provider::text
-    AND model = @model::text
-    AND deleted = FALSE
-ORDER BY
-    updated_at DESC,
-    created_at DESC,
-    id DESC
-LIMIT 1;
-
 -- name: GetChatModelConfigs :many
 SELECT
     *

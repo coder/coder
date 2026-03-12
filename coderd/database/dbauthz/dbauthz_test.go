@@ -514,15 +514,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetDefaultChatModelConfig(gomock.Any()).Return(config, nil).AnyTimes()
 		check.Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(config)
 	}))
-	s.Run("GetChatModelConfigByProviderAndModel", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
-		args := database.GetChatModelConfigByProviderAndModelParams{
-			Provider: config.Provider,
-			Model:    config.Model,
-		}
-		dbm.EXPECT().GetChatModelConfigByProviderAndModel(gomock.Any(), args).Return(config, nil).AnyTimes()
-		check.Args(args).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(config)
-	}))
 	s.Run("GetChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		configA := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		configB := testutil.Fake(s.T(), faker, database.ChatModelConfig{})

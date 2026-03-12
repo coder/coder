@@ -2360,50 +2360,6 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 	return i, err
 }
 
-const getChatModelConfigByProviderAndModel = `-- name: GetChatModelConfigByProviderAndModel :one
-SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
-FROM
-    chat_model_configs
-WHERE
-    provider = $1::text
-    AND model = $2::text
-    AND deleted = FALSE
-ORDER BY
-    updated_at DESC,
-    created_at DESC,
-    id DESC
-LIMIT 1
-`
-
-type GetChatModelConfigByProviderAndModelParams struct {
-	Provider string `db:"provider" json:"provider"`
-	Model    string `db:"model" json:"model"`
-}
-
-func (q *sqlQuerier) GetChatModelConfigByProviderAndModel(ctx context.Context, arg GetChatModelConfigByProviderAndModelParams) (ChatModelConfig, error) {
-	row := q.db.QueryRowContext(ctx, getChatModelConfigByProviderAndModel, arg.Provider, arg.Model)
-	var i ChatModelConfig
-	err := row.Scan(
-		&i.ID,
-		&i.Provider,
-		&i.Model,
-		&i.DisplayName,
-		&i.CreatedBy,
-		&i.UpdatedBy,
-		&i.Enabled,
-		&i.IsDefault,
-		&i.Deleted,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ContextLimit,
-		&i.CompressionThreshold,
-		&i.Options,
-	)
-	return i, err
-}
-
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
     id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
