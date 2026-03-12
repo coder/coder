@@ -184,9 +184,25 @@ export function watchInboxNotifications(
 	});
 }
 
-export const getURLWithSearchParams = <T extends object>(
+type SerializableSearchParams = Record<
+	string,
+	string | number | boolean | undefined
+>;
+
+type KnownSearchParamOptions =
+	| SerializableSearchParams
+	| SearchParamOptions
+	| TypesGen.AuditLogsRequest
+	| TypesGen.ConnectionLogsRequest
+	| TypesGen.Pagination
+	| TypesGen.UsersRequest
+	| TypesGen.WorkspaceBuildsRequest
+	| TypesGen.WorkspaceFilter
+	| TypesGen.WorkspacesRequest;
+
+export const getURLWithSearchParams = (
 	basePath: string,
-	options?: T,
+	options?: KnownSearchParamOptions,
 ): string => {
 	if (!options) {
 		return basePath;

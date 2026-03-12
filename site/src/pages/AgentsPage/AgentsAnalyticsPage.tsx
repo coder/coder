@@ -11,8 +11,8 @@ const AgentsAnalyticsPage: FC = () => {
 	const start = dayjs().subtract(30, "day");
 	const summaryQuery = useQuery(
 		chatCostSummary({
-			start_date: start.format("YYYY-MM-DD"),
-			end_date: end.format("YYYY-MM-DD"),
+			start_date: start.toISOString(),
+			end_date: end.toISOString(),
 		}),
 	);
 

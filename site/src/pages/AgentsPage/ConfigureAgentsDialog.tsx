@@ -86,8 +86,8 @@ const UsageContent: FC = () => {
 		const end = dayjs();
 		const start = end.subtract(30, "day");
 		return {
-			startDate: start.format("YYYY-MM-DD"),
-			endDate: end.format("YYYY-MM-DD"),
+			startDate: start.toISOString(),
+			endDate: end.toISOString(),
 			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
 		};
 	}, []);
