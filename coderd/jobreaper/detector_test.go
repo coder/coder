@@ -46,9 +46,8 @@ type detectorTestEnv struct {
 }
 
 // newDetectorTestEnv creates a new test environment with a started detector.
-func newDetectorTestEnv(t *testing.T) *detectorTestEnv {
+func newDetectorTestEnv(ctx context.Context, t *testing.T) *detectorTestEnv {
 	t.Helper()
-	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
 	log := testutil.Logger(t)
 	tickCh := make(chan time.Time)
@@ -102,7 +101,8 @@ func requireTerminatedJob(ctx context.Context, t *testing.T, db database.Store, 
 func TestDetectorNoJobs(t *testing.T) {
 	t.Parallel()
 
-	env := newDetectorTestEnv(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
 	stats := env.tick(time.Now())
@@ -113,7 +113,8 @@ func TestDetectorNoJobs(t *testing.T) {
 func TestDetectorNoHungJobs(t *testing.T) {
 	t.Parallel()
 
-	env := newDetectorTestEnv(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
 	// Insert some jobs that are running and haven't been updated in a while,
@@ -148,7 +149,8 @@ func TestDetectorNoHungJobs(t *testing.T) {
 func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	t.Parallel()
 
-	env := newDetectorTestEnv(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
 	var (
@@ -199,7 +201,8 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	t.Parallel()
 
-	env := newDetectorTestEnv(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
 	var (
@@ -253,7 +256,8 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T) {
 	t.Parallel()
 
-	env := newDetectorTestEnv(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
 	var (
@@ -296,7 +300,8 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T) {
 	t.Parallel()
 
-	env := newDetectorTestEnv(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
 	var (
@@ -344,7 +349,8 @@ func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testin
 func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
 	t.Parallel()
 
-	env := newDetectorTestEnv(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
 	var (
@@ -389,7 +395,8 @@ func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
 func TestDetectorHungOtherJobTypes(t *testing.T) {
 	t.Parallel()
 
-	env := newDetectorTestEnv(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
 	var (
@@ -465,7 +472,8 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 func TestDetectorPendingOtherJobTypes(t *testing.T) {
 	t.Parallel()
 
-	env := newDetectorTestEnv(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
 	var (
@@ -540,7 +548,8 @@ func TestDetectorPendingOtherJobTypes(t *testing.T) {
 func TestDetectorHungCanceledJob(t *testing.T) {
 	t.Parallel()
 
-	env := newDetectorTestEnv(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
 	var (
@@ -621,7 +630,8 @@ func TestDetectorPushesLogs(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			env := newDetectorTestEnv(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			env := newDetectorTestEnv(ctx, t)
 			defer env.close()
 
 			var (
@@ -733,7 +743,8 @@ func TestDetectorPushesLogs(t *testing.T) {
 func TestDetectorMaxJobsPerRun(t *testing.T) {
 	t.Parallel()
 
-	env := newDetectorTestEnv(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
 	org := dbgen.Organization(t, env.DB, database.Organization{})
