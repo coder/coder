@@ -2,7 +2,6 @@ package chattool
 
 import (
 	"context"
-	"database/sql"
 	"sync"
 
 	"charm.land/fantasy"
@@ -71,16 +70,10 @@ func StartWorkspace(options StartWorkspaceOptions) fantasy.AgentTool {
 
 			ws, err := options.DB.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 			if err != nil {
-				if xerrors.Is(err, sql.ErrNoRows) {
-					return fantasy.NewTextErrorResponse(
-						"workspace was deleted; use create_workspace to make a new one",
-					), nil
-				}
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("load workspace: %w", err).Error(),
 				), nil
 			}
-			// Workspace was soft-deleted but row still exists.
 			if ws.Deleted {
 				return fantasy.NewTextErrorResponse(
 					"workspace was deleted; use create_workspace to make a new one",
