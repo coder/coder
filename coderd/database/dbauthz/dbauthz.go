@@ -1829,18 +1829,6 @@ func (q *querier) DeleteChatMessagesAfterID(ctx context.Context, arg database.De
 	return q.db.DeleteChatMessagesAfterID(ctx, arg)
 }
 
-func (q *querier) DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error {
-	// Authorize delete on the parent chat.
-	chat, err := q.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionDelete, chat); err != nil {
-		return err
-	}
-	return q.db.DeleteChatMessagesByChatID(ctx, chatID)
-}
-
 func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err

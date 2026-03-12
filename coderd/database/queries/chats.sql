@@ -5,12 +5,6 @@ WHERE id = @id OR root_chat_id = @id;
 -- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
 
--- name: DeleteChatMessagesByChatID :exec
-DELETE FROM
-    chat_messages
-WHERE
-    chat_id = @chat_id::uuid;
-
 -- name: DeleteChatMessagesAfterID :exec
 DELETE FROM
     chat_messages

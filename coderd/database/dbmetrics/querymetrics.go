@@ -384,14 +384,6 @@ func (m queryMetricsStore) DeleteChatMessagesAfterID(ctx context.Context, arg da
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteChatMessagesByChatID(ctx, chatID)
-	m.queryLatencies.WithLabelValues("DeleteChatMessagesByChatID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatMessagesByChatID").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatModelConfigByID(ctx, id)

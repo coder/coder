@@ -3156,18 +3156,6 @@ func (q *sqlQuerier) DeleteChatMessagesAfterID(ctx context.Context, arg DeleteCh
 	return err
 }
 
-const deleteChatMessagesByChatID = `-- name: DeleteChatMessagesByChatID :exec
-DELETE FROM
-    chat_messages
-WHERE
-    chat_id = $1::uuid
-`
-
-func (q *sqlQuerier) DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatMessagesByChatID, chatID)
-	return err
-}
-
 const deleteChatQueuedMessage = `-- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = $1 AND chat_id = $2
 `
