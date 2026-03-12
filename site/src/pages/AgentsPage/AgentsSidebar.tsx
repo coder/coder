@@ -375,14 +375,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
-	const isExecuting =
-		chat.status === "pending" ||
-		chat.status === "running" ||
-		(hasChildren &&
-			childIDs.some((id) => {
-				const c = chatById.get(id);
-				return c?.status === "pending" || c?.status === "running";
-			}));
 
 	return (
 		<div className="flex min-w-0 flex-col">
@@ -405,12 +397,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 					<div
 						className={cn(
 							"flex h-5 w-5 items-center justify-center rounded-md",
-							hasChildren &&
-								!isExecuting &&
-								"[@media(hover:hover)]:group-hover:invisible",
-							hasChildren &&
-								isExecuting &&
-								"[@media(hover:hover)]:group-hover/icon:invisible",
+							hasChildren && "[@media(hover:hover)]:group-hover/icon:invisible",
 						)}
 					>
 						<StatusIcon
@@ -429,9 +416,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 							onClick={() => toggleExpanded(chatID)}
 							className={cn(
 								"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-								isExecuting
-									? "[@media(hover:hover)]:group-hover/icon:visible"
-									: "[@media(hover:hover)]:group-hover:visible",
+								"[@media(hover:hover)]:group-hover/icon:visible",
 							)}
 							data-testid={`agents-tree-toggle-${chat.id}`}
 							aria-label={isExpanded ? "Collapse" : "Expand"}
