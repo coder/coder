@@ -9074,30 +9074,6 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
-const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
-SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri FROM oauth2_provider_app_codes WHERE id = $1
-`
-
-func (q *sqlQuerier) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
-	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppCodeByID, id)
-	var i OAuth2ProviderAppCode
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.SecretPrefix,
-		&i.HashedSecret,
-		&i.UserID,
-		&i.AppID,
-		&i.ResourceUri,
-		&i.CodeChallenge,
-		&i.CodeChallengeMethod,
-		&i.StateHash,
-		&i.RedirectUri,
-	)
-	return i, err
-}
-
 const getOAuth2ProviderAppCodeByPrefix = `-- name: GetOAuth2ProviderAppCodeByPrefix :one
 SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri FROM oauth2_provider_app_codes WHERE secret_prefix = $1
 `

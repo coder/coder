@@ -123,9 +123,6 @@ WHERE id = $1 RETURNING *;
 -- name: DeleteOAuth2ProviderAppSecretByID :exec
 DELETE FROM oauth2_provider_app_secrets WHERE id = $1;
 
--- name: GetOAuth2ProviderAppCodeByID :one
-SELECT * FROM oauth2_provider_app_codes WHERE id = $1;
-
 -- name: GetOAuth2ProviderAppCodeByPrefix :one
 SELECT * FROM oauth2_provider_app_codes WHERE secret_prefix = $1;
 
