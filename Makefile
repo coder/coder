@@ -20,9 +20,9 @@ SHELL := bash
 .ONESHELL:
 
 # When MAKE_TIMED=1, replace SHELL with a wrapper that prints
-# elapsed wall-clock time for each recipe. pre-commit sets this on
-# its sub-makes so every parallel job reports its duration. Ad-hoc
-# usage: make MAKE_TIMED=1 test
+# elapsed wall-clock time for each recipe. pre-commit and pre-push
+# set this on their sub-makes so every parallel job reports its
+# duration. Ad-hoc usage: make MAKE_TIMED=1 test
 ifdef MAKE_TIMED
 SHELL := $(CURDIR)/scripts/lib/timed-shell.sh
 .SHELLFLAGS = $@ -ceu
@@ -114,9 +114,9 @@ VERSION      := $(shell ./scripts/version.sh)
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
 
-# Limit parallel Make jobs in pre-commit. Defaults to nproc/4
-# (min 2) since lint and build targets have internal parallelism.
-# Override: make pre-commit PARALLEL_JOBS=8
+# Limit parallel Make jobs in pre-commit/pre-push. Defaults to
+# nproc/4 (min 2) since test, lint, and build targets have internal
+# parallelism. Override: make pre-push PARALLEL_JOBS=8
 PARALLEL_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8); echo $$(( n / 4 > 2 ? n / 4 : 2 )))
 
 # Use the highest ZSTD compression level in release builds to
@@ -717,12 +717,15 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 	build/typos-$(TYPOS_VERSION) --config .github/workflows/typos.toml
 .PHONY: lint/typos
 
-# pre-commit mirrors the fast local CI checks.
+# pre-commit and pre-push mirror CI checks locally.
 #
-# It runs checks that don't need external services (Docker,
+# pre-commit runs checks that don't need external services (Docker,
 # Playwright). This is the git pre-commit hook default since Docker
 # and browser issues in the local environment would otherwise block
 # all commits.
+#
+# pre-push adds heavier checks: Go tests, JS tests, and site build.
+# The pre-push hook is allowlisted, see scripts/githooks/pre-push.
 #
 # pre-commit uses two phases: gen+fmt first, then lint+build. This
 # avoids races where gen's `go run` creates temporary .go files that
@@ -769,6 +772,19 @@ pre-commit:
 	rm -rf $$logdir
 	echo "$(GREEN)✓ pre-commit passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-commit
+
+pre-push:
+	start=$$(date +%s)
+	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-push.XXXXXX")
+	echo "$(BOLD)pre-push$(RESET) ($$logdir)"
+	echo "test + build site:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
+		test \
+		test-js \
+		site/out/index.html
+	rm -rf $$logdir
+	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
+.PHONY: pre-push
 
 offlinedocs/check: offlinedocs/node_modules/.installed
 	cd offlinedocs/
