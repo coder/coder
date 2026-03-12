@@ -17,6 +17,15 @@ func CalculateTotalCostMicros(
 		return nil
 	}
 
+	// A cost config with no prices set means pricing is effectively
+	// unconfigured — return nil (unpriced) rather than zero.
+	if cost.InputPricePerMillionTokens == nil &&
+		cost.OutputPricePerMillionTokens == nil &&
+		cost.CacheReadPricePerMillionTokens == nil &&
+		cost.CacheWritePricePerMillionTokens == nil {
+		return nil
+	}
+
 	if usage.InputTokens == nil &&
 		usage.OutputTokens == nil &&
 		usage.ReasoningTokens == nil &&

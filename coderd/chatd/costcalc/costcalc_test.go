@@ -128,10 +128,10 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			want: int64Ptr(0),
 		},
 		{
-			name:  "non nil usage with nil prices returns zero pointer",
+			name:  "non nil usage with empty cost config returns nil",
 			usage: codersdk.ChatMessageUsage{InputTokens: int64Ptr(42)},
 			cost:  &codersdk.ModelCostConfig{},
-			want:  int64Ptr(0),
+			want:  nil,
 		},
 	}
 
