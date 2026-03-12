@@ -159,7 +159,7 @@ const DERPRegionPage: FC = () => {
 					return (
 						<section
 							key={node.HostName}
-							className="border border-solid border-border rounded-lg text-sm"
+							className="border border-solid border-border rounded-lg overflow-hidden text-sm"
 						>
 							<header className="p-6 flex justify-between items-center">
 								<div>
@@ -186,7 +186,7 @@ const DERPRegionPage: FC = () => {
 							</header>
 
 							<Table>
-								<TableBody>
+								<TableBody className="[&>tr>td:first-of-type]:border-l-0 [&>tr>td:last-child]:border-r-0 [&>tr:last-child>td]:border-b-0 [&>tr>td]:!rounded-none">
 									{checks.map((check) => (
 										<TableRow key={check.label}>
 											<TableCell className="w-8">
@@ -204,12 +204,12 @@ const DERPRegionPage: FC = () => {
 							</Table>
 							<Logs
 								lines={logs?.flat() ?? []}
-								className="rounded-b-lg border-0 border-t border-solid border-border"
+								className="border-0 border-t border-solid border-border"
 							/>
 							{report.client_errs.length > 0 && (
 								<Logs
 									lines={report.client_errs.flat()}
-									className="rounded-b-lg border-0 border-t border-solid border-border bg-surface-destructive text-content-destructive"
+									className="border-0 border-t border-solid border-border bg-surface-destructive text-content-destructive"
 								/>
 							)}
 						</section>
