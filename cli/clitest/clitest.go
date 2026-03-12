@@ -28,29 +28,78 @@ import (
 	"github.com/coder/serpent"
 )
 
+// Option configures a NewWithOptions invocation.
+type Option func(*options)
+
+type options struct {
+	clock quartz.Clock
+	cmd   *serpent.Command
+	args  []string
+}
+
+// WithClock injects a quartz.Clock into the RootCmd for
+// time-dependent tests. Mutually exclusive with WithCommand;
+// the clock is only applied when building the default AGPL
+// command.
+func WithClock(clk quartz.Clock) Option {
+	return func(o *options) {
+		o.clock = clk
+	}
+}
+
+// WithCommand provides a pre-built *serpent.Command instead of
+// building the default AGPL command. Use this for enterprise
+// commands or custom subcommand trees.
+func WithCommand(cmd *serpent.Command) Option {
+	return func(o *options) {
+		o.cmd = cmd
+	}
+}
+
+// WithArgs sets the CLI arguments for the invocation.
+func WithArgs(args ...string) Option {
+	return func(o *options) {
+		o.args = args
+	}
+}
+
+// NewWithOptions creates a CLI instance configured by the given
+// options. The invocation uses a temporary global config directory
+// for the given testing.TB. If no command is provided via
+// WithCommand, a default AGPL command is built.
+func NewWithOptions(t testing.TB, opts ...Option) (*serpent.Invocation, config.Root) {
+	o := &options{}
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	cmd := o.cmd
+	if cmd == nil {
+		var root cli.RootCmd
+		if o.clock != nil {
+			root.SetClock(o.clock)
+		}
+		var err error
+		cmd, err = root.Command(root.AGPL())
+		require.NoError(t, err)
+	} else {
+		require.Nil(t, o.clock,
+			"WithClock and WithCommand are mutually exclusive: "+
+				"the clock must be set on RootCmd before the command is built, "+
+				"but WithCommand provides an already-built command")
+	}
+
+	configDir := config.Root(t.TempDir())
+	invArgs := append([]string{"--global-config", string(configDir)}, o.args...)
+	return setupInvocation(t, cmd, invArgs...), configDir
+}
+
 // New creates a CLI instance with a configuration pointed to a
 // temporary testing directory. The invocation is set up to use a
 // global config directory for the given testing.TB, and keyring
 // usage disabled.
 func New(t testing.TB, args ...string) (*serpent.Invocation, config.Root) {
-	var root cli.RootCmd
-
-	cmd, err := root.Command(root.AGPL())
-	require.NoError(t, err)
-
-	return NewWithCommand(t, cmd, args...)
-}
-
-// NewWithClock is like New, but injects the given clock for
-// tests that are time-dependent.
-func NewWithClock(t testing.TB, clk quartz.Clock, args ...string) (*serpent.Invocation, config.Root) {
-	var root cli.RootCmd
-	root.SetClock(clk)
-
-	cmd, err := root.Command(root.AGPL())
-	require.NoError(t, err)
-
-	return NewWithCommand(t, cmd, args...)
+	return NewWithOptions(t, WithArgs(args...))
 }
 
 type logWriter struct {
@@ -70,17 +119,6 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func NewWithCommand(
-	t testing.TB, cmd *serpent.Command, args ...string,
-) (*serpent.Invocation, config.Root) {
-	configDir := config.Root(t.TempDir())
-	// Keyring usage is disabled here when --global-config is set because many existing
-	// tests expect the session token to be stored on disk and is not properly instrumented
-	// for parallel testing against the actual operating system keyring.
-	invArgs := append([]string{"--global-config", string(configDir)}, args...)
-	return setupInvocation(t, cmd, invArgs...), configDir
-}
-
 func setupInvocation(t testing.TB, cmd *serpent.Command, args ...string,
 ) *serpent.Invocation {
 	// I really would like to fail test on error logs, but realistically, turning on by default
@@ -98,13 +136,6 @@ func setupInvocation(t testing.TB, cmd *serpent.Command, args ...string,
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
 	return i
-}
-
-func NewWithDefaultKeyringCommand(t testing.TB, cmd *serpent.Command, args ...string,
-) (*serpent.Invocation, config.Root) {
-	configDir := config.Root(t.TempDir())
-	invArgs := append([]string{"--global-config", string(configDir)}, args...)
-	return setupInvocation(t, cmd, invArgs...), configDir
 }
 
 // SetupConfig applies the URL and SessionToken of the client to the config.

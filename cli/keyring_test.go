@@ -41,7 +41,7 @@ func setupKeyringTestEnv(t *testing.T, clientURL string, args ...string) keyring
 	root.WithKeyringServiceName(serviceName)
 	root.UseKeyringWithGlobalConfig()
 
-	inv, cfg := clitest.NewWithDefaultKeyringCommand(t, cmd, args...)
+	inv, cfg := clitest.NewWithOptions(t, clitest.WithCommand(cmd), clitest.WithArgs(args...))
 
 	parsedURL, err := url.Parse(clientURL)
 	require.NoError(t, err)
@@ -157,10 +157,12 @@ func TestUseKeyring(t *testing.T) {
 		logoutRoot.WithKeyringServiceName(env.serviceName)
 		logoutRoot.UseKeyringWithGlobalConfig()
 
-		logoutInv, _ := clitest.NewWithDefaultKeyringCommand(t, logoutCmd,
-			"logout",
-			"--yes",
-			"--global-config", string(env.cfg),
+		logoutInv, _ := clitest.NewWithOptions(t, clitest.WithCommand(logoutCmd),
+			clitest.WithArgs(
+				"logout",
+				"--yes",
+				"--global-config", string(env.cfg),
+			),
 		)
 
 		var logoutOut bytes.Buffer

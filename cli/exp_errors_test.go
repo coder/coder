@@ -56,7 +56,7 @@ ExtractCommandPathsLoop:
 
 			coderRootCmd := getRoot(t)
 
-			inv, _ := clitest.NewWithCommand(t, coderRootCmd, tt.Cmd...)
+			inv, _ := clitest.NewWithOptions(t, clitest.WithCommand(coderRootCmd), clitest.WithArgs(tt.Cmd...))
 			inv.Stderr = &outBuf
 			inv.Stdout = &outBuf
 

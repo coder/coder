@@ -35,11 +35,13 @@ func TestServer_Single(t *testing.T) {
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	require.NoError(t, err)
 
-	inv, cfg := clitest.NewWithCommand(t, cmd,
-		"server",
-		dbArg(t),
-		"--http-address", ":0",
-		"--access-url", "http://example.com",
+	inv, cfg := clitest.NewWithOptions(t, clitest.WithCommand(cmd),
+		clitest.WithArgs(
+			"server",
+			dbArg(t),
+			"--http-address", ":0",
+			"--access-url", "http://example.com",
+		),
 	)
 	clitest.Start(t, inv.WithContext(ctx))
 	accessURL := waitAccessURL(t, cfg)

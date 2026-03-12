@@ -353,8 +353,8 @@ func createAgentWithFlags(t *testing.T, flags ...string) *agentsdk.Client {
 	subCmd := agentClientCommand(&client)
 	cmd, err := r.Command([]*serpent.Command{subCmd})
 	require.NoError(t, err)
-	inv, _ := clitest.NewWithCommand(t, cmd,
-		append([]string{"agent-client"}, flags...)...)
+	inv, _ := clitest.NewWithOptions(t, clitest.WithCommand(cmd),
+		clitest.WithArgs(append([]string{"agent-client"}, flags...)...))
 	err = inv.Run()
 	require.NoError(t, err)
 	require.NotNil(t, client)

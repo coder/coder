@@ -264,7 +264,7 @@ func Test_TaskStatus(t *testing.T) {
 
 			t.Cleanup(srv.Close)
 			args = append(args, tc.args...)
-			inv, cfgDir := clitest.NewWithClock(t, mClock, args...)
+			inv, cfgDir := clitest.NewWithOptions(t, clitest.WithClock(mClock), clitest.WithArgs(args...))
 			inv.Stdout = &sb
 			inv.Stderr = &sb
 			clitest.SetupConfig(t, client, cfgDir)

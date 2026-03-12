@@ -19,7 +19,7 @@ func newCLI(t *testing.T, args ...string) (*serpent.Invocation, config.Root) {
 	var root cli.RootCmd
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	require.NoError(t, err)
-	return clitest.NewWithCommand(t, cmd, args...)
+	return clitest.NewWithOptions(t, clitest.WithCommand(cmd), clitest.WithArgs(args...))
 }
 
 func TestEnterpriseHandlersOK(t *testing.T) {

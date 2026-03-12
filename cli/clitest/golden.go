@@ -80,7 +80,7 @@ ExtractCommandPathsLoop:
 
 			caseCmd := getRoot(t)
 
-			inv, cfg := NewWithCommand(t, caseCmd, tt.Cmd...)
+			inv, cfg := NewWithOptions(t, WithCommand(caseCmd), WithArgs(tt.Cmd...))
 			inv.Stderr = &outBuf
 			inv.Stdout = &outBuf
 			inv.Environ.Set("CODER_URL", rootClient.URL.String())
