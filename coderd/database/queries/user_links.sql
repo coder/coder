@@ -37,14 +37,6 @@ INSERT INTO
 VALUES
 	( $1, $2, $3, $4, $5, $6, $7, $8, $9 ) RETURNING *;
 
--- name: UpdateUserLinkedID :one
-UPDATE
-	user_links
-SET
-	linked_id = $1
-WHERE
-	user_id = $2 AND login_type = $3 RETURNING *;
-
 -- name: UpdateUserLink :one
 UPDATE
 	user_links

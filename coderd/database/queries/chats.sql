@@ -5,12 +5,6 @@ WHERE id = @id OR root_chat_id = @id;
 -- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
 
--- name: DeleteChatMessagesByChatID :exec
-DELETE FROM
-    chat_messages
-WHERE
-    chat_id = @chat_id::uuid;
-
 -- name: DeleteChatMessagesAfterID :exec
 DELETE FROM
     chat_messages
@@ -140,26 +134,6 @@ LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
     COALESCE(NULLIF(@limit_opt :: int, 0), 50);
-
--- name: ListChildChatsByParentID :many
-SELECT
-    *
-FROM
-    chats
-WHERE
-    parent_chat_id = @parent_chat_id::uuid
-ORDER BY
-    created_at ASC;
-
--- name: ListChatsByRootID :many
-SELECT
-    *
-FROM
-    chats
-WHERE
-    root_chat_id = @root_chat_id::uuid
-ORDER BY
-    created_at ASC;
 
 -- name: InsertChat :one
 INSERT INTO chats (
