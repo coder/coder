@@ -16,8 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -374,25 +377,60 @@ func TestDebugWebsocket(t *testing.T) {
 	})
 }
 
+// noopProfileCollector avoids calling process-global runtime functions
+// (CPU profiler, tracer) so that tests can run in parallel safely.
+type noopProfileCollector struct{}
+
+func (noopProfileCollector) StartCPUProfile(io.Writer) error       { return nil }
+func (noopProfileCollector) StopCPUProfile()                       {}
+func (noopProfileCollector) StartTrace(io.Writer) error            { return nil }
+func (noopProfileCollector) StopTrace()                            {}
+func (noopProfileCollector) LookupProfile(string, io.Writer) error { return nil }
+func (noopProfileCollector) SetBlockProfileRate(int)               {}
+func (noopProfileCollector) SetMutexProfileFraction(int) int       { return 0 }
+
+// Compile-time check.
+var _ coderd.ProfileCollector = noopProfileCollector{}
+
+// blockingProfileCollector blocks in StartCPUProfile until unblocked,
+// allowing deterministic testing of the concurrency guard.
+type blockingProfileCollector struct {
+	noopProfileCollector
+	started chan struct{} // closed when StartCPUProfile is entered
+	block   chan struct{} // StartCPUProfile blocks until this is closed
+}
+
+func (b *blockingProfileCollector) StartCPUProfile(io.Writer) error {
+	close(b.started)
+	<-b.block
+	return nil
+}
+
+func newTestAPI(t *testing.T) (*codersdk.Client, io.Closer, *coderd.API) {
+	t.Helper()
+	client, closer, api := coderdtest.NewWithAPI(t, nil)
+	api.ProfileCollector = noopProfileCollector{}
+	return client, closer, api
+}
+
 func TestDebugCollectProfile(t *testing.T) {
 	t.Parallel()
 
-	// Note: Tests that use CPU profiling or tracing are NOT marked
-	// t.Parallel() because runtime.pprof.StartCPUProfile and
-	// runtime/trace.Start are process-global. Running them concurrently
-	// causes one to fail with "already in progress".
-
-	//nolint:paralleltest // CPU profiler is process-global
 	t.Run("Defaults", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, closer, api := newTestAPI(t)
+		defer closer.Close()
 		_ = coderdtest.CreateFirstUser(t, client)
+
+		asserter := coderdtest.AssertRBAC(t, api, client)
 
 		body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
 			// Use a very short duration so the test finishes quickly.
-			Duration: 1 * time.Second,
+			// The noop collector means no real profiling occurs.
+			Duration: 100 * time.Millisecond,
 		})
 		require.NoError(t, err)
 		defer body.Close()
@@ -410,19 +448,22 @@ func TestDebugCollectProfile(t *testing.T) {
 		require.Contains(t, files, "block.prof")
 		require.Contains(t, files, "mutex.prof")
 		require.Contains(t, files, "goroutine.prof")
+
+		// Verify the endpoint checks the correct RBAC permission.
+		asserter.AssertChecked(t, policy.ActionRead, rbac.ResourceDebugInfo)
 	})
 
 	t.Run("CustomProfiles", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client := coderdtest.New(t, nil)
+		client, closer, _ := newTestAPI(t)
+		defer closer.Close()
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
-			Duration: 1 * time.Second,
+			Duration: 100 * time.Millisecond,
 			Profiles: []string{"heap", "goroutine"},
 		})
 		require.NoError(t, err)
@@ -439,16 +480,17 @@ func TestDebugCollectProfile(t *testing.T) {
 		require.NotContains(t, files, "allocs.prof")
 	})
 
-	//nolint:paralleltest // CPU profiler and tracer are process-global
 	t.Run("WithTraceAndCPU", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, closer, _ := newTestAPI(t)
+		defer closer.Close()
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
-			Duration: 1 * time.Second,
+			Duration: 100 * time.Millisecond,
 			Profiles: []string{"cpu", "trace"},
 		})
 		require.NoError(t, err)
@@ -465,13 +507,12 @@ func TestDebugCollectProfile(t *testing.T) {
 	t.Run("DurationTooLong", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		res, err := client.Request(ctx, "GET", "/api/v2/debug/profile?duration=5m", nil)
+		res, err := client.Request(ctx, "POST", "/api/v2/debug/profile?duration=5m", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
@@ -480,13 +521,12 @@ func TestDebugCollectProfile(t *testing.T) {
 	t.Run("InvalidDuration", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		res, err := client.Request(ctx, "GET", "/api/v2/debug/profile?duration=notaduration", nil)
+		res, err := client.Request(ctx, "POST", "/api/v2/debug/profile?duration=notaduration", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
@@ -495,13 +535,12 @@ func TestDebugCollectProfile(t *testing.T) {
 	t.Run("InvalidProfile", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		res, err := client.Request(ctx, "GET", "/api/v2/debug/profile?profiles=nonexistent", nil)
+		res, err := client.Request(ctx, "POST", "/api/v2/debug/profile?profiles=nonexistent", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
@@ -510,8 +549,7 @@ func TestDebugCollectProfile(t *testing.T) {
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		client := coderdtest.New(t, nil)
 		firstUser := coderdtest.CreateFirstUser(t, client)
@@ -519,43 +557,53 @@ func TestDebugCollectProfile(t *testing.T) {
 		// Create a non-admin user.
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
-		res, err := memberClient.Request(ctx, "GET", "/api/v2/debug/profile", nil)
+		res, err := memberClient.Request(ctx, "POST", "/api/v2/debug/profile", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusForbidden, res.StatusCode)
 	})
 
-	//nolint:paralleltest // CPU profiler is process-global
 	t.Run("Conflict", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		t.Parallel()
 
-		client := coderdtest.New(t, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		blocker := &blockingProfileCollector{
+			started: make(chan struct{}),
+			block:   make(chan struct{}),
+		}
+
+		client, closer, api := coderdtest.NewWithAPI(t, nil)
+		defer closer.Close()
+		api.ProfileCollector = blocker
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		// Start a long profile collection in the background.
+		// Start a profile collection that will block inside
+		// StartCPUProfile until we explicitly unblock it.
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
 			body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
-				Duration: 5 * time.Second,
+				Duration: 1 * time.Second,
 			})
 			if err == nil {
 				body.Close()
 			}
 		}()
 
-		// Give the first request a moment to start.
-		time.Sleep(500 * time.Millisecond)
+		// Wait deterministically for the first request to enter the
+		// collector — no time.Sleep needed.
+		testutil.TryReceive(ctx, t, blocker.started)
 
 		// The second request should get 409 Conflict.
-		res, err := client.Request(ctx, "GET", "/api/v2/debug/profile?duration=1s", nil)
+		res, err := client.Request(ctx, "POST", "/api/v2/debug/profile?duration=1s", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusConflict, res.StatusCode)
 
-		// Wait for the first collection to finish.
-		<-done
+		// Unblock the first request and wait for it to finish.
+		close(blocker.block)
+		testutil.TryReceive(ctx, t, done)
 	})
 }
 

@@ -627,7 +627,8 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper: options.DatabaseRolluper,
+		dbRolluper:       options.DatabaseRolluper,
+		ProfileCollector: defaultProfileCollector{},
 	}
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
@@ -1731,7 +1732,7 @@ func New(options *Options) *API {
 			}
 			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
 
-			r.Get("/profile", api.debugCollectProfile)
+			r.Post("/profile", api.debugCollectProfile)
 
 			r.Route("/pprof", func(r chi.Router) {
 				r.Use(func(next http.Handler) http.Handler {
@@ -2021,6 +2022,10 @@ type API struct {
 	// background.
 	gitSyncWorker *gitsync.Worker
 
+	// ProfileCollector abstracts the runtime/pprof and runtime/trace
+	// calls used by the /debug/profile endpoint. Tests override this
+	// with a stub to avoid process-global side-effects.
+	ProfileCollector ProfileCollector
 	// ProfileCollecting is used as a concurrency guard so that only one
 	// profile collection (via /debug/profile) can run at a time. The CPU
 	// profiler is process-global, so concurrent collections would fail.

@@ -870,7 +870,7 @@ const docTemplate = `{
             }
         },
         "/debug/profile": {
-            "get": {
+            "post": {
                 "security": [
                     {
                         "CoderSessionToken": []

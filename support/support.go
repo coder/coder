@@ -824,7 +824,7 @@ func PprofInfoFromArchive(ctx context.Context, client *codersdk.Client, log slog
 			break
 		}
 		if err != nil {
-			return nil, xerrors.Errorf("read tar entry: %w", err)
+			return nil, xerrors.Errorf("read tar entry %q: %w", hdr.Name, err)
 		}
 
 		content, err := io.ReadAll(tr)

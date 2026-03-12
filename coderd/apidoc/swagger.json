@@ -753,7 +753,7 @@
 			}
 		},
 		"/debug/profile": {
-			"get": {
+			"post": {
 				"security": [
 					{
 						"CoderSessionToken": []

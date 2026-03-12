@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"runtime"
 	"runtime/pprof"
@@ -336,6 +337,49 @@ func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger sl
 	return dismissedHealthchecks
 }
 
+// ProfileCollector abstracts the mechanics of collecting pprof/trace
+// data from the Go runtime. Production code uses defaultProfileCollector;
+// tests can substitute a stub to avoid process-global side-effects.
+type ProfileCollector interface {
+	// StartCPUProfile begins CPU profiling, writing to w.
+	StartCPUProfile(w io.Writer) error
+	// StopCPUProfile stops CPU profiling.
+	StopCPUProfile()
+	// StartTrace begins execution tracing, writing to w.
+	StartTrace(w io.Writer) error
+	// StopTrace stops execution tracing.
+	StopTrace()
+	// LookupProfile writes the named snapshot profile to w.
+	LookupProfile(name string, w io.Writer) error
+	// SetBlockProfileRate enables/disables block profiling.
+	SetBlockProfileRate(rate int)
+	// SetMutexProfileFraction enables/disables mutex profiling.
+	// Returns the previous fraction.
+	SetMutexProfileFraction(rate int) int
+}
+
+// defaultProfileCollector delegates to the real runtime/pprof and
+// runtime/trace packages.
+type defaultProfileCollector struct{}
+
+func (defaultProfileCollector) StartCPUProfile(w io.Writer) error { return pprof.StartCPUProfile(w) }
+func (defaultProfileCollector) StopCPUProfile()                   { pprof.StopCPUProfile() }
+func (defaultProfileCollector) StartTrace(w io.Writer) error      { return trace.Start(w) }
+func (defaultProfileCollector) StopTrace()                        { trace.Stop() }
+
+func (defaultProfileCollector) LookupProfile(name string, w io.Writer) error {
+	p := pprof.Lookup(name)
+	if p == nil {
+		return nil
+	}
+	return p.WriteTo(w, 0)
+}
+
+func (defaultProfileCollector) SetBlockProfileRate(rate int) { runtime.SetBlockProfileRate(rate) }
+func (defaultProfileCollector) SetMutexProfileFraction(rate int) int {
+	return runtime.SetMutexProfileFraction(rate)
+}
+
 // defaultProfiles is the set of profiles collected when none are specified.
 var defaultProfiles = []string{"cpu", "heap", "allocs", "block", "mutex", "goroutine"}
 
@@ -364,7 +408,7 @@ const (
 // @Security CoderSessionToken
 // @Tags Debug
 // @Success 200
-// @Router /debug/profile [get]
+// @Router /debug/profile [post]
 // @x-apidocgen {"skip": true}
 func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -424,10 +468,11 @@ func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 	// actually populated. Restore previous values when we are done.
 	// SetBlockProfileRate does not return the previous value, so we
 	// simply disable it again after collection (the default is 0).
-	runtime.SetBlockProfileRate(1)
-	prevMutexFraction := runtime.SetMutexProfileFraction(1)
-	defer runtime.SetBlockProfileRate(0)
-	defer runtime.SetMutexProfileFraction(prevMutexFraction)
+	pc := api.ProfileCollector
+	pc.SetBlockProfileRate(1)
+	prevMutexFraction := pc.SetMutexProfileFraction(1)
+	defer pc.SetBlockProfileRate(0)
+	defer pc.SetMutexProfileFraction(prevMutexFraction)
 
 	// Determine which profiles need the timed collection (cpu, trace) vs
 	// instant snapshots.
@@ -446,7 +491,7 @@ func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 	// duration.
 	var cpuBuf, traceBuf bytes.Buffer
 	if wantCPU {
-		if err := pprof.StartCPUProfile(&cpuBuf); err != nil {
+		if err := pc.StartCPUProfile(&cpuBuf); err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to start CPU profile.",
 				Detail:  err.Error(),
@@ -455,9 +500,9 @@ func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if wantTrace {
-		if err := trace.Start(&traceBuf); err != nil {
+		if err := pc.StartTrace(&traceBuf); err != nil {
 			if wantCPU {
-				pprof.StopCPUProfile()
+				pc.StopCPUProfile()
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to start trace.",
@@ -473,20 +518,20 @@ func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			if wantCPU {
-				pprof.StopCPUProfile()
+				pc.StopCPUProfile()
 			}
 			if wantTrace {
-				trace.Stop()
+				pc.StopTrace()
 			}
 			// Client disconnected; nothing to write.
 			return
 		case <-timer.C:
 		}
 		if wantCPU {
-			pprof.StopCPUProfile()
+			pc.StopCPUProfile()
 		}
 		if wantTrace {
-			trace.Stop()
+			pc.StopTrace()
 		}
 	}
 
@@ -531,13 +576,8 @@ func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 		default:
 			// Snapshot profiles: heap, allocs, block, mutex, goroutine,
 			// threadcreate.
-			prof := pprof.Lookup(p)
-			if prof == nil {
-				// Should not happen because we validated above.
-				continue
-			}
 			var buf bytes.Buffer
-			if err := prof.WriteTo(&buf, 0); err != nil {
+			if err := pc.LookupProfile(p, &buf); err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 					Message: fmt.Sprintf("Failed to collect %s profile.", p),
 					Detail:  err.Error(),

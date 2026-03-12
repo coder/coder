@@ -43,7 +43,7 @@ func (c *Client) DebugCollectProfile(ctx context.Context, opts DebugProfileOptio
 		reqPath += "?" + qp.Encode()
 	}
 
-	resp, err := c.Request(ctx, http.MethodGet, reqPath, nil)
+	resp, err := c.Request(ctx, http.MethodPost, reqPath, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("request debug profile: %w", err)
 	}
