@@ -31,7 +31,7 @@ WHERE group_id = @group_id
         user_is_system = false
         END;
 
--- InsertUserGroupsByName adds a user to all provided groups, if they exist.
+-- InsertUserGroupsByID adds a user to all provided groups, if they exist.
 -- name: InsertUserGroupsByID :many
 WITH groups AS (
 	SELECT

@@ -650,7 +650,7 @@ type sqlcQuerier interface {
 	// publish heartbeat events.
 	InsertUsageEvent(ctx context.Context, arg InsertUsageEventParams) error
 	InsertUser(ctx context.Context, arg InsertUserParams) (User, error)
-	// InsertUserGroupsByName adds a user to all provided groups, if they exist.
+	// InsertUserGroupsByID adds a user to all provided groups, if they exist.
 	// If there is a conflict, the user is already a member
 	InsertUserGroupsByID(ctx context.Context, arg InsertUserGroupsByIDParams) ([]uuid.UUID, error)
 	InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error)
