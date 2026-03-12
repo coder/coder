@@ -8,6 +8,7 @@ import {
 } from "api/chatModelOptions";
 import type * as TypesGen from "api/typesGenerated";
 import * as Yup from "yup";
+import { pricingFieldNames } from "./pricingFields";
 
 // ── Preserved public types ─────────────────────────────────────
 
@@ -155,10 +156,10 @@ function buildEmptyProviderState(provider: string): Record<string, unknown> {
 export const emptyModelConfigFormState: ModelConfigFormState = (() => {
 	const state: ModelConfigFormState = {};
 
-	// General fields (e.g. maxOutputTokens, temperature).
+	// General fields (e.g. maxOutputTokens, cost.inputPricePerMillionTokens).
 	for (const field of getGeneralFields()) {
-		const key = snakeToCamel(field.json_name);
-		state[key] = "";
+		const camelSegments = field.json_name.split(".").map(snakeToCamel);
+		deepSet(state, camelSegments, "");
 	}
 
 	// Provider sub-objects.
@@ -181,12 +182,12 @@ export const extractModelConfigFormState = (
 
 	const state: ModelConfigFormState = {};
 
-	// General fields — read from the top level of the API config
-	// using the snake_case json_name.
+	// General fields may be nested (for example, cost.input_price_per_million_tokens).
 	for (const field of getGeneralFields()) {
-		const camelKey = snakeToCamel(field.json_name);
-		const apiValue = (config as Record<string, unknown>)[field.json_name];
-		state[camelKey] = toFormString(apiValue);
+		const snakeSegments = field.json_name.split(".");
+		const camelSegments = snakeSegments.map(snakeToCamel);
+		const apiValue = deepGet(config, snakeSegments);
+		deepSet(state, camelSegments, toFormString(apiValue));
 	}
 
 	// Provider sub-objects.
@@ -233,6 +234,25 @@ export const buildInitialModelFormValues = (
 		: structuredClone(emptyModelConfigFormState),
 });
 
+function isNonNegativePricingField(field: FieldSchema): boolean {
+	return pricingFieldNames.has(field.json_name);
+}
+
+function isValidOptionalNumber(
+	value: string | undefined,
+	minimum?: number,
+): boolean {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return true;
+	}
+
+	const parsed = Number(trimmed);
+	return (
+		Number.isFinite(parsed) && (minimum === undefined || parsed >= minimum)
+	);
+}
+
 // ── Schema-driven Yup validation ───────────────────────────────
 
 /**
@@ -255,16 +275,16 @@ function yupTestForField(field: FieldSchema): Yup.StringSchema {
 				},
 			);
 
-		case "number":
-			return Yup.string().test(
-				"optional-number",
-				`${label} must be a valid number.`,
-				(value) => {
-					const trimmed = value?.trim();
-					if (!trimmed) return true;
-					return Number.isFinite(Number(trimmed));
-				},
+		case "number": {
+			const minimum = isNonNegativePricingField(field) ? 0 : undefined;
+			const errorMessage =
+				minimum === 0
+					? `${label} must be zero or greater.`
+					: `${label} must be a valid number.`;
+			return Yup.string().test("optional-number", errorMessage, (value) =>
+				isValidOptionalNumber(value, minimum),
 			);
+		}
 
 		case "boolean":
 			return Yup.string().test(
@@ -472,11 +492,12 @@ export const buildModelConfigFromForm = (
 	const modelConfig: Record<string, unknown> = {};
 
 	for (const field of getGeneralFields()) {
-		const formValue = form[snakeToCamel(field.json_name)];
+		const camelSegments = field.json_name.split(".").map(snakeToCamel);
+		const formValue = deepGet(form, camelSegments);
 		if (typeof formValue !== "string") continue;
 		const converted = convertFormValue(formValue, field);
 		if (converted !== undefined) {
-			modelConfig[field.json_name] = converted;
+			deepSet(modelConfig, field.json_name.split("."), converted);
 		}
 	}
 

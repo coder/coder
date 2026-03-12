@@ -3095,11 +3095,53 @@ func marshalChatModelCallConfig(
 		return json.RawMessage("{}"), nil
 	}
 
+	if err := validateChatModelCallConfig(modelConfig); err != nil {
+		return nil, err
+	}
+
 	encoded, err := json.Marshal(modelConfig)
 	if err != nil {
 		return nil, xerrors.Errorf("encode model config: %w", err)
 	}
 	return encoded, nil
+}
+
+func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) error {
+	if modelConfig == nil {
+		return nil
+	}
+
+	costConfig := codersdk.ModelCostConfig{}
+	if modelConfig.Cost != nil {
+		costConfig = *modelConfig.Cost
+	}
+
+	pricingFields := []struct {
+		name  string
+		value *float64
+	}{
+		{name: "cost.input_price_per_million_tokens", value: costConfig.InputPricePerMillionTokens},
+		{name: "cost.output_price_per_million_tokens", value: costConfig.OutputPricePerMillionTokens},
+		{name: "cost.cache_read_price_per_million_tokens", value: costConfig.CacheReadPricePerMillionTokens},
+		{name: "cost.cache_write_price_per_million_tokens", value: costConfig.CacheWritePricePerMillionTokens},
+	}
+	for _, field := range pricingFields {
+		if err := validateNonNegativeFloat64Field(field.name, field.value); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateNonNegativeFloat64Field(name string, value *float64) error {
+	if value == nil {
+		return nil
+	}
+	if *value < 0 {
+		return xerrors.Errorf("%s must be greater than or equal to zero", name)
+	}
+	return nil
 }
 
 func unmarshalChatModelCallConfig(
@@ -3130,7 +3172,19 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 		config.TopK == nil &&
 		config.PresencePenalty == nil &&
 		config.FrequencyPenalty == nil &&
+		isZeroModelCostConfig(config.Cost) &&
 		isZeroChatModelProviderOptions(config.ProviderOptions)
+}
+
+func isZeroModelCostConfig(cost *codersdk.ModelCostConfig) bool {
+	if cost == nil {
+		return true
+	}
+
+	return cost.InputPricePerMillionTokens == nil &&
+		cost.OutputPricePerMillionTokens == nil &&
+		cost.CacheReadPricePerMillionTokens == nil &&
+		cost.CacheWritePricePerMillionTokens == nil
 }
 
 func isZeroChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) bool {

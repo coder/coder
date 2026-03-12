@@ -420,6 +420,17 @@ type ChatModelVercelProviderOptions struct {
 	ExtraBody         map[string]any                         `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
 }
 
+// ModelCostConfig stores pricing metadata for a chat model.
+type ModelCostConfig struct {
+	// Pricing is stored as configuration metadata and currently only needs to
+	// round-trip cleanly through the API and admin UI. If we later use these
+	// values for billing-grade arithmetic, switch to a fixed-point type.
+	InputPricePerMillionTokens      *float64 `json:"input_price_per_million_tokens,omitempty" description:"Input token price in USD per 1M tokens"`
+	OutputPricePerMillionTokens     *float64 `json:"output_price_per_million_tokens,omitempty" description:"Output token price in USD per 1M tokens"`
+	CacheReadPricePerMillionTokens  *float64 `json:"cache_read_price_per_million_tokens,omitempty" description:"Cache read token price in USD per 1M tokens"`
+	CacheWritePricePerMillionTokens *float64 `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
+}
+
 // ChatModelCallConfig configures per-call model behavior defaults.
 type ChatModelCallConfig struct {
 	MaxOutputTokens  *int64                    `json:"max_output_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
@@ -428,7 +439,50 @@ type ChatModelCallConfig struct {
 	TopK             *int64                    `json:"top_k,omitempty" description:"Number of highest-probability tokens to keep for sampling"`
 	PresencePenalty  *float64                  `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
 	FrequencyPenalty *float64                  `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
+	Cost             *ModelCostConfig          `json:"cost,omitempty" description:"Optional pricing metadata for this model"`
 	ProviderOptions  *ChatModelProviderOptions `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
+}
+
+// UnmarshalJSON accepts both the current nested cost object and the previous
+// top-level pricing keys so legacy stored model_config JSON continues to load.
+func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
+	type chatModelCallConfigAlias ChatModelCallConfig
+	aux := struct {
+		*chatModelCallConfigAlias
+		InputPricePerMillionTokens      *float64 `json:"input_price_per_million_tokens,omitempty"`
+		OutputPricePerMillionTokens     *float64 `json:"output_price_per_million_tokens,omitempty"`
+		CacheReadPricePerMillionTokens  *float64 `json:"cache_read_price_per_million_tokens,omitempty"`
+		CacheWritePricePerMillionTokens *float64 `json:"cache_write_price_per_million_tokens,omitempty"`
+	}{
+		chatModelCallConfigAlias: (*chatModelCallConfigAlias)(c),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if aux.InputPricePerMillionTokens == nil &&
+		aux.OutputPricePerMillionTokens == nil &&
+		aux.CacheReadPricePerMillionTokens == nil &&
+		aux.CacheWritePricePerMillionTokens == nil {
+		return nil
+	}
+
+	if c.Cost == nil {
+		c.Cost = &ModelCostConfig{}
+	}
+	if c.Cost.InputPricePerMillionTokens == nil {
+		c.Cost.InputPricePerMillionTokens = aux.InputPricePerMillionTokens
+	}
+	if c.Cost.OutputPricePerMillionTokens == nil {
+		c.Cost.OutputPricePerMillionTokens = aux.OutputPricePerMillionTokens
+	}
+	if c.Cost.CacheReadPricePerMillionTokens == nil {
+		c.Cost.CacheReadPricePerMillionTokens = aux.CacheReadPricePerMillionTokens
+	}
+	if c.Cost.CacheWritePricePerMillionTokens == nil {
+		c.Cost.CacheWritePricePerMillionTokens = aux.CacheWritePricePerMillionTokens
+	}
+	return nil
 }
 
 // CreateChatModelConfigRequest creates a chat model config.

@@ -17,6 +17,7 @@ import {
 	ChevronRightIcon,
 	PlusIcon,
 	StarIcon,
+	TriangleAlertIcon,
 } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { cn } from "utils/cn";
@@ -24,6 +25,7 @@ import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelForm } from "./ModelForm";
 import { ProviderIcon } from "./ProviderIcon";
+import { hasCustomPricing } from "./pricingFields";
 
 type ModelView =
 	| { mode: "list" }
@@ -190,79 +192,91 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				</div>
 			) : (
 				<div className="divide-y divide-border/50">
-					{modelConfigs.map((modelConfig) => (
-						<div
-							key={modelConfig.id}
-							className="flex items-center gap-3.5 px-3 py-3"
-						>
-							{" "}
-							{/* Star for default */}
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<button
-										type="button"
-										onClick={(e) => {
-											e.stopPropagation();
-											handleSetDefault(modelConfig);
-										}}
-										aria-disabled={isUpdating || modelConfig.is_default}
-										aria-label={
-											modelConfig.is_default
-												? "Default model"
-												: "Set as default model"
-										}
-										className={cn(
-											"flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-transparent border-0 p-0 transition-colors",
-											modelConfig.is_default
-												? "text-yellow-400"
-												: "cursor-pointer text-content-secondary/30 hover:text-content-secondary",
-										)}
-									>
-										<StarIcon
-											className={cn(
-												"h-4 w-4",
-												modelConfig.is_default && "fill-current",
-											)}
-										/>
-									</button>
-								</TooltipTrigger>
-								<TooltipContent side="right">
-									{modelConfig.is_default
-										? "Default model for new chats"
-										: "Set as default for new chats"}
-								</TooltipContent>
-							</Tooltip>
-							{/* Clickable row content */}
-							<button
-								type="button"
-								onClick={() => setView({ mode: "edit", model: modelConfig })}
-								className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 text-left transition-colors hover:opacity-80"
+					{modelConfigs.map((modelConfig) => {
+						const showPricingWarning = !hasCustomPricing(
+							modelConfig.model_config,
+						);
+
+						return (
+							<div
+								key={modelConfig.id}
+								className="flex items-center gap-3.5 px-3 py-3"
 							>
-								<ProviderIcon
-									provider={modelConfig.provider}
-									className="h-8 w-8 shrink-0"
-								/>
-								<div className="min-w-0 flex-1">
-									<span
-										className={cn(
-											"block truncate text-[15px] font-medium",
-											modelConfig.enabled === false
-												? "text-content-secondary"
-												: "text-content-primary",
+								{" "}
+								{/* Star for default */}
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button
+											type="button"
+											onClick={(e) => {
+												e.stopPropagation();
+												handleSetDefault(modelConfig);
+											}}
+											aria-disabled={isUpdating || modelConfig.is_default}
+											aria-label={
+												modelConfig.is_default
+													? "Default model"
+													: "Set as default model"
+											}
+											className={cn(
+												"flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-transparent border-0 p-0 transition-colors",
+												modelConfig.is_default
+													? "text-yellow-400"
+													: "cursor-pointer text-content-secondary/30 hover:text-content-secondary",
+											)}
+										>
+											<StarIcon
+												className={cn(
+													"h-4 w-4",
+													modelConfig.is_default && "fill-current",
+												)}
+											/>
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="right">
+										{modelConfig.is_default
+											? "Default model for new chats"
+											: "Set as default for new chats"}
+									</TooltipContent>
+								</Tooltip>
+								{/* Clickable row content */}
+								<button
+									type="button"
+									onClick={() => setView({ mode: "edit", model: modelConfig })}
+									className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 text-left transition-colors hover:opacity-80"
+								>
+									<ProviderIcon
+										provider={modelConfig.provider}
+										className="h-8 w-8 shrink-0"
+									/>
+									<div className="min-w-0 flex-1">
+										<span
+											className={cn(
+												"block truncate text-[15px] font-medium",
+												modelConfig.enabled === false
+													? "text-content-secondary"
+													: "text-content-primary",
+											)}
+										>
+											{modelConfig.display_name || modelConfig.model}
+										</span>
+										{showPricingWarning && (
+											<span className="mt-1 flex items-center gap-1 text-xs text-content-warning">
+												<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0" />
+												Model pricing is not defined
+											</span>
 										)}
-									>
-										{modelConfig.display_name || modelConfig.model}
-									</span>
-								</div>
-								{modelConfig.enabled === false && (
-									<Badge size="xs" variant="warning">
-										disabled
-									</Badge>
-								)}
-								<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
-							</button>{" "}
-						</div>
-					))}
+									</div>
+									{modelConfig.enabled === false && (
+										<Badge size="xs" variant="warning">
+											disabled
+										</Badge>
+									)}
+									<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
+								</button>{" "}
+							</div>
+						);
+					})}
 				</div>
 			)}
 		</>

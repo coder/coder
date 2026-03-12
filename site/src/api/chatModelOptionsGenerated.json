@@ -48,6 +48,38 @@
 				"description": "Penalty for tokens based on their frequency in the output",
 				"required": false,
 				"input_type": "input"
+			},
+			{
+				"json_name": "cost.input_price_per_million_tokens",
+				"go_name": "Cost.InputPricePerMillionTokens",
+				"type": "number",
+				"description": "Input token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "cost.output_price_per_million_tokens",
+				"go_name": "Cost.OutputPricePerMillionTokens",
+				"type": "number",
+				"description": "Output token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "cost.cache_read_price_per_million_tokens",
+				"go_name": "Cost.CacheReadPricePerMillionTokens",
+				"type": "number",
+				"description": "Cache read token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "cost.cache_write_price_per_million_tokens",
+				"go_name": "Cost.CacheWritePricePerMillionTokens",
+				"type": "number",
+				"description": "Cache write or cache creation token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
 			}
 		]
 	},

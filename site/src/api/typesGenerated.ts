@@ -1273,6 +1273,7 @@ export interface ChatModelCallConfig {
 	readonly top_k?: number;
 	readonly presence_penalty?: number;
 	readonly frequency_penalty?: number;
+	readonly cost?: ModelCostConfig;
 	readonly provider_options?: ChatModelProviderOptions;
 }
 
@@ -3408,6 +3409,22 @@ export interface MinimalUser {
 	readonly username: string;
 	readonly name?: string;
 	readonly avatar_url?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ModelCostConfig stores pricing metadata for a chat model.
+ */
+export interface ModelCostConfig {
+	/**
+	 * Pricing is stored as configuration metadata and currently only needs to
+	 * round-trip cleanly through the API and admin UI. If we later use these
+	 * values for billing-grade arithmetic, switch to a fixed-point type.
+	 */
+	readonly input_price_per_million_tokens?: number;
+	readonly output_price_per_million_tokens?: number;
+	readonly cache_read_price_per_million_tokens?: number;
+	readonly cache_write_price_per_million_tokens?: number;
 }
 
 // From netcheck/netcheck.go
