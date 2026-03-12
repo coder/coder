@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,6 +22,10 @@ const (
 	// DiffStatusTTL is how long a successfully refreshed
 	// diff status remains fresh before becoming stale again.
 	DiffStatusTTL = 120 * time.Second
+
+	// defaultConcurrency is the maximum number of HTTP calls
+	// made in parallel during a single Refresh batch.
+	defaultConcurrency = 10
 )
 
 // ProviderResolver maps a git remote origin to the gitprovider
@@ -27,6 +33,10 @@ const (
 type ProviderResolver func(origin string) gitprovider.Provider
 
 var ErrNoTokenAvailable error = errors.New("no token available")
+
+// ErrRateLimitSkipped indicates that a row was skipped because
+// a prior request in the same group hit a rate limit.
+var ErrRateLimitSkipped error = errors.New("skipped due to rate limit")
 
 // TokenResolver obtains the user's git access token for a given
 // remote origin. Should return nil if no token is available, in
@@ -37,14 +47,28 @@ type TokenResolver func(
 	origin string,
 ) (*string, error)
 
+// RefresherOption configures a Refresher.
+type RefresherOption func(*Refresher)
+
+// WithConcurrency sets the maximum number of concurrent HTTP
+// calls per Refresh batch. Defaults to defaultConcurrency.
+func WithConcurrency(n int) RefresherOption {
+	return func(r *Refresher) {
+		if n > 0 {
+			r.concurrency = n
+		}
+	}
+}
+
 // Refresher contains the stateless business logic for fetching
 // fresh PR data from a git provider given a stale
 // database.ChatDiffStatus row.
 type Refresher struct {
-	providers ProviderResolver
-	tokens    TokenResolver
-	logger    slog.Logger
-	clock     quartz.Clock
+	providers   ProviderResolver
+	tokens      TokenResolver
+	logger      slog.Logger
+	clock       quartz.Clock
+	concurrency int
 }
 
 // NewRefresher creates a Refresher with the given dependency
@@ -54,13 +78,19 @@ func NewRefresher(
 	tokens TokenResolver,
 	logger slog.Logger,
 	clock quartz.Clock,
+	opts ...RefresherOption,
 ) *Refresher {
-	return &Refresher{
-		providers: providers,
-		tokens:    tokens,
-		logger:    logger,
-		clock:     clock,
+	r := &Refresher{
+		providers:   providers,
+		tokens:      tokens,
+		logger:      logger,
+		clock:       clock,
+		concurrency: defaultConcurrency,
 	}
+	for _, o := range opts {
+		o(r)
+	}
+	return r
 }
 
 // RefreshRequest pairs a stale row with the chat owner who
@@ -87,10 +117,21 @@ type groupKey struct {
 	origin  string
 }
 
+// resolvedGroup holds the pre-resolved provider and token for
+// a group of requests that share the same (owner, origin).
+type resolvedGroup struct {
+	provider gitprovider.Provider
+	token    string
+	indices  []int
+}
+
 // Refresh fetches fresh PR data for a batch of stale rows.
 // Rows are grouped internally by (ownerID, origin) so that
-// provider and token resolution happen once per group. A
-// top-level error is returned only when the entire batch
+// provider and token resolution happen once per group. HTTP
+// calls within and across groups run concurrently, bounded by
+// the Refresher's concurrency limit.
+//
+// A top-level error is returned only when the entire batch
 // fails catastrophically. Per-row outcomes are in the
 // returned RefreshResult slice (one per input request, same
 // order).
@@ -113,6 +154,10 @@ func (r *Refresher) Refresh(
 		groups[key] = append(groups[key], i)
 	}
 
+	// Pre-resolve providers and tokens sequentially. This is
+	// fast (DB + in-memory config lookups) and avoids
+	// duplicate resolution for rows in the same group.
+	var resolved []resolvedGroup
 	for key, indices := range groups {
 		provider := r.providers(key.origin)
 		if provider == nil {
@@ -135,35 +180,82 @@ func (r *Refresher) Refresh(
 			}
 			continue
 		}
-		// This is technically unnecessary but kept here as a future molly-guard.
-		if token == nil {
-			continue
-		}
 
-		for i, idx := range indices {
-			req := requests[idx]
-			params, err := r.refreshOne(ctx, provider, *token, req.Row)
-			results[idx] = RefreshResult{Request: req, Params: params, Error: err}
+		resolved = append(resolved, resolvedGroup{
+			provider: provider,
+			token:    *token,
+			indices:  indices,
+		})
+	}
 
-			// If rate-limited, skip remaining rows in this group.
-			var rlErr *gitprovider.RateLimitError
-			if errors.As(err, &rlErr) {
-				for _, remaining := range indices[i+1:] {
-					results[remaining] = RefreshResult{
-						Request: requests[remaining],
-						Error:   fmt.Errorf("skipped: %w", rlErr),
+	// Process all HTTP calls concurrently with a shared
+	// semaphore. Each group tracks rate-limit errors
+	// independently so that a limit hit on one provider
+	// doesn't stall requests to other providers.
+	sem := make(chan struct{}, r.concurrency)
+	var wg sync.WaitGroup
+
+	for _, grp := range resolved {
+		var rateLimitErr atomic.Pointer[gitprovider.RateLimitError]
+
+		for _, idx := range grp.indices {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				// Best-effort rate-limit check before acquiring
+				// the semaphore to avoid unnecessary blocking.
+				if rl := rateLimitErr.Load(); rl != nil {
+					results[idx] = RefreshResult{
+						Request: requests[idx],
+						Error:   fmt.Errorf("%w: %w", ErrRateLimitSkipped, rl),
 					}
+					return
 				}
-				break
-			}
+
+				// Acquire semaphore slot.
+				select {
+				case sem <- struct{}{}:
+					defer func() { <-sem }()
+				case <-ctx.Done():
+					results[idx] = RefreshResult{
+						Request: requests[idx],
+						Error:   ctx.Err(),
+					}
+					return
+				}
+
+				// Best-effort rate-limit check after acquiring
+				// in case it was set while we waited.
+				if rl := rateLimitErr.Load(); rl != nil {
+					results[idx] = RefreshResult{
+						Request: requests[idx],
+						Error:   fmt.Errorf("%w: %w", ErrRateLimitSkipped, rl),
+					}
+					return
+				}
+
+				params, err := r.refreshOne(ctx, grp.provider, grp.token, requests[idx].Row)
+				results[idx] = RefreshResult{
+					Request: requests[idx],
+					Params:  params,
+					Error:   err,
+				}
+
+				var rlErr *gitprovider.RateLimitError
+				if errors.As(err, &rlErr) {
+					rateLimitErr.Store(rlErr)
+				}
+			}()
 		}
 	}
 
+	wg.Wait()
 	return results, nil
 }
 
 // refreshOne processes a single row using an already-resolved
-// provider and token. This is the old Refresh logic, unchanged.
+// provider and token.
 func (r *Refresher) refreshOne(
 	ctx context.Context,
 	provider gitprovider.Provider,
