@@ -1,10 +1,6 @@
 import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import {
-	ChatConversationSkeleton,
-	RightPanelSkeleton,
-} from "./AgentsSkeletons";
 import { ArchiveIcon } from "lucide-react";
 import { type FC, type RefObject, useMemo, useState } from "react";
 import type { UrlTransform } from "streamdown";
@@ -14,6 +10,10 @@ import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetail";
 import type { useChatStore } from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
+import {
+	ChatConversationSkeleton,
+	RightPanelSkeleton,
+} from "./AgentsSkeletons";
 import { GitPanel } from "./GitPanel";
 import { RightPanel } from "./RightPanel";
 import { SidebarTabView } from "./SidebarTabView";
@@ -309,8 +309,9 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 				isOpen={shouldShowSidebar}
 				isExpanded={isRightPanelExpanded}
 				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-					onClose={() => onSetShowSidebarPanel(false)}
-					onVisualExpandedChange={setDragVisualExpanded}				isSidebarCollapsed={isSidebarCollapsed}
+				onClose={() => onSetShowSidebarPanel(false)}
+				onVisualExpandedChange={setDragVisualExpanded}
+				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			>
 				<SidebarTabView
@@ -336,7 +337,8 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							),
 						},
 					]}
-						onClose={() => onSetShowSidebarPanel(false)}					isExpanded={visualExpanded}
+					onClose={() => onSetShowSidebarPanel(false)}
+					isExpanded={visualExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}

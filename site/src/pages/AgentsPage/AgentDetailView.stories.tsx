@@ -250,11 +250,11 @@ export const Loading: Story = {
 			hasModelOptions
 			inputStatusText={null}
 			modelCatalogStatusMessage={null}
-				isSidebarCollapsed={false}
-				onToggleSidebarCollapsed={fn()}
-				showRightPanel={false}
-			/>
-		),
+			isSidebarCollapsed={false}
+			onToggleSidebarCollapsed={fn()}
+			showRightPanel={false}
+		/>
+	),
 };
 
 /** Loading state with the model selector populated. */
