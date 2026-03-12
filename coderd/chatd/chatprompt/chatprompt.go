@@ -262,11 +262,10 @@ func AppendUser(prompt []fantasy.Message, instruction string) []fantasy.Message 
 }
 
 // ParseContent decodes persisted chat message content blocks into
-// SDK parts. It is role-aware: system messages are JSON strings,
-// assistant and tool messages use try/fallback (SDK first, then
-// legacy fantasy/tool-result formats), and user messages use a
-// structural heuristic to distinguish legacy fantasy envelope from
-// new SDK parts.
+// SDK parts. Role-aware: system messages are JSON strings,
+// assistant and user messages use a structural heuristic
+// (isFantasyEnvelopeFormat) to distinguish legacy fantasy envelope
+// from SDK parts, and tool messages use try/fallback.
 func ParseContent(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
 	if !raw.Valid || len(raw.RawMessage) == 0 {
 		return nil, nil
@@ -296,10 +295,7 @@ func parseSystemRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, err
 	if strings.TrimSpace(text) == "" {
 		return nil, nil
 	}
-	return []codersdk.ChatMessagePart{{
-		Type: codersdk.ChatMessagePartTypeText,
-		Text: text,
-	}}, nil
+	return []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)}, nil
 }
 
 // parseAssistantRole uses the structural heuristic to distinguish
@@ -327,7 +323,10 @@ func parseAssistantRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, 
 }
 
 // parseToolRole tries SDK parts first, then falls back to legacy
-// tool result rows.
+// tool result rows. Unlike assistant/user roles, tool messages
+// don't need the isFantasyEnvelopeFormat heuristic: legacy tool
+// result rows have no "type" field (just tool_call_id, tool_name,
+// result), so hasToolResultType reliably rejects them.
 func parseToolRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
 	// Try SDK parts.
 	var parts []codersdk.ChatMessagePart
@@ -342,15 +341,10 @@ func parseToolRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error
 	}
 	parts = make([]codersdk.ChatMessagePart, 0, len(rows))
 	for _, row := range rows {
-		parts = append(parts, codersdk.ChatMessagePart{
-			Type:             codersdk.ChatMessagePartTypeToolResult,
-			ToolCallID:       row.ToolCallID,
-			ToolName:         row.ToolName,
-			Result:           row.Result,
-			IsError:          row.IsError,
-			ProviderExecuted: row.ProviderExecuted,
-			ProviderMetadata: row.ProviderMetadata,
-		})
+		part := codersdk.ChatMessageToolResult(row.ToolCallID, row.ToolName, row.Result, row.IsError)
+		part.ProviderExecuted = row.ProviderExecuted
+		part.ProviderMetadata = row.ProviderMetadata
+		parts = append(parts, part)
 	}
 	return parts, nil
 }
@@ -364,10 +358,7 @@ func parseUserRole(raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error
 		if strings.TrimSpace(text) == "" {
 			return nil, nil
 		}
-		return []codersdk.ChatMessagePart{{
-			Type: codersdk.ChatMessagePartTypeText,
-			Text: text,
-		}}, nil
+		return []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)}, nil
 	}
 
 	if isFantasyEnvelopeFormat(raw.RawMessage) {
@@ -726,13 +717,7 @@ func PartFromContent(block fantasy.Content) codersdk.ChatMessagePart {
 // flag into a ChatMessagePart. This is the minimal conversion used
 // both during streaming and when reading from the database.
 func ToolResultToPart(toolCallID, toolName string, result json.RawMessage, isError bool) codersdk.ChatMessagePart {
-	return codersdk.ChatMessagePart{
-		Type:       codersdk.ChatMessagePartTypeToolResult,
-		ToolCallID: toolCallID,
-		ToolName:   toolName,
-		Result:     result,
-		IsError:    isError,
-	}
+	return codersdk.ChatMessageToolResult(toolCallID, toolName, result, isError)
 }
 
 // toolResultContentToPart converts a fantasy ToolResultContent
@@ -1045,7 +1030,7 @@ func marshalProviderMetadata(metadata fantasy.ProviderMetadata) json.RawMessage 
 // providerMetadataToOptions reconstructs fantasy ProviderOptions
 // from raw JSON stored in an SDK part's ProviderMetadata field.
 // Uses fantasy.UnmarshalProviderOptions to restore registered
-// provider-specific types.
+// provider-specific types. Returns nil on failure.
 func providerMetadataToOptions(raw json.RawMessage) fantasy.ProviderOptions {
 	if len(raw) == 0 {
 		return nil

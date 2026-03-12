@@ -474,10 +474,7 @@ func processStepStream(
 			if _, exists := activeTextContent[part.ID]; exists {
 				activeTextContent[part.ID] += part.Delta
 			}
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeText,
-				Text: part.Delta,
-			})
+			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessageText(part.Delta))
 
 		case fantasy.StreamPartTypeTextEnd:
 			if text, exists := activeTextContent[part.ID]; exists {
@@ -500,10 +497,7 @@ func processStepStream(
 				active.options = part.ProviderMetadata
 				activeReasoningContent[part.ID] = active
 			}
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeReasoning,
-				Text: part.Delta,
-			})
+			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessageReasoning(part.Delta))
 
 		case fantasy.StreamPartTypeReasoningEnd:
 			if active, exists := activeReasoningContent[part.ID]; exists {

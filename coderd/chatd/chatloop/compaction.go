@@ -111,11 +111,7 @@ func tryCompact(
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		config.PublishMessagePart(
 			fantasy.MessageRoleAssistant,
-			codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: config.ToolCallID,
-				ToolName:   config.ToolName,
-			},
+			codersdk.ChatMessageToolCall(config.ToolCallID, config.ToolName, nil),
 		)
 	}
 
@@ -164,12 +160,7 @@ func tryCompact(
 		})
 		config.PublishMessagePart(
 			fantasy.MessageRoleTool,
-			codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolResult,
-				ToolCallID: config.ToolCallID,
-				ToolName:   config.ToolName,
-				Result:     resultJSON,
-			},
+			codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, resultJSON, false),
 		)
 	}
 
@@ -187,13 +178,7 @@ func publishCompactionError(config CompactionOptions, msg string) {
 	})
 	config.PublishMessagePart(
 		fantasy.MessageRoleTool,
-		codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolResult,
-			ToolCallID: config.ToolCallID,
-			ToolName:   config.ToolName,
-			Result:     errJSON,
-			IsError:    true,
-		},
+		codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, errJSON, true),
 	)
 }
 

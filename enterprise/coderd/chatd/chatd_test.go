@@ -151,7 +151,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "relay-reconnect",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatText("hello")},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -245,7 +245,7 @@ func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "relay-async-nonblock",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatText("hello")},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -352,7 +352,7 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "relay-snapshot",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatText("hello")},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -465,7 +465,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "stale-dial-test",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatText("hello")},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -628,7 +628,7 @@ func TestSubscribeCancelDuringInFlightDial(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "cancel-inflight-dial",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatText("hello")},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -726,7 +726,7 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "running-to-running",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatText("hello")},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -848,7 +848,7 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "failed-dial-retry",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatText("hello")},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -958,7 +958,7 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "local-worker-closes-relay",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatText("hello")},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -1066,7 +1066,7 @@ func TestSubscribeRelayMultipleReconnects(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "multiple-reconnects",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatText("hello")},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 

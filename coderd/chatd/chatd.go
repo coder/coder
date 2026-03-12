@@ -2686,12 +2686,9 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("encode summary tool args: %w", err)
 	}
 
-	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:       codersdk.ChatMessagePartTypeToolCall,
-		ToolCallID: toolCallID,
-		ToolName:   "chat_summarized",
-		Args:       args,
-	}})
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall(toolCallID, "chat_summarized", args),
+	})
 	if err != nil {
 		return xerrors.Errorf("encode summary tool call: %w", err)
 	}
@@ -2707,12 +2704,9 @@ func (p *Server) persistChatContextSummary(
 	if err != nil {
 		return xerrors.Errorf("encode summary result payload: %w", err)
 	}
-	toolResult, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:       codersdk.ChatMessagePartTypeToolResult,
-		ToolCallID: toolCallID,
-		ToolName:   "chat_summarized",
-		Result:     summaryResult,
-	}})
+	toolResult, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolResult(toolCallID, "chat_summarized", summaryResult, false),
+	})
 	if err != nil {
 		return xerrors.Errorf("encode summary tool result: %w", err)
 	}

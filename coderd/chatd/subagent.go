@@ -262,12 +262,9 @@ func (p *Server) createChildSubagentChat(
 			UUID:  rootChatID,
 			Valid: true,
 		},
-		ModelConfigID: parent.LastModelConfigID,
-		Title:         title,
-		InitialUserContent: []codersdk.ChatMessagePart{{
-			Type: codersdk.ChatMessagePartTypeText,
-			Text: prompt,
-		}},
+		ModelConfigID:      parent.LastModelConfigID,
+		Title:              title,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
@@ -303,12 +300,9 @@ func (p *Server) sendSubagentMessage(
 	}
 
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
-		ChatID:    targetChatID,
-		CreatedBy: targetChat.OwnerID,
-		Content: []codersdk.ChatMessagePart{{
-			Type: codersdk.ChatMessagePartTypeText,
-			Text: message,
-		}},
+		ChatID:       targetChatID,
+		CreatedBy:    targetChat.OwnerID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {

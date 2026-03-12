@@ -2005,10 +2005,7 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s[%d].text cannot be empty.", fieldName, i),
 				}
 			}
-			content = append(content, codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeText,
-				Text: text,
-			})
+			content = append(content, codersdk.ChatMessageText(text))
 			textParts = append(textParts, text)
 		case string(codersdk.ChatInputPartTypeFile):
 			if part.FileID == uuid.Nil {

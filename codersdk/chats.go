@@ -122,6 +122,37 @@ type ChatMessagePart struct {
 	ProviderExecuted bool `json:"provider_executed,omitempty"`
 }
 
+// ChatMessageText builds a text chat message part.
+func ChatMessageText(text string) ChatMessagePart {
+	return ChatMessagePart{Type: ChatMessagePartTypeText, Text: text}
+}
+
+// ChatMessageReasoning builds a reasoning chat message part.
+func ChatMessageReasoning(text string) ChatMessagePart {
+	return ChatMessagePart{Type: ChatMessagePartTypeReasoning, Text: text}
+}
+
+// ChatMessageToolCall builds a tool-call chat message part.
+func ChatMessageToolCall(toolCallID, toolName string, args json.RawMessage) ChatMessagePart {
+	return ChatMessagePart{
+		Type:       ChatMessagePartTypeToolCall,
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+		Args:       args,
+	}
+}
+
+// ChatMessageToolResult builds a tool-result chat message part.
+func ChatMessageToolResult(toolCallID, toolName string, result json.RawMessage, isError bool) ChatMessagePart {
+	return ChatMessagePart{
+		Type:       ChatMessagePartTypeToolResult,
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+		Result:     result,
+		IsError:    isError,
+	}
+}
+
 // ChatInputPartType represents an input part type for user chat input.
 type ChatInputPartType string
 
