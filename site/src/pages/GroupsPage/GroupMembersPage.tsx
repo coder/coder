@@ -77,14 +77,6 @@ const GroupMembersPage: FC = () => {
 					}}
 				/>
 			)}
-			<TableToolbar>
-				<PaginationStatus
-					isLoading={false}
-					showing={groupData?.members.length ?? 0}
-					total={groupData?.members.length ?? 0}
-					label="members"
-				/>
-			</TableToolbar>
 
 			<Table>
 				<TableHeader>
@@ -138,6 +130,15 @@ const GroupMembersPage: FC = () => {
 					)}
 				</TableBody>
 			</Table>
+
+			<TableToolbar className="justify-end">
+				<PaginationStatus
+					isLoading={false}
+					showing={groupData?.members.length ?? 0}
+					total={groupData?.members.length ?? 0}
+					label="members"
+				/>
+			</TableToolbar>
 		</div>
 	);
 };
