@@ -14935,16 +14935,6 @@ func (q *sqlQuerier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, elig
 	return err
 }
 
-const upsertOAuthSigningKey = `-- name: UpsertOAuthSigningKey :exec
-INSERT INTO site_configs (key, value) VALUES ('oauth_signing_key', $1)
-ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signing_key'
-`
-
-func (q *sqlQuerier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertOAuthSigningKey, value)
-	return err
-}
-
 const upsertPrebuildsSettings = `-- name: UpsertPrebuildsSettings :exec
 INSERT INTO site_configs (key, value) VALUES ('prebuilds_settings', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'prebuilds_settings'

@@ -6623,13 +6623,6 @@ func (q *querier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligibl
 	return q.db.UpsertOAuth2GithubDefaultEligible(ctx, eligible)
 }
 
-func (q *querier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.UpsertOAuthSigningKey(ctx, value)
-}
-
 func (q *querier) UpsertPrebuildsSettings(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err

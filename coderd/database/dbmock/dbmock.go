@@ -8589,20 +8589,6 @@ func (mr *MockStoreMockRecorder) UpsertOAuth2GithubDefaultEligible(ctx, eligible
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuth2GithubDefaultEligible", reflect.TypeOf((*MockStore)(nil).UpsertOAuth2GithubDefaultEligible), ctx, eligible)
 }
 
-// UpsertOAuthSigningKey mocks base method.
-func (m *MockStore) UpsertOAuthSigningKey(ctx context.Context, value string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertOAuthSigningKey", ctx, value)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertOAuthSigningKey indicates an expected call of UpsertOAuthSigningKey.
-func (mr *MockStoreMockRecorder) UpsertOAuthSigningKey(ctx, value any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertOAuthSigningKey", reflect.TypeOf((*MockStore)(nil).UpsertOAuthSigningKey), ctx, value)
-}
-
 // UpsertPrebuildsSettings mocks base method.
 func (m *MockStore) UpsertPrebuildsSettings(ctx context.Context, value string) error {
 	m.ctrl.T.Helper()

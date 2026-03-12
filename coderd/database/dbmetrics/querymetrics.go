@@ -4598,14 +4598,6 @@ func (m queryMetricsStore) UpsertOAuth2GithubDefaultEligible(ctx context.Context
 	return r0
 }
 
-func (m queryMetricsStore) UpsertOAuthSigningKey(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertOAuthSigningKey(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertOAuthSigningKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOAuthSigningKey").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) UpsertPrebuildsSettings(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertPrebuildsSettings(ctx, value)
