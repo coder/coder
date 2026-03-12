@@ -19,9 +19,9 @@ import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { Spinner } from "components/Spinner/Spinner";
+import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
 import { useAuthenticated } from "hooks";
 import {
-	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
 	CheckIcon,
@@ -33,7 +33,6 @@ import {
 	GitPullRequestArrowIcon,
 	GitPullRequestClosedIcon,
 	GitPullRequestDraftIcon,
-	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
 	SettingsIcon,
@@ -83,14 +82,30 @@ interface AgentsSidebarProps {
 	onOpenSettings?: () => void;
 }
 
+type IconStatusConfig = {
+	icon: typeof CheckIcon;
+	className: string;
+	indicatorVariant?: never;
+	pulse?: never;
+};
+
+type DotStatusConfig = {
+	indicatorVariant: "pending" | "failed";
+	pulse?: boolean;
+	icon?: never;
+	className?: never;
+};
+
+type StatusConfig = IconStatusConfig | DotStatusConfig;
+
 const statusConfig = {
 	waiting: { icon: CheckIcon, className: "text-content-secondary" },
-	pending: { icon: Loader2Icon, className: "text-content-link animate-spin" },
-	running: { icon: Loader2Icon, className: "text-content-link animate-spin" },
+	pending: { indicatorVariant: "pending", pulse: true },
+	running: { indicatorVariant: "pending", pulse: true },
 	paused: { icon: PauseIcon, className: "text-content-warning" },
-	error: { icon: AlertTriangleIcon, className: "text-content-destructive" },
+	error: { indicatorVariant: "failed" },
 	completed: { icon: CheckIcon, className: "text-content-secondary" },
-} as const;
+} as const satisfies Record<ChatStatus, StatusConfig>;
 
 type ChatTree = {
 	readonly rootIds: readonly string[];
@@ -109,7 +124,7 @@ const getStatusConfig = (status: ChatStatus) => {
  */
 const getPRIconConfig = (
 	diffStatus: ChatDiffStatus | undefined,
-): { icon: typeof CheckIcon; className: string } | undefined => {
+): IconStatusConfig | undefined => {
 	const state = diffStatus?.pull_request_state;
 	if (!state) {
 		return undefined;
@@ -362,8 +377,10 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		chat.status === "waiting" || chat.status === "completed"
 			? getPRIconConfig(diffStatus)
 			: undefined;
-	const config = prConfig ?? baseConfig;
-	const StatusIcon = config.icon;
+	const config: StatusConfig = prConfig ?? baseConfig;
+	const statusTestId = isDelegatedExecuting
+		? `agents-tree-executing-${chat.id}`
+		: undefined;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
@@ -413,14 +430,20 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								"[@media(hover:hover)]:group-hover/icon:invisible",
 						)}
 					>
-						<StatusIcon
-							data-testid={
-								isDelegatedExecuting
-									? `agents-tree-executing-${chat.id}`
-									: undefined
-							}
-							className={cn("h-3.5 w-3.5 shrink-0", config.className)}
-						/>
+						{"indicatorVariant" in config ? (
+							<div className="flex h-4 w-4 items-center justify-center">
+								<StatusIndicatorDot
+									data-testid={statusTestId}
+									variant={config.indicatorVariant}
+									pulse={config.pulse}
+								/>
+							</div>
+						) : (
+							<config.icon
+								data-testid={statusTestId}
+								className={cn("h-3.5 w-3.5 shrink-0", config.className)}
+							/>
+						)}
 					</div>
 					{hasChildren && (
 						<Button

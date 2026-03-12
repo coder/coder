@@ -108,9 +108,9 @@ export const RunningDelegatedChat: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByTestId("agents-tree-executing-child-running"),
-		).toBeInTheDocument();
+		const statusDot = canvas.getByTestId("agents-tree-executing-child-running");
+		await expect(statusDot).toBeInTheDocument();
+		await expect(statusDot.className).toContain("animate-status-dot-pulse");
 	},
 };
 
@@ -138,9 +138,9 @@ export const PendingDelegatedChat: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByTestId("agents-tree-executing-child-pending"),
-		).toBeInTheDocument();
+		const statusDot = canvas.getByTestId("agents-tree-executing-child-pending");
+		await expect(statusDot).toBeInTheDocument();
+		await expect(statusDot.className).toContain("animate-status-dot-pulse");
 	},
 };
 
@@ -182,7 +182,7 @@ export const ExpandCollapse: Story = {
 	},
 };
 
-export const RunningChatPreservesSpinner: Story = {
+export const RunningChatPreservesPulsingDot: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -210,11 +210,11 @@ export const RunningChatPreservesSpinner: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The root chat is running and has children, so a spinning
-		// Loader2Icon should be rendered inside the icon wrapper.
+		// The root chat is running and has children, so a pulsing
+		// StatusIndicatorDot should be rendered inside the icon wrapper.
 		const node = canvas.getByTestId("agents-tree-node-root-running");
-		const spinner = node.querySelector(".animate-spin");
-		await expect(spinner).toBeInTheDocument();
+		const pulsingDot = node.querySelector(".animate-status-dot-pulse");
+		await expect(pulsingDot).toBeInTheDocument();
 
 		// The toggle button should exist (the node has children) but
 		// must be invisible by default — it only appears on hover of
@@ -222,6 +222,38 @@ export const RunningChatPreservesSpinner: Story = {
 		const toggle = canvas.getByTestId("agents-tree-toggle-root-running");
 		await expect(toggle).toBeInTheDocument();
 		await expect(toggle.className).toMatch(/\binvisible\b/);
+	},
+};
+
+export const ErrorChatShowsFailedDot: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "error-chat",
+				title: "Errored agent",
+				status: "error",
+				last_error: "Agent failed to complete the task.",
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/error-chat",
+				pathParams: { agentId: "error-chat" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const node = canvas.getByTestId("agents-tree-node-error-chat");
+		const failedDot = node.querySelector(".bg-content-destructive");
+		await expect(failedDot).toBeInTheDocument();
+		await expect(failedDot?.className).toContain("border-surface-destructive");
+		await expect(failedDot?.className).not.toContain(
+			"animate-status-dot-pulse",
+		);
 	},
 };
 
