@@ -184,9 +184,9 @@ export function watchInboxNotifications(
 	});
 }
 
-export const getURLWithSearchParams = (
+export const getURLWithSearchParams = <T extends object>(
 	basePath: string,
-	options?: SearchParamOptions,
+	options?: T,
 ): string => {
 	if (!options) {
 		return basePath;
@@ -3162,6 +3162,31 @@ class ApiMethods {
 		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
 
 		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+
+	getChatCostSummary = async (params?: {
+		start_date?: string;
+		end_date?: string;
+		user_id?: string;
+	}): Promise<TypesGen.ChatCostSummary> => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/chats/cost/summary",
+			params,
+		);
+		const response = await this.axios.get<TypesGen.ChatCostSummary>(url);
+		return response.data;
+	};
+
+	getChatCostUsers = async (params?: {
+		start_date?: string;
+		end_date?: string;
+	}): Promise<TypesGen.ChatCostUsersResponse> => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/chats/cost/users",
+			params,
+		);
+		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
 		return response.data;
 	};
 }

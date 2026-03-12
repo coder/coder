@@ -386,3 +386,31 @@ export const deleteChatModelConfig = (queryClient: QueryClient) => ({
 		await invalidateChatConfigurationQueries(queryClient);
 	},
 });
+
+export const chatCostSummaryKey = (params?: {
+	start_date?: string;
+	end_date?: string;
+	user_id?: string;
+}) => ["chatCostSummary", params] as const;
+
+export const chatCostSummary = (params?: {
+	start_date?: string;
+	end_date?: string;
+	user_id?: string;
+}) => ({
+	queryKey: chatCostSummaryKey(params),
+	queryFn: () => API.getChatCostSummary(params),
+});
+
+export const chatCostUsersKey = (params?: {
+	start_date?: string;
+	end_date?: string;
+}) => ["chatCostUsers", params] as const;
+
+export const chatCostUsers = (params?: {
+	start_date?: string;
+	end_date?: string;
+}) => ({
+	queryKey: chatCostUsersKey(params),
+	queryFn: () => API.getChatCostUsers(params),
+});
