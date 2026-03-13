@@ -1,4 +1,4 @@
-package costcalc_test
+package chatcost_test
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/chatd/costcalc"
+	"github.com/coder/coder/v2/coderd/chatd/chatcost"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -150,7 +150,7 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := costcalc.CalculateTotalCostMicros(tt.usage, tt.cost)
+			got := chatcost.CalculateTotalCostMicros(tt.usage, tt.cost)
 
 			if tt.want == nil {
 				require.Nil(t, got)

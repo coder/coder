@@ -1,4 +1,4 @@
-package costcalc
+package chatcost
 
 import (
 	"github.com/shopspring/decimal"
