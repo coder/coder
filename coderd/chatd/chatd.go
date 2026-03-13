@@ -522,7 +522,10 @@ func (p *Server) checkUsageLimit(ctx context.Context, ownerID uuid.UUID) error {
 	status, err := ResolveUsageLimitStatus(ctx, p.db, ownerID, time.Now())
 	if err != nil {
 		// Fail open: never block chat due to a limit-resolution failure.
-		p.logger.Warn(ctx, "usage limit check failed, allowing message", slog.Error(err))
+		p.logger.Warn(ctx, "usage limit check failed, allowing message",
+			slog.F("owner_id", ownerID),
+			slog.Error(err),
+		)
 		return nil
 	}
 	if status == nil {

@@ -24,14 +24,11 @@ func ComputePeriodBounds(now time.Time, period codersdk.ChatUsageLimitPeriod) (s
 		start = time.Date(utcNow.Year(), utcNow.Month(), utcNow.Day(), 0, 0, 0, 0, time.UTC)
 		end = start.AddDate(0, 0, 1)
 	case codersdk.ChatUsageLimitPeriodWeek:
-		isoYear, isoWeek := utcNow.ISOWeek()
+		// Walk backward to Monday of the current ISO week.
+		// ISO 8601 weeks always start on Monday, so this never
+		// crosses an ISO-week boundary.
 		start = time.Date(utcNow.Year(), utcNow.Month(), utcNow.Day(), 0, 0, 0, 0, time.UTC)
 		for start.Weekday() != time.Monday {
-			year, week := start.ISOWeek()
-			if year != isoYear || week != isoWeek {
-				start = start.AddDate(0, 0, 1)
-				break
-			}
 			start = start.AddDate(0, 0, -1)
 		}
 		end = start.AddDate(0, 0, 7)

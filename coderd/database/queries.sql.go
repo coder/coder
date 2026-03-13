@@ -4431,7 +4431,7 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 }
 
 const listChatUsageLimitOverrides = `-- name: ListChatUsageLimitOverrides :many
-SELECT o.id, o.user_id, o.limit_micros, o.created_at, o.updated_at, u.username
+SELECT o.id, o.user_id, o.limit_micros, o.created_at, o.updated_at, u.username, u.name, u.avatar_url
 FROM chat_usage_limit_overrides o
 JOIN users u ON u.id = o.user_id
 ORDER BY u.username ASC
@@ -4444,6 +4444,8 @@ type ListChatUsageLimitOverridesRow struct {
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 	Username    string    `db:"username" json:"username"`
+	Name        string    `db:"name" json:"name"`
+	AvatarURL   string    `db:"avatar_url" json:"avatar_url"`
 }
 
 func (q *sqlQuerier) ListChatUsageLimitOverrides(ctx context.Context) ([]ListChatUsageLimitOverridesRow, error) {
@@ -4462,6 +4464,8 @@ func (q *sqlQuerier) ListChatUsageLimitOverrides(ctx context.Context) ([]ListCha
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Username,
+			&i.Name,
+			&i.AvatarURL,
 		); err != nil {
 			return nil, err
 		}

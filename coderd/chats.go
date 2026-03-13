@@ -603,26 +603,6 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userMap := make(map[uuid.UUID]database.User, len(overrideRows))
-	if len(overrideRows) > 0 {
-		userIDs := make([]uuid.UUID, 0, len(overrideRows))
-		for _, row := range overrideRows {
-			userIDs = append(userIDs, row.UserID)
-		}
-
-		users, err := api.Database.GetUsersByIDs(systemCtx, userIDs)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to get users for chat usage limit overrides.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		for _, user := range users {
-			userMap[user.ID] = user
-		}
-	}
-
 	response := codersdk.ChatUsageLimitConfigResponse{
 		ChatUsageLimitConfig: codersdk.ChatUsageLimitConfig{},
 		UnpricedModelCount:   unpricedModelCount,
@@ -637,12 +617,11 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 	}
 
 	for _, row := range overrideRows {
-		user := userMap[row.UserID]
 		response.Overrides = append(response.Overrides, codersdk.ChatUsageLimitOverride{
 			UserID:           row.UserID,
 			Username:         row.Username,
-			Name:             user.Name,
-			AvatarURL:        user.AvatarURL,
+			Name:             row.Name,
+			AvatarURL:        row.AvatarURL,
 			SpendLimitMicros: ptr.Ref(row.LimitMicros),
 			CreatedAt:        row.CreatedAt,
 			UpdatedAt:        row.UpdatedAt,
@@ -807,6 +786,10 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 
 	user, err := api.Database.GetUserByID(systemCtx, userID)
 	if err != nil {
+		api.Logger.Warn(ctx, "failed to fetch user for override response",
+			slog.F("user_id", userID),
+			slog.Error(err),
+		)
 		user = database.User{}
 	}
 
@@ -1222,6 +1205,17 @@ func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Send a chat message
+// @ID post-chat-messages
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Chat
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param request body codersdk.CreateChatMessageRequest true "Message"
+// @Success 200 {object} codersdk.ChatMessage
+// @Failure 409 {object} codersdk.Response "Usage limit exceeded"
+// @Router /chats/{chat}/messages [post]
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

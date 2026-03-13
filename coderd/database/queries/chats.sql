@@ -696,7 +696,7 @@ ON CONFLICT (singleton) DO UPDATE SET
 RETURNING *;
 
 -- name: ListChatUsageLimitOverrides :many
-SELECT o.*, u.username
+SELECT o.*, u.username, u.name, u.avatar_url
 FROM chat_usage_limit_overrides o
 JOIN users u ON u.id = o.user_id
 ORDER BY u.username ASC;
