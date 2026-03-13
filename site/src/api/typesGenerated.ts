@@ -1082,6 +1082,8 @@ export interface ChatCostChatBreakdown {
 	readonly message_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
+	readonly total_cache_read_tokens: number;
+	readonly total_cache_creation_tokens: number;
 }
 
 // From codersdk/chats.go
@@ -1097,6 +1099,8 @@ export interface ChatCostModelBreakdown {
 	readonly message_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
+	readonly total_cache_read_tokens: number;
+	readonly total_cache_creation_tokens: number;
 }
 
 // From codersdk/chats.go
@@ -1111,6 +1115,8 @@ export interface ChatCostSummary {
 	readonly unpriced_message_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
+	readonly total_cache_read_tokens: number;
+	readonly total_cache_creation_tokens: number;
 	readonly by_model: readonly ChatCostModelBreakdown[];
 	readonly by_chat: readonly ChatCostChatBreakdown[];
 }
@@ -1138,6 +1144,8 @@ export interface ChatCostUserRollup {
 	readonly chat_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
+	readonly total_cache_read_tokens: number;
+	readonly total_cache_creation_tokens: number;
 }
 
 // From codersdk/chats.go
