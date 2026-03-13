@@ -3920,6 +3920,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `id`          | integer                                                             | false    |              |             |
 | `parameters`  | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)     | false    |              |             |
 
+## codersdk.EmbedSessionTokenRequest
+
+```json
+{
+  "token": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `token` | string | false    |              |             |
+
 ## codersdk.Entitlement
 
 ```json

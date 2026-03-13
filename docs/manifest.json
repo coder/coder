@@ -219,7 +219,14 @@
 						{
 							"title": "Visual Studio Code",
 							"description": "Use VSCode with Coder in the desktop or browser",
-							"path": "./user-guides/workspace-access/vscode.md"
+							"path": "./user-guides/workspace-access/vscode.md",
+							"children": [
+								{
+									"title": "Iframe embed auth",
+									"description": "Developer notes for the experimental VS Code embed auth flow",
+									"path": "./user-guides/workspace-access/vscode-embed-auth.md"
+								}
+							]
 						},
 						{
 							"title": "Web Terminal",

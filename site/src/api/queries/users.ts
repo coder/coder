@@ -179,7 +179,30 @@ export const login = (
 		mutationFn: async (credentials: { email: string; password: string }) =>
 			loginFn({ ...credentials, authorization }),
 		onSuccess: async (data: Awaited<ReturnType<typeof loginFn>>) => {
-			queryClient.setQueryData(["me"], data.user);
+			queryClient.setQueryData(meKey, data.user);
+			queryClient.setQueryData(
+				getAuthorizationKey(authorization),
+				data.permissions,
+			);
+		},
+	};
+};
+
+export const bootstrapChatEmbedSession = (
+	authorization: AuthorizationRequest,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: async (token: string) =>
+			bootstrapChatEmbedSessionFn({
+				token,
+				authorization,
+				queryClient,
+			}),
+		onSuccess: (
+			data: Awaited<ReturnType<typeof bootstrapChatEmbedSessionFn>>,
+		) => {
+			queryClient.setQueryData(meKey, data.user);
 			queryClient.setQueryData(
 				getAuthorizationKey(authorization),
 				data.permissions,
@@ -201,6 +224,38 @@ const loginFn = async ({
 	const [user, permissions] = await Promise.all([
 		API.getAuthenticatedUser(),
 		API.checkAuthorization(authorization),
+	]);
+	return {
+		user,
+		permissions,
+	};
+};
+
+const bootstrapChatEmbedSessionFn = async ({
+	token,
+	authorization,
+	queryClient,
+}: {
+	token: string;
+	authorization: AuthorizationRequest;
+	queryClient: QueryClient;
+}) => {
+	await API.postChatEmbedSession(token);
+	await Promise.all([
+		queryClient.invalidateQueries({ queryKey: meKey }),
+		queryClient.invalidateQueries({
+			queryKey: getAuthorizationKey(authorization),
+		}),
+	]);
+	const [user, permissions] = await Promise.all([
+		queryClient.fetchQuery({
+			queryKey: meKey,
+			queryFn: API.getAuthenticatedUser,
+		}),
+		queryClient.fetchQuery({
+			queryKey: getAuthorizationKey(authorization),
+			queryFn: () => API.checkAuthorization(authorization),
+		}),
 	]);
 	return {
 		user,

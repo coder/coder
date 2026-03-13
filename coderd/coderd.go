@@ -1131,67 +1131,77 @@ func New(options *Options) *API {
 			})
 		})
 		r.Route("/chats", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
-			)
-			r.Get("/", api.listChats)
-			r.Post("/", api.postChats)
-			r.Get("/models", api.listChatModels)
-			r.Get("/watch", api.watchChats)
-			r.Route("/cost", func(r chi.Router) {
-				r.Get("/users", api.chatCostUsers)
-				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database))
-					r.Get("/summary", api.chatCostSummary)
+			// Embed session bootstrap — no API key middleware required.
+			// The posted token is validated inside the handler.
+			r.Group(func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents))
+				r.Post("/embed-session", api.postChatEmbedSession)
+			})
+
+			// All other chat routes require authentication.
+			r.Group(func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+					httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
+				)
+				r.Get("/", api.listChats)
+				r.Post("/", api.postChats)
+				r.Get("/models", api.listChatModels)
+				r.Get("/watch", api.watchChats)
+				r.Route("/cost", func(r chi.Router) {
+					r.Get("/users", api.chatCostUsers)
+					r.Route("/{user}", func(r chi.Router) {
+						r.Use(httpmw.ExtractUserParam(options.Database))
+						r.Get("/summary", api.chatCostSummary)
+					})
 				})
-			})
-			r.Route("/files", func(r chi.Router) {
-				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
-				r.Post("/", api.postChatFile)
-				r.Get("/{file}", api.chatFileByID)
-			})
-			r.Route("/config", func(r chi.Router) {
-				r.Get("/system-prompt", api.getChatSystemPrompt)
-				r.Put("/system-prompt", api.putChatSystemPrompt)
-				r.Get("/user-prompt", api.getUserChatCustomPrompt)
-				r.Put("/user-prompt", api.putUserChatCustomPrompt)
-			})
-			// TODO(cian): place under /api/experimental/chats/config
-			r.Route("/providers", func(r chi.Router) {
-				r.Get("/", api.listChatProviders)
-				r.Post("/", api.createChatProvider)
-				r.Route("/{providerConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatProvider)
-					r.Delete("/", api.deleteChatProvider)
+				r.Route("/files", func(r chi.Router) {
+					r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
+					r.Post("/", api.postChatFile)
+					r.Get("/{file}", api.chatFileByID)
 				})
-			})
-			// TODO(cian): place under /api/experimental/chats/config
-			r.Route("/model-configs", func(r chi.Router) {
-				r.Get("/", api.listChatModelConfigs)
-				r.Post("/", api.createChatModelConfig)
-				r.Route("/{modelConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatModelConfig)
-					r.Delete("/", api.deleteChatModelConfig)
+				r.Route("/config", func(r chi.Router) {
+					r.Get("/system-prompt", api.getChatSystemPrompt)
+					r.Put("/system-prompt", api.putChatSystemPrompt)
+					r.Get("/user-prompt", api.getUserChatCustomPrompt)
+					r.Put("/user-prompt", api.putUserChatCustomPrompt)
 				})
-			})
-			r.Route("/{chat}", func(r chi.Router) {
-				r.Use(httpmw.ExtractChatParam(options.Database))
-				r.Get("/", api.getChat)
-				r.Get("/git/watch", api.watchChatGit)
-				r.Get("/desktop", api.watchChatDesktop)
-				r.Post("/archive", api.archiveChat)
-				r.Post("/unarchive", api.unarchiveChat)
-				r.Get("/messages", api.getChatMessages)
-				r.Post("/messages", api.postChatMessages)
-				r.Patch("/messages/{message}", api.patchChatMessage)
-				r.Get("/stream", api.streamChat)
-				r.Post("/interrupt", api.interruptChat)
-				r.Get("/diff-status", api.getChatDiffStatus)
-				r.Get("/diff", api.getChatDiffContents)
-				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
-					r.Delete("/", api.deleteChatQueuedMessage)
-					r.Post("/promote", api.promoteChatQueuedMessage)
+				// TODO(cian): place under /api/experimental/chats/config
+				r.Route("/providers", func(r chi.Router) {
+					r.Get("/", api.listChatProviders)
+					r.Post("/", api.createChatProvider)
+					r.Route("/{providerConfig}", func(r chi.Router) {
+						r.Patch("/", api.updateChatProvider)
+						r.Delete("/", api.deleteChatProvider)
+					})
+				})
+				// TODO(cian): place under /api/experimental/chats/config
+				r.Route("/model-configs", func(r chi.Router) {
+					r.Get("/", api.listChatModelConfigs)
+					r.Post("/", api.createChatModelConfig)
+					r.Route("/{modelConfig}", func(r chi.Router) {
+						r.Patch("/", api.updateChatModelConfig)
+						r.Delete("/", api.deleteChatModelConfig)
+					})
+				})
+				r.Route("/{chat}", func(r chi.Router) {
+					r.Use(httpmw.ExtractChatParam(options.Database))
+					r.Get("/", api.getChat)
+					r.Get("/git/watch", api.watchChatGit)
+					r.Get("/desktop", api.watchChatDesktop)
+					r.Post("/archive", api.archiveChat)
+					r.Post("/unarchive", api.unarchiveChat)
+					r.Get("/messages", api.getChatMessages)
+					r.Post("/messages", api.postChatMessages)
+					r.Patch("/messages/{message}", api.patchChatMessage)
+					r.Get("/stream", api.streamChat)
+					r.Post("/interrupt", api.interruptChat)
+					r.Get("/diff-status", api.getChatDiffStatus)
+					r.Get("/diff", api.getChatDiffContents)
+					r.Route("/queue/{queuedMessage}", func(r chi.Router) {
+						r.Delete("/", api.deleteChatQueuedMessage)
+						r.Post("/promote", api.promoteChatQueuedMessage)
+					})
 				})
 			})
 		})
