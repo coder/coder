@@ -23,6 +23,7 @@ import type { LucideIcon } from "lucide-react";
 import {
 	BoxesIcon,
 	KeyRoundIcon,
+	ServerIcon,
 	ShieldIcon,
 	UserIcon,
 	XIcon,
@@ -39,9 +40,14 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
 import { cn } from "utils/cn";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
+import { MCPServerAdminPanel } from "./MCPServerAdminPanel/MCPServerAdminPanel";
 import { SectionHeader } from "./SectionHeader";
 
-type ConfigureAgentsSection = "providers" | "models" | "behavior";
+type ConfigureAgentsSection =
+	| "providers"
+	| "models"
+	| "mcp-servers"
+	| "behavior";
 
 type ConfigureAgentsSectionOption = {
 	id: ConfigureAgentsSection;
@@ -154,6 +160,12 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				id: "models",
 				label: "Models",
 				icon: BoxesIcon,
+				adminOnly: true,
+			});
+			options.push({
+				id: "mcp-servers",
+				label: "MCP Servers",
+				icon: ServerIcon,
 				adminOnly: true,
 			});
 		}
@@ -350,6 +362,13 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 							section="models"
 							sectionLabel="Models"
 							sectionDescription="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
+							sectionBadge={<AdminBadge />}
+						/>
+					)}
+					{activeSection === "mcp-servers" && canManageChatModelConfigs && (
+						<MCPServerAdminPanel
+							sectionLabel="MCP Servers"
+							sectionDescription="Connect external MCP servers to extend agent capabilities with additional tools."
 							sectionBadge={<AdminBadge />}
 						/>
 					)}

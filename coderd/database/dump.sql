@@ -1202,6 +1202,28 @@ CREATE TABLE chat_files (
     data bytea NOT NULL
 );
 
+CREATE TABLE chat_mcp_servers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    slug text NOT NULL,
+    url text NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL,
+    auth_type text DEFAULT 'none'::text NOT NULL,
+    auth_headers text DEFAULT ''::text NOT NULL,
+    auth_headers_key_id text,
+    oauth_client_id text DEFAULT ''::text NOT NULL,
+    oauth_auth_server text DEFAULT ''::text NOT NULL,
+    tool_allow_regex text DEFAULT ''::text NOT NULL,
+    tool_deny_regex text DEFAULT ''::text NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_mcp_servers_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'header'::text, 'oauth'::text]))),
+    CONSTRAINT chat_mcp_servers_slug_check CHECK ((slug ~ '^[a-z0-9][a-z0-9_-]*$'::text))
+);
+
+COMMENT ON COLUMN chat_mcp_servers.auth_headers_key_id IS 'The ID of the key used to encrypt the auth headers. If this is NULL, the headers are not encrypted';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -3161,6 +3183,12 @@ ALTER TABLE ONLY chat_diff_statuses
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_slug_key UNIQUE (slug);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -3520,6 +3548,8 @@ CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
 
 CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
 
+CREATE INDEX idx_chat_mcp_servers_enabled ON chat_mcp_servers USING btree (enabled);
+
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
@@ -3806,6 +3836,12 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_auth_headers_key_id_fkey FOREIGN KEY (auth_headers_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY chat_mcp_servers
+    ADD CONSTRAINT chat_mcp_servers_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

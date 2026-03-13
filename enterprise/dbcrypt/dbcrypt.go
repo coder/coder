@@ -385,6 +385,81 @@ func (db *dbCrypt) GetCryptoKeysByFeature(ctx context.Context, feature database.
 	return keys, nil
 }
 
+func (db *dbCrypt) GetChatMCPServerByID(ctx context.Context, id uuid.UUID) (database.ChatMCPServer, error) {
+	server, err := db.Store.GetChatMCPServerByID(ctx, id)
+	if err != nil {
+		return database.ChatMCPServer{}, err
+	}
+	if err := db.decryptField(&server.AuthHeaders, server.AuthHeadersKeyID); err != nil {
+		return database.ChatMCPServer{}, err
+	}
+	return server, nil
+}
+
+func (db *dbCrypt) GetChatMCPServers(ctx context.Context) ([]database.ChatMCPServer, error) {
+	servers, err := db.Store.GetChatMCPServers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range servers {
+		if err := db.decryptField(&servers[i].AuthHeaders, servers[i].AuthHeadersKeyID); err != nil {
+			return nil, err
+		}
+	}
+
+	return servers, nil
+}
+
+func (db *dbCrypt) GetEnabledChatMCPServers(ctx context.Context) ([]database.ChatMCPServer, error) {
+	servers, err := db.Store.GetEnabledChatMCPServers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range servers {
+		if err := db.decryptField(&servers[i].AuthHeaders, servers[i].AuthHeadersKeyID); err != nil {
+			return nil, err
+		}
+	}
+
+	return servers, nil
+}
+
+func (db *dbCrypt) InsertChatMCPServer(ctx context.Context, params database.InsertChatMCPServerParams) (database.ChatMCPServer, error) {
+	if strings.TrimSpace(params.AuthHeaders) == "" {
+		params.AuthHeadersKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.AuthHeaders, &params.AuthHeadersKeyID); err != nil {
+		return database.ChatMCPServer{}, err
+	}
+
+	server, err := db.Store.InsertChatMCPServer(ctx, params)
+	if err != nil {
+		return database.ChatMCPServer{}, err
+	}
+	if err := db.decryptField(&server.AuthHeaders, server.AuthHeadersKeyID); err != nil {
+		return database.ChatMCPServer{}, err
+	}
+	return server, nil
+}
+
+func (db *dbCrypt) UpdateChatMCPServer(ctx context.Context, params database.UpdateChatMCPServerParams) (database.ChatMCPServer, error) {
+	if strings.TrimSpace(params.AuthHeaders) == "" {
+		params.AuthHeadersKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.AuthHeaders, &params.AuthHeadersKeyID); err != nil {
+		return database.ChatMCPServer{}, err
+	}
+
+	server, err := db.Store.UpdateChatMCPServer(ctx, params)
+	if err != nil {
+		return database.ChatMCPServer{}, err
+	}
+	if err := db.decryptField(&server.AuthHeaders, server.AuthHeadersKeyID); err != nil {
+		return database.ChatMCPServer{}, err
+	}
+	return server, nil
+}
+
 func (db *dbCrypt) GetChatProviderByID(ctx context.Context, id uuid.UUID) (database.ChatProvider, error) {
 	provider, err := db.Store.GetChatProviderByID(ctx, id)
 	if err != nil {

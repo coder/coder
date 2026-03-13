@@ -1167,6 +1167,14 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
+			r.Route("/mcp-servers", func(r chi.Router) {
+				r.Get("/", api.listChatMCPServers)
+				r.Post("/", api.createChatMCPServer)
+				r.Route("/{mcpServer}", func(r chi.Router) {
+					r.Patch("/", api.updateChatMCPServer)
+					r.Delete("/", api.deleteChatMCPServer)
+				})
+			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)

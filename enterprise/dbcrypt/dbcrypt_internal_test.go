@@ -554,6 +554,162 @@ func TestCryptoKeys(t *testing.T) {
 	})
 }
 
+func TestChatMCPServers(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	t.Run("InsertChatMCPServer", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		server, err := crypt.InsertChatMCPServer(ctx, database.InsertChatMCPServerParams{
+			Slug:             "test-server",
+			Url:              "https://mcp.example.com/sse",
+			DisplayName:      "Test Server",
+			AuthType:         "header",
+			AuthHeaders:      `{"Authorization":"Bearer secret-token"}`,
+			AuthHeadersKeyID: sql.NullString{},
+			OauthClientID:    "",
+			OauthAuthServer:  "",
+			ToolAllowRegex:   "",
+			ToolDenyRegex:    "",
+			Enabled:          true,
+		})
+		require.NoError(t, err)
+		// The value returned by crypt should be decrypted (plaintext).
+		require.Equal(t, `{"Authorization":"Bearer secret-token"}`, server.AuthHeaders)
+
+		// Read the raw row from the underlying DB — it should be encrypted.
+		raw, err := db.GetChatMCPServerByID(ctx, server.ID)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], raw.AuthHeaders, `{"Authorization":"Bearer secret-token"}`)
+		require.True(t, raw.AuthHeadersKeyID.Valid)
+		require.Equal(t, ciphers[0].HexDigest(), raw.AuthHeadersKeyID.String)
+	})
+
+	t.Run("UpdateChatMCPServer", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		server, err := crypt.InsertChatMCPServer(ctx, database.InsertChatMCPServerParams{
+			Slug:             "update-server",
+			Url:              "https://mcp.example.com/sse",
+			AuthType:         "header",
+			AuthHeaders:      `{"X-Key":"old-secret"}`,
+			AuthHeadersKeyID: sql.NullString{},
+			Enabled:          true,
+		})
+		require.NoError(t, err)
+
+		updated, err := crypt.UpdateChatMCPServer(ctx, database.UpdateChatMCPServerParams{
+			ID:               server.ID,
+			Slug:             server.Slug,
+			Url:              server.Url,
+			DisplayName:      server.DisplayName,
+			AuthType:         "header",
+			AuthHeaders:      `{"X-Key":"new-secret"}`,
+			AuthHeadersKeyID: sql.NullString{},
+			ToolAllowRegex:   server.ToolAllowRegex,
+			ToolDenyRegex:    server.ToolDenyRegex,
+			Enabled:          server.Enabled,
+		})
+		require.NoError(t, err)
+		require.Equal(t, `{"X-Key":"new-secret"}`, updated.AuthHeaders)
+
+		raw, err := db.GetChatMCPServerByID(ctx, server.ID)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], raw.AuthHeaders, `{"X-Key":"new-secret"}`)
+	})
+
+	t.Run("GetChatMCPServerByID", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, _ := setup(t)
+		server, err := crypt.InsertChatMCPServer(ctx, database.InsertChatMCPServerParams{
+			Slug:             "get-server",
+			Url:              "https://mcp.example.com/sse",
+			AuthType:         "header",
+			AuthHeaders:      `{"Token":"my-secret"}`,
+			AuthHeadersKeyID: sql.NullString{},
+			Enabled:          true,
+		})
+		require.NoError(t, err)
+
+		fetched, err := crypt.GetChatMCPServerByID(ctx, server.ID)
+		require.NoError(t, err)
+		require.Equal(t, `{"Token":"my-secret"}`, fetched.AuthHeaders)
+	})
+
+	t.Run("GetChatMCPServers", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, _ := setup(t)
+		_, err := crypt.InsertChatMCPServer(ctx, database.InsertChatMCPServerParams{
+			Slug:             "list-server",
+			Url:              "https://mcp.example.com/sse",
+			AuthType:         "header",
+			AuthHeaders:      `{"Key":"list-secret"}`,
+			AuthHeadersKeyID: sql.NullString{},
+			Enabled:          true,
+		})
+		require.NoError(t, err)
+
+		servers, err := crypt.GetChatMCPServers(ctx)
+		require.NoError(t, err)
+		require.NotEmpty(t, servers)
+		found := false
+		for _, s := range servers {
+			if s.Slug == "list-server" {
+				require.Equal(t, `{"Key":"list-secret"}`, s.AuthHeaders)
+				found = true
+			}
+		}
+		require.True(t, found)
+	})
+
+	t.Run("GetEnabledChatMCPServers", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, _ := setup(t)
+		_, err := crypt.InsertChatMCPServer(ctx, database.InsertChatMCPServerParams{
+			Slug:             "enabled-server",
+			Url:              "https://mcp.example.com/sse",
+			AuthType:         "header",
+			AuthHeaders:      `{"Key":"enabled-secret"}`,
+			AuthHeadersKeyID: sql.NullString{},
+			Enabled:          true,
+		})
+		require.NoError(t, err)
+
+		servers, err := crypt.GetEnabledChatMCPServers(ctx)
+		require.NoError(t, err)
+		require.NotEmpty(t, servers)
+		found := false
+		for _, s := range servers {
+			if s.Slug == "enabled-server" {
+				require.Equal(t, `{"Key":"enabled-secret"}`, s.AuthHeaders)
+				found = true
+			}
+		}
+		require.True(t, found)
+	})
+
+	t.Run("EmptyAuthHeadersNotEncrypted", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, _ := setup(t)
+		server, err := crypt.InsertChatMCPServer(ctx, database.InsertChatMCPServerParams{
+			Slug:             "no-auth-server",
+			Url:              "https://mcp.example.com/sse",
+			AuthType:         "none",
+			AuthHeaders:      "",
+			AuthHeadersKeyID: sql.NullString{},
+			Enabled:          true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "", server.AuthHeaders)
+
+		raw, err := db.GetChatMCPServerByID(ctx, server.ID)
+		require.NoError(t, err)
+		require.Equal(t, "", raw.AuthHeaders)
+		require.False(t, raw.AuthHeadersKeyID.Valid)
+	})
+}
+
 func TestNew(t *testing.T) {
 	t.Parallel()
 

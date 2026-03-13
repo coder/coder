@@ -1553,6 +1553,54 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
+## codersdk.ChatMCPServerAuthType
+
+```json
+"none"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                  |
+|---------------------------|
+| `header`, `none`, `oauth` |
+
+## codersdk.ChatMCPServerConfig
+
+```json
+{
+  "auth_type": "none",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "has_auth_headers": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "slug": "string",
+  "tool_allow_regex": "string",
+  "tool_deny_regex": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                             | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `auth_type`        | [codersdk.ChatMCPServerAuthType](#codersdkchatmcpserverauthtype) | false    |              |             |
+| `created_at`       | string                                                           | false    |              |             |
+| `display_name`     | string                                                           | false    |              |             |
+| `enabled`          | boolean                                                          | false    |              |             |
+| `has_auth_headers` | boolean                                                          | false    |              |             |
+| `id`               | string                                                           | false    |              |             |
+| `slug`             | string                                                           | false    |              |             |
+| `tool_allow_regex` | string                                                           | false    |              |             |
+| `tool_deny_regex`  | string                                                           | false    |              |             |
+| `updated_at`       | string                                                           | false    |              |             |
+| `url`              | string                                                           | false    |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -1801,6 +1849,38 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------|------------------------------------------|----------|--------------|------------------------------------------|
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
+
+## codersdk.CreateChatMCPServerRequest
+
+```json
+{
+  "auth_headers": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "auth_type": "none",
+  "display_name": "string",
+  "enabled": true,
+  "slug": "string",
+  "tool_allow_regex": "string",
+  "tool_deny_regex": "string",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                             | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `auth_headers`     | object                                                           | false    |              |             |
+| » `[any property]` | string                                                           | false    |              |             |
+| `auth_type`        | [codersdk.ChatMCPServerAuthType](#codersdkchatmcpserverauthtype) | false    |              |             |
+| `display_name`     | string                                                           | false    |              |             |
+| `enabled`          | boolean                                                          | false    |              |             |
+| `slug`             | string                                                           | true     |              |             |
+| `tool_allow_regex` | string                                                           | false    |              |             |
+| `tool_deny_regex`  | string                                                           | false    |              |             |
+| `url`              | string                                                           | true     |              |             |
 
 ## codersdk.CreateFirstUserRequest
 
@@ -9473,6 +9553,38 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `application_name`     | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
+
+## codersdk.UpdateChatMCPServerRequest
+
+```json
+{
+  "auth_headers": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "auth_type": "none",
+  "display_name": "string",
+  "enabled": true,
+  "slug": "string",
+  "tool_allow_regex": "string",
+  "tool_deny_regex": "string",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                             | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `auth_headers`     | object                                                           | false    |              |             |
+| » `[any property]` | string                                                           | false    |              |             |
+| `auth_type`        | [codersdk.ChatMCPServerAuthType](#codersdkchatmcpserverauthtype) | false    |              |             |
+| `display_name`     | string                                                           | false    |              |             |
+| `enabled`          | boolean                                                          | false    |              |             |
+| `slug`             | string                                                           | false    |              |             |
+| `tool_allow_regex` | string                                                           | false    |              |             |
+| `tool_deny_regex`  | string                                                           | false    |              |             |
+| `url`              | string                                                           | false    |              |             |
 
 ## codersdk.UpdateCheckResponse
 

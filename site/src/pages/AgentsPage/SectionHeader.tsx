@@ -1,7 +1,7 @@
 import type { FC, ReactNode } from "react";
 
 interface SectionHeaderProps {
-	label: string;
+	label: ReactNode;
 	description?: string;
 	badge?: ReactNode;
 	action?: ReactNode;

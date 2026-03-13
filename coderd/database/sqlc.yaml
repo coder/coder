@@ -224,6 +224,7 @@ sql:
           aibridge_tool_usage: AIBridgeToolUsage
           aibridge_token_usage: AIBridgeTokenUsage
           aibridge_user_prompt: AIBridgeUserPrompt
+          chat_mcp_server: ChatMCPServer
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"

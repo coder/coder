@@ -3556,6 +3556,405 @@ func TestChatSystemPrompt(t *testing.T) {
 	})
 }
 
+func TestListChatMCPServers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EmptyByDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		servers, err := client.ListChatMCPServerConfigs(ctx)
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("ReturnsAllForAdmin", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// Create an enabled and a disabled server.
+		_, err := client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug: "enabled-server",
+			URL:  "https://enabled.example.com/sse",
+		})
+		require.NoError(t, err)
+
+		disabled := false
+		_, err = client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug:    "disabled-server",
+			URL:     "https://disabled.example.com/sse",
+			Enabled: &disabled,
+		})
+		require.NoError(t, err)
+
+		servers, err := client.ListChatMCPServerConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+	})
+
+	t.Run("MemberSeesOnlyEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		// Create an enabled and a disabled server.
+		_, err := adminClient.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug: "visible-server",
+			URL:  "https://visible.example.com/sse",
+		})
+		require.NoError(t, err)
+
+		disabled := false
+		_, err = adminClient.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug:    "hidden-server",
+			URL:     "https://hidden.example.com/sse",
+			Enabled: &disabled,
+		})
+		require.NoError(t, err)
+
+		servers, err := memberClient.ListChatMCPServerConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "visible-server", servers[0].Slug)
+	})
+}
+
+func TestCreateChatMCPServer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		server, err := client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug:        "test-server",
+			URL:         "https://mcp.example.com/sse",
+			DisplayName: "Test MCP Server",
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, server.ID)
+		require.Equal(t, "test-server", server.Slug)
+		require.Equal(t, "https://mcp.example.com/sse", server.URL)
+		require.Equal(t, "Test MCP Server", server.DisplayName)
+		require.Equal(t, codersdk.ChatMCPServerAuthTypeNone, server.AuthType)
+		require.False(t, server.HasAuthHeaders)
+		require.True(t, server.Enabled)
+		require.NotZero(t, server.CreatedAt)
+		require.NotZero(t, server.UpdatedAt)
+	})
+
+	t.Run("WithHeaderAuth", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		server, err := client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug:     "auth-server",
+			URL:      "https://mcp.example.com/sse",
+			AuthType: codersdk.ChatMCPServerAuthTypeHeader,
+			AuthHeaders: map[string]string{
+				"Authorization": "Bearer sk-test-key",
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatMCPServerAuthTypeHeader, server.AuthType)
+		require.True(t, server.HasAuthHeaders)
+	})
+
+	t.Run("AuthHeadersNotLeaked", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug:     "secret-server",
+			URL:      "https://mcp.example.com/sse",
+			AuthType: codersdk.ChatMCPServerAuthTypeHeader,
+			AuthHeaders: map[string]string{
+				"Authorization": "Bearer super-secret-key",
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, created.HasAuthHeaders)
+
+		// List should show has_auth_headers but not expose the actual headers.
+		servers, err := client.ListChatMCPServerConfigs(ctx)
+		require.NoError(t, err)
+		var found *codersdk.ChatMCPServerConfig
+		for i := range servers {
+			if servers[i].ID == created.ID {
+				found = &servers[i]
+				break
+			}
+		}
+		require.NotNil(t, found)
+		require.True(t, found.HasAuthHeaders)
+		// The SDK type ChatMCPServerConfig intentionally does not have
+		// an AuthHeaders field — this is the primary protection against
+		// leaking secrets via the API.
+	})
+
+	t.Run("WithToolFilters", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		server, err := client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug:           "filtered-server",
+			URL:            "https://mcp.example.com/sse",
+			ToolAllowRegex: "^read_.*",
+			ToolDenyRegex:  "^write_secret$",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "^read_.*", server.ToolAllowRegex)
+		require.Equal(t, "^write_secret$", server.ToolDenyRegex)
+	})
+
+	t.Run("ConflictOnDuplicateSlug", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug: "dupe-server",
+			URL:  "https://first.example.com/sse",
+		})
+		require.NoError(t, err)
+
+		_, err = client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug: "dupe-server",
+			URL:  "https://second.example.com/sse",
+		})
+		requireSDKError(t, err, http.StatusConflict)
+	})
+
+	t.Run("ForbiddenForMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		_, err := memberClient.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug: "member-server",
+			URL:  "https://mcp.example.com/sse",
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+}
+
+func TestUpdateChatMCPServer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		server, err := client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug: "update-me",
+			URL:  "https://old.example.com/sse",
+		})
+		require.NoError(t, err)
+
+		newURL := "https://new.example.com/sse"
+		newName := "Updated Server"
+		enabled := false
+		updated, err := client.UpdateChatMCPServerConfig(ctx, server.ID, codersdk.UpdateChatMCPServerRequest{
+			URL:         &newURL,
+			DisplayName: &newName,
+			Enabled:     &enabled,
+		})
+		require.NoError(t, err)
+		require.Equal(t, server.ID, updated.ID)
+		require.Equal(t, "update-me", updated.Slug)
+		require.Equal(t, "https://new.example.com/sse", updated.URL)
+		require.Equal(t, "Updated Server", updated.DisplayName)
+		require.False(t, updated.Enabled)
+	})
+
+	t.Run("PartialUpdate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		server, err := client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug:        "partial-update",
+			URL:         "https://original.example.com/sse",
+			DisplayName: "Original Name",
+		})
+		require.NoError(t, err)
+
+		// Only update the display name; slug and URL should be preserved.
+		newName := "New Name"
+		updated, err := client.UpdateChatMCPServerConfig(ctx, server.ID, codersdk.UpdateChatMCPServerRequest{
+			DisplayName: &newName,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "partial-update", updated.Slug)
+		require.Equal(t, "https://original.example.com/sse", updated.URL)
+		require.Equal(t, "New Name", updated.DisplayName)
+		require.True(t, updated.Enabled)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		newName := "ghost"
+		_, err := client.UpdateChatMCPServerConfig(ctx, uuid.New(), codersdk.UpdateChatMCPServerRequest{
+			DisplayName: &newName,
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("InvalidID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodPatch,
+			"/api/experimental/chats/mcp-servers/not-a-uuid",
+			codersdk.UpdateChatMCPServerRequest{},
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		err = codersdk.ReadBodyAsError(res)
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("ForbiddenForMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		server, err := adminClient.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug: "admin-server",
+			URL:  "https://mcp.example.com/sse",
+		})
+		require.NoError(t, err)
+
+		newName := "hacked"
+		_, err = memberClient.UpdateChatMCPServerConfig(ctx, server.ID, codersdk.UpdateChatMCPServerRequest{
+			DisplayName: &newName,
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+}
+
+func TestDeleteChatMCPServer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		server, err := client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug: "delete-me",
+			URL:  "https://mcp.example.com/sse",
+		})
+		require.NoError(t, err)
+
+		err = client.DeleteChatMCPServerConfig(ctx, server.ID)
+		require.NoError(t, err)
+
+		// Verify it's gone.
+		servers, err := client.ListChatMCPServerConfigs(ctx)
+		require.NoError(t, err)
+		for _, s := range servers {
+			require.NotEqual(t, server.ID, s.ID)
+		}
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		err := client.DeleteChatMCPServerConfig(ctx, uuid.New())
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("InvalidID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodDelete,
+			"/api/experimental/chats/mcp-servers/not-a-uuid",
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		err = codersdk.ReadBodyAsError(res)
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+
+	t.Run("ForbiddenForMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		server, err := adminClient.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug: "no-delete",
+			URL:  "https://mcp.example.com/sse",
+		})
+		require.NoError(t, err)
+
+		err = memberClient.DeleteChatMCPServerConfig(ctx, server.ID)
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+}
+
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {
 	t.Helper()
 
