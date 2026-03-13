@@ -1739,6 +1739,9 @@ func (p *Server) publishMessagePart(chatID uuid.UUID, role string, part codersdk
 	if part.Type == "" {
 		return
 	}
+	// Strip internal-only fields before client delivery.
+	// Mirrors db2sdk.chatMessageParts stripping for REST.
+	part.StripInternal()
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type: codersdk.ChatStreamEventTypeMessagePart,
 		MessagePart: &codersdk.ChatStreamMessagePart{

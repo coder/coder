@@ -122,6 +122,15 @@ type ChatMessagePart struct {
 	ProviderExecuted bool `json:"provider_executed,omitempty"`
 }
 
+// StripInternal removes internal-only fields that must not be
+// sent to API clients. Call before publishing via REST or SSE.
+func (p *ChatMessagePart) StripInternal() {
+	p.ProviderMetadata = nil
+	if p.FileID.Valid {
+		p.Data = nil
+	}
+}
+
 // ChatMessageText builds a text chat message part.
 func ChatMessageText(text string) ChatMessagePart {
 	return ChatMessagePart{Type: ChatMessagePartTypeText, Text: text}
@@ -150,6 +159,36 @@ func ChatMessageToolResult(toolCallID, toolName string, result json.RawMessage, 
 		ToolName:   toolName,
 		Result:     result,
 		IsError:    isError,
+	}
+}
+
+// ChatMessageFile builds a file chat message part.
+func ChatMessageFile(fileID uuid.UUID, mediaType string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:      ChatMessagePartTypeFile,
+		FileID:    uuid.NullUUID{UUID: fileID, Valid: true},
+		MediaType: mediaType,
+	}
+}
+
+// ChatMessageFileReference builds a file-reference chat message part.
+func ChatMessageFileReference(fileName string, startLine, endLine int, content string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:      ChatMessagePartTypeFileReference,
+		FileName:  fileName,
+		StartLine: startLine,
+		EndLine:   endLine,
+		Content:   content,
+	}
+}
+
+// ChatMessageSource builds a source chat message part.
+func ChatMessageSource(sourceID, url, title string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:     ChatMessagePartTypeSource,
+		SourceID: sourceID,
+		URL:      url,
+		Title:    title,
 	}
 }
 

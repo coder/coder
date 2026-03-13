@@ -117,7 +117,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "first-relay"},
+					Part: codersdk.ChatMessageText("first-relay"),
 				},
 			}
 			close(ch)
@@ -127,7 +127,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "second-relay"},
+					Part: codersdk.ChatMessageText("second-relay"),
 				},
 			}
 			// Don't close — keep alive so the subscriber stays connected.
@@ -319,14 +319,14 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "snap-one"},
+					Part: codersdk.ChatMessageText("snap-one"),
 				},
 			},
 			{
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "snap-two"},
+					Part: codersdk.ChatMessageText("snap-two"),
 				},
 			},
 		}
@@ -336,7 +336,7 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 			Type: codersdk.ChatStreamEventTypeMessagePart,
 			MessagePart: &codersdk.ChatStreamMessagePart{
 				Role: "assistant",
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "live-part"},
+				Part: codersdk.ChatMessageText("live-part"),
 			},
 		}
 		return snapshot, ch, func() {}, nil
@@ -439,7 +439,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "stale-part"},
+					Part: codersdk.ChatMessageText("stale-part"),
 				},
 			}
 			close(ch)
@@ -450,7 +450,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 			Type: codersdk.ChatStreamEventTypeMessagePart,
 			MessagePart: &codersdk.ChatStreamMessagePart{
 				Role: "assistant",
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "new-worker-part"},
+				Part: codersdk.ChatMessageText("new-worker-part"),
 			},
 		}
 		return nil, ch, func() {}, nil
@@ -711,7 +711,7 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 			Type: codersdk.ChatStreamEventTypeMessagePart,
 			MessagePart: &codersdk.ChatStreamMessagePart{
 				Role: "assistant",
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "worker-b-part"},
+				Part: codersdk.ChatMessageText("worker-b-part"),
 			},
 		}
 		return nil, ch, func() {}, nil
@@ -826,7 +826,7 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 			Type: codersdk.ChatStreamEventTypeMessagePart,
 			MessagePart: &codersdk.ChatStreamMessagePart{
 				Role: "assistant",
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "retry-success"},
+				Part: codersdk.ChatMessageText("retry-success"),
 			},
 		}
 		return nil, ch, func() {}, nil
@@ -939,7 +939,7 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "remote-part"},
+					Part: codersdk.ChatMessageText("remote-part"),
 				},
 			}
 			// Keep channel open so the relay stays active.

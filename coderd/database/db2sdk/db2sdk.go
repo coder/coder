@@ -1147,10 +1147,7 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 	}
 	// Strip internal-only fields before API responses.
 	for i := range parts {
-		parts[i].ProviderMetadata = nil
-		if parts[i].FileID.Valid {
-			parts[i].Data = nil
-		}
+		parts[i].StripInternal()
 	}
 	return parts, nil
 }

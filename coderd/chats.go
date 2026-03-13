@@ -2030,11 +2030,7 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
 				}
 			}
-			content = append(content, codersdk.ChatMessagePart{
-				Type:      codersdk.ChatMessagePartTypeFile,
-				FileID:    uuid.NullUUID{UUID: part.FileID, Valid: true},
-				MediaType: chatFile.Mimetype,
-			})
+			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype))
 		case string(codersdk.ChatInputPartTypeFileReference):
 			if part.FileName == "" {
 				return nil, "", &codersdk.Response{
@@ -2042,13 +2038,7 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s[%d].file_name cannot be empty for file-reference.", fieldName, i),
 				}
 			}
-			content = append(content, codersdk.ChatMessagePart{
-				Type:      codersdk.ChatMessagePartTypeFileReference,
-				FileName:  part.FileName,
-				StartLine: part.StartLine,
-				EndLine:   part.EndLine,
-				Content:   part.Content,
-			})
+			content = append(content, codersdk.ChatMessageFileReference(part.FileName, part.StartLine, part.EndLine, part.Content))
 			// Build text representation for title generation.
 			lineRange := fmt.Sprintf("%d", part.StartLine)
 			if part.StartLine != part.EndLine {
