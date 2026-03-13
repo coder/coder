@@ -11,7 +11,11 @@ import { pageTitle } from "utils/page";
 import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ChimeButton } from "./ChimeButton";
-import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
+import {
+	ConfigureAgentsDialog,
+	type ConfigureAgentsSection,
+} from "./ConfigureAgentsDialog";
+import { UserAnalyticsDialog } from "./UserAnalyticsDialog";
 import { WebPushButton } from "./WebPushButton";
 
 type ChatModelOption = ModelSelectorOption;
@@ -99,6 +103,10 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	} = outletContext;
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
+	const [configureAgentsInitialSection, setConfigureAgentsInitialSection] =
+		useState<ConfigureAgentsSection>("behavior");
+	const [isUserAnalyticsDialogOpen, setUserAnalyticsDialogOpen] =
+		useState(false);
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<title>{pageTitle("Agents")}</title>
@@ -133,7 +141,13 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					archivedFilter={archivedFilter}
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
-					onOpenSettings={() => setConfigureAgentsDialogOpen(true)}
+					onOpenAnalytics={() => {
+						setUserAnalyticsDialogOpen(true);
+					}}
+					onOpenSettings={() => {
+						setConfigureAgentsInitialSection("behavior");
+						setConfigureAgentsDialogOpen(true);
+					}}
 				/>
 			</div>
 
@@ -191,10 +205,17 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			</div>
 
 			<ConfigureAgentsDialog
+				key={String(isConfigureAgentsDialogOpen)}
 				open={isConfigureAgentsDialogOpen}
 				onOpenChange={setConfigureAgentsDialogOpen}
 				canManageChatModelConfigs={isAgentsAdmin}
 				canSetSystemPrompt={isAgentsAdmin}
+				initialSection={configureAgentsInitialSection}
+			/>
+			<UserAnalyticsDialog
+				key={String(isUserAnalyticsDialogOpen)}
+				open={isUserAnalyticsDialogOpen}
+				onOpenChange={setUserAnalyticsDialogOpen}
 			/>
 		</div>
 	);

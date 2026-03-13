@@ -2,12 +2,23 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { QueryClient } from "react-query";
 import { describe, expect, it, vi } from "vitest";
-import { archiveChat, chatKey, chatsKey, unarchiveChat } from "./chats";
+import {
+	archiveChat,
+	chatCostSummary,
+	chatCostSummaryKey,
+	chatCostUsers,
+	chatCostUsersKey,
+	chatKey,
+	chatsKey,
+	unarchiveChat,
+} from "./chats";
 
 vi.mock("api/api", () => ({
 	API: {
 		archiveChat: vi.fn(),
 		unarchiveChat: vi.fn(),
+		getChatCostSummary: vi.fn(),
+		getChatCostUsers: vi.fn(),
 	},
 }));
 
@@ -269,5 +280,50 @@ describe("unarchiveChat optimistic update", () => {
 		expect(invalidateSpy).toHaveBeenCalledWith({
 			queryKey: chatKey(chatId),
 		});
+	});
+});
+
+describe("chat cost query factories", () => {
+	it("builds the summary query key and forwards snake_case params", async () => {
+		const user = "user-1";
+		const params = {
+			start_date: "2025-01-01",
+			end_date: "2025-01-31",
+		};
+		vi.mocked(API.getChatCostSummary).mockResolvedValue(
+			{} as TypesGen.ChatCostSummary,
+		);
+
+		const query = chatCostSummary(user, params);
+
+		expect(chatCostSummaryKey(user, params)).toEqual([
+			"chatCostSummary",
+			user,
+			params,
+		]);
+		expect(query.queryKey).toEqual(["chatCostSummary", user, params]);
+		await query.queryFn();
+		expect(API.getChatCostSummary).toHaveBeenCalledWith(user, params);
+	});
+
+	it("builds a distinct users query key and forwards snake_case params", async () => {
+		const params = {
+			start_date: "2025-01-01",
+			end_date: "2025-01-31",
+			username: "alice",
+			limit: 10,
+			offset: 20,
+		};
+		vi.mocked(API.getChatCostUsers).mockResolvedValue(
+			{} as TypesGen.ChatCostUsersResponse,
+		);
+
+		const query = chatCostUsers(params);
+
+		expect(chatCostUsersKey(params)).toEqual(["chatCostUsers", params]);
+		expect(query.queryKey).toEqual(["chatCostUsers", params]);
+		expect(query.queryKey).not.toEqual(chatCostSummaryKey("me", params));
+		await query.queryFn();
+		expect(API.getChatCostUsers).toHaveBeenCalledWith(params);
 	});
 });

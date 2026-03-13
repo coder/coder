@@ -3172,6 +3172,55 @@ class ApiMethods {
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
+
+	getChatCostSummary = async (
+		user = "me",
+		params?: {
+			start_date?: string;
+			end_date?: string;
+		},
+	): Promise<TypesGen.ChatCostSummary> => {
+		const searchParams = new URLSearchParams();
+		if (params?.start_date) {
+			searchParams.set("start_date", params.start_date);
+		}
+		if (params?.end_date) {
+			searchParams.set("end_date", params.end_date);
+		}
+		const query = searchParams.toString();
+		const url = `/api/experimental/chats/cost/${user}/summary${query ? `?${query}` : ""}`;
+		const response = await this.axios.get<TypesGen.ChatCostSummary>(url);
+		return response.data;
+	};
+
+	getChatCostUsers = async (params?: {
+		start_date?: string;
+		end_date?: string;
+		username?: string;
+		limit?: number;
+		offset?: number;
+	}): Promise<TypesGen.ChatCostUsersResponse> => {
+		const searchParams = new URLSearchParams();
+		if (params?.start_date) {
+			searchParams.set("start_date", params.start_date);
+		}
+		if (params?.end_date) {
+			searchParams.set("end_date", params.end_date);
+		}
+		if (params?.username) {
+			searchParams.set("username", params.username);
+		}
+		if (params?.limit !== undefined) {
+			searchParams.set("limit", params.limit.toString());
+		}
+		if (params?.offset !== undefined) {
+			searchParams.set("offset", params.offset.toString());
+		}
+		const query = searchParams.toString();
+		const url = `/api/experimental/chats/cost/users${query ? `?${query}` : ""}`;
+		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
+		return response.data;
+	};
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";
