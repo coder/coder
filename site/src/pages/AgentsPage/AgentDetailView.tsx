@@ -2,7 +2,7 @@ import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useMemo, useState } from "react";
+import { type FC, type RefObject, useCallback, useMemo, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -198,6 +198,56 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 		</title>
 	);
 
+	const handleToggleRightPanel = useCallback(
+		() => setIsRightPanelExpanded((prev) => !prev),
+		[],
+	);
+
+	const handleClosePanel = useCallback(
+		() => onSetShowSidebarPanel(false),
+		[onSetShowSidebarPanel],
+	);
+
+	const handleToggleSidebar = useCallback(
+		() => onSetShowSidebarPanel((prev) => !prev),
+		[onSetShowSidebarPanel],
+	);
+
+	const prTab = useMemo(
+		() => (prNumber && agentId ? { prNumber, chatId: agentId } : undefined),
+		[prNumber, agentId],
+	);
+
+	const gitPanelContent = useMemo(
+		() => (
+			<GitPanel
+				prTab={prTab}
+				repositories={gitWatcher.repositories}
+				onRefresh={gitWatcher.refresh}
+				onCommit={handleCommit}
+				isExpanded={visualExpanded}
+				remoteDiffStats={diffStatusData}
+				localDiffStats={localDiffStats}
+				chatInputRef={editing.chatInputRef}
+			/>
+		),
+		[
+			prTab,
+			gitWatcher.repositories,
+			gitWatcher.refresh,
+			handleCommit,
+			visualExpanded,
+			diffStatusData,
+			localDiffStats,
+			editing.chatInputRef,
+		],
+	);
+
+	const sidebarTabs = useMemo(
+		() => [{ id: "git", label: "Git", content: gitPanelContent }],
+		[gitPanelContent],
+	);
+
 	const shouldShowSidebar = showSidebarPanel;
 
 	return (
@@ -222,7 +272,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						onOpenParentChat={(chatId) => onNavigateToChat(chatId)}
 						panel={{
 							showSidebarPanel,
-							onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
+							onToggleSidebar: handleToggleSidebar,
 						}}
 						workspace={{
 							canOpenEditors,
@@ -308,38 +358,17 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 			<RightPanel
 				isOpen={shouldShowSidebar}
 				isExpanded={isRightPanelExpanded}
-				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-				onClose={() => onSetShowSidebarPanel(false)}
+				onToggleExpanded={handleToggleRightPanel}
+				onClose={handleClosePanel}
 				onVisualExpandedChange={setDragVisualExpanded}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			>
 				<SidebarTabView
-					tabs={[
-						{
-							id: "git",
-							label: "Git",
-							content: (
-								<GitPanel
-									prTab={
-										prNumber && agentId
-											? { prNumber, chatId: agentId }
-											: undefined
-									}
-									repositories={gitWatcher.repositories}
-									onRefresh={gitWatcher.refresh}
-									onCommit={handleCommit}
-									isExpanded={visualExpanded}
-									remoteDiffStats={diffStatusData}
-									localDiffStats={localDiffStats}
-									chatInputRef={editing.chatInputRef}
-								/>
-							),
-						},
-					]}
-					onClose={() => onSetShowSidebarPanel(false)}
+					tabs={sidebarTabs}
+					onClose={handleClosePanel}
 					isExpanded={visualExpanded}
-					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+					onToggleExpanded={handleToggleRightPanel}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					chatTitle={chatTitle}

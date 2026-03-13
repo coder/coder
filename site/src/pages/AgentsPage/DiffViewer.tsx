@@ -14,6 +14,7 @@ import {
 	type ComponentProps,
 	type FC,
 	type ReactNode,
+	memo,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -304,16 +305,13 @@ const FileTreeNodeView: FC<{
  * FileDiff that the user has already scrolled past, which avoids
  * layout shifts and repeated highlighting work.
  */
-const LazyFileDiff: FC<{
+const LazyFileDiff = memo<{
 	fileDiff: FileDiffMetadata;
 	options: ComponentProps<typeof FileDiff>["options"];
-}> = ({ fileDiff, options }) => {
-	const placeholderRef = useRef<HTMLDivElement>(null);
+}>(({ fileDiff, options }) => {
 	const [visible, setVisible] = useState(false);
-
-	useEffect(() => {
-		const el = placeholderRef.current;
-		if (!el || visible) {
+	const placeholderRef = useCallback((el: HTMLDivElement | null) => {
+		if (!el) {
 			return;
 		}
 		const observer = new IntersectionObserver(
@@ -329,8 +327,7 @@ const LazyFileDiff: FC<{
 			{ rootMargin: "100% 0px" },
 		);
 		observer.observe(el);
-		return () => observer.disconnect();
-	}, [visible]);
+	}, []);
 
 	if (!visible) {
 		return (
@@ -350,7 +347,7 @@ const LazyFileDiff: FC<{
 	return (
 		<FileDiff fileDiff={fileDiff} options={options} style={DIFFS_FONT_STYLE} />
 	);
-};
+});
 
 // -------------------------------------------------------------------
 // Main component
@@ -424,7 +421,12 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// whether to show the file tree sidebar without a prop from the
 	// parent.
 	// ---------------------------------------------------------------
-	const [containerWidth, setContainerWidth] = useState(0);
+	// Track whether the container is wide enough for the file tree
+	// sidebar. We only store the boolean threshold result so the
+	// ResizeObserver doesn't trigger React re-renders on every
+	// pixel of panel resize — only when the visibility actually
+	// needs to change.
+	const [isWideEnoughForTree, setIsWideEnoughForTree] = useState(false);
 	const roRef = useRef<ResizeObserver | null>(null);
 	const containerRef = useCallback((el: HTMLDivElement | null) => {
 		if (roRef.current) {
@@ -434,17 +436,18 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		if (!el) {
 			return;
 		}
-		setContainerWidth(el.getBoundingClientRect().width);
+		setIsWideEnoughForTree(
+			el.getBoundingClientRect().width >= FILE_TREE_THRESHOLD,
+		);
 		const ro = new ResizeObserver(([entry]) => {
-			setContainerWidth(entry.contentRect.width);
+			setIsWideEnoughForTree(entry.contentRect.width >= FILE_TREE_THRESHOLD);
 		});
 		ro.observe(el);
 		roRef.current = ro;
 	}, []);
 
 	const showTree =
-		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
-		sortedFiles.length > 0;
+		(isExpanded || isWideEnoughForTree) && sortedFiles.length > 0;
 
 	// ---------------------------------------------------------------
 	// Refs for each file diff wrapper so we can scroll-to and track
@@ -631,6 +634,10 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 								<div
 									key={fileDiff.name}
 									ref={(el) => setFileRef(fileDiff.name, el)}
+									style={{
+										contentVisibility: "auto",
+										containIntrinsicSize: `auto ${estimateDiffHeight(fileDiff)}px`,
+									}}
 								>
 									<LazyFileDiff fileDiff={fileDiff} options={fileOptions} />
 								</div>

@@ -1,6 +1,7 @@
 import {
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
+	type RefObject,
 	useCallback,
 	useEffect,
 	useRef,
@@ -56,10 +57,13 @@ interface RightPanelProps {
  * refs, pointer handlers, snap state, and visual state
  * derivation.
  */
+
 function useResizableDrag({
 	isExpanded,
 	width,
 	setWidth,
+	panelRef,
+	contentRef,
 	isOpen,
 	onSnapCommit,
 	onVisualExpandedChange,
@@ -69,6 +73,8 @@ function useResizableDrag({
 	isExpanded: boolean;
 	width: number;
 	setWidth: React.Dispatch<React.SetStateAction<number>>;
+	panelRef: RefObject<HTMLDivElement | null>;
+	contentRef: RefObject<HTMLDivElement | null>;
 	isOpen: boolean;
 	onSnapCommit: (snap: "normal" | "expanded" | "closed") => void;
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
@@ -79,27 +85,70 @@ function useResizableDrag({
 	const startX = useRef(0);
 	const startWidth = useRef(0);
 	const sidebarCollapsedByDrag = useRef(false);
+
+	// Live width tracked via ref during drag so we can update the
+	// DOM directly without triggering React re-renders on every
+	// pointer-move. Committed to React state on pointer-up.
+	const liveWidthRef = useRef(width);
+	liveWidthRef.current = width;
+
 	// Track snap state during a drag. This is state (not a ref) so
 	// the panel visually updates as the user drags across thresholds.
 	const [dragSnap, setDragSnap] = useState<
 		"normal" | "expanded" | "closed" | null
 	>(null);
+	// Mirror of dragSnap used to avoid redundant setState calls
+	// (same string) and to read the latest snap in handlePointerUp
+	// without a stale closure.
+	const dragSnapRef = useRef<"normal" | "expanded" | "closed" | null>(null);
+
+	// Pending animation frame id so we can cancel stale frames.
+	const rafId = useRef<number | null>(null);
+
+	// Track the last visual-expanded value we reported so we only
+	// notify the parent when the value actually changes.
+	const lastVisualExpanded = useRef<boolean | undefined>(undefined);
 
 	const handlePointerDown = useCallback(
 		(e: ReactPointerEvent<HTMLDivElement>) => {
 			e.preventDefault();
 			isDragging.current = true;
-			setDragSnap(null);
 			sidebarCollapsedByDrag.current = false;
+			lastVisualExpanded.current = false;
+
+			// Pre-set the snap zone to "normal" so the first
+			// pointer-move doesn't trigger a wasted React
+			// re-render (the derived visualExpanded and
+			// visualOpen values are identical for null vs
+			// "normal" when the panel is not expanded).
+			dragSnapRef.current = "normal";
+			if (isExpanded) {
+				setDragSnap("normal");
+			}
+
 			startX.current = e.clientX;
 			startWidth.current = isExpanded
 				? ((e.target as HTMLElement).closest(
 						"[data-testid='agents-right-panel']",
 					)?.parentElement?.clientWidth ?? getMaxWidth())
-				: width;
+				: liveWidthRef.current;
 			(e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+			// Freeze content width so the expensive diff content doesn't
+			// reflow on every pointer-move. The panel edge moves but the
+			// inner content stays fixed. A single reflow happens on
+			// pointer-up when we release the constraints.
+			const content = contentRef.current;
+			if (content) {
+				const w = `${content.offsetWidth}px`;
+				content.style.minWidth = w;
+				content.style.maxWidth = w;
+			}
+			if (panelRef.current) {
+				panelRef.current.style.overflow = "hidden";
+			}
 		},
-		[width, isExpanded],
+		[isExpanded, panelRef, contentRef],
 	);
 
 	const handlePointerMove = useCallback(
@@ -129,25 +178,48 @@ function useResizableDrag({
 			}
 
 			let nextSnap: "normal" | "expanded" | "closed";
+			let clampedWidth: number | null = null;
 			if (raw > maxWidth + SNAP_THRESHOLD) {
 				nextSnap = "expanded";
 			} else if (raw < MIN_WIDTH - SNAP_THRESHOLD) {
 				nextSnap = "closed";
 			} else {
 				nextSnap = "normal";
-				setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, raw)));
+				clampedWidth = Math.min(maxWidth, Math.max(MIN_WIDTH, raw));
 			}
-			setDragSnap(nextSnap);
+
+			// Update the panel width directly on the DOM element so
+			// we avoid a React re-render on every pointer-move. The
+			// width is committed to React state once on pointer-up.
+			if (clampedWidth !== null) {
+				liveWidthRef.current = clampedWidth;
+				panelRef.current?.style.setProperty(
+					"--panel-width",
+					`${clampedWidth}px`,
+				);
+			} // Only trigger React re-renders when the snap zone
+			// changes (normal ↔ expanded ↔ closed). Within the
+			// "normal" zone every pixel of movement is handled
+			// purely via the DOM mutation above.
+			if (nextSnap !== dragSnapRef.current) {
+				dragSnapRef.current = nextSnap;
+				setDragSnap(nextSnap);
+			}
 
 			// Notify parent of the live visual expanded state so
-			// sibling content reacts during the drag.
+			// sibling content reacts during the drag, but only
+			// when the value actually changes to avoid unnecessary
+			// parent re-renders.
 			const nextVisualExpanded =
 				nextSnap === "expanded" ||
 				(nextSnap !== "normal" && nextSnap !== "closed" && isExpanded);
-			onVisualExpandedChange?.(nextVisualExpanded);
+			if (nextVisualExpanded !== lastVisualExpanded.current) {
+				lastVisualExpanded.current = nextVisualExpanded;
+				onVisualExpandedChange?.(nextVisualExpanded);
+			}
 		},
 		[
-			setWidth,
+			panelRef,
 			isExpanded,
 			onVisualExpandedChange,
 			isSidebarCollapsed,
@@ -160,10 +232,30 @@ function useResizableDrag({
 			if (!isDragging.current) {
 				return;
 			}
-			const snap = dragSnap;
+			// Cancel any outstanding animation frame from the drag.
+			if (rafId.current !== null) {
+				cancelAnimationFrame(rafId.current);
+				rafId.current = null;
+			}
+			const snap = dragSnapRef.current;
 			isDragging.current = false;
+			dragSnapRef.current = null;
 			setDragSnap(null);
 			(e.target as HTMLElement).releasePointerCapture(e.pointerId);
+
+			// Unfreeze content so it reflows once to the final width.
+			const content = contentRef.current;
+			if (content) {
+				content.style.minWidth = "";
+				content.style.maxWidth = "";
+			}
+			if (panelRef.current) {
+				panelRef.current.style.overflow = "";
+			}
+
+			// Commit the live width to React state so it persists
+			// and is available for subsequent non-drag renders.
+			setWidth(liveWidthRef.current);
 
 			// Clear the drag override so parent falls back to its
 			// own committed expanded state.
@@ -173,7 +265,7 @@ function useResizableDrag({
 				onSnapCommit(snap);
 			}
 		},
-		[dragSnap, onSnapCommit, onVisualExpandedChange],
+		[onSnapCommit, onVisualExpandedChange, setWidth, panelRef, contentRef],
 	);
 
 	// Derive visual state: during a drag the snap overrides the
@@ -205,6 +297,8 @@ export const RightPanel = ({
 	children,
 }: RightPanelProps) => {
 	const [width, setWidth] = useState(loadPersistedWidth);
+	const panelRef = useRef<HTMLDivElement>(null);
+	const contentRef = useRef<HTMLDivElement>(null);
 
 	// Clamp width when the viewport shrinks so the panel
 	// doesn't overflow and take over the whole page.
@@ -243,6 +337,8 @@ export const RightPanel = ({
 		isExpanded,
 		width,
 		setWidth,
+		panelRef,
+		contentRef,
 		isOpen,
 		onSnapCommit: handleSnapCommit,
 		onVisualExpandedChange,
@@ -258,6 +354,7 @@ export const RightPanel = ({
 
 	return (
 		<div
+			ref={panelRef}
 			data-testid="agents-right-panel"
 			style={
 				visualOpen && !visualExpanded
@@ -285,7 +382,9 @@ export const RightPanel = ({
 					visualExpanded && "-left-1",
 				)}
 			/>
-			<div className="flex min-h-0 flex-1 flex-col">{children}</div>
+			<div ref={contentRef} className="flex min-h-0 flex-1 flex-col">
+				{children}
+			</div>
 		</div>
 	);
 };

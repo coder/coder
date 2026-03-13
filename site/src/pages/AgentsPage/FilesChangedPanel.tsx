@@ -25,6 +25,7 @@ import {
 	type ComponentProps,
 	type FC,
 	type ReactNode,
+	memo,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -67,6 +68,12 @@ const STICKY_HEADER_CSS = [
 
 type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
+
+/**
+ * Shared empty array used for files without active annotations so
+ * that every render returns the same reference.
+ */
+const EMPTY_ANNOTATIONS: DiffLineAnnotation<string>[] = [];
 
 /**
  * Walk the parsed hunks for a file and collect code lines that fall
@@ -426,6 +433,7 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
+
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 	const handleSetDiffStyle = useCallback((style: DiffStyle) => {
 		setDiffStyle(style);
@@ -450,60 +458,6 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		};
 	}, [isDark, diffStyle]);
 
-	// Returns per-file diff options that include a line-number click
-	// handler scoped to the given file name.
-	const getFileOptions = useCallback(
-		(fileName: string) => ({
-			...diffOptions,
-			overflow: "wrap" as const,
-			enableLineSelection: true,
-			enableHoverUtility: true,
-			onLineNumberClick(props: {
-				lineNumber: number;
-				annotationSide: "additions" | "deletions";
-			}) {
-				setActiveCommentBox({
-					fileName,
-					startLine: props.lineNumber,
-					endLine: props.lineNumber,
-					side: props.annotationSide,
-				});
-			},
-			onLineSelected(
-				range: {
-					start: number;
-					end: number;
-					side?: "additions" | "deletions";
-				} | null,
-			) {
-				if (!range || range.start === range.end) return;
-				const side = range.side ?? "additions";
-				setActiveCommentBox({
-					fileName,
-					startLine: Math.min(range.start, range.end),
-					endLine: Math.max(range.start, range.end),
-					side,
-				});
-			},
-		}),
-		[diffOptions],
-	);
-
-	const getAnnotationsForFile = useCallback(
-		(fileName: string): DiffLineAnnotation<string>[] => {
-			if (activeCommentBox && activeCommentBox.fileName === fileName) {
-				return [
-					{
-						side: activeCommentBox.side,
-						lineNumber: activeCommentBox.startLine,
-						metadata: "active-input",
-					},
-				];
-			}
-			return [];
-		},
-		[activeCommentBox],
-	);
 	const handleCancelComment = useCallback(() => {
 		setActiveCommentBox(null);
 	}, []);
@@ -602,6 +556,72 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		);
 	}, [fileTree, parsedFiles]);
 
+	// Pre-build a stable options object for every file so that the
+	// diff viewer's shallow-equality check (areOptionsEqual) does
+	// not force expensive Shadow DOM re-renders on every React
+	// render cycle.
+	const fileOptionsMap = useMemo(() => {
+		const map = new Map<string, ComponentProps<typeof FileDiff>["options"]>();
+		for (const file of sortedFiles) {
+			const fileName = file.name;
+			map.set(fileName, {
+				...diffOptions,
+				overflow: "wrap" as const,
+				enableLineSelection: true,
+				enableHoverUtility: true,
+				onLineNumberClick(props: {
+					lineNumber: number;
+					annotationSide: "additions" | "deletions";
+				}) {
+					setActiveCommentBox({
+						fileName,
+						startLine: props.lineNumber,
+						endLine: props.lineNumber,
+						side: props.annotationSide,
+					});
+				},
+				onLineSelected(
+					range: {
+						start: number;
+						end: number;
+						side?: "additions" | "deletions";
+					} | null,
+				) {
+					if (!range || range.start === range.end) return;
+					const side = range.side ?? "additions";
+					setActiveCommentBox({
+						fileName,
+						startLine: Math.min(range.start, range.end),
+						endLine: Math.max(range.start, range.end),
+						side,
+					});
+				},
+			});
+		}
+		return map;
+	}, [diffOptions, sortedFiles]);
+
+	// Pre-build annotation arrays for every file. Files without an
+	// active comment box share the module-level EMPTY_ANNOTATIONS
+	// constant so their reference stays stable across renders.
+	const annotationsMap = useMemo(() => {
+		const map = new Map<string, DiffLineAnnotation<string>[]>();
+		for (const file of sortedFiles) {
+			if (activeCommentBox && activeCommentBox.fileName === file.name) {
+				map.set(file.name, [
+					{
+						side: activeCommentBox.side,
+						lineNumber: activeCommentBox.startLine,
+						metadata: "active-input",
+					},
+				]);
+			} else {
+				map.set(file.name, EMPTY_ANNOTATIONS);
+			}
+		}
+		return map;
+	}, [activeCommentBox, sortedFiles]);
+
 	const pullRequestUrl = diffStatusQuery.data?.url;
 	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
 
@@ -610,7 +630,12 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 	// whether to show the file tree sidebar without a prop from the
 	// parent.
 	// ---------------------------------------------------------------
-	const [containerWidth, setContainerWidth] = useState(0);
+	// Track whether the container is wide enough for the file tree
+	// sidebar. We only store the boolean threshold result so the
+	// ResizeObserver doesn't trigger React re-renders on every
+	// pixel of panel resize — only when the visibility actually
+	// needs to change.
+	const [isWideEnoughForTree, setIsWideEnoughForTree] = useState(false);
 	const roRef = useRef<ResizeObserver | null>(null);
 	const containerRef = useCallback((el: HTMLDivElement | null) => {
 		if (roRef.current) {
@@ -620,17 +645,18 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		if (!el) {
 			return;
 		}
-		setContainerWidth(el.getBoundingClientRect().width);
+		setIsWideEnoughForTree(
+			el.getBoundingClientRect().width >= FILE_TREE_THRESHOLD,
+		);
 		const ro = new ResizeObserver(([entry]) => {
-			setContainerWidth(entry.contentRect.width);
+			setIsWideEnoughForTree(entry.contentRect.width >= FILE_TREE_THRESHOLD);
 		});
 		ro.observe(el);
 		roRef.current = ro;
 	}, []);
 
 	const showTree =
-		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
-		sortedFiles.length > 0;
+		(isExpanded || isWideEnoughForTree) && sortedFiles.length > 0;
 
 	// ---------------------------------------------------------------
 	// Refs for each file diff wrapper so we can scroll-to and track
@@ -884,11 +910,15 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 								<div
 									key={fileDiff.name}
 									ref={(el) => setFileRef(fileDiff.name, el)}
+									style={{
+										contentVisibility: "auto",
+										containIntrinsicSize: `auto ${estimateDiffHeight(fileDiff)}px`,
+									}}
 								>
 									<LazyFileDiff
 										fileDiff={fileDiff}
-										options={getFileOptions(fileDiff.name)}
-										lineAnnotations={getAnnotationsForFile(fileDiff.name)}
+										options={fileOptionsMap.get(fileDiff.name)}
+										lineAnnotations={annotationsMap.get(fileDiff.name)}
 										renderAnnotation={renderAnnotation}
 									/>
 								</div>
@@ -931,63 +961,61 @@ function estimateDiffHeight(fileDiff: FileDiffMetadata): number {
  * FileDiff that the user has already scrolled past, which avoids
  * layout shifts and repeated highlighting work.
  */
-const LazyFileDiff: FC<{
+const LazyFileDiff = memo<{
 	fileDiff: FileDiffMetadata;
 	options: ComponentProps<typeof FileDiff>["options"];
 	lineAnnotations?: DiffLineAnnotation<string>[];
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
-}> = ({
-	fileDiff,
-	options,
-	lineAnnotations,
-	renderAnnotation: renderAnnotationProp,
-}) => {
-	const placeholderRef = useRef<HTMLDivElement>(null);
-	const [visible, setVisible] = useState(false);
+}>(
+	({
+		fileDiff,
+		options,
+		lineAnnotations,
+		renderAnnotation: renderAnnotationProp,
+	}) => {
+		const [visible, setVisible] = useState(false);
+		const placeholderRef = useCallback((el: HTMLDivElement | null) => {
+			if (!el) {
+				return;
+			}
+			const observer = new IntersectionObserver(
+				([entry]) => {
+					if (entry.isIntersecting) {
+						setVisible(true);
+						observer.disconnect();
+					}
+				},
+				// Pre-load files that are within one viewport-height of
+				// the visible area so they are ready before the user
+				// scrolls to them.
+				{ rootMargin: "100% 0px" },
+			);
+			observer.observe(el);
+		}, []);
 
-	useEffect(() => {
-		const el = placeholderRef.current;
-		if (!el || visible) {
-			return;
+		if (!visible) {
+			return (
+				<div
+					ref={placeholderRef}
+					style={{ height: estimateDiffHeight(fileDiff) }}
+					className="p-4 space-y-2"
+				>
+					<Skeleton className="h-4 w-48" />
+					<Skeleton className="h-3 w-full" />
+					<Skeleton className="h-3 w-full" />
+					<Skeleton className="h-3 w-3/4" />
+				</div>
+			);
 		}
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (entry.isIntersecting) {
-					setVisible(true);
-					observer.disconnect();
-				}
-			},
-			// Pre-load files that are within one viewport-height of
-			// the visible area so they are ready before the user
-			// scrolls to them.
-			{ rootMargin: "100% 0px" },
-		);
-		observer.observe(el);
-		return () => observer.disconnect();
-	}, [visible]);
 
-	if (!visible) {
 		return (
-			<div
-				ref={placeholderRef}
-				style={{ height: estimateDiffHeight(fileDiff) }}
-				className="p-4 space-y-2"
-			>
-				<Skeleton className="h-4 w-48" />
-				<Skeleton className="h-3 w-full" />
-				<Skeleton className="h-3 w-full" />
-				<Skeleton className="h-3 w-3/4" />
-			</div>
+			<FileDiff
+				fileDiff={fileDiff}
+				options={options}
+				style={DIFFS_FONT_STYLE}
+				lineAnnotations={lineAnnotations}
+				renderAnnotation={renderAnnotationProp}
+			/>
 		);
-	}
-
-	return (
-		<FileDiff
-			fileDiff={fileDiff}
-			options={options}
-			style={DIFFS_FONT_STYLE}
-			lineAnnotations={lineAnnotations}
-			renderAnnotation={renderAnnotationProp}
-		/>
-	);
-};
+	},
+);
