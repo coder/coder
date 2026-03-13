@@ -612,7 +612,10 @@ func secureHeaders() *secure.Secure {
 		"geolocation=()",
 		"gyroscope=()",
 		"magnetometer=()",
-		"microphone=()",
+		// microphone=(self) allows the Coder origin to use the microphone
+		// (e.g. Web Speech API on the /agents page) while still blocking
+		// cross-origin iframes.
+		"microphone=(self)",
 		"midi=()",
 		"payment=()",
 		"usb=()",
