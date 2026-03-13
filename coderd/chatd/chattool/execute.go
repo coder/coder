@@ -11,6 +11,8 @@ import (
 
 	"charm.land/fantasy"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -249,9 +251,9 @@ func pollProcess(
 			outputResp, outputErr := conn.ProcessOutput(bgCtx, processID)
 			bgCancel()
 			output := truncateOutput(outputResp.Output)
-			timeoutErr := fmt.Errorf("command timed out after %s", timeout)
+			timeoutErr := xerrors.Errorf("command timed out after %s", timeout)
 			if outputErr != nil {
-				timeoutErr = errors.Join(timeoutErr, fmt.Errorf("failed to get output: %w", outputErr))
+				timeoutErr = errors.Join(timeoutErr, xerrors.Errorf("failed to get output: %w", outputErr))
 			}
 			return ExecuteResult{
 				Success:   false,
