@@ -105,6 +105,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 	}
 
 	if bridgeCfg.InjectCoderMCPTools {
+		logger.Warn(lifecycleCtx, "inject MCP tools option is deprecated and will be removed in a future release")
 		coderMCPConfig, err := getCoderMCPServerConfig(experiments, accessURL)
 		if err != nil {
 			logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
@@ -551,6 +552,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}, nil
 }
 
+// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
 	// Both the MCP & OAuth2 experiments are currently required in order to use our
 	// internal MCP server.
