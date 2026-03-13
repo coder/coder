@@ -51,7 +51,8 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	startTime := time.Now()
 	chat, err := r.client.CreateChat(ctx, codersdk.CreateChatRequest{
-		WorkspaceID: &r.cfg.WorkspaceID,
+		WorkspaceID:   &r.cfg.WorkspaceID,
+		ModelConfigID: r.cfg.ModelConfigID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: r.cfg.Prompt,
