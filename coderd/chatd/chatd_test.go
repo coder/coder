@@ -1055,26 +1055,26 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var chatWithMessages codersdk.Chat
+	var chatResult codersdk.Chat
 	require.Eventually(t, func() bool {
 		got, getErr := client.GetChat(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
-		chatWithMessages = got
+		chatResult = got
 		return got.Status == codersdk.ChatStatusWaiting || got.Status == codersdk.ChatStatusError
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	if chatWithMessages.Status == codersdk.ChatStatusError {
+	if chatResult.Status == codersdk.ChatStatusError {
 		lastError := ""
-		if chatWithMessages.LastError != nil {
-			lastError = *chatWithMessages.LastError
+		if chatResult.LastError != nil {
+			lastError = *chatResult.LastError
 		}
 		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
 	}
 
-	require.NotNil(t, chatWithMessages.WorkspaceID)
-	workspaceID := *chatWithMessages.WorkspaceID
+	require.NotNil(t, chatResult.WorkspaceID)
+	workspaceID := *chatResult.WorkspaceID
 	workspace, err := client.Workspace(ctx, workspaceID)
 	require.NoError(t, err)
 	require.Equal(t, workspaceName, workspace.Name)
@@ -1226,26 +1226,26 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var chatWithMessages codersdk.Chat
+	var chatResult codersdk.Chat
 	require.Eventually(t, func() bool {
 		got, getErr := client.GetChat(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
-		chatWithMessages = got
+		chatResult = got
 		return got.Status == codersdk.ChatStatusWaiting || got.Status == codersdk.ChatStatusError
 	}, testutil.WaitSuperLong, testutil.IntervalFast)
 
-	if chatWithMessages.Status == codersdk.ChatStatusError {
+	if chatResult.Status == codersdk.ChatStatusError {
 		lastError := ""
-		if chatWithMessages.LastError != nil {
-			lastError = *chatWithMessages.LastError
+		if chatResult.LastError != nil {
+			lastError = *chatResult.LastError
 		}
 		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
 	}
 
 	// Verify the workspace was started.
-	require.NotNil(t, chatWithMessages.WorkspaceID)
+	require.NotNil(t, chatResult.WorkspaceID)
 	updatedWorkspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.Equal(t, codersdk.WorkspaceTransitionStart, updatedWorkspace.LatestBuild.Transition)
