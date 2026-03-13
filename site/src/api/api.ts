@@ -184,15 +184,9 @@ export function watchInboxNotifications(
 	});
 }
 
-type SerializableSearchParamValue = string | number | boolean | undefined;
-
-type SerializableSearchParams<T extends object = object> = {
-	[K in keyof T]: T[K] extends SerializableSearchParamValue ? T[K] : never;
-};
-
-export const getURLWithSearchParams = <T extends object>(
+export const getURLWithSearchParams = (
 	basePath: string,
-	options?: SerializableSearchParams<T>,
+	options?: SearchParamOptions,
 ): string => {
 	if (!options) {
 		return basePath;
@@ -201,7 +195,7 @@ export const getURLWithSearchParams = <T extends object>(
 	const searchParams = new URLSearchParams();
 	for (const [key, value] of Object.entries(options)) {
 		if (value !== undefined && value !== "") {
-			searchParams.append(key, String(value));
+			searchParams.append(key, value.toString());
 		}
 	}
 
@@ -3178,10 +3172,15 @@ class ApiMethods {
 			end_date?: string;
 		},
 	): Promise<TypesGen.ChatCostSummary> => {
-		const url = getURLWithSearchParams(
-			`/api/experimental/chats/cost/${user}/summary`,
-			params,
-		);
+		const searchParams = new URLSearchParams();
+		if (params?.start_date) {
+			searchParams.set("start_date", params.start_date);
+		}
+		if (params?.end_date) {
+			searchParams.set("end_date", params.end_date);
+		}
+		const query = searchParams.toString();
+		const url = `/api/experimental/chats/cost/${user}/summary${query ? `?${query}` : ""}`;
 		const response = await this.axios.get<TypesGen.ChatCostSummary>(url);
 		return response.data;
 	};
@@ -3193,10 +3192,24 @@ class ApiMethods {
 		limit?: number;
 		offset?: number;
 	}): Promise<TypesGen.ChatCostUsersResponse> => {
-		const url = getURLWithSearchParams(
-			"/api/experimental/chats/cost/users",
-			params,
-		);
+		const searchParams = new URLSearchParams();
+		if (params?.start_date) {
+			searchParams.set("start_date", params.start_date);
+		}
+		if (params?.end_date) {
+			searchParams.set("end_date", params.end_date);
+		}
+		if (params?.username) {
+			searchParams.set("username", params.username);
+		}
+		if (params?.limit !== undefined) {
+			searchParams.set("limit", params.limit.toString());
+		}
+		if (params?.offset !== undefined) {
+			searchParams.set("offset", params.offset.toString());
+		}
+		const query = searchParams.toString();
+		const url = `/api/experimental/chats/cost/users${query ? `?${query}` : ""}`;
 		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
 		return response.data;
 	};
