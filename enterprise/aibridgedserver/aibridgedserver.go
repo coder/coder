@@ -105,7 +105,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 	}
 
 	if bridgeCfg.InjectCoderMCPTools {
-		logger.Warn(lifecycleCtx, "inject coder MCP tools option is deprecated and will be removed in a future release")
+		logger.Warn(lifecycleCtx, "inject MCP tools option is deprecated and will be removed in a future release")
 		coderMCPConfig, err := getCoderMCPServerConfig(experiments, accessURL)
 		if err != nil {
 			logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
