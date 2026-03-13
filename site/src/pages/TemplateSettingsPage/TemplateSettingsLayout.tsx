@@ -66,7 +66,7 @@ export const TemplateSettingsLayout: FC = () => {
 						>
 							<Sidebar template={templateQuery.data} />
 							<Suspense fallback={<Loader />}>
-								<div css={{ width: "100%" }}>
+								<div className="w-full">
 									<Outlet />
 								</div>
 							</Suspense>

@@ -73,7 +73,7 @@ export const WorkspaceSettingsLayout: FC = () => {
 							>
 								<Sidebar />
 								<Suspense fallback={<Loader />}>
-									<div css={{ width: "100%" }}>
+									<div className="w-full">
 										<Outlet />
 									</div>
 								</Suspense>

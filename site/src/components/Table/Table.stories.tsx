@@ -91,10 +91,7 @@ type Story = StoryObj<typeof Table>;
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const invoiceHeader = canvas.getByText("Invoice").closest("th");
-		if (!invoiceHeader) {
-			throw new Error("Expected Invoice header to render in a th element.");
-		}
+		const invoiceHeader = canvas.getByRole("columnheader", { name: "Invoice" });
 
 		expect(invoiceHeader).toHaveAttribute("scope", "col");
 	},
@@ -112,10 +109,7 @@ export const ScopeOverride: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const invoiceHeader = canvas.getByText("Invoice").closest("th");
-		if (!invoiceHeader) {
-			throw new Error("Expected Invoice header to render in a th element.");
-		}
+		const invoiceHeader = canvas.getByRole("rowheader", { name: "Invoice" });
 
 		expect(invoiceHeader).toHaveAttribute("scope", "row");
 	},
