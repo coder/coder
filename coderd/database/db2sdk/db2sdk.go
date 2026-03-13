@@ -1071,7 +1071,7 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		Role:          codersdk.ChatMessageRole(m.Role),
 	}
 	if m.Content.Valid {
-		parts, err := chatMessageParts(codersdk.ChatMessageRole(m.Role), m.Content)
+		parts, err := chatMessageParts(m)
 		if err == nil {
 			msg.Content = parts
 		}
@@ -1113,9 +1113,15 @@ func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
 
 // ChatQueuedMessage converts a queued message to its SDK representation.
 func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
-	parts, err := chatMessageParts(codersdk.ChatMessageRoleUser, pqtype.NullRawMessage{
-		RawMessage: message.Content,
-		Valid:      len(message.Content) > 0,
+	// Queued messages are always written by current code via
+	// MarshalParts, so they are always current content version.
+	parts, err := chatMessageParts(database.ChatMessage{
+		Role: database.ChatMessageRoleUser,
+		Content: pqtype.NullRawMessage{
+			RawMessage: message.Content,
+			Valid:      len(message.Content) > 0,
+		},
+		ContentVersion: chatprompt.CurrentContentVersion,
 	})
 	if err != nil {
 		parts = nil
@@ -1139,8 +1145,8 @@ func ChatQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQu
 	return out
 }
 
-func chatMessageParts(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	parts, err := chatprompt.ParseContent(role, raw)
+func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
+	parts, err := chatprompt.ParseContent(m)
 	if err != nil {
 		return nil, err
 	}

@@ -20,6 +20,25 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// testMsg builds a database.ChatMessage for ParseContent tests.
+// ContentVersion defaults to 0 (legacy), which exercises the
+// heuristic detection path.
+func testMsg(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) database.ChatMessage {
+	return database.ChatMessage{
+		Role:    database.ChatMessageRole(role),
+		Content: raw,
+	}
+}
+
+// testMsgV1 builds a database.ChatMessage with ContentVersion 1.
+func testMsgV1(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) database.ChatMessage {
+	return database.ChatMessage{
+		Role:           database.ChatMessageRole(role),
+		Content:        raw,
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}
+}
+
 func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 	t.Parallel()
 
@@ -75,12 +94,12 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 
 			prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
 				{
-					Role:       string(fantasy.MessageRoleAssistant),
+					Role:       database.ChatMessageRoleAssistant,
 					Visibility: database.ChatMessageVisibilityBoth,
 					Content:    assistantContent,
 				},
 				{
-					Role:       string(fantasy.MessageRoleTool),
+					Role:       database.ChatMessageRoleTool,
 					Visibility: database.ChatMessageVisibilityBoth,
 					Content:    toolContent,
 				},
@@ -135,7 +154,7 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 		context.Background(),
 		[]database.ChatMessage{
 			{
-				Role:       string(fantasy.MessageRoleUser),
+				Role:       database.ChatMessageRoleUser,
 				Visibility: database.ChatMessageVisibilityBoth,
 				Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
 			},
@@ -192,7 +211,7 @@ func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 		context.Background(),
 		[]database.ChatMessage{
 			{
-				Role:       string(fantasy.MessageRoleUser),
+				Role:       database.ChatMessageRoleUser,
 				Visibility: database.ChatMessageVisibilityBoth,
 				Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
 			},
@@ -279,12 +298,12 @@ func TestInjectMissingToolResults_SkipsProviderExecuted(t *testing.T) {
 
 	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
 		{
-			Role:       "assistant",
+			Role:       database.ChatMessageRoleAssistant,
 			Visibility: database.ChatMessageVisibilityBoth,
 			Content:    assistantContent,
 		},
 		{
-			Role:       "tool",
+			Role:       database.ChatMessageRoleTool,
 			Visibility: database.ChatMessageVisibilityBoth,
 			Content:    localResult,
 		},
@@ -381,16 +400,16 @@ func TestInjectMissingToolUses_DropsProviderExecutedOrphans(t *testing.T) {
 
 	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
 		// Step 1
-		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: step1Assistant},
-		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: resultA},
-		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: resultB},
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: step1Assistant},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: resultA},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: resultB},
 		// Step 2
-		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: step2Assistant},
-		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: resultC},
-		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: resultD},
-		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: resultE},
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: step2Assistant},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: resultC},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: resultD},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: resultE},
 		// User follow-up
-		{Role: "user", Visibility: database.ChatMessageVisibilityBoth, Content: mustMarshalContent(t, []fantasy.Content{
+		{Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, Content: mustMarshalContent(t, []fantasy.Content{
 			fantasy.TextContent{Text: "?"},
 		})},
 	})
@@ -468,10 +487,10 @@ func TestInjectMissingToolUses_DropsOnlyProviderExecutedMessage(t *testing.T) {
 	)
 
 	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
-		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
-		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: localResult},
-		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: assistant2Content},
-		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: peResult},
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: localResult},
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistant2Content},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: peResult},
 	})
 	require.NoError(t, err)
 
@@ -513,8 +532,8 @@ func TestProviderExecutedResultInAssistantContent(t *testing.T) {
 	})
 
 	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
-		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
-		{Role: "user", Visibility: database.ChatMessageVisibilityBoth, Content: mustMarshalContent(t, []fantasy.Content{
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+		{Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, Content: mustMarshalContent(t, []fantasy.Content{
 			fantasy.TextContent{Text: "Thanks!"},
 		})},
 	})
@@ -586,10 +605,10 @@ func TestProviderExecutedResult_LegacyToolRow(t *testing.T) {
 	)
 
 	prompt, err := chatprompt.ConvertMessages([]database.ChatMessage{
-		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
-		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: peResult},
-		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: execResult},
-		{Role: "user", Visibility: database.ChatMessageVisibilityBoth, Content: mustMarshalContent(t, []fantasy.Content{
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: assistantContent},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: peResult},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: execResult},
+		{Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, Content: mustMarshalContent(t, []fantasy.Content{
 			fantasy.TextContent{Text: "next"},
 		})},
 	})
@@ -921,11 +940,48 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			parts, err := chatprompt.ParseContent(tc.role, tc.raw)
+			parts, err := chatprompt.ParseContent(testMsg(tc.role, tc.raw))
 			require.NoError(t, err)
 			tc.check(t, parts)
 		})
 	}
+}
+
+func TestParseContent_V1(t *testing.T) {
+	t.Parallel()
+
+	t.Run("system", func(t *testing.T) {
+		t.Parallel()
+		raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("You are helpful."),
+		})
+		require.NoError(t, err)
+
+		parts, err := chatprompt.ParseContent(testMsgV1(codersdk.ChatMessageRoleSystem, raw))
+		require.NoError(t, err)
+		require.Len(t, parts, 1)
+		assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+		assert.Equal(t, "You are helpful.", parts[0].Text)
+	})
+
+	t.Run("system_bare_string_errors", func(t *testing.T) {
+		t.Parallel()
+		// A bare JSON string is not valid V1 content.
+		_, err := chatprompt.ParseContent(testMsgV1(
+			codersdk.ChatMessageRoleSystem,
+			nullRaw(json.RawMessage(`"You are helpful."`)),
+		))
+		require.Error(t, err)
+	})
+
+	t.Run("unknown_version_errors", func(t *testing.T) {
+		t.Parallel()
+		msg := testMsgV1(codersdk.ChatMessageRoleUser, nullRaw(json.RawMessage(`[{"type":"text","text":"hi"}]`)))
+		msg.ContentVersion = 99
+		_, err := chatprompt.ParseContent(msg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported content version")
+	})
 }
 
 // TestProviderMetadataRoundTrip verifies that Anthropic cache
@@ -948,7 +1004,7 @@ func TestProviderMetadataRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	// Step 1: ParseContent preserves metadata on the SDK part.
-	parts, err := chatprompt.ParseContent(codersdk.ChatMessageRoleAssistant, legacyContent)
+	parts, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleAssistant, legacyContent))
 	require.NoError(t, err)
 	require.Len(t, parts, 1)
 	require.NotNil(t, parts[0].ProviderMetadata,
@@ -959,7 +1015,7 @@ func TestProviderMetadataRoundTrip(t *testing.T) {
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
 		context.Background(),
 		[]database.ChatMessage{{
-			Role:       "assistant",
+			Role:       database.ChatMessageRoleAssistant,
 			Visibility: database.ChatMessageVisibilityBoth,
 			Content:    legacyContent,
 		}},
@@ -994,7 +1050,7 @@ func TestFileReferencePreservation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Storage round-trip: all fields intact.
-	parts, err := chatprompt.ParseContent(codersdk.ChatMessageRoleUser, raw)
+	parts, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleUser, raw))
 	require.NoError(t, err)
 	require.Len(t, parts, 1)
 	assert.Equal(t, codersdk.ChatMessagePartTypeFileReference, parts[0].Type)
@@ -1007,7 +1063,7 @@ func TestFileReferencePreservation(t *testing.T) {
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
 		context.Background(),
 		[]database.ChatMessage{{
-			Role:       "user",
+			Role:       database.ChatMessageRoleUser,
 			Visibility: database.ChatMessageVisibilityBoth,
 			Content:    raw,
 		}},
@@ -1052,7 +1108,7 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 
 	// Read back via ParseContent (takes the new SDK path, not
 	// the legacy fallback, because the stored format is flat).
-	parts, err := chatprompt.ParseContent(codersdk.ChatMessageRoleAssistant, raw)
+	parts, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleAssistant, raw))
 	require.NoError(t, err)
 	require.Len(t, parts, 1)
 	assert.Equal(t, "response with cache hints", parts[0].Text)
@@ -1062,7 +1118,7 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
 		context.Background(),
 		[]database.ChatMessage{{
-			Role:       "assistant",
+			Role:       database.ChatMessageRoleAssistant,
 			Visibility: database.ChatMessageVisibilityBoth,
 			Content:    raw,
 		}},
@@ -1153,12 +1209,12 @@ func TestMixedFormatConversation(t *testing.T) {
 	require.NoError(t, err)
 
 	messages := []database.ChatMessage{
-		{Role: "system", Visibility: database.ChatMessageVisibilityModel, Content: pqtype.NullRawMessage{RawMessage: systemRaw, Valid: true}},
-		{Role: "user", Visibility: database.ChatMessageVisibilityBoth, Content: pqtype.NullRawMessage{RawMessage: oldUserRaw, Valid: true}},
-		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: oldAssistantRaw},
-		{Role: "tool", Visibility: database.ChatMessageVisibilityBoth, Content: oldToolRaw},
-		{Role: "user", Visibility: database.ChatMessageVisibilityBoth, Content: newUserRaw},
-		{Role: "assistant", Visibility: database.ChatMessageVisibilityBoth, Content: newAssistantRaw},
+		{Role: database.ChatMessageRoleSystem, Visibility: database.ChatMessageVisibilityModel, Content: pqtype.NullRawMessage{RawMessage: systemRaw, Valid: true}},
+		{Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, Content: pqtype.NullRawMessage{RawMessage: oldUserRaw, Valid: true}},
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: oldAssistantRaw},
+		{Role: database.ChatMessageRoleTool, Visibility: database.ChatMessageVisibilityBoth, Content: oldToolRaw},
+		{Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, Content: newUserRaw},
+		{Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth, Content: newAssistantRaw},
 	}
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
@@ -1258,10 +1314,10 @@ func TestQueuedMessageRoundTrip(t *testing.T) {
 
 	// Step 2: PromoteQueued copies the raw bytes into
 	// chat_messages. ParseContent must handle them identically.
-	promoted, err := chatprompt.ParseContent(codersdk.ChatMessageRoleUser, pqtype.NullRawMessage{
+	promoted, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleUser, pqtype.NullRawMessage{
 		RawMessage: raw.RawMessage,
 		Valid:      true,
-	})
+	}))
 	require.NoError(t, err)
 	require.Len(t, promoted, 2)
 	assert.Equal(t, codersdk.ChatMessagePartTypeText, promoted[0].Type)
@@ -1277,7 +1333,7 @@ func TestQueuedMessageRoundTrip(t *testing.T) {
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
 		context.Background(),
 		[]database.ChatMessage{{
-			Role:       "user",
+			Role:       database.ChatMessageRoleUser,
 			Visibility: database.ChatMessageVisibilityBoth,
 			Content:    pqtype.NullRawMessage{RawMessage: raw.RawMessage, Valid: true},
 		}},
@@ -1303,50 +1359,50 @@ func TestParseContent_ErrorPaths(t *testing.T) {
 
 	t.Run("null_content_returns_nil", func(t *testing.T) {
 		t.Parallel()
-		parts, err := chatprompt.ParseContent(codersdk.ChatMessageRoleUser, pqtype.NullRawMessage{})
+		parts, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleUser, pqtype.NullRawMessage{}))
 		require.NoError(t, err)
 		assert.Nil(t, parts)
 	})
 
 	t.Run("empty_content_returns_nil", func(t *testing.T) {
 		t.Parallel()
-		parts, err := chatprompt.ParseContent(codersdk.ChatMessageRoleAssistant, pqtype.NullRawMessage{
+		parts, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleAssistant, pqtype.NullRawMessage{
 			RawMessage: []byte{},
 			Valid:      true,
-		})
+		}))
 		require.NoError(t, err)
 		assert.Nil(t, parts)
 	})
 
 	t.Run("unknown_role", func(t *testing.T) {
 		t.Parallel()
-		_, err := chatprompt.ParseContent(codersdk.ChatMessageRole("banana"), nullRaw(json.RawMessage(`"hello"`)))
+		_, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRole("banana"), nullRaw(json.RawMessage(`"hello"`))))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unsupported chat message role")
 	})
 
 	t.Run("system/malformed_json", func(t *testing.T) {
 		t.Parallel()
-		_, err := chatprompt.ParseContent(codersdk.ChatMessageRoleSystem, nullRaw(json.RawMessage(`not json`)))
+		_, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleSystem, nullRaw(json.RawMessage(`not json`))))
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "parse system content")
 	})
 
 	t.Run("user/malformed_json", func(t *testing.T) {
 		t.Parallel()
-		_, err := chatprompt.ParseContent(codersdk.ChatMessageRoleUser, nullRaw(json.RawMessage(`{not json`)))
+		_, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleUser, nullRaw(json.RawMessage(`{not json`))))
 		require.Error(t, err)
 	})
 
 	t.Run("assistant/malformed_json", func(t *testing.T) {
 		t.Parallel()
-		_, err := chatprompt.ParseContent(codersdk.ChatMessageRoleAssistant, nullRaw(json.RawMessage(`{not json`)))
+		_, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleAssistant, nullRaw(json.RawMessage(`{not json`))))
 		require.Error(t, err)
 	})
 
 	t.Run("tool/malformed_json", func(t *testing.T) {
 		t.Parallel()
-		_, err := chatprompt.ParseContent(codersdk.ChatMessageRoleTool, nullRaw(json.RawMessage(`{not json`)))
+		_, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleTool, nullRaw(json.RawMessage(`{not json`))))
 		require.Error(t, err)
 	})
 }

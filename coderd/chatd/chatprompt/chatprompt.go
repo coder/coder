@@ -91,15 +91,14 @@ func ConvertMessagesWithFiles(
 			continue
 		}
 
-		role := codersdk.ChatMessageRole(msg.Role)
-		parts, err := ParseContent(role, msg.Content)
+		parts, err := ParseContent(msg)
 		if err != nil {
 			return nil, err
 		}
-		parsed[i] = parsedMessage{role: role, parts: parts}
+		parsed[i] = parsedMessage{role: codersdk.ChatMessageRole(msg.Role), parts: parts}
 
 		// Collect file IDs from user messages for resolution.
-		if resolver != nil && msg.Role == string(codersdk.ChatMessageRoleUser) {
+		if resolver != nil && msg.Role == database.ChatMessageRoleUser {
 			for _, part := range parts {
 				if part.Type == codersdk.ChatMessagePartTypeFile && part.FileID.Valid {
 					if _, seen := seenFileIDs[part.FileID.UUID]; !seen {
@@ -262,16 +261,45 @@ func AppendUser(prompt []fantasy.Message, instruction string) []fantasy.Message 
 	return out
 }
 
+const (
+	// ContentVersionV0 is the legacy content format. Parsing uses
+	// role-aware heuristics to distinguish fantasy envelope format
+	// from SDK parts.
+	ContentVersionV0 int16 = 0
+	// ContentVersionV1 stores content as []codersdk.ChatMessagePart
+	// JSON for all roles.
+	ContentVersionV1 int16 = 1
+
+	// CurrentContentVersion is the version used for new inserts.
+	CurrentContentVersion = ContentVersionV1
+)
+
 // ParseContent decodes persisted chat message content blocks into
-// SDK parts. Role-aware: system messages are JSON strings,
-// assistant and user messages use a structural heuristic
-// (isFantasyEnvelopeFormat) to distinguish legacy fantasy envelope
-// from SDK parts, and tool messages use try/fallback.
-func ParseContent(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	if !raw.Valid || len(raw.RawMessage) == 0 {
+// SDK parts. Dispatches on content version: version 0 (legacy) uses
+// a role-aware heuristic to distinguish fantasy envelope format
+// from SDK parts, version 1 (current) unmarshals SDK-format
+// []ChatMessagePart directly.
+func ParseContent(msg database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
+	if !msg.Content.Valid || len(msg.Content.RawMessage) == 0 {
 		return nil, nil
 	}
 
+	role := codersdk.ChatMessageRole(msg.Role)
+
+	switch msg.ContentVersion {
+	case ContentVersionV0:
+		return parseLegacyContent(role, msg.Content)
+	case ContentVersionV1:
+		return parseContentV1(role, msg.Content)
+	default:
+		return nil, xerrors.Errorf("unsupported content version %d", msg.ContentVersion)
+	}
+}
+
+// parseLegacyContent handles content version 0, where the format
+// varies by role and era. Uses structural heuristics to distinguish
+// fantasy envelope format from SDK parts.
+func parseLegacyContent(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
 	switch role {
 	case codersdk.ChatMessageRoleSystem:
 		return parseSystemRole(raw)
@@ -284,6 +312,16 @@ func ParseContent(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) ([]c
 	default:
 		return nil, xerrors.Errorf("unsupported chat message role %q", role)
 	}
+}
+
+// parseContentV1 handles content version 1. Content is a JSON
+// array of ChatMessagePart structs.
+func parseContentV1(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
+	var parts []codersdk.ChatMessagePart
+	if err := json.Unmarshal(raw.RawMessage, &parts); err != nil {
+		return nil, xerrors.Errorf("parse %s content: %w", role, err)
+	}
+	return parts, nil
 }
 
 // parseSystemRole decodes a system message (JSON string) into a

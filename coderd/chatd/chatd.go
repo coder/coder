@@ -268,7 +268,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 		systemPrompt := strings.TrimSpace(opts.SystemPrompt)
 		if systemPrompt != "" {
-			systemContent, err := json.Marshal(systemPrompt)
+			systemContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(systemPrompt),
+			})
 			if err != nil {
 				return xerrors.Errorf("marshal system prompt: %w", err)
 			}
@@ -279,11 +281,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 					UUID:  opts.ModelConfigID,
 					Valid: true,
 				},
-				Role: string(codersdk.ChatMessageRoleSystem),
-				Content: pqtype.NullRawMessage{
-					RawMessage: systemContent,
-					Valid:      len(systemContent) > 0,
-				},
+				Role:                database.ChatMessageRoleSystem,
+				ContentVersion:      chatprompt.CurrentContentVersion,
+				Content:             systemContent,
 				Visibility:          database.ChatMessageVisibilityModel,
 				InputTokens:         sql.NullInt64{},
 				OutputTokens:        sql.NullInt64{},
@@ -309,7 +309,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				UUID:  opts.ModelConfigID,
 				Valid: true,
 			},
-			Role:                string(codersdk.ChatMessageRoleUser),
+			Role:                database.ChatMessageRoleUser,
+			ContentVersion:      chatprompt.CurrentContentVersion,
 			Content:             userContent,
 			CreatedBy:           uuid.NullUUID{UUID: opts.OwnerID, Valid: opts.OwnerID != uuid.Nil},
 			Visibility:          database.ChatMessageVisibilityBoth,
@@ -523,7 +524,7 @@ func (p *Server) EditMessage(
 		if existing.ChatID != opts.ChatID {
 			return ErrEditedMessageNotFound
 		}
-		if existing.Role != "user" {
+		if existing.Role != database.ChatMessageRoleUser {
 			return ErrEditedMessageNotUser
 		}
 
@@ -897,7 +898,8 @@ func insertUserMessageAndSetPending(
 	message, err := insertChatMessageWithStore(ctx, store, database.InsertChatMessageParams{
 		ChatID:              lockedChat.ID,
 		ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:                string(codersdk.ChatMessageRoleUser),
+		Role:                database.ChatMessageRoleUser,
+		ContentVersion:      chatprompt.CurrentContentVersion,
 		Content:             content,
 		CreatedBy:           uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
 		Visibility:          database.ChatMessageVisibilityBoth,
@@ -1950,9 +1952,10 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				nextQueued, popErr := tx.PopNextQueuedMessage(cleanupCtx, chat.ID)
 				if popErr == nil {
 					msg, insertErr := tx.InsertChatMessage(cleanupCtx, database.InsertChatMessageParams{
-						ChatID:        chat.ID,
-						ModelConfigID: uuid.NullUUID{UUID: latestChat.LastModelConfigID, Valid: true},
-						Role:          string(codersdk.ChatMessageRoleUser),
+						ChatID:         chat.ID,
+						ModelConfigID:  uuid.NullUUID{UUID: latestChat.LastModelConfigID, Valid: true},
+						Role:           database.ChatMessageRoleUser,
+						ContentVersion: chatprompt.CurrentContentVersion,
 						Content: pqtype.NullRawMessage{
 							RawMessage: nextQueued.Content,
 							Valid:      len(nextQueued.Content) > 0,
@@ -2345,15 +2348,16 @@ func (p *Server) runChat(
 
 				hasUsage := step.Usage != (fantasy.Usage{})
 				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-					ChatID:        chat.ID,
-					CreatedBy:     uuid.NullUUID{},
-					ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-					Role:          string(codersdk.ChatMessageRoleAssistant),
-					Content:       assistantContent,
-					Visibility:    database.ChatMessageVisibilityBoth,
-					InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
-					OutputTokens:  usageNullInt64(step.Usage.OutputTokens, hasUsage),
-					TotalTokens:   usageNullInt64(step.Usage.TotalTokens, hasUsage),
+					ChatID:         chat.ID,
+					CreatedBy:      uuid.NullUUID{},
+					ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+					Role:           database.ChatMessageRoleAssistant,
+					ContentVersion: chatprompt.CurrentContentVersion,
+					Content:        assistantContent,
+					Visibility:     database.ChatMessageVisibilityBoth,
+					InputTokens:    usageNullInt64(step.Usage.InputTokens, hasUsage),
+					OutputTokens:   usageNullInt64(step.Usage.OutputTokens, hasUsage),
+					TotalTokens:    usageNullInt64(step.Usage.TotalTokens, hasUsage),
 					ReasoningTokens: usageNullInt64(
 						step.Usage.ReasoningTokens,
 						hasUsage,
@@ -2383,7 +2387,8 @@ func (p *Server) runChat(
 					ChatID:              chat.ID,
 					CreatedBy:           uuid.NullUUID{},
 					ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-					Role:                string(codersdk.ChatMessageRoleTool),
+					Role:                database.ChatMessageRoleTool,
+					ContentVersion:      chatprompt.CurrentContentVersion,
 					Content:             resultContent,
 					Visibility:          database.ChatMessageVisibilityBoth,
 					InputTokens:         sql.NullInt64{},
@@ -2676,7 +2681,9 @@ func (p *Server) persistChatContextSummary(
 		return nil
 	}
 
-	systemContent, err := json.Marshal(result.SystemSummary)
+	systemContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(result.SystemSummary),
+	})
 	if err != nil {
 		return xerrors.Errorf("encode system summary: %w", err)
 	}
@@ -2718,14 +2725,12 @@ func (p *Server) persistChatContextSummary(
 
 	txErr := p.db.InTx(func(tx database.Store) error {
 		_, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:        chatID,
-			CreatedBy:     uuid.NullUUID{},
-			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:          string(codersdk.ChatMessageRoleUser),
-			Content: pqtype.NullRawMessage{
-				RawMessage: systemContent,
-				Valid:      len(systemContent) > 0,
-			},
+			ChatID:              chatID,
+			CreatedBy:           uuid.NullUUID{},
+			ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:                database.ChatMessageRoleUser,
+			ContentVersion:      chatprompt.CurrentContentVersion,
+			Content:             systemContent,
 			Visibility:          database.ChatMessageVisibilityModel,
 			Compressed:          sql.NullBool{Bool: true, Valid: true},
 			InputTokens:         sql.NullInt64{},
@@ -2741,12 +2746,13 @@ func (p *Server) persistChatContextSummary(
 		}
 
 		assistantMessage, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:        chatID,
-			CreatedBy:     uuid.NullUUID{},
-			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:          string(codersdk.ChatMessageRoleAssistant),
-			Content:       assistantContent,
-			Visibility:    database.ChatMessageVisibilityUser,
+			ChatID:         chatID,
+			CreatedBy:      uuid.NullUUID{},
+			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:           database.ChatMessageRoleAssistant,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			Content:        assistantContent,
+			Visibility:     database.ChatMessageVisibilityUser,
 			Compressed: sql.NullBool{
 				Bool:  true,
 				Valid: true,
@@ -2765,12 +2771,13 @@ func (p *Server) persistChatContextSummary(
 		insertedMessages = append(insertedMessages, assistantMessage)
 
 		toolMessage, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:        chatID,
-			CreatedBy:     uuid.NullUUID{},
-			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:          string(codersdk.ChatMessageRoleTool),
-			Content:       toolResult,
-			Visibility:    database.ChatMessageVisibilityBoth,
+			ChatID:         chatID,
+			CreatedBy:      uuid.NullUUID{},
+			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:           database.ChatMessageRoleTool,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			Content:        toolResult,
+			Visibility:     database.ChatMessageVisibilityBoth,
 			Compressed: sql.NullBool{
 				Bool:  true,
 				Valid: true,
@@ -3134,10 +3141,10 @@ func (p *Server) maybeSendPushNotification(
 
 			msg, err := p.db.GetLastChatMessageByRole(pushCtx, database.GetLastChatMessageByRoleParams{
 				ChatID: chat.ID,
-				Role:   string(codersdk.ChatMessageRoleAssistant),
+				Role:   database.ChatMessageRoleAssistant,
 			})
 			if err == nil {
-				content, parseErr := chatprompt.ParseContent(codersdk.ChatMessageRoleAssistant, msg.Content)
+				content, parseErr := chatprompt.ParseContent(msg)
 				if parseErr == nil {
 					assistantText := strings.TrimSpace(contentBlocksToText(content))
 					if assistantText != "" {

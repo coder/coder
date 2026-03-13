@@ -3056,11 +3056,15 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		deleteContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued message for delete route"),
+		})
+		require.NoError(t, err)
 		queuedMessage, err := db.InsertChatQueuedMessage(
 			dbauthz.AsSystemRestricted(ctx),
 			database.InsertChatQueuedMessageParams{
 				ChatID:  chat.ID,
-				Content: []byte(`"queued message for delete route"`),
+				Content: deleteContent,
 			},
 		)
 		require.NoError(t, err)
@@ -3138,11 +3142,15 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.NoError(t, err)
 
 		const queuedText = "queued message for promote route"
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(queuedText),
+		})
+		require.NoError(t, err)
 		queuedMessage, err := db.InsertChatQueuedMessage(
 			dbauthz.AsSystemRestricted(ctx),
 			database.InsertChatQueuedMessageParams{
 				ChatID:  chat.ID,
-				Content: []byte(fmt.Sprintf("%q", queuedText)),
+				Content: queuedContent,
 			},
 		)
 		require.NoError(t, err)

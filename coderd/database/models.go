@@ -1049,6 +1049,70 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type ChatMessageRole string
+
+const (
+	ChatMessageRoleSystem    ChatMessageRole = "system"
+	ChatMessageRoleUser      ChatMessageRole = "user"
+	ChatMessageRoleAssistant ChatMessageRole = "assistant"
+	ChatMessageRoleTool      ChatMessageRole = "tool"
+)
+
+func (e *ChatMessageRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMessageRole(s)
+	case string:
+		*e = ChatMessageRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMessageRole: %T", src)
+	}
+	return nil
+}
+
+type NullChatMessageRole struct {
+	ChatMessageRole ChatMessageRole `json:"chat_message_role"`
+	Valid           bool            `json:"valid"` // Valid is true if ChatMessageRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMessageRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMessageRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMessageRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMessageRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMessageRole), nil
+}
+
+func (e ChatMessageRole) Valid() bool {
+	switch e {
+	case ChatMessageRoleSystem,
+		ChatMessageRoleUser,
+		ChatMessageRoleAssistant,
+		ChatMessageRoleTool:
+		return true
+	}
+	return false
+}
+
+func AllChatMessageRoleValues() []ChatMessageRole {
+	return []ChatMessageRole{
+		ChatMessageRoleSystem,
+		ChatMessageRoleUser,
+		ChatMessageRoleAssistant,
+		ChatMessageRoleTool,
+	}
+}
+
 type ChatMessageVisibility string
 
 const (
@@ -3943,7 +4007,7 @@ type ChatMessage struct {
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
 	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
 	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
-	Role                string                `db:"role" json:"role"`
+	Role                ChatMessageRole       `db:"role" json:"role"`
 	Content             pqtype.NullRawMessage `db:"content" json:"content"`
 	Visibility          ChatMessageVisibility `db:"visibility" json:"visibility"`
 	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
@@ -3955,6 +4019,7 @@ type ChatMessage struct {
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
 	Compressed          bool                  `db:"compressed" json:"compressed"`
 	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
+	ContentVersion      int16                 `db:"content_version" json:"content_version"`
 }
 
 type ChatModelConfig struct {

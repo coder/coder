@@ -159,14 +159,12 @@ func titleInput(
 		}
 
 		switch message.Role {
-		case string(codersdk.ChatMessageRoleAssistant), string(codersdk.ChatMessageRoleTool):
+		case database.ChatMessageRoleAssistant, database.ChatMessageRoleTool:
 			return "", false
-		case string(codersdk.ChatMessageRoleUser):
+		case database.ChatMessageRoleUser:
 			userCount++
 			if firstUserText == "" {
-				parsed, err := chatprompt.ParseContent(
-					codersdk.ChatMessageRoleUser, message.Content,
-				)
+				parsed, err := chatprompt.ParseContent(message)
 				if err != nil {
 					return "", false
 				}

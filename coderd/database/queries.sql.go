@@ -3311,7 +3311,7 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version
 FROM
     chat_messages
 WHERE
@@ -3338,13 +3338,14 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.ContextLimit,
 		&i.Compressed,
 		&i.CreatedBy,
+		&i.ContentVersion,
 	)
 	return i, err
 }
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version
 FROM
     chat_messages
 WHERE
@@ -3386,6 +3387,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.ContextLimit,
 			&i.Compressed,
 			&i.CreatedBy,
+			&i.ContentVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -3417,7 +3419,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version
 FROM
     chat_messages
 WHERE
@@ -3483,6 +3485,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.ContextLimit,
 			&i.Compressed,
 			&i.CreatedBy,
+			&i.ContentVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -3626,12 +3629,12 @@ func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, arg GetChatsByOwnerI
 
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version
 FROM
     chat_messages
 WHERE
     chat_id = $1::uuid
-    AND role = $2::text
+    AND role = $2::chat_message_role
 ORDER BY
     created_at DESC, id DESC
 LIMIT
@@ -3639,8 +3642,8 @@ LIMIT
 `
 
 type GetLastChatMessageByRoleParams struct {
-	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
-	Role   string    `db:"role" json:"role"`
+	ChatID uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Role   ChatMessageRole `db:"role" json:"role"`
 }
 
 func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error) {
@@ -3663,6 +3666,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.ContextLimit,
 		&i.Compressed,
 		&i.CreatedBy,
+		&i.ContentVersion,
 	)
 	return i, err
 }
@@ -3793,6 +3797,7 @@ INSERT INTO chat_messages (
     model_config_id,
     role,
     content,
+    content_version,
     visibility,
     input_tokens,
     output_tokens,
@@ -3806,28 +3811,30 @@ INSERT INTO chat_messages (
     $1::uuid,
     $2::uuid,
     $3::uuid,
-    $4::text,
+    $4::chat_message_role,
     $5::jsonb,
-    $6::chat_message_visibility,
-    $7::bigint,
+    $6::smallint,
+    $7::chat_message_visibility,
     $8::bigint,
     $9::bigint,
     $10::bigint,
     $11::bigint,
     $12::bigint,
     $13::bigint,
-    COALESCE($14::boolean, FALSE)
+    $14::bigint,
+    COALESCE($15::boolean, FALSE)
 )
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version
 `
 
 type InsertChatMessageParams struct {
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
 	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
 	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
-	Role                string                `db:"role" json:"role"`
+	Role                ChatMessageRole       `db:"role" json:"role"`
 	Content             pqtype.NullRawMessage `db:"content" json:"content"`
+	ContentVersion      int16                 `db:"content_version" json:"content_version"`
 	Visibility          ChatMessageVisibility `db:"visibility" json:"visibility"`
 	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
 	OutputTokens        sql.NullInt64         `db:"output_tokens" json:"output_tokens"`
@@ -3846,6 +3853,7 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 		arg.ModelConfigID,
 		arg.Role,
 		arg.Content,
+		arg.ContentVersion,
 		arg.Visibility,
 		arg.InputTokens,
 		arg.OutputTokens,
@@ -3874,6 +3882,7 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 		&i.ContextLimit,
 		&i.Compressed,
 		&i.CreatedBy,
+		&i.ContentVersion,
 	)
 	return i, err
 }
@@ -4008,7 +4017,7 @@ SET
 WHERE
     id = $3::bigint
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version
 `
 
 type UpdateChatMessageByIDParams struct {
@@ -4037,6 +4046,7 @@ func (q *sqlQuerier) UpdateChatMessageByID(ctx context.Context, arg UpdateChatMe
 		&i.ContextLimit,
 		&i.Compressed,
 		&i.CreatedBy,
+		&i.ContentVersion,
 	)
 	return i, err
 }
