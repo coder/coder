@@ -2852,7 +2852,7 @@ func (p *Server) resolveChatModel(
 	)
 
 	model, err := chatprovider.ModelFromConfig(
-		dbConfig.Provider, dbConfig.Model, keys,
+		dbConfig.Provider, dbConfig.Model, keys, chatprovider.UserAgent(),
 	)
 	if err != nil {
 		return nil, database.ChatModelConfig{}, chatprovider.ProviderAPIKeys{}, xerrors.Errorf(

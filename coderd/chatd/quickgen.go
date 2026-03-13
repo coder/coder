@@ -76,7 +76,7 @@ func (p *Server) maybeGenerateChatTitle(
 	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
 	for _, c := range preferredTitleModels {
 		m, err := chatprovider.ModelFromConfig(
-			c.provider, c.model, keys,
+			c.provider, c.model, keys, chatprovider.UserAgent(),
 		)
 		if err == nil {
 			candidates = append(candidates, m)
@@ -281,7 +281,7 @@ func generatePushSummary(
 	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
 	for _, c := range preferredTitleModels {
 		m, err := chatprovider.ModelFromConfig(
-			c.provider, c.model, keys,
+			c.provider, c.model, keys, chatprovider.UserAgent(),
 		)
 		if err == nil {
 			candidates = append(candidates, m)
