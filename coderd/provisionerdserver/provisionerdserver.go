@@ -2952,14 +2952,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				scriptsParams.ScriptIDs = append(scriptsParams.ScriptIDs, id)                            // Re-use the devcontainer ID as the script ID for identification.
 				scriptsParams.ScriptDisplayNames = append(scriptsParams.ScriptDisplayNames, displayName)
 				scriptsParams.ScriptLogPaths = append(scriptsParams.ScriptLogPaths, "")
-				scriptsParams.ScriptSources = append(scriptsParams.ScriptSources, `echo "WARNING: Dev Containers are early access. If you're seeing this message then Dev Containers haven't been enabled for your workspace yet. To enable, the agent needs to run with the environment variable CODER_AGENT_DEVCONTAINERS_ENABLE=true set."`)
+				scriptsParams.ScriptSources = append(scriptsParams.ScriptSources, "")
 				scriptsParams.ScriptCron = append(scriptsParams.ScriptCron, "")
 				scriptsParams.ScriptTimeout = append(scriptsParams.ScriptTimeout, 0)
 				scriptsParams.ScriptStartBlocksLogin = append(scriptsParams.ScriptStartBlocksLogin, false)
-				// Run on start to surface the warning message in case the
-				// terraform resource is used, but the experiment hasn't
-				// been enabled.
-				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, true)
+				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, false)
 				scriptsParams.ScriptRunOnStop = append(scriptsParams.ScriptRunOnStop, false)
 			}
 
