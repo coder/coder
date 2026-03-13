@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/agentskills"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -310,6 +311,7 @@ type agent struct {
 	filesAPI   *agentfiles.API
 	gitAPI     *agentgit.API
 	processAPI *agentproc.API
+	skillsAPI  *agentskills.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -386,6 +388,13 @@ func (a *agent) init() {
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
+
+	homeDir, err := userHomeDir()
+	if err != nil {
+		a.logger.Warn(a.hardCtx, "failed to determine home directory for skills discovery", slog.Error(err))
+		homeDir = "/"
+	}
+	a.skillsAPI = agentskills.NewAPI(a.logger.Named("skills"), homeDir)
 
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),

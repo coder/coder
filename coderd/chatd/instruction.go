@@ -111,6 +111,7 @@ func sanitizeInstructionMarkdown(content string) string {
 func formatSystemInstructions(
 	operatingSystem, directory string,
 	sections []instructionFileSection,
+	skills []Skill,
 ) string {
 	hasSections := false
 	for _, s := range sections {
@@ -119,7 +120,7 @@ func formatSystemInstructions(
 			break
 		}
 	}
-	if !hasSections && operatingSystem == "" && directory == "" {
+	if !hasSections && operatingSystem == "" && directory == "" && len(skills) == 0 {
 		return ""
 	}
 
@@ -146,6 +147,11 @@ func formatSystemInstructions(
 		}
 		_, _ = b.WriteString("\n")
 		_, _ = b.WriteString(s.content)
+		_, _ = b.WriteString("\n")
+	}
+	if skillsBlock := formatSkillsBlock(skills); skillsBlock != "" {
+		_, _ = b.WriteString("\n")
+		_, _ = b.WriteString(skillsBlock)
 		_, _ = b.WriteString("\n")
 	}
 	_, _ = b.WriteString("</workspace-context>")
@@ -175,4 +181,75 @@ func isCodersdkStatusCode(err error, statusCode int) bool {
 		return false
 	}
 	return sdkErr.StatusCode() == statusCode
+}
+
+// Skill represents a discovered skill's metadata from a workspace agent.
+type Skill struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Path        string `json:"path"`
+}
+
+// fetchSkillsFromAgent calls the agent's /api/v0/skills endpoint to
+// retrieve discovered skill metadata.
+func fetchSkillsFromAgent(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+) ([]Skill, error) {
+	if conn == nil {
+		return nil, nil
+	}
+
+	skills, err := conn.ListSkills(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch skills from agent: %w", err)
+	}
+
+	// Convert from SDK type to local type
+	result := make([]Skill, 0, len(skills))
+	for _, s := range skills {
+		result = append(result, Skill{
+			Name:        s.Name,
+			Description: s.Description,
+			Path:        s.Path,
+		})
+	}
+	return result, nil
+}
+
+// formatSkillsBlock renders discovered skills as an <available_skills>
+// XML block for injection into the system prompt. Returns empty string
+// if there are no skills.
+func formatSkillsBlock(skills []Skill) string {
+	if len(skills) == 0 {
+		return ""
+	}
+
+	var b strings.Builder
+	_, _ = b.WriteString("<available_skills>\n")
+	for _, s := range skills {
+		_, _ = b.WriteString("  <skill>\n")
+		_, _ = b.WriteString("    <name>")
+		_, _ = b.WriteString(xmlEscape(s.Name))
+		_, _ = b.WriteString("</name>\n")
+		_, _ = b.WriteString("    <description>")
+		_, _ = b.WriteString(xmlEscape(s.Description))
+		_, _ = b.WriteString("</description>\n")
+		_, _ = b.WriteString("    <location>")
+		_, _ = b.WriteString(xmlEscape(s.Path))
+		_, _ = b.WriteString("</location>\n")
+		_, _ = b.WriteString("  </skill>\n")
+	}
+	_, _ = b.WriteString("</available_skills>")
+	return b.String()
+}
+
+// xmlEscape escapes special XML characters in a string.
+func xmlEscape(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, "\"", "&quot;")
+	s = strings.ReplaceAll(s, "'", "&apos;")
+	return s
 }

@@ -2971,8 +2971,9 @@ func (p *Server) resolveInstructions(
 		directory = agent.Directory
 	}
 
-	// Read instruction files from the workspace agent.
+		// Read instruction files and discover skills from the workspace agent.
 	var sections []instructionFileSection
+	var skills []Skill
 	if getWorkspaceConn != nil {
 		instructionCtx, cancel := context.WithTimeout(ctx, homeInstructionLookupTimeout)
 		defer cancel()
@@ -3001,11 +3002,18 @@ func (p *Server) resolveInstructions(
 					sections = append(sections, instructionFileSection{content, source, truncated})
 				}
 			}
+
+			// Discover skills from the agent
+			if fetched, err := fetchSkillsFromAgent(instructionCtx, conn); err != nil {
+				p.logger.Debug(ctx, "failed to fetch skills from agent",
+					slog.F("chat_id", chat.ID), slog.Error(err))
+			} else {
+				skills = fetched
+			}
 		}
 	}
 
-	instruction := formatSystemInstructions(agent.OperatingSystem, directory, sections)
-
+	instruction := formatSystemInstructions(agent.OperatingSystem, directory, sections, skills)
 	p.instructionCacheMu.Lock()
 	p.instructionCache[agentID] = cachedInstruction{
 		instruction: instruction,

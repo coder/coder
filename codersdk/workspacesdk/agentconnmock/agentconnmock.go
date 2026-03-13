@@ -230,6 +230,21 @@ func (mr *MockAgentConnMockRecorder) ListProcesses(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListProcesses", reflect.TypeOf((*MockAgentConn)(nil).ListProcesses), ctx)
 }
 
+// ListSkills mocks base method.
+func (m *MockAgentConn) ListSkills(ctx context.Context) ([]workspacesdk.SkillMetadata, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListSkills", ctx)
+	ret0, _ := ret[0].([]workspacesdk.SkillMetadata)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListSkills indicates an expected call of ListSkills.
+func (mr *MockAgentConnMockRecorder) ListSkills(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSkills", reflect.TypeOf((*MockAgentConn)(nil).ListSkills), ctx)
+}
+
 // ListeningPorts mocks base method.
 func (m *MockAgentConn) ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error) {
 	m.ctrl.T.Helper()
