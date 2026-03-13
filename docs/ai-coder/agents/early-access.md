@@ -89,6 +89,3 @@ Participants will receive reasonable advance notice before:
 Participants are encouraged to share workflow feedback, feature requests,
 performance observations, and operational challenges. Feedback channels are
 coordinated directly with the Coder product team.
-
-You can also file issues on the
-[coder/coder](https://github.com/coder/coder/issues) repository.
