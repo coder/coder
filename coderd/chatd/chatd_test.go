@@ -176,7 +176,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		if getErr != nil {
 			return false
 		}
-		if got.Chat.Status != codersdk.ChatStatusWaiting && got.Chat.Status != codersdk.ChatStatusError {
+		if got.Status != codersdk.ChatStatusWaiting && got.Status != codersdk.ChatStatusError {
 			return false
 		}
 		// Also ensure the subagent LLM call has been made.
@@ -1055,32 +1055,35 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var chatWithMessages codersdk.ChatWithMessages
+	var chatResult codersdk.Chat
 	require.Eventually(t, func() bool {
 		got, getErr := client.GetChat(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
-		chatWithMessages = got
-		return got.Chat.Status == codersdk.ChatStatusWaiting || got.Chat.Status == codersdk.ChatStatusError
+		chatResult = got
+		return got.Status == codersdk.ChatStatusWaiting || got.Status == codersdk.ChatStatusError
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	if chatWithMessages.Chat.Status == codersdk.ChatStatusError {
+	if chatResult.Status == codersdk.ChatStatusError {
 		lastError := ""
-		if chatWithMessages.Chat.LastError != nil {
-			lastError = *chatWithMessages.Chat.LastError
+		if chatResult.LastError != nil {
+			lastError = *chatResult.LastError
 		}
 		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
 	}
 
-	require.NotNil(t, chatWithMessages.Chat.WorkspaceID)
-	workspaceID := *chatWithMessages.Chat.WorkspaceID
+	require.NotNil(t, chatResult.WorkspaceID)
+	workspaceID := *chatResult.WorkspaceID
 	workspace, err := client.Workspace(ctx, workspaceID)
 	require.NoError(t, err)
 	require.Equal(t, workspaceName, workspace.Name)
 
+	chatMsgs, err := client.GetChatMessages(ctx, chat.ID)
+	require.NoError(t, err)
+
 	var foundCreateWorkspaceResult bool
-	for _, message := range chatWithMessages.Messages {
+	for _, message := range chatMsgs.Messages {
 		if message.Role != "tool" {
 			continue
 		}
@@ -1223,33 +1226,36 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var chatWithMessages codersdk.ChatWithMessages
+	var chatResult codersdk.Chat
 	require.Eventually(t, func() bool {
 		got, getErr := client.GetChat(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
-		chatWithMessages = got
-		return got.Chat.Status == codersdk.ChatStatusWaiting || got.Chat.Status == codersdk.ChatStatusError
+		chatResult = got
+		return got.Status == codersdk.ChatStatusWaiting || got.Status == codersdk.ChatStatusError
 	}, testutil.WaitSuperLong, testutil.IntervalFast)
 
-	if chatWithMessages.Chat.Status == codersdk.ChatStatusError {
+	if chatResult.Status == codersdk.ChatStatusError {
 		lastError := ""
-		if chatWithMessages.Chat.LastError != nil {
-			lastError = *chatWithMessages.Chat.LastError
+		if chatResult.LastError != nil {
+			lastError = *chatResult.LastError
 		}
 		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
 	}
 
 	// Verify the workspace was started.
-	require.NotNil(t, chatWithMessages.Chat.WorkspaceID)
+	require.NotNil(t, chatResult.WorkspaceID)
 	updatedWorkspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.Equal(t, codersdk.WorkspaceTransitionStart, updatedWorkspace.LatestBuild.Transition)
 
+	chatMsgs, err := client.GetChatMessages(ctx, chat.ID)
+	require.NoError(t, err)
+
 	// Verify start_workspace tool result exists in the chat messages.
 	var foundStartWorkspaceResult bool
-	for _, message := range chatWithMessages.Messages {
+	for _, message := range chatMsgs.Messages {
 		if message.Role != "tool" {
 			continue
 		}

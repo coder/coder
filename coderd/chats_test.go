@@ -85,12 +85,14 @@ func TestPostChats(t *testing.T) {
 		require.NotNil(t, chat.RootChatID)
 		require.Equal(t, chat.ID, *chat.RootChatID)
 
-		chatWithMessages, err := client.GetChat(ctx, chat.ID)
+		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Equal(t, chat.ID, chatWithMessages.Chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, chatResult.ID)
 
 		foundUserMessage := false
-		for _, message := range chatWithMessages.Messages {
+		for _, message := range messagesResult.Messages {
 			if message.Role != "user" {
 				continue
 			}
@@ -123,9 +125,9 @@ func TestPostChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chatWithMessages, err := client.GetChat(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
-		for _, message := range chatWithMessages.Messages {
+		for _, message := range messagesResult.Messages {
 			require.NotEqual(t, "system", message.Role)
 		}
 	})
@@ -1322,19 +1324,21 @@ func TestGetChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chatWithMessages, err := client.GetChat(ctx, createdChat.ID)
+		chatResult, err := client.GetChat(ctx, createdChat.ID)
 		require.NoError(t, err)
-		require.Equal(t, createdChat.ID, chatWithMessages.Chat.ID)
-		require.Equal(t, firstUser.UserID, chatWithMessages.Chat.OwnerID)
-		require.Equal(t, modelConfig.ID, chatWithMessages.Chat.LastModelConfigID)
-		require.Equal(t, "get chat route payload", chatWithMessages.Chat.Title)
-		require.NotZero(t, chatWithMessages.Chat.CreatedAt)
-		require.NotZero(t, chatWithMessages.Chat.UpdatedAt)
-		require.NotEmpty(t, chatWithMessages.Messages)
-		require.Empty(t, chatWithMessages.QueuedMessages)
+		messagesResult, err := client.GetChatMessages(ctx, createdChat.ID)
+		require.NoError(t, err)
+		require.Equal(t, createdChat.ID, chatResult.ID)
+		require.Equal(t, firstUser.UserID, chatResult.OwnerID)
+		require.Equal(t, modelConfig.ID, chatResult.LastModelConfigID)
+		require.Equal(t, "get chat route payload", chatResult.Title)
+		require.NotZero(t, chatResult.CreatedAt)
+		require.NotZero(t, chatResult.UpdatedAt)
+		require.NotEmpty(t, messagesResult.Messages)
+		require.Empty(t, messagesResult.QueuedMessages)
 
 		foundUserMessage := false
-		for _, message := range chatWithMessages.Messages {
+		for _, message := range messagesResult.Messages {
 			require.Equal(t, createdChat.ID, message.ChatID)
 			require.NotEqual(t, "system", message.Role)
 			for _, part := range message.Content {
@@ -1646,19 +1650,19 @@ func TestPostChatMessages(t *testing.T) {
 			require.True(t, hasTextPart(created.QueuedMessage.Content, messageText))
 
 			require.Eventually(t, func() bool {
-				chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+				messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
 				if getErr != nil {
 					return false
 				}
 
-				for _, queued := range chatWithMessages.QueuedMessages {
+				for _, queued := range messagesResult.QueuedMessages {
 					if queued.ID == created.QueuedMessage.ID &&
 						queued.ChatID == chat.ID &&
 						hasTextPart(queued.Content, messageText) {
 						return true
 					}
 				}
-				for _, message := range chatWithMessages.Messages {
+				for _, message := range messagesResult.Messages {
 					if message.Role == "user" && hasTextPart(message.Content, messageText) {
 						return true
 					}
@@ -1674,11 +1678,11 @@ func TestPostChatMessages(t *testing.T) {
 			require.True(t, hasTextPart(created.Message.Content, messageText))
 
 			require.Eventually(t, func() bool {
-				chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+				messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
 				if getErr != nil {
 					return false
 				}
-				for _, message := range chatWithMessages.Messages {
+				for _, message := range messagesResult.Messages {
 					if message.ID == created.Message.ID &&
 						message.Role == "user" &&
 						hasTextPart(message.Content, messageText) {
@@ -1784,11 +1788,11 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		var found bool
 		require.Eventually(t, func() bool {
-			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
 			if getErr != nil {
 				return false
 			}
-			for _, message := range chatWithMessages.Messages {
+			for _, message := range messagesResult.Messages {
 				if message.Role != "user" {
 					continue
 				}
@@ -1802,7 +1806,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			}
 			// The message may have been queued.
 			if created.Queued && created.QueuedMessage != nil {
-				for _, queued := range chatWithMessages.QueuedMessages {
+				for _, queued := range messagesResult.QueuedMessages {
 					for _, part := range queued.Content {
 						if part.Type == codersdk.ChatMessagePartTypeText &&
 							part.Text == wantText {
@@ -1842,11 +1846,11 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			"```lib/utils.ts\nconst x = 1;\n```"
 
 		require.Eventually(t, func() bool {
-			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
 			if getErr != nil {
 				return false
 			}
-			for _, msg := range chatWithMessages.Messages {
+			for _, msg := range messagesResult.Messages {
 				for _, part := range msg.Content {
 					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
 						return true
@@ -1854,7 +1858,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				}
 			}
 			if created.Queued && created.QueuedMessage != nil {
-				for _, queued := range chatWithMessages.QueuedMessages {
+				for _, queued := range messagesResult.QueuedMessages {
 					for _, part := range queued.Content {
 						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
 							return true
@@ -1889,11 +1893,11 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		// No fenced code block when content is empty.
 		wantText := "[file-reference] README.md:1"
 		require.Eventually(t, func() bool {
-			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
 			if getErr != nil {
 				return false
 			}
-			for _, msg := range chatWithMessages.Messages {
+			for _, msg := range messagesResult.Messages {
 				for _, part := range msg.Content {
 					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
 						return true
@@ -1901,7 +1905,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				}
 			}
 			if created.Queued && created.QueuedMessage != nil {
-				for _, queued := range chatWithMessages.QueuedMessages {
+				for _, queued := range messagesResult.QueuedMessages {
 					for _, part := range queued.Content {
 						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
 							return true
@@ -1937,11 +1941,11 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			"```server.go\nfunc main() {\n\tfmt.Println()\n}\n```"
 
 		require.Eventually(t, func() bool {
-			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
 			if getErr != nil {
 				return false
 			}
-			for _, msg := range chatWithMessages.Messages {
+			for _, msg := range messagesResult.Messages {
 				for _, part := range msg.Content {
 					if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
 						return true
@@ -1949,7 +1953,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				}
 			}
 			if created.Queued && created.QueuedMessage != nil {
-				for _, queued := range chatWithMessages.QueuedMessages {
+				for _, queued := range messagesResult.QueuedMessages {
 					for _, part := range queued.Content {
 						if part.Type == codersdk.ChatMessagePartTypeText && part.Text == wantText {
 							return true
@@ -2017,7 +2021,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		}
 
 		require.Eventually(t, func() bool {
-			chatWithMessages, getErr := client.GetChat(ctx, chat.ID)
+			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
 			if getErr != nil {
 				return false
 			}
@@ -2042,13 +2046,13 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				return true
 			}
 
-			for _, msg := range chatWithMessages.Messages {
+			for _, msg := range messagesResult.Messages {
 				if msg.Role == "user" && checkParts(msg.Content) {
 					return true
 				}
 			}
 			if created.Queued && created.QueuedMessage != nil {
-				for _, queued := range chatWithMessages.QueuedMessages {
+				for _, queued := range messagesResult.QueuedMessages {
 					if checkParts(queued.Content) {
 						return true
 					}
@@ -2201,9 +2205,9 @@ func TestChatMessageWithFiles(t *testing.T) {
 		}
 
 		// Verify file parts omit inline data in the API response.
-		chatWithMessages, err := client.GetChat(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
-		for _, msg := range chatWithMessages.Messages {
+		for _, msg := range messagesResult.Messages {
 			for _, part := range msg.Content {
 				if part.Type == codersdk.ChatMessagePartTypeFile {
 					require.True(t, part.FileID.Valid, "file part should have a valid file_id")
@@ -2297,11 +2301,11 @@ func TestPatchChatMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chatWithMessages, err := client.GetChat(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 
 		var userMessageID int64
-		for _, message := range chatWithMessages.Messages {
+		for _, message := range messagesResult.Messages {
 			if message.Role == "user" {
 				userMessageID = message.ID
 				break
@@ -2329,11 +2333,11 @@ func TestPatchChatMessage(t *testing.T) {
 		}
 		require.True(t, foundEditedText)
 
-		updatedChat, err := client.GetChat(ctx, chat.ID)
+		messagesResult, err = client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 		foundEditedInChat := false
 		foundOriginalInChat := false
-		for _, message := range updatedChat.Messages {
+		for _, message := range messagesResult.Messages {
 			if message.Role != "user" {
 				continue
 			}
@@ -2382,11 +2386,11 @@ func TestPatchChatMessage(t *testing.T) {
 		require.NoError(t, err)
 
 		// Find the user message ID.
-		chatWithMessages, err := client.GetChat(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 
 		var userMessageID int64
-		for _, message := range chatWithMessages.Messages {
+		for _, message := range messagesResult.Messages {
 			if message.Role == "user" {
 				userMessageID = message.ID
 				break
@@ -2424,12 +2428,12 @@ func TestPatchChatMessage(t *testing.T) {
 		require.True(t, foundText, "edited message should contain updated text")
 		require.True(t, foundFile, "edited message should preserve file_id")
 
-		// GET the chat and verify the file_id persists.
-		updatedChat, err := client.GetChat(ctx, chat.ID)
+		// GET the chat messages and verify the file_id persists.
+		messagesResult, err = client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 
 		var foundTextInChat, foundFileInChat bool
-		for _, message := range updatedChat.Messages {
+		for _, message := range messagesResult.Messages {
 			if message.Role != "user" {
 				continue
 			}
@@ -3037,9 +3041,9 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		res.Body.Close()
 		require.Equal(t, http.StatusNoContent, res.StatusCode)
 
-		chatWithMessages, err := client.GetChat(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
-		for _, queued := range chatWithMessages.QueuedMessages {
+		for _, queued := range messagesResult.QueuedMessages {
 			require.NotEqual(t, queuedMessage.ID, queued.ID)
 		}
 
@@ -3136,9 +3140,9 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		}
 		require.True(t, foundPromotedText)
 
-		chatWithMessages, err := client.GetChat(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
-		for _, queued := range chatWithMessages.QueuedMessages {
+		for _, queued := range messagesResult.QueuedMessages {
 			require.NotEqual(t, queuedMessage.ID, queued.ID)
 		}
 

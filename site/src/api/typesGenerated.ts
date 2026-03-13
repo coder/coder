@@ -1231,6 +1231,15 @@ export interface ChatMessageUsage {
 
 // From codersdk/chats.go
 /**
+ * ChatMessagesResponse contains the messages and queued messages for a chat.
+ */
+export interface ChatMessagesResponse {
+	readonly messages: readonly ChatMessage[];
+	readonly queued_messages: readonly ChatQueuedMessage[];
+}
+
+// From codersdk/chats.go
+/**
  * ChatModel represents a model in the chat model catalog.
  */
 export interface ChatModel {
@@ -1629,16 +1638,6 @@ export interface ChatStreamStatus {
  */
 export interface ChatSystemPromptResponse {
 	readonly system_prompt: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatWithMessages is a chat along with its messages.
- */
-export interface ChatWithMessages {
-	readonly chat: Chat;
-	readonly messages: readonly ChatMessage[];
-	readonly queued_messages: readonly ChatQueuedMessage[];
 }
 
 // From codersdk/client.go
