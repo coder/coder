@@ -694,7 +694,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									</Button>
 								</>
 							)}
-							{speech.isSupported && (
+							{speech.isSupported && !isStreaming && (
 								<Button
 									type="button"
 									variant="subtle"
