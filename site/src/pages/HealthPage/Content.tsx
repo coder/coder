@@ -83,7 +83,7 @@ export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
 
 export const Main: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 	return (
-		<main
+		<div
 			css={{
 				padding: `0 ${CONTENT_PADDING}px ${CONTENT_PADDING}px`,
 				display: "flex",

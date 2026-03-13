@@ -17,9 +17,9 @@ const Layout: FC = () => {
 				<div className="flex flex-row gap-12 py-12">
 					<Sidebar user={me} />
 					<Suspense fallback={<Loader />}>
-						<main className="w-full max-w-full">
+						<div className="w-full max-w-full">
 							<Outlet />
-						</main>
+						</div>
 					</Suspense>
 				</div>
 			</Margins>

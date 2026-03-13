@@ -311,6 +311,9 @@ importers:
       '@playwright/test':
         specifier: 1.50.1
         version: 1.50.1
+      '@storybook/addon-a11y':
+        specifier: 10.2.10
+        version: 10.2.10(storybook@10.2.10(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.2(react@19.2.2))(react@19.2.2))
       '@storybook/addon-docs':
         specifier: 10.2.10
         version: 10.2.10(@types/react@19.2.7)(esbuild@0.25.12)(rollup@4.53.3)(storybook@10.2.10(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(vite@7.2.6(@types/node@20.19.25)(jiti@1.21.7)(yaml@2.7.0))
@@ -2313,6 +2316,11 @@ packages:
   '@standard-schema/spec@1.0.0':
     resolution: {integrity: sha512-m2bOd0f2RT9k8QJx1JN85cZYyH1RqFBdlwtkSlf4tBDYLCiiZnv1fIIwacK6cqwXavOydf0NPToMQgpKq+dVlA==, tarball: https://registry.npmjs.org/@standard-schema/spec/-/spec-1.0.0.tgz}
 
+  '@storybook/addon-a11y@10.2.10':
+    resolution: {integrity: sha512-1S9pDXgvbHhBStGarCvfJ3/rfcaiAcQHRhuM3Nk4WGSIYtC1LCSRuzYdDYU0aNRpdCbCrUA7kUCbqvIE3tH+3Q==, tarball: https://registry.npmjs.org/@storybook/addon-a11y/-/addon-a11y-10.2.10.tgz}
+    peerDependencies:
+      storybook: ^10.2.10
+
   '@storybook/addon-docs@10.2.10':
     resolution: {integrity: sha512-2wIYtdvZIzPbQ5194M5Igpy8faNbQ135nuO5ZaZ2VuttqGr+IJcGnDP42zYwbAsGs28G8ohpkbSgIzVyJWUhPQ==, tarball: https://registry.npmjs.org/@storybook/addon-docs/-/addon-docs-10.2.10.tgz}
     peerDependencies:
@@ -3035,6 +3043,10 @@ packages:
   available-typed-arrays@1.0.7:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==, tarball: https://registry.npmjs.org/available-typed-arrays/-/available-typed-arrays-1.0.7.tgz}
     engines: {node: '>= 0.4'}
+
+  axe-core@4.11.1:
+    resolution: {integrity: sha512-BASOg+YwO2C+346x3LZOeoovTIoTrRqEsqMa6fmfAV0P+U9mFr9NsyOEpiYvFjbc64NMrSswhV50WdXzdb/Z5A==, tarball: https://registry.npmjs.org/axe-core/-/axe-core-4.11.1.tgz}
+    engines: {node: '>=4'}
 
   axios@1.13.2:
     resolution: {integrity: sha512-VPk9ebNqPcy5lRGuSlKx752IlDatOjT9paPlm8A7yOuW2Fbvp4X3JznJtT4f0GzGLLiWE9W8onz51SqLYwzGaA==, tarball: https://registry.npmjs.org/axios/-/axios-1.13.2.tgz}
@@ -8653,6 +8665,12 @@ snapshots:
 
   '@standard-schema/spec@1.0.0': {}
 
+  '@storybook/addon-a11y@10.2.10(storybook@10.2.10(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.2(react@19.2.2))(react@19.2.2))':
+    dependencies:
+      '@storybook/global': 5.0.0
+      axe-core: 4.11.1
+      storybook: 10.2.10(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
+
   '@storybook/addon-docs@10.2.10(@types/react@19.2.7)(esbuild@0.25.12)(rollup@4.53.3)(storybook@10.2.10(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(vite@7.2.6(@types/node@20.19.25)(jiti@1.21.7)(yaml@2.7.0))':
     dependencies:
       '@mdx-js/react': 3.1.1(@types/react@19.2.7)(react@19.2.2)
@@ -9413,6 +9431,8 @@ snapshots:
   available-typed-arrays@1.0.7:
     dependencies:
       possible-typed-array-names: 1.0.0
+
+  axe-core@4.11.1: {}
 
   axios@1.13.2:
     dependencies:
