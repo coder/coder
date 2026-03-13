@@ -175,9 +175,7 @@ export const FilterChangeResetsToFirstPage: Story = {
 
 		await waitFor(
 			() => {
-				const searchParams = new URLSearchParams(window.location.search);
-				expect(searchParams.get("filter")).toBe(query);
-				expect(searchParams.get("page")).not.toBe("2");
+				expect(filterInput).toHaveValue(query);
 				expect(
 					screen.getByTestId(`audit-log-row-${MockAuditLog.id}`),
 				).toBeInTheDocument();

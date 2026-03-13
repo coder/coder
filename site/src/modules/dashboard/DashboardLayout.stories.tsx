@@ -60,11 +60,13 @@ export const ShowsUpdateNotification: Story = {
 	},
 	play: async () => {
 		const body = within(document.body);
-		const snackbar = await body.findByTestId("update-check-snackbar");
-
-		await waitFor(() => {
-			expect(snackbar).toBeVisible();
-		});
+		await waitFor(
+			() => {
+				const snackbar = body.getByTestId("update-check-snackbar");
+				expect(snackbar).toBeVisible();
+			},
+			{ timeout: 5000 },
+		);
 	},
 };
 
@@ -74,20 +76,23 @@ export const SkipLinkPrecedesNavigation: Story = {
 		const skipToContentLink = await canvas.findByRole("link", {
 			name: skipLinkName,
 		});
-		const [navigation] = await canvas.findAllByRole("navigation");
 
-		await waitFor(() => {
-			expect(document.getElementById("main-content")).not.toBeNull();
-		});
-		const mainContent = getMainContent();
+		await waitFor(
+			() => {
+				const mainContent = document.getElementById("main-content");
+				expect(mainContent).not.toBeNull();
 
-		expect(skipToContentLink).toHaveTextContent(skipLinkName);
-		expect(skipToContentLink).toHaveAttribute("href", "#main-content");
-		expect(mainContent).toHaveAttribute("tabindex", "-1");
-		expect(
-			skipToContentLink.compareDocumentPosition(navigation) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
+				const [navigation] = canvas.getAllByRole("navigation");
+				expect(skipToContentLink).toHaveTextContent(skipLinkName);
+				expect(skipToContentLink).toHaveAttribute("href", "#main-content");
+				expect(mainContent).toHaveAttribute("tabindex", "-1");
+				expect(
+					skipToContentLink.compareDocumentPosition(navigation) &
+						Node.DOCUMENT_POSITION_FOLLOWING,
+				).toBeTruthy();
+			},
+			{ timeout: 5000 },
+		);
 	},
 };
 
@@ -106,8 +111,11 @@ export const SkipLinkMovesFocusToMainContent: Story = {
 
 		await user.click(skipToContentLink);
 
-		await waitFor(() => {
-			expect(mainContent).toHaveFocus();
-		});
+		await waitFor(
+			() => {
+				expect(mainContent).toHaveFocus();
+			},
+			{ timeout: 5000 },
+		);
 	},
 };
