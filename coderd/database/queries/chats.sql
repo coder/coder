@@ -723,8 +723,17 @@ WHERE owner_id = @user_id::uuid
   AND total_cost_micros IS NOT NULL;
 
 -- name: CountEnabledModelsWithoutPricing :one
+-- Counts enabled, non-deleted model configs that lack both input and
+-- output pricing in their JSONB options.cost configuration.
 SELECT COUNT(*)::bigint AS count
 FROM chat_model_configs
 WHERE enabled = TRUE
-  AND (input_token_price_micros IS NULL OR input_token_price_micros = 0)
-  AND (output_token_price_micros IS NULL OR output_token_price_micros = 0);
+  AND deleted = FALSE
+  AND (
+    options->'cost' IS NULL
+    OR options->'cost' = 'null'::jsonb
+    OR (
+      (options->'cost'->>'input_price_per_million_tokens' IS NULL)
+      AND (options->'cost'->>'output_price_per_million_tokens' IS NULL)
+    )
+  );
